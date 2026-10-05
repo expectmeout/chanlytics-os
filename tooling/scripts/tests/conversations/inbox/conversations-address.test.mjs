@@ -52,6 +52,7 @@ Object.assign(globalThis, {
 });
 const S = "../../../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
 const { cvRoute: route, cvAddress: address } = await import(`${S}/surfaces/inbox/cv-rules.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { installTabMemory, clearTabMemory } = await import(`${S}/legacy-bridge/tab-memory.ts`);
@@ -215,9 +216,7 @@ test("on a desktop a row pressed is the address's, on its tab, replaced -- and t
   tree = redraw({ channel: "phone", initialId: "cv-k7" });
   assert.ok(String(rows(tree)[0].props.className).includes("active"), "and it is the one open");
   assert.ok(
-    String(find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props.className).includes(
-      "phone-detail",
-    ),
+    find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props["data-takeover"],
     "the phone's turn for the pane",
   );
 
@@ -230,8 +229,14 @@ test("on a desktop a row pressed is the address's, on its tab, replaced -- and t
   // A tab pressed is a new place: pushed, by the same spelling.
   fresh();
   tree = ConversationsPage({ channel: "all", initialId: null });
-  press(byTestId(tree, "cv-tab-phone"));
-  press(byTestId(tree, "cv-tab-all"));
+  // The channels are the kit's strip (Base UI's Tabs, held in a browser): a pick is its onSelect, by the tab's id.
+  const strip = (t) => find(t, (n) => n.type === SubTabs).props;
+  assert.ok(
+    strip(tree).tabs.some((t) => t.testid === "cv-tab-phone"),
+    "the channels carry their test ids",
+  );
+  strip(tree).onSelect("phone");
+  strip(tree).onSelect("all");
   assert.deepEqual(went, [
     ["nav", "conversations/phone"],
     ["nav", "conversations"],
@@ -240,7 +245,7 @@ test("on a desktop a row pressed is the address's, on its tab, replaced -- and t
 
 test("on a phone a row pressed is an entry of its own: the viewer's Back steps back through it, and the list returns", () => {
   const phone = (tree) =>
-    String(find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props.className);
+    !!find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props["data-takeover"];
   const viewerBack = (tree) => find(tree, (n) => typeof n.props?.onBack === "function").props.onBack;
   const wasMedia = globalThis.matchMedia;
   globalThis.matchMedia = (q) => ({ matches: q === "(max-width: 720px)" });
@@ -254,14 +259,14 @@ test("on a phone a row pressed is an entry of its own: the viewer's Back steps b
     );
     globalThis.window.location.hash = "#/conversations/phone:cv-k7";
     tree = redraw({ channel: "phone", initialId: "cv-k7" });
-    assert.ok(phone(tree).includes("phone-detail"), "the row is the screen");
+    assert.ok(phone(tree), "the row is the screen");
     viewerBack(tree)();
     assert.deepEqual(went.at(-1), ["back"], "the viewer's own Back is the same step as the system's");
     // Back lands on the list's address: the viewer closes.
     globalThis.window.location.hash = "#/conversations/phone";
     redraw({ channel: "phone", initialId: null });
     tree = redraw({ channel: "phone", initialId: null });
-    assert.ok(!phone(tree).includes("phone-detail"), "the list, not the row");
+    assert.ok(!phone(tree), "the list, not the row");
 
     // A row the address brought (a link, a cold boot) has no entry of its own: it closes to its list in place.
     fresh();
@@ -271,7 +276,7 @@ test("on a phone a row pressed is an entry of its own: the viewer's Back steps b
     viewerBack(tree)();
     assert.ok(!went.some((w) => w[0] === "back"), "never a step back out of the page");
     tree = redraw({ channel: "phone", initialId: "cv-k7" });
-    assert.ok(!phone(tree).includes("phone-detail"));
+    assert.ok(!phone(tree));
   } finally {
     globalThis.matchMedia = wasMedia;
     globalThis.window.location.hash = "#/conversations";

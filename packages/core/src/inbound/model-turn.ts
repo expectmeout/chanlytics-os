@@ -25,7 +25,7 @@ export interface Turn {
 
 /** Who this person is and their visits, for the model; nothing when they cannot be read, which is never fatal. */
 async function leadNoteFor(at: Answering): Promise<string | undefined> {
-  const { db, tenantId, from, ports, rt, L } = at;
+  const { db, tenantId, from, ports, rt, L, channel } = at;
   // The same description the voice agent is given, from the same reader.
   // One receptionist means one account of who this person is — not a name
   // on the phone and an anonymous stranger over text.
@@ -37,7 +37,9 @@ async function leadNoteFor(at: Answering): Promise<string | undefined> {
     try {
       const e164 = from.startsWith("+") ? from : `+${from}`;
       const lead = await ports.leads.read(db, tenantId, e164, 1);
-      leadNote = ports.leads.describe(lead, new Date(), rt?.timezone ?? "UTC");
+      // The conversation's channel rides along: the prompt says WhatsApp even on a text, and the ask for the yes to offers
+      // is for WhatsApp alone (contracts offers-ask.ts).
+      leadNote = ports.leads.describe(lead, new Date(), rt?.timezone ?? "UTC", channel);
       // Their appointments, from the same feed the openings come from:
       // "when is my appointment?" is answered from the calendar, never guessed.
       const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;

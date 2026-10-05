@@ -12,8 +12,11 @@ export const RPT_ANSWERED: ChartConfig = {
   none: { label: "Unanswered", color: "var(--warn)", icon: "alert" },
 };
 
-/** A channel's colour, by the channel and never its place in a list, so the colour follows it whatever its rank. */
-const RPT_CHANNEL_COLORS: Record<ReportChannelKey, string> = {
+/**
+ * A channel's colour, by the channel and never its place in a list, so the colour follows it whatever its rank. Campaigns'
+ * split bar (campaigns/parts/channels.ts) reads the same ones, so a channel is one colour wherever it is drawn.
+ */
+export const RPT_CHANNEL_COLORS: Record<ReportChannelKey, string> = {
   whatsapp: "var(--chart-cat-1)",
   voice: "var(--chart-cat-2)",
   email: "var(--chart-cat-3)",

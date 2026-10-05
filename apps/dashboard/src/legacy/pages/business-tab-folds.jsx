@@ -771,7 +771,7 @@ const BT_RUN_BLOCKS = ["hours"];
  *   whole    every line of its blocks as the save would leave them, which a fold draws under "Your receptionist will
  *            be told" for as long as it is open, changed or not;
  *   caveat   those blocks' own notes (PromptBlockVM.note), where whose lines they are needs saying beside them: the
- *            rules' block carries the Autonomy tab's rules and a line Chanlytics writes, and the hand-off's is sent
+ *            rules' block carries the Autonomy tab's rules and the lines Chanlytics writes, and the hand-off's is sent
  *            whether or not there are reasons. A fold draws them with `whole`; null with none;
  *   chars    those blocks' share of the prompt in characters (PromptBlockVM.chars), or null with no block: what a list
  *            too long to quote whole says in place of its lines (the services sheet's foot);

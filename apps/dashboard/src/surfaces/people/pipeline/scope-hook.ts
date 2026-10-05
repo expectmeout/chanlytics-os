@@ -21,7 +21,6 @@ import {
   usePipelineUi,
 } from "./scope-state";
 import type { PipelineScopeProps } from "./scope-state";
-import { plScopeRoute } from "../words";
 import { gate } from "../../legacy-verbs";
 
 export function usePipelineState(props: PipelineScopeProps) {
@@ -66,7 +65,6 @@ export function usePipelineState(props: PipelineScopeProps) {
     : r.inView.empty
       ? { title: P.words.board.nobody, action: { label: P.words.rail.all, onClick: () => pickView("all") } }
       : null;
-  const onScope = (to: string) => f.nav(plScopeRoute(to));
   const person = usePipelinePerson(r, ui, pk);
   const line = r.loaded ? [...r.all.line, { words: r.loaded, view: null, tone: null }] : r.all.line;
   return {
@@ -86,7 +84,6 @@ export function usePipelineState(props: PipelineScopeProps) {
     newActs,
     newGate,
     emptyWords,
-    onScope,
     person,
     line,
   };

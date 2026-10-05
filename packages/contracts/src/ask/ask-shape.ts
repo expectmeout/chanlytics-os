@@ -35,6 +35,8 @@ export interface AskTurnShape {
   replay: "live" | "rebuilt" | "none";
   /** From the palette opening to the question being sent, as the tab measured it. */
   opened_ms: number | null;
+  /** The person was listening, not reading (the voice door, spec 2026-10-03 §3.4): the day's numbers read by mode. */
+  spoken: boolean;
   /**
    * The page's context as the turn read it (the Phase 2 plan, PR 2.4): the rows its blocks carried, after the server
    * read every id again and the caps (null when the tab sent none, or the build failed); every block's characters;

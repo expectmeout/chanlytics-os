@@ -1,7 +1,7 @@
 /**
  * The replies to a workspace's reach-outs, as the shell's pages read them (Reach out Part 5, PR 7): the readings of the
  * last thirty days as `__REPLIES`, and `__replies`, the undo and the words the Inbox draws them in (contracts
- * reach-out-reply-words.ts), handed over as `__reachOuts` hands its words. Its own surface, so the moments' read
+ * reach-out-reply-words.ts). Its own surface, so the moments' read
  * (surface-data.ts) takes nothing more; it is read again when a reading is kept, drafted or undone.
  */
 import {

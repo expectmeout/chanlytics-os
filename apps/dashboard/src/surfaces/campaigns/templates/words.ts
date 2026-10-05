@@ -48,9 +48,6 @@ export const tplSpell = (n: number): string => TPL_WORDS[n] || String(n);
 // Words for people: a starter's title, the workspace's own, or the name with its underscores made spaces.
 export const tplTitle = (t: Parameters<typeof starters.title>[0]): string => starters.title(t);
 
-// Meta's own sample lives in every account and is nobody's message: never shown, whatever the sync keeps.
-export const TPL_SAMPLES = new Set(["hello_world"]);
-
 /** What the workspace says of its business in Settings (`__SETTINGS.config.brain`): nothing where it has said nothing. */
 export const brainOf = (settings: SettingsRecord | null | undefined): NonNullable<WorkspaceSettings["brain"]> =>
   (settings && settings.config && settings.config.brain) || {};
@@ -94,3 +91,53 @@ export const tplSlotWord = (kind: string | undefined, label: string | undefined,
   String(label || `value ${n}`)
     .toLowerCase()
     .replace(/^(the|la|el|los|las) /, "");
+
+/**
+ * What the page says of a message's email and text versions (One message, every channel, step 1): the switch, the quiet
+ * lines under a version, the editor's labels and what each act says when it is done. The channels' own names are
+ * contracts' (VERSION_CHANNEL_WORDS) and a sentence that names one takes it in; a refusal is the server's, said as it
+ * comes.
+ */
+const lower = (channel: string): string => channel.toLowerCase();
+export const TPL_VERSION_WORDS = {
+  /** The switch's name to a screen reader. */
+  switchName: (title: string): string => `Channel for ${title}`,
+  /** The message has no version on this channel in the language in view. */
+  none: (channel: string, language: string): string => `No ${lower(channel)} version in ${language} yet.`,
+  write: (channel: string): string => `Write the ${lower(channel)} version`,
+  /** A starter not added yet: its version is shown as written, and comes with the set. */
+  withStarters: "This version comes with the starter set: adding the message adds it too.",
+  /** A starter not added yet that the library wrote no version of on this channel. */
+  noneInSet: (channel: string): string => `The starter set has no ${lower(channel)} version of this message.`,
+  edit: "Edit",
+  remove: "Remove",
+  moreFor: (channel: string): string => `More for the ${lower(channel)} version`,
+  removeAsk: (channel: string, language: string): string => `Remove the ${lower(channel)} version in ${language}?`,
+  removeDetail: "The message and its other versions stay.",
+  removeYes: "Yes, remove",
+  /** The editor's labels. */
+  subjectLabel: "Subject",
+  bodyLabel: "Message",
+  addValue: "Add a value",
+  addValueName: (channel: string): string => `Add a value to the ${lower(channel)}`,
+  /** What a screen reader says of a value in the words: its name, and that each person has their own. */
+  slotSaid: (name: string): string => `${name}, filled in for each person`,
+  slotUnknownSaid: (name: string): string => `${name}, which this message does not have`,
+  /** The line over the preview that sits beside the words being written. */
+  previewCaption: "How one person reads it",
+  save: "Save",
+  saving: "Saving…",
+  cancel: "Cancel",
+  leaves: "saved",
+  /** How long the subject is, against what an inbox shows. */
+  subjectCount: (n: number, max: number): string => `${n} of ${max}`,
+  /** What a text comes to on the wire, STOP line included. */
+  counter: (chars: number, parts: number): string =>
+    `${chars} ${chars === 1 ? "character" : "characters"} · ${parts} ${parts === 1 ? "part" : "parts"}`,
+  /** The save did not reach the server at all; a refusal it did give is said in its own words. */
+  saveFailed: "That did not save. Try again in a moment.",
+  saved: (title: string, channel: string, language: string): string =>
+    `${title}: the ${lower(channel)} version in ${language} is saved`,
+  removed: (title: string, channel: string, language: string): string =>
+    `${title}: the ${lower(channel)} version in ${language} is removed`,
+};

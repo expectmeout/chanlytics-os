@@ -549,8 +549,15 @@ test("support sees the customer's own Setup, from the customer's own function", 
 });
 
 test("the nav's one bit rides on the payload the seam already fetches", () => {
-  const route = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
-  assert.match(route, /const platformAdmin = await isPlatformAdmin\(ctx\);/);
+  const route = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/workspace-list.ts",
+  );
+  // Read beside the boot's other reads, not after them (2 Oct 2026): one of the answers the route awaits together.
+  assert.match(
+    route,
+    /\[tenants, profileRead, platformAdmin, [\s\S]*?\] = await Promise\.all\(\[[\s\S]*?isPlatformAdmin\(ctx\),/,
+  );
   assert.match(route, /platform_admin: platformAdmin/);
   // Both exits carry it: the one with workspaces and the one for somebody who
   // has none yet. A missing field reads as false and hides the tab from an
@@ -560,7 +567,7 @@ test("the nav's one bit rides on the payload the seam already fetches", () => {
   assert.match(bridge, /platform_admin\?: boolean;/);
   // It is not the authorization, and the comment says so where somebody would
   // otherwise be tempted to trust it.
-  assert.match(readRaw("apps/dashboard/app/api/v1/workspaces/route.ts"), /NOT the authorization/);
+  assert.match(readRaw("apps/dashboard/src/server/workspace/workspace-list.ts"), /NOT the authorization/);
 });
 
 /* ----------------------------- the boundary, executed ---------------------- *
@@ -583,7 +590,9 @@ const workspaceTables = () => ({
   tenant_channels: [{ tenant_id: TENANT, kind: "voice", status: "active", number_e164: "+19296566623", config: {} }],
   messages: [{ tenant_id: TENANT, direction: "inbound", channel: "whatsapp", channel_ts: ago(1), created_at: ago(1) }],
   calls: [{ tenant_id: TENANT, direction: "inbound", started_at: ago(2) }],
-  templates: [{ tenant_id: TENANT, name: "visit_reminder", meta_status: "approved", hidden_at: null }],
+  templates: [
+    { tenant_id: TENANT, channel: "whatsapp", name: "visit_reminder", meta_status: "approved", hidden_at: null },
+  ],
   memberships: [
     { id: "m1", tenant_id: TENANT },
     { id: "m2", tenant_id: TENANT },

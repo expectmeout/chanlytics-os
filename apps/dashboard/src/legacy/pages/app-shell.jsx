@@ -83,14 +83,14 @@ const THREAD_CLIENT = {
 const NAV_ROUTE = {
   home: "today",
   people: "clients",
-  campaigns: "outbound",
+  campaigns: "campaigns",
   agents: "fleet",
   inbox: "inbox",
   clients: "clients",
   store: "store",
   fleet: "fleet",
   studio: "studio",
-  outbound: "outbound",
+  outbound: "campaigns",
   content: "content",
   broadcasts: "broadcasts",
   messages: "messages",
@@ -160,7 +160,20 @@ const PHONE_TABS = [
   { id: "calendar", route: "calendar", icon: "calendar", label: "Calendar" },
   { id: "people", route: "clients", icon: "users", label: "People" },
 ];
+// A pointer that reaches a sidebar item warms its page (workspace.ts warmRoute), so the press that follows asks the server
+// for nothing. The item says which it is (sidebar.jsx data-nav).
+const sideWarm = (e) => {
+  const item = e.target && e.target.closest ? e.target.closest("[data-nav]") : null;
+  const a = window.CHANLY && window.CHANLY.address;
+  if (item && a && a.warm) a.warm(NAV_ROUTE[item.dataset.nav] || item.dataset.nav);
+};
 const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
+  // The four places a thumb goes, warmed once the page is idle and when a finger reaches one (workspace.ts warmRoute).
+  useShellEffect(() => {
+    const a = window.CHANLY && window.CHANLY.address;
+    if (a && a.warmSoon) a.warmSoon(PHONE_TABS.map((t) => t.route));
+  }, [page]);
+  const warm = (route) => { const a = window.CHANLY && window.CHANLY.address; if (a && a.warm) a.warm(route); };
   const activeOf = (t) => page === t.route;
   const badge = (t) => (t.id === "inbox" && inboxNeeds > 0 ? String(inboxNeeds) : null);
   return (
@@ -170,6 +183,7 @@ const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
           key={t.id}
           type="button"
           className={`phone-tab ${activeOf(t) ? "active" : ""}`}
+          onTouchStart={() => warm(t.route)}
           onClick={() => onNavigate(t.route)}
           aria-current={activeOf(t) ? "page" : undefined}
         >
@@ -523,12 +537,13 @@ const sharedViewer = ({ theme, look, navigate, sharedPage }) => (
   </div>
 );
 
-// The first run: full screen, the shell's chrome set aside, after all hooks as the shared viewer is (first-run.jsx). Ask
-// is the one piece of the chrome it keeps: ⌘K opens the Line over the step, on the start surface (Ask Rewired, Phase 7).
-// No door is drawn for it here; the first run draws no chrome, and no key is drawn outside the ? sheet.
-const firstRunScreen = ({ theme, look, param, navigate, askOpen, setAskOpen }) => (
+// The first run: full screen, the shell's chrome set aside, after all hooks as the shared viewer is. Its page is an App
+// Router page (surfaces/setup/first-run/, the layout's children: `routePage`). Ask is the one piece of the chrome it
+// keeps: ⌘K opens the Line over the step, on the start surface (Ask Rewired, Phase 7). No door is drawn for it here; the
+// first run draws no chrome, and no key is drawn outside the ? sheet.
+const firstRunScreen = ({ theme, look, routePage, askOpen, setAskOpen }) => (
   <div className="fr-shell" data-theme={theme} data-look={look}>
-    <window.FirstRun param={param} onNavigate={navigate} />
+    {routePage}
     <AskBar open={askOpen} onClose={() => setAskOpen(false)} />
   </div>
 );
@@ -541,13 +556,13 @@ const firstRunScreen = ({ theme, look, param, navigate, askOpen, setAskOpen }) =
  * and only the top bar stays (Ruben, 1 Oct 2026: the greeting stood still over a page that moved). Classic draws the
  * row of views alone, over the page. Called twice, once for each place; one draws, the other draws nothing.
  */
-const glassHead = ({ glass, pane, where, page, param, navigate, primaryAction }) => {
-  if (!glass) return where === "over" ? <SurfaceTabs page={page} param={param} onNavigate={navigate} /> : null;
+const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAction }) => {
+  if (!glass) return where === "over" ? <SurfaceTabs page={page} param={param} views={views} onNavigate={navigate} /> : null;
   if ((where === "over") !== pane) return null;
   return (
     <div className="pg-slot">
       <div className="pg-head-slot" id="pg-head" />
-      <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+      <SurfaceTabs page={page} param={param} views={views} onNavigate={navigate} />
       <div className="pg-act-slot">
         <span id="pg-act" />
         {primaryAction}
@@ -558,7 +573,7 @@ const glassHead = ({ glass, pane, where, page, param, navigate, primaryAction })
 
 const appChrome = (s) => {
   const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
-  const { page, param, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
+  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
   const glass = look === "glass";
   return (
     <div className="app-root" data-theme={theme} data-look={look}>
@@ -566,7 +581,7 @@ const appChrome = (s) => {
       <button type="button" className="skip-link" onClick={() => focusPage(true)}>Skip to the page</button>
       {/* On a phone the sidebar is a drawer. Open, it is a dialog, so a page's keys hold still behind it (People's Esc
           cleared its selection as the drawer closed). Not aria-modal: it does not move focus into itself. */}
-      <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined}>
+      <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined} onPointerOver={sideWarm}>
         {/* The wash stands just before the drawer, where a thumb sliding the drawer away finds it to fade (data-bits
             touchSwipe). */}
         {navOpen && <div className="nav-backdrop" role="presentation" onClick={() => setNavOpen(false)} />}
@@ -602,7 +617,7 @@ const appChrome = (s) => {
             it is the one thing on this line that stops being true by itself. */}
         <LiveCallBar />
         <ShellStatusBar />
-        {glassHead({ glass, pane, where: "over", page, param, navigate, primaryAction })}
+        {glassHead({ glass, pane, where: "over", page, param, views, navigate, primaryAction })}
         {/* On a phone a swipe across the page walks the strip over it (surface-tabs.jsx stripSwipe). */}
         <main
           id="main"
@@ -611,7 +626,7 @@ const appChrome = (s) => {
           aria-busy={routeLoading ? "true" : undefined}
           {...(window.stripSwipe ? window.stripSwipe() : {})}
         >
-          {glassHead({ glass, pane, where: "inside", page, param, navigate, primaryAction })}
+          {glassHead({ glass, pane, where: "inside", page, param, views, navigate, primaryAction })}
           <ShellErrorBoundary>
             {routeLoading
               ? <div className="route-reading" role="status">Reading…</div>
@@ -703,7 +718,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
 
   // The two full-screen pages, after all hooks so the hook order stays identical on every route.
   if (page === "shared" && !demoGated) return sharedViewer({ theme, look, navigate, sharedPage });
-  if (page === "start" && !demoGated && window.FirstRun) return firstRunScreen({ theme, look, param, navigate, askOpen, setAskOpen });
+  if (page === "start" && !demoGated && routePage) return firstRunScreen({ theme, look, routePage, askOpen, setAskOpen });
 
   return appChrome({
     theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace,

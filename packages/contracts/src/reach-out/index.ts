@@ -1,12 +1,10 @@
 /** Reach out: the campaign email's words and rules, its timetable, and the hours and time zones the window keeps. */
 export {
   whyFrom,
-  campaignFooter,
-  campaignFooterHtml,
   isCampaignEmail,
+  CAMPAIGN_EMAIL_TAG,
   unsubscribePageWords,
   WHY_FROM_MAPS,
-  MARKETING_LINE,
   UNSUBSCRIBE_PAGE_HEADER,
 } from "./reach-out";
 export type { UnsubscribeView, UnsubscribePageWords } from "./reach-out";
@@ -26,7 +24,9 @@ export {
   outreachRefusalOf,
   isWaitRefusal,
   isReachOutRun,
-  reachOutSlots,
+  reachOutEmailOf,
+  reachOutExampleValues,
+  REACH_OUT_LANGUAGE,
   OUTREACH_WAIT_REFUSALS,
   REACH_OUT_MONTH_EMAILS,
 } from "./reach-out-rules";
@@ -48,6 +48,7 @@ export { REACH_OUT_CHECKS_PER_DAY } from "./reach-out-rules";
 export type { SlotWorkspace } from "./reach-out-rules";
 export {
   REACH_OUT_SLOTS,
+  REACH_OUT_SLOT_SET,
   REACH_OUT_SLOT_WORDS,
   REACH_OUT_SUBJECT_MAX,
   REACH_OUT_BODY_MAX,
@@ -60,12 +61,9 @@ export {
   SIGNED_BY_MAX,
   REACH_OUT_GAP_MINUTES,
   REACH_OUT_AFTER_DAYS,
-  slotKey,
-  isReachOutSlot,
-  slotsNamed,
-  replaceSlots,
   slotCount,
-  slotParts,
+  reachOutSlotFault,
+  reachOutRules,
   wordsNeedOpening,
   wordCount,
   emailWordCount,
@@ -74,8 +72,6 @@ export {
   shoutingLine,
   validateReachOutWords,
   wordsIssueWords,
-  ReachOutStepSchema,
-  ReachOutChainSchema,
   validateReachOutChain,
   chainIssueWords,
   OPENING_FACT_KEYS,
@@ -94,11 +90,11 @@ export {
   holdDoors,
   HOLD_DOOR_WORDS,
 } from "./reach-out-words";
+export { ReachOutStepSchema, ReachOutChainSchema } from "./reach-out-schemas";
 export type {
   ReachOutSlot,
   WordsProblem,
   WordsIssue,
-  ReachOutChainInput,
   ChainProblem,
   ChainIssue,
   OpeningFactKey,
@@ -108,12 +104,9 @@ export type {
   ReachOutHold,
   HoldDoor,
 } from "./reach-out-words";
-export {
-  REACH_OUT_PREVIEW_INDEX_MAX,
-  ReachOutPreviewSchema,
-  REACH_OUT_DECISIONS,
-  ReachOutDecideSchema,
-} from "./reach-out-dtos";
+export type { ReachOutChainInput } from "./reach-out-schemas";
+export { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS } from "./reach-out-dtos";
+export { ReachOutPreviewSchema, ReachOutDecideSchema } from "./reach-out-schemas";
 export type {
   ReachOutStepDto,
   ReachOutNextFacts,
@@ -125,11 +118,11 @@ export type {
   ReachOutPreviewDto,
   ReachOutStartDto,
   ReachOutSavedDto,
-  ReachOutPreviewInput,
   ReachOutDecision,
   ReachOutHeldSend,
   ReachOutRunDto,
 } from "./reach-out-dtos";
+export type { ReachOutPreviewInput } from "./reach-out-schemas";
 export {
   REACH_OUT_SHEET_WORDS,
   REACH_OUT_REFUSALS,
@@ -168,7 +161,6 @@ export {
   reachOutAfterDayChoices,
   reachOutChainBodyOf,
   reachOutDraftIssues,
-  insertSlotAt,
   reachOutSheetPaceOf,
   previewRefusedWords,
   previewLinesOf,
@@ -176,6 +168,7 @@ export {
   reachOutMayPickDomain,
   reachOutPreviewOf,
   reachOutSavedWords,
+  reachOutEditedWords,
   reachOutSheetUnreadOf,
   reachOutWhoWords,
 } from "./reach-out-draft";
@@ -231,21 +224,21 @@ export {
   REPLIES_PAGE,
   REPLY_UNDO_REFUSALS,
   isReplyUndoRefusal,
-  ReachOutRepliesQuerySchema,
   replyStripOf,
   replyChipOf,
   replyFromLineOf,
   replyLeftAsOf,
 } from "./reach-out-reply-words";
+export { ReachOutRepliesQuerySchema } from "./reach-out-schemas";
 export type {
   ReplyUndoRefusal,
   ReplyFrom,
   ReachOutReplyDto,
-  ReachOutRepliesQuery,
   ReachOutRepliesDto,
   ReplyStrip,
   ReplyDoor,
 } from "./reach-out-reply-words";
+export type { ReachOutRepliesQuery } from "./reach-out-schemas";
 export { replyRowOf, withReplies, bellActionOf } from "./reach-out-reply-today";
 export type {
   ReplyIntent,

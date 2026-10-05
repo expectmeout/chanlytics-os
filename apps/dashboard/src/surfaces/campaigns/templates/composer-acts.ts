@@ -8,8 +8,8 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { StarterTemplate } from "@chanlytics/contracts";
-import { tabDraft } from "../../legacy-parts";
-import type { UnsavedWork } from "../../legacy-parts";
+import { tabDraft } from "../../kit/record/work";
+import type { UnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
 import { starters, templates } from "./verbs";
 import { brainOf } from "./words";

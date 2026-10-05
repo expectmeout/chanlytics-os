@@ -14,7 +14,7 @@
  */
 import { DATA_NOT_INSTRUCTIONS } from "../ai/fence";
 import type { SystemOneQuestion } from "../ai/system-one";
-import { isRealDate } from "../config/workspace-config/config-schema";
+import { isRealDate } from "../config/workspace-config/config-rules";
 import { mondayOf, shiftKey } from "../calendar/day-keys";
 import { clipAtWord } from "../conversations/message-words";
 import { isSiteRoot, siteHost } from "../leads/search/clean";

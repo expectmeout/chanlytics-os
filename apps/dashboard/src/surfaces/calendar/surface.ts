@@ -6,7 +6,7 @@
 import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
+import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
 import { knownZone, workspaceZone } from "@/legacy-bridge/zone";
 import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
@@ -64,6 +64,31 @@ export function paintHeldCalendar(): boolean {
   setSurfaceValue("calendar", have);
   window.dispatchEvent(new CustomEvent("surface:calendar"));
   return true;
+}
+
+/** Windows being read ahead of need, by workspace and span: a board that draws again asks for none twice. */
+const warming = new Set<string>();
+
+/**
+ * Read a window the board is likely to move to and hold it, so the move paints at once (warm.ts says which). A window
+ * already held or already on its way is left alone; a read that fails costs nothing, since the move reads it when it is
+ * made; and one that lands after the tab changed workspace is dropped, never held under the other one.
+ */
+export async function warmCalendar(w: { from: string; days: number }): Promise<void> {
+  const key = calendarSpanKey(w);
+  const scope = () => `${getActiveWorkspace() ?? "-"}|${key}`;
+  const at = scope();
+  if (calendarHeld.has(key) || warming.has(at)) return;
+  warming.add(at);
+  try {
+    const data = await read("GET calendar", { query: { from: w.from, days: String(w.days) } });
+    if (scope() !== at) return;
+    calendarHeld.hold(key, { vm: toCalendarVM(data.calendar, new Date()), fetchedAt: Date.now() });
+  } catch {
+    /* the move reads it when it is made */
+  } finally {
+    warming.delete(at);
+  }
 }
 
 /**

@@ -64,7 +64,7 @@ const SHELL = SRC.filter((f) => f.startsWith("apps/dashboard/src/"));
 /** A route module exports what the framework names (GET, POST, default); those are not copies. */
 const notARoute = (f) => !/^apps\/dashboard\/app\/|^apps\/edge\/api\//.test(f);
 /** The doors: the edge's provider webhooks, sweeps and admin doors, and the dashboard's member routes. */
-const ROUTES = SRC.filter((f) => /^apps\/edge\/api\/|^apps\/dashboard\/app\/api\//.test(f) && /\.tsx?$/.test(f));
+export const ROUTES = SRC.filter((f) => /^apps\/edge\/api\/|^apps\/dashboard\/app\/api\//.test(f) && /\.tsx?$/.test(f));
 /**
  * What a door does not import (specifiers as written, so the edge's relative facade of a package is a pattern of its
  * own beside the package): a repository (`@chanlytics/db`, or supabase-js, which is one's client) and a provider client

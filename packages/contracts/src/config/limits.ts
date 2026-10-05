@@ -2,7 +2,7 @@
  * The day's token budget (limits.max_llm_tokens_day), as one predicate: the receptionist's answer and a reach-out
  * reply's draft (decision 0017) both ask it, so "used at or over the cap stops" is written once.
  */
-import type { PolicyLimits } from "./workspace-config/policy-classes";
+import type { PolicyLimits } from "./workspace-config/policy-limits-schema";
 
 /**
  * The day's model budget a new workspace starts with (provision_tenant, 00274): the Autonomy pane's "1M" step. The

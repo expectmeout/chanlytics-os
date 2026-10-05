@@ -6,10 +6,10 @@
  * sentence the pane says. No client, no network. The share is a number on the row (share_bp), never a constant
  * here: the words print what the row holds.
  */
-import { z } from "zod";
 import { moneyWords } from "./billing";
 import { PLATFORM_VERDICTS, platformRows, type PlatformTenantDto, type PlatformVerdict } from "./platform";
 import type { Tone } from "../shell/tone";
+import type { PartnerLetterNews } from "./partner-schema";
 
 /** The row, as `GET partner` answers it. */
 export interface PartnerDto {
@@ -63,17 +63,6 @@ export function cleanPartnerCode(raw: unknown): { ok: true; code: string } | { o
 
 /** Whether a string is a code at all: the link's route answers a bad one with no cookie and no error. */
 export const isPartnerCode = (raw: unknown): raw is string => cleanPartnerCode(raw).ok;
-
-/** POST partner: the code, and the terms said yes to. */
-export const PartnerBecomeSchema = z
-  .object({
-    code: z.string().trim().min(1).max(64),
-    terms: z.literal(true, { message: "The terms have to be accepted." }),
-  })
-  .strict();
-
-/** `PATCH partner`: the daily letter on or off (0014). */
-export const PartnerLettersSchema = z.object({ letters: z.boolean() }).strict();
 
 /* ------------------------------------------------------------------ the link */
 
@@ -615,53 +604,6 @@ export function partnerStandingOutcomeWords(r: { standing: string; voided: numbe
       : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
 }
-
-/* --------------------------------------------------------------- the letter (0014) */
-
-/** A sum as the database sends it: a bigint arrives as a number or a string. */
-const letterCents = z.coerce.number();
-const letterSum = z.object({ currency: z.string(), cents: letterCents });
-
-/**
- * What partner_letters_due (00209) says changed for one partner since their last letter, and where they stand: parsed,
- * never cast, so a letter is only ever written from the shape the function answers. A key it leaves out is empty.
- */
-export const PartnerLetterNewsSchema = z.object({
-  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z
-    .array(z.object({ kind: z.string(), currency: z.string(), count: z.coerce.number(), cents: letterCents }))
-    .default([]),
-  /** Rows written before the last letter that became payable since. */
-  matured: z.array(letterSum).default([]),
-  /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z.array(letterSum).default([]),
-  paid: z
-    .array(z.object({ currency: z.string(), cents: letterCents, reference: z.string(), sent_at: z.string() }))
-    .default([]),
-  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z
-    .array(z.object({ workspace: z.string().nullable(), standing: z.string(), why: z.string().nullable() }))
-    .default([]),
-  /** Workspaces that came through the link since. */
-  brought: z.array(z.string().nullable()).default([]),
-  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z.array(z.string().nullable()).default([]),
-  declined: z.array(z.string().nullable()).default([]),
-  /** The partner's own status, when it changed since. */
-  status: z.object({ status: z.string(), why: z.string().nullable() }).nullable().default(null),
-  balance: z
-    .array(
-      z.object({
-        currency: z.string(),
-        held: letterCents,
-        payable: letterCents,
-        paid: letterCents,
-        next_payable_at: z.string().nullable(),
-      }),
-    )
-    .default([]),
-});
-export type PartnerLetterNews = z.infer<typeof PartnerLetterNewsSchema>;
 
 /** Where the letter sends the partner: their pane, on whichever workspace the dashboard opens. */
 export const partnerPaneUrl = (origin: string): string => `${origin.replace(/\/+$/, "")}/#/admin/partner`;

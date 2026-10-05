@@ -1,7 +1,8 @@
 /**
  * Identity and workspace on the classic pages: the words for who is signed in
- * and for a member (contracts/identity.ts), the one write a person may make
- * about themselves — their name — and the ones their workspace owns, its
+ * and for a member (contracts/identity.ts), the writes a person may make
+ * about themselves — their name, their account (`meVerbs`, which Settings › Profile
+ * imports) — and the ones their workspace owns, its
  * timezone and how its customers buy (0008). The workspace surface publishes
  * __ME and __WORKSPACES at boot, each workspace with its `sells_by`; this keeps
  * both current after a change and tells the chrome. And who is acting: the one role every gate reads (`roleOf`).
@@ -61,7 +62,6 @@ export interface WorkspaceApi {
 declare global {
   interface Window {
     __identity?: IdentityApi;
-    __me?: MeApi;
     __workspace?: WorkspaceApi;
     __tz?: TzApi;
     DEFAULT_TIMEZONE?: string;
@@ -90,6 +90,8 @@ export interface RoleStore {
   me?: () => { role?: string | null } | undefined;
   myRole: () => string;
   mayAtLeast?: (least: Role) => boolean;
+  /** Preview a lower role, or `null` to stop; tells every reader (`team:changed`). */
+  setViewAs?: (role: string | null) => void;
 }
 
 declare global {
@@ -133,6 +135,29 @@ export function installRoles(win: RolesWindow = window): void {
   store.mayAtLeast = (least) => roleAtLeast(store.myRole(), least);
 }
 
+/**
+ * What a person may change about themselves (Settings › Profile, which imports it): their name, laid on who is looking
+ * at once (`__ME`, `me:changed`), and their account. An object a test stands a door in on.
+ */
+export const meVerbs: MeApi = {
+  async setName(name) {
+    const r = await api()("PUT me", { body: { display_name: name } });
+    if (!r.ok) return { ok: false, name: "", message: r.message };
+    const saved = r.data.display_name ?? name.trim();
+    const w = window as Window & { __ME?: Me };
+    if (w.__ME) w.__ME = { ...w.__ME, display_name: saved };
+    window.dispatchEvent(new CustomEvent("me:changed"));
+    return { ok: true, name: saved, message: "" };
+  },
+  async deleteAccount() {
+    const r = await api()("DELETE me");
+    if (!r.ok) return { ok: false, message: r.message };
+    // The door ended the session; the sign-in page is where a person with no account belongs.
+    window.location.assign("/login");
+    return { ok: true, message: "" };
+  },
+};
+
 export function installIdentity(win: Window = window): void {
   installRoles(win);
   win.__identity = { words: identityWords, member: memberWords, initials: personInitials };
@@ -144,24 +169,6 @@ export function installIdentity(win: Window = window): void {
     also: zoneSearchWords,
   };
   win.DEFAULT_TIMEZONE = DEFAULT_TIMEZONE;
-  win.__me = {
-    async setName(name) {
-      const r = await api()("PUT me", { body: { display_name: name } });
-      if (!r.ok) return { ok: false, name: "", message: r.message };
-      const saved = r.data.display_name ?? name.trim();
-      const me = (win as unknown as { __ME?: Me }).__ME;
-      if (me) (win as unknown as { __ME?: Me }).__ME = { ...me, display_name: saved };
-      win.dispatchEvent(new CustomEvent("me:changed"));
-      return { ok: true, name: saved, message: "" };
-    },
-    async deleteAccount() {
-      const r = await api()("DELETE me");
-      if (!r.ok) return { ok: false, message: r.message };
-      // The door ended the session; the sign-in page is where a person with no account belongs.
-      win.location.assign("/login");
-      return { ok: true, message: "" };
-    },
-  };
   const patch: WorkspaceApi["patch"] = async (fields) => {
     const r = await api()("PATCH workspaces", { body: fields });
     if (!r.ok) return { ok: false, workspace: {}, message: r.message };

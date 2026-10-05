@@ -321,10 +321,8 @@ test("the dial reaches the policy row through the pane and the bridge", async ()
       "if (d.minConfidence !== undefined) wire.min_confidence = d.minConfidence;",
     ),
   );
-  const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(pane.includes('const AUT_CONF = [["Off", 0], ["60%", 0.6], ["75%", 0.75], ["90%", 0.9]];'));
-  assert.ok(pane.includes('label="Send on its own only when it\'s sure"'));
-  assert.ok(pane.includes("put(reply, undefined, { minConfidence: c[1] })"));
+  // The pane's dial, pressed: settings-owner-panes.test.mjs ("F50: ... a dial sends itself alone") sends 75% as
+  // { minConfidence: 0.75 } on the reply row, and no mode.
   const thread = readRaw("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx");
   assert.ok(
     thread.includes("· {why.summary}"),

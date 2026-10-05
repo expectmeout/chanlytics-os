@@ -27,7 +27,7 @@ export const REACH_OUT_SHEET_WORDS = {
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
   first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
-  slotsHint: "click to insert · each is filled per lead, or the email is held",
+  slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
@@ -460,7 +460,10 @@ export function chainReportWordsOf(
   };
 }
 
-/** Templates' row for a reach-out step's words (F15; canvas board 14; R19: a reach-out sends email only). */
+/**
+ * Templates' words for a reach-out step's email (F15; canvas board 14; R19; One message, every channel, step 5): the
+ * email is a message with one version, the email, written where it is read; what sends it is its chain.
+ */
 export function emailTemplateWords(p: { chainName: string; stepN: number; afterDays: number | null }) {
   return {
     chip: "Email",
@@ -469,11 +472,10 @@ export function emailTemplateWords(p: { chainName: string; stepN: number; afterD
       p.stepN === 0
         ? "step 1 · writes daily, in their hours"
         : `step ${p.stepN + 1} · after ${p.afterDays} days with nothing back`,
-    versionsNote: "a reach-out sends email only",
     checkNote:
       "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
-    foot: "Email · made here · your own words, no review",
-    edit: "Edit in its reach-out",
+    /** The act that opens the whole reach-out, whose days, pace and domains are its own. */
+    edit: "Edit the reach-out",
   };
 }
 
@@ -487,6 +489,8 @@ interface EmailTemplateRowVM {
   chain_name: string;
   step_n: number;
   after_days: number | null;
+  /** The name the chain signs with, which {{your name}} fills. */
+  signed_by: string | null;
 }
 
 /**
@@ -508,6 +512,7 @@ export function emailTemplateRowsOf(chains: readonly ReachOutChainDto[]): EmailT
               chain_name: c.name,
               step_n: s.n,
               after_days: s.after_days,
+              signed_by: c.signed_by,
             },
           ]
         : [],

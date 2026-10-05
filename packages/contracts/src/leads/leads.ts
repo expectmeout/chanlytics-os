@@ -101,25 +101,11 @@ export type {
   LeadEndingLine,
 } from "./lead-words";
 export {
-  LeadsQuerySchema,
-  LeadOneQuerySchema,
-  LeadsViewSchema,
-  LeadStageInputSchema,
   stageArgs,
-  LeadsBulkSchema,
-  LeadsCheckAgainSchema,
-  LeadDraftInputSchema,
-  LeadExportQuerySchema,
-  RenameLeadSearchSchema,
-  BusinessLineSchema,
-  ProposeLeadSearchSchema,
-  planLeadSearch,
   leadsRoute,
   parseLeadsRoute,
   LEAD_DRAFT_JSON_SCHEMA,
-  LeadDraftAnswerSchema,
   LEAD_SUGGEST_JSON_SCHEMA,
-  LeadSuggestAnswerSchema,
   leadDraftFooter,
   leadQuestionTitle,
   LEAD_QUESTION_WAIT_LINE,
@@ -130,17 +116,7 @@ export {
   leadPlanFacts,
   leadPlanAsk,
 } from "./lead-plan";
-export type {
-  LeadsQuery,
-  LeadStageInput,
-  LeadsBulkInput,
-  LeadsCheckAgainInput,
-  ProposeLeadSearch,
-  LeadPlanView,
-  LeadPlanRefusalKind,
-  LeadPlanned,
-  LeadChips,
-} from "./lead-plan";
+export type { LeadPlanView, LeadPlanRefusalKind, LeadPlanned, LeadChips } from "./lead-plan";
 export {
   leadTodayLine,
   leadHoursShort,

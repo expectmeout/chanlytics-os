@@ -187,7 +187,8 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   );
 });
 
-const TONED_KINDS = 47;
+// 49: the two kinds of a gate pausing and the back office resuming a workspace's offers by email (00299) are toned.
+const TONED_KINDS = 49;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.
@@ -209,6 +210,18 @@ test("the tone: said only where the product knows one, and never for a kind that
   // failure in "message.send_raced_cancel" and none in "line.texting_on".
   assert.equal(activityTone("message.send_raced_cancel"), "warn");
   assert.equal(activityTone("line.texting_on"), "info");
+  // A gate paused the workspace's offers by email, and the back office turned them back on (00299): said in the owner's words.
+  assert.equal(activityTone("mailbox.offers_paused"), "warn");
+  assert.equal(activityTone("mailbox.offers_resumed"), "ok");
+  assert.equal(
+    activityWords("mailbox.offers_paused", { reason: "complaints" }),
+    "Offers by email were paused · too many offers were marked as spam",
+  );
+  assert.equal(
+    activityWords("mailbox.offers_paused", { reason: "bounces" }),
+    "Offers by email were paused · too many offers bounced",
+  );
+  assert.equal(activityWords("mailbox.offers_resumed", { reason: "bounces" }), "Offers by email were turned back on");
 
   // A key in the map that is not a kind either ledger holds tones nothing, and
   // the only symptom is a row that stays grey for ever. The count is the guard:

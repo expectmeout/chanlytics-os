@@ -224,7 +224,16 @@ export async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; mo
   const [r, tz] = await Promise.all([read("GET contacts", { query: { q } }), workspaceZone()]);
   const now = new Date();
   return {
-    rows: r.people.map((p) => personRowOf(p, { tz, now, dealsOn: !!r.deals_on, viewer: viewerId() })),
+    rows: r.people.map((p) =>
+      // What the workspace can send on is the first page's (readers/people.ts): a search's rows are judged against it too.
+      personRowOf(p, {
+        tz,
+        now,
+        dealsOn: !!r.deals_on,
+        viewer: viewerId(),
+        ready: peopleLoaded?.channelsReady ?? null,
+      }),
+    ),
     more: !!r.page?.has_more,
   };
 }
@@ -308,6 +317,7 @@ export const peopleOverride: SurfaceOverride = {
       consultFirst: !!data.consult_first,
       dealPace: dealPaceOf(data.deal_pace),
       followUp: data.follow_up ?? null,
+      channelsReady: data.channels_ready ?? null,
       views:
         overlapped || keptViews.made !== savesBefore
           ? { ...(viewsData.views ?? {}), ...keptViews.views }

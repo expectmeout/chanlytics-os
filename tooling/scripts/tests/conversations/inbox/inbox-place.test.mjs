@@ -129,6 +129,7 @@ test("REGRESSION (A15): a templates read that fails leaves null -- 'could not re
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
+const { Menu } = await import(`${S}/surfaces/kit/menu/menu.tsx`);
 const { Composer } = await import(`${S}/surfaces/inbox/thread/composer.tsx`);
 const { ixRepaintNotice } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/thread-pane.tsx");
 const { OWN_VERBS } = await import(`${S}/surfaces/inbox/store.ts`);
@@ -487,7 +488,7 @@ test("on a phone a thread a tap opens is an entry of its own: Back closes it to 
     const param = /^#\/inbox\/(.+)$/.exec(w.location.hash);
     for (let i = 0; i < 2; i++)
       tree = again(() => Inbox({ initialThreadId: param ? param[1] : null, showAgentRail: false }));
-    return String(tree.props.className).includes("phone-thread");
+    return !!tree.props["data-takeover"];
   };
   const back = () => paneOf(tree).onBack();
   try {
@@ -697,12 +698,11 @@ test("REGRESSION (A11): Archive is in the open thread's menu, asks first, and sa
   };
   fresh();
   let tree = again(() => InboxThread(props));
-  const trigger = find(tree, (n) => n.type === "button" && n.props?.["aria-haspopup"] === "menu");
-  trigger.props.onClick(click);
-  tree = again(() => InboxThread(props));
-  const item = find(tree, (n) => n.props?.role === "menuitem" && textOf(n).includes("Archive"));
+  // The kit's menu opens itself (Base UI's, held in a browser): the page's part is the item and what it does.
+  const menu = find(tree, (n) => n.type === Menu);
+  const item = menu.props.groups.flatMap((g) => g.items).find((it) => it.label === "Archive");
   assert.ok(item, "REGRESSION: Archive lived only in the bulk bar");
-  item.props.onClick(click);
+  item.onSelect();
   tree = again(() => InboxThread(props));
   const ask = find(tree, byTestId("ix-archive-confirm"));
   assert.ok(ask, "it asks first: archiving closes the request");

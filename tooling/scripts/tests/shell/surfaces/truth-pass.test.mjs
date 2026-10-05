@@ -25,9 +25,9 @@ test("AI memory is an honest pane that keeps the settings nav; Billing is real",
   );
   assert.ok(
     settings.includes(
-      '{active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <window.PaneBillingReal flash={flash} />)}',
+      '{active.id === "billing" && window.PaneBillingReal && <window.PaneBillingReal flash={flash} />}',
     ),
-    "Billing is real on a workspace: billing-real.jsx",
+    "Billing is real on a workspace: surfaces/settings/billing, published under its old name",
   );
   assert.ok(settings.includes("data-testid={`soon-${which}`}"), "the pane is addressable by the e2e");
   assert.ok(settings.includes("does not learn rules on its own yet"), "AI memory says what is true");
@@ -50,15 +50,17 @@ test("AI memory is an honest pane that keeps the settings nav; Billing is real",
 test("the thread menu on a real workspace offers only verbs that act", () => {
   const page = readCode("apps/dashboard/src/surfaces/inbox/thread/header.tsx");
   assert.ok(
-    page.includes('...(demoSession() ? [{ label: "Mark as unread"'),
+    page.replace(/\s+/g, " ").includes('...(demoSession() ? [{ label: "Mark as unread"'),
     "Mark as unread is demo-only until unread state exists",
   );
-  assert.ok(/label: "Block sender",\s*icon: "x",\s*danger: true/.test(page), "the demo keeps its item");
+  assert.ok(/label: "Block sender",\s*glyph: ixGlyph\("x"\),\s*tone: "danger"/.test(page), "the demo keeps its item");
   const block = page.indexOf('label: "Block sender"');
   const gate = page.lastIndexOf("demoSession()", block);
   assert.ok(gate > 0 && block - gate < 120, "Block sender is behind the demo gate");
   assert.ok(
-    page.includes('{ label: "Receptionist settings", icon: "shield", onClick: () => onOpenClient(thread.clientId) }'),
+    page.includes(
+      '{ label: "Receptionist settings", glyph: ixGlyph("shield"), onSelect: () => onOpenClient(thread.clientId) }',
+    ),
     "a real session is sent to the per-person mode instead",
   );
 });

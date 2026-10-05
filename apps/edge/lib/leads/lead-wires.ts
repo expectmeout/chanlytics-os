@@ -9,6 +9,11 @@
  * A run row's webhook token is an HMAC of its id under the service-role key,
  * so the token is made once at creation (its sha256 on the row), never
  * rewritten (E1), and any later job of ours can rebuild the URL it sent.
+ *
+ * Two more wires. A lead's own pages and pictures are read through channels' guarded fetcher (fetchText, fetchBytes):
+ * a lead's website is an address somebody else typed, and it may resolve, or redirect, to a private one. And while the
+ * second model is on (decision 0023) the judge's criteria for each place are also put to it in shadow: its answers are
+ * compared and kept, and never read by the run.
  */
 import { createHmac } from "node:crypto";
 import {

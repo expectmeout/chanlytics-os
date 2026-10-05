@@ -73,6 +73,8 @@ const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces
 const { TodayStrip } = await import("../../../../apps/dashboard/src/surfaces/today/pages/strip.tsx");
 const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+// When a run really goes, in the one sentence every receipt says (Today imports it from Campaigns).
+const { bcWhenWords } = await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/when-words.ts");
 const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
 // The seam's own signal, from the module the TSX reads it through (the stub's own copy is the shell pages'): a surface's rows landed.
 const { surfaceMoved: surfaceLanded } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
@@ -316,6 +318,9 @@ const people = () => ({
       state: "needs_you",
       hasChat: true,
       calls: 0,
+      // What the People surface's row says of reaching them (reach-any.ts): said yes to messages, not to offers.
+      saidYes: { offers: false, messages: true },
+      whyNot: { offers: "no_yes", messages: null },
       consent: {
         state: "opted_in",
         dnc: false,
@@ -750,17 +755,14 @@ test("the calls read failed: the card says so under the figures, once", () => {
 
 test("the queue: no count badge over the rows, one primary verb, the runs in contracts' words, the approval toast too", async () => {
   clear();
+  const approved = { recipient_count: 3, scheduled_for: iso(3_600_000), moved_from: iso(0) };
   set({
     today: busy(),
     __BROADCASTS: broadcasts(),
     __broadcasts: {
-      approve: async () => ({
-        ok: true,
-        data: { recipient_count: 3, scheduled_for: iso(3_600_000), moved_from: iso(0) },
-      }),
+      approve: async () => ({ ok: true, data: approved }),
       cancel: async () => ({ ok: true, data: {} }),
     },
-    bcWhenWords: () => "scheduled for Mon 9:00 AM",
   });
   const tree = draw(AgentCommand);
   const queue = byTestId(tree, "today-queue");
@@ -796,10 +798,10 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   );
   assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 4, "the card is four rows");
   await press(buttons(waiting, "Approve")[0]);
-  const t = todayRunApproved("Win-back", 3, "scheduled for Mon 9:00 AM");
+  const t = todayRunApproved("Win-back", 3, bcWhenWords(approved));
+  assert.match(t.rest, /scheduled for/, "the server moved it, and the sentence says when");
   assert.equal(textOf(flashes.at(-1).msg), `${t.lead} ${t.rest}`);
   assert.ok(!textOf(flashes.at(-1).msg).includes("sending now"));
-  delete W.bcWhenWords;
   // The broadcasts read failed: the queue's rows are current, and it says the runs could not be read.
   set({ __BROADCASTS: undefined });
   failed.add("broadcasts");
@@ -871,7 +873,6 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
   set({
     today: busy(),
     __BROADCASTS: broadcasts(),
-    bcWhenWords: () => "scheduled for Mon 9:00 AM",
     __broadcasts: {
       approve: (_id, opts = {}) => {
         if (opts.onAccepted) opts.onAccepted(accepted);
@@ -886,12 +887,11 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
   const done = press(buttons(waiting, "Approve")[0]);
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(flashes.length, 1, "said at acceptance");
-  const t = todayRunApproved("Win-back", 3, "scheduled for Mon 9:00 AM");
+  const t = todayRunApproved("Win-back", 3, bcWhenWords(accepted));
   assert.equal(textOf(flashes[0].msg), `${t.lead} ${t.rest}`);
   reread();
   await done;
   assert.equal(flashes.length, 1, "and said once");
-  delete W.bcWhenWords;
 });
 
 test("four rows: people take three while a run wants the fourth, and all four when none does", () => {
@@ -1758,40 +1758,201 @@ test("Glass: the bell's rows carry no dismiss of their own; Mark all read stays"
   });
 });
 
-test("Glass brief: Listen reads the line aloud where the device can speak, says Stop while it does, and is absent where it cannot", () => {
+test("Glass brief: Listen is absent where the device cannot play audio, and the follow-up stands alone", () => {
   clear();
   set({ today: busy(), __REPORTS: reports() });
   inGlass(() => {
     const silent = draw(TodayBriefPane);
     assert.equal(byTestId(silent, "today-brief-listen"), null, "no voice on this device: no Listen");
     assert.equal(buttons(silent, "Ask a follow-up").length, 1, "the follow-up stands alone");
-    const spoken = [];
-    W.speechSynthesis = { speak: (u) => spoken.push(u), cancel: () => spoken.push("cancel") };
-    globalThis.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) {
-      this.text = text;
-    };
-    try {
-      fresh();
-      const tree = again(() => TodayBriefPane());
-      const listen = byTestId(tree, "today-brief-listen");
-      assert.ok(listen, "a voice: Listen");
-      assert.match(textOf(listen), /Listen\d+:\d\d/, "with how long it takes to hear");
-      assert.equal(listen.props["aria-pressed"], false);
-      press(listen);
-      assert.equal(spoken.at(-1)?.text, textOf(byTestId(tree, "today-brief-line")), "the line, read aloud");
-      const reading = byTestId(
+  });
+});
+
+/** Ask's voice stood in for (legacy-bridge/ask/speech.ts as the pane reads it off window.__ask): the clip lands when the test says. */
+function speechStub() {
+  const spoken = [];
+  const stops = [];
+  let state = "idle";
+  const watchers = new Set();
+  const move = (s) => {
+    state = s;
+    for (const w of watchers) w();
+  };
+  let land = null;
+  let fail = null;
+  const stub = {
+    canSpeak: () => true,
+    state: () => state,
+    watchSpeech: (on) => {
+      watchers.add(on);
+      return () => watchers.delete(on);
+    },
+    speak: (text, purpose) => {
+      spoken.push({ text, purpose });
+      move("loading");
+      return new Promise((resolve, reject) => {
+        land = () => {
+          move("speaking");
+          resolve();
+        };
+        fail = (why) => {
+          move("idle");
+          reject(new Error(why));
+        };
+      });
+    },
+    stopSpeaking: () => {
+      stops.push(1);
+      move("idle");
+    },
+  };
+  return {
+    stub,
+    spoken,
+    stops,
+    land: () => land && land(),
+    fail: (why) => fail && fail(why),
+    /** The clip finished on its own. */
+    ends: () => move("idle"),
+  };
+}
+const settled = () => new Promise((r) => setImmediate(r));
+
+test("Glass brief: Listen reads the brief's own words in Ask's voice, says it is getting the voice until the clip plays, Stop while it does, and a second press stops it", async () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  const s = speechStub();
+  W.__ask = s.stub;
+  globalThis.__ask = s.stub;
+  const doc = W.document.documentElement;
+  const was = doc.getAttribute;
+  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
+  try {
+    fresh();
+    const tree = again(() => TodayBriefPane());
+    const listen = byTestId(tree, "today-brief-listen");
+    assert.ok(listen, "a voice: Listen");
+    assert.match(textOf(listen), /Listen\d+:\d\d/, "with how long it takes to hear");
+    assert.equal(listen.props["aria-pressed"], false);
+    press(listen);
+    assert.equal(s.spoken.length, 1, "one clip asked for");
+    assert.equal(s.spoken[0].text, textOf(byTestId(tree, "today-brief-line")), "the brief's own words, as drawn");
+    assert.equal(s.spoken[0].purpose, "brief");
+    const loading = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    assert.match(textOf(loading), /Getting Ask's voice/, "getting the voice until the clip plays");
+    assert.equal(loading.props["aria-busy"], true);
+    assert.equal(loading.props["aria-pressed"], false, "not Stop yet");
+    s.land();
+    await settled();
+    const playing = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    assert.equal(playing.props["aria-pressed"], true);
+    assert.match(textOf(playing), /Stop/, "Stop while it plays");
+    press(playing);
+    assert.equal(s.stops.length, 1, "Stop stops the clip");
+    assert.equal(
+      byTestId(
         again(() => TodayBriefPane()),
         "today-brief-listen",
-      );
-      assert.equal(reading.props["aria-pressed"], true);
-      assert.match(textOf(reading), /Stop/, "and Stop while it reads");
-      press(reading);
-      assert.equal(spoken.at(-1), "cancel");
-    } finally {
-      delete W.speechSynthesis;
-      delete globalThis.SpeechSynthesisUtterance;
-    }
-  });
+      ).props["aria-pressed"],
+      false,
+    );
+    assert.equal(s.spoken.length, 1, "and asked for nothing more");
+  } finally {
+    doc.getAttribute = was;
+    delete W.__ask;
+    delete globalThis.__ask;
+  }
+});
+
+test("Glass brief: a clip that could not be made says why beside Listen, in the server's words, and nothing else speaks; the next press tries again", async () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  const s = speechStub();
+  W.__ask = s.stub;
+  globalThis.__ask = s.stub;
+  const doc = W.document.documentElement;
+  const was = doc.getAttribute;
+  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
+  try {
+    fresh();
+    press(
+      byTestId(
+        again(() => TodayBriefPane()),
+        "today-brief-listen",
+      ),
+    );
+    s.fail("Voice is off while this workspace is paused or its plan has ended.");
+    await settled();
+    const tree = again(() => TodayBriefPane());
+    const listen = byTestId(tree, "today-brief-listen");
+    assert.equal(listen.props["aria-pressed"], false, "back to Listen");
+    assert.match(textOf(listen), /^Listen/, "and it says Listen, not Stop");
+    const why = byTestId(tree, "today-brief-listen-why");
+    assert.ok(why, "why, beside the button");
+    assert.match(textOf(why), /paused or its plan has ended/, "in the server's words");
+    assert.equal(s.stops.length, 0, "nothing to stop");
+    assert.equal("speechSynthesis" in W && W.speechSynthesis, false, "the browser's own voice is not asked");
+    press(listen);
+    assert.equal(s.spoken.length, 2, "the next press tries again");
+    assert.equal(
+      byTestId(
+        again(() => TodayBriefPane()),
+        "today-brief-listen-why",
+      ),
+      null,
+      "and the old reason is gone",
+    );
+  } finally {
+    doc.getAttribute = was;
+    delete W.__ask;
+    delete globalThis.__ask;
+  }
+});
+
+test("Glass brief: a pane drawn again while the clip plays (Today redrew itself) says Stop and stops nothing; the clip ending on its own lets go", async () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  const s = speechStub();
+  W.__ask = s.stub;
+  globalThis.__ask = s.stub;
+  const doc = W.document.documentElement;
+  const was = doc.getAttribute;
+  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
+  try {
+    fresh();
+    press(
+      byTestId(
+        again(() => TodayBriefPane()),
+        "today-brief-listen",
+      ),
+    );
+    s.land();
+    await settled();
+    // Today redraws from nothing (its data moved): a fresh pane finds the clip playing and says Stop.
+    fresh();
+    const redrawn = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    assert.equal(redrawn.props["aria-pressed"], true, "a pane drawn again finds the clip playing");
+    assert.equal(s.stops.length, 0, "and stops nothing");
+    s.ends();
+    const after = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    assert.equal(after.props["aria-pressed"], false, "the clip ending lets go of Stop");
+  } finally {
+    doc.getAttribute = was;
+    delete W.__ask;
+    delete globalThis.__ask;
+  }
 });
 
 test("Glass brief: who needs you in bold with the oldest wait, the calendar's day, what came in, the run waiting; and the voice reads the same words", () => {

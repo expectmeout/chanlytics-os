@@ -41,7 +41,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { dealBoard } = await import(at("apps/dashboard/src/server/readers/people.ts"));
+const { dealBoard, people } = await import(at("apps/dashboard/src/server/readers/people.ts"));
 const { pipeline: pipelineContext } = await import(at("apps/dashboard/src/server/ask/context/people.ts"));
 const { audiencePool } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
 const { runTool, buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
@@ -386,9 +386,13 @@ test("the Pipeline context reads the board from its reader and answers what it a
 
 test("the board is the page's: contracts pipelineOf over everyone in People, each row as People draws it for the member asking with their follow-up laid on, and the pace from People's first page, on the turn's clock; each person on it a row a citation names, and each deal one too, opened on its person's page; none where deals are off", async () => {
   const r = await load(rcIn(ctxFor()), dealBoard, undefined);
-  // The page's own build, over the same rows: People's first page for the pace and the follow-up (none here).
+  // The page's own build, over the same rows: People's first page for the pace and the follow-up (none here), and for
+  // what the workspace can send on, which each row's reach is judged against (reach-any.ts).
   const dealsOn = dealsAreOn("proposal");
-  const rows = HARBOR.map((p) => poolRowOf(p, { tz: TZ, now: NOW, viewer: USER, dealsOn }));
+  const first = (await load(rcIn(ctxFor()), people, { q: null, offset: 0 })).data;
+  const rows = HARBOR.map((p) =>
+    poolRowOf(p, { tz: TZ, now: NOW, viewer: USER, dealsOn, ready: first.channels_ready }),
+  );
   const pace = dealPaceOf(null);
   assert.deepEqual(r.data, { deals_on: true, timezone: TZ, board: pipelineOf(rows, NOW.getTime(), TZ, pace) });
   assert.deepEqual(

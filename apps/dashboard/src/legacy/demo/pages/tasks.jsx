@@ -29,16 +29,14 @@ const TasksPage = () => {
   const [, setTick] = useTkState(0);
   const [toastNode, ppFlash] = window.usePPToast();
 
-  // Re-render when a decision lands anywhere (Inbox or here) or an integration is fixed
+  // Re-render when a decision lands anywhere (Inbox or here)
   React.useEffect(() => {
     const bump = () => setTick((n) => n + 1);
     window.addEventListener("inbox:decisions", bump);
-    window.addEventListener("integrations:changed", bump);
     window.addEventListener("store:listing", bump);
     window.addEventListener("fleet:handoff", bump);
     return () => {
       window.removeEventListener("inbox:decisions", bump);
-      window.removeEventListener("integrations:changed", bump);
       window.removeEventListener("store:listing", bump);
       window.removeEventListener("fleet:handoff", bump);
     };
@@ -46,19 +44,8 @@ const TasksPage = () => {
 
   const decisions = (window.IX_STORE && window.IX_STORE.decisions) || {};
 
-  // Overlay: thread-linked tasks reflect session decisions from the decide engine;
-  // the deferred nurture releases the moment Gmail is reauthorized in Settings.
+  // Overlay: thread-linked tasks reflect session decisions from the decide engine.
   const tasks = TASKS.map((t) => {
-    if (t.id === "t-gmail-fail" && window.INT_STORE && window.INT_STORE.isFixed("gmail")) {
-      return {
-        ...t,
-        status: "scheduled",
-        result: "Releasing — Gmail reconnected.",
-        error: null,
-        retry: "Sends today · Gmail reconnected ✓",
-        link: { label: "Connections", to: "admin/integrations" },
-      };
-    }
     const d = t.threadId && decisions[t.threadId];
     if (retried[t.id] && t.status === "failed") {
       return {
@@ -145,7 +132,7 @@ const TasksPage = () => {
   const doneBase = ((window.TASKS_DATA.TASKS_BASELINE || {}).completedToday ?? 41) + tasks.filter(t => t.decided && t.status === "done").length;
   // Rate shares the "Completed today" baseline — sums must agree (CLAUDE.md)
   const success = Math.round((doneBase / Math.max(1, doneBase + counts.failed)) * 100);
-  const recovered = tasks.filter(t => (t.status === "scheduled" || t.status === "running") && (retried[t.id] || (t.id === "t-gmail-fail" && window.INT_STORE && window.INT_STORE.isFixed("gmail")))).length;
+  const recovered = tasks.filter(t => (t.status === "scheduled" || t.status === "running") && retried[t.id]).length;
 
   return (
     <div className="reports">

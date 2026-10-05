@@ -27,27 +27,59 @@ import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
 import { templateTitle } from "../templates/template-titles";
 import { clockDate, clockWhen } from "../shared/clock";
 import { noNumberWords } from "../people/people-lists";
-import { saidYesTo } from "../people/person-consent";
 import type { PersonRowVM } from "../people/person-row";
 import type { ParamSpec } from "../templates/templates";
-import type { AskedPurpose } from "../consent/consent";
+import type { AskedPurpose, MessageAbout } from "../consent/consent";
+import { consentGuardWords } from "../consent/consent-asks";
+import { CONSENT_CHANNELS } from "../consent/consent-channels";
 import type { Audience } from "./broadcast-audience";
 import { broadcastFailureWords } from "./broadcast-failures";
+import { answeredYes } from "./reach-any";
 export {
   AUDIENCE_KINDS,
   EVERYONE_LABEL,
+  EVERYONE_HINT,
   eligibleFor,
+  enrolFor,
+  saidYesOnAny,
+  heldWords,
+  heldBackWords,
   audienceMembers,
   heardWords,
   audiencePreview,
+  audienceTrigger,
 } from "./broadcast-audience";
-export type { AudienceKind, Audience, PreviewPerson, AudiencePreview } from "./broadcast-audience";
+export type { AudienceKind, Audience, PreviewPerson, AudiencePreview, CampaignHow } from "./broadcast-audience";
 export {
+  DEFAULT_CAMPAIGN_CHANNELS,
+  CHANNEL_WORDS,
+  CAMPAIGN_MONTH_ALLOWANCE,
+  HELD_ON,
+  channelRefuses,
+  channelNeverCarries,
+  offersNote,
+  channelsReady,
+  channelChoices,
+  reachFor,
+  reachSplit,
+  reachSplitWords,
+  heldByAllowance,
+  allowanceRoom,
+  pastAllowance,
+  allowanceBeforeSend,
+  allowanceLine,
+  allowanceLines,
+} from "./reach-for";
+export type { ChannelReady, ChannelsReady, HeldOn, MonthSent, ReachRow, ReachSplit } from "./reach-for";
+export {
+  BROADCAST_FAILURES,
   BROADCAST_FAILURE_WORDS,
   BROADCAST_FAILURE_FIX,
   broadcastFailureFix,
   broadcastFailureWords,
+  wireFailure,
 } from "./broadcast-failures";
+export type { BroadcastFailure, WireFailure } from "./broadcast-failures";
 export { LIMIT_TIERS, dailyLimit, numberHealth, overLimitRefusal } from "./broadcast-number";
 export type { NumberHealthInput, NumberHealth } from "./broadcast-number";
 export { RUN_REPORT_STEPS, RUN_FILTERS, consentAnswerWords, receiptWords, toRunReportVM } from "./run-report";
@@ -244,19 +276,28 @@ export const OUTCOME_UNKNOWN = "outcome_unknown";
  * caller hands in the audience's name and everyone on it, before anyone is left
  * out (`audienceMembers`), and the refusal says which cause it is.
  *
- * The QR is on Broadcasts, the ledger's "Get their yes" card since #758. These
+ * The QR is in Sent, the ledger's "Get their yes" card since #758. These
  * words are read in a toast on the send screen, which has no QR, and in Ask,
  * which is no page at all -- so they say where it is rather than "on this page".
+ *
+ * A send that ticks email is said by what each channel it ticks asks of a person (consent-asks.ts, read from the one
+ * predicate): by email the business's news asks a yes covering email or a relationship on record and an address that
+ * works (decision D1), never "a number". WhatsApp and a text ask what they always did, in the words below.
  */
 export function emptyAudienceRefusal(
   purpose: AskedPurpose,
   label: string,
   pool: readonly Pick<PersonRowVM, "consent">[],
+  how: { channels: readonly string[]; about: MessageAbout },
 ): string {
-  if (pool.some((r) => saidYesTo(r, purpose))) return noNumberWords(`“${label}”`, purpose);
+  const ticked = CONSENT_CHANNELS.filter((c) => how.channels.includes(c));
+  if (ticked.includes("email"))
+    return `Nobody on “${label}” can be sent this yet. ${consentGuardWords(ticked, purpose, how.about).join(" ")}`;
+  // Said, as every page reads the answer (reach-any.ts answeredYes: the row's saidYes is the same call).
+  if (pool.some((r) => answeredYes(r, purpose))) return noNumberWords(`“${label}”`, purpose);
   return purpose === "marketing"
-    ? "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR on Broadcasts."
-    : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
+    ? "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR in Sent."
+    : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
 }
 
 /* ---- One broadcast's people ---- */
@@ -264,6 +305,8 @@ export function emptyAudienceRefusal(
 export interface BroadcastRecipientDto {
   contact_id: string;
   name: string;
+  /** The channel the send picked for them (step 3; reachFor); null on a run made before: WhatsApp. */
+  channel?: string | null;
   /** What a first-name slot says to them, by the wire's own rule (firstNameOf) over their card as it reads now; null is "Hi there". */
   first_name: string | null;
   phone: string | null;

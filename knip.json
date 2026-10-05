@@ -44,7 +44,7 @@
       "entry": ["src/**/*.ios.{ts,tsx}"]
     },
     "packages/*": {
-      "entry": ["src/index.ts", "src/**/*.type-test.ts"],
+      "entry": ["src/index.ts", "src/write-rules.ts", "src/**/*.type-test.ts"],
       "project": ["src/**/*.ts"]
     },
     "tooling/scripts": {
@@ -53,6 +53,7 @@
         "checks/*.mjs",
         "gen/*.mjs",
         "ops/*.mjs",
+        "voice/*.mjs",
         "tests/**/*.mjs",
         "e2e-harness/**/*.{ts,mjs}",
         "mobile/{sign-in,cold-start,walk}.mjs"

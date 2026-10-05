@@ -11,6 +11,11 @@
  * one, consent stays 'unknown' (a booking is not a yes to offers), and each
  * person created here gets a `contact.added` event that says where they
  * came from, so the profile can say "Added from your calendar".
+ *
+ * Two more rules. A person who asked to be erased is not brought back by their own appointment: the tombstone (00124)
+ * names the number, and the appointment is counted as erased and left alone. An address fills only an empty one, as a
+ * name does, and an address another person here already holds stays theirs: the number still makes a new person,
+ * without it. Someone made between the read and the write is the same person, not an error.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emitEvent, type Database } from "../packages/db.js";

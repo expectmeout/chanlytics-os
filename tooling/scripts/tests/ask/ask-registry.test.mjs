@@ -41,7 +41,29 @@ const {
   calledName,
   newToolContext,
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
+const { MOMENTS_RETIRED, PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
+/**
+ * 2 Oct 2026: the two moments no longer offered for a new playbook (contracts MOMENTS_RETIRED) leave the playbook's
+ * trigger enum, so a schema frozen before it is held to its own less those two: the one change to its fields.
+ */
+const lessRetired = (schema) => {
+  const out = structuredClone(schema);
+  const t = out.properties.trigger;
+  if (t) t.enum = t.enum.filter((id) => !(id in MOMENTS_RETIRED));
+  return out;
+};
+
+/**
+ * 3 Oct 2026 (review item 11, Ask names channels): a broadcast and a playbook take the channels they may go by, one
+ * optional property on each, which no schema frozen before it holds: the one change to their fields. A property, not a
+ * tool, so the strict-tools cap (twenty) is untouched.
+ */
+const CHANNELS = { type: "array", items: { type: "string", enum: ["whatsapp", "sms", "email"] } };
+const lessChannels = (schema) => {
+  const out = structuredClone(schema);
+  delete out.properties.channels;
+  return out;
+};
 
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures", name), "utf8"));
 /** What the model is sent, per role, frozen from the finished registry. */
@@ -306,10 +328,12 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     // examples, byte for byte -- and the run's own words stand between the playbook's and the tail.
     const before = was(role, "propose_campaign");
     const now = tool(role, "propose_campaign");
-    const { broadcast_id: _b, verb: _v, ...fields } = now.input_schema.properties;
+    const { broadcast_id: _b, verb: _v, channels, ...fields } = now.input_schema.properties;
+    assert.deepEqual(channels, CHANNELS, `${role}: channels, one optional list of the three, for both actions`);
+    assert.equal(now.input_schema.required.includes("channels"), false, `${role}: and never required`);
     assert.deepEqual(
       { ...fields, action: { type: "string", enum: ["broadcast", "playbook"] } },
-      before.input_schema.properties,
+      lessRetired(before.input_schema).properties,
     );
     assert.deepEqual(
       now.input_examples.filter((ex) => ex.action !== "run"),
@@ -368,7 +392,14 @@ test("the rename is a bijection: every old tool is one tool and action of the re
     const def = DEFS.get(name).actions[action];
     const was = OLD.find((t) => t.name === old);
     assert.ok(was, `${old} is in the 3.1 fixture`);
-    assert.deepEqual(shapeOf(toolSchema(def.input)), shapeOf(was.input_schema), `${old} -> ${to}: the same fields`);
+    const gainedChannels = old === "propose_broadcast" || old === "propose_playbook";
+    assert.deepEqual(
+      shapeOf(gainedChannels ? lessChannels(toolSchema(def.input)) : toolSchema(def.input)),
+      shapeOf(old === "propose_playbook" ? lessRetired(was.input_schema) : was.input_schema),
+      `${old} -> ${to}: the same fields`,
+    );
+    if (gainedChannels)
+      assert.deepEqual(shapeOf(toolSchema(def.input).properties.channels), CHANNELS, `${to}: and channels`);
   }
 });
 
@@ -551,7 +582,8 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
   );
   assert.equal(
     await words("propose_campaign", { action: "playbook", trigger: "never" }),
-    'propose_campaign: trigger Invalid option: expected one of "quiet_30"|"new_week"|"phoned_only"|"everyone_monthly"|"lapsed"|"saved_list"|"proposal_waiting"',
+    // 2 Oct 2026: the moments a new playbook may start from; welcome and save our number are no longer among them.
+    'propose_campaign: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"lapsed"|"saved_list"|"proposal_waiting"',
   );
   // An owner's action, asked by an owner: past the role (D2), to the zod.
   const invite = await buildProposal(contextFor("owner").t, "propose_team", {

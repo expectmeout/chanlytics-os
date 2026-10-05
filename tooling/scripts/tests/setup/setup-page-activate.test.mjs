@@ -2,26 +2,18 @@
  * The Setup page, rendered loaded, with a line that is answering and tested
  * but not yet activated: the receptionist row carries Activate, and pressing
  * it reaches the bridge with the capability's name. The rows come from the
- * real setupSteps over a real DTO; the page runs for real under the four
- * hooks it uses (the registration-path harness); only the renderer is faked.
+ * real setupSteps over a real DTO; the page (Setup's rows, TSX at
+ * surfaces/setup/rows since decision 0015 step 10) runs for real under the
+ * four hooks it uses (the registration-path harness); only the renderer is
+ * faked. Setup's value is the seam's (surface-values.ts); its verbs are the
+ * module object `setupVerbs`, stubbed in place.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  setupSteps,
-  forwardingCodes,
-  forwardingDialLabel,
-  forwardingTestOpen,
-  CARRIERS,
-  FORWARDING_MODES,
-  CARRIER_WORDS,
-  FORWARDING_MODE_WORDS,
-  formatPhoneDisplay,
-  roleGate,
-  FIRST_RUN_WORDS,
-} from "@chanlytics/contracts";
+import { setupSteps, forwardingCodes, roleGate, FIRST_RUN_WORDS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { useStubHooks } from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -109,52 +101,6 @@ globalThis.Icon = "Icon";
 globalThis.React = { Fragment: "Fragment" };
 globalThis.window = {
   location: { origin: "https://app.chanlytics.com", hash: "#/admin/setup" },
-  __SETUP: { dto, role: "owner", vm, fetchedAt: NOW },
-  __setup: {
-    later: async (ids, on) => {
-      calls.later.push([ids, on]);
-      return { ok: true, message: "" };
-    },
-    activate: async (kind) => {
-      calls.activate.push(kind);
-      return { ok: true, message: "" };
-    },
-    deactivate: async (kind) => {
-      calls.deactivate.push(kind);
-      return { ok: true, message: "" };
-    },
-    refresh: async () => {
-      calls.refresh += 1;
-    },
-    lines: {
-      search: async (area) => {
-        calls.search.push(area);
-        return {
-          ok: true,
-          numbers: [
-            { e164: "+13055550142", friendly: "(305) 555-0142", locality: "Miami", region: "FL" },
-            { e164: "+13055550143", friendly: "(305) 555-0143", locality: "Miami", region: "FL" },
-          ],
-          message: "",
-        };
-      },
-      buy: async (number, area) => {
-        calls.buy.push([number, area]);
-        return { ok: true, queued: true, message: "" };
-      },
-      retry: async () => ({ ok: true, queued: true, message: "" }),
-    },
-    forwarding: {
-      set: async (o) => {
-        calls.fwSet.push(o);
-        return { ok: true, message: "" };
-      },
-      test: async (id) => {
-        calls.fwTest.push(id);
-        return { ok: true, message: "" };
-      },
-    },
-  },
   __billing: {},
   __google: {
     find: async (words) => {
@@ -178,25 +124,14 @@ globalThis.window = {
       return { ok: true, read: true, message: "" };
     },
   },
-  __forwarding: {
-    codes: forwardingCodes,
-    dialLabel: forwardingDialLabel,
-    testOpen: forwardingTestOpen,
-    carriers: CARRIERS,
-    modes: FORWARDING_MODES,
-    carrierWords: CARRIER_WORDS,
-    modeWords: FORWARDING_MODE_WORDS,
-    display: formatPhoneDisplay,
-    ago: () => "a minute ago",
-  },
   __DEMO_MODE: false,
   usePPToast: () => [null, (m) => calls.flash.push(m)],
-  appNavigate: (to) => calls.nav.push(to),
+  // The frame's own move, which the rows go through (legacy-verbs navigate): `CHANLY.nav`.
+  CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
   canDo: () => true,
   addEventListener() {},
   removeEventListener() {},
 };
-// The failed card is the shared FailedRead (data-bits.jsx), drawn for real so the Retry inside it can be pressed.
 globalThis.document ??= {
   body: {},
   addEventListener() {},
@@ -206,20 +141,8 @@ globalThis.ReactDOM ??= { createPortal: (node) => node };
 globalThis.window.addEventListener ??= () => {};
 globalThis.window.removeEventListener ??= () => {};
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-Object.assign(globalThis, { FailedRead: kitPages.FailedRead, EmptyState: kitPages.EmptyState });
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
-await import("../../../../apps/dashboard/src/legacy/pages/setup.jsx");
-// Setup's rows as the first run draws them (setup.jsx SetupRows): every row, the next one primary, its Later. A test
-// that draws them as Today does sets `drawAs`.
-let drawAs = { later: FIRST_RUN_WORDS.putOff };
-const Page = () =>
-  globalThis.window.SetupRows({
-    S: globalThis.window.__SETUP,
-    rows: globalThis.window.__SETUP.vm.rows,
-    primary: globalThis.window.__SETUP.vm.next ? globalThis.window.__SETUP.vm.next.row : null,
-    ...drawAs,
-  });
 
 /** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */
 let cells = [];
@@ -228,51 +151,119 @@ const frames = hookFrames();
 const fresh = () => {
   cells = [];
 };
-function mount() {
-  Object.assign(globalThis.React, {
-    // A function component is rendered in place, as React renders it, so what
-    // a row opens under itself (the chooser, the card, the finder) is in the
-    // tree; the element itself is kept too, so a row's props stay readable.
-    createElement: (type, p, ...kids) => {
-      const props = { ...(p || {}), children: kids.flat(Infinity) };
-      const node = { type, props };
-      if (typeof type === "function") node.rendered = frames.render(type, props);
-      return node;
+// The stub React, in place before the TSX loads (a module-level fragment in it is made as it loads) and handed to the
+// react module the TSX takes its hooks from (useStubHooks): the hooks it draws with are these.
+Object.assign(globalThis.React, {
+  // A function component is rendered in place, as React renders it, so what
+  // a row opens under itself (the chooser, the card, the finder) is in the
+  // tree; the element itself is kept too, so a row's props stay readable.
+  createElement: (type, p, ...kids) => {
+    const props = { ...(p || {}), children: kids.flat(Infinity) };
+    const node = { type, props };
+    if (typeof type === "function") node.rendered = frames.render(type, props);
+    return node;
+  },
+  useMemo: (fn) => {
+    const k = frames.key();
+    if (!(k in cells)) cells[k] = fn();
+    return cells[k];
+  },
+  useState: (init) => {
+    const k = frames.key();
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = frames.key();
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  // An effect runs once per component, on its first mount, as React runs it on arrival.
+  useEffect: (fn) => {
+    const k = frames.key();
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
+});
+useStubHooks(globalThis.React);
+
+// Setup's verbs are the module object the rows call (surfaces/setup/surface.ts), stubbed in place; `window.__setup` is the
+// same object, so a test that sets `window.__setup.x` for a while reaches the rows. Setup's value is the seam's.
+const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
+const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+const { SetupRows } = await importSrc("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
+Object.assign(setupVerbs, {
+  later: async (ids, on) => {
+    calls.later.push([ids, on]);
+    return { ok: true, message: "" };
+  },
+  activate: async (kind) => {
+    calls.activate.push(kind);
+    return { ok: true, message: "" };
+  },
+  deactivate: async (kind) => {
+    calls.deactivate.push(kind);
+    return { ok: true, message: "" };
+  },
+  refresh: async () => {
+    calls.refresh += 1;
+  },
+  lines: {
+    search: async (area) => {
+      calls.search.push(area);
+      return {
+        ok: true,
+        numbers: [
+          { e164: "+13055550142", friendly: "(305) 555-0142", locality: "Miami", region: "FL" },
+          { e164: "+13055550143", friendly: "(305) 555-0143", locality: "Miami", region: "FL" },
+        ],
+        message: "",
+      };
     },
-    useMemo: (fn) => {
-      const k = frames.key();
-      if (!(k in cells)) cells[k] = fn();
-      return cells[k];
+    buy: async (number, area) => {
+      calls.buy.push([number, area]);
+      return { ok: true, queued: true, message: "" };
     },
-    useState: (init) => {
-      const k = frames.key();
-      if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-      return [
-        cells[k],
-        (v) => {
-          cells[k] = typeof v === "function" ? v(cells[k]) : v;
-        },
-      ];
+    retry: async () => ({ ok: true, queued: true, message: "" }),
+  },
+  forwarding: {
+    set: async (o) => {
+      calls.fwSet.push(o);
+      return { ok: true, message: "" };
     },
-    useReducer: (red, init) => {
-      const k = frames.key();
-      if (!(k in cells)) cells[k] = init;
-      return [
-        cells[k],
-        (a) => {
-          cells[k] = red(cells[k], a);
-        },
-      ];
+    test: async (id) => {
+      calls.fwTest.push(id);
+      return { ok: true, message: "" };
     },
-    // An effect runs once per component, on its first mount, as React runs it on arrival.
-    useEffect: (fn) => {
-      const k = frames.key();
-      if (!(k in cells)) {
-        cells[k] = true;
-        fn();
-      }
-    },
+  },
+});
+globalThis.window.__setup = setupVerbs;
+setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
+// Setup's rows as the first run draws them (rows.tsx SetupRows): every row, the next one primary, its Later. A test
+// that draws them as Today does sets `drawAs`.
+let drawAs = { later: FIRST_RUN_WORDS.putOff };
+const Page = () => {
+  const S = surfaceValue("setup");
+  return SetupRows({
+    S,
+    rows: S.vm.rows,
+    primary: S.vm.next ? S.vm.next.row : null,
+    ...drawAs,
   });
+};
+function mount() {
   frames.begin();
   return Page();
 }
@@ -311,7 +302,9 @@ test("the page: the row's Activate reaches the bridge with the capability's name
     if (!cta && n.props?.cta?.label === "Activate") cta = n.props.cta;
   });
   assert.ok(cta, "a row offers Activate");
+  // A row's press is `void pressVerb(...)`, so it answers nothing to wait on: the microtasks are let run instead.
   await cta.onClick();
+  await tick();
   assert.deepEqual(calls.activate, ["voice"]);
   assert.equal(calls.flash.length, 1, "the owner is told once");
   assert.equal(calls.nav.length, 0, "and nothing navigated away");
@@ -355,7 +348,7 @@ test("REGRESSION (S15): an operator sees Activate gated before the press, with t
 test("the page: a row that dials is not itself a dial; an activated row offers to withdraw the activation, it reaches the bridge, and the words never claim the receptionist stops", async () => {
   const before = calls.deactivate.length;
   const flashed = calls.flash.length;
-  globalThis.window.__SETUP = {
+  setSurfaceValue("setup", {
     dto,
     role: "owner",
     vm: setupSteps(
@@ -367,7 +360,7 @@ test("the page: a row that dials is not itself a dial; an activated row offers t
       NOW,
     ),
     fetchedAt: NOW,
-  };
+  });
   const tree = mount();
   let row = null;
   walk(tree, (n) => {
@@ -382,6 +375,7 @@ test("the page: a row that dials is not itself a dial; an activated row offers t
     "REGRESSION: 'Switch off' promised the receptionist would stop, and an activation gates nothing at runtime",
   );
   await row.also.onClick();
+  await tick();
   assert.deepEqual(calls.deactivate.slice(before), ["voice"]);
   const said = String(calls.flash[flashed].msg.props.children.join(""));
   assert.ok(!said.includes("Switched off"), said);
@@ -391,14 +385,14 @@ test("the page: a row that dials is not itself a dial; an activated row offers t
     if (!nav && n.props?.testid === "setup-row-team") nav = n.props;
   });
   assert.equal(typeof nav.onOpen, "function", "a row that navigates is a click target");
-  globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
 });
 
 // A failed read, and its retry, are the first run's page now: first-run-page.test.mjs.
 
 test("the page: Later puts a row off through the bridge, and waits for it like any other press", async () => {
   // The fixture, as the failed-read test used to leave it for the tests after it.
-  globalThis.window.__SETUP = { dto, role: "owner", later: [], vm, fetchedAt: NOW };
+  setSurfaceValue("setup", { dto, role: "owner", later: [], vm, fetchedAt: NOW });
   fresh();
   const tree = mount();
   let row = null;
@@ -409,6 +403,7 @@ test("the page: Later puts a row off through the bridge, and waits for it like a
   assert.equal(row.also.label, "Later", "an optional row that is not ready can be put off");
   assert.equal(row.also.testid, "setup-later-keep");
   await row.also.onClick();
+  await tick();
   assert.deepEqual(calls.later.at(-1), ["keep", true]);
   let facts = null;
   walk(tree, (n) => {
@@ -418,7 +413,7 @@ test("the page: Later puts a row off through the bridge, and waits for it like a
 });
 
 test("the page as Today draws it: Skip says so in the card's own toast, whose Undo takes the row back", async () => {
-  globalThis.window.__SETUP = { dto, role: "owner", later: [], vm, fetchedAt: NOW };
+  setSurfaceValue("setup", { dto, role: "owner", later: [], vm, fetchedAt: NOW });
   const lent = [];
   drawAs = {
     later: { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." },
@@ -433,6 +428,7 @@ test("the page as Today draws it: Skip says so in the card's own toast, whose Un
     assert.equal(row.also.label, "Skip");
     const own = calls.flash.length;
     await row.also.onClick();
+    await tick();
     assert.deepEqual(calls.later.at(-1), ["keep", true]);
     assert.equal(calls.flash.length, own, "said in the toast the card lent, which outlives the row");
     assert.equal(textOf(lent.at(-1).msg), "Put off. It stays in Setting up for when you're ready.");
@@ -447,7 +443,7 @@ test("the page: the one coral button is the row the caller names, and every othe
   const kinds = (primary) => {
     // The harness's page names `vm.next`'s row as the primary one, as the first run names its step's first open row.
     const next = primary ? { label: "Set up forwarding", to: "verb:forwarding", row: primary, title: "Keep" } : null;
-    globalThis.window.__SETUP = { dto, role: "owner", later: [], vm: { ...vm, next }, fetchedAt: NOW };
+    setSurfaceValue("setup", { dto, role: "owner", later: [], vm: { ...vm, next }, fetchedAt: NOW });
     fresh();
     const tree = mount();
     const out = {};
@@ -492,12 +488,12 @@ const noLine = {
 
 test("the page: the chooser finds numbers in an area code, a pick opens the confirm, and Get this number reaches the bridge with the number and the area", async () => {
   fresh();
-  globalThis.window.__SETUP = {
+  setSurfaceValue("setup", {
     dto: noLine,
     role: "owner",
     vm: setupSteps({ ...noLine, later: [] }, NOW),
     fetchedAt: NOW,
-  };
+  });
   let tree = mount();
   const lineRow = (() => {
     let r = null;
@@ -512,7 +508,9 @@ test("the page: the chooser finds numbers in an area code, a pick opens the conf
   assert.ok(byTestId(tree, "setup-chooser"), "the chooser opens under the row");
   byTestId(tree, "setup-area").props.onChange({ target: { value: "305" } });
   tree = mount();
+  // The chooser's Find and Get are `() => void find()`: nothing to await, so the microtasks are let run.
   await byTestId(tree, "setup-find").props.onClick();
+  await tick();
   assert.deepEqual(calls.search, ["305"]);
   tree = mount();
   const numbers = allByTestId(tree, "setup-number");
@@ -523,6 +521,7 @@ test("the page: the chooser finds numbers in an area code, a pick opens the conf
   assert.ok(confirm, "a pick opens the confirm");
   const before = calls.flash.length;
   await byTestId(tree, "setup-buy").props.onClick();
+  await tick();
   assert.deepEqual(calls.buy, [["+13055550143", "305"]]);
   assert.match(String(calls.flash[before].msg.props.children.join("")), /is yours — setting it up now/);
 });
@@ -530,7 +529,7 @@ test("the page: the chooser finds numbers in an area code, a pick opens the conf
 /* ---- forwarding: save the carrier and the mode, read the code, open the test window ---- */
 test("the page: the forwarding card saves the number, the carrier and the mode through the bridge, then shows the code and opens the test window", async () => {
   fresh();
-  globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   let tree = mount();
   const keepRow = (() => {
     let r = null;
@@ -589,12 +588,12 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
       ],
     },
   };
-  globalThis.window.__SETUP = {
+  setSurfaceValue("setup", {
     dto: saved,
     role: "owner",
     vm: setupSteps({ ...saved, later: [] }, NOW),
     fetchedAt: NOW,
-  };
+  });
   tree = mount();
   const row2 = (() => {
     let r = null;
@@ -605,6 +604,7 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
   })();
   assert.equal(row2.cta.label, "Test it");
   await row2.cta.onClick();
+  await tick();
   assert.deepEqual(calls.fwTest, ["f1"], "Test it on the row opens the window through the bridge");
   tree = mount();
   const code = byTestId(tree, "setup-fw-code");
@@ -619,12 +619,12 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
 /* ---- one finder: Google's row opens the first run's Find, an owner's door ---- */
 test("the page: the Google row's Find it opens the first run's Find, and only an owner may press it", async () => {
   const google = { ...dto, google: { ready: true, places: true, listing: null } };
-  globalThis.window.__SETUP = {
+  setSurfaceValue("setup", {
     dto: google,
     role: "owner",
     vm: setupSteps({ ...google, later: [] }, NOW),
     fetchedAt: NOW,
-  };
+  });
   const googleRow = () => {
     let r = null;
     walk(mount(), (n) => {
@@ -660,7 +660,7 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
 
 test("REGRESSION (S23): a row's verb cannot be pressed twice while it is on its way -- a double press sent it twice", async () => {
   fresh();
-  globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   let release = null;
   const sent = [];
   const was = globalThis.window.__setup.activate;
@@ -680,13 +680,15 @@ test("REGRESSION (S23): a row's verb cannot be pressed twice while it is on its 
       return r;
     };
     assert.equal(row().cta.label, "Activate");
-    const first = row().cta.onClick();
+    // A row's press is not awaitable (it is `void pressVerb(...)`): the verb is waited on by letting the microtasks run.
+    row().cta.onClick();
     tree = mount();
     assert.equal(row().cta.busy, true, "REGRESSION: the row's button stayed pressable while its verb was on its way");
-    await row().cta.onClick();
+    row().cta.onClick();
+    await tick();
     assert.deepEqual(sent, ["voice"], "REGRESSION: a second press sent it again");
     release();
-    await first;
+    await tick();
     tree = mount();
     assert.ok(!row().cta.busy, "and the button is back once it lands");
   } finally {
@@ -696,12 +698,12 @@ test("REGRESSION (S23): a row's verb cannot be pressed twice while it is on its 
 
 test("REGRESSION (S16): Setup's own checks wear their tones -- a refused area code and an empty search wore the green check", async () => {
   fresh();
-  globalThis.window.__SETUP = {
+  setSurfaceValue("setup", {
     dto: noLine,
     role: "owner",
     vm: setupSteps({ ...noLine, later: [] }, NOW),
     fetchedAt: NOW,
-  };
+  });
   let tree = mount();
   let lineRow = null;
   walk(tree, (n) => {
@@ -724,6 +726,7 @@ test("REGRESSION (S16): Setup's own checks wear their tones -- a refused area co
     byTestId(tree, "setup-area").props.onChange({ target: { value: "999" } });
     tree = mount();
     await byTestId(tree, "setup-find").props.onClick();
+    await tick();
     const said = calls.flash.at(-1);
     assert.match(String(said.msg.props.children.join("")), /Nothing free in 999/);
     assert.equal(said.tone, "info", "REGRESSION: a search that found nothing wore the green check of success");
@@ -753,7 +756,7 @@ test("a retry says it is under way in the info tone, not with the green check of
       },
     ],
   };
-  globalThis.window.__SETUP = { dto, role: "owner", vm: retryVm, fetchedAt: NOW };
+  setSurfaceValue("setup", { dto, role: "owner", vm: retryVm, fetchedAt: NOW });
   try {
     const tree = mount();
     let row = null;
@@ -762,6 +765,7 @@ test("a retry says it is under way in the info tone, not with the green check of
     });
     const before = calls.flash.length;
     await row.cta.onClick();
+    await tick();
     assert.match(String(calls.flash[before].msg.props.children), /Retrying/);
     assert.equal(
       calls.flash[before].tone,
@@ -769,18 +773,18 @@ test("a retry says it is under way in the info tone, not with the green check of
       "REGRESSION: 'Retrying' wore the green check before anything answered",
     );
   } finally {
-    globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+    setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   }
 });
 
 test("REGRESSION (the gate): Enter in the area code is the gated button's press, not a way around it -- it searched for a role that may not", async () => {
   fresh();
-  globalThis.window.__SETUP = {
+  setSurfaceValue("setup", {
     dto: noLine,
     role: "owner",
     vm: setupSteps({ ...noLine, later: [] }, NOW),
     fetchedAt: NOW,
-  };
+  });
   let tree = mount();
   let lineRow = null;
   walk(tree, (n) => {
@@ -802,7 +806,7 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
   } finally {
     delete globalThis.window.ST_STORE;
     delete globalThis.window.__roleGate;
-    globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+    setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   }
 });
 
@@ -810,13 +814,15 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
 
 test("REGRESSION (S14): Bring my number asks for a port, and says so -- its Ask us filed a line request", async () => {
   fresh();
-  globalThis.window.__SETUP = {
+  setSurfaceValue("setup", {
     dto: noLine,
     role: "owner",
     vm: setupSteps({ ...noLine, later: [] }, NOW),
     fetchedAt: NOW,
-  };
+  });
   const asked = [];
+  // The module object's own verb, put back after: it is the real one, and the next test draws over the same object.
+  const request = setupVerbs.request;
   globalThis.window.__setup.request = async (what) => {
     asked.push(what);
     return { ok: true, already: false, message: "" };
@@ -836,21 +842,22 @@ test("REGRESSION (S14): Bring my number asks for a port, and says so -- its Ask 
     assert.deepEqual(asked, ["port"], "REGRESSION: Ask us asked for a line");
     assert.match(calls.flash[before].msg.props.children.join(""), /move your number/);
   } finally {
-    delete globalThis.window.__setup.request;
-    globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+    globalThis.window.__setup.request = request;
+    setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   }
 });
 
 test("REGRESSION (S8): a broken configuration's row asks for a repair, and says so -- its only verb opened Business, which cannot repair it", async () => {
   fresh();
   const broken = { ...dto, business: { ...dto.business, broken: true } };
-  globalThis.window.__SETUP = {
+  setSurfaceValue("setup", {
     dto: broken,
     role: "owner",
     vm: setupSteps({ ...broken, later: [] }, NOW),
     fetchedAt: NOW,
-  };
+  });
   const asked = [];
+  const request = setupVerbs.request;
   globalThis.window.__setup.request = async (what) => {
     asked.push(what);
     return { ok: true, already: false, message: "" };
@@ -864,11 +871,12 @@ test("REGRESSION (S8): a broken configuration's row asks for a repair, and says 
     assert.equal(facts.cta.label, "Ask for a repair");
     const before = { flash: calls.flash.length, nav: calls.nav.length };
     await facts.cta.onClick();
+    await tick();
     assert.deepEqual(asked, ["repair"], "REGRESSION: the verb was never sent");
     assert.equal(calls.nav.length, before.nav, "and nothing navigated away");
     assert.match(calls.flash[before.flash].msg.props.children.join(""), /repair your settings/);
   } finally {
-    delete globalThis.window.__setup.request;
-    globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+    globalThis.window.__setup.request = request;
+    setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   }
 });

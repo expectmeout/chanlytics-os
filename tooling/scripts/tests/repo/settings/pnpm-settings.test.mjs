@@ -50,3 +50,14 @@ test("the overrides lift the phone app's two advisories, and query-string is pat
     assert.ok(fs.existsSync(path.join(ROOT, file)), `${dependency}: ${file} is in the tree`);
   assert.ok("query-string@7.1.3" in patched);
 });
+
+test("an advisory with no patched version is ignored here by its GHSA, and ci.yml's note names each one", () => {
+  // The audit step fails the build on any other high advisory; an ignore is a decision to carry one, so the note beside
+  // that step says which, when and why. A GHSA added here without its sentence is a red build, not a quiet gap.
+  const yaml = fs.readFileSync(path.join(ROOT, "pnpm-workspace.yaml"), "utf8");
+  const ignored = /^auditConfig:\r?\n {2}ignoreGhsas:\r?\n((?: {4}- GHSA-[\w-]+\r?\n?)+)/m.exec(yaml);
+  assert.ok(ignored, "pnpm-workspace.yaml: auditConfig.ignoreGhsas is a list of `- GHSA-...` lines");
+  const ids = [...ignored[1].matchAll(/GHSA-[\w-]+/g)].map((m) => m[0]);
+  const ci = fs.readFileSync(path.join(ROOT, ".github/workflows/ci.yml"), "utf8");
+  for (const id of ids) assert.ok(ci.includes(id), `${id}: say in ci.yml's note beside the audit step when and why`);
+});

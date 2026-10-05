@@ -19,6 +19,7 @@ import {
   platformRecipient,
   receivedEmailFrom,
   resendWebhookSignature,
+  senderAuthenticated,
   verifyResendWebhook,
   WEBHOOK_TOLERANCE_S,
 } from "@chanlytics/channels";
@@ -246,6 +247,226 @@ test("what a message claims to be: a report and an automatic reply before the ge
   assert.equal(claim({ precedence: "bulk" }), "automated");
   assert.equal(claim({ "list-id": "<news.brand.example>" }), "automated");
   assert.equal(claim({ "list-unsubscribe": "<mailto:u@brand.example>" }), "automated");
+});
+
+test("a yes is taken only from a sender the receiving side PROVED: an aligned DMARC pass, or a DKIM pass signed by the From domain; every other header shape, and none at all, is no proof (fails closed)", () => {
+  // The receiving side's name, as configured (EMAIL_AUTHSERV_ID): only a header that opens with it is read at all.
+  const proved = (headers, from = "ana@example.com", authservId = "mx.example.net") =>
+    senderAuthenticated(
+      {
+        from: from === null ? null : { address: from, name: null },
+        authResults: "authentication-results" in headers ? [headers["authentication-results"]] : [],
+      },
+      authservId,
+    );
+  const ar = (said) => ({ "authentication-results": said });
+
+  // The shapes a forged From can arrive in, each of which used to count as authentic (it failed open).
+  assert.equal(proved({}), false, "no Authentication-Results at all");
+  assert.equal(proved(ar("")), false, "an empty header");
+  assert.equal(proved(ar("mx.example.net; none")), false, "the receiving side says nothing of any method");
+  assert.equal(proved(ar("mx.example.net; spf=none smtp.mailfrom=example.com")), false, "SPF has no record");
+  assert.equal(proved(ar("mx.example.net; spf=neutral smtp.mailfrom=example.com")), false, "SPF neutral");
+  assert.equal(proved(ar("mx.example.net; dkim=none")), false, "no DKIM signature");
+  assert.equal(proved(ar("mx.example.net; dmarc=none header.from=example.com")), false, "no DMARC policy to pass");
+  assert.equal(
+    proved(ar("mx.example.net; spf=pass smtp.mailfrom=attacker.example")),
+    false,
+    "an SPF pass for the attacker's own envelope says nothing of the From line",
+  );
+  assert.equal(
+    proved(ar("mx.example.net; spf=pass smtp.mailfrom=example.com")),
+    false,
+    "an SPF pass alone speaks for the envelope, not the From, and is no proof here",
+  );
+  assert.equal(
+    proved(ar("mx.example.net; dkim=pass header.d=attacker.example; dmarc=pass header.from=attacker.example")),
+    false,
+    "passes, for another domain: an unaligned pass",
+  );
+  assert.equal(
+    proved(ar("mx.example.net; dkim=pass header.d=attacker.example")),
+    false,
+    "a DKIM pass signed by someone else",
+  );
+  assert.equal(
+    proved(ar("mx.example.net; dmarc=pass header.from=attacker.example")),
+    false,
+    "a DMARC pass for another From",
+  );
+  assert.equal(proved(ar("mx.example.net; dmarc=pass")), false, "a DMARC pass that names no From domain");
+  assert.equal(proved(ar("mx.example.net; dkim=pass")), false, "a DKIM pass that names no signer");
+  assert.equal(
+    proved(ar("mx.example.net; dkim=pass header.d=mail.example.com")),
+    false,
+    "a sibling or parent is not the From domain",
+  );
+  assert.equal(proved(ar("mx.example.net; dkim=fail header.d=example.com")), false, "a failure");
+  assert.equal(proved(ar("mx.example.net; dkim=softfail header.d=example.com")), false);
+  assert.equal(proved(ar("mx.example.net; dkim=temperror header.d=example.com")), false);
+  assert.equal(
+    proved(ar("mx.example.net; dmarc=fail header.from=example.com")),
+    false,
+    "DMARC failing for the From domain",
+  );
+  assert.equal(
+    proved(ar("mx.example.net; dkim=pass header.d=example.com; dmarc=fail header.from=example.com")),
+    false,
+    "a DMARC failure is not outvoted by a DKIM pass",
+  );
+  assert.equal(proved(ar("garbage ;;; = = ")), false, "an unreadable header");
+
+  // The proofs: an aligned DMARC pass for the From domain, or a DKIM pass signed by it.
+  assert.equal(proved(ar("mx.example.net; dmarc=pass header.from=example.com")), true);
+  assert.equal(proved(ar("mx.example.net; dkim=pass header.d=example.com header.s=sel1")), true);
+  assert.equal(
+    proved(ar("mx.example.net; dkim=pass header.i=@example.com header.s=sel1")),
+    true,
+    "a verifier that says only the signing identity: its domain is the From domain",
+  );
+  assert.equal(
+    proved(ar("mx.example.net; dkim=pass header.i=@attacker.example header.s=sel1")),
+    false,
+    "and an identity on another domain is not",
+  );
+  assert.equal(
+    proved(ar("mx.example.net; dkim=pass header.d=attacker.example header.i=@example.com")),
+    false,
+    "a signing domain that is not the From's is not rescued by an identity that claims it",
+  );
+  assert.equal(
+    proved(
+      ar(
+        "amazonses.com; spf=pass (spfCheck: domain of example.com designates 203.0.113.9 as permitted sender) " +
+          "client-ip=203.0.113.9; envelope-from=ana@example.com; helo=mail.example.com; dkim=pass header.i=@example.com; " +
+          "dmarc=pass header.from=example.com;",
+      ),
+      "ana@example.com",
+      "amazonses.com",
+    ),
+    true,
+    "the shape an Amazon SES receiving side writes, for a deployment configured with its name",
+  );
+  assert.equal(
+    proved(ar("mx.example.net;\r\n\tspf=pass smtp.mailfrom=ana@example.com;\r\n\tdkim=pass header.d=example.com;")),
+    true,
+    "a header folded over lines",
+  );
+  assert.equal(proved(ar("MX.EXAMPLE.NET; DMARC=PASS HEADER.FROM=EXAMPLE.COM")), true, "case does not matter");
+  assert.equal(
+    proved(ar("mx.example.net; dmarc=pass header.from=example.com"), "Ana@EXAMPLE.com"),
+    true,
+    "nor the From's",
+  );
+
+  // What a sender writes into the receiver's header is not read: quoted strings and comments are dropped, so a forged
+  // `header.d=` inside either proves nothing.
+  assert.equal(
+    proved(ar('mx.example.net; dkim=fail reason="header.d=example.com dkim=pass"')),
+    false,
+    "a quoted reason that spells a pass",
+  );
+  assert.equal(
+    proved(ar("mx.example.net; dkim=fail (body hash did not verify; header.d=example.com dkim=pass)")),
+    false,
+    "a comment that spells a pass",
+  );
+  // No From, no proof.
+  assert.equal(proved(ar("mx.example.net; dmarc=pass header.from=example.com"), null), false);
+});
+
+test("a header is the receiving side's only when it opens with that side's own name: another name proves nothing, no configured name proves nothing, and a header the receiving side did not write is not read wherever it sits", () => {
+  const PASS = "dmarc=pass header.from=example.com";
+  const of = (...authResults) => ({ from: { address: "ana@example.com", name: null }, authResults });
+  const ID = "mx.example.net";
+  // The proof, when the header is the receiving side's own.
+  assert.equal(senderAuthenticated(of(`${ID}; ${PASS}`), ID), true);
+  assert.equal(senderAuthenticated(of(`${ID} 1; ${PASS}`), ID), true, "the version RFC 8601 allows after the name");
+  assert.equal(
+    senderAuthenticated(of(`MX.Example.NET; ${PASS}`), "mx.EXAMPLE.net"),
+    true,
+    "names are not case sensitive",
+  );
+  assert.equal(senderAuthenticated(of(`(received by the edge) ${ID}; ${PASS}`), ID), true, "a comment before the name");
+
+  // A forged one, with another name: a sender can write any line it likes, so a pass that opens with a name that is not the
+  // receiving side's proves nothing, above the receiver's own or below it, or alone.
+  const FORGED = `attacker.example; ${PASS}`;
+  assert.equal(senderAuthenticated(of(FORGED), ID), false, "alone");
+  assert.equal(senderAuthenticated(of(FORGED, `${ID}; dkim=none`), ID), false, "above the receiver's, which says no");
+  assert.equal(senderAuthenticated(of(`${ID}; dkim=none`, FORGED), ID), false, "below it");
+  assert.equal(senderAuthenticated(of(FORGED, `${ID}; dmarc=fail header.from=example.com`), ID), false);
+  assert.equal(
+    senderAuthenticated(of(`mx.example.net.attacker.example; ${PASS}`), ID),
+    false,
+    "a name that only starts with the receiver's is another name",
+  );
+  assert.equal(
+    senderAuthenticated(of(`"${ID}"; ${PASS}`), ID),
+    false,
+    "a quoted name is not read as one (it fails closed)",
+  );
+  assert.equal(senderAuthenticated(of(`${ID.toUpperCase()}x; ${PASS}`), ID), false);
+  // The receiver's own pass is still believed with a forged line beside it: the forged one is not read, not subtracted.
+  assert.equal(senderAuthenticated(of(FORGED, `${ID}; ${PASS}`), ID), true);
+  assert.equal(senderAuthenticated(of(`${ID}; ${PASS}`, FORGED), ID), true);
+  // A header repeated under the receiver's own name is not one it wrote once: the copy is somebody's, and which one is the
+  // receiver's is not told by where it sits. Neither is believed.
+  assert.equal(senderAuthenticated(of(`${ID}; ${PASS}`, `${ID}; dkim=none`), ID), false, "a pass, then a nothing");
+  assert.equal(senderAuthenticated(of(`${ID}; dkim=none`, `${ID}; ${PASS}`), ID), false, "a nothing, then a pass");
+  assert.equal(senderAuthenticated(of(`${ID}; ${PASS}`, `${ID}; ${PASS}`), ID), false, "even two that agree");
+  // No name configured: fail closed, whatever the header says. A no (STOP, UNSUBSCRIBE) never asks this at all.
+  for (const none of [null, "", "  "])
+    assert.equal(senderAuthenticated(of(`${ID}; ${PASS}`), none), false, `configured as ${JSON.stringify(none)}`);
+  assert.equal(
+    senderAuthenticated({ from: { address: "ana@example.com", name: null } }, ID),
+    false,
+    "no headers listed",
+  );
+  assert.equal(senderAuthenticated(of(), ID), false, "none at all");
+  assert.equal(senderAuthenticated(of("; " + PASS), ID), false, "a header that opens with no name");
+});
+
+test("the fetched email keeps every Authentication-Results the provider listed, in order, whichever shape it sends its headers in: a repeated header is not collapsed to the one on top", () => {
+  const both = receivedEmailFrom({
+    id: "rcv_3",
+    from: "Ana <ana@example.com>",
+    headers: [
+      { name: "Authentication-Results", value: "mx.example.net; dkim=none" },
+      { name: "Subject", value: "hello" },
+      { name: "authentication-results", value: "mx.example.net; dmarc=pass header.from=example.com" },
+    ],
+  });
+  assert.deepEqual(both.authResults, [
+    "mx.example.net; dkim=none",
+    "mx.example.net; dmarc=pass header.from=example.com",
+  ]);
+  assert.equal(both.headers["authentication-results"], "mx.example.net; dkim=none", "the map still keeps the first");
+  assert.equal(senderAuthenticated(both, "mx.example.net"), false, "two under the receiver's name are no proof");
+  const proof = receivedEmailFrom({
+    id: "rcv_4",
+    from: "Ana <ana@example.com>",
+    headers: { "Authentication-Results": "mx.example.net; dmarc=pass header.from=example.com" },
+  });
+  assert.deepEqual(proof.authResults, ["mx.example.net; dmarc=pass header.from=example.com"]);
+  assert.equal(senderAuthenticated(proof, "mx.example.net"), true, "as a header map, as the fetched email carries it");
+  assert.equal(senderAuthenticated(proof, "amazonses.com"), false, "the receiver's name is another's");
+  // A map whose value repeats (an array) lists them all.
+  const repeated = receivedEmailFrom({
+    id: "rcv_5",
+    from: "ana@example.com",
+    headers: {
+      "Authentication-Results": ["forged.example; dmarc=pass header.from=example.com", "mx.example.net; dkim=none"],
+    },
+  });
+  assert.equal(repeated.authResults.length, 2);
+  assert.equal(
+    senderAuthenticated(repeated, "mx.example.net"),
+    false,
+    "the receiver's own says nothing; the forged is not read",
+  );
+  // No such header: none listed.
+  assert.deepEqual(receivedEmailFrom({ id: "rcv_6", headers: { Subject: "hi" } }).authResults, []);
 });
 
 test("on the cold reply domain (D17) a reply route routes and nothing else: no workspace publishes an address there", () => {

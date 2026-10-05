@@ -12,7 +12,7 @@
  * message cut short, and the first frames of its stack, which in a built bundle are file positions. A message is a
  * developer's sentence, but an exception can quote a value, so the logger redacts it by what it looks like too.
  */
-import { z } from "zod";
+import type { ClientErrorInputDto } from "./client-error-schema";
 
 /** Where the error was caught: the shell's pane, the app's pane (`(os)/error.tsx`), or the root boundary. */
 export const CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"] as const;
@@ -28,21 +28,8 @@ export const CLIENT_ERROR_LIMITS = {
   workspace: 64,
 } as const;
 
-const PAGE = /^[a-z][a-z0-9-]{0,31}$/;
-const WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
-
-export const ClientErrorInput = z.object({
-  boundary: z.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
-  page: z.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
-  name: z.string().max(CLIENT_ERROR_LIMITS.name),
-  message: z.string().max(CLIENT_ERROR_LIMITS.message),
-  stack: z.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
-  /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
-  /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
-  workspace: z.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable(),
-});
-export type ClientErrorInputDto = z.infer<typeof ClientErrorInput>;
+export const PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+export const WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 
 /** The report a boundary sends, cut to the limits: what a caught error becomes before it leaves the browser. */
 export function clientErrorOf(

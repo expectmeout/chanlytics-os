@@ -4,7 +4,7 @@
  * (dealSheetRefusal). The sheet's words and its draft are deal-sheet.ts's.
  */
 import { wallClockAt, zoneDayKey } from "../../shared/clock";
-import { isRealDate } from "../../config/workspace-config/config-schema";
+import { isRealDate } from "../../config/workspace-config/config-rules";
 import { normalizeLink, whyNotALink } from "../../shared/link";
 import { DEAL_REFUSALS, type DealClearable, type DealLostReason, type DealPer, type DealStage } from "../deal-words";
 import { parseAmount } from "../deal-amount";

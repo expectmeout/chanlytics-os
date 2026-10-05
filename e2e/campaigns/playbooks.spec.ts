@@ -1,16 +1,16 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { atRoute } from "../address";
 import { apiGet } from "../workspace";
 
 /**
- * Campaigns › Playbooks on a real workspace.
+ * Campaigns' home (canvas A, "Lifecycle") on a real workspace: the page that replaced the Playbooks list.
  *
- * The route renders the real page, not the Coming Soon card or the mockup's
- * six invented campaigns: the cards are the workspace's playbooks with what
- * their runs earned, the composer offers the six moments with who each
- * reaches today, and the messages are the approved ones the workspace holds
- * that fit the moment (or the honest line). Nothing is made here — the
- * workspace keeps no test playbook.
+ * The route renders the real page, not the Coming Soon card or the mockup's six invented campaigns: the moments are the
+ * workspace's own playbooks and their pools, the tiles are what its runs and its People say, and the composer, in a sheet
+ * from the side, offers the moments with who each reaches today. A playbook is `campaigns/moment:<id>`, and every old address
+ * (`#/outbound`, `#/outbound/<id>`, `/playbooks`) lands on the home for ever. Nothing is made here: the workspace keeps no test
+ * playbook, and the composer is cancelled.
  */
 const INVENTED = [
   "Birthday offer",
@@ -21,51 +21,60 @@ const INVENTED = [
   "Spring couples",
 ];
 
-test.describe("Playbooks on a real workspace", () => {
+test.describe("Campaigns' home on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
   });
 
-  test("renders the real page from the workspace's playbooks, offers the six triggers, and never invents a number", async ({
+  test("renders the real page from the workspace's playbooks, hosts the composer under New message, and never invents a number", async ({
     page,
   }) => {
-    await page.goto("/#/outbound");
+    await page.goto("/#/campaigns");
     await page.waitForLoadState("networkidle");
-    const real = page.getByTestId("playbooks-real");
-    await expect(real).toBeVisible();
+    const home = page.getByTestId("campaigns-home");
+    await expect(home).toBeVisible();
 
     const [pb, tpl] = await Promise.all([apiGet(page, "/api/v1/playbooks"), apiGet(page, "/api/v1/templates")]);
     expect(pb.status()).toBe(200);
     expect(tpl.status()).toBe(200);
-    const playbooks = (await pb.json()).data.playbooks as { id: string; state: string }[];
+    const body = (await pb.json()).data as { playbooks: { id: string; state: string }[]; deals_on: boolean };
     const approved = ((await tpl.json()).data.templates as { channel: string; meta_status: string }[]).filter(
       (t) => t.channel === "whatsapp" && t.meta_status === "approved",
     );
 
-    // The cards are exactly the route's rows; every moment stands whether or not somebody made a playbook for it
-    // (#741), so a workspace with none has no empty state: it has a slot per moment to start from. Eight moments:
-    // the six, a saved list's (decision 0009) and a proposal waiting (0008), contracts' PLAYBOOK_TRIGGERS.
-    await expect(real.getByTestId("pb-card")).toHaveCount(playbooks.length);
-    await expect(real.getByTestId("pb-slot")).toHaveCount(8);
-
-    const text = await real.innerText();
+    // The rail is the five moments around a customer (four where deals are off, 0006), each covered or not.
+    await expect(home.getByTestId("cmh-stage")).toHaveCount(body.deals_on ? 5 : 4);
+    const text = await home.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
+    // The three tiles stand once their surfaces have landed: who can hear you, what is coming, what came back.
+    await expect(home.getByTestId("cmh-reach")).toBeVisible();
+    await expect(home.getByTestId("cmh-coming")).toBeVisible();
+    await expect(home.getByTestId("cmh-results")).toBeVisible();
 
-    // The composer, in a sheet beside the page: the six moments behind its
-    // moment, each with who it reaches today; the approved messages that fit
-    // it, or the honest line; the clock in the business's zone, and the
-    // rules every run keeps. Cancelled — nothing is saved.
-    await page.getByTestId("pb-new").click();
-    const composer = page.getByTestId("pb-composer");
+    // New message opens the composer in a sheet from the side, on Send once; Every time a moment comes is the playbook
+    // composer: the moments behind its moment, each with who it reaches today; the approved messages that fit it, or the
+    // honest line; the clock in the business's zone. Cancelled -- nothing is saved. (In Glass, the default look, the page's act
+    // is drawn in the frame's head, outside the page's own element, so it is found on the page.)
+    await page.getByTestId("cmh-new").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
+    const sheet = page.getByTestId("cmh-composer");
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByTestId("bc-composer")).toBeVisible();
+    await sheet.getByTestId("cmh-kind-every").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/new:every$/));
+    const composer = sheet.getByTestId("pb-composer");
     await expect(composer).toBeVisible();
+    // (The kit's Picker: its list pops on the body, its options are the page's `option`s, and Escape closes it.)
     await composer.getByTestId("pb-moment").click();
-    await expect(page.getByTestId("pb-moment-pop")).toBeVisible();
-    await expect(page.getByTestId("pb-moment-option")).toHaveCount(8);
-    await expect(page.getByTestId("pb-moment-option").filter({ hasText: "Win-back" })).toHaveCount(1);
+    await expect(page.locator(".rec-combo-pop")).toBeVisible();
+    const moments = page.getByRole("option");
+    await expect(moments.first()).toBeVisible();
+    // The moments this workspace is offered, among them the win-back (by visits or by silence, whichever it can read).
+    await expect(moments.filter({ hasText: "Win-back" }).first()).toBeVisible();
     // Escape closes the list, and only the list.
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId("pb-moment-pop")).toHaveCount(0);
+    await expect(page.locator(".rec-combo-pop")).toHaveCount(0);
     await expect(composer).toBeVisible();
     await expect(composer.getByTestId("pb-guard")).toBeVisible();
     if (approved.length === 0) {
@@ -76,13 +85,68 @@ test.describe("Playbooks on a real workspace", () => {
     await expect(composer.getByTestId("pb-hour")).toBeVisible();
     await composer.getByTestId("pb-cancel").click();
     await expect(page.getByTestId("pb-composer")).toHaveCount(0);
+    await expect(page).toHaveURL(atRoute(/^campaigns$/));
   });
 
-  test("the Campaigns tab is Playbooks, and Today shows a run only when one is waiting", async ({ page }) => {
+  test("a moment opens in the sheet by its address, and the old Playbooks addresses land on it", async ({ page }) => {
+    const res = await apiGet(page, "/api/v1/playbooks");
+    expect(res.status()).toBe(200);
+    const playbooks = (await res.json()).data.playbooks as { id: string; name: string }[];
+    test.skip(playbooks.length === 0, "this workspace has made no playbook");
+    const first = playbooks[0];
+    // The old route, as a bell row or an email link writes it, moves to the new address as the frame loads.
     await page.goto("/#/outbound");
+    await expect(page).toHaveURL(atRoute(/^campaigns$/));
+    await expect(page.getByTestId("campaigns-home")).toBeVisible();
+    await page.goto(`/#/outbound/${first.id}`);
+    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/moment:${first.id}$`)));
+    const drawer = page.getByTestId("cmh-drawer");
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByTestId("pb-detail")).toBeVisible();
+    // Closed, the address is the home's again, and the home is still there.
+    await page.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
+    await expect(page).toHaveURL(atRoute(/^campaigns$/));
+  });
+
+  /**
+   * The rail is five columns, and five columns need about 1100px of page: under that the moments stand down a line (a container
+   * rule on the home, campaigns.css), and a "Turn on · 3 tomorrow" wraps inside its card. Between a phone's 900px and a wide
+   * desk nothing may run out of the rail, or off the page. Geometry, so it is measured in a real browser.
+   */
+  test("the home draws inside its page from 901 to 1440px: the rail stands down the line where five columns no longer fit", async ({
+    page,
+  }) => {
+    await page.goto("/#/campaigns");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("playbooks-real")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Playbooks" }).first()).toBeVisible();
+    await expect(page.getByTestId("campaigns-home")).toBeVisible();
+    for (const width of [901, 1000, 1100, 1200, 1330, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const rail = page.getByTestId("cmh-rail");
+      await expect(rail).toBeVisible();
+      const runOut = await rail.evaluate((el) => {
+        const edge = el.getBoundingClientRect();
+        return [...el.querySelectorAll<HTMLElement>("*")]
+          .filter((n) => {
+            const box = n.getBoundingClientRect();
+            return box.width > 0 && (box.right > edge.right + 1 || box.left < edge.left - 1);
+          })
+          .map((n) => n.className || n.tagName);
+      });
+      expect(runOut, `${width}px: parts of the rail run out of it`).toEqual([]);
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(over, `${width}px: the page scrolls sideways`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test("Campaigns has no strip of tabs, and Today shows a run only when one is waiting", async ({ page }) => {
+    await page.goto("/#/campaigns");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("campaigns-home")).toBeVisible();
+    await expect(page.locator(".stabs-campaigns")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Playbooks" })).toHaveCount(0);
 
     const bc = await apiGet(page, "/api/v1/broadcasts");
     expect(bc.status()).toBe(200);
@@ -95,84 +159,22 @@ test.describe("Playbooks on a real workspace", () => {
   });
 
   /**
-   * The standing line's dots sit the same distance from the words on both sides.
+   * Three pages of one nav item keep one page edge.
    *
-   * `.cm-standing-tap` carried `padding: 0 6px` with `margin-left: -6px`: the
-   * negative margin cancelled the flex gap on the LEFT and the padding added to
-   * it on the RIGHT, so every dot after a tap sat 12px from the word before it
-   * and 6px from the word after. Playbooks is the only Campaigns tab with taps,
-   * which is why it read as kerned by hand next to Broadcasts and Templates.
-   * Geometry, so it is measured in a real browser rather than read off the CSS.
+   * `.cmh` supplies the home's gutter, and its head and its rail are both inside it; the Library's head is inside its own list.
+   * A line that sat flush against the sidebar while the work below it was inset 28px was the standing line's bug on the old
+   * tabs. Geometry, so it is measured in a real browser rather than read off the CSS.
    */
-  test("Playbooks: the standing line is evenly spaced, as the other tabs are", async ({ page }) => {
-    await page.goto("/#/outbound");
+  test("Campaigns: the home's line shares its page edge with the rail below it", async ({ page }) => {
+    await page.goto("/#/campaigns");
     await page.waitForLoadState("networkidle");
-    const line = page.getByTestId("pb-standing");
-    await expect(line).toBeVisible();
-    const gaps = await line.evaluate((root) => {
-      const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      const runs: { text: string; left: number; right: number }[] = [];
-      let n: Node | null;
-      while ((n = walk.nextNode())) {
-        const text = (n.nodeValue ?? "").trim();
-        if (!text) continue;
-        const r = document.createRange();
-        r.selectNodeContents(n);
-        const box = r.getBoundingClientRect();
-        if (!box.width) continue;
-        runs.push({ text, left: box.left, right: box.right });
-      }
-      const out: number[] = [];
-      for (let i = 0; i < runs.length - 1; i += 1) {
-        // Only the gaps that touch a separator, and only within one wrapped row.
-        if (runs[i].text !== "·" && runs[i + 1].text !== "·") continue;
-        const gap = runs[i + 1].left - runs[i].right;
-        if (gap >= 0) out.push(Math.round(gap));
-      }
-      return out;
-    });
-    test.skip(gaps.length === 0, "this workspace's line has no separators");
-    expect(new Set(gaps).size, `every gap around a dot is the same: ${JSON.stringify(gaps)}`).toBe(1);
-  });
-
-  /**
-   * Three tabs of one nav item keep one page edge.
-   *
-   * `.bc-page` supplies its children's gutter; `.reports` is full-bleed by design
-   * and every direct child carries the pane's own (.cl-head, .cl-controls,
-   * .rp-body all do). The standing line replaced .cl-head on Playbooks and
-   * Templates and carried none, so on those two tabs it sat flush against the
-   * sidebar while everything below it was inset 28px -- and Broadcasts, whose
-   * line is inside .bc-page, was inset correctly. Geometry, so it is measured.
-   * Broadcasts is not: since #758 its line ends its band's legend, at the right,
-   * and the composer it sat above is a screen of its own, so the line has no
-   * page edge to share and the check could only skip it.
-   */
-  test("Campaigns: the standing line shares its page edge with the work below it", async ({ page }) => {
-    for (const [route, line] of [
-      ["outbound", "pb-standing"],
-      ["messages", "messages-standing"],
-    ] as const) {
-      await page.goto(`/#/${route}`);
-      await page.waitForLoadState("networkidle");
-      const standing = page.getByTestId(line);
-      if ((await standing.count()) === 0) continue;
-      // The line's own ink, not its box: a box can be flush while padding insets the words.
-      const inkLeft = await standing.evaluate((el) => {
-        const lead = el.querySelector(".cm-standing-lead");
-        if (!lead?.firstChild) return null;
-        const r = document.createRange();
-        r.selectNodeContents(lead.firstChild);
-        return Math.round(r.getBoundingClientRect().left);
-      });
-      if (inkLeft === null) continue;
-      const below = page.locator(".rp-body > *").first();
-      if ((await below.count()) === 0) continue;
-      const box = await below.boundingBox();
-      expect(
-        box && Math.abs(Math.round(box.x) - inkLeft) <= 1,
-        `${route}: the line starts at ${inkLeft} and the work below it at ${Math.round(box?.x ?? -1)}`,
-      ).toBe(true);
-    }
+    const head = page.getByTestId("cmh-head");
+    const rail = page.getByTestId("cmh-rail");
+    test.skip((await head.count()) === 0 || (await rail.count()) === 0, "this look draws the head in the frame");
+    const [h, r] = await Promise.all([head.boundingBox(), rail.boundingBox()]);
+    expect(
+      h && r && Math.abs(Math.round(h.x) - Math.round(r.x)) <= 1,
+      `the head starts at ${h?.x} and the rail at ${r?.x}`,
+    ).toBe(true);
   });
 });

@@ -48,6 +48,8 @@ function _menuTakes(
           { label: "Pause the receptionist", hint: "until 10:00", disabled: flag, onSelect: act },
           { label: "Open their page", glyph, href: "/w/studio/#/clients/c-1" },
           { label: "Delete person…", tone: "danger", onSelect: act },
+          // One a role refuses (the honesty gate's props, spread after its act), with what it says on hover.
+          { label: "Export people", title: "Download them as a file", gate: { "aria-disabled": true }, onSelect: act },
         ],
       },
       {

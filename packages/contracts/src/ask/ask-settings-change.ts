@@ -1,9 +1,8 @@
 /**
- * The settings change a card may apply: its shape and schema, the change applied to a parsed config
- * (applySettingsChange) and the card's one line (describeSettingsChange). The workspace's cards propose it
- * (ask-proposals/workspace.ts).
+ * The settings change a card may apply: its shape, the change applied to a parsed config (applySettingsChange) and
+ * the card's one line (describeSettingsChange). The workspace's cards propose it (ask-proposals/workspace.ts); its
+ * schema is ask-schemas.ts's.
  */
-import { z } from "zod";
 
 /* ------------------------------------------------------- settings changes */
 
@@ -18,36 +17,6 @@ export type AskSettingsChange =
   | { op: "set_hours"; day: string; open: string | null; close: string | null }
   | { op: "add_note"; title: string; text: string }
   | { op: "add_service"; name: string; duration_min?: number };
-
-export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
-  z.object({
-    op: z.literal("add_closure"),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
-    note: z.string().max(200).optional(),
-  }),
-  z.object({
-    op: z.literal("set_hours"),
-    day: z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z
-      .string()
-      .regex(/^\d{2}:\d{2}$/)
-      .nullable(),
-    close: z
-      .string()
-      .regex(/^\d{2}:\d{2}$/)
-      .nullable(),
-  }),
-  z.object({ op: z.literal("add_note"), title: z.string().min(1).max(80), text: z.string().min(1).max(1200) }),
-  z.object({
-    op: z.literal("add_service"),
-    name: z.string().min(1).max(80),
-    duration_min: z.number().int().min(1).max(1440).optional(),
-  }),
-]);
 
 type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unknown> } & Record<string, unknown>;
 

@@ -5,8 +5,8 @@
  */
 import { gateTitle } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { PL_MODES, plModeWord } from "../words";
+import { addToListMenu as addMenu, barMenu } from "./bar-menu";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 
@@ -112,70 +112,52 @@ function noteBox(b: BulkCtx, a: BulkActs) {
 
 /** The menu of the lists kept by hand, and a new one. */
 function addToListMenu(b: BulkCtx, a: BulkActs) {
-  const { st, saved, savedRead, phone, canEdit, keeps } = b;
-  const { busy, naming, setNaming } = st;
-  return (
-    canEdit &&
-    keeps("lists") &&
-    !naming && (
-      <MoreMenu
-        btnClass="btn btn-sm"
-        escape={phone}
-        label="Add to list"
-        title="Add to a list"
-        gated={busy ? "One moment — the last change is still saving" : null}
-        items={
-          savedRead
-            ? [
-                { header: "Add to" },
-                ...saved
-                  .filter((s) => s.byHand)
-                  .map((s) => ({ label: s.name, icon: "filter", onClick: () => void a.addTo(s) })),
-                { label: "New list…", icon: "plus", onClick: () => setNaming(true) },
-              ]
-            : [
-                // Lists that could not be read are not offered; a new one can still be made.
-                { header: "Your saved lists couldn't be read" },
-                { label: "New list…", icon: "plus", onClick: () => setNaming(true) },
-              ]
-        }
-      />
-    )
-  );
+  const { st, canEdit, keeps } = b;
+  return canEdit && keeps("lists") && !st.naming && addMenu(b, a, () => st.setNaming(true), "sm");
 }
 
 /** Record a yes: which yes, and how it was given -- the two are separate answers. */
 function yesMenu(b: BulkCtx, a: BulkActs) {
-  const { st, phone, canEdit, keeps, sources, offersSources } = b;
+  const { st, canEdit, keeps, sources, offersSources } = b;
   const { busy, slips } = st;
   return (
     canEdit &&
     keeps("consent") &&
     sources.length > 0 &&
-    !slips && (
-      <MoreMenu
-        btnClass="btn btn-sm"
-        escape={phone}
-        label="Record a yes"
-        title="Which yes, and how it was given — the two are separate answers"
-        gated={busy ? "One moment — the last change is still saving" : null}
-        items={[
-          { header: "Yes to messages about their visit…" },
-          ...sources.map((s) => ({ label: s.label, icon: "check", onClick: a.yesBy("conversational", s) })),
-          ...(offersSources.length > 0
-            ? [
-                { header: "Yes to offers and news…" },
-                ...offersSources.map((s) => ({ label: s.label, icon: "tag", onClick: a.yesBy("marketing", s) })),
-              ]
-            : []),
-        ]}
-      />
-    )
+    !slips &&
+    barMenu({
+      words: "Record a yes",
+      hover: "Which yes, and how it was given — the two are separate answers",
+      busy,
+      size: "sm",
+      groups: [
+        {
+          header: "Yes to messages about their visit…",
+          items: sources.map((s) => ({
+            label: s.label,
+            glyph: <Icon name="check" size={13} />,
+            onSelect: a.yesBy("conversational", s),
+          })),
+        },
+        ...(offersSources.length > 0
+          ? [
+              {
+                header: "Yes to offers and news…",
+                items: offersSources.map((s) => ({
+                  label: s.label,
+                  glyph: <Icon name="tag" size={13} />,
+                  onSelect: a.yesBy("marketing", s),
+                })),
+              },
+            ]
+          : []),
+      ],
+    })
   );
 }
 
 export function deskBulk(b: BulkCtx, a: BulkActs) {
-  const { st, phone, ids, lead, canEdit, canExport, activeSaved, keeps, isOwner, onClear } = b;
+  const { st, ids, lead, canEdit, canExport, activeSaved, keeps, isOwner, onClear } = b;
   const { busy, naming, noting, setNoting } = st;
   return (
     <div className="cl-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
@@ -194,23 +176,25 @@ export function deskBulk(b: BulkCtx, a: BulkActs) {
       )}
       {yesMenu(b, a)}
       {slipsBox(b, a)}
-      {canEdit && keeps("receptionist") && isOwner && (
-        <MoreMenu
-          btnClass="btn btn-sm"
-          escape={phone}
-          label="Receptionist"
-          title="What the receptionist does for these people"
-          gated={busy ? "One moment — the last change is still saving" : null}
-          items={[
-            { header: "For these people…" },
-            ...PL_MODES.map((m) => ({
-              label: plModeWord(m.id),
-              icon: m.icon,
-              onClick: () => void a.receptionist({ ...m, label: plModeWord(m.id) }),
-            })),
-          ]}
-        />
-      )}
+      {canEdit &&
+        keeps("receptionist") &&
+        isOwner &&
+        barMenu({
+          words: "Receptionist",
+          hover: "What the receptionist does for these people",
+          busy,
+          size: "sm",
+          groups: [
+            {
+              header: "For these people…",
+              items: PL_MODES.map((m) => ({
+                label: plModeWord(m.id),
+                glyph: <Icon name={m.icon} size={13} />,
+                onSelect: () => void a.receptionist({ ...m, label: plModeWord(m.id) }),
+              })),
+            },
+          ],
+        })}
       {canEdit && keeps("note") && !noting && (
         <button className="btn btn-sm" disabled={busy} onClick={() => setNoting(true)} data-testid="bulk-note">
           <Icon name="edit" size={12} /> Add a note

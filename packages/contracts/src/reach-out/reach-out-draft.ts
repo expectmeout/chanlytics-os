@@ -23,9 +23,8 @@ import {
   isReachOutHold,
   validateReachOutChain,
   type ChainIssue,
-  type ReachOutChainInput,
-  type ReachOutSlot,
 } from "./reach-out-words";
+import type { ReachOutChainInput } from "./reach-out-schemas";
 
 export interface ReachOutDraftStep {
   /** The step's row when the chain is being changed; null for a step not saved yet. */
@@ -192,13 +191,6 @@ export function reachOutDraftIssues(d: ReachOutDraft, has: { bookingLink: boolea
   return out;
 }
 
-/** A slot put in at the caret of the field last focused, and where the caret goes after it. */
-export function insertSlotAt(text: string, at: number | null, slot: ReachOutSlot): { text: string; caret: number } {
-  const where = at === null || at < 0 || at > text.length ? text.length : at;
-  const token = `{{${slot}}}`;
-  return { text: text.slice(0, where) + token + text.slice(where), caret: where + token.length };
-}
-
 /**
  * How many a day the chosen domains allow each (the sheet's "a day per domain"): the least of their ramps, since a
  * run's day is paced by the domain that may send least; and the days that one has sent. None chosen is every verified
@@ -305,6 +297,16 @@ export function reachOutSheetUnreadOf(r: { domains: ReachOutSheetRead; settings:
 }
 
 /**
+ * What an edit of a chain's words did, once saved: new words send what waits for their step back to the check (R5). The
+ * sheet says it after its save, and Templates after a reach-out's email is written there.
+ */
+export function reachOutEditedWords(rechecked: number): string {
+  return rechecked > 0
+    ? `Saved. ${rechecked === 1 ? "1 email waiting to go is" : `${rechecked} emails waiting to go are`} checked again against these words.`
+    : "Saved. Its next run writes these words.";
+}
+
+/**
  * What a save did, said in the sheet itself once it is saved (R14): the first run's outcome in startWords, or an
  * edit's, and the one door on from there: the run that waits, else the chain's Playbooks row. The sheet stays open to
  * say it, so the words are never lost to a page change.
@@ -317,13 +319,7 @@ export function reachOutSavedWords(saved: ReachOutSavedDto): {
 } {
   const said = saved.start
     ? startWords(saved.start)
-    : {
-        tone: "good" as const,
-        text:
-          saved.rechecked > 0
-            ? `Saved. ${saved.rechecked === 1 ? "1 email waiting to go is" : `${saved.rechecked} emails waiting to go are`} checked again against these words.`
-            : "Saved. Its next run writes these words.",
-      };
+    : { tone: "good" as const, text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
   return run
     ? { ...said, to: `broadcasts/run:${run}`, label: "Open the run" }

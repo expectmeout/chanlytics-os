@@ -17,7 +17,8 @@
  * them in (describeOpenings). The feed is read in feed.ts and its text in ics-text.ts, the clock is
  * zone-math.ts, and the service a caller means, and what it is offered as, is service-offer.ts.
  */
-import { DAYS, type Closure, type Hours } from "../config/workspace-config/business-profile";
+import type { Closure, Hours } from "../config/workspace-config/business-profile";
+import { DAYS } from "../config/workspace-config/config-rules";
 import { NO_LINK_DETAILS } from "../config/no-booking-link";
 import { keyParts } from "./day-keys";
 import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "./zone-math";

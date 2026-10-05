@@ -43,6 +43,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00215 added 'purge_jobs', the nightly purge of the ledger's finished rows.
   // 00255 added 'purge_page_vitals', the nightly purge of the page timings.
   // 00277 added 'platform_metrics_roll', the nightly count of each workspace's day.
+  // 00288 added 'sweep_voice_sessions', the nightly removal of voice sessions a day past their token.
   // 00314 added 'sending_domain_days', the nightly keeping of each sending domain's counters.
   // 00315 added 'channel_quality', the six-hourly read of each WhatsApp number's rating.
   assert.deepEqual(
@@ -77,6 +78,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "registration",
       "sending_domain_days",
       "snoozes",
+      "sweep_voice_sessions",
     ],
   );
   for (const r of data) assert.equal(r.scheduled, true, `${r.sweep}: ${r.detail}`);
@@ -150,6 +152,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "registration",
     "sending_domain_days",
     "snoozes",
+    "sweep_voice_sessions",
   ]);
   // Belt and braces, in case a future migration ever widens the set.
   await db.from("sweep_status").delete().eq("sweep", "bogus");

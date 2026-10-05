@@ -284,6 +284,9 @@ function pgFinishing(db: SupabaseClient<Database> | null, tenantId: string | nul
   };
 }
 
+/** A reply in the thread they wrote in: it starts no conversation, and it is about something of theirs (MessageAbout). */
+const AN_ANSWER = { proactive: false, about: "theirs" } as const;
+
 /** All PG bookkeeping for one inbound message; every method no-ops when unconfigured. */
 /**
  * `rt` is threaded in so the media download uses the TENANT's credentials.
@@ -341,7 +344,7 @@ export function pgSink(
               channel,
               sender: "ai",
               purpose,
-              proactive: false,
+              ...AN_ANSWER,
               // What the send is, when it is not the receptionist answering:
               // an opt-in confirmation is a system message, owed whoever holds the thread.
               ...(kind ? { kind } : {}),

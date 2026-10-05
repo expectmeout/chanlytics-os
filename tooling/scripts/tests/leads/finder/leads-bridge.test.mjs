@@ -1,5 +1,5 @@
 /**
- * The Leads surface, read by view, and the courier that carries the acts.
+ * The Leads surface (surfaces/leads/surface.ts), read by view, and the acts it answers.
  *
  * The surface mirrors People's split -- what is loaded is kept in a module
  * variable and the surface is derived from it every time -- and adds what the
@@ -10,7 +10,7 @@
  * OFFERED ("12 new") rather than sorted in under the owner. The selection and
  * the cursor are the page's (Task 2), so nothing here touches them.
  *
- * Run, never read: the bridge module against a faked `window.fetch` that
+ * Run, never read: the surface module against a faked `window.fetch` that
  * answers rows of the real shape with fictional values, and can hold an answer
  * until the test lets it go -- which is the only way to prove the ordering
  * rules, because they are about two reads in flight at once.
@@ -62,9 +62,25 @@ globalThis.window = {
 };
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
-const { installLeadsCourier, leadsOverride, forgetLeadsViews, leadsBootView } =
-  await import("../../../../../apps/dashboard/src/legacy-bridge/leads.ts");
-installLeadsCourier();
+const {
+  leadsOverride,
+  forgetLeadsViews,
+  leadsBootView,
+  bulkLeads,
+  eraseLead,
+  excludeLead,
+  keepLead,
+  leadsMore,
+  leadsTakeOffered,
+  leadsView,
+  peekVMFor,
+  putBackLead,
+  removeRoundLeads,
+  setLeadStage,
+  undoLeadOperation,
+  warmLeadsView,
+} = await import("../../../../../apps/dashboard/src/surfaces/leads/surface.ts");
+const { surfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 /* -------------------------------- fixtures ------------------------------- */
 
@@ -307,7 +323,7 @@ function wire(opts = {}) {
   };
 }
 
-const L = () => globalThis.window.__LEADS;
+const L = () => surfaceValue("leads");
 const WS = "workspace=harbor";
 
 /* --------------------------------- the tests ----------------------------- */
@@ -340,8 +356,8 @@ test("a read is keyed by the view: a slow answer for an old view is dropped, and
     hold: true,
     rows: (q) => (q.list === "ready" ? READY : NURTURE),
   });
-  const first = globalThis.window.__leadsView("clients/leads:l-ready"); // held
-  const second = globalThis.window.__leadsView("clients/leads:l-nurture"); // held
+  const first = leadsView("clients/leads:l-ready"); // held
+  const second = leadsView("clients/leads:l-nurture"); // held
   w.release("lead-searches");
   w.release("list=nurture");
   await second;
@@ -357,22 +373,22 @@ test("a read is keyed by the view: a slow answer for an old view is dropped, and
 
 test("a refresh patches changed rows, keeps the loaded pages, and offers what is new under a fit sort", async () => {
   const w = wire({ searches: [SEARCH_DONE], rows: PAGE1, next: PAGE2, counts: COUNTS });
-  await globalThis.window.__leadsView("clients/leads");
-  await globalThis.window.__leadsMore();
+  await leadsView("clients/leads");
+  await leadsMore();
   assert.equal(L().rows.length, PAGE1.length + PAGE2.length);
   w.now({ rows: [{ ...PAGE1[0], stage: "nurture" }, ...PAGE1.slice(1), NEW_A, NEW_B, NEW_C] });
   await leadsOverride.apply(); // what refresh-map and Realtime call
   assert.equal(L().rows.length, PAGE1.length + PAGE2.length, "no page was dropped");
   assert.equal(L().rows[0].stage, "nurture", "the changed row was patched in place");
   assert.equal(L().offered, 3, "12 new, said as a count; nothing re-sorted under the owner");
-  await globalThis.window.__leadsTakeOffered();
+  await leadsTakeOffered();
   assert.equal(L().offered, 0);
   assert.ok(L().rows.some((r) => r.id === NEW_A.id));
 });
 
 test("under the found sort new rows append in the order found", async () => {
   const w = wire({ searches: [SEARCH_RUNNING], rows: PAGE1, counts: COUNTS });
-  await globalThis.window.__leadsView({ sort: "found", dir: "desc" });
+  await leadsView({ sort: "found", dir: "desc" });
   w.now({ rows: [NEW_A, ...PAGE1] });
   await leadsOverride.apply();
   assert.deepEqual(
@@ -387,9 +403,9 @@ test("leadsMore appends only under the same view; its late answer after a view c
   const w = wire({ searches: [SEARCH_DONE], rows: PAGE1, next: PAGE2, counts: COUNTS, hold: true });
   w.release("lead-searches");
   w.release(pageOne);
-  await globalThis.window.__leadsView("clients/leads");
-  const more = globalThis.window.__leadsMore(); // held on the second page
-  await globalThis.window.__leadsView("clients/leads:l-ready");
+  await leadsView("clients/leads");
+  const more = leadsMore(); // held on the second page
+  await leadsView("clients/leads:l-ready");
   w.release("after_key");
   await more;
   assert.equal(L().view.list, "ready");
@@ -407,11 +423,11 @@ test("a failed read is its own state, never an empty list", async () => {
 
 test("the first day's suggestions are read only when the workspace has no search", async () => {
   const w = wire({ searches: [], rows: [], counts: ZERO, suggestions: SUGGESTIONS });
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   assert.equal(w.reads.at(-1), `/api/v1/lead-suggestions?${WS}`);
   assert.equal(L().suggestions.items.length, 3);
   const w2 = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, suggestions: SUGGESTIONS });
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   assert.ok(
     !w2.reads.some((u) => u.includes("lead-suggestions")),
     "a workspace with a search has work to read instead",
@@ -420,15 +436,15 @@ test("the first day's suggestions are read only when the workspace has no search
 
 test("every act goes through its route with the id and the version it saw, never with rows", async () => {
   const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
-  await globalThis.window.__leadUndo(OP, 4);
-  await globalThis.window.__leadKeep(SEARCH_DONE.id, ROWS[0].id);
-  await globalThis.window.__leadsBulk({
+  await undoLeadOperation(OP, 4);
+  await keepLead(SEARCH_DONE.id, ROWS[0].id);
+  await bulkLeads({
     by: "view",
     action: "contacted",
     view: { list: "all", sort: "fit", dir: "asc" },
   });
-  await globalThis.window.__leadStage(ROWS[0].id, { kind: "outcome", outcome: "interested", note: "Tuesday" });
-  await globalThis.window.__leadSearchUndo(SEARCH_DONE.id);
+  await setLeadStage(ROWS[0].id, { kind: "outcome", outcome: "interested", note: "Tuesday" });
+  await removeRoundLeads(SEARCH_DONE.id);
   assert.deepEqual(
     w.writes.map((x) => [x.key, x.body]),
     [
@@ -478,12 +494,12 @@ const heardSurface = () => {
 
 test("Keep, Exclude and Put back show on the row at once, and answer when the door accepts: the re-read is behind them, not in front of the next press", async () => {
   wire({ searches: [SEARCH_DONE], rows: [REVIEW, LEFT_OUT, ...ROWS], counts: COUNTS });
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   assert.deepEqual([clsOf(REVIEW.id), clsOf(LEFT_OUT.id)], ["review", "excluded"]);
   // From here every answer is held, the way a slow network holds it.
   const w = wire({ searches: [SEARCH_DONE], rows: [REVIEW, LEFT_OUT, ...ROWS], counts: COUNTS, hold: true });
   const page = heardSurface();
-  const kept = globalThis.window.__leadKeep(SEARCH_DONE.id, REVIEW.id);
+  const kept = keepLead(SEARCH_DONE.id, REVIEW.id);
   assert.equal(clsOf(REVIEW.id), "qualified", "before the door has answered: the row is what the press made it");
   assert.deepEqual(page.heard, ["qualified"], "and the page was told, once");
   w.release(`/leads/${REVIEW.id}/keep`);
@@ -495,11 +511,11 @@ test("Keep, Exclude and Put back show on the row at once, and answer when the do
   );
   // That the re-read still goes out behind the answer is the client's own rule (client-refresh-behind.test.mjs);
   // no runner is mounted here, so refresh-map's "POST leads/[id]/keep": leads has nothing to call.
-  const back = globalThis.window.__leadPutBack(SEARCH_DONE.id, LEFT_OUT.id);
+  const back = putBackLead(SEARCH_DONE.id, LEFT_OUT.id);
   assert.equal(clsOf(LEFT_OUT.id), "qualified", "Put back counts it, at once");
   w.release(`/leads/${LEFT_OUT.id}/put-back`);
   assert.equal((await back).ok, true);
-  const out = globalThis.window.__leadExclude(SEARCH_DONE.id, ROWS[0].id);
+  const out = excludeLead(SEARCH_DONE.id, ROWS[0].id);
   assert.equal(clsOf(ROWS[0].id), "excluded");
   w.release(`/leads/${ROWS[0].id}/exclude`);
   assert.equal((await out).ok, true);
@@ -510,7 +526,7 @@ test("Keep, Exclude and Put back show on the row at once, and answer when the do
 
 test("a Keep the door refuses puts the row back as it was and says why: nothing on the page is left saying it was kept", async () => {
   wire({ searches: [SEARCH_DONE], rows: [REVIEW, ...ROWS], counts: COUNTS });
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   wire({
     searches: [SEARCH_DONE],
     rows: [REVIEW, ...ROWS],
@@ -518,7 +534,7 @@ test("a Keep the door refuses puts the row back as it was and says why: nothing 
     fail: `POST /api/v1/leads/${REVIEW.id}/keep`,
   });
   const page = heardSurface();
-  const r = await globalThis.window.__leadKeep(SEARCH_DONE.id, REVIEW.id);
+  const r = await keepLead(SEARCH_DONE.id, REVIEW.id);
   page.off();
   assert.equal(r.ok, false);
   assert.equal(clsOf(REVIEW.id), "review", "as it was");
@@ -528,8 +544,8 @@ test("a Keep the door refuses puts the row back as it was and says why: nothing 
 test("a row an act has changed is not put back by a re-read that no longer holds it: the kept lead stays kept where the owner left it", async () => {
   // Needs review, as the class tab reads it: once kept, the lead is not in that read any more.
   const w = wire({ searches: [SEARCH_DONE], rows: [REVIEW, ...ROWS], counts: COUNTS });
-  await globalThis.window.__leadsView("clients/leads:c-review");
-  const r = await globalThis.window.__leadKeep(SEARCH_DONE.id, REVIEW.id);
+  await leadsView("clients/leads:c-review");
+  const r = await keepLead(SEARCH_DONE.id, REVIEW.id);
   assert.equal(r.ok, true);
   w.now({ rows: ROWS });
   await leadsOverride.apply();
@@ -550,16 +566,16 @@ const settled = async (n = 6) => {
 test("the peek opens past the loaded page: a lead on no page is read once, in the view's search, held, and the page told when it lands", async () => {
   const FAR = leadRow({ business_name: "Far Down The List Coaching" });
   const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, one: { [FAR.id]: FAR } });
-  await globalThis.window.__leadsView(`clients/leads:s-${SEARCH_ID}`);
+  await leadsView(`clients/leads:s-${SEARCH_ID}`);
   const told = [];
-  const on = () => told.push(globalThis.window.__leadPeekVM(FAR.id)?.name ?? null);
+  const on = () => told.push(peekVMFor(FAR.id)?.name ?? null);
   globalThis.window.addEventListener("surface:leads", on);
   try {
     const before = w.reads.length;
-    assert.equal(globalThis.window.__leadPeekVM(ROWS[0].id).name, ROWS[0].business_name, "a loaded lead, at once");
+    assert.equal(peekVMFor(ROWS[0].id).name, ROWS[0].business_name, "a loaded lead, at once");
     assert.equal(w.reads.length, before, "and nothing read for it");
-    assert.equal(globalThis.window.__leadPeekVM(FAR.id), null, "a lead on no page: nothing yet, and never another's");
-    assert.equal(globalThis.window.__leadPeekVM(FAR.id), null, "asked again while its read is out");
+    assert.equal(peekVMFor(FAR.id), null, "a lead on no page: nothing yet, and never another's");
+    assert.equal(peekVMFor(FAR.id), null, "asked again while its read is out");
     await settled();
     assert.deepEqual(
       w.reads.slice(before),
@@ -567,7 +583,7 @@ test("the peek opens past the loaded page: a lead on no page is read once, in th
       "one read, in the search the view is of, however often the page draws",
     );
     assert.deepEqual(told, ["Far Down The List Coaching"], "the page is told once it lands, and draws it");
-    const vm = globalThis.window.__leadPeekVM(FAR.id);
+    const vm = peekVMFor(FAR.id);
     assert.equal(vm.id, FAR.id);
     assert.equal(vm.sub.length > 0, true, "the peek's own view model, from contracts, as for a loaded lead");
     assert.deepEqual(
@@ -590,8 +606,8 @@ test("the peek opens past the loaded page: a lead on no page is read once, in th
       one: { [FAR.id]: FAR },
       hold: true,
     });
-    const staged = globalThis.window.__leadStage(FAR.id, { kind: "stage", stage: "nurture" });
-    assert.equal(globalThis.window.__leadPeekVM(FAR.id).stage, "nurture", "the stage it was pressed to, at once");
+    const staged = setLeadStage(FAR.id, { kind: "stage", stage: "nurture" });
+    assert.equal(peekVMFor(FAR.id).stage, "nurture", "the stage it was pressed to, at once");
     hold.release(() => true);
     assert.equal((await staged).ok, true);
   } finally {
@@ -602,11 +618,11 @@ test("the peek opens past the loaded page: a lead on no page is read once, in th
 test("a lead the door will not show draws nothing, and a refusal blocks nothing: it is asked again, in any view", async () => {
   const GONE = "1a2b3c4d-0000-4000-8000-00000000dead";
   const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   const before = w.reads.length;
-  assert.equal(globalThis.window.__leadPeekVM(GONE), null);
+  assert.equal(peekVMFor(GONE), null);
   await settled();
-  assert.equal(globalThis.window.__leadPeekVM(GONE), null, "never a row of the list in its place");
+  assert.equal(peekVMFor(GONE), null, "never a row of the list in its place");
   await settled();
   assert.deepEqual(
     w.reads.slice(before),
@@ -623,14 +639,14 @@ test("REVIEW: a lead the door refuses in one search's view still opens in the al
     counts: COUNTS,
     one: (id, query) => (id === ELSEWHERE.id && !query.search ? ELSEWHERE : null),
   });
-  await globalThis.window.__leadsView(`clients/leads:s-${SEARCH_ID}`);
-  assert.equal(globalThis.window.__leadPeekVM(ELSEWHERE.id), null);
+  await leadsView(`clients/leads:s-${SEARCH_ID}`);
+  assert.equal(peekVMFor(ELSEWHERE.id), null);
   await settled();
-  assert.equal(globalThis.window.__leadPeekVM(ELSEWHERE.id), null, "not in this search");
-  await globalThis.window.__leadsView("clients/leads");
-  globalThis.window.__leadPeekVM(ELSEWHERE.id);
+  assert.equal(peekVMFor(ELSEWHERE.id), null, "not in this search");
+  await leadsView("clients/leads");
+  peekVMFor(ELSEWHERE.id);
   await settled();
-  assert.equal(globalThis.window.__leadPeekVM(ELSEWHERE.id)?.id, ELSEWHERE.id, "the all view asks for itself");
+  assert.equal(peekVMFor(ELSEWHERE.id)?.id, ELSEWHERE.id, "the all view asks for itself");
   assert.ok(w.reads.includes(`/api/v1/leads/${ELSEWHERE.id}?${WS}`));
 });
 
@@ -642,27 +658,27 @@ test("REVIEW: a lead pushed out of the eight held is read again when it is opene
     counts: COUNTS,
     one: Object.fromEntries(many.map((r) => [r.id, r])),
   });
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   for (const r of many) {
-    globalThis.window.__leadPeekVM(r.id);
+    peekVMFor(r.id);
     await settled();
   }
   const reads = () => w.reads.filter((u) => u.startsWith(`/api/v1/leads/${many[0].id}`)).length;
   assert.equal(reads(), 1);
-  assert.equal(globalThis.window.__leadPeekVM(many[0].id), null, "the first one was let go for the ninth");
+  assert.equal(peekVMFor(many[0].id), null, "the first one was let go for the ninth");
   await settled();
   assert.equal(reads(), 2, "asked again, not remembered as asked");
-  assert.equal(globalThis.window.__leadPeekVM(many[0].id)?.id, many[0].id);
+  assert.equal(peekVMFor(many[0].id)?.id, many[0].id);
 });
 
 test("REVIEW: a held lead the re-read finds gone (erased in another tab) leaves the peek, and the page is told", async () => {
   const LATER = leadRow({ business_name: "Erased Elsewhere" });
   const one = { [LATER.id]: LATER };
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, one });
-  await globalThis.window.__leadsView("clients/leads");
-  globalThis.window.__leadPeekVM(LATER.id);
+  await leadsView("clients/leads");
+  peekVMFor(LATER.id);
   await settled();
-  assert.equal(globalThis.window.__leadPeekVM(LATER.id)?.id, LATER.id);
+  assert.equal(peekVMFor(LATER.id)?.id, LATER.id);
   delete one[LATER.id];
   let told = 0;
   const on = () => (told += 1);
@@ -673,7 +689,7 @@ test("REVIEW: a held lead the re-read finds gone (erased in another tab) leaves 
   } finally {
     globalThis.window.removeEventListener("surface:leads", on);
   }
-  assert.equal(globalThis.window.__leadPeekVM(LATER.id), null, "gone from the peek");
+  assert.equal(peekVMFor(LATER.id), null, "gone from the peek");
   assert.equal(
     L().peeked.some((r) => r.id === LATER.id),
     false,
@@ -685,10 +701,10 @@ test("REVIEW: a held lead the re-read finds gone (erased in another tab) leaves 
 test("REVIEW: a row of a search this surface does not hold is never drawn in the peek (a second guard)", async () => {
   const STRANGER = leadRow({ search_id: "9f9f9f9f-0000-4000-8000-000000000009" });
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, one: { [STRANGER.id]: STRANGER } });
-  await globalThis.window.__leadsView("clients/leads");
-  globalThis.window.__leadPeekVM(STRANGER.id);
+  await leadsView("clients/leads");
+  peekVMFor(STRANGER.id);
   await settled();
-  assert.equal(globalThis.window.__leadPeekVM(STRANGER.id), null);
+  assert.equal(peekVMFor(STRANGER.id), null);
   assert.equal(L().peeked.length, 0);
 });
 
@@ -696,17 +712,17 @@ test("Erase answers when the door accepts and the lead leaves every view the tab
   const GOES = leadRow({ business_name: "Erased Coaching" });
   const rows = [GOES, ...ROWS];
   const w = wire({ searches: [SEARCH_DONE], rows, counts: COUNTS });
-  await globalThis.window.__leadsView("clients/leads");
-  await globalThis.window.__leadsView("clients/leads:l-ready");
+  await leadsView("clients/leads");
+  await leadsView("clients/leads:l-ready");
   wire({ keep: true, searches: [SEARCH_DONE], rows, counts: COUNTS, fail: `DELETE /api/v1/leads/${GOES.id}` });
-  assert.equal((await globalThis.window.__leadErase(GOES.id)).ok, false);
+  assert.equal((await eraseLead(GOES.id)).ok, false);
   assert.equal(
     L().rows.some((r) => r.id === GOES.id),
     true,
     "refused: it is still there",
   );
   const again = wire({ keep: true, searches: [SEARCH_DONE], rows, counts: COUNTS });
-  const r = await globalThis.window.__leadErase(GOES.id);
+  const r = await eraseLead(GOES.id);
   assert.equal(r.ok, true);
   assert.deepEqual(
     again.writes.map((x) => x.key),
@@ -717,7 +733,7 @@ test("Erase answers when the door accepts and the lead leaves every view the tab
     false,
     "gone from the rows at once",
   );
-  assert.equal(globalThis.window.__leadPeekVM(GOES.id), null, "and from the peek");
+  assert.equal(peekVMFor(GOES.id), null, "and from the peek");
   // A re-read that still has it (it went out before the erase landed) does not bring it back, nor does a held view.
   await leadsOverride.apply();
   assert.equal(
@@ -725,7 +741,7 @@ test("Erase answers when the door accepts and the lead leaves every view the tab
     false,
     "a re-read patches rows; it never puts one back",
   );
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   assert.equal(
     L().rows.some((r) => r.id === GOES.id),
     false,
@@ -737,36 +753,36 @@ test("Erase answers when the door accepts and the lead leaves every view the tab
 test("a stage change shows on the row at once, as the door will spell it (stageArgs), and a refused one is taken back; what the door alone decides is left to the re-read", async () => {
   const stageOf = (id) => L().rows.find((r) => r.id === id).stage;
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, hold: true });
-  const p = globalThis.window.__leadStage(ROWS[0].id, { kind: "outcome", outcome: "interested", note: "Tuesday" });
+  const p = setLeadStage(ROWS[0].id, { kind: "outcome", outcome: "interested", note: "Tuesday" });
   assert.equal(stageOf(ROWS[0].id), "converted", "an Interested call is Talking, at once");
   assert.equal(stageOf(ROWS[1].id), "ready", "and only that row");
   w.release(`/leads/${ROWS[0].id}/stage`);
   assert.equal((await p).ok, true);
-  const q = globalThis.window.__leadStage(ROWS[1].id, { kind: "not_a_fit", why: "chain" });
+  const q = setLeadStage(ROWS[1].id, { kind: "not_a_fit", why: "chain" });
   assert.equal(stageOf(ROWS[1].id), "archived");
   w.release(`/leads/${ROWS[1].id}/stage`);
   await q;
-  const r = globalThis.window.__leadStage(ROWS[2].id, { kind: "outcome", outcome: "wrong_number" });
+  const r = setLeadStage(ROWS[2].id, { kind: "outcome", outcome: "wrong_number" });
   assert.equal(stageOf(ROWS[2].id), "ready", "a wrong number moves no stage, so nothing is shown moving");
   w.release(`/leads/${ROWS[2].id}/stage`);
   await r;
   w.release(() => true);
   // Refused: back as it was.
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, fail: `POST /api/v1/leads/${ROWS[2].id}/stage` });
-  await globalThis.window.__leadsView("clients/leads");
-  const no = await globalThis.window.__leadStage(ROWS[2].id, { kind: "said_no" });
+  await leadsView("clients/leads");
+  const no = await setLeadStage(ROWS[2].id, { kind: "said_no" });
   assert.deepEqual([no.ok, stageOf(ROWS[2].id)], [false, "ready"]);
 });
 
 test("a bulk act over ids shows on every row at once; one over a whole view shows nothing early, since nobody knows which rows it reaches", async () => {
   const stageOf = (id) => L().rows.find((r) => r.id === id).stage;
   wire({ searches: [SEARCH_DONE], rows: [REVIEW, ...ROWS], counts: COUNTS });
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   const w = wire({ searches: [SEARCH_DONE], rows: [REVIEW, ...ROWS], counts: COUNTS, hold: true });
   const ids = [ROWS[0].id, ROWS[1].id];
-  const p = globalThis.window.__leadsBulk({ by: "ids", action: "contacted", ids });
+  const p = bulkLeads({ by: "ids", action: "contacted", ids });
   assert.deepEqual(
     ids.map(stageOf),
     ["nurture", "nurture"],
@@ -775,12 +791,12 @@ test("a bulk act over ids shows on every row at once; one over a whole view show
   assert.equal(stageOf(ROWS[2].id), "ready", "and the row not picked is not");
   w.release("/leads/bulk");
   assert.equal((await p).ok, true);
-  const k = globalThis.window.__leadsBulk({ by: "ids", action: "keep", ids: [REVIEW.id], search_id: SEARCH_DONE.id });
+  const k = bulkLeads({ by: "ids", action: "keep", ids: [REVIEW.id], search_id: SEARCH_DONE.id });
   assert.equal(clsOf(REVIEW.id), "qualified", "Keep from the bench: kept at once");
   w.release("/leads/bulk");
   await k;
   const before = L().rows.map((r) => [r.stage, r.cls]);
-  const v = globalThis.window.__leadsBulk({
+  const v = bulkLeads({
     by: "view",
     action: "not_a_fit",
     view: { list: "all", sort: "fit", dir: "asc" },
@@ -795,8 +811,8 @@ test("a bulk act over ids shows on every row at once; one over a whole view show
   w.release(() => true);
   // Refused: every row of it back.
   wire({ searches: [SEARCH_DONE], rows: [REVIEW, ...ROWS], counts: COUNTS, fail: "POST /api/v1/leads/bulk" });
-  await globalThis.window.__leadsView("clients/leads");
-  const no = await globalThis.window.__leadsBulk({ by: "ids", action: "not_a_fit", ids });
+  await leadsView("clients/leads");
+  const no = await bulkLeads({ by: "ids", action: "not_a_fit", ids });
   assert.deepEqual([no.ok, ...ids.map(stageOf)], [false, "ready", "ready"]);
 });
 
@@ -809,10 +825,10 @@ test("a view the surface has already read paints at once on the way back, with i
     rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1),
     next: PAGE2,
   });
-  await globalThis.window.__leadsView("clients/leads");
-  await globalThis.window.__leadsMore();
+  await leadsView("clients/leads");
+  await leadsMore();
   assert.equal(L().rows.length, PAGE1.length + PAGE2.length);
-  await globalThis.window.__leadsView("clients/leads:l-ready");
+  await leadsView("clients/leads:l-ready");
   assert.equal(L().rows.length, READY.length);
   // Back to all leads, with every answer held: what is on the page is what the surface held, before any read lands.
   const held = wire({
@@ -826,7 +842,7 @@ test("a view the surface has already read paints at once on the way back, with i
   const heard = [];
   const on = () => heard.push([L().route, L().rows.length]);
   globalThis.window.addEventListener("surface:leads", on);
-  const back = globalThis.window.__leadsView("clients/leads");
+  const back = leadsView("clients/leads");
   assert.deepEqual(
     [L().route, L().rows.length, L().next],
     ["clients/leads", PAGE1.length + PAGE2.length, null],
@@ -849,11 +865,11 @@ test("a view the surface has already read paints at once on the way back, with i
     rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1),
     hold: true,
   });
-  const toReady = globalThis.window.__leadsView("clients/leads:l-ready");
+  const toReady = leadsView("clients/leads:l-ready");
   assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-ready", READY.length]);
   again.release(() => true);
   await toReady;
-  const toNurture = globalThis.window.__leadsView("clients/leads:l-nurture");
+  const toNurture = leadsView("clients/leads:l-nurture");
   assert.equal(L().route, "clients/leads:l-ready", "a view never read shows nothing of itself until it lands");
   again.release(() => true);
   await toNurture;
@@ -869,8 +885,8 @@ test("REGRESSION: the surface names the view its rows are of -- a refresh of the
     counts: COUNTS,
     rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1),
   });
-  await globalThis.window.__leadsView("clients/leads:l-ready");
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads:l-ready");
+  await leadsView("clients/leads");
   const w = wire({
     keep: true,
     searches: [SEARCH_DONE],
@@ -878,9 +894,9 @@ test("REGRESSION: the surface names the view its rows are of -- a refresh of the
     rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1),
     hold: true,
   });
-  const back = globalThis.window.__leadsView("clients/leads:l-ready"); // held: painted at once, refreshed behind (parked)
+  const back = leadsView("clients/leads:l-ready"); // held: painted at once, refreshed behind (parked)
   assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-ready", READY.length]);
-  const cold = globalThis.window.__leadsView("clients/leads:l-nurture"); // never read: on its way (parked)
+  const cold = leadsView("clients/leads:l-nurture"); // never read: on its way (parked)
   w.release((u) => u.includes("list=ready") || u.includes("lead-searches"));
   await back;
   assert.deepEqual(
@@ -899,9 +915,9 @@ test("REGRESSION: the surface names the view its rows are of -- a refresh of the
 
 test("a view held stays held across a write: a Keep on one view does not make the way back to another a read again", async () => {
   wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : [REVIEW, ...PAGE1]) });
-  await globalThis.window.__leadsView("clients/leads:l-ready");
-  await globalThis.window.__leadsView("clients/leads");
-  assert.equal((await globalThis.window.__leadKeep(SEARCH_DONE.id, REVIEW.id)).ok, true);
+  await leadsView("clients/leads:l-ready");
+  await leadsView("clients/leads");
+  assert.equal((await keepLead(SEARCH_DONE.id, REVIEW.id)).ok, true);
   const held = wire({
     keep: true,
     searches: [SEARCH_DONE],
@@ -909,7 +925,7 @@ test("a view held stays held across a write: a Keep on one view does not make th
     rows: (q) => (q.list === "ready" ? READY : PAGE1),
     hold: true,
   });
-  const back = globalThis.window.__leadsView("clients/leads:l-ready");
+  const back = leadsView("clients/leads:l-ready");
   assert.deepEqual(
     [L().route, L().rows.length],
     ["clients/leads:l-ready", READY.length],
@@ -921,12 +937,12 @@ test("a view held stays held across a write: a Keep on one view does not make th
 
 test("a view is warmed on intent: the read goes out, nothing on the page moves, and the pick that follows paints at once", async () => {
   const w = wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.search === SEARCH_ID ? READY : PAGE1) });
-  await globalThis.window.__leadsView("clients/leads");
+  await leadsView("clients/leads");
   const before = w.reads.length;
   const heard = [];
   const on = () => heard.push(L().route);
   globalThis.window.addEventListener("surface:leads", on);
-  await globalThis.window.__leadsWarm(`clients/leads:s-${SEARCH_ID}`);
+  await warmLeadsView(`clients/leads:s-${SEARCH_ID}`);
   assert.ok(
     w.reads.slice(before).some((u) => u.includes(`search=${SEARCH_ID}`)),
     "the search's page was read",
@@ -939,7 +955,7 @@ test("a view is warmed on intent: the read goes out, nothing on the page moves, 
     rows: (q) => (q.search === SEARCH_ID ? READY : PAGE1),
     hold: true,
   });
-  const pick = globalThis.window.__leadsView(`clients/leads:s-${SEARCH_ID}`);
+  const pick = leadsView(`clients/leads:s-${SEARCH_ID}`);
   assert.deepEqual(
     [L().route, L().rows.length],
     [`clients/leads:s-${SEARCH_ID}`, READY.length],
@@ -950,7 +966,7 @@ test("a view is warmed on intent: the read goes out, nothing on the page moves, 
   globalThis.window.removeEventListener("surface:leads", on);
   // Warmed once: a second hover reads nothing more while the view is held.
   const twice = held.reads.length;
-  await globalThis.window.__leadsWarm(`clients/leads:s-${SEARCH_ID}`);
+  await warmLeadsView(`clients/leads:s-${SEARCH_ID}`);
   assert.equal(held.reads.length, twice, "held already: no read");
 });
 
@@ -998,66 +1014,26 @@ test("the view a cold boot reads: the one the address names, in the order this t
   );
 });
 
-test("the courier installs exactly the names the page and the screens call, and no words of its own", () => {
-  const installed = Object.keys(globalThis.window)
-    .filter((k) => k.startsWith("__lead"))
+test("the surface publishes no act on the window: the page imports them, and only Ask still reads __LEADS", async () => {
+  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
+  await leadsOverride.apply();
+  const named = Object.keys(globalThis.window)
+    .filter((k) => k.startsWith("__lead") || k.startsWith("__LEAD"))
     .sort();
-  assert.deepEqual(installed, [
-    "__leadBusinessLine",
-    "__leadCheckAgain",
-    "__leadDraft",
-    "__leadErase",
-    "__leadExclude",
-    "__leadKeep",
-    "__leadPeekVM",
-    "__leadPutBack",
-    "__leadRail",
-    "__leadSearchAnswer",
-    "__leadSearchMore",
-    "__leadSearchRemove",
-    "__leadSearchRename",
-    "__leadSearchStop",
-    "__leadSearchUndo",
-    "__leadSearchWords",
-    "__leadStage",
-    "__leadUndo",
-    "__leadsBulk",
-    "__leadsMore",
-    "__leadsRouteOf",
-    "__leadsRouteParse",
-    "__leadsStanding",
-    "__leadsTakeOffered",
-    "__leadsView",
-    "__leadsWarm",
-  ]);
-  assert.equal(
-    globalThis.window.__leadsRouteOf({ searchId: SEARCH_ID, list: "ready", cls: null }),
-    `clients/leads:s-${SEARCH_ID}:l-ready`,
-  );
-  assert.deepEqual(globalThis.window.__leadsRouteParse(`clients/leads:s-${SEARCH_ID}:l-ready`), {
-    searchId: SEARCH_ID,
-    list: "ready",
-    cls: null,
-    chips: {},
-    peek: null,
-  });
-  assert.equal(globalThis.window.__leadRail(COUNTS, [SEARCH_DONE]).searches[0].count, 322);
-  assert.equal(globalThis.window.__leadsStanding(COUNTS, [SEARCH_DONE]).total, "322 leads");
-  // The words a lead wears are seeded whole in seed-globals.ts (__LEAD_WORDS, __LEAD_VM); the courier carries acts.
-  assert.equal(globalThis.window.__LEAD_WORDS, undefined);
-  assert.equal(globalThis.window.__LEAD_VM, undefined);
+  assert.deepEqual(named, ["__LEADS"], "the one name is the mirror of the seam's value (surface-values.ts)");
+  assert.equal(globalThis.window.__LEADS, L(), "the mirror says what the seam holds");
 });
 
-test("the surface declares the globals it owns, the tables a run writes, and its own event", () => {
+test("the surface names its value, the tables a run writes, and its own event", () => {
   assert.deepEqual(
     [
       leadsOverride.key,
-      leadsOverride.globals,
+      leadsOverride.value,
       leadsOverride.events,
       leadsOverride.refreshOnTables,
       leadsOverride.debounceMs,
     ],
-    ["leads", ["__LEADS"], ["surface:leads"], ["leads", "lead_searches", "lead_rounds", "lead_search_members"], 800],
+    ["leads", "leads", ["surface:leads"], ["leads", "lead_searches", "lead_rounds", "lead_search_members"], 800],
   );
 });
 

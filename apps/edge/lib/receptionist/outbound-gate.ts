@@ -21,7 +21,7 @@
  * person's consent row and the message's PURPOSE and asks `mayMessageFor`, so
  * there is one rule again and this file no longer holds a copy of it.
  */
-import { mayMessageFor, type PurposeBearing, type AskedPurpose } from "../packages/contracts.js";
+import { mayMessageFor, type PurposeBearing, type AskedPurpose, type MessageAbout } from "../packages/contracts.js";
 
 interface OutboundFacts {
   /**
@@ -41,6 +41,13 @@ interface OutboundFacts {
    * asking to be texted, and the reason that send does not need a prior opt-in.
    */
   proactive: boolean;
+  /** The channel the message would go out on: a yes covers the channels it was given for (consent-channels.ts). */
+  channel: string;
+  /**
+   * What the message is about (contracts MessageAbout, decision D1): the receptionist's are theirs (the call they are
+   * on, the thread they wrote in). Required, as the purpose is: by email, the business's own news asks for a yes.
+   */
+  about: MessageAbout;
   /** tenants.status = 'paused' (billing stopped): nothing automated goes out. */
   paused?: boolean;
   /** conversations.paused_until — a human has this thread. */
@@ -95,7 +102,7 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
   //    Someone who said stop said stop, whatever channel they said it on — and
   //    for a promotional message, a yes to conversation is not a yes to offers.
   //    One predicate, asked with this message's own purpose.
-  const may = mayMessageFor(f.contact, f.purpose, { proactive: f.proactive });
+  const may = mayMessageFor(f.contact, f.purpose, { proactive: f.proactive, channel: f.channel, about: f.about });
   if (!may.ok) return { allowed: false, refusal: (may.reason ?? "opted_out") as OutboundRefusal };
 
   // 1b. The workspace is paused: billing stopped, and with it everything

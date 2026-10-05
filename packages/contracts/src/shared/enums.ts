@@ -233,6 +233,9 @@ export const EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
   /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
    * removed. The host and the reason, never the provider's id. */
   "sending_domain.added",
@@ -297,6 +300,20 @@ export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+
+/**
+ * What stops EVERYTHING when a person writes it by email: the same STOP words, but not UNSUBSCRIBE. An unsubscribe is
+ * not a STOP (the spec's decision 12): by email it ends offers by email and leaves their visit messages
+ * (EMAIL_UNSUBSCRIBE_PATTERN), exactly as the link's page does. A WhatsApp message keeps OPT_OUT_PATTERN, which reads it
+ * as a STOP there.
+ */
+export const EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
+
+/**
+ * An email that asks to stop the offers and nothing more: "unsubscribe", "please unsubscribe me", "desuscribirme", the
+ * whole of the words they wrote. It goes through the same door as the unsubscribe link (set_email_marketing).
+ */
+export const EMAIL_UNSUBSCRIBE_PATTERN = /^\s*(?:please\s+)?(?:unsubscribe(?:\s+me)?|desuscribir(?:me)?)\s*[.!]?\s*$/i;
 
 /**
  * The carriers' opt-out words, for a TEXTING LINE only.

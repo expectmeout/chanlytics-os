@@ -31,6 +31,8 @@ const SALON = {
     business_name: "Example Salon",
     phone_display: "(555) 010-0142",
     booking_link: "https://book.example.com/salon",
+    // A WhatsApp number: only a workspace with one is told to ask for the yes to offers (offers-ask.ts), and only on WhatsApp.
+    whatsapp_line: "+15550100145",
   },
   profile: {
     address: "12 Example St, Springfield",
@@ -73,9 +75,9 @@ const SALON = {
 
 const weekday = { open: "08:00", close: "17:00" };
 
-/** A business that quotes each job: no booking link, no phone number, no line to transfer to, no zone, no policy. */
+/** A business that quotes each job: no booking link, no phone number, no line to transfer to, no zone, no policy, no WhatsApp number. */
 const MOVER = {
-  base: { business_name: "Example Movers", phone_display: null, booking_link: null },
+  base: { business_name: "Example Movers", phone_display: null, booking_link: null, whatsapp_line: null },
   profile: {
     hours: {
       mon: weekday,
@@ -191,6 +193,8 @@ const SALON_WHATSAPP = [
       "- Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.",
       "- If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
       "- If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.",
+      // The ask for that yes, once: on WhatsApp, for a workspace with a WhatsApp number (the salon has one; the voice prompt and the mover never do).
+      `- When a WhatsApp conversation the customer started comes to its natural end after something went well (a booking made or confirmed, or their question fully answered), and the facts about them say "Has not been asked for the yes to offers.", close your reply with this question, once, in their language: "Want our offers and news here too? Reply YES OFFERS. You can stop any time." (in Spanish, SI OFERTAS in place of YES OFFERS). Never ask twice; never on a text or email conversation, in a complaint, in a cancellation, after STOP, or of anyone who has said no to offers; never make it a condition of anything.`,
       "- Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.",
       "- Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.",
       "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.",

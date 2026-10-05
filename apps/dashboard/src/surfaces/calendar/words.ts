@@ -18,6 +18,9 @@ export const CR_VIEWS: ReadonlyArray<readonly [CalendarView, string]> = [
 /** Five minutes: the board reads itself again while open, so what it draws follows the clock. */
 export const CR_REFRESH_MS = 5 * MIN_MS;
 
+/** A second: how long the board stands still on a view before it reads the weeks beside it, so a run of arrow presses reads none. */
+export const CR_WARM_MS = 1000;
+
 /**
  * What the page says of a read that gives no reason of its own (the feed's `problem` is contracts' sentence when there is
  * one): a last good read that could not be refreshed, and a calendar that could not be read.

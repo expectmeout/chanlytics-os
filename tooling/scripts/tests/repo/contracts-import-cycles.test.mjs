@@ -4,9 +4,10 @@
  * The bundle declares every top-level name as a `var`, so a cycle among value imports never throws: the module the
  * cycle enters first runs with the other's names still undefined, and an initializer that reads one (a table, a set,
  * a helper object) is built from `undefined` without a word. That is how FIRST_RUN_HELPERS once read TRY_SKIPPED before
- * it was set (Part 2.5, PR 7), and the split that fixed it left one cycle that is safe: signup and workspace call
- * each other's function declarations from inside functions only. Any other cycle, and any new member of that one,
- * fails here, before a bundle can order it wrong.
+ * it was set (Part 2.5, PR 7). The split that fixed it left one cycle that was safe, signup and workspace calling each
+ * other's function declarations from inside functions only, and it closed on 2 October 2026 when signup's schema moved
+ * to a module of its own (signup-schema.ts, decision 0024's browser entry). Any cycle now fails here, before a bundle
+ * can order it wrong.
  *
  * Type-only imports are erased and order nothing; a value import used only as a type is counted anyway, which errs on
  * the side of a cycle.
@@ -23,8 +24,8 @@ const SRC = path.join(ROOT, "packages/contracts/src");
 // The compiler contracts itself declares.
 const ts = createRequire(path.join(ROOT, "packages/contracts/package.json"))("typescript");
 
-/** The one cycle allowed, and why it is safe: each calls the other's function declaration inside a function. */
-const ALLOWED = [["workspace/signup.ts", "workspace/workspace.ts"]];
+/** The cycles allowed: none since signup's schema left signup.ts (the header says when). */
+const ALLOWED = [];
 
 /**
  * Each module's value imports and re-exports of another module of the folder, from its source. Modules are named by
@@ -94,7 +95,7 @@ function cyclesOf(edges) {
   return found.sort((a, b) => a[0].localeCompare(b[0]));
 }
 
-test("contracts has no value-import cycle but the one known safe pair", () => {
+test("contracts has no value-import cycle", () => {
   const files = fs
     .readdirSync(SRC, { recursive: true })
     .map((n) => String(n).split(path.sep).join("/"))

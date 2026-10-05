@@ -3,7 +3,7 @@
 // Popover pattern adopted from the legacy repo's notification-action-card:
 // every notification carries contextual actions that deep-link into the OS.
 // Session-aware: thread-linked notifications overlay IX_STORE (decided →
-// resolved), integration nags overlay INT_STORE (fixed → confirmed).
+// resolved).
 
 const TB_NOTIFS = [
   { id: "n1", icon: "alert", tone: "accent", unread: true, time: "2m", threadId: "th-aisha-refund",
@@ -48,14 +48,6 @@ const tbOverlay = (n) => {
         actions: [{ label: "View thread", to: `inbox/${n.threadId}`, primary: true }],
       };
     }
-  }
-  if (n.intId && window.INT_STORE && window.INT_STORE.isFixed(n.intId)) {
-    return {
-      ...n, unread: false, icon: "check", tone: "ok",
-      title: "Gmail reconnected ✓",
-      message: "Email Agent is releasing Noah's day-14 nurture — sends today.",
-      actions: [{ label: "View task", to: "tasks", primary: true }],
-    };
   }
   return n;
 };
@@ -344,7 +336,7 @@ const Topbar = ({
         id: "n-bc-" + Date.now(), icon: "chat", tone: "ok", unread: true, time: "now",
         title: `Broadcast queued — ${d.name}`,
         message: `${d.count} recipients over ${d.channel} — replies land in Conversations.`,
-        actions: [{ label: d.segId ? "Open segment" : "Broadcasts", to: d.segId ? "segments/" + d.segId : "broadcasts", primary: true }, { label: "Conversations", to: "conversations" }],
+        actions: [{ label: d.segId ? "Open segment" : "Sent", to: d.segId ? "segments/" + d.segId : "broadcasts", primary: true }, { label: "Conversations", to: "conversations" }],
       }, ...list]);
     };
     const onObApproved = (e) => {
@@ -383,7 +375,6 @@ const Topbar = ({
       }, ...list]);
     };
     window.addEventListener("inbox:decisions", bump);
-    window.addEventListener("integrations:changed", bump);
     window.addEventListener("live:ended", onEnded);
     window.addEventListener("store:listing", onListing);
     window.addEventListener("leads:converted", onLeadConv);
@@ -396,7 +387,6 @@ const Topbar = ({
     return () => {
       if (arrT) clearTimeout(arrT);
       window.removeEventListener("inbox:decisions", bump);
-      window.removeEventListener("integrations:changed", bump);
       window.removeEventListener("live:ended", onEnded);
       window.removeEventListener("store:listing", onListing);
       window.removeEventListener("leads:converted", onLeadConv);

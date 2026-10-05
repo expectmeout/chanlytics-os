@@ -9,7 +9,7 @@ import { gate } from "../../legacy-verbs";
 import type { SavedList, SmartList } from "../types";
 import { PL_ADD_EMPTY, PL_LIST_EMPTY, PL_PHONE_SORTS, PL_TAB_LABEL } from "../words";
 import type { AddDraft, ListDraft } from "../words";
-import type { MoreMenuItem } from "../../kit/more-menu/more-menu";
+import type { PeopleMenuItem } from "../menu-groups";
 
 type Setter<T> = Dispatch<SetStateAction<T>>;
 
@@ -63,7 +63,7 @@ export function peoplePhoneMenu({
   viewRule: ListRule | null;
   activeList: SmartList | null;
   tab: string;
-}): MoreMenuItem[] {
+}): PeopleMenuItem[] {
   return [
     // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
     ...((canEditLists || canExport) && shown.length > 0

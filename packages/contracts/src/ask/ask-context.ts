@@ -5,15 +5,7 @@
  * screen in the order shown. The server re-reads every id under the person's RLS, so a row another workspace holds is
  * a miss, and nothing the tab says about a row is believed.
  */
-import { z } from "zod";
-import {
-  ASK_SCOPE_KINDS,
-  ASK_SURFACES,
-  type AskMessageVM,
-  type AskScope,
-  type AskScopeKind,
-  type AskSurface,
-} from "./ask";
+import { ASK_SCOPE_KINDS, type AskMessageVM, type AskScope, type AskScopeKind, type AskSurface } from "./ask";
 import { answerFromV1 } from "./ask-answer";
 
 /** The rows a context may carry: what one screen shows, and what one turn's context can afford (the plan, D11). */
@@ -55,24 +47,6 @@ export interface PageContext {
   /** When the tab built it, in its own clock: a measure, never a fact the server believes. */
   askedAt: number;
 }
-
-const Id = z.string().min(1).max(120);
-
-/** The one reading of a context: a field it does not know, a row with more than its kind and id, is refused. */
-export const PageContextSchema = z
-  .object({
-    v: z.literal(1),
-    surface: z.enum(ASK_SURFACES),
-    route: z.string().max(200),
-    view: z.string().max(80).nullish(),
-    focus: z
-      .object({ kind: z.enum(ASK_SCOPE_KINDS), id: Id, label: z.string().max(80) })
-      .strict()
-      .nullish(),
-    rows: z.array(z.object({ kind: z.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
-    askedAt: z.number().int().nonnegative(),
-  })
-  .strict();
 
 /** A kind of row a focus may be: a scope's, the page aside. */
 const isRowFocus = (k: string): k is AskScopeKind => k !== "page" && (ASK_SCOPE_KINDS as readonly string[]).includes(k);

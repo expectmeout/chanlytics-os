@@ -3,8 +3,8 @@
  * card reads too) and each run's line. The composer that writes them is compose.ts.
  */
 import { dayIntervals as spansOfDay } from "../../calendar/availability";
-import { DAYS, type Hours } from "./business-profile";
-import { DAY_NAMES } from "./config-schema";
+import type { Hours } from "./business-profile";
+import { DAYS, DAY_NAMES } from "./config-rules";
 
 /* ---------------------------------------------------------------- compose */
 

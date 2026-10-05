@@ -3,7 +3,6 @@
  * receptionist's draft, whether the member may undo it, and the address an answer to it goes out from. The undo's
  * refusals are the words its door says (00222 reach_out_reply_undo), named here once so the page and the route agree.
  */
-import { z } from "zod";
 import { clockDate, wallClockAt } from "../shared/clock";
 import { REPLY_INTENT_WORDS, REPLY_REREADS, type ReplyClaim, type ReplyIntent, type Unread } from "./reach-out-replies";
 import type { DraftWhy } from "./reach-out-reply-draft";
@@ -74,13 +73,6 @@ export interface ReachOutRepliesDto {
   replies: ReachOutReplyDto[];
   mailbox: string | null;
 }
-
-/** GET reach-out-replies: since when (at most the reading's window back), and one thread's alone. */
-export const ReachOutRepliesQuerySchema = z.object({
-  since: z.string().datetime({ offset: true }).optional(),
-  conversation_id: z.string().uuid().optional(),
-});
-export type ReachOutRepliesQuery = z.infer<typeof ReachOutRepliesQuerySchema>;
 
 /* ------------------------------------------------------------ what the Inbox says of a reading (PR 7) -- */
 

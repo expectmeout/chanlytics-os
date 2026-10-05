@@ -1,21 +1,21 @@
 /**
  * The phone's top (900px and under, the band the rows and the Lists sheet use), the same for every scope of People
- * (moved whole from legacy/pages/people.jsx, decision 0015): the scopes as the Inbox draws its views -- the shell's own
- * tab strip (.stabs), a row of its own with the one picked underlined -- and under it the bar: the list being shown,
- * search behind a button, and the scope's own last control (People's more-menu, Leads' Find, the Pipeline's +).
- * Nothing else sits above the rows but the one line under the bar. Searching, the bar is the field, full width and 16px,
- * so a phone never zooms into it, and Cancel gives the bar back; the scopes stay above it, as the Inbox's views stay
- * over its search. Hookless: its state is the page's (`searchOpen`), so the page's one keyboard listener opens it on /.
- * `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. `dealsOn`
- * puts the Pipeline in the switch; with no `onLists` there is no list to pick and the bar draws no list button.
+ * (moved whole from legacy/pages/people.jsx, decision 0015), in the Inbox's tiers under the strip of views the frame draws
+ * (SurfaceTabs: the scopes are the page's views, said in its chrome, surfaces/people/chrome.ts): the row of the list
+ * being shown and the scope's own last control (People's more-menu, Leads' Find, the Pipeline's +), as the Inbox's buckets
+ * stand; and the search, a capsule at rest as the Inbox's is. Nothing else sits above the rows but the one line under them.
+ * A press on the capsule opens the field -- full width and 16px, so a phone never zooms into it -- with Cancel beside it;
+ * the list stays over it, as the Inbox's views stay over its search. Hookless: its state is the page's
+ * (`searchOpen`), so the page's one keyboard listener opens it on /.
+ * `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. With no
+ * `onLists` there is no list to pick and the row draws no list button.
  */
 import type { ReactNode, RefObject } from "react";
 import { Icon } from "../../kit/icon/icon";
-import { PeopleScopeTabs } from "./scope-tabs";
 
 type SearchRef = RefObject<HTMLInputElement | null> | null;
 
-/** The bar, searching: the field, full width, and Cancel to give the bar back. */
+/** The search: the capsule at rest, the field once opened (or while there are words in it), and Cancel to rest again. */
 function PeoplePhoneSearch({
   id,
   q,
@@ -33,10 +33,26 @@ function PeoplePhoneSearch({
   onSearchOpen: (open: boolean) => void;
   searchLabel: string;
 }) {
+  if (!searchOpen && !q) {
+    return (
+      <div className="pp-lookup">
+        <button
+          type="button"
+          className="pp-lookup-rest"
+          aria-label={searchLabel}
+          onClick={() => onSearchOpen(true)}
+          data-testid={id("search-open")}
+        >
+          <Icon name="search" size={15} />
+          <span>{searchLabel}</span>
+        </button>
+      </div>
+    );
+  }
   return (
-    <div className="pp-bar is-searching">
-      <label className="pp-bar-field">
-        <Icon name="search" size={16} />
+    <div className="pp-lookup is-open">
+      <label className="pp-lookup-box">
+        <Icon name="search" size={15} />
         <input
           ref={searchRef}
           type="search"
@@ -53,7 +69,7 @@ function PeoplePhoneSearch({
         {q ? (
           <button
             type="button"
-            className="pp-bar-clear"
+            className="pp-lookup-clear"
             aria-label="Clear the search"
             onClick={() => {
               onQ("");
@@ -67,7 +83,7 @@ function PeoplePhoneSearch({
       </label>
       <button
         type="button"
-        className="pp-bar-cancel"
+        className="pp-lookup-cancel"
         onClick={() => {
           onQ("");
           onSearchOpen(false);
@@ -81,9 +97,6 @@ function PeoplePhoneSearch({
 }
 
 export function PeoplePhoneBar({
-  scope,
-  onScope,
-  dealsOn = false,
   listLabel = null,
   listCount = null,
   onLists = null,
@@ -97,9 +110,6 @@ export function PeoplePhoneBar({
   trailing = null,
   testid,
 }: {
-  scope: string;
-  onScope: (to: string) => void;
-  dealsOn?: boolean;
   listLabel?: ReactNode;
   listCount?: number | string | null;
   onLists?: (() => void) | null;
@@ -114,21 +124,10 @@ export function PeoplePhoneBar({
   testid: string;
 }) {
   const id = (part: string) => `${testid}-phone-${part}`;
-  // The two rows are one top: `-phone-bar` names both, so what reads the bar (the scopes, the list, search) finds them.
+  // The tiers are one top: `-phone-bar` names all of them, so what reads the bar (the list, search) finds them.
   return (
     <div className="pp-top" data-testid={id("bar")}>
-      <PeopleScopeTabs scope={scope} onScope={onScope} dealsOn={dealsOn} testid={id("scopes")} />
-      {searchOpen || q ? (
-        <PeoplePhoneSearch
-          id={id}
-          q={q}
-          onQ={onQ}
-          searchRef={searchRef}
-          searchOpen={searchOpen}
-          onSearchOpen={onSearchOpen}
-          searchLabel={searchLabel}
-        />
-      ) : (
+      {onLists || trailing ? (
         <div className="pp-bar">
           {onLists ? (
             <button
@@ -148,18 +147,18 @@ export function PeoplePhoneBar({
               <Icon name="chevron-down" size={11} />
             </button>
           ) : null}
-          <button
-            type="button"
-            className="pp-bar-icon pp-bar-push"
-            aria-label={searchLabel}
-            onClick={() => onSearchOpen(true)}
-            data-testid={id("search-open")}
-          >
-            <Icon name="search" size={18} />
-          </button>
-          {trailing}
+          {trailing ? <div className="pp-bar-push">{trailing}</div> : null}
         </div>
-      )}
+      ) : null}
+      <PeoplePhoneSearch
+        id={id}
+        q={q}
+        onQ={onQ}
+        searchRef={searchRef}
+        searchOpen={searchOpen}
+        onSearchOpen={onSearchOpen}
+        searchLabel={searchLabel}
+      />
     </div>
   );
 }

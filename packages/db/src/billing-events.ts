@@ -1,6 +1,6 @@
 /**
- * The Stripe ledger (00073 billing_events): the one row each delivery leaves, by Stripe's event id. A table is typed here
- * and nowhere else.
+ * The Stripe ledger (00073 billing_events): the one row each delivery leaves, by Stripe's event id. The amount's door
+ * only; the claim itself is apps/edge/lib/billing/billing.ts's.
  *
  *   keepInvoiceAmount  what an invoice event moved, kept on its own row (00318 billing_event_keep_amount): the amount in
  *                      the smallest unit of the invoice's currency and the currency, once, the first answer standing. A

@@ -2,13 +2,27 @@
  * Chanlytics -- People › Playbooks: the words, icons and small helpers a playbook's card and composer share (moved from
  * legacy/pages/playbook-bits.jsx, decision 0015; before that from outbound-real.jsx, Reach out Part 2.5).
  */
-import { PLAYBOOK_REACH_WORDS, playbookNoNumberWords, playbookReach, playbookReachDoor } from "@chanlytics/contracts";
-import type { ParamSourceKind, PlaybookDto, PlaybookReach } from "@chanlytics/contracts";
+import {
+  PLAYBOOK_REACH_WORDS,
+  consentGuardWords,
+  heldBackWords,
+  isWinBack,
+  playbookNoNumberWords,
+  playbookReach,
+  playbookReachDoor,
+} from "@chanlytics/contracts";
+import type {
+  AskedPurpose,
+  ConsentChannel,
+  MessageAbout,
+  ParamSourceKind,
+  PlaybookDto,
+  PlaybookReach,
+} from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
-import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
-import { bcWhenWords } from "../broadcasts/when";
+import { bcWhenWords } from "../broadcasts/when-words";
 import { mpFill } from "../parts/message-preview";
 import { starters } from "../templates/verbs";
 import type { PlaybookTriggerOption } from "./surface";
@@ -34,28 +48,6 @@ export const PB_LIST_CLASSES = [
 export const pbHours = () => {
   const h = pageClock().hours;
   return Array.from({ length: h.max - h.min + 1 }, (_, i) => h.min + i);
-};
-
-// A number said as a word inside a sentence -- "the six moments", "two set up" -- the way a person says it.
-const PB_WORDS = [
-  "no",
-  "one",
-  "two",
-  "three",
-  "four",
-  "five",
-  "six",
-  "seven",
-  "eight",
-  "nine",
-  "ten",
-  "eleven",
-  "twelve",
-];
-
-export const pbSpell = (n: number, capital = false) => {
-  const w = PB_WORDS[n] || String(n);
-  return capital ? w.charAt(0).toUpperCase() + w.slice(1) : w;
 };
 
 export const pbHour = (h: number) => `${String(h).padStart(2, "0")}:00`;
@@ -185,25 +177,6 @@ const PB_ICONS: Record<string, string> = {
 
 export const pbIcon = (trigger: string) => PB_ICONS[trigger] || "bolt";
 
-// What a moment is for, said once on its empty card: who it reaches and why it
-// is worth a message. The count of who it would reach today follows it.
-export const PB_BLURBS: Record<string, string> = {
-  quiet_30: "Everyone you have not heard from in a month — the easiest customer to win back is one who already came.",
-  new_week:
-    "Everyone who wrote or phoned for the first time this week — the welcome that saves your number in their phone.",
-  phoned_only: "Everyone who only ever phoned — one message, and they can text you instead of calling.",
-  everyone_monthly: "Everyone who said yes to offers, once a month — this month's offer, on a clock.",
-  visit_tomorrow: "Everyone with a visit tomorrow — the reminder that keeps the chair from sitting empty.",
-  visited:
-    "Everyone who came in yesterday and has nothing on the calendar — the shortest path from a visit to the next booking.",
-  lapsed:
-    "Everyone whose last visit was 45 days ago or more, with nothing ahead on the calendar — the regulars drifting away.",
-  saved_list:
-    "Everyone on a list — one of People's, or one of yours, kept by hand or kept current by a rule you described.",
-  proposal_waiting:
-    "Everyone whose proposal has waited with nothing back — one nudge each, with the link to it, before it goes cold.",
-};
-
 export const pbShort = (id: string) => starters.langTag(id);
 
 export const pbLabel = (id: string) => starters.langLabel(id);
@@ -221,49 +194,48 @@ export const PB_TEXT: ParamSourceKind[] = ["text"];
 
 export const pbWith = (list: number[], n: number) => (list.includes(n) ? list : [...list, n].sort((a, b) => a - b));
 
-// A new playbook opens on the first moment nothing is doing yet, else the first.
-export const pbFirstFree = (
+// The moments nothing is doing yet, among the ones a new playbook may start from (`offered`: none retired, one win-back).
+// The win-backs are one moment, read the one way the workspace can, so a playbook on either leaves none to set up.
+const pbUnused = (
   triggers: readonly PlaybookTriggerOption[],
   rows: readonly { trigger: string }[] | null | undefined,
 ) => {
   const used = new Set((rows || PB_NONE).map((p) => p.trigger));
-  const t = triggers.find((x) => !used.has(x.id)) || triggers[0];
+  const winBackMade = [...used].some(isWinBack);
+  return triggers.filter((t) => t.offered && !used.has(t.id) && !(winBackMade && isWinBack(t.id)));
+};
+
+// A new playbook opens on the first moment nothing is doing yet, else the first one offered.
+export const pbFirstFree = (
+  triggers: readonly PlaybookTriggerOption[],
+  rows: readonly { trigger: string }[] | null | undefined,
+) => {
+  const t = pbUnused(triggers, rows)[0] || triggers.find((x) => x.offered) || triggers[0];
   return t ? t.id : "quiet_30";
 };
 
-interface PbTokProps {
-  value: number;
-  options: readonly { v: number; t: string }[];
-  onChange: (n: number) => void;
-  label: string;
-  testid?: string | null;
-}
+// Who a run reaches, said in the guardrails: what each channel it goes by asks of a person (contracts consentGuardWords), so
+// an email about a visit is not said to need a yes and a number. The channels are the ones the playbook keeps ticked.
+export const pbWhoWords = (channels: readonly ConsentChannel[], purpose: AskedPurpose, about: MessageAbout) =>
+  consentGuardWords(channels, purpose, about).join(" ");
 
-// A number inside a sentence, chosen where it is said: a select drawn as the
-// words it says, with its chevron. As wide as its longest choice, so picking
-// one moves nothing around it.
-export const PbTok = ({ value, options, onChange, label, testid = null }: PbTokProps) => (
-  <span className="pb-tok">
-    <select
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-      aria-label={label}
-      data-testid={testid || undefined}
-    >
-      {options.map((o) => (
-        <option key={o.v} value={o.v}>
-          {o.t}
-        </option>
-      ))}
-    </select>
-    <Icon name="chevron-down" size={9} />
-  </span>
-);
+// A sentence from a clause contracts words (heldBackWords: "people who asked to stop, ... are held back at the wire").
+const pbSentence = (clause: string) => `${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`;
 
-// What every run keeps to, behind the shield.
-export const pbGuardWords = (kind: string) =>
-  kind === "visit"
-    ? "Only people with a recorded yes and a number. One message per visit. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire."
-    : kind === "deal"
-      ? "Only people with a recorded yes and a number, whose proposal has its link and nothing back. One message per proposal, and one playbook message per person a week, across every playbook. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire."
-      : "Only people with a recorded yes and a number. Never twice within its gap, and one playbook message per person a week, across every playbook. Anyone who asked to stop, or is mid-thread with a person, is held back at the wire.";
+// What every run keeps to, behind the shield: who it reaches (pbWhoWords), the moment's own rule, and who the wire holds back
+// (contracts heldBackWords) for the channels it goes by.
+// `about` is the moment's (contracts messageAboutOfTrigger): a visit's or a follow-up's message is theirs (decision D1).
+export const pbGuardWords = (
+  kind: string,
+  channels: readonly ConsentChannel[],
+  purpose: AskedPurpose,
+  about: MessageAbout,
+) => {
+  const moment =
+    kind === "visit"
+      ? "One message per visit."
+      : kind === "deal"
+        ? "Their proposal has its link and nothing back. One message per proposal, and one playbook message per person a week, across every playbook."
+        : "Never twice within its gap, and one playbook message per person a week, across every playbook.";
+  return [pbWhoWords(channels, purpose, about), moment, pbSentence(heldBackWords(channels))].filter(Boolean).join(" ");
+};

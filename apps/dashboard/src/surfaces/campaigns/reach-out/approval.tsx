@@ -14,8 +14,11 @@ import type { ReactNode } from "react";
 import type { BroadcastDetailDto, ReachOutDecision } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { canDo, gateTitle } from "../../legacy-verbs";
-import { confirmPart, policyChipPart } from "../../legacy-parts";
+import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { reachOuts } from "./surface";
 
 /** A live reach-out run as its block says it: never null where the run is a reach-out's. */
@@ -67,7 +70,7 @@ interface HeldProps {
 /** The held, each with why and its doors (R20); a door's refusal said at its row. Out of sight for a role that may not. */
 function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
   return (
-    <section className="bc-touched bc-sheet-people" data-testid="ro-run-held">
+    <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-run-held">
       {vm.held.map((h) => (
         <div key={h.id} className="bc-person is-held" data-testid="ro-held">
           <span className="bc-person-name">{h.name}</span>
@@ -75,16 +78,15 @@ function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
           {may && (
             <span className="bc-person-doors">
               {h.doors.map(([door, words]) => (
-                <button
+                <LinkButton
                   key={door}
-                  type="button"
                   className="bc-person-door"
                   disabled={busy === h.id}
                   onClick={() => onDecide(h.id, door)}
                   data-testid={`ro-door-${door}`}
                 >
                   {words}
-                </button>
+                </LinkButton>
               ))}
             </span>
           )}
@@ -102,7 +104,7 @@ function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
 /** Who gets it: the checked, ready sends by name and time; the rest are still being checked (R21). */
 function RoRunList({ vm }: { vm: RunWords }) {
   return (
-    <section className="bc-touched bc-sheet-people" data-testid="ro-run-list">
+    <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-run-list">
       <div className="bc-touched-head">
         <span className="bc-card-title">{vm.listHead}</span>
       </div>
@@ -138,21 +140,20 @@ interface ActsProps {
 
 /** The foot: Approve and Skip for a run waiting on its owner; the run's own verbs for one that is not. */
 function RoRunActs({ vm, sheet, acts, seeAll, onSeeAll }: ActsProps) {
-  const Confirm = confirmPart();
   const L = vm.labels;
   const waiting = !!(sheet && vm.approve);
   return (
-    <div className="bc-sheet-acts" data-testid="ro-run-acts">
+    <div className="bc-sheet-acts bc-approval-acts" data-testid="ro-run-acts">
       {waiting && sheet?.canSend && !sheet.armed && (
-        <button
-          type="button"
-          className="bc-sheet-approve"
+        <Button
+          variant="primary"
+          className="bc-approve"
           disabled={sheet.approving}
           onClick={() => sheet.approve(vm.approved)}
           data-testid="ro-run-approve"
         >
           <Icon name="check" size={16} /> {sheet.approving ? L.approving : vm.approve}
-        </button>
+        </Button>
       )}
       {waiting && vm.approveNote && (
         <p className="bc-sheet-expired" data-testid="ro-run-approve-note">
@@ -173,26 +174,15 @@ function RoRunActs({ vm, sheet, acts, seeAll, onSeeAll }: ActsProps) {
       ) : (
         <div className="bc-sheet-pair">
           {waiting && sheet?.canSend && (
-            <button
-              type="button"
-              className="bc-sheet-second"
-              onClick={() => sheet.onArm(true)}
-              data-testid="ro-run-skip"
-            >
+            <Button className="bc-second" onClick={() => sheet.onArm(true)} data-testid="ro-run-skip">
               {L.skip}
-            </button>
+            </Button>
           )}
           {!waiting && acts}
           {vm.see && (
-            <button
-              type="button"
-              className="bc-sheet-second"
-              aria-expanded={seeAll}
-              onClick={onSeeAll}
-              data-testid="ro-run-see"
-            >
+            <Button className="bc-second" aria-expanded={seeAll} onClick={onSeeAll} data-testid="ro-run-see">
               {seeAll ? L.hide : vm.see}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -230,12 +220,31 @@ interface RunProps {
   d: BroadcastDetailDto;
   sheet?: RunSheet | null;
   acts?: ReactNode;
-  onClose: () => void;
   onDecided?: () => void;
 }
 
-export function ReachOutRun({ d, sheet = null, acts = null, onClose, onDecided = () => undefined }: RunProps) {
-  const PolicyChip = policyChipPart();
+/**
+ * What the pane's head says of a live reach-out run (run.tsx draws the pane, as it does a run's report and a WhatsApp
+ * run's sheet): its name, the policy class it runs under, and what it is -- waiting on you, scheduled, sending -- with its
+ * place among those waiting. Null where the run is not a reach-out's. It was the block's own top, with a back button.
+ */
+export function roRunHead(d: BroadcastDetailDto, sheet: RunSheet | null) {
+  const vm = reachOuts.run(d);
+  if (!vm) return null;
+  const pos = sheet && sheet.position;
+  return {
+    title: vm.title,
+    badge: <PolicyChip cls="outreach" />,
+    sub: (
+      <>
+        <span data-testid="ro-run-k">{vm.k}</span>
+        {pos && pos[1] > 1 ? ` · ${pos[0]} of ${pos[1]}` : ""}
+      </>
+    ),
+  };
+}
+
+export function ReachOutRun({ d, sheet = null, acts = null, onDecided = () => undefined }: RunProps) {
   const vm = reachOuts.run(d);
   const b = d.broadcast;
   // A run not waiting is opened by its held (R20: the notice, Playbooks' "N wait for your say"), so they show at once.
@@ -244,35 +253,11 @@ export function ReachOutRun({ d, sheet = null, acts = null, onClose, onDecided =
   const doors = useRoRunDoors(b.id, onDecided);
   if (!vm) return null;
   const may = canDo("approve");
-  const pos = sheet && sheet.position;
   return (
-    <div className="bc-sheet ro-run" data-testid="ro-run" data-state={b.state}>
-      <div className="bc-sheet-top">
-        <button
-          type="button"
-          className="bc-sheet-back"
-          onClick={onClose}
-          aria-label={vm.labels.back}
-          data-testid="bc-detail-close"
-        >
-          <Icon name="chevron" size={18} />
-        </button>
-        <div className="bc-sheet-where">
-          <div className="bc-sheet-k" data-testid="ro-run-k">
-            {vm.k}
-          </div>
-          <div className="bc-sheet-pos">{pos && pos[1] > 1 ? `${pos[0]} of ${pos[1]} · Campaigns` : "Campaigns"}</div>
-        </div>
-      </div>
-      <div className="bc-sheet-body">
-        <div>
-          <div className="bc-sheet-titles">
-            <h1 className="bc-sheet-title">{vm.title}</h1>
-            <PolicyChip cls="outreach" />
-          </div>
-          <div className="bc-sheet-sub" data-testid="ro-run-sub">
-            {vm.sub}
-          </div>
+    <div className="bc-sheet ro-run bc-approval" data-testid="ro-run" data-state={b.state}>
+      <div className="bc-sheet-body bc-approval-body">
+        <div className="bc-sheet-sub" data-testid="ro-run-sub">
+          {vm.sub}
         </div>
         <div className="bc-sheet-reach" data-testid="ro-run-reach">
           <div className="bc-sheet-n">
@@ -287,15 +272,14 @@ export function ReachOutRun({ d, sheet = null, acts = null, onClose, onDecided =
                 <span className="cm-reach-dot" data-tone={w.tone} aria-hidden="true" />
                 <span>{w.text}</span>
                 {w.door && (
-                  <button
-                    type="button"
+                  <LinkButton
                     className="bc-sheet-door"
                     aria-expanded={seeHeld}
                     onClick={() => setSeeHeld((v) => !v)}
                     data-testid="ro-run-see-held"
                   >
                     {seeHeld ? vm.labels.hideHeld : w.door}
-                  </button>
+                  </LinkButton>
                 )}
               </li>
             ))}
@@ -314,15 +298,9 @@ export function ReachOutRun({ d, sheet = null, acts = null, onClose, onDecided =
         </div>
         <RoRunWords vm={vm} />
         {vm.recheck && may && (
-          <button
-            type="button"
-            className="btn btn-sm"
-            disabled={doors.busy === "recheck"}
-            onClick={doors.recheck}
-            data-testid="ro-run-recheck"
-          >
+          <Button size="sm" disabled={doors.busy === "recheck"} onClick={doors.recheck} data-testid="ro-run-recheck">
             {doors.busy === "recheck" ? vm.labels.rechecking : vm.recheck}
-          </button>
+          </Button>
         )}
         {doors.said && doors.said.id === "recheck" && (
           <p className="pb-warn" role="alert" data-testid="ro-run-recheck-said">

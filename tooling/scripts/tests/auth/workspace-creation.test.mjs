@@ -19,7 +19,10 @@ import assert from "node:assert/strict";
 import { readRaw, readCode } from "../_source.mjs";
 
 const sql = readRaw("supabase/migrations/00021_create_workspace.sql");
-const route = readCode("apps/dashboard/app/api/v1/workspaces/create/route.ts");
+const route = readCode(
+  "apps/dashboard/app/api/v1/workspaces/create/route.ts",
+  "apps/dashboard/src/server/workspace/workspace-create.ts",
+);
 const boot = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
 const form = readCode("apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx");
 

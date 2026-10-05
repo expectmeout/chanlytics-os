@@ -5,7 +5,6 @@
  * is sent. The fourteen days and the rule on credit are the database's (00225); they are restated here only to be
  * said, never enforced.
  */
-import { z } from "zod";
 import { dayWords } from "./partner";
 
 /** How long an owner's invitation to a partner is open (00225). */
@@ -25,17 +24,6 @@ export function partnerCodeFrom(raw: string): string {
   const inLink = CODE_IN_LINK.exec(typed);
   return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
 }
-
-/** `POST team/partner`: the partner's code, or their link. */
-export const PartnerInviteSchema = z
-  .object({
-    code: z
-      .string()
-      .trim()
-      .min(1, "Enter your partner's code, or paste their link.")
-      .max(200, "That is too long for a partner's code or link."),
-  })
-  .strict();
 
 /** The workspace's partner and the invitation waiting, as `GET team/partner` carries them to its owner. */
 export interface WorkspacePartnerDto {

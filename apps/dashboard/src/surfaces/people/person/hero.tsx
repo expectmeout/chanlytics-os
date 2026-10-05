@@ -6,9 +6,12 @@
  */
 import type { ReactNode } from "react";
 import { proposalMessage } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
+import { Face } from "../../kit/face/face";
+import { Menu } from "../../kit/menu/menu";
+import type { MenuGroup, MenuItem } from "../../kit";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
 import { navigate } from "../../legacy-verbs";
@@ -64,8 +67,8 @@ function copyOut(c: PageCtx, text: string | null, what: string) {
   });
 }
 
-/** The acts the page keeps for its reader's role, as the More menu's items: a few words each, a line between the groups. */
-function moreItems(c: PageCtx, compose: (text?: string | null) => void) {
+/** The acts the page keeps for its reader's role, as the kit Menu's groups: a few words each, a line between the groups. */
+function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGroup[] {
   const { p, canRecord, isOwner, setDel } = c;
   const doAct: Record<string, () => void> = {
     booking: () => {
@@ -86,13 +89,21 @@ function moreItems(c: PageCtx, compose: (text?: string | null) => void) {
   const acts = (p.acts || []).filter((a) => a.needs === "any" || (a.needs === "record" ? canRecord : isOwner));
   // A few words each, a line between the groups, and what an act does on hover: a sentence beside every label was a
   // block of wrapped words cut off at the menu's edge.
-  return acts.flatMap((a, i) => {
-    const before = acts[i - 1];
-    return [
-      ...(before && before.group !== a.group ? [{ divider: true }] : []),
-      { label: a.label, title: a.hint || undefined, icon: ACT_ICON[a.id], danger: !!a.danger, onClick: doAct[a.id] },
-    ];
-  });
+  const groups: { key: string; items: MenuItem[] }[] = [];
+  for (const a of acts) {
+    const glyph = ACT_ICON[a.id];
+    const item: MenuItem = {
+      label: a.label,
+      title: a.hint || undefined,
+      glyph: glyph ? <Icon name={glyph} size={13} /> : undefined,
+      tone: a.danger ? "danger" : undefined,
+      onSelect: doAct[a.id] ?? (() => {}),
+    };
+    const last = groups[groups.length - 1];
+    if (last && last.key === a.group) last.items.push(item);
+    else groups.push({ key: a.group, items: [item] });
+  }
+  return groups.map((g) => ({ items: g.items }));
 }
 
 /** The typed-name confirmation to delete a person: it erases messages, media and recordings and cannot be undone. */
@@ -160,9 +171,7 @@ function heroId(c: PageCtx, phoneOnly: boolean) {
   const idLine = idLineOf(c, phoneOnly);
   return (
     <div className="cl-prof-id">
-      <div className="cl-prof-avatar" aria-hidden="true">
-        {p.initials}
-      </div>
+      <Face initials={p.initials} size="xl" />
       <div className="cl-prof-titles">
         {/* The name, and beside it where they stand: a dot and the standing's word, its sentence on hover. The sentence is
             said under the line only when it asks for something: "New messages are answered automatically" under every
@@ -207,7 +216,7 @@ function heroId(c: PageCtx, phoneOnly: boolean) {
 }
 
 /** The page's acts: its one primary, their thread, and the More menu. */
-function heroActs(c: PageCtx, more: ReturnType<typeof moreItems>): ReactNode {
+function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
   const { p, who } = c;
   // The action lives in Right now, beside what needs doing. Its own button is the thread in every state that has one,
   // except a person who opted out: the header's Open thread was their only way in, so it falls back to it.
@@ -215,18 +224,21 @@ function heroActs(c: PageCtx, more: ReturnType<typeof moreItems>): ReactNode {
   return (
     <div className="cl-prof-queue-actions">
       {threadCta && (
-        <button
-          type="button"
-          className="btn btn-sm btn-primary"
-          onClick={() => navigate(threadCta.to)}
-          data-testid="person-open-thread"
-        >
+        <Button size="lg" variant="primary" onClick={() => navigate(threadCta.to)} data-testid="person-open-thread">
           {threadCta.label}
-        </button>
+        </Button>
       )}
       {/* Words, not three dots: a ⋯ was too quiet to be found, and it held one thing. */}
       {more.length > 0 && (
-        <MoreMenu label="More" title={`More for ${who}`} btnClass="btn btn-sm" items={more} testid="person-more" />
+        <Menu
+          label={`More for ${who}`}
+          groups={more}
+          trigger={
+            <Button size="lg" title={`More for ${who}`} data-testid="person-more">
+              More <Icon name="chevron-down" size={10} />
+            </Button>
+          }
+        />
       )}
     </div>
   );
@@ -234,14 +246,14 @@ function heroActs(c: PageCtx, more: ReturnType<typeof moreItems>): ReactNode {
 
 /** The hero: Back, who they are, the acts, and the delete question while it is asked. */
 export function hero(c: PageCtx, compose: (text?: string | null) => void, phoneOnly: boolean) {
-  const more = moreItems(c, compose);
+  const more = moreGroups(c, compose);
   return (
     <div className="cl-prof-hero">
       {/* On a phone the word goes and the arrow takes a thumb's width: the top bar says People over it. */}
-      <button type="button" className="cl-prof-back" onClick={c.onBack} aria-label="Back to People">
+      <Button variant="quiet" size="sm" className="cl-prof-back" onClick={c.onBack} aria-label="Back to People">
         <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
         <span className="cl-prof-back-word">People</span>
-      </button>
+      </Button>
       {heroId(c, phoneOnly)}
       {heroActs(c, more)}
       {c.del.open && deleteBox(c)}

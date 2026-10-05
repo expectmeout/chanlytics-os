@@ -2,7 +2,7 @@
  * MapLibre draws in a worker it finds beside its own bundle by `import.meta.url`,
  * which the app's bundler does not preserve; so the worker and the chunk it
  * imports are served by the app itself from apps/dashboard/public/maplibre/
- * (legacy-bridge/lead-map.ts names the URL). They must be the bytes of the
+ * (surfaces/leads/map/lead-map-plan.ts names the URL). They must be the bytes of the
  * installed package, or a bump of maplibre-gl runs a worker from another
  * version against the main thread: copy the two files again after a bump.
  */

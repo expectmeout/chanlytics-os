@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { config } from "zod/v4/core";
 
 /**
  * No code from strings, anywhere -- and FIRST.
@@ -17,6 +17,8 @@ import { z } from "zod";
  * probe and every compile are violations the browser reports -- six per page
  * in the nightly -- and under a report-only policy the probe does not throw,
  * so zod never falls back on its own. The interpreted parsers are the same
- * parsers; at this size the compiled path buys nothing.
+ * parsers; at this size the compiled path buys nothing. Said through zod's
+ * core, whose configuration the classic API and zod/mini share, so the
+ * browser's entry, which loads no classic zod, runs it too.
  */
-z.config({ jitless: true });
+config({ jitless: true });

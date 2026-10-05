@@ -528,7 +528,7 @@ function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) 
         title="Nothing went out"
         testid="chart-campaigns"
         body={`No broadcast or playbook run reached anyone between ${vm.since} and ${vm.until}, and nobody said yes or asked to stop.`}
-        action={{ label: "Open Broadcasts", to: "broadcasts" }}
+        action={{ label: "Open Sent", to: "broadcasts" }}
       />
     );
   return (

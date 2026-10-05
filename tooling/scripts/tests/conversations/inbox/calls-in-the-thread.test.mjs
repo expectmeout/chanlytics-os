@@ -203,6 +203,10 @@ await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx"
 const { InboxThread, ixOpensAt } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 const { tlFollowBy } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/call.tsx");
 const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { Menu } = await import("../../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+// A kit Menu's items as one list, with a "|" between two groups for the shape.
+const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
+const shapeOf = (menu) => menu.props.groups.flatMap((g, i) => [...(i ? ["|"] : []), ...g.items.map((it) => it.label)]);
 after(() => setSurfaceValue("conversations", undefined));
 
 const walk = (n, fn) => {
@@ -730,22 +734,22 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
     const vm = withLink();
     assert.equal(vm.proposalUrl, url, "the view model carries it");
     assert.equal(vm.windowOpen, true);
-    const menuOf = (tree) => find(tree, (n) => n.props?.label === "Actions" && Array.isArray(n.props?.items));
+    const menuOf = (tree) => find(tree, (n) => n.type === Menu);
     const menu = menuOf(draw(vm));
     assert.ok(menu, "the header's Actions menu");
-    const item = menu.props.items.find((i) => i.label === "Send proposal");
-    assert.ok(item, `the item is there: ${menu.props.items.map((i) => i.label)}`);
+    const item = itemsIn(menu).find((i) => i.label === "Send proposal");
+    assert.ok(item, `the item is there: ${itemsIn(menu).map((i) => i.label)}`);
     assert.equal(item.hint, "docs.example.com", "the hint says where the link lives");
-    assert.equal(item.icon, "send");
+    assert.equal(item.glyph.props.name, "send");
     // It heads the Deal group, after the person's own group.
-    const shape = menu.props.items.map((i) => (i.divider ? "|" : i.label));
+    const shape = shapeOf(menu);
     assert.equal(shape[shape.indexOf("Send proposal") - 1], "|", "a group of its own");
-    item.onClick();
+    item.onSelect();
     assert.equal(events.length, 1, "one event");
     assert.equal(events[0].type, "inbox:compose");
     assert.deepEqual(events[0].detail, { text: proposalMessage(url), link: url });
 
-    const labels = (vm2) => menuOf(draw(vm2)).props.items.map((i) => i.label);
+    const labels = (vm2) => itemsIn(menuOf(draw(vm2))).map((i) => i.label);
     assert.ok(
       !labels(toInboxThreadVM(conv([m("m1", 60)], { last_wa_inbound_at: at(60) }), null, ZONE, NOW)).includes(
         "Send proposal",
@@ -764,11 +768,11 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
     );
 
     // The link is the deal's (0008, proposalLinkOf over People's row): a proposal out sends its own link...
-    const itemFor = () => menuOf(draw(vm)).props.items.find((i) => i.label === "Send proposal");
+    const itemFor = () => itemsIn(menuOf(draw(vm))).find((i) => i.label === "Send proposal");
     people(true, { stage: "proposed", proposal: { url: dealUrl, host: "quotes.example.com" } });
     assert.equal(itemFor().hint, "quotes.example.com", "the deal's link, not the one left on the person");
     events.length = 0;
-    itemFor().onClick();
+    itemFor().onSelect();
     assert.deepEqual(events[0].detail, { text: proposalMessage(dealUrl), link: dealUrl });
     // ...a proposal recorded without one sends nothing, and neither does a pass or a client, whatever the person holds.
     for (const deal of [

@@ -25,6 +25,9 @@ import type { TodayVM } from "@chanlytics/contracts";
 import type { LiveSurface } from "./live/surface";
 import type { PeopleSurface } from "./people/surface";
 import type { CalendarSurface } from "./calendar/surface";
+import type { LeadsSurface } from "./leads/surface";
+import type { SetupSurface } from "./setup/surface";
+import type { BillingSurface } from "./settings/billing/surface";
 
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
@@ -40,6 +43,11 @@ export interface SurfaceValues {
   live: LiveSurface;
   people: PeopleSurface;
   calendar: CalendarSurface;
+  leads: LeadsSurface;
+  /** Undefined until read; null when the read failed, so a page shows a retry rather than "Reading…" for ever. */
+  setup: SetupSurface | null;
+  /** Undefined until read; null when the read failed, so the pane shows a retry rather than "Reading…" for ever. */
+  billing: BillingSurface | null;
 }
 
 export type SurfaceKey = keyof SurfaceValues;
@@ -97,4 +105,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   live: true,
   people: true,
   calendar: true,
+  leads: true,
+  setup: true,
+  billing: true,
 };

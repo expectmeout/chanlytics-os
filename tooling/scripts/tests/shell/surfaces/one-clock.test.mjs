@@ -304,7 +304,8 @@ const row = (over = {}) => ({
 test("REGRESSION (D5): a person's row and the attention strip say their days and times by the business's clock", () => {
   const vm = toPersonRowVM(row(), TOKYO, NOW);
   assert.equal(vm.firstContact.label, "Sep 7", "first contact: the 7th in Tokyo");
-  assert.equal(vm.consent.sub, "In person · Sep 7");
+  // The channels the yes covers follow its day (One message, every channel, step 2): a yes set in person, WhatsApp.
+  assert.equal(vm.consent.sub, "In person · Sep 7 · on WhatsApp");
   const snoozed = toPersonRowVM(
     row({ latest_state: "snoozed", latest_snooze_until: "2026-09-07T09:00:00Z" }),
     TOKYO,

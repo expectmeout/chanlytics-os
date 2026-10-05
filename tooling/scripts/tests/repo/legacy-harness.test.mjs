@@ -459,12 +459,12 @@ test("the mockup takes the kit's components and the Inbox's and People's names f
   assert.equal(
     tags[tags.indexOf(STUBS) + 3],
     "data/people-globals.js",
-    "the Leads scope reads plSortKeys as it loads, and the Pipeline and the person page draw People's parts by name, TSX since decision 0015",
+    "the shell's strip draws People's scopes and the frame its deal and step sheets by name, TSX since decision 0015",
   );
   assert.equal(
     tags[tags.indexOf(STUBS) + 4],
     "data/leads-globals.js",
-    "the Leads pages draw the peek and its acts by name, TSX since decision 0015 (surfaces/leads/globals.ts)",
+    "Ask's palette draws Leads' plan card by name, TSX since decision 0015 (surfaces/leads/globals.ts)",
   );
 });
 
@@ -534,7 +534,7 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
   assert.equal(win.MoreMenu({ items: [] }).props.className, "more-wrap");
 });
 
-test("People's bundle publishes People's shared parts on the page's React, under the names the pages read, and leaves a name the page already has", async () => {
+test("People's bundle publishes the parts the shell still draws by name on the page's React, and leaves a name the page already has", async () => {
   const { peopleGlobalsBundle, peopleGlobalsHarnessBundle } = await import("../../serve-legacy.mjs");
   const { PEOPLE_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/people/people-globals.ts");
   // The page's React, as the harness loads it: the bundle takes its hooks and its elements from this and brings none. The
@@ -542,6 +542,9 @@ test("People's bundle publishes People's shared parts on the page's React, under
   const React = {
     createElement: (type, props, ...children) => ({ type, props, children }),
     memo: (component) => component,
+    // What the kit's Base UI parts (Menu, Tabs) ask of React as they load; none of them draws here.
+    forwardRef: (render) => render,
+    createContext: (value) => ({ Provider: "Provider", Consumer: "Consumer", value }),
     Fragment: "Fragment",
     useState: (v) => [v, () => {}],
     useReducer: (_reduce, v) => [v, () => {}],
@@ -552,23 +555,26 @@ test("People's bundle publishes People's shared parts on the page's React, under
     useEffect() {},
     useSyncExternalStore: (_subscribe, get) => get(),
   };
-  const win = { React, PeopleTable: "the page's own" };
+  const win = { React, plScopes: "the page's own" };
   vm.runInNewContext(await peopleGlobalsBundle(), { window: win, React, console });
   for (const name of Object.keys(PEOPLE_GLOBALS)) {
-    if (name === "PeopleTable") assert.equal(win[name], "the page's own", "a name the page has is left alone");
+    if (name === "plScopes") assert.equal(win[name], "the page's own", "a name the page has is left alone");
     else assert.ok(name in win, `${name} is published`);
   }
-  assert.equal(typeof win.plSortKeys, "function", "the Leads scope reads it as it loads");
-  assert.equal(typeof win.PeopleRail, "function");
+  assert.equal(win.PeopleScopeTabs, undefined, "the strip is the frame's (SurfaceTabs): the page has none to publish");
+  // Every page that drew People's table, hooks and rail kit by name has moved (Leads last, decision 0015 step 9): they are
+  // imported, and publishing them was what kept them in the shell's chunk.
+  for (const name of ["PeopleTable", "usePlControls", "usePlPlace", "PeopleRail", "plSortKeys"])
+    assert.equal(win[name], undefined, `${name} is no global`);
   // The harness's copy publishes them all, and follows the People the fixture's runner lands on the window.
   const heard = [];
   const harness = {
     React,
-    PeopleTable: "the page's own",
+    plScopes: "the page's own",
     addEventListener: (type) => heard.push(type),
   };
   vm.runInNewContext(await peopleGlobalsHarnessBundle(), { window: harness, React, console });
-  assert.equal(typeof harness.PeopleTable, "function", "over the People the fixture boots, the harness's copy wins");
+  assert.equal(typeof harness.plScopes, "function", "over the People the fixture boots, the harness's copy wins");
   assert.deepEqual(heard.sort(), ["surface:clients", "surface:people"], "and it holds People when it lands");
 });
 

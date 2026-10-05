@@ -19,11 +19,12 @@ what the script writes.
 | [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
 | [`ask_messages`](#ask_messages) | none | on, 4 policies |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
+| [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/ask-voice-session.ts` | on, 4 policies |
 | [`billing_accounts`](#billing_accounts) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
-| [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/touches.ts` | on, 2 policies |
-| [`broadcasts`](#broadcasts) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
+| [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/touches.ts` | on, 2 policies |
+| [`broadcasts`](#broadcasts) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
 | [`business_records`](#business_records) | `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
@@ -56,9 +57,9 @@ what the script writes.
 | [`lead_suggestions`](#lead_suggestions) | none | on, 1 policy |
 | [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
 | [`leads`](#leads) | `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
-| [`lines`](#lines) | `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
-| [`mailboxes`](#mailboxes) | `packages/db/src/repositories/email.ts` | on, 1 policy |
-| [`memberships`](#memberships) | `packages/db/src/repositories/notifications.ts` | on, 2 policies |
+| [`lines`](#lines) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
+| [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
+| [`memberships`](#memberships) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts` | on, 2 policies |
 | [`messages`](#messages) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`notification_marks`](#notification_marks) | none | on, 1 policy |
 | [`notification_reads`](#notification_reads) | none | on, 1 policy |
@@ -75,7 +76,7 @@ what the script writes.
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | none | on, no policy, so only the service role reaches it |
-| [`playbooks`](#playbooks) | `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
+| [`playbooks`](#playbooks) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 5 policies |
 | [`profiles`](#profiles) | none | on, 1 policy |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
@@ -86,14 +87,13 @@ what the script writes.
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/repositories/lists.ts` | on, 4 policies |
-| [`sending_domain_days`](#sending_domain_days) | none | on, 1 policy |
 | [`sending_domains`](#sending_domains) | `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`sweep_status`](#sweep_status) | none | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
-| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
+| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
 | [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
-| [`waitlist`](#waitlist) | none | on, no policy, so only the service role reaches it |
+| [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
 
@@ -199,6 +199,48 @@ Foreign keys:
 | `ask_threads_own_select` | select | authenticated | `((user_id = auth.uid()) AND (EXISTS ( SELECT 1 FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.tenant_id = ask_threads.tenant_id)))))` |  |
 | `ask_threads_own_update` | update | authenticated | `(user_id = auth.uid())` | `(user_id = auth.uid())` |
 
+### ask_voice_sessions
+
+One row per voice conversation of Ask: whose it is, its thread, the member's access token sealed under the dashboard's key, and the turn the brain door claims. The member's own under RLS; the brain door reads it on the service role (apps/dashboard/src/server/ask/voice-session.ts).
+
+- Owned by: `packages/db/src/ask-voice-session.ts`
+- Primary key: `id`
+- Row-level security: on, 4 policies
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | text | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `user_id` | uuid | no |  |  |
+| `thread_id` | uuid | no |  |  |
+| `conversation_id` | text | yes |  |  |
+| `token_cipher` | text | no |  |  |
+| `token_expires_at` | timestamp with time zone | no |  |  |
+| `surface` | text | yes |  |  |
+| `scope` | jsonb | yes |  |  |
+| `context` | jsonb | yes |  |  |
+| `language` | text | no | `'en'::text` |  |
+| `turn_key` | text | yes |  |  |
+| `turn_started_at` | timestamp with time zone | yes |  |  |
+| `duration_s` | integer | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `ended_at` | timestamp with time zone | yes |  |  |
+| `end_reason` | text | yes |  | The browser's word for how it ended: button, typed, superseded, navigated, vendor, start, idle (a minute with nothing asked). Null while it runs. |
+| `connect_ms` | integer | yes |  | From the tap to the connection up, in ms, as the browser measured it. |
+| `first_audio_ms` | integer | yes |  | From the tap to the first audio heard, in ms, as the browser measured it; null when none came. |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete cascade not valid
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ask_voice_sessions_own_delete` | delete | authenticated | `(user_id = auth.uid())` |  |
+| `ask_voice_sessions_own_insert` | insert | authenticated |  | `((user_id = auth.uid()) AND (EXISTS ( SELECT 1 FROM ask_threads t WHERE ((t.id = ask_voice_sessions.thread_id) AND (t.user_id = auth.uid()) AND (t.tenant_id =…` |
+| `ask_voice_sessions_own_select` | select | authenticated | `((user_id = auth.uid()) AND (EXISTS ( SELECT 1 FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.tenant_id = ask_voice_sessions.tenant_id)))))` |  |
+| `ask_voice_sessions_own_update` | update | authenticated | `(user_id = auth.uid())` | `(user_id = auth.uid())` |
+
 ### billing_accounts
 
 - Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`
@@ -265,8 +307,6 @@ Foreign keys:
 | `received_at` | timestamp with time zone | no | `now()` |  |
 | `state` | text | no | `'applied'::text` |  |
 | `lease_until` | timestamp with time zone | yes |  |  |
-| `amount_cents` | integer | yes |  | What the invoice behind this event moved, in the smallest unit of its currency (K8): the amount paid on invoice.paid, the amount due on invoice.payment_failed. Kept once by billing_event_keep_amount; null for an event from before 00300 or that named no amount. A real zero is a zero. |
-| `currency` | text | yes |  | The invoice's currency as Stripe spells it, three lowercase letters (K8); null where amount_cents is. |
 
 Foreign keys:
 
@@ -274,7 +314,7 @@ Foreign keys:
 
 ### broadcast_recipients
 
-- Owned by: `packages/db/src/repositories/touches.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/touches.ts`
 - Primary key: `broadcast_id`, `contact_id`
 - Row-level security: on, 2 policies
 
@@ -288,6 +328,8 @@ Foreign keys:
 | `message_id` | uuid | yes |  |  |
 | `sent_at` | timestamp with time zone | yes |  |  |
 | `facts` | jsonb | yes |  | Per-person words a run resolved when it was made (a visit's time and service); the send fills the template's slots from them. |
+| `channel` | text | yes |  | The channel this person is reached on, picked once at enrolment (contracts' reachFor) from the run's channels. NULL: a recipient written before the channels, which is WhatsApp (00298). |
+| `attempt` | integer | no | `0` | How many times this person was claimed and given back (throttled, not_taken): the guard adds one on every release. A broadcast's email to them is named by it (core broadcast-channels.ts), so a person tried again is sent under a new id and a resumed run, which releases nobody, finds the email it was sending (00301). |
 
 Foreign keys:
 
@@ -303,7 +345,7 @@ Foreign keys:
 
 ### broadcasts
 
-- Owned by: `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
+- Owned by: `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
@@ -328,6 +370,7 @@ Foreign keys:
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `playbook_id` | uuid | yes |  |  |
 | `run_for` | date | yes |  |  |
+| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00298). |
 
 Foreign keys:
 
@@ -533,8 +576,9 @@ Foreign keys:
 | `email_marketing` | text | no | `'unknown'::text` | Whether this person may be sent marketing email (a reach-out, an offer): unknown until they say, opted_out once they unsubscribe. Apart from consent and marketing_consent, which are the texting and WhatsApp answers. |
 | `email_marketing_source` | text | yes |  |  |
 | `email_marketing_updated_at` | timestamp with time zone | yes |  |  |
-| `acquired_via` | text | yes |  | How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email or call for the wire of the message or call that made them, ad for a WhatsApp click-to-chat ad (a referral whose source_type is ad; a post or any other referral is the wire's), calendar, import, lead or manual for the door that added them (00289). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess. |
-| `acquired_ref` | text | yes |  | The line (tenant_channels.id) or the ad (Meta's source id) the person first came through; null where nothing says. Never the person. |
+| `consent_channels` | text[] | yes |  | The channels the yes about messages on their own visit covers (whatsapp, sms, email, in that order), kept by events_keep_consent_channels from each contact.consent_changed event by consent_channels_of's rule. NULL: none kept, a yes recorded before the channels were, which covers WhatsApp alone; empty: no yes. |
+| `marketing_channels` | text[] | yes |  | The channels the yes to offers covers (whatsapp, sms, email, in that order), kept the same way from the events that name purpose marketing. NULL: none kept, which reads as WhatsApp alone; empty: no yes. |
+| `offers_asked_at` | timestamp with time zone | yes |  | When the receptionist first asked this person for the yes to offers: the first outbound message that says YES OFFERS or SI OFERTAS, in any case and with or without the accent (messages_stamp_offers_asked). It asks once. |
 
 Foreign keys:
 
@@ -689,7 +733,6 @@ When the stored erasure digests were re-keyed (00263 erasure_rekey): null until 
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `deadman_alerted_at` | timestamp with time zone | yes |  | When the watchdog flagged this as unanswered. Set once; NULL means never flagged. |
-| `resolved_at` | timestamp with time zone | yes |  | When the escalation was resolved (K4), stamped once by escalations_stamp_resolved when state goes from open to resolved. Null while open, and for every row resolved before 00290: unknown, never zero. |
 
 Foreign keys:
 
@@ -1371,8 +1414,6 @@ A place: one physical location, outside contacts. Unique by place id in the work
 | `website_root` | boolean | yes |  | Whether the listing's website is its host's root (00237): false for a page under the host (an ISP's "/~dana/", a directory's listing), which is no proof the host is the business's own; null when not known. A reply's no closes the host's domain only when this is not false (contracts ownedDomainOf). |
 | `booked_at` | timestamp with time zone | yes |  | When the first appointment the calendar sweep saw for this lead starts, when it starts after an email of a reach-out left (Reach out Part 6, H2; reach_out_booked). Stamped once, whatever the lead's stage: a lead that wrote back and then booked is Talking already and booked all the same. Reports and Leads count and say it. |
 | `reach_out_stopped_at` | timestamp with time zone | yes |  | When its owner stopped a reach-out writing to this lead (Reach out Part 6, H10; reach_out_lead_stop). The send door refuses its email (outreach_lead_facts.stopped, outreach_stopped) and no later step reaches it (reach_out_followers). The lead is not closed: stopping is not a no. |
-| `stage_at` | timestamp with time zone | yes | `now()` | When the lead entered the stage it is in (K5): its birth for a new row, the move for any later one, stamped by leads_stamp_stage whoever writes the stage. Null for a lead from before 00291: unknown, never now. |
-| `stage_from` | text | yes |  | The stage the lead was in before the move that stamped stage_at (K5); null until it moves. The one place a lead's "from" is said: lead.set_aside and 00292's lead.stage event read it. |
 
 Foreign keys:
 
@@ -1387,7 +1428,7 @@ Foreign keys:
 
 The number as an ASSET: one row per number Chanlytics bought or forwards, and the state of getting it working -- subaccount, trunk, receptionist, messaging service, carrier registration, porting, forwarding. Routing lives in tenant_channels, which this table is the source for (tenant_channels.config.line_id points back here). A number provisioned elsewhere -- inside Retell, or a WhatsApp number through Meta -- has a channel row and no row here.
 
-- Owned by: `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1438,7 +1479,7 @@ Foreign keys:
 
 A workspace's email address on the platform's mail domain, its reply route, and how much the receptionist may do with an email. Members read; the service role writes.
 
-- Owned by: `packages/db/src/repositories/email.ts`
+- Owned by: `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1455,6 +1496,9 @@ A workspace's email address on the platform's mail domain, its reply route, and 
 | `last_error` | text | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `offers_paused_at` | timestamp with time zone | yes |  | When a gate paused this workspace's offers by email (complaints or bounces over their limits, contracts' OFFER_GATES), or NULL while they are not paused. Offers hold; reminders and replies by email go on. Cleared by resume_email_offers. |
+| `offers_paused_reason` | text | yes |  | Which gate paused them: complaints or bounces. |
+| `offers_resumed_at` | timestamp with time zone | yes |  | When the back office last turned this workspace's offers by email back on (resume_email_offers), or NULL if it never has. The gates are judged over the offers sent after it, so the offers that paused them are not counted again. |
 
 Foreign keys:
 
@@ -1466,7 +1510,7 @@ Foreign keys:
 
 ### memberships
 
-- Owned by: `packages/db/src/repositories/notifications.ts`
+- Owned by: `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -1940,11 +1984,6 @@ One UTC day of one workspace, counted (00277): messages in and out by channel, c
 | `provider_failures` | jsonb | no | `'{}'::jsonb` |  |
 | `tokens` | bigint | no | `0` |  |
 | `rolled_at` | timestamp with time zone | no | `now()` |  |
-| `handled` | jsonb | yes |  | How the day's customer messages ended (K10): counts of meta.handled (ai, held, handoff, blocked) on inbound customer messages, a key only where its count is above zero. Null where no message of the day was stamped (a day before K1 included). |
-| `topics` | jsonb | yes |  | What the day's customers asked about (K10): counts by the nine BRAIN_INTENTS words, from texts' meta.intent and connected inbound calls' analysis.topic. Null where nothing said. |
-| `ai_tokens` | jsonb | yes |  | The model's tokens of the day by purpose (K10), all four kinds, from the ledger (ai_usage), the workspace's own calls and never a shadow's. Null where the ledger holds none. |
-| `ai_usd` | jsonb | yes |  | The same by purpose in list-price dollars (K10): the operator's, never an owner's. A purpose with no priced call is left out; null where none was priced. |
-| `voice_usd` | numeric(12,6) | yes |  | What the day's calls cost in dollars (K8): the sum of call_cost_usd over calls.cost of the calls that started that day, whatever their direction or ending. The operator's. Null where no call carried a cost. |
 
 Foreign keys:
 
@@ -1952,7 +1991,7 @@ Foreign keys:
 
 ### playbooks
 
-- Owned by: `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts`
 - Primary key: `id`
 - Row-level security: on, 4 policies
 
@@ -1988,6 +2027,7 @@ Foreign keys:
 | `signed_by` | text | yes |  |  |
 | `include_unconfirmed` | boolean | no | `false` |  |
 | `hand` | jsonb | yes |  | A reach-out's last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call \| note, words}. Such a step has no template. |
+| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer's ticks. Each person is reached once, on one of them (contracts' reachFor). WhatsApp alone by default, as every campaign was before (00298). |
 
 Foreign keys:
 
@@ -2298,37 +2338,6 @@ Foreign keys:
 | `segments_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
 | `segments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
-### sending_domain_days
-
-One row per sending domain per UTC day: its state and counters as the domains sweep's last check left them (K9), written by sending_domain_days_keep at 00:23 for the day that ended. Null where the domain had no count; checked_at says how stale. Members read their workspace's; the service role writes.
-
-- Owned by: none
-- Primary key: `domain_id`, `day`
-- Row-level security: on, 1 policy
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `tenant_id` | uuid | no |  |  |
-| `domain_id` | uuid | no |  |  |
-| `day` | date | no |  |  |
-| `host` | text | no |  |  |
-| `state` | text | no |  |  |
-| `held_why` | text | yes |  |  |
-| `sent` | integer | yes |  |  |
-| `bounced` | integer | yes |  |  |
-| `complaints` | integer | yes |  |  |
-| `sent_days` | integer | yes |  |  |
-| `checked_at` | timestamp with time zone | yes |  |  |
-| `kept_at` | timestamp with time zone | no | `now()` |  |
-
-Foreign keys:
-
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `sending_domain_days_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
-
 ### sending_domains
 
 The domains a workspace sends cold email from (Reach out): the identity, the provider's records, and where each stands. Members read; the service role writes (apps/edge lib/email/sending-domains.ts).
@@ -2436,7 +2445,7 @@ Foreign keys:
 
 The ROUTING table: one row per thing an inbound webhook must resolve to a workspace. A voice row is keyed on the receptionist (external_id = agent id) so several numbers may share one; an sms or whatsapp row is keyed on the number, because a message arrives addressed to one. config.line_id names the lines row that created it, when a line did -- numbers provisioned inside Retell or through Meta legitimately have none. See public.number_drift() for what disagreement between the two looks like.
 
-- Owned by: `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2515,7 +2524,7 @@ Foreign keys:
 
 People who asked for a workspace while sign-up was closed. Service-role only: deny-all RLS, no policies, because nobody here has a workspace to be scoped to yet. Drained oldest-first; invited_at is the stamp that takes a row out of the queue.
 
-- Owned by: none
+- Owned by: `packages/db/src/waitlist.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 

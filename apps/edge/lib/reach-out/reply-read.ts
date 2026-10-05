@@ -7,7 +7,9 @@
  *     askJson), with no retry of its own on "not now" and a deadline of the check's call time or the job's time left,
  *     whichever is sooner; an overload is asked once of the route's fallback when that deadline leaves room. A
  *     plain-JSON second call when the schema format is refused is part of the one read. Each call is written to the
- *     usage ledger for the reply's workspace (defect 53: the reader kept no usage).
+ *     usage ledger for the reply's workspace (defect 53: the reader kept no usage). While the second model is on
+ *     (decision 0023), the reply's intent is also put to it in shadow: its answer is compared with the read's and kept,
+ *     and never read here.
  *   - mayRead: the model's key, the workspace's one reading of whether it may spend (workspaceMaySpend, as the check
  *     asks it), and one read taken from its UTC day (REACH_OUT_READS_PER_DAY, beside the check's attempts). No second
  *     budget rule: a read is spent the way a check's attempt is.

@@ -1,16 +1,9 @@
 /**
  * What a save says under a fold: when it crosses between a record that composes and one that does not, when what
- * is typed is more than the save would take (PROFILE_LIMITS, read off the schema), and when a message spells out
- * a detail its name would keep current.
+ * is typed is more than the save would take (config-rules.ts PROFILE_LIMITS, the table the schema is built from), and
+ * when a message spells out a detail its name would keep current.
  */
-import { BrainConfigSchema } from "../workspace-config/brain-config";
-import {
-  BookingRulesSchema,
-  BusinessProfileSchema,
-  ClosureSchema,
-  INSTRUCTIONS_MAX,
-} from "../workspace-config/business-profile";
-import { MAX_CLOSURES, MAX_INTERVALS_PER_DAY } from "../workspace-config/config-schema";
+import { PROFILE_LIMITS } from "../workspace-config/config-rules";
 import { count, pluralGrouped } from "./counts";
 
 /**
@@ -34,100 +27,6 @@ export const PROFILE_CROSSING_WORDS = {
 export type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
 
 /* ------------------------------------ what a fold will not take ------------------------------------ */
-
-/**
- * The most of each thing a fold of the tab may hold, read off the schema that would refuse the save.
- *
- * Every one of these was a literal in the page (`BT_LIMITS`, pages/business-tab-folds.jsx) beside a sentence carrying
- * the same number a second time, so a cap widened in the schema left the page offering less than the save would take
- * and the sentence naming a number neither of them used. Read here, the schema is the one place a number lives, and
- * `profileRefusal` below writes the sentence from this table -- the way `bookingRuleRefusal` writes the five booking
- * rules' from `BookingRulesSchema`'s own bounds.
- *
- * `closures` and `shifts` are the two the save's own checks already published (`MAX_CLOSURES`,
- * `MAX_INTERVALS_PER_DAY`); they are here so a fold asks one table rather than two.
- *
- * Built inside a call marked pure, as GUARDRAIL_KEYS is: a top-level call is a side effect to the bundler, which
- * would keep this in the four dists that bundle contracts and never use it.
- */
-export const PROFILE_LIMITS: Readonly<Record<ProfileLimitKey, number>> = /* @__PURE__ */ (() => {
-  // A cap, however the schema states it: a string's own `maxLength`, or an array's `max_length` check.
-  const cap = (schema: unknown): number => {
-    const s = schema as {
-      maxLength?: number | null;
-      def?: { checks?: { _zod?: { def?: { check?: string; maximum?: number } } }[] };
-    };
-    if (typeof s.maxLength === "number") return s.maxLength;
-    for (const c of s.def?.checks ?? []) {
-      const d = c?._zod?.def;
-      if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
-    }
-    throw new TypeError(
-      "PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses.",
-    );
-  };
-  const floor = (schema: unknown): number => {
-    const s = schema as { minLength?: number | null };
-    if (typeof s.minLength !== "number") throw new TypeError("PROFILE_LIMITS: the schema states no minimum.");
-    return s.minLength;
-  };
-  const opt = <T>(schema: { unwrap(): T }): T => schema.unwrap();
-  const p = BusinessProfileSchema.shape;
-  const service = opt(p.services).element.shape;
-  const note = opt(p.notes).element.shape;
-  const rules = BookingRulesSchema.shape;
-  const minutes = opt(service.duration_min) as unknown as { maxValue: number | null };
-  if (minutes.maxValue == null) throw new TypeError("PROFILE_LIMITS: a service's minutes state no maximum.");
-  return {
-    tone: cap(opt(p.tone)),
-    services: cap(opt(p.services)),
-    serviceName: cap(service.name),
-    serviceMinutes: minutes.maxValue,
-    servicePrice: cap(opt(service.price_note)),
-    languages: cap(opt(p.languages)),
-    languageMin: floor(opt(p.languages).element),
-    languageMax: cap(opt(p.languages).element),
-    reasons: cap(opt(p.escalate_when)),
-    reason: cap(opt(p.escalate_when).element),
-    consultFirst: cap(opt(rules.consult_first)),
-    consultFirstLine: cap(opt(rules.consult_first).element),
-    ruleNotes: cap(opt(rules.notes)),
-    ruleNote: cap(opt(rules.notes).element),
-    notes: cap(opt(p.notes)),
-    noteTitle: cap(note.title),
-    noteText: cap(note.text),
-    closureNote: cap(opt(ClosureSchema.shape.note)),
-    closures: MAX_CLOSURES,
-    shifts: MAX_INTERVALS_PER_DAY,
-    instructions: INSTRUCTIONS_MAX,
-    message: cap(BrainConfigSchema.shape.fallbacks.shape.greeting),
-  };
-})();
-
-/** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` says what each one refuses in. */
-export type ProfileLimitKey =
-  | "tone"
-  | "services"
-  | "serviceName"
-  | "serviceMinutes"
-  | "servicePrice"
-  | "languages"
-  | "languageMin"
-  | "languageMax"
-  | "reasons"
-  | "reason"
-  | "consultFirst"
-  | "consultFirstLine"
-  | "ruleNotes"
-  | "ruleNote"
-  | "notes"
-  | "noteTitle"
-  | "noteText"
-  | "closures"
-  | "closureNote"
-  | "shifts"
-  | "instructions"
-  | "message";
 
 /** What `profileRefusal` will say a sentence for: the caps a fold refuses AT, and the one range a language sits in. */
 export type ProfileRefusalKey =

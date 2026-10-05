@@ -1,5 +1,9 @@
+import { errField, logger } from "@chanlytics/channels";
 import { AppError, isReachOutRun, localDate, nextOpenMoment, runDayPassed } from "@chanlytics/contracts";
 import type { ApproveRunPorts, BroadcastRef } from "./ports";
+
+/** An approval's own lines, by name: what a job ledger said when it refused the send is the log's, never the answer's. */
+const approveLog = logger();
 
 export interface ApproveReceipt {
   id: string;
@@ -43,12 +47,8 @@ export async function approveRun(
     await ports.schedule(b.id, at);
   } catch (e) {
     await ports.hold(b.id);
-    throw new AppError(
-      "upstream_meta",
-      "The send could not be scheduled. The run is still waiting; try again.",
-      502,
-      e instanceof Error ? e.message : undefined,
-    );
+    approveLog.error("campaign_step_failed", { step: "schedule", broadcast_id: b.id, error: errField(e) });
+    throw new AppError("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
   }
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;

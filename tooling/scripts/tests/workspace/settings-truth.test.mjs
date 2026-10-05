@@ -30,7 +30,8 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "today", "calendar", "setup"],
+    // The postal address saved here is one of the channels' readiness, which the composers and People's reach read too.
+    ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"],
     "REGRESSION: the second save in a row was a 409 — settings first, for the version",
   );
   assert.ok(!fn.includes("await refresh();"), "the generic refresh never re-read this pane");
@@ -43,13 +44,9 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   const surface = readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
   assert.ok(surface.includes("broken: { issues: cfg.issues ?? [] }"));
   assert.ok(pane.includes("const broken = !!(settings && settings.broken);"));
-  assert.ok(pane.includes("This workspace's settings can't be read"));
   assert.ok(pane.indexOf("if (broken) {") < pane.indexOf("if (real) {"), "the broken branch wins over the record");
-  assert.equal(
-    (pane.match(/disabled=\{broken \|\| busy/g) ?? []).length,
-    3,
-    "every notifications write is closed on a broken config",
-  );
+  // Every notifications write is closed on a broken config, and says why: drawn, in settings-owner-panes.test.mjs ("F32:
+  // a config the parser refuses closes every notifications write"), since the pane is TSX (surfaces/settings/notifications).
   // The parser really does tell the two apart.
   assert.equal(parseTenantConfigResult({}).ok, true, "an empty config is not broken");
   const bad = parseTenantConfigResult({ brain: { business_name: 42 } });
@@ -113,7 +110,8 @@ test("F36/F37: alerts that go to Chanlytics say so; switching a number off is de
   const platform = rows.filter((r) => r.platform);
   assert.equal(platform.length, 2, "exactly the two platform alerts");
   for (const r of platform) assert.ok(r.what.includes("Goes to Chanlytics, not to the addresses above"), r.title);
-  assert.ok(pane.includes("except the two marked for Chanlytics"));
+  // The card above them says so, drawn: settings-owner-panes.test.mjs, "Notifications lists what is sent in contracts'
+  // groups" (surfaces/settings/notifications/pane.tsx).
   assert.ok(!pane.includes("emails you every message instead"), "REGRESSION: promised an email nothing sends");
   // The channels sentence moved with the pane it belongs to; the alerts
   // above it are the notifications pane and stay in the settings shell.
@@ -140,17 +138,12 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   // who may do settings and nothing else -- so a card asking the WRONG door shows up either as a live button this
   // role cannot save with, or as a refused one where every act should be offered. (Refusing every permission at once,
   // as the viewer test below does, cannot tell those apart.) business-tab-open.test.mjs reads the sentence on each act.
-  assert.ok(
-    pane.includes('gate("autonomy")'),
-    "the autonomy matrix keeps its own gate — PUT /policies is operator-or-owner",
+  // The autonomy matrix keeps its own gate (PUT /policies is operator-or-owner), and a delay edit sends no mode: drawn
+  // in settings-owner-panes.test.mjs ("F50: every dot and dial asks the autonomy gate"), the pane being TSX.
+  const policies = readCode(
+    "apps/dashboard/app/api/v1/policies/route.ts",
+    "apps/dashboard/src/server/campaigns/policy-write.ts",
   );
-  // Delay edits.
-  assert.ok(pane.includes("if (d && reply) put(reply, undefined, { replyDelayMs: d[1] });"));
-  assert.ok(
-    !pane.includes("reply.mode.toLowerCase()"),
-    "REGRESSION: a stale page changing the hold window resent its remembered mode",
-  );
-  const policies = readCode("apps/dashboard/app/api/v1/policies/route.ts");
   assert.ok(policies.includes("mode = current.mode;"), "the row keeps the mode it has");
   assert.ok(
     verbsBridge.includes(
@@ -159,10 +152,8 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   );
   assert.ok(verbsBridge.includes("...(mode !== undefined ? { mode } : {})"));
   // Invites.
-  assert.ok(
-    pane.includes("...(pending && realRoster ? [] : ["),
-    "an open invitation has no membership row to change the role on",
-  );
+  // An open invitation has no membership row to change the role on: drawn in settings-owner-panes.test.mjs ("an open
+  // invitation's menu offers no role"), the Team card being TSX.
 });
 
 test("Settings is ordered you, then the business, then the people", () => {
@@ -182,13 +173,8 @@ test("Settings is ordered you, then the business, then the people", () => {
     "the old route still lands on the business",
   );
 
-  // Your name left the Team card entirely; the roster is other people.
-  const team = pane.slice(
-    pane.indexOf("const TeamSection"),
-    pane.indexOf("const PaneNotifications") + 1 || pane.length,
-  );
-  assert.ok(!team.includes("<YourName"), "the roster no longer opens with an input about you");
-  assert.ok(pane.includes("<YourName flash={flash} />"), "it is a row on Profile instead");
+  // Your name left the Team card entirely and is a row on Profile: drawn in settings-owner-panes.test.mjs ("your name is
+  // a row on Profile, never in the Team card"), both panes being TSX.
   assert.ok(
     readCode("apps/dashboard/src/legacy/components/sidebar.jsx").includes('onNavigate("admin/profile")'),
     "and the account menu points where it says",
@@ -222,7 +208,10 @@ test("the workspace timezone is visible and an owner can change it", () => {
     "a slug is a URL and a status is a billing state; neither is a settings toggle",
   );
 
-  const route = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/workspace-list.ts",
+  );
   assert.ok(route.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
   assert.ok(
     route.includes("if (!data?.length) throw new AppError"),

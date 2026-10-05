@@ -112,6 +112,16 @@ export {
   VOICE_AGENT_DEFAULTS,
   VOICE_NUMBER_DEFAULTS,
 } from "./voice/voice-provision";
+export {
+  mintConversationToken,
+  deleteConversation,
+  speakText,
+  elevenLabsWebhookSignature,
+  verifyElevenLabsWebhook,
+  ELEVENLABS_WEBHOOK_TOLERANCE_S,
+  ELEVENLABS_SIGNATURE_HEADER,
+} from "./voice/elevenlabs";
+export type { ElevenLabsConfig, ConversationMint, SpeechStream } from "./voice/elevenlabs";
 export type {
   ProvisionSecrets,
   VoiceProvisionRequest,
@@ -179,6 +189,8 @@ export {
   hostedIdentity,
   sendsAs,
   sendsAsOwnDomain,
+  sendsAsCampaigns,
+  campaignsIdentity,
   ownDomainIdentity,
   requestLeavesAs,
 } from "./email/identity";
@@ -191,6 +203,7 @@ export {
   receivedEmailFrom,
   messageIdsIn,
   classifyReceived,
+  senderAuthenticated,
 } from "./email/intake";
 export type { PlatformRecipient, EmailReceivedEvent, ReceivedEmail, EmailClaim } from "./email/intake";
 export { emailReceiptFrom, emailReceiptEffect } from "./email/receipts";
@@ -206,6 +219,7 @@ export {
   RESEND_API,
   SEND_TIMEOUT_MS,
   SEND_DEADLINE_MS,
+  SEND_MIN_MS,
 } from "./email/email-resend";
 export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email/email-resend";
 export {

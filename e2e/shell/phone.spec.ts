@@ -30,6 +30,23 @@ test.describe("Installable shell, no session", () => {
   });
 });
 
+/**
+ * Every button and link of a screen is inside the width the phone has, and the page scrolls nowhere sideways: the row wraps
+ * rather than being clipped. Links too, since some of a page's acts are links drawn as buttons.
+ */
+const controlsInsideTheScreen = async (page: Page, screen: Locator) => {
+  const width = page.viewportSize()?.width ?? 390;
+  for (const el of await screen.getByRole("button").or(screen.getByRole("link")).all()) {
+    const box = await el.boundingBox();
+    if (!box) continue;
+    expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(
+      width + 1,
+    );
+  }
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
+};
+
 /** A thumb across the screen, through the browser's own input (CDP): six moves from one x to another, then let go. */
 const swipeAcross = async (page: Page, from: number, to: number, y = 560) => {
   const cdp = await page.context().newCDPSession(page);
@@ -182,7 +199,7 @@ test.describe("Phone shell on a real workspace", () => {
     // the rows -- the list gone, a customer nobody asked for on the phone -- and a bucket with nothing in it left
     // neither on the screen.
     for (const name of ["Handled", "Snoozed"]) {
-      const chip = page.locator(".ix-bucket", { hasText: name }).first();
+      const chip = page.locator(".subtab", { hasText: name }).first();
       if ((await chip.count()) === 0) continue;
       await chip.click();
       await expect(chip, `${name} is the bucket on screen`).toHaveAttribute("aria-pressed", "true");
@@ -218,57 +235,68 @@ test.describe("Phone shell on a real workspace", () => {
    * now" sat 208px past the right edge with no scrollbar to reach it. A case
    * that only looks for the button would have passed the whole time.
    *
-   * The page opens on the ledger now, and the send is its own screen behind New
-   * broadcast (#758), so both are measured: the ledger, with its act on the
-   * first screen, then the send. Links too, since the ledger's "Print a desk
+   * The page opens on the ledger, and the send is the home's New message, in a sheet at its own address, so both are
+   * measured: the ledger, with its act on the first screen (in Glass, the default look, that act is drawn in the frame's head,
+   * outside the page's own element, so it is found on the page), then the send. Links too, since the ledger's "Print a desk
    * sign" and "Download QR" are links drawn as buttons.
    */
-  test("Campaigns: every control on Broadcasts is inside the screen, and the page opens on the work", async ({
-    page,
-  }) => {
+  test("Campaigns: every control on Sent is inside the screen, and the page opens on the work", async ({ page }) => {
     await page.goto("/#/broadcasts");
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("broadcasts-real");
     await expect(real).toBeVisible();
-    const width = page.viewportSize()?.width ?? 390;
-    const insideTheScreen = async (screen: Locator) => {
-      for (const el of await screen.getByRole("button").or(screen.getByRole("link")).all()) {
-        const box = await el.boundingBox();
-        if (!box) continue;
-        expect(
-          box.x + box.width,
-          `${(await el.textContent())?.trim()} runs off a ${width}px screen`,
-        ).toBeLessThanOrEqual(width + 1);
-      }
-      // Nothing scrolls sideways: the row wraps rather than being clipped.
-      const over = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      );
-      expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
-    };
-    // The work first: New broadcast whole on the first screen, and not the
+    // The work first: New message whole on the first screen, and not the
     // seeded page's title block (.ct-h2) under a top bar that already says Broadcasts.
-    await expect(real.getByTestId("bc-new")).toBeInViewport({ ratio: 1 });
+    await expect(page.getByTestId("bc-new")).toBeInViewport({ ratio: 1 });
     await expect(page.locator(".ct-h2")).toHaveCount(0);
-    await insideTheScreen(real);
-    await real.getByTestId("bc-new").click();
-    const composer = real.getByTestId("bc-composer");
+    await controlsInsideTheScreen(page, real);
+    await page.getByTestId("bc-new").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
+    const composer = page.getByTestId("cmh-composer").getByTestId("bc-composer");
     await expect(composer).toBeVisible();
-    await insideTheScreen(composer);
+    await controlsInsideTheScreen(page, composer);
+  });
+
+  /**
+   * Campaigns' home on a phone: the moments stand down a line (the phone's rail, one under another), the tiles are one column,
+   * every control is inside the screen, and New message, the page's act, is whole on the first screen. Its composer, in a
+   * sheet from the bottom, holds nothing past the edge either.
+   */
+  test("Campaigns: every control on the home is inside the screen, the moments stand down a line, and the page opens on the work", async ({
+    page,
+  }) => {
+    await page.goto("/#/campaigns");
+    await page.waitForLoadState("networkidle");
+    const home = page.getByTestId("campaigns-home");
+    await expect(home).toBeVisible();
+    await expect(home).toHaveAttribute("data-phone", "true");
+    await expect(page.getByTestId("cmh-new")).toBeInViewport({ ratio: 1 });
+    // One moment under another: each stage's top is below the one before it.
+    const stages = home.getByTestId("cmh-stage");
+    expect(await stages.count()).toBeGreaterThanOrEqual(4);
+    const tops = await stages.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+    expect(tops, "the moments stand one under another").toEqual([...tops].sort((a, b) => a - b));
+    expect(new Set(tops.map(Math.round)).size, "no two moments on one line").toBe(tops.length);
+    await controlsInsideTheScreen(page, home);
+    await page.getByTestId("cmh-new").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
+    const composer = page.getByTestId("cmh-composer");
+    await expect(composer).toBeVisible();
+    await controlsInsideTheScreen(page, composer);
   });
 
   /**
    * Live's call panel head wraps before it squeezes. Its titles were `flex: 1` beside controls that would
    * not shrink, so on a phone the name had ~90px and the meta line's number and start time fell into
-   * columns one word wide. With nobody on the line the panel still opens on the last call, so the head is
-   * there whenever the workspace has had a call at all. Read-only: nothing here is pressed.
+   * columns one word wide. The head is there only with a call open (one on the line, or one a link names), so a
+   * workspace with nobody on the line skips it. Read-only: nothing here is pressed.
    */
   test("Live: the call panel's head gives the name the width, and each fact stays on one line", async ({ page }) => {
     await page.goto("/#/live");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("live-real")).toBeVisible();
     const head = page.locator(".lm-head").first();
-    test.skip((await head.count()) === 0, "no call on this workspace yet: no panel head to measure");
+    test.skip((await head.count()) === 0, "nobody is on the line: no panel head to measure");
     const width = page.viewportSize()?.width ?? 390;
     const titles = await page.locator(".lm-head-titles").first().boundingBox();
     expect(titles && titles.width >= Math.min(260, width - 40), `the name and its facts had ${titles?.width}px`).toBe(
@@ -293,7 +321,7 @@ test.describe("Phone shell on a real workspace", () => {
   test("Campaigns: Send now asks before it sends", async ({ page }) => {
     await page.goto("/#/broadcasts");
     await page.waitForLoadState("networkidle");
-    // The send is its own screen, behind New broadcast.
+    // The send is the home's New message, a sheet at its own address.
     await page.getByTestId("bc-new").click();
     const send = page.getByTestId("bc-send");
     test.skip(!(await send.isEnabled().catch(() => false)), "nothing approved to send in this workspace");
@@ -330,8 +358,8 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(row).toBeInViewport({ ratio: 1 });
     expect(
       (await row.boundingBox())!.y,
-      "the first person is on the first screen, under one bar and one line",
-    ).toBeLessThan(240);
+      "the first person is on the first screen, under the Inbox's tiers (the strip, the list, the search) and one line",
+    ).toBeLessThan(300);
     const face = (await row.locator(".pl-card-face").boundingBox())!;
     expect(Math.abs(face.width - face.height), "a face is round").toBeLessThanOrEqual(1);
     expect(
@@ -434,11 +462,11 @@ test.describe("Phone shell on a real workspace", () => {
     await fits("leads-phone-bar");
   });
   /**
-   * Selecting on a phone (the same spec, 4.5): the face is the checkbox, and a selection is one row standing on the tab
-   * bar -- ✕, the count, Add to list and ⋯ -- whose ⋯ opens a sheet with the rest. On 22 Sep the bar was a pill 188px
+   * Selecting on a phone (the same spec, 4.5): the face is the checkbox, and a selection is one capsule docked at the foot, the tab
+   * bar standing down -- ✕, the count, Add to list and ⋯ -- whose ⋯ opens a sheet with the rest. On 22 Sep the bar was a pill 188px
    * wide at the middle of the screen, its seven controls stacked 312px tall over the rows.
    */
-  test("a selection is one row on the tab bar, and ⋯ opens its sheet whole on the screen", async ({ page }) => {
+  test("a selection is one docked capsule at the foot, and ⋯ opens its sheet whole on the screen", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const row = page.locator(".pl-table tbody tr.pl-card-row").first();
@@ -452,12 +480,12 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(bar).toContainText("1 selected");
     const vp = page.viewportSize()!;
     const box = (await bar.boundingBox())!;
-    expect(box.x, "edge to edge").toBeLessThanOrEqual(0.5);
-    expect(box.x + box.width).toBeGreaterThanOrEqual(vp.width - 0.5);
+    expect(box.x, "docked in from the edges, a capsule").toBeGreaterThanOrEqual(8);
+    expect(box.x + box.width).toBeLessThanOrEqual(vp.width - 8);
     expect(box.height, "one row").toBeLessThanOrEqual(64);
     expect(await bar.evaluate((el) => el.scrollWidth - el.clientWidth), "nothing past its edge").toBeLessThanOrEqual(1);
-    const tabs = (await page.getByTestId("phone-tabs").boundingBox())!;
-    expect(box.y + box.height, "it stands on the tab bar, not under it").toBeLessThanOrEqual(tabs.y + 1);
+    await expect(page.getByTestId("phone-tabs"), "the tab bar stands down for the docked bar (data-dock)").toBeHidden();
+    expect(box.y + box.height, "it stands at the foot of the screen").toBeGreaterThanOrEqual(vp.height - 40);
     await bar.getByTestId("bulk-more").click();
     const sheet = page.getByTestId("bulk-sheet");
     await expect(sheet).toBeVisible();
@@ -538,10 +566,13 @@ test.describe("Phone shell on a real workspace", () => {
    * One strip for every page's views (25 Sep). On a phone the Inbox's and People's tabs stood in a strip 4px taller
    * than Campaigns', 2px apart where Campaigns' were 4px, with their words a pixel above the middle and the strip's
    * side at 12px where the rows' gutter is 16; and Campaigns' underline was ink where theirs is the accent. Ruben kept
-   * Campaigns' spacing and the others' accent. This holds the three to one strip: its height and side, a tab's height
-   * and where its words sit, the step to the next tab, and the underline under the one picked.
+   * Campaigns' spacing and the others' accent. This holds them to one strip: its height and side, a tab's height
+   * and where its words sit, the step to the next tab, and the underline under the one picked. Campaigns' three tabs
+   * went with its strip (3 Oct 2026: its home is one page, and Sent and the Library are rooms reached from it).
    */
-  test("the section tabs are one strip: the Inbox's views, People's scopes and Campaigns' tabs", async ({ page }) => {
+  test("the section tabs are one strip: the Inbox's views, People's scopes and Settings' sections", async ({
+    page,
+  }) => {
     const shapeOf = async (strip: Locator) =>
       await strip.evaluate((el) => {
         const s = el.getBoundingClientRect();
@@ -576,8 +607,7 @@ test.describe("Phone shell on a real workspace", () => {
       // The Inbox's strip stands on every view, the list's included (Ruben, 2 Oct 2026); it is read over Conversations,
       // where the list's buckets do not stand under it.
       ["the Inbox's views", "conversations", page.locator(".stabs.stabs-inbox")],
-      ["People", "clients", page.getByTestId("people-phone-scopes")],
-      ["Campaigns", "outbound", page.locator(".stabs.stabs-campaigns")],
+      ["People", "clients", page.getByTestId("people-scope")],
       ["Settings", "admin/workspace", page.locator(".stabs.stabs-settings")],
     ] as const) {
       await page.goto(`/#/${hash}`);
@@ -613,7 +643,7 @@ test.describe("Phone shell on a real workspace", () => {
    * Conversations could, and Live's panel cut its last lines off with no way to scroll to them. Each list's scroller
    * holds a pixel more than its box (mobile.css, "Every list pulls"), so a short list gives way as a long one does.
    */
-  test("every list pulls under a thumb, however short: the Inbox's views, People's scopes and Campaigns' tabs", async ({
+  test("every list pulls under a thumb, however short: the Inbox's views, People's scopes and Campaigns' rooms", async ({
     page,
   }) => {
     const pulls: Record<string, boolean> = {};
@@ -625,14 +655,15 @@ test.describe("Phone shell on a real workspace", () => {
       ["clients", ".cl-main-scroll"],
       ["clients/leads", ".cl-main-scroll"],
       ["clients/pipeline", ".cl-main-scroll"],
-      ["outbound", ".rp-body"],
       ["broadcasts", ".route-view:has(> .bc-page)"],
-      ["messages", ".rp-body"],
+      // The Library's list is the pane that scrolls itself (parts/split.tsx CmSplit: .cm-list), where .rp-body is its failed state.
+      ["messages", ".tpl-page > .cm-list"],
     ] as const) {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
       const box = page.locator(sel).first();
-      if ((await box.count()) === 0) continue; // a surface this workspace (or the local harness) does not draw
+      // A surface this workspace (or the local harness) does not draw, or a pane a phone leaves out while nothing is open.
+      if ((await box.count()) === 0 || !(await box.isVisible())) continue;
       pulls[`${hash} ${sel}`] = await box.evaluate((el) => {
         const oy = getComputedStyle(el).overflowY;
         return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight;
@@ -676,7 +707,7 @@ test.describe("Phone shell on a real workspace", () => {
       expect(press[side], `${hash} ${sel}: ${JSON.stringify(press)}`).toBeGreaterThanOrEqual(atLeast);
       seen.push(sel);
     };
-    await check("outbound", '[data-testid="pb-open"]', "h", 42);
+    await check("campaigns", '[data-testid="cmh-open"]', "h", 42);
     await check("broadcasts", '[data-testid="bc-open-who"]', "h", 42);
     await check("messages", '[data-testid="template-open"]', "h", 42);
     await check("reports", '[data-testid="reports-ask"]', "w", 40);
@@ -898,7 +929,7 @@ test.describe("Phone shell on a real workspace", () => {
    * the page follows the thumb, and let go past a third of the screen the tab beside is pressed; before the first tab
    * there is nothing to go to. Real touches through the browser's own input (CDP), as today.spec.ts pulls Ask down.
    */
-  test("a swipe across the page walks its strip: the Inbox, People and Campaigns, and never past an end", async ({
+  test("a swipe across the page walks its strip: the Inbox, People and Settings, and never past an end", async ({
     page,
   }) => {
     const swipe = (from: number, to: number) => swipeAcross(page, from, to);
@@ -918,16 +949,18 @@ test.describe("Phone shell on a real workspace", () => {
 
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("people-phone-scopes")).toBeVisible();
+    await expect(page.getByTestId("people-scope")).toBeVisible();
     await swipe(300, 90);
     // The address is the tab's own route: the Leads view draws its strip once Leads is read.
     await expect(page).toHaveURL(atRoute(/^clients\/leads/));
 
-    await page.goto("/#/outbound");
+    // Campaigns draws no strip (3 Oct 2026): a swipe across its home goes nowhere, and moves nothing.
+    await page.goto("/#/campaigns");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".stabs.stabs-campaigns")).toBeVisible();
+    await expect(page.locator(".stabs.stabs-campaigns")).toHaveCount(0);
     await swipe(300, 90);
-    await expect(page).toHaveURL(atRoute(/^broadcasts/));
+    await page.waitForTimeout(800);
+    await expect(page).toHaveURL(atRoute(/^campaigns$/));
 
     // Settings' sections are the same strip on a phone (25 Sep): Business, then Team.
     await page.goto("/#/admin/workspace");
@@ -986,12 +1019,12 @@ test.describe("Phone shell on a real workspace", () => {
       await page.goto(`/#/clients/${id}`);
       await expect(page.getByTestId("person-now")).toBeVisible();
       await page.waitForLoadState("networkidle");
-      tabs = await page.locator(".cl-tl-filters .cl-tab").count();
+      tabs = await page.locator(".cl-tl-filters .subtab").count();
       if (tabs > 2) break;
     }
     await expect(page.locator(".cl-prof-back")).toBeHidden();
     await expect(page.locator(".crumbs .crumb-link").first()).toHaveText("People");
-    const face = (await page.locator(".cl-prof-avatar").first().boundingBox())!;
+    const face = (await page.locator(".cl-prof-id .face").first().boundingBox())!;
     expect(face.x, "the face stands at the page's gutter, not after an arrow of its own").toBeLessThanOrEqual(17);
     test.skip(tabs <= 2, "no one here has a History with more than one kind in it");
     const strip = page.locator(".cl-tl-filters");
@@ -1001,10 +1034,10 @@ test.describe("Phone shell on a real workspace", () => {
     });
     const top = async () => Math.round((await strip.boundingBox())!.y);
     const start = await top();
-    for (const tab of await strip.locator(".cl-tab").all()) {
+    for (const tab of await strip.locator(".subtab").all()) {
       const word = (await tab.textContent())?.trim();
       await tab.click();
-      await expect(tab).toHaveAttribute("aria-pressed", "true");
+      await expect(tab).toHaveAttribute("aria-selected", "true");
       expect(Math.abs((await top()) - start), `${word} moved the tabs from under the thumb`).toBeLessThanOrEqual(1);
     }
     await page.locator(".crumbs .crumb-link").first().click();

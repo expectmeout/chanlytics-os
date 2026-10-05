@@ -3,11 +3,11 @@
  * J1-J12): a file of businesses read as leads, and leads chosen on Leads, each a search a reach-out writes to.
  *
  * Pure. The file is read here, the way People's import reads a client list (shared/csv.ts), with the columns a
- * business has: its name, an email, a phone, a website, a city, a state and a category. The two doors' bodies are
- * checked here too, and every sentence the import sheet, *Write to them* and a list's own strip say is spelled once.
+ * business has: its name, an email, a phone, a website, a city, a state and a category. Every sentence the import
+ * sheet, *Write to them* and a list's own strip say is spelled once; the two doors' bodies are checked by
+ * lead-import-schema.ts.
  * The doors (00242 lead_search_import, lead_search_choose) read every row again.
  */
-import { z } from "zod";
 import { COLUMN_SHARE, columnShare, isHeaderRow, parseCsv, phoneShaped } from "../shared/csv";
 import { normalizeEmail } from "../shared/email-address";
 import { normalizePhone } from "../shared/phone";
@@ -183,36 +183,6 @@ export function leadImportPlanOf(text: string): {
     },
   };
 }
-
-/* ------------------------------------------------------------------ the doors' bodies */
-
-const nullableText = (max: number) => z.string().trim().max(max).nullable().optional();
-
-/** One row of POST lead-searches/import, as leadImportPlanOf reads it. */
-export const LeadImportRowSchema = z.object({
-  name: z.string().trim().min(1).max(200),
-  email: z.string().trim().min(3).max(254),
-  phone: nullableText(16),
-  website_host: nullableText(120),
-  city: nullableText(120),
-  region: nullableText(2),
-  category: nullableText(120),
-});
-
-/** POST lead-searches/import: a list's name, who they are (the search's `asked`), and 1 to 500 rows (J5). */
-export const LeadImportSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  asked: z.string().trim().max(400).optional(),
-  rows: z.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX),
-});
-export type LeadImportInput = z.infer<typeof LeadImportSchema>;
-
-/** POST lead-searches/chosen: the list's name and the chosen leads (J7). */
-export const LeadChooseSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  lead_ids: z.array(z.string().uuid()).min(1).max(LEAD_LIST_MAX),
-});
-export type LeadChooseInput = z.infer<typeof LeadChooseSchema>;
 
 /**
  * What checking a file's addresses may cost, reserved as a round's estimate is (J3): the card's own price an address

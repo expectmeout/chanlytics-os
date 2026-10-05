@@ -15,7 +15,7 @@ import {
   type SignupPosture,
 } from "@chanlytics/contracts";
 import { api } from "./api";
-import { joinWaitlistFrom } from "./waitlist";
+import { joinWaitlistFrom, loadWaitlistRule } from "./waitlist";
 import { switchWorkspace } from "./surface-data";
 
 /**
@@ -133,6 +133,11 @@ export default function CreateWorkspace({
     // Once, on arrival: its inputs are sign-up's, and they do not change while the screen is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Behind a waitlist, the list's own rule as the screen opens (waitlist.ts), so a press does not wait on it.
+  useEffect(() => {
+    if (form.door === "waitlist") loadWaitlistRule().catch(() => undefined);
+  }, [form.door]);
 
   // A first workspace's way out, and the pages signing up agreed to. The screen
   // had neither, so somebody signed in with the wrong account could only close

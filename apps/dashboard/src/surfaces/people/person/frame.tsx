@@ -4,17 +4,18 @@
  * and a stray hairline beside "Loading…".
  */
 import type { ReactNode } from "react";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 
 export function PersonProfileFrame({ onBack, children }: { onBack: () => void; children?: ReactNode }) {
   return (
-    <div className="cl-profile cl-profile--solo">
+    <div className="cl-profile cl-profile--solo" data-takeover>
       <div className="cl-prof-page">
         <div className="cl-prof-hero">
-          <button type="button" className="cl-prof-back" onClick={onBack} aria-label="Back to People">
+          <Button variant="quiet" size="sm" className="cl-prof-back" onClick={onBack} aria-label="Back to People">
             <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
             <span className="cl-prof-back-word">People</span>
-          </button>
+          </Button>
           {children}
         </div>
       </div>

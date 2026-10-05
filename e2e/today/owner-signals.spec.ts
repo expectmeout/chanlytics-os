@@ -29,6 +29,7 @@ import { GET_YES_HASH, expectLeaksWellFormed, expectQrInView } from "../signals"
 async function sendScreenDoorLandsOnTheQr(page: Page): Promise<void> {
   await page.goto("/#/broadcasts");
   await page.waitForLoadState("networkidle");
+  // New message is the home's composer, a sheet at its own address (campaigns/new).
   await page.getByTestId("bc-new").click();
   const nobody = page.getByTestId("bc-nobody");
   await expect(nobody).toBeVisible();

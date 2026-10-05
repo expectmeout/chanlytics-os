@@ -9,13 +9,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { ROOT, readRaw } from "../_source.mjs";
-import { LEASE_SECONDS, YIELD_AT_MS } from "../../../../packages/jobs/src/ledger.ts";
+import { LEASE_SECONDS, SEND_SETTLE_MS, YIELD_AT_MS, sendByAt } from "../../../../packages/jobs/src/ledger.ts";
 import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../../apps/edge/api/cron/domains.ts";
 import { YIELD_AT_MS as QUALITY_YIELD_AT_MS } from "../../../../apps/edge/api/cron/channel-quality.ts";
 import { GRAPH_TIMEOUT_MS } from "../../../../apps/edge/lib/whatsapp/meta-graph.ts";
 import { CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_DONE_BY_MS } from "../../../../apps/edge/lib/reach-out/check.ts";
 import { PREVIEW_LIMITS } from "../../../../apps/edge/lib/reach-out/preview.ts";
-import { SEND_TIMEOUT_MS } from "../../../../packages/channels/src/email/email-resend.ts";
+import {
+  SEND_DEADLINE_MS,
+  SEND_MIN_MS,
+  SEND_TIMEOUT_MS,
+} from "../../../../packages/channels/src/email/email-resend.ts";
 import { NOTIFY_TIMEOUT_MS } from "../../../../apps/edge/lib/ops/notify.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 
@@ -152,6 +156,35 @@ test("a claimed job's lease outlives the function that runs it", () => {
   assert.ok(YIELD_AT_MS < ceiling * 1000, "and a looping handler yields before the ceiling");
 });
 
+test("an email send started as late as a batch may start one still ends, and its row is settled, inside the function's ceiling", () => {
+  // A broadcast's batch starts no new send after YIELD_AT_MS, but one begun just before it is a send in flight, and the
+  // wire's own deadline for it (SEND_DEADLINE_MS, 32 s) is longer than the time a late start has: begun at 44 s it ran to
+  // 76, past a ceiling that kills the function at 60 with the email in flight and its row still queued. So a send is
+  // bounded by what is left of the function (jobs ledger sendByAt, handed to the door as Delivery.sendBy), and this holds
+  // what that comes to under the ceiling.
+  const ceiling = FUNCTIONS["api/jobs/tick.ts"].maxDuration * 1000;
+  assert.ok(
+    YIELD_AT_MS + SEND_DEADLINE_MS > ceiling,
+    "the wire's own deadline alone would NOT fit after the yield point: that is why a send is handed the room that is left",
+  );
+  // Counted from the tick's start, where the handler's deadline is its yield point.
+  const latest = sendByAt(YIELD_AT_MS);
+  assert.ok(
+    latest + SEND_SETTLE_MS <= ceiling,
+    `the latest a send may be waited for (${latest} ms) and the ${SEND_SETTLE_MS} ms its row's settle needs must fit in ${ceiling} ms`,
+  );
+  assert.ok(
+    latest - YIELD_AT_MS >= SEND_MIN_MS,
+    "and a send started at the yield point is given at least what one request needs",
+  );
+  // Every moment a send may start, up to the yield: what the wire gives it (the smaller of its own deadline and what is
+  // left, never under SEND_MIN_MS) ends by then.
+  for (let start = 0; start <= YIELD_AT_MS; start += 500) {
+    const given = Math.max(SEND_MIN_MS, Math.min(SEND_DEADLINE_MS, latest - start));
+    assert.ok(start + given <= latest, `a send begun at ${start} ms is given ${given} ms and must end by ${latest}`);
+  }
+});
+
 test("an edge door's time limit is set in one place: vercel.json, never in the door too", () => {
   // Twelve doors once said their limit twice (an `export const config` and a vercel.json entry), eight only in the
   // door, six only in vercel.json: two places that agreed only by care (Reach out Part 2.5). vercel.json is the one
@@ -219,9 +252,9 @@ test("a log line on the message path carries a phone tail, never the number or t
   // Every log call is read to its closing paren, so a field on the next line
   // counts; a value already reduced to a tail does not.
   const files = [
-    "apps/edge/api/whatsapp.ts",
-    "apps/edge/api/inbound-sms.ts",
-    "apps/edge/api/retell-inbound.ts",
+    "apps/edge/lib/whatsapp/webhook.ts",
+    "apps/edge/lib/sms/inbound-text.ts",
+    "apps/edge/lib/voice/inbound-call.ts",
     "apps/edge/lib/voice/call-start.ts",
     "apps/edge/lib/whatsapp/inbound.ts",
     // The message path itself: a verb over ports, logging through the
@@ -256,13 +289,13 @@ test("a log line on the message path carries a phone tail, never the number or t
   }
   assert.deepEqual(offences, [], "a whole number or a customer's words on a log line");
   assert.ok(
-    readRaw("apps/edge/api/whatsapp.ts").includes(
+    readRaw("apps/edge/lib/whatsapp/webhook.ts").includes(
       'L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });',
     ),
     "the WhatsApp inbound line: a tail, a type, an id",
   );
   assert.ok(
-    readRaw("apps/edge/api/inbound-sms.ts").includes(
+    readRaw("apps/edge/lib/sms/inbound-text.ts").includes(
       "from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to)",
     ),
     "the SMS logger's context: tails",

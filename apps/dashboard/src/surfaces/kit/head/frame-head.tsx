@@ -9,7 +9,7 @@
  * Drawn beside the shell by LegacyApp, in the same React tree, so the head's parts are the kit's TSX and the places
  * are the shell's markup: the shell draws no kit component of its own, and the kit knows nothing of the shell.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { knownZone } from "@/legacy-bridge/zone";
 import { pageDatelineParts, useMinute } from "./dateline";
@@ -119,7 +119,10 @@ function PageAct() {
 export function FrameHead({ look }: { look: string }) {
   const [places, setPlaces] = useState<Places | null>(null);
   const crumbs = useCrumbsShown();
-  useEffect(() => {
+  // Found before the commit is painted, never after it: a page that draws in the commit the shell is drawn in (People
+  // from the surface cache) stood a head's height up the screen for a frame and was pushed down 33px on a phone when the
+  // head came in on the effect after.
+  useLayoutEffect(() => {
     if (look !== "glass") {
       setPlaces(null);
       return undefined;

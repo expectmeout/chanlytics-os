@@ -16,7 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, toTodayVM, toLiveVM, reportFacts } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -476,13 +476,23 @@ Object.assign(globalThis.window, {
         .slice(0, 2)
         .toUpperCase(),
   },
-  __inviteState: () => ({ expired: false, words: "invite pending" }),
-  __teamRemove: async () => ({ ok: true, data: {} }),
-  __teamSetRole: async () => ({ ok: true }),
-  __teamInvite: async () => ({ ok: true }),
 });
-await import("../../../../apps/dashboard/src/legacy/pages/settings.jsx");
-const TeamSection = globalThis.window.TeamSection;
+// The card is TSX (surfaces/settings/team, decision 0015 step 11), over the seam's settings value: a team read that failed.
+// Its hooks are this stub's (the kit's TSX imports them from "react"), and the seam's value is read as it draws.
+globalThis.React.useSyncExternalStore = (subscribe, snapshot) => snapshot();
+useStubHooks(globalThis.React);
+const { TeamSection } = await import("../../../../apps/dashboard/src/surfaces/settings/team/team.tsx");
+const { setSurfaceValue: setSettingsValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+setSettingsValue("settings", {
+  settings: globalThis.window.__SETTINGS,
+  facts: null,
+  channels: null,
+  templatesAll: null,
+  templateUse: null,
+  templateSent: null,
+  team: null,
+  invites: null,
+});
 
 test("a team that could not be read draws the one FailedRead, and its Retry re-reads the settings surface -- not the whole page", () => {
   fresh();

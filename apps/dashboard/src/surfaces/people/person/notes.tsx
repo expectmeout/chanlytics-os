@@ -16,7 +16,8 @@ import type { PersonVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { holdStill } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Menu } from "../../kit/menu/menu";
+import { menuGroups, moreButton } from "../menu-groups";
 import { markStepDone, decidePersonNote, removePersonNote, writePersonNote } from "../people-detail";
 import { openStepSheet } from "../step-sheet/step-sheet";
 import type { FlashFn } from "../person-verbs";
@@ -420,7 +421,7 @@ function noteRow(c: Card, n: Note, acts: Acts) {
         )}
         {menu.has && asking !== n.id && (
           <span className="cl-prof-note-more">
-            <MoreMenu items={menu.items} title={W.more} size={12} escape btnClass="btn btn-ghost btn-icon btn-sm" />
+            <Menu label={W.more} groups={menuGroups(menu.items)} trigger={moreButton({ title: W.more, size: 12 })} />
           </span>
         )}
       </div>

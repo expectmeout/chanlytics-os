@@ -14,6 +14,7 @@ import {
 } from "@chanlytics/contracts";
 import {
   classifyReceived,
+  senderAuthenticated,
   emailPlainText,
   isEmailRequest,
   logger,
@@ -124,9 +125,11 @@ async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
 /**
  * The provider's email, as the verb takes it: what it claims to be, its words
  * as plain text, and its thread ids read out of its headers. The parsing is
- * here, in the adapter, so the verb knows no provider (hygiene.test.mjs).
+ * here, in the adapter, so the verb knows no provider (hygiene.test.mjs). `authservId` is the name the provider's receiving
+ * side writes into the Authentication-Results header it adds (channels senderAuthenticated); null where none is configured,
+ * and then no sender is proved.
  */
-export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
+export function incomingEmailOf(e: ReceivedEmail, authservId: string | null): IncomingEmail {
   return {
     id: e.id,
     from: e.from,
@@ -140,6 +143,7 @@ export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
     receivedAt: e.createdAt,
     claim: classifyReceived(e),
     attachments: e.attachments,
+    senderAuthenticated: senderAuthenticated(e, authservId),
   };
 }
 
@@ -159,7 +163,7 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
       },
       fetch: async (receivedId) => {
         const e = await email.fetch(receivedId);
-        return e ? incomingEmailOf(e) : null;
+        return e ? incomingEmailOf(e, email.authservId ?? null) : null;
       },
       erasedBefore: email.erasedBefore,
       ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),

@@ -5,9 +5,11 @@
  * Which instructions a workspace is actually given is resolve.ts; the week's lines are prompt-hours.ts.
  */
 import { NO_LINK_DETAILS, offersBookingLink, priceNextStep } from "../no-booking-link";
-import { guardrailsInForce, type BookingRules, type BusinessProfile, type Closure } from "./business-profile";
+import type { BookingRules, BusinessProfile, Closure } from "./business-profile";
+import { guardrailsInForce } from "./config-rules";
 import { policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
+import { offersAskRule } from "./offers-ask";
 import { hoursLines, joinList } from "./prompt-hours";
 
 /**
@@ -202,8 +204,17 @@ export function noLinkBooking(channel: "whatsapp" | "voice"): string {
 }
 
 export function composeSystemPrompt(
-  /** `booking_link` null for a business that quotes each job: the prompt then says what the receptionist takes instead. */
-  base: { business_name: string; phone_display?: string | null; booking_link: string | null },
+  /**
+   * `booking_link` null for a business that quotes each job: the prompt then says what the receptionist takes instead.
+   * `whatsapp_line` is the WhatsApp number the platform provisioned (facts.ts), or null: only a workspace with one is
+   * told to ask for the yes to offers, which goes by WhatsApp alone (offers-ask.ts). Required, so a caller says.
+   */
+  base: {
+    business_name: string;
+    phone_display?: string | null;
+    booking_link: string | null;
+    whatsapp_line: string | null;
+  },
   profile: BusinessProfile,
   channel: "whatsapp" | "voice" = "whatsapp",
   /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
@@ -223,7 +234,12 @@ export function composeSystemPrompt(
 }
 
 function composeSystemPromptWith(
-  base: { business_name: string; phone_display?: string | null; booking_link: string | null },
+  base: {
+    business_name: string;
+    phone_display?: string | null;
+    booking_link: string | null;
+    whatsapp_line: string | null;
+  },
   profile: BusinessProfile,
   channel: "whatsapp" | "voice",
   tz: string | null | undefined,
@@ -578,8 +594,11 @@ export function standingRules(
   return [...policyRules(policy, channel), DATA_NOT_INSTRUCTIONS];
 }
 
-/** The rules: the guardrails in force, the reply to YES OFFERS, and the standing rules (the Autonomy rows, the fence). */
-function rulesSection({ profile, channel, policy, link }: SectionFacts): string[] {
+/**
+ * The rules: the guardrails in force, the reply to YES OFFERS and, on WhatsApp for a workspace with a WhatsApp number,
+ * the ask for that yes (offers-ask.ts), and the standing rules (the Autonomy rows, the fence).
+ */
+function rulesSection({ base, profile, channel, policy, link }: SectionFacts): string[] {
   const s: string[] = [];
   // LAST, and never optional.
   const g = guardrailsInForce(profile.guardrails);
@@ -602,6 +621,9 @@ function rulesSection({ profile, channel, policy, link }: SectionFacts): string[
   rules.push(
     "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.",
   );
+  // The ask for that yes, once: offers go by WhatsApp alone, so the voice prompt and a workspace with no WhatsApp number
+  // are never told to ask, and the person's own facts (describeLead) say whether they have been.
+  if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
   if (g.no_health_advice) {
     rules.push(
       `Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`,
