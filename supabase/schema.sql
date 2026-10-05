@@ -7861,8 +7861,11 @@ begin
    where r.tenant_id = v_tenant and r.contact_id = p_merge
      and not exists (
        select 1 from broadcast_recipients h where h.broadcast_id = r.broadcast_id and h.contact_id = p_keep);
-  -- A person's own receptionist mode, one per class: the kept person's stands where both set one.
-  update policies p set subject_id = p_keep
+  -- A person's own receptionist mode, one per class: the kept person's stands where both set one. A policy row keeps
+  -- its subject for life (00029's guard), so the kept person gets a row of their own and the merged one's goes.
+  insert into policies (tenant_id, class, mode, subject_type, subject_id, limits)
+  select p.tenant_id, p.class, p.mode, 'contact', p_keep, p.limits
+    from policies p
    where p.tenant_id = v_tenant and p.subject_type = 'contact' and p.subject_id = p_merge
      and not exists (
        select 1 from policies h
