@@ -163,8 +163,38 @@ function speechCalls(client: Api) {
 /** The clip's whole wait: the route's own ceiling is a minute; a brief streams in well under ten seconds. */
 const SPEECH_MS = MIN_MS;
 
+/**
+ * How long a tab holds the model's cache as warm after it sent the model a turn's head, in a warm or in a question:
+ * the server's own four minutes (server/ask/warm.ts), inside the cache's five.
+ */
+const HEAD_WARM_MS = 4 * MIN_MS;
+
+/**
+ * The model's cache, written before the question (POST ask/warm/model; server/ask/warm.ts): asked for when a question
+ * is on its way (a hold on the mic, words on the Line that reach no page), so the question's first words come about
+ * two seconds sooner than a cold one's. Once in four minutes a tab, and not within four of a question sent (`sent`),
+ * which reads the same cache and renews it; sent raw, never waited on, and a warm that fails costs nothing but the warm.
+ */
+function modelWarm(client: Api) {
+  /** When this tab last sent the model a turn's head: a warm, or a question. */
+  let headAt = 0;
+  return {
+    sent: (): void => {
+      headAt = Date.now();
+    },
+    warmModel: (): void => {
+      if (Date.now() - headAt < HEAD_WARM_MS) return;
+      headAt = Date.now();
+      void client.raw("POST ask/warm/model", { body: {} }).catch(() => {
+        /* the question still goes, and writes the cache itself */
+      });
+    },
+  };
+}
+
 /** The Ask calls, on the client for their window: the tab's own, or a test's stand-in (`apiFor`). */
 export function askApi(client: Api = api()) {
+  const head = modelWarm(client);
   return {
     threads: async (): Promise<AskThreadVM[]> => {
       try {
@@ -217,6 +247,7 @@ export function askApi(client: Api = api()) {
         /* the question still goes, and reads its page itself */
       }
     },
+    warmModel: head.warmModel,
     ...voiceCalls(client),
     ...speechCalls(client),
     send: async (
@@ -238,6 +269,7 @@ export function askApi(client: Api = api()) {
       },
       on: (ev: SendEvent) => void,
     ): Promise<void> => {
+      head.sent();
       let res: Response;
       try {
         res = await client.raw("POST ask", {

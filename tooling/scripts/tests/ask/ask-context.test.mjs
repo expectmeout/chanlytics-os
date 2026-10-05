@@ -1161,6 +1161,63 @@ test("the tab's warm (D6): the page's context posted to ask/warm for the named w
   assert.equal(await api.warm(context), undefined, "and so is a network that is down");
 });
 
+test("the model's warm from the tab: posted raw to ask/warm/model for the named workspace when a question is on its way, once in four minutes a tab -- a question sent counts, since it reads and renews the same cache -- and a refusal or a network that is down costs nothing", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T15:00:00Z") });
+  const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
+  const { askApi } = await import(at("apps/dashboard/src/legacy-bridge/ask/api.ts"));
+  const sent = [];
+  let refreshed = 0;
+  let answer = () => new Response(JSON.stringify({ ok: true, data: { warmed: true } }), { status: 200 });
+  const client = createApi({
+    fetch: async (url, init) => {
+      sent.push({ url: String(url), method: init.method });
+      return answer();
+    },
+    workspace: () => A,
+    onSignedOut() {},
+    onChooseWorkspace() {},
+    refresh: async () => {
+      refreshed++;
+    },
+    now: () => Date.now(),
+  });
+  const api = askApi(client);
+  const warms = () => sent.filter((s) => s.url.includes("/api/v1/ask/warm/model?workspace=aaaaaaaa-"));
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  const MIN = 60_000;
+  assert.equal(api.warmModel(), undefined, "never waited on");
+  await settle();
+  assert.deepEqual([warms().length, warms()[0].method], [1, "POST"]);
+  assert.equal(refreshed, 0, "raw: the tab's surfaces are not refreshed for a warm");
+  api.warmModel();
+  t.mock.timers.tick(4 * MIN - 1_000);
+  api.warmModel();
+  await settle();
+  assert.equal(warms().length, 1, "once in four minutes: the cache is as warm as it can be made");
+  t.mock.timers.tick(1_000);
+  api.warmModel();
+  await settle();
+  assert.equal(warms().length, 2, "four minutes on: asked again");
+  // A question sent reads the same cache and renews it: no warm is owed for four minutes after it.
+  t.mock.timers.tick(10 * MIN);
+  answer = () => new Response(JSON.stringify({ ok: false, error: { code: "rate_limited" } }), { status: 429 });
+  await api.send({ text: "Who needs me?", threadId: null, surface: "today" }, () => {});
+  api.warmModel();
+  await settle();
+  assert.equal(warms().length, 2, "a question was just sent: the cache is warm by it");
+  t.mock.timers.tick(4 * MIN);
+  api.warmModel();
+  await settle();
+  assert.equal(warms().length, 3, "a refusal is swallowed");
+  t.mock.timers.tick(4 * MIN);
+  answer = () => {
+    throw new TypeError("Failed to fetch");
+  };
+  api.warmModel();
+  await settle();
+  assert.equal(warms().length, 4, "and so is a network that is down");
+});
+
 test("an id that is not a uuid never reaches a read by id: Postgres would refuse the whole query, and the page's good rows with it", async () => {
   const ctx = ctxFor();
   const cv = await buildContext(

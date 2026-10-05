@@ -85,9 +85,15 @@ async function freshSession(): Promise<void> {
  * while the agent has the floor (an answer on its way, or being spoken): a session up and quiet, or still connecting,
  * is in no clip's way and is left for the next hold, so the clip that reads a typed-way answer does not end the session
  * the press asked for. The clip starts inside the press, the hang-up beside it and never before it: a phone plays
- * audio only from a gesture, and the hang-up is a round trip. A hold ends the clip.
+ * audio only from a gesture, and the hang-up is a round trip. A hold ends the clip, and is a question on its way:
+ * the model's cache is warmed (`warm`, ask/api.ts warmModel) as the session is asked for, so the words spoken a few
+ * seconds later find it written.
  */
-export function oneVoice(clip: ReturnType<typeof askSpeech>, conversation: ReturnType<typeof installVoice>) {
+export function oneVoice(
+  clip: ReturnType<typeof askSpeech>,
+  conversation: ReturnType<typeof installVoice>,
+  warm: () => void = () => {},
+) {
   return {
     speech: {
       ...clip,
@@ -100,6 +106,7 @@ export function oneVoice(clip: ReturnType<typeof askSpeech>, conversation: Retur
       ...conversation,
       ensureVoice: (...args: Parameters<typeof conversation.ensureVoice>) => {
         clip.stopSpeaking();
+        warm();
         return conversation.ensureVoice(...args);
       },
     },
@@ -113,7 +120,11 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   // and the agent's session the hold speaks to (ask/voice.ts: the vendor's client is loaded on the first press, not
   // here). One voice at a time, held here where the two are composed: a clip ends the session it would talk over, and
   // a hold ends the clip.
-  const { speech, voice } = oneVoice(askSpeech(win, { api }), installVoice(win, { api, freshen: freshSession }));
+  const { speech, voice } = oneVoice(
+    askSpeech(win, { api }),
+    installVoice(win, { api, freshen: freshSession }),
+    api.warmModel,
+  );
   // The page under a running conversation follows the member: the next spoken turn reads the page they moved to
   // (a window that cannot be listened to, a test's stand-in, has no page to follow). The address is read as the
   // Line reads its own (ask-real.jsx arRoute): the page, then the rest as its param.
