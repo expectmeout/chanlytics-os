@@ -176,9 +176,6 @@
     "@typescript-eslint/no-unnecessary-type-assertion": 1,
     "@typescript-eslint/require-await": 1
   },
-  "apps/dashboard/src/server/ask/tools/read/threads.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
   "apps/dashboard/src/server/ask/tools/registry.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 2
   },

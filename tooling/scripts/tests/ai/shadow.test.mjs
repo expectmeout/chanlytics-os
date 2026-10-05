@@ -474,8 +474,8 @@ test("a primary that fails while the shadow is on fails exactly as it does with 
   );
 });
 
-/** The judge's answer for these places, and the model that gives it. */
-function judgeWorld(refs) {
+/** The judge's answer for these places, and the model that gives it; `faults` are the database's. */
+function judgeWorld(refs, faults) {
   const keys = Object.keys(judgeQuestions(PLAN));
   const judged = {
     places: refs.map((ref) => ({
@@ -485,20 +485,76 @@ function judgeWorld(refs) {
       reason: "fits",
     })),
   };
-  const tables = world();
+  const tables = world(faults);
   primaryFetch = answering(async () => ({
     content: [{ type: "text", text: JSON.stringify(judged) }],
     stop_reason: "end_turn",
     usage: { input_tokens: 500, output_tokens: 80 },
   })).fetch;
-  const judge = (env = ON) =>
+  const judge = (env = ON, roundId) =>
     logged(() =>
       withEnv({ ...env, APIFY_TOKEN: "apify-token-for-this-file" }, () =>
-        leadWires().judge.judge(PLAN, refs.map(place), T),
+        leadWires().judge.judge(PLAN, refs.map(place), T, roundId),
       ),
     );
   return { keys, tables, judge };
 }
+
+test("a judge call names its round: the primary's row and every row of the second model's carry it as their subject; a call that names none carries none", async () => {
+  const ROUND = "dddddddd-0000-4000-8000-000000000002";
+  const named = judgeWorld([1, 2]);
+  shadowFetch = jev().fetch;
+  await named.judge(ON, ROUND);
+  assert.equal(
+    shadowRows(named.tables).length,
+    2 * named.keys.length,
+    "the second model's, a row a place and a criterion",
+  );
+  assert.deepEqual(
+    primaryRows(named.tables).map((r) => r.purpose),
+    ["lead_judge"],
+    "and the judge's own call, once",
+  );
+  assert.deepEqual(
+    [...new Set(named.tables.ai_usage.map((r) => r.subject_id))],
+    [ROUND],
+    "every row of the call names the round it was paid in",
+  );
+  const bare = judgeWorld([1]);
+  shadowFetch = jev().fetch;
+  await bare.judge(ON);
+  assert.ok(bare.tables.ai_usage.length > 1, "a primary row and the shadow's");
+  assert.ok(
+    bare.tables.ai_usage.every((r) => r.subject_id == null),
+    "no round named: no subject, as before",
+  );
+});
+
+test("a ledger that refuses the judge's usage rows costs the judge nothing: its answer is the same, the write is logged, with a round named or not", async () => {
+  const ROUND = "dddddddd-0000-4000-8000-000000000003";
+  const OFF = { TYPESAFE_API_KEY: undefined, TYPESAFE_SHADOW: undefined };
+  const DOWN = { "ai_usage.insert": { message: "the ledger is down" } };
+  const kept = judgeWorld([1, 2]);
+  shadowFetch = jev().fetch;
+  const answered = await kept.judge(OFF, ROUND);
+  assert.ok(answered.result && "answers" in answered.result, "with the ledger up the judge answers");
+  assert.equal(kept.tables.ai_usage.length, 1, "and its call is the one row");
+  for (const [env, roundId, guards] of [
+    [OFF, ROUND, ["ai_usage_write_failed"]],
+    [OFF, undefined, ["ai_usage_write_failed"]],
+    [ON, ROUND, ["ai_usage_write_failed", "shadow_write_failed"]],
+  ]) {
+    resetBreakers();
+    const down = judgeWorld([1, 2], DOWN);
+    shadowFetch = jev().fetch;
+    const { result, lines } = await down.judge(env, roundId);
+    const name = `${env === ON ? "shadow on" : "shadow off"}, ${roundId ? "round named" : "no round"}`;
+    assert.deepEqual(result, answered.result, `${name}: the judge's answer is the one it gives with the ledger up`);
+    assert.deepEqual(down.tables.ai_usage, [], `${name}: nothing was written`);
+    const said = events(lines).map((l) => l.event);
+    for (const guard of guards) assert.ok(said.includes(guard), `${name}: ${guard} in ${said.join(", ")}`);
+  }
+});
 
 test("a shadow the primary outruns keeps the calls that answered and says so for the ones that did not", async () => {
   const { keys, tables, judge } = judgeWorld([1, 2]);

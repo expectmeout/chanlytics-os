@@ -34,7 +34,7 @@ test("each quarter hour against the workspace's own hours and closures", () => {
 test("no hours said, no profile, or no arrivals: nothing is counted", () => {
   assert.equal(closedOf(arrivals, { hours: {} }), null);
   assert.equal(closedOf(arrivals, null), null);
-  assert.equal(closedOf(undefined, profile), null, "a report from before 00286");
+  assert.equal(closedOf(undefined, profile), null, "a report from before 00304");
 });
 
 const day = (d, over = {}) => ({
@@ -107,7 +107,7 @@ test("a workspace that has said no hours is told so, with the door to set them; 
     ["hours said", toReportVM(dto, { profile })],
     ["the profile could not be read", toReportVM(dto, { profile: null })],
     ["no profile given", toReportVM(dto)],
-    ["a report from before 00286", toReportVM(old, { profile: noHours })],
+    ["a report from before 00304", toReportVM(old, { profile: noHours })],
   ]) {
     assert.equal(vm.hoursUnset, false, what);
     assert.ok(!factIds(vm).includes("hours"), `${what}: no door to set the hours`);

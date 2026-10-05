@@ -8,6 +8,8 @@ import {
   CARRIER_CONSENT_SOURCE,
   conversationPatch,
   normalizePhone,
+  type BrainIntent,
+  type Handled,
   type PurposeBearing,
   HOUR_MS,
 } from "@chanlytics/contracts";
@@ -197,6 +199,29 @@ export async function markProcessed(db: Db, tenantId: string, messageId: string)
     p_message_id: messageId,
   });
   if (error) throw new Error(`mark_processed: ${error.message}`);
+}
+
+/**
+ * Say what a customer's message became (the Reports lenses spec, K1): `meta.handled` and, where the model read it,
+ * `meta.intent`, merged into the row by message_stamp_handled beside processed_at, never over it, the first answer
+ * standing. A door of its own, apart from markProcessed: processed_at is what the deadman sweep reads, so the two are
+ * written together and fail alone. A failure throws, and the sink that calls it guards it (pgSafe), as it guards every
+ * write of a message's bookkeeping.
+ */
+export async function stampHandled(
+  db: Db,
+  tenantId: string,
+  messageId: string,
+  handled: Handled,
+  intent: BrainIntent | null,
+): Promise<void> {
+  const { error } = await db.rpc("message_stamp_handled", {
+    p_tenant_id: tenantId,
+    p_message_id: messageId,
+    p_handled: handled,
+    ...(intent ? { p_intent: intent } : {}),
+  });
+  if (error) throw new Error(`message_stamp_handled: ${error.message}`);
 }
 
 export async function recordOutbound(
@@ -531,6 +556,22 @@ export async function recordStatusByExternalId(
   if (error && !/monotone|terminal/.test(error.message)) {
     dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
   }
+}
+
+/**
+ * What it cost to send a message, as Meta's receipt said it, kept once on its outbound row (message_keep_cost, 00319):
+ * the `pricing` object (billable, pricing_model, category, type; no amount), checked key by key by the door, the first
+ * answer standing. A refusal throws with the database's words; the receipt door that calls it catches that and logs it,
+ * so a cost never costs a receipt. Answers whether a row was written.
+ */
+export async function keepMessageCost(db: Db, tenantId: string, externalId: string, pricing: Json): Promise<boolean> {
+  const { data, error } = await db.rpc("message_keep_cost", {
+    p_tenant_id: tenantId,
+    p_external_id: externalId,
+    p_pricing: pricing,
+  });
+  if (error) throw new Error(`message_keep_cost: ${error.message}`);
+  return data === true;
 }
 
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.

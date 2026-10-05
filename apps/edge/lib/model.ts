@@ -34,7 +34,7 @@ import { logger, errField } from "./log.js";
 /** Who a call is for: the ledger's row. A call with no workspace (a platform read) is asked and not written. */
 export interface ModelCallFor {
   tenantId: string | null;
-  /** What it was about: a conversation, a send, a review. */
+  /** What it was about: a conversation, a send, a review, or the lead round a judge's batch was paid in. */
   subjectId?: string | null;
   /** The person who asked, when one did. */
   userId?: string | null;

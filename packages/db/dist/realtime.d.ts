@@ -377,6 +377,8 @@ type Database = {
             };
             billing_events: {
                 Row: {
+                    amount_cents: number | null;
+                    currency: string | null;
                     id: string;
                     lease_until: string | null;
                     received_at: string;
@@ -385,6 +387,8 @@ type Database = {
                     type: string;
                 };
                 Insert: {
+                    amount_cents?: number | null;
+                    currency?: string | null;
                     id: string;
                     lease_until?: string | null;
                     received_at?: string;
@@ -393,6 +397,8 @@ type Database = {
                     type: string;
                 };
                 Update: {
+                    amount_cents?: number | null;
+                    currency?: string | null;
                     id?: string;
                     lease_until?: string | null;
                     received_at?: string;
@@ -899,6 +905,8 @@ type Database = {
             };
             contacts: {
                 Row: {
+                    acquired_ref: string | null;
+                    acquired_via: string | null;
                     consent: string;
                     consent_channels: string[] | null;
                     consent_source: string | null;
@@ -933,6 +941,8 @@ type Database = {
                     wa_profile_name: string | null;
                 };
                 Insert: {
+                    acquired_ref?: string | null;
+                    acquired_via?: string | null;
                     consent?: string;
                     consent_channels?: string[] | null;
                     consent_source?: string | null;
@@ -967,6 +977,8 @@ type Database = {
                     wa_profile_name?: string | null;
                 };
                 Update: {
+                    acquired_ref?: string | null;
+                    acquired_via?: string | null;
                     consent?: string;
                     consent_channels?: string[] | null;
                     consent_source?: string | null;
@@ -1267,6 +1279,7 @@ type Database = {
                     details: string | null;
                     id: string;
                     reason: string;
+                    resolved_at: string | null;
                     resolved_by_user_id: string | null;
                     state: string;
                     tenant_id: string;
@@ -1280,6 +1293,7 @@ type Database = {
                     details?: string | null;
                     id?: string;
                     reason: string;
+                    resolved_at?: string | null;
                     resolved_by_user_id?: string | null;
                     state?: string;
                     tenant_id: string;
@@ -1293,6 +1307,7 @@ type Database = {
                     details?: string | null;
                     id?: string;
                     reason?: string;
+                    resolved_at?: string | null;
                     resolved_by_user_id?: string | null;
                     state?: string;
                     tenant_id?: string;
@@ -3075,6 +3090,8 @@ type Database = {
                     reviews: number | null;
                     reviews_dist: Json | null;
                     stage: string;
+                    stage_at: string | null;
+                    stage_from: string | null;
                     street: string | null;
                     tenant_id: string;
                     tiktok_url: string | null;
@@ -3130,6 +3147,8 @@ type Database = {
                     reviews?: number | null;
                     reviews_dist?: Json | null;
                     stage?: string;
+                    stage_at?: string | null;
+                    stage_from?: string | null;
                     street?: string | null;
                     tenant_id: string;
                     tiktok_url?: string | null;
@@ -3185,6 +3204,8 @@ type Database = {
                     reviews?: number | null;
                     reviews_dist?: Json | null;
                     stage?: string;
+                    stage_at?: string | null;
+                    stage_from?: string | null;
                     street?: string | null;
                     tenant_id?: string;
                     tiktok_url?: string | null;
@@ -4158,10 +4179,13 @@ type Database = {
             };
             platform_metrics: {
                 Row: {
+                    ai_tokens: Json | null;
+                    ai_usd: Json | null;
                     answered: number;
                     asks: number;
                     brain_p95_ms: number | null;
                     day: string;
+                    handled: Json | null;
                     messages_in: Json;
                     messages_out: Json;
                     provider_failures: Json;
@@ -4171,12 +4195,17 @@ type Database = {
                     rolled_at: string;
                     tenant_id: string;
                     tokens: number;
+                    topics: Json | null;
+                    voice_usd: number | null;
                 };
                 Insert: {
+                    ai_tokens?: Json | null;
+                    ai_usd?: Json | null;
                     answered?: number;
                     asks?: number;
                     brain_p95_ms?: number | null;
                     day: string;
+                    handled?: Json | null;
                     messages_in?: Json;
                     messages_out?: Json;
                     provider_failures?: Json;
@@ -4186,12 +4215,17 @@ type Database = {
                     rolled_at?: string;
                     tenant_id: string;
                     tokens?: number;
+                    topics?: Json | null;
+                    voice_usd?: number | null;
                 };
                 Update: {
+                    ai_tokens?: Json | null;
+                    ai_usd?: Json | null;
                     answered?: number;
                     asks?: number;
                     brain_p95_ms?: number | null;
                     day?: string;
+                    handled?: Json | null;
                     messages_in?: Json;
                     messages_out?: Json;
                     provider_failures?: Json;
@@ -4201,6 +4235,8 @@ type Database = {
                     rolled_at?: string;
                     tenant_id?: string;
                     tokens?: number;
+                    topics?: Json | null;
+                    voice_usd?: number | null;
                 };
                 Relationships: [
                     {
@@ -4916,6 +4952,59 @@ type Database = {
                     }
                 ];
             };
+            sending_domain_days: {
+                Row: {
+                    bounced: number | null;
+                    checked_at: string | null;
+                    complaints: number | null;
+                    day: string;
+                    domain_id: string;
+                    held_why: string | null;
+                    host: string;
+                    kept_at: string;
+                    sent: number | null;
+                    sent_days: number | null;
+                    state: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    bounced?: number | null;
+                    checked_at?: string | null;
+                    complaints?: number | null;
+                    day: string;
+                    domain_id: string;
+                    held_why?: string | null;
+                    host: string;
+                    kept_at?: string;
+                    sent?: number | null;
+                    sent_days?: number | null;
+                    state: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    bounced?: number | null;
+                    checked_at?: string | null;
+                    complaints?: number | null;
+                    day?: string;
+                    domain_id?: string;
+                    held_why?: string | null;
+                    host?: string;
+                    kept_at?: string;
+                    sent?: number | null;
+                    sent_days?: number | null;
+                    state?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "sending_domain_days_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             sending_domains: {
                 Row: {
                     bounced_recent: number | null;
@@ -5420,12 +5509,26 @@ type Database = {
                 };
                 Returns: string;
             };
+            automated_send: {
+                Args: {
+                    p_meta: Json;
+                };
+                Returns: boolean;
+            };
             billing_card_mark: {
                 Args: {
                     p_fingerprint: string;
                     p_tenant_id: string;
                 };
                 Returns: undefined;
+            };
+            billing_event_keep_amount: {
+                Args: {
+                    p_amount_cents: number;
+                    p_currency: string;
+                    p_id: string;
+                };
+                Returns: boolean;
             };
             calendars_due: {
                 Args: {
@@ -5440,11 +5543,30 @@ type Database = {
                     timezone: string;
                 }[];
             };
+            call_connected: {
+                Args: {
+                    p_duration_ms: number;
+                    p_status: string;
+                };
+                Returns: boolean;
+            };
+            call_cost_usd: {
+                Args: {
+                    p_cost: Json;
+                };
+                Returns: number;
+            };
             call_status_rank: {
                 Args: {
                     p_status: string;
                 };
                 Returns: number;
+            };
+            call_transfer_answered: {
+                Args: {
+                    p_reason: string;
+                };
+                Returns: boolean;
             };
             caller_has_permission: {
                 Args: {
@@ -5467,6 +5589,14 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: Json;
+            };
+            channel_keep_quality: {
+                Args: {
+                    p_channel_id: string;
+                    p_rating: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
             };
             claim_conversation_control: {
                 Args: {
@@ -5540,6 +5670,15 @@ type Database = {
                     p_have: string[];
                 };
                 Returns: string[];
+            };
+            contact_first_moments: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    contact_id: string;
+                    first_at: string;
+                }[];
             };
             create_mailbox: {
                 Args: {
@@ -5752,6 +5891,7 @@ type Database = {
                 };
                 Returns: {
                     ai_at: string;
+                    ai_hold_s: number;
                     ai_seconds: number;
                     asked_at: string;
                     conversation_id: string;
@@ -6028,6 +6168,13 @@ type Database = {
                 Args: {
                     p_closed_reason: string;
                     p_list: string;
+                    p_stage: string;
+                };
+                Returns: boolean;
+            };
+            lead_is_set_aside: {
+                Args: {
+                    p_closed_reason: string;
                     p_stage: string;
                 };
                 Returns: boolean;
@@ -6438,9 +6585,24 @@ type Database = {
                 };
                 Returns: Json;
             };
+            message_carries_link: {
+                Args: {
+                    p_body: string;
+                    p_link: string;
+                };
+                Returns: boolean;
+            };
             message_is_a_persons_words: {
                 Args: {
                     p_meta: Json;
+                };
+                Returns: boolean;
+            };
+            message_keep_cost: {
+                Args: {
+                    p_external_id: string;
+                    p_pricing: Json;
+                    p_tenant_id: string;
                 };
                 Returns: boolean;
             };
@@ -6453,6 +6615,15 @@ type Database = {
                     p_type: string;
                 };
                 Returns: Record<string, unknown>;
+            };
+            message_stamp_handled: {
+                Args: {
+                    p_handled: string;
+                    p_intent?: string;
+                    p_message_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
             };
             metrics_summary: {
                 Args: {
@@ -7008,6 +7179,16 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: Json;
+            };
+            person_set_first_touch: {
+                Args: {
+                    p_contact_id: string;
+                    p_made_at?: string;
+                    p_ref?: string;
+                    p_tenant_id: string;
+                    p_via: string;
+                };
+                Returns: boolean;
             };
             person_step_from_playbook: {
                 Args: {
@@ -7908,6 +8089,10 @@ type Database = {
                 };
                 Returns: Json;
             };
+            sending_domain_days_keep: {
+                Args: never;
+                Returns: number;
+            };
             session_has_partner_seat: {
                 Args: never;
                 Returns: boolean;
@@ -8197,6 +8382,10 @@ type Database = {
                 Args: never;
                 Returns: number;
             };
+            trigger_channel_quality_sweep: {
+                Args: never;
+                Returns: number;
+            };
             trigger_deadman_sweep: {
                 Args: never;
                 Returns: number;
@@ -8252,6 +8441,23 @@ type Database = {
             wake_stale_snoozes: {
                 Args: never;
                 Returns: number;
+            };
+            workspace_days: {
+                Args: {
+                    p_from: string;
+                    p_tenant_id: string;
+                    p_to: string;
+                };
+                Returns: {
+                    ai_tokens: Json;
+                    answered: number;
+                    asks: number;
+                    day: string;
+                    handled: Json;
+                    messages_in: Json;
+                    messages_out: Json;
+                    topics: Json;
+                }[];
             };
             workspace_partner: {
                 Args: {

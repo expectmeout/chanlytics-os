@@ -136,6 +136,50 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   assert.equal(isActivityNoise("usage.ask_tokens"), true);
   assert.equal(isActivityNoise("webhook.auth"), true);
   assert.equal(isActivityNoise("message.received"), false);
+  assert.equal(activityWords("escalation.changed", { from: "rate_cap", to: "budget" }), "A handover's reason changed");
+  assert.equal(
+    isActivityNoise("escalation.changed"),
+    true,
+    "a record Reports reads, not something that happened to the owner: hidden unless asked for by name",
+  );
+  assert.equal(
+    isActivityNoise("escalation.reopened"),
+    false,
+    "the kind is hidden, not its family: a later owner-facing escalation kind is shown",
+  );
+  assert.equal(isActivityNoise("escalation.changed_by_hand"), false, "nor a kind that merely begins with its words");
+  assert.equal(
+    activityWords("lead.set_aside", { stage: "archived", reason: "stale", from: "ready" }),
+    "A lead was set aside",
+  );
+  assert.equal(isActivityNoise("lead.set_aside"), true, "a record Reports reads: hidden unless asked for by name");
+  assert.equal(isActivityNoise("lead.stage"), false, "a member's own move still shows");
+  assert.equal(isActivityNoise("lead.converted"), false);
+  assert.equal(activityWords("call.transferred", { answered: true }), "A call was passed to a person");
+  assert.equal(isActivityNoise("call.transferred"), true);
+  assert.equal(activityWords("booking_link.sent", { channel: "whatsapp", sender: "ai" }), "The booking link was sent");
+  assert.equal(isActivityNoise("booking_link.sent"), true);
+  assert.equal(
+    activityWords("channel.quality_rating", { from: "GREEN", to: "YELLOW" }),
+    "A WhatsApp number's quality rating changed",
+  );
+  assert.equal(
+    isActivityNoise("channel.quality_rating"),
+    true,
+    "a record Reports reads: hidden unless asked for by name",
+  );
+  assert.equal(isActivityNoise("channel.connected"), false, "Meta's own account news and a connection still show");
+  assert.equal(
+    isActivityNoise("channel.phone_number_quality_update"),
+    false,
+    "the kind is hidden, not the family: Meta's own news of a flagged number still shows",
+  );
+  assert.equal(isActivityNoise("message.sent"), false, "the message's own line still shows");
+  assert.equal(
+    isActivityNoise("call.recorded"),
+    false,
+    "the kind is hidden, not the family: a call's record still shows",
+  );
   assert.deepEqual(ACTIVITY_KINDS.slice(0, 3), ["approve", "edit", "decline"]);
   assert.ok(
     DECISION_VERBS.includes("export") && DECISION_SUBJECTS.includes("workspace"),
@@ -364,6 +408,104 @@ test("filters: a kind by name (noise included when asked), a person with their t
     route.GET.run(get("&person=not-a-uuid"), ctxFor(tables(), rpcs)),
     (e) => e.code === "validation",
   );
+});
+
+test("a record kind is hidden by its own name, not its family: escalation.changed stays out unless asked for, and another escalation kind shows", async () => {
+  const t = tables();
+  t.events = [
+    ...t.events,
+    {
+      id: "e6",
+      tenant_id: A,
+      kind: "escalation.changed",
+      subject_type: "escalation",
+      subject_id: "s1",
+      data: { from: "rate_cap", to: "budget" },
+      created_at: "2026-09-11T14:55:00Z",
+    },
+    {
+      id: "e7",
+      tenant_id: A,
+      kind: "escalation.reopened",
+      subject_type: "escalation",
+      subject_id: "s1",
+      data: {},
+      created_at: "2026-09-11T14:58:00Z",
+    },
+  ];
+  const all = await route.GET.run(get(), ctxFor(t, rpcs));
+  assert.ok(!ids(all).includes("e-e6"), "a reason that changed is a record Reports reads, not activity");
+  assert.ok(ids(all).includes("e-e7"), "a later owner-facing escalation kind is not hidden with it");
+  const named = await route.GET.run(get("&kind=escalation.changed"), ctxFor(t, rpcs));
+  assert.deepEqual(ids(named), ["e-e6"], "named, it shows");
+});
+
+test("the records of K5 to K7 are hidden by their own names, not their families: lead.set_aside, call.transferred and booking_link.sent stay out unless asked for, while lead.stage, deal.won and call.recorded show", async () => {
+  const t = tables();
+  const row = (id, kind, subject_type, data, created_at) => ({
+    id,
+    tenant_id: A,
+    kind,
+    subject_type,
+    subject_id: `${id}-subject`,
+    data,
+    created_at,
+  });
+  t.events = [
+    ...t.events,
+    row("n1", "lead.set_aside", "lead", { stage: "archived", reason: "stale", from: "ready" }, "2026-09-11T16:01:00Z"),
+    row("n2", "call.transferred", "call", { answered: true }, "2026-09-11T16:02:00Z"),
+    row("n3", "booking_link.sent", "message", { channel: "whatsapp", sender: "ai" }, "2026-09-11T16:03:00Z"),
+    row("n4", "lead.stage", "lead", { stage: "ready", from: "new" }, "2026-09-11T16:04:00Z"),
+    row("n5", "deal.won", "deal", { amount_cents: 12000 }, "2026-09-11T16:05:00Z"),
+    row("n6", "call.recorded", "call", {}, "2026-09-11T16:06:00Z"),
+  ];
+  const all = ids(await route.GET.run(get(), ctxFor(t, rpcs)));
+  for (const [id, kind] of [
+    ["e-n1", "lead.set_aside"],
+    ["e-n2", "call.transferred"],
+    ["e-n3", "booking_link.sent"],
+  ]) {
+    assert.ok(!all.includes(id), `${kind} is a record Reports reads, not activity`);
+    assert.deepEqual(ids(await route.GET.run(get(`&kind=${kind}`), ctxFor(t, rpcs))), [id], `${kind}, named, shows`);
+  }
+  for (const [id, kind] of [
+    ["e-n4", "lead.stage"],
+    ["e-n5", "deal.won"],
+    ["e-n6", "call.recorded"],
+  ])
+    assert.ok(all.includes(id), `${kind} is not hidden with them: a member's own move and a call's record still show`);
+});
+
+test("a number's quality rating (K9) is hidden by its own name, not its family: channel.quality_rating stays out unless asked for, while a connection and Meta's own news of a number show", async () => {
+  const t = tables();
+  const row = (id, kind, data, created_at) => ({
+    id,
+    tenant_id: A,
+    kind,
+    subject_type: "channel",
+    subject_id: `${id}-subject`,
+    data,
+    created_at,
+  });
+  t.events = [
+    ...t.events,
+    row("q1", "channel.quality_rating", { from: "GREEN", to: "YELLOW" }, "2026-09-11T17:01:00Z"),
+    row("q2", "channel.connected", { phone_number_id: "1555010001" }, "2026-09-11T17:02:00Z"),
+    row("q3", "channel.phone_number_quality_update", { event: "FLAGGED" }, "2026-09-11T17:03:00Z"),
+  ];
+  const all = ids(await route.GET.run(get(), ctxFor(t, rpcs)));
+  assert.ok(!all.includes("e-q1"), "channel.quality_rating is a record Reports reads, not activity");
+  assert.deepEqual(
+    ids(await route.GET.run(get("&kind=channel.quality_rating"), ctxFor(t, rpcs))),
+    ["e-q1"],
+    "named, it shows",
+  );
+  for (const [id, kind] of [
+    ["e-q2", "channel.connected"],
+    ["e-q3", "channel.phone_number_quality_update"],
+  ])
+    assert.ok(all.includes(id), `${kind} is not hidden with it: the connection and Meta's own news still show`);
 });
 
 test("a page is cut after the merge, and the next one starts from the cursor rather than counting back to the top", async () => {

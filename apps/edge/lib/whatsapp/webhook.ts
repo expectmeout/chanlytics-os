@@ -11,11 +11,11 @@
  * and escalation alerts via Resend.
  *
  * Shape: this file is the webhook — verification, the signature, routing by
- * phone number id, statuses and echoes. The message path is
- * lib/whatsapp/inbound.ts, the edge's adapter onto the receptionist verb in
- * packages/core/src/inbound; its Postgres bookkeeping lib/whatsapp/persist.ts;
- * the people it tells lib/whatsapp/alerts.ts; its pure decisions
- * packages/core/src/inbound/steps.ts.
+ * phone number id, and echoes; the statuses are lib/whatsapp/receipts.ts. The
+ * message path is lib/whatsapp/inbound.ts, the edge's adapter onto the
+ * receptionist verb in packages/core/src/inbound; its Postgres bookkeeping
+ * lib/whatsapp/persist.ts; the people it tells lib/whatsapp/alerts.ts; its
+ * pure decisions packages/core/src/inbound/steps.ts.
  *
  * Contract (frozen during Meta App Review): process-then-200 in-invocation
  * under maxDuration 60; Meta retries + dedupe make replays safe.
@@ -41,16 +41,10 @@ import { WABA_FIELDS, handleWabaChange, notificationsFor } from "./waba-events.j
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import type { WaChangeValue } from "../packages/channels.js";
-import {
-  resolveChannelDetailed,
-  recordStatusByExternalId,
-  recordEchoAndPause,
-  emitEvent,
-  type Json,
-  type RoutedChannel,
-} from "../packages/db.js";
+import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { handleInbound } from "./inbound.js";
+import { recordReceipts } from "./receipts.js";
 import { pgSafe, IngestFailed } from "./persist.js";
 import { alertUnroutable } from "./alerts.js";
 import { env } from "../env.js";
@@ -179,22 +173,7 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
             }
           }
         } else if (field === "messages" && v.statuses) {
-          await Promise.all(
-            (v.statuses ?? []).map(async (s) => {
-              L.info("wa_status", { id: s.id, status: s.status, to_tail: phoneTail(s.recipient_id), errors: s.errors });
-              if (db && tenantId && s.id && s.status && ["sent", "delivered", "read", "failed"].includes(s.status)) {
-                await pgSafe("status", () =>
-                  recordStatusByExternalId(
-                    db,
-                    tenantId,
-                    s.id!,
-                    s.status as "sent" | "delivered" | "read" | "failed",
-                    s.errors ? ({ errors: s.errors } as unknown as Json) : undefined,
-                  ),
-                );
-              }
-            }),
-          );
+          await recordReceipts(db, tenantId, v.statuses);
         } else if (field === "smb_message_echoes") {
           // The owner (or staff) replied from the WhatsApp Business app -> pause the bot on that thread
           try {

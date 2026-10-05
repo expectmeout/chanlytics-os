@@ -215,7 +215,9 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
     "one download per message: the unreadable path's, or the vision path's",
   );
   assert.ok(
-    wa.includes("await sayUnreadable(thread.pausedUntil);\n      await sink.processed();"),
+    wa.includes(
+      "const said = await sayUnreadable(thread.pausedUntil);\n      await sink.processed(handledOf(said.way));",
+    ),
     "a photo that could not be fetched is handed over, not answered from its caption",
   );
   assert.ok(

@@ -58,6 +58,7 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
     n,
     raw,
     tenantId,
+    routed,
     isEnvDefault,
     carrier,
     from,

@@ -177,10 +177,14 @@ export function webhookBody(runId = "RunFixture0001", eventType = "ACTOR.RUN.SUC
  */
 export function fakeJudge(model = "claude-opus-5-fixture") {
   const calls = [];
+  /** The round each call was asked in (the ledger's subject for it), beside `calls`. */
+  const rounds = [];
   return {
     calls,
-    async judge(plan, places) {
+    rounds,
+    async judge(plan, places, _tenantId, roundId) {
       calls.push(places.map((p) => p.ref));
+      rounds.push(roundId);
       const answers = places.map((p) => {
         const kind = LABELS.get(p.name) ?? "unknown";
         const facts = ["name", "category"].filter((k) => p[k] !== null);

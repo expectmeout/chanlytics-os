@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import {
   ACTIVITY_KINDS,
+  ACTIVITY_NOISE_KINDS,
   ACTIVITY_NOISE_PREFIXES,
   activityWords,
   isActivityNoise,
@@ -138,6 +139,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
     eq = eq.eq("kind", f.kind);
   } else {
     for (const p of ACTIVITY_NOISE_PREFIXES) eq = eq.not("kind", "like", `${p}%`);
+    for (const k of ACTIVITY_NOISE_KINDS) eq = eq.neq("kind", k);
   }
   if (range) {
     dq = dq.gte("created_at", range.from).lt("created_at", range.to);

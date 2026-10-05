@@ -23,6 +23,7 @@ import type { SendPurpose } from "@chanlytics/contracts";
 import type { IngestResult, Json } from "@chanlytics/db";
 import type { Wire } from "../deliver";
 import { IngestFailed } from "./ports";
+import { handledOf, SET_ASIDE } from "./handled";
 import type { ThreadState } from "./thread";
 import { errField } from "@chanlytics/channels";
 import type { InboundContext, Ingested } from "./context";
@@ -35,7 +36,8 @@ import type { InboundContext, Ingested } from "./context";
 async function ingestOrSay(cx: InboundContext): Promise<IngestResult | null> {
   const { ports, db, tenantId, n, channel, from, raw, notifyTarget, L } = cx;
   try {
-    return await ports.persist.ingest(db, tenantId, n, channel);
+    // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3).
+    return await ports.persist.ingest(db, tenantId, n, channel, cx.routed?.channelId ?? null);
   } catch (e) {
     if (e instanceof IngestFailed) {
       // The copy is best effort: a mailbox that cannot be reached must not mask the loss.
@@ -88,7 +90,7 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
     await sink.unreachableSender();
-    await sink.processed();
+    await sink.processed(handledOf(SET_ASIDE));
     return;
   }
 
@@ -105,7 +107,7 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
     await sink.allowlistSkip();
-    await sink.processed();
+    await sink.processed(handledOf(SET_ASIDE));
     return;
   }
 

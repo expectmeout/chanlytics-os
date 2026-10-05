@@ -2193,6 +2193,8 @@ var EVENT_KINDS = [
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
+  "booking_link.sent",
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
@@ -2236,6 +2238,8 @@ var EVENT_KINDS = [
   "billing.resumed",
   /** A call: the row (00007) and the seconds it cost. */
   "call.recorded",
+  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
+  "call.transferred",
   "usage.voice_seconds",
   /** The assistant's model usage, per turn (ask-gateway). */
   "usage.ask_tokens",
@@ -2266,11 +2270,15 @@ var EVENT_KINDS = [
   "policy.veto_window_skipped",
   /** The sweep woke a snooze whose time had passed (00082). */
   "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
+  "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -2296,6 +2304,15 @@ var EVENT_KINDS = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -2810,6 +2827,7 @@ var PREFETCH_ROUTE_OF_WORD = Object.fromEntries(
 );
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var REFERRAL_ID_MAX = 200;
 var CALL_OUTCOMES = [
   "answered",
   "booking_link_sent",
@@ -4381,6 +4399,15 @@ async function askSystemOne(key, ask, deps = {}) {
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
+var UNSTORABLE_IN_ID = /[\p{Cc}\p{Cs}]/u;
+var REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
+function adReferralOf(r2) {
+  if (typeof r2 !== "object" || r2 === null) return null;
+  const id = "source_id" in r2 && typeof r2.source_id === "string" ? r2.source_id.trim() : "";
+  if (id.length < 1 || id.length > REFERRAL_ID_MAX || UNSTORABLE_IN_ID.test(id)) return null;
+  const kind = "source_type" in r2 && typeof r2.source_type === "string" ? r2.source_type.trim() : "";
+  return { sourceId: id, sourceType: REFERRAL_KIND.test(kind) ? kind : null };
+}
 function chosenReply(m) {
   if (m.button) {
     const label = m.button.text ?? m.button.payload ?? "";
@@ -4394,6 +4421,16 @@ function chosenReply(m) {
     return label || id ? { label, id } : null;
   }
   return null;
+}
+function mediaRefOf(src) {
+  if (!src?.id) return null;
+  return {
+    provider_media_id: src.id,
+    mime_type: src.mime_type ?? null,
+    caption: src.caption ?? null,
+    filename: src.filename ?? null,
+    fetch_state: "pending"
+  };
 }
 function normalizeInbound(m, value) {
   const list = value.contacts || [];
@@ -4430,16 +4467,7 @@ function normalizeInbound(m, value) {
     rawType: m.type,
     body,
     channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1e3).toISOString() : null,
-    media: mediaSrc?.id ? (() => {
-      const loose = mediaSrc;
-      return {
-        provider_media_id: mediaSrc.id,
-        mime_type: loose.mime_type ?? null,
-        caption: loose.caption ?? null,
-        filename: loose.filename ?? null,
-        fetch_state: "pending"
-      };
-    })() : null,
+    media: mediaRefOf(mediaSrc),
     optOut: isText && matches(OPT_OUT_PATTERN),
     // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
     // appointment question; YES OFFERS answers the offers question and nothing
@@ -4449,8 +4477,21 @@ function normalizeInbound(m, value) {
     // to confess it in the field the refusal named. The way back in from a STOP
     // is START, as the carriers' own reply to a STOP says.
     optIn: isText && matches(CONVERSATION_OPT_IN_PATTERN),
-    optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN)
+    optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN),
+    referral: adReferralOf(m.referral)
   };
+}
+var PRICING_WORD = /^[A-Za-z0-9_-]{1,40}$/;
+function waPricingOf(raw) {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r2 = raw;
+  const out = {};
+  if (typeof r2.billable === "boolean") out.billable = r2.billable;
+  for (const key of ["pricing_model", "category", "type"]) {
+    const word = r2[key];
+    if (typeof word === "string" && PRICING_WORD.test(word)) out[key] = word;
+  }
+  return out.category ? out : null;
 }
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -5010,6 +5051,20 @@ var CALL_ANALYSIS_FIELDS = [
     name: "caller_email",
     description: "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
+  },
+  {
+    type: "enum",
+    name: "topic",
+    // The classes a rule covers are said in the words the receptionist's prompt and its texts' intent say them
+    // (POLICY_COVERS), so a call and a text read one meaning; only what no rule covers is said here.
+    description: `What the call was mainly about. booking: ${POLICY_COVERS.booking}. pricing: ${POLICY_COVERS.faq}, when it is about what something costs. services: ${POLICY_COVERS.faq}, when it is about what the business offers. money: ${POLICY_COVERS.money}. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: a greeting or a chat with no request. other: none of these.`,
+    choices: [...BRAIN_INTENTS]
+  },
+  {
+    type: "enum",
+    name: "language",
+    description: "The language the caller mostly spoke. en: English. es: Spanish. other: any other language.",
+    choices: [...BRAIN_LANGUAGES]
   }
 ];
 function sameAnalysisField(live, want) {
@@ -5040,7 +5095,7 @@ function planAgentSettings(live, opts = {}) {
   const missingFields = CALL_ANALYSIS_FIELDS.filter((f) => !liveFields.some((l) => sameAnalysisField(l, f)));
   if (missingFields.length) {
     drift.push(
-      `post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile and the call card read what the caller wanted)`
+      `post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile, the call card and Reports read what the call was about)`
     );
     patch.post_call_analysis_data = [
       ...liveFields.filter((l) => !CALL_ANALYSIS_FIELDS.some((f) => f.name === l.name)),
@@ -8380,7 +8435,7 @@ function betaRejected(e) {
 }
 function leadJudge(client, model, fallbacks) {
   return {
-    async judge(plan, places, tenantId) {
+    async judge(plan, places, tenantId, roundId) {
       const system = judgeSystemPrompt(plan);
       const user = judgeUserContent(places);
       const requestHash = createHash2("sha256").update(`${system}
@@ -8396,11 +8451,11 @@ ${user}`).digest("hex");
       try {
         res = await client.beta.messages.create(
           fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base,
-          { tenantId }
+          { tenantId, roundId }
         );
       } catch (e) {
         if (!(fallbacks && betaRejected(e))) throw e;
-        res = await client.beta.messages.create(base, { tenantId });
+        res = await client.beta.messages.create(base, { tenantId, roundId });
       }
       const tokens = (res.usage?.input_tokens ?? 0) + (res.usage?.output_tokens ?? 0);
       if (res.stop_reason === "refusal") return { refused: true, why: "the judge refused" };
@@ -8708,6 +8763,7 @@ export {
   voiceNumberCreateBody,
   voiceShellDrift,
   voiceShellTools,
+  waPricingOf,
   withCarrierConsent,
   withKey,
   withRequestId

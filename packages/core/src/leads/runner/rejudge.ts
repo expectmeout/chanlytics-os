@@ -158,7 +158,7 @@ export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<R
         0,
         0,
       ),
-      round.tenant_id,
+      round,
     );
     if (judged.refused) continue;
     const places = batch.map((x, ref) =>

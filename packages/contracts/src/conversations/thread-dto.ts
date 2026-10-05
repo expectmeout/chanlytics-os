@@ -39,6 +39,24 @@ export function messageAt(m: MessageDto): string {
   return m.channel_ts ?? m.created_at;
 }
 
+/** The keys of a message's meta that are the operator's, never a member's: what it cost to send (K8). */
+const OPERATOR_META_KEYS = ["pricing"] as const;
+
+/**
+ * A message's meta as a member's browser, or Ask, may be sent it: every key but the operator's. The one door every
+ * member-facing read of a message's meta passes through (the Inbox's and a person's messages, the thread route's, Ask's
+ * thread reader). A meta that is not an object (a column the read left out) is null, which is what the DTO already
+ * allows. Never changes the row it is given. The owner's own workspace export says meta as stored, and does not pass
+ * here. The guarantee is the dashboard's and Ask's: a member's own session can still read the row through
+ * messages_member_select, as it reads ai_usage.
+ */
+export function memberMetaOf(meta: unknown): Record<string, unknown> | null {
+  if (meta === null || typeof meta !== "object" || Array.isArray(meta)) return null;
+  const kept: Record<string, unknown> = { ...meta };
+  for (const key of OPERATOR_META_KEYS) delete kept[key];
+  return kept;
+}
+
 export interface ConversationDto {
   id: string;
   state: "open" | "needs_human" | "snoozed" | "archived";

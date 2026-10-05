@@ -3,7 +3,7 @@
  * message, oldest first, for the business's own records. The export is written to the ledger as a decision. The route
  * declares who may and how often.
  */
-import { AppError } from "@chanlytics/contracts";
+import { AppError, memberMetaOf } from "@chanlytics/contracts";
 import type { MessageDto } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/request-guards";
 import { tenantFacts } from "@/server/tenant";
@@ -52,7 +52,7 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
         type: m.type,
         body: m.body,
         media: mediaPublic(m.media),
-        meta: m.meta as MessageDto["meta"],
+        meta: memberMetaOf(m.meta),
         status: m.status,
         created_at: m.created_at,
         channel_ts: m.channel_ts,

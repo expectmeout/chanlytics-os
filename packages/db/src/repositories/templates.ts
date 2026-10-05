@@ -6,7 +6,8 @@
  * number's credentials live. What is read here is the one question the rest of the product asks -- which templates may
  * this workspace send, right now -- so that no caller has to name one by a literal again. An email or a text version
  * (00296) is written and removed through the two doors below, on the member's own session: a member may only read the
- * table, and the doors say who may write it and which rows.
+ * table, and the doors say who may write it and which rows. The one write Meta's webhook makes between two syncs is here
+ * too: a WhatsApp template's quality, as Meta just said it (setTemplateQuality).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OwnVersionChannel } from "@chanlytics/contracts";
@@ -196,4 +197,24 @@ export async function templateStatusOf(
     .eq("language", language)
     .maybeSingle();
   return data;
+}
+
+/**
+ * A WhatsApp template's quality, as Meta just reported it (message_template_quality_update): set on the row the sync
+ * keeps for that name and language in this workspace, and nothing else on it. A template the workspace holds no row for
+ * is no write at all; the next sync creates it. A write that fails THROWS, and the webhook that calls it
+ * (apps/edge/lib/whatsapp/waba-events.ts) carries on without the new word.
+ */
+export async function setTemplateQuality(
+  db: Db,
+  p: { tenantId: string; name: string; language: string; quality: string },
+): Promise<void> {
+  const { error } = await db
+    .from("templates")
+    .update({ quality: p.quality })
+    .eq("tenant_id", p.tenantId)
+    .eq("channel", "whatsapp")
+    .eq("name", p.name)
+    .eq("language", p.language);
+  if (error) throw new Error(`setTemplateQuality: ${error.message}`);
 }

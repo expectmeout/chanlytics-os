@@ -5,6 +5,7 @@
 import type { Json } from "@chanlytics/db";
 import { holdPlan } from "./steps";
 import { GO, type Answering } from "./context";
+import { handledOf, noteHandledAfter, processedAfter, SET_ASIDE, type Asked } from "./handled";
 import type { Turn } from "./model-turn";
 
 /** How long the reply waits and why, the draft when one was written, and the reply's quality signal. */
@@ -110,12 +111,11 @@ export async function heldOrKept(
     const post: Promise<unknown>[] = [];
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality, escalate: true }));
     post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-    post.push(
-      sink.escalate(
-        "policy_block",
-        `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent — "${bodyText}"`,
-      ),
+    const asked = sink.escalate(
+      "policy_block",
+      `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent — "${bodyText}"`,
     );
+    post.push(asked);
     post.push(
       tell(
         bodyText,
@@ -125,12 +125,13 @@ export async function heldOrKept(
       ),
     );
     await Promise.all(post);
-    await sink.processed();
+    await processedAfter(sink, asked, "none", brainMeta?.intent ?? null);
     L.warn("wa_hold_unscheduled_kept", { confidence: brainMeta?.confidence, min: plan.minConfidence });
     return;
   }
   if (queued) {
     const post: Promise<unknown>[] = [];
+    let asked: Asked | null = null;
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       // An escalating draft still pauses and alerts — a human should be looking
@@ -139,20 +140,19 @@ export async function heldOrKept(
       post.push(
         sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : undefined),
       );
-      post.push(
-        sink.escalate(
-          escalationReason,
-          fallback
-            ? fallback.escalationDetails(bodyText)
-            : brainMeta?.reason
-              ? `${brainMeta.reason} — "${bodyText}"`
-              : bodyText,
-        ),
+      asked = sink.escalate(
+        escalationReason,
+        fallback
+          ? fallback.escalationDetails(bodyText)
+          : brainMeta?.reason
+            ? `${brainMeta.reason} — "${bodyText}"`
+            : bodyText,
       );
+      post.push(asked);
       post.push(tell(bodyText, replyText, "assistant flagged handoff (reply held for review)", pauseHours));
     }
     await Promise.all(post);
-    await sink.processed();
+    await processedAfter(sink, asked, "queued", brainMeta?.intent ?? null);
     L.info("wa_reply_queued", { delay_ms: delayMs, escalate });
     return;
   }
@@ -172,42 +172,43 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
   if (sent.outcome === "sent") {
     // The door recorded the row; what is left is the usage and the handoff.
     const post: Promise<unknown>[] = [];
+    let asked: Asked | null = null;
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      post.push(
-        sink.escalate(
-          escalationReason,
-          fallback
-            ? fallback.escalationDetails(bodyText)
-            : brainMeta?.reason
-              ? `${brainMeta.reason} — "${bodyText}"`
-              : bodyText,
-        ),
+      asked = sink.escalate(
+        escalationReason,
+        fallback
+          ? fallback.escalationDetails(bodyText)
+          : brainMeta?.reason
+            ? `${brainMeta.reason} — "${bodyText}"`
+            : bodyText,
       );
+      post.push(asked);
       post.push(tell(bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", pauseHours));
     }
     await Promise.all(post);
-    await sink.processed();
+    await processedAfter(sink, asked, "sent", brainMeta?.intent ?? null);
   } else if (sent.outcome === "refused") {
     // The wire found what the gates above could not see a moment ago: the
     // person asked to stop, a human took the thread, the workspace paused.
     // Each of those already has its person; the message is kept and done.
     L.info("wa_refused_at_wire", { reason: sent.reason });
-    await sink.processed();
+    await sink.processed(handledOf(SET_ASIDE), brainMeta?.intent ?? null);
   } else {
     // The customer got NO reply and Meta already has its 200 — this must be
     // loud, and the message must stay visibly unprocessed for reconciliation.
     // The door wrote the failed row and its event; the people are told here.
-    await Promise.all([
-      tell(bodyText, "(send failed — the customer received no reply)", "wa_send_failed"),
-      sink.escalate(
-        "send_failed",
-        sent.reason === "wire_unreadable"
-          ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer."
-          : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`,
-      ),
-    ]);
+    // A person IS asked when the escalation lands, so the message says so
+    // (handoff) without being marked processed: the deadman sweep still finishes it.
+    const asked = sink.escalate(
+      "send_failed",
+      sent.reason === "wire_unreadable"
+        ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer."
+        : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`,
+    );
+    await Promise.all([tell(bodyText, "(send failed — the customer received no reply)", "wa_send_failed"), asked]);
+    await noteHandledAfter(sink, asked, "none", brainMeta?.intent ?? null);
   }
   L.info("wa_replied", {
     escalate,

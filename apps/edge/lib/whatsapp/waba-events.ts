@@ -10,9 +10,9 @@
  * ride the same alert path a failed send already uses.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mapCategory, mapStatus } from "./meta-templates.js";
+import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "../packages/db.js";
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, setTemplateQuality } from "../packages/db.js";
 import { notify, type NotifyTarget } from "../ops/notify.js";
 import {
   parseTenantConfig,
@@ -21,7 +21,7 @@ import {
   type ServerNotificationKind,
   type WabaEventKind,
 } from "../packages/contracts.js";
-import { logger, errField } from "../log.js";
+import { logger, errField, type Logger } from "../log.js";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
 export async function notificationsFor(
@@ -204,6 +204,29 @@ export function describeWabaChange(c: WabaChange, number: string | null): WabaWo
 }
 
 /**
+ * A template's quality, as Meta just said it (K9): the row the sync keeps takes the new score, by name and language, as a
+ * status or a category change does. The sync still sets it whole; the history is the event kept before this runs. A score
+ * outside Meta's four, or a name or language missing, changes nothing; a template with no row yet is left for the next
+ * sync. Best effort: a write that fails is on the log and costs the template its new word, never the webhook its answer.
+ */
+async function applyTemplateQuality(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  value: Record<string, unknown>,
+  L: Logger,
+): Promise<void> {
+  const quality = mapQuality(value.new_quality_score);
+  const name = typeof value.message_template_name === "string" ? value.message_template_name : null;
+  const language = typeof value.message_template_language === "string" ? value.message_template_language : null;
+  if (!quality || !name || !language) return;
+  try {
+    await setTemplateQuality(db, { tenantId, name, language, quality });
+  } catch (e) {
+    L.error("template_quality_write_failed", { error: errField(e) });
+  }
+}
+
+/**
  * Keep the change and, when it matters, tell the workspace. Returns what it
  * did, for the log; never throws — the webhook has already been acknowledged.
  */
@@ -289,6 +312,8 @@ export async function handleWabaChange(
       }
     }
   }
+  if (change.field === "message_template_quality_update")
+    await applyTemplateQuality(db, routed.tenantId, change.value, L);
   if (!described || !described.alert) return "kept";
   const target: NotifyTarget = {
     tenantId: routed.tenantId,
