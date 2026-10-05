@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { mayAtLeast, navigate } from "../../legacy-verbs";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { PL_COLUMNS, PL_PHONE_COLUMNS } from "../cells/columns";
+import { TABLE_BODIES } from "../table/table";
 import { usePlControls } from "../hooks/use-controls";
 import { usePeople } from "../hooks/use-people";
 import { PL_NO_LISTS } from "../words";
@@ -60,10 +61,9 @@ export function usePeopleState({
     people,
     sortFirst: { by: "last", dir: "desc" },
   });
-  const { phone, bulkSheet, setBulkSheet, selectMode, canExport, plFlash, sel, toggleSel, sortBy, sortDir, q } =
-    controls;
+  const { phone, selectMode, canExport, plFlash, sel, toggleSel, sortBy, sortDir, q } = controls;
   const sheets = usePeopleSheets(newList, savedId);
-  const { listsOpen, setListsOpen, addOpen, listAct } = sheets;
+  const { listsOpen, setListsOpen } = sheets;
   // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
   const canEditLists = mayAtLeast("operator");
   usePeopleAddress(listId, savedId, tab);
@@ -88,7 +88,7 @@ export function usePeopleState({
   });
   const place = usePeoplePlace({ controls, shown, tab, listId, savedId, q });
   // The rows rise as the list under the view changes (the Inbox's buckets do): a pick in the rail answers, never a hard cut.
-  const swap = useSwapMotion<HTMLTableSectionElement>(`${listId ?? ""}|${savedId ?? ""}|${tab}`);
+  const swap = useSwapMotion<HTMLTableElement>(`${listId ?? ""}|${savedId ?? ""}|${tab}`, TABLE_BODIES);
   const phoneActs = peoplePhoneSheetActs({
     ...sheets,
     activeSaved: open.activeSaved,
@@ -103,9 +103,10 @@ export function usePeopleState({
   place.keysWith({
     open: onOpenProfile,
     canSelect: canEditLists || canExport,
-    // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
-    sheetOpen: listsOpen || addOpen || !!listAct || (phone && !!bulkSheet),
-    closeSheet: addOpen || listAct ? phoneActs.closePhoneSheet : phone && bulkSheet ? () => setBulkSheet(null) : null,
+    // The Lists sheet is the page's own, and closes on its own Esc. People's small jobs and the selection's sheet are the
+    // kit's: in PL_OVERLAY while open, so the keys hold still behind them, and each closes on its own Esc (Base UI's).
+    sheetOpen: listsOpen,
+    closeSheet: null,
   });
   // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a row
   // selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).

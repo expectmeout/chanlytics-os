@@ -424,7 +424,7 @@ function peekFoot(vm: LeadPeekVM, on: PeekActs) {
           onDial={() => on.onCall(vm.id)}
           onCopy={() => on.onCopyPhone(vm.id)}
           onLog={() => on.onLogCall(vm.id)}
-          btnClass="btn btn-primary pk-act-main"
+          look={{ variant: "primary", size: "md", iconOnly: false, className: "pk-act-main" }}
           label={
             <>
               <Icon name="phone" size={13} />

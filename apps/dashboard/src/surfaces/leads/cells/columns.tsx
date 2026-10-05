@@ -45,7 +45,7 @@ const LeadRowActions = ({
     {l.phone && !l.phoneWrong && (
       <LeadCallMenu
         {...ldCallProps(l, { onCall, onCopyPhone, onLogCall })}
-        btnClass="btn btn-ghost btn-icon btn-sm ld-call"
+        look={{ variant: "quiet", size: "sm", iconOnly: true, className: "ld-call" }}
       />
     )}
     {l.email && l.emailState !== "invalid" && (

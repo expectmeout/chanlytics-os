@@ -77,6 +77,48 @@ export function setSurfaceValue<K extends SurfaceKey>(key: K, value: SurfaceValu
   mirrorTo(key, value);
 }
 
+/** Whether a value is a plain record (what a view model is made of), as against a list, a date, a map or a function. */
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
+
+/** The id a list's element goes by, where it has one: a list of rows is matched by id, never by where a row stands. */
+const listItemId = (v: unknown): string | null => (isRecord(v) && typeof v.id === "string" ? v.id : null);
+
+/**
+ * What a surface publishes again, with every part that did not change kept as the object it was: a row, a list, the
+ * map of what each person needs. A refresh built every row anew, so a table's row memo never held and every row was
+ * drawn again for one changed person (People, 5 Oct 2026). A list whose every element has an `id` is matched by id, so
+ * a row that moved keeps its object; a part that changed is the new one, and so is everything holding it.
+ */
+export function shareUnchanged<T>(was: unknown, now: T): T {
+  if (Object.is(was, now)) return now;
+  if (Array.isArray(now)) {
+    if (!Array.isArray(was)) return now;
+    const before: readonly unknown[] = was;
+    const after: readonly unknown[] = now;
+    const byId =
+      after.every((v) => listItemId(v) !== null) && before.every((v) => listItemId(v) !== null)
+        ? new Map<string | null, unknown>(before.map((v): [string | null, unknown] => [listItemId(v), v]))
+        : null;
+    let same = before.length === after.length;
+    const kept = after.map((v, i): unknown => {
+      const it: unknown = shareUnchanged(byId ? byId.get(listItemId(v)) : before[i], v);
+      if (it !== before[i]) same = false;
+      return it;
+    });
+    return (same ? before : kept) as T;
+  }
+  if (!isRecord(now) || !isRecord(was)) return now;
+  const keys = Object.keys(now);
+  let same = keys.length === Object.keys(was).length;
+  const kept: Record<string, unknown> = {};
+  for (const k of keys) {
+    kept[k] = Object.hasOwn(was, k) ? shareUnchanged(was[k], now[k]) : now[k];
+    if (!Object.hasOwn(was, k) || kept[k] !== was[k]) same = false;
+  }
+  return (same ? was : kept) as T;
+}
+
 /** What the surface last published, or nothing before its first read. */
 export function surfaceValue<K extends SurfaceKey>(key: K): SurfaceValues[K] | undefined {
   return values.get(key) as SurfaceValues[K] | undefined;
