@@ -2,7 +2,7 @@
  * A call's row and transcript (`toCallVM`), and a call's length in words. The call as the wire gives it, and
  * how it ended, is call-dto.ts; the caller's name and the times come from thread-contact.ts and thread-clock.ts.
  */
-import { callLength } from "../shared/clock";
+import { callLength, mmss } from "../shared/clock";
 import { whisperText } from "../voice/whisper";
 import { callerName } from "../people/person-name";
 import { isLiveCall } from "../config/policy";
@@ -171,7 +171,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     const next = start == null ? null : (starts.slice(i + 1).find((x) => x != null && x > start) ?? null);
     const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
     return {
-      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "—",
+      t: typeof own === "number" ? mmss(own * 1000) : "—",
       speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",
       text: turn.content ?? "",
       start,

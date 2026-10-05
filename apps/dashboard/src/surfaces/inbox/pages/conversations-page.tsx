@@ -4,6 +4,7 @@
  * -- a call opens its thread at the call -- and a call no thread holds opens alone, in the thread's own frame.
  * The rules of which tab a row is in and of the address are cv-rules.ts.
  */
+import { mmss } from "@chanlytics/contracts";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -156,7 +157,7 @@ const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; o
 // In the thread's own frame: its header, and the call as a thread draws it (ThreadCall). A caller who withheld their
 // number, a call older than the threads the Inbox shows, a call still going. One still going is a line that says so and
 // opens Live, where it can be heard and steered; its clock is the wall clock since it started, never a seed's.
-const cvClock = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+const cvClock = (sec: number) => mmss(sec * 1000);
 
 /** The call's header: back, who it was with (a door to their page), and the one act. */
 function callHead(c: ConversationRow, onBack: (() => void) | null) {

@@ -15,7 +15,7 @@
  * where the clip cannot be made the button says why, and nothing else speaks.
  */
 import { useRef, useState, useSyncExternalStore } from "react";
-import type { TodayBriefRun, TodayBriefWords } from "@chanlytics/contracts";
+import { mmss, type TodayBriefRun, type TodayBriefWords } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
@@ -39,7 +39,7 @@ function briefLine(words: TodayBriefWords) {
 function spokenLength(text: string): string {
   const words = text.split(/\s+/).filter(Boolean).length;
   const s = Math.max(1, Math.round((words / 160) * 60));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  return mmss(s * 1000);
 }
 
 /** What the button is doing: at rest, getting the clip, or playing it. */
