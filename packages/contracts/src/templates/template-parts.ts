@@ -153,6 +153,23 @@ export function templateBlocked(t: { blocked?: string | null; components?: unkno
   return null;
 }
 
+/**
+ * What WhatsApp said when it refused a message, as the owner reads it, and what to do: null when it gave no reason.
+ *
+ * Meta's `rejected_reason` is one of its codes (ABUSIVE_CONTENT, TAG_CONTENT_MISMATCH), which are lower-cased and said as
+ * words, or, from a status update, a sentence of its own: that keeps its capitals (the first letter of a sentence was
+ * lower-cased with the codes) and ends with its own full stop, which the sentence here supplies once ("... reason..
+ * Change the words" doubled it).
+ */
+export function refusedWords(reason: string | null | undefined): string | null {
+  const said = String(reason ?? "")
+    .trim()
+    .replace(/[.!?\s]+$/, "");
+  if (!said) return null;
+  const words = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
+  return `WhatsApp refused this one: ${words}. Change the words and send it back.`;
+}
+
 /** "one has a picture for a heading, two have a button that takes a value" */
 const COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
 function blockedWords(reasons: readonly string[]): string {

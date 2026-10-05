@@ -305,8 +305,8 @@
     "depth": 1
   },
   "packages/contracts/src/conversations/call-vm.ts::toCallVM#1": {
-    "lines": 144,
-    "branches": 71,
+    "lines": 133,
+    "branches": 61,
     "depth": 1
   },
   "packages/contracts/src/conversations/inbox-thread.ts::toInboxThreadVM#1": {
@@ -390,9 +390,9 @@
     "depth": 2
   },
   "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {
-    "lines": 88,
-    "branches": 55,
-    "depth": 2
+    "lines": 77,
+    "branches": 50,
+    "depth": 0
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
     "lines": 154,

@@ -122,6 +122,7 @@ export {
   templateFooter,
   templateParts,
   templateBlocked,
+  refusedWords,
   sendableTemplates,
   templateLinkButton,
 } from "./template-parts";
@@ -135,8 +136,8 @@ export {
   templateUntranslatable,
 } from "./message-languages";
 export type { LanguageGroup, LanguageChoice } from "./message-languages";
-export { inboxTemplates, inboxSlots, slotToWrite } from "./inbox-templates";
-export type { InboxTemplateLike } from "./inbox-templates";
+export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds } from "./inbox-templates";
+export type { InboxTemplateLike, TemplateHolds } from "./inbox-templates";
 export {
   guessSlotKind,
   defaultSlotKinds,

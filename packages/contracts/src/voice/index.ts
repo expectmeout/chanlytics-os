@@ -1,7 +1,16 @@
 /** The phone receptionist: calls right now, the whisper, the greeting, a call's outcome in words, and forwarding. */
 export { frameWhisper, frameGuardrail, frameSteer, whisperText, frameHandOver, injectedTurn } from "./whisper";
-export { callOutcomeOf, callOutcomeWords, tidyCallSummary, CALL_OUTCOMES, CALL_OUTCOME_WORDS } from "./call-words";
-export type { CallOutcome } from "./call-words";
+export {
+  callOutcomeOf,
+  callOutcomeWords,
+  callNoteLines,
+  callNotesOf,
+  callTodoWords,
+  tidyCallSummary,
+  CALL_OUTCOMES,
+  CALL_OUTCOME_WORDS,
+} from "./call-words";
+export type { CallNotes, CallOutcome } from "./call-words";
 export {
   fmtClock,
   liveStillUp,

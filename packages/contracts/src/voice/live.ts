@@ -20,7 +20,7 @@ import { formatPhoneDisplay } from "../shared/phone";
 import { callLength, mmss } from "../shared/clock";
 import { callerName } from "../people/person-name";
 import { DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
-import { spokenDuration } from "../conversations/call-vm";
+import { callOutcomeFor, spokenDuration, type CallVM } from "../conversations/call-vm";
 import { initialsOf } from "../conversations/thread-contact";
 import { shortTime } from "../conversations/thread-clock";
 import { callOutcomeWords } from "./call-words";
@@ -63,6 +63,8 @@ export interface LiveCallVM {
   live: boolean;
   /** Retell's not_connected: the dial never connected. */
   missed: boolean;
+  /** How it ended, by the ladder Conversations reads (callOutcomeFor): the pill's word for a call that is over. */
+  outcome: CallVM["outcome"];
   /** Marked ongoing by the provider but silent past the heartbeat: the
    *  reconcile sweep will settle it; until then it is neither live nor
    *  ended, and the page must not call it either. */
@@ -204,6 +206,31 @@ function turnsOf(dto: CallDto): LiveTurnVM[] {
     });
 }
 
+/**
+ * A call the provider has gone quiet on, or that has run past what a call runs: "still marked live · checking", and the
+ * words for why. Nothing for a call that is not live.
+ */
+function checkingOf(
+  live: boolean,
+  startedAtMs: number | null,
+  heartbeatAtMs: number | null,
+  nowMs: number,
+): Pick<LiveCallVM, "checking" | "checkingWhy"> {
+  if (!live) return { checking: false, checkingWhy: null };
+  const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
+  const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
+  if (sinceBeat > LIVE_STALE_MS) {
+    return {
+      checking: true,
+      checkingWhy: `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`,
+    };
+  }
+  if (sinceStart > LIVE_OVERLONG_MS) {
+    return { checking: true, checkingWhy: `live for over ${Math.floor(sinceStart / MIN_MS)} minutes` };
+  }
+  return { checking: false, checkingWhy: null };
+}
+
 export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCallVM {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -219,19 +246,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
   const beat = dto.updated_at ?? dto.started_at;
   const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
 
-  let checking = false;
-  let checkingWhy: string | null = null;
-  if (live) {
-    const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
-    const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
-    if (sinceBeat > LIVE_STALE_MS) {
-      checking = true;
-      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`;
-    } else if (sinceStart > LIVE_OVERLONG_MS) {
-      checking = true;
-      checkingWhy = `live for over ${Math.floor(sinceStart / MIN_MS)} minutes`;
-    }
-  }
+  const { checking, checkingWhy } = checkingOf(live, startedAtMs, heartbeatAtMs, nowMs);
 
   const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
   const summary = (dto.summary ?? "").trim() || null;
@@ -269,6 +284,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     status: dto.status,
     live,
     missed,
+    outcome: callOutcomeFor(dto, live),
     stale: dto.status === "ongoing" && !live,
     checking,
     checkingWhy,

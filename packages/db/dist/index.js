@@ -2415,6 +2415,11 @@ async function templatesFor(db, tenantId, channel = "whatsapp") {
   if (error) throw new Error(`templatesFor: ${error.message}`);
   return data ?? [];
 }
+async function templatesToSend(db, tenantId, channel = "whatsapp") {
+  const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables, components").eq("tenant_id", tenantId).eq("channel", channel);
+  if (error) throw new Error(`templatesToSend: ${error.message}`);
+  return data ?? [];
+}
 function slotsOf(variables) {
   if (!Array.isArray(variables)) return 0;
   const positions = variables.map((v) => Number(v?.position)).filter(Number.isFinite);
@@ -3579,6 +3584,7 @@ export {
   templateStatusOf,
   templatesFor,
   templatesNamed,
+  templatesToSend,
   tenantDb,
   tenantZoneOf,
   textLineFacts,

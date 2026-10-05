@@ -4,7 +4,7 @@
  * call Live no longer holds says so, with the door to its transcript. The page draws it beside the list.
  */
 import { useEffect, useRef } from "react";
-import type { LiveCallVM } from "@chanlytics/contracts";
+import { callTodoWords, type LiveCallVM } from "@chanlytics/contracts";
 import { navigate, routeDoor } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
@@ -222,7 +222,7 @@ function panelSummary({ c, open }: SummaryProps) {
       {!c.missed && (c.outcomeWords || c.followUp) && (
         <div className="lm-summary-next">
           {c.outcomeWords && <span>{c.outcomeWords}</span>}
-          {c.followUp && <span>To do: {c.followUp}</span>}
+          {c.followUp && <span>{callTodoWords(c.followUp)}</span>}
         </div>
       )}
       <div className="lm-summary-meta">
