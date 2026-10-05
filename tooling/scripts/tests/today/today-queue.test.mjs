@@ -458,7 +458,6 @@ test("the wiring: one row component for People and Today, the queue in the comma
     // The call in progress is read through the one hook the strip reads too (live-now.ts), which watches Live.
     "useLiveNow()",
     'useMoved("broadcasts")',
-    "queueVerb(flash, r, also)",
   ])
     assert.ok(queue.includes(s), s);
   const real = queue.slice(queue.indexOf("const LiveRail"));

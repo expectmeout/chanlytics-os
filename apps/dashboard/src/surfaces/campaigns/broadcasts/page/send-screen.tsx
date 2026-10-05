@@ -541,11 +541,11 @@ function bcSendFoot(v: BcV) {
 // "New message" (Campaigns' one name for the one door), its Cancel the pane's Close (which asks first where something was written, and is Escape's too), and the
 // send alone in its foot. The one screen in Campaigns that cannot be undone: who, what and when at once, with the
 // people named rather than counted.
-function bcSendPane(v: BcV, body: ReactNode, glass: boolean) {
+function bcSendPane(v: BcV, body: ReactNode) {
   return (
     <CmPane
       testid="bc-composer"
-      className={glass ? "bc-pane bc-glass" : "bc-pane"}
+      className="bc-pane bc-glass"
       title={CAMPAIGN_ROOMS.newMessage}
       closeLabel="Cancel"
       closeTestid="bc-compose-close"
@@ -560,27 +560,9 @@ function bcSendPane(v: BcV, body: ReactNode, glass: boolean) {
   );
 }
 
-// The send screen: who, what and when, and the send alone at the foot. The three columns say who, what and when; the
-// sentence that said so over them went (23 Sep).
-export function bcComposer(v: BcV) {
-  return bcSendPane(
-    v,
-    <div className="bc-cols">
-      {bcColWho(v)}
-
-      {bcColWhat(v)}
-
-      {bcColVia(v)}
-
-      {bcColWhen(v)}
-    </div>,
-    false,
-  );
-}
-
-// Under Glass the same questions stand as the canvas's rows (the compact composer, C2): To, Says, Send by, When, one under
-// the other in one pane, each with its word at the left, and the foot the glass bar. The columns keep their own markup,
-// testids and words; their eyebrows (Who, What, When) go, since the row's word says it.
+// The questions stand as the canvas's rows (the compact composer, C2): To, Says, Send by, When, one under the other in one
+// pane, each with its word at the left, and the foot the glass bar. The columns keep their own markup, testids and words;
+// the row's word says what their eyebrows (Who, What, When) said.
 function bcGlassRow(word: string, body: ReactNode) {
   return (
     <div className="bc-grow">
@@ -599,6 +581,5 @@ export function bcComposerGlass(v: BcV) {
       {bcGlassRow(CM_VIA_WORDS.label, bcColVia(v))}
       {bcGlassRow("When", bcColWhen(v))}
     </div>,
-    true,
   );
 }

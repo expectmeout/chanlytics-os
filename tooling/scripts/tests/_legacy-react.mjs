@@ -184,7 +184,7 @@ export function installLegacyReact(extra = {}) {
   });
   globalThis.document = {
     body: { appendChild() {} },
-    // The page wears no look in a test: Classic, so the kit's <Glass> draws nothing (kit/look/look.tsx reads this).
+    // The page wears no stamp in a test: the one look is Glass, and nothing reads the attribute (the bridge reads data-theme here).
     documentElement: { getAttribute: () => null },
     activeElement: null,
     addEventListener() {},

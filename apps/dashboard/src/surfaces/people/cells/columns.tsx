@@ -12,7 +12,6 @@ import type { PersonRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
-import { lookNow } from "../../kit/look/look";
 import { StatePill } from "../../kit/pill/state-pill";
 import type { PeopleCellCtx, RowPick, TableColumn } from "../types";
 import {
@@ -222,7 +221,7 @@ const plVisitsCell = (p: PersonRowVM) => (
         {p.nextVisitDay ? (
           <>
             <span className="cl-row-next">{p.nextVisitDay}</span>
-            <span className="dim"> · {lookNow() === "glass" ? plVisitStart(visitHours(p)) : visitHours(p)}</span>
+            <span className="dim"> · {plVisitStart(visitHours(p))}</span>
           </>
         ) : (
           <span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>
@@ -300,13 +299,13 @@ export const PL_COLUMNS: PeopleColumn[] = [
     ),
   },
   { key: "offers", label: "Offers", sortable: true, cell: plOffersCell },
-  // Where they first came from: people_list's came_from, in contracts' words; nothing when nothing says. In Glass it is
+  // Where they first came from: people_list's came_from, in contracts' words; nothing when nothing says. It is
   // the Columns menu's to show (canvas P1 keeps it there): with it the table was wider than the pane at 1440.
   {
     key: "came_from",
     label: "Came from",
     sortable: false,
-    on: () => lookNow() !== "glass",
+    on: false,
     cell: (p) => (
       <td key="came_from" className="shrink dim cl-came-cell" data-testid="row-came-from">
         {p.cameFrom ? p.cameFrom.label : ""}

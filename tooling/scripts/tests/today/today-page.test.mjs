@@ -40,7 +40,6 @@ import {
   kitPages,
   quiet,
   redrawWanted,
-  settle,
 } from "../_legacy-react.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
@@ -540,7 +539,39 @@ test("above the work, nothing while every line is up; a line that is down is one
 
 /* ------------------------------------ the day's card ------------------------------------ */
 
-test("the card: four figures in order, each with its clause; nothing said twice; the receipts and the not-numbers under them", () => {
+test("the brief's lines that are not numbers: never the traffic the figures say; a reply that failed to deliver, with its door to the thread", () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports(), __BROADCASTS: broadcasts() });
+  const pane = draw(TodayBriefPane);
+  const beats = texts(byTestId(pane, "today-recap"), "brief-beat-text");
+  assert.ok(
+    !beats.some((b) => /receptionist answered|reached the phone line|messages? in/.test(b)),
+    `REGRESSION: the figures say these already: ${beats.join(" | ")}`,
+  );
+  const failedBeat = all(pane, (n) => classes(n).includes("brief-beat")).find((n) =>
+    textOf(n).includes("failed to deliver"),
+  );
+  assert.ok(failedBeat, "the one line that must never be quiet");
+  press(buttons(failedBeat, "See the thread")[0]);
+  assert.equal(went.at(-1), "inbox/th-cv-p", "the thread of the reply that failed, not the Inbox list");
+  const done = byTestId(pane, "brief-run-done");
+  assert.ok(done, "a run that went out, in the brief's lines");
+  const words = todayRunWords(broadcasts().rows[2]).done;
+  assert.ok(
+    textOf(done).includes(
+      `went out at ${W.__clock.time(Date.parse(broadcasts().rows[2].started_at))}: ${words.counts}`,
+    ),
+    textOf(done),
+  );
+  assert.ok(!textOf(done).includes("—"), "no em dash in a new sentence");
+  assert.equal(
+    all(pane, (n) => n.props?.["data-testid"] === "brief-receipt").length,
+    busy().recap.receipts.length,
+    "every receipt the view model kept",
+  );
+});
+
+test("the card: four figures in order, each with its clause; nothing said twice; the receipts under them", () => {
   clear();
   const vm = busy();
   set({ today: vm, __BROADCASTS: broadcasts() });
@@ -560,34 +591,7 @@ test("the card: four figures in order, each with its clause; nothing said twice;
     assert.ok(said.includes(String(f.value)) && said.includes(f.label) && said.includes(f.meta), `${f.id}: ${said}`);
     assert.equal(byTestId(card, `today-receipt-${f.id}`), null, "a receipt waits for a hover, a focus or a tap");
   }
-  // The lines that are not numbers: a reply that failed to deliver with its door to the thread; what ran today in
-  // contracts' words; the receipts. Never the traffic the figures already say.
-  const beats = texts(byTestId(card, "today-recap"), "brief-beat-text");
-  assert.ok(
-    !beats.some((b) => /receptionist answered|reached the phone line|messages? in/.test(b)),
-    `REGRESSION: the figures say these already: ${beats.join(" | ")}`,
-  );
-  const failedBeat = all(card, (n) => classes(n).includes("brief-beat")).find((n) =>
-    textOf(n).includes("failed to deliver"),
-  );
-  assert.ok(failedBeat, "the one line that must never be quiet");
-  press(buttons(failedBeat, "See the thread")[0]);
-  assert.equal(went.at(-1), "inbox/th-cv-p", "the thread of the reply that failed, not the Inbox list");
-  const done = byTestId(card, "brief-run-done");
-  assert.ok(done);
-  const words = todayRunWords(broadcasts().rows[2]).done;
-  assert.ok(
-    textOf(done).includes(
-      `went out at ${W.__clock.time(Date.parse(broadcasts().rows[2].started_at))}: ${words.counts}`,
-    ),
-    textOf(done),
-  );
-  assert.ok(!textOf(done).includes("—"), "no em dash in a new sentence");
-  assert.equal(
-    all(card, (n) => n.props?.["data-testid"] === "brief-receipt").length,
-    vm.recap.receipts.length,
-    "every receipt the view model kept",
-  );
+  assert.equal(byTestId(card, "today-recap"), null, "the lines that are not numbers are the brief's (brief-pane.tsx)");
 });
 
 test("a receipt opens on hover, focus or a tap, says its why with one door, never repeats the figure, and closes on Escape", () => {
@@ -676,9 +680,13 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
   const line = byTestId(tree, "today-period");
   assert.equal(textOf(line), todayPeriodLine(reports()).text);
   assert.match(textOf(line), /^Last 7 days: 24 messages \(up from 19\), 88% answered by the receptionist, 4 calls\.$/);
-  press(buttons(tree, "Open Reports")[0]);
+  press(buttons(tree, "Reports")[0]);
   assert.equal(went.at(-1), "reports");
-  assert.equal(buttons(tree, "Open Reports").length, 1, "one door to Reports on the card: the period card had two");
+  assert.equal(
+    buttons(tree, "Reports").length,
+    1,
+    "one door to Reports on the card, in its head (E3): the period card had two",
+  );
   set({ __REPORTS: undefined });
   failed.add("reports");
   const broke = draw(TodayCard);
@@ -690,24 +698,26 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
   assert.equal(byTestId(loading, "today-period-failed"), null, "not read yet is not failed");
 });
 
-test("a quiet day: the card says nothing came in, proves the lines are listening, and keeps its one door; no figures", () => {
+test("a quiet day: the tile is four zeros, and the brief says nothing came in and proves the lines are listening", () => {
   clear();
   const vm = quietDay();
-  set({ today: vm });
+  set({ today: vm, __REPORTS: reports() });
   const tree = draw(TodayCard);
-  assert.equal(byTestId(tree, "today-figures"), null, "no row of zeros");
-  const line = textOf(byTestId(tree, "today-quiet-line"));
-  assert.ok(line.includes("Nothing has come in yet today.") && line.includes(vm.proof), line);
+  assert.ok(byTestId(tree, "today-figures"), "the tile whole: four zeros (E3)");
+  assert.equal(byTestId(tree, "today-quiet-line"), null, "no sentence in the head: the brief says the day");
   assert.match(
     vm.proof,
     /^The last message arrived yesterday at 5:39 PM, and the receptionist answered 1m 18s later\.$/,
   );
-  const proof = byTestId(tree, "brief-quiet-proof");
+  const pane = draw(TodayBriefPane);
+  assert.ok(textOf(byTestId(pane, "today-brief-line")).includes(vm.proof), "the brief says the proof");
+  const proof = byTestId(pane, "brief-quiet-proof");
   // REGRESSION (24 Sep): the proof printed the column, "WhatsApp: +12125550142 · on".
   assert.ok(textOf(proof).includes("WhatsApp: +1 (212) 555-0142 · on"), textOf(proof));
-  press(buttons(tree, "earlier conversation")[0]);
+  press(buttons(pane, "earlier conversation")[0]);
   assert.equal(went.at(-1), "conversations");
-  // No traffic while a handoff waits: not a quiet day, and no figure to hang the proof on. The card still says it.
+  // No traffic while a handoff waits: not a quiet day, and no figure counted. The tile stands as four zeros, and the
+  // brief still says the proof.
   const waiting = toTodayVM(
     metrics({
       period: {
@@ -734,19 +744,21 @@ test("a quiet day: the card says nothing came in, proves the lines are listening
   );
   assert.equal(waiting.quiet, null);
   assert.equal(waiting.figures, null);
+  assert.ok(waiting.zero_figures, "nothing counted: the zeros");
   set({ today: waiting });
   const held = draw(TodayCard);
-  assert.equal(byTestId(held, "today-figures"), null);
+  assert.ok(byTestId(held, "today-figures"), "the four zeros");
+  assert.equal(byTestId(held, "today-quiet-line"), null);
   assert.ok(
-    textOf(byTestId(held, "today-quiet-line")).includes(waiting.proof),
+    textOf(byTestId(draw(TodayBriefPane), "today-brief-line")).includes(waiting.proof),
     "REGRESSION: the proof vanished exactly when an owner needed it",
   );
 });
 
-test("the calls read failed: the card says so under the figures, once", () => {
+test("the calls read failed: the brief says so, once", () => {
   clear();
   set({ today: toTodayVM(metrics(), threads(), escalations(), null, NOW) });
-  const tree = draw(TodayCard);
+  const tree = draw(TodayBriefPane);
   assert.ok(byTestId(tree, "brief-calls-failed"));
   assert.equal(all(tree, (n) => String(n.props?.className || "").includes("empty-failed")).length, 1);
 });
@@ -789,12 +801,12 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
     textOf(waiting),
   );
   // Four rows: the two people waiting, then both runs — the one waiting for a word, then the one under its
-  // veto window. Everything fits, so there is no foot; what does not fit is the next test's business.
+  // veto window. Everything fits, and the foot says so (E3); what does not fit is the next test's business.
   assert.ok(byTestId(queue, "brief-run-soon"), "the scheduled run has a seat once the people are drawn");
-  assert.equal(
-    find(queue, (n) => classes(n).includes("tq-foot")),
-    null,
-    "nothing was cut, so nothing is counted",
+  assert.match(
+    textOf(find(queue, (n) => classes(n).includes("tq-foot"))),
+    /Nothing more in the Inbox/,
+    "nothing was cut, and the foot says so",
   );
   assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 4, "the card is four rows");
   await press(buttons(waiting, "Approve")[0]);
@@ -813,57 +825,6 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
     busy().queue.rows.length,
     "the rows themselves stand",
   );
-});
-
-test("a snooze or a resolve from the queue is said the moment the server takes it, not after the surfaces are read again", async () => {
-  clear();
-  const vm = busy();
-  const row = vm.queue.rows.find((r) => r.also);
-  assert.ok(row, "the fixture has a person with a second act");
-  // The verb goes through the typed client to `fetch` (surfaces/inbox/verbs.ts): the server takes the write at once, and
-  // the reads behind it (the Inbox, the threads, Today) wait here until the test lets them land.
-  const asks = [];
-  const reads = [];
-  let reread = () => {};
-  const landing = new Promise((r) => {
-    reread = r;
-  });
-  let answer = () => json(200, { ok: true, data: {} });
-  globalThis.window.fetch = async (url, init = {}) => {
-    const u = new URL(String(url), "https://app.chanlytics.com");
-    if ((init.method ?? "GET") !== "GET") {
-      asks.push([init.method, u.pathname]);
-      return answer();
-    }
-    reads.push(u.pathname);
-    await landing;
-    return refused();
-  };
-  try {
-    set({ today: vm, __BROADCASTS: broadcasts() });
-    const queue = byTestId(draw(AgentCommand), "today-queue");
-    const act = byTestId(queue, `queue-${row.also.verb}`);
-    let finished = false;
-    const done = Promise.resolve(press(act)).then(() => {
-      finished = true;
-    });
-    for (let i = 0; i < 1000 && (flashes.length === 0 || reads.length === 0); i++) await settle();
-    assert.equal(asks.length, 1, "one ask, to the server");
-    assert.equal(flashes.length, 1, "said at acceptance, while the Inbox, the threads and Today are read again");
-    assert.match(textOf(flashes[0].msg), new RegExp(row.who));
-    assert.ok(reads.length > 0 && !finished, "and the surfaces are still being read again: the verb has not returned");
-    reread();
-    await done;
-    assert.equal(flashes.length, 1, "and said once");
-    // A refusal is the refusal, once.
-    answer = () => json(409, { ok: false, error: { code: "conflict", message: "A teammate has this one now." } });
-    await press(byTestId(byTestId(draw(AgentCommand), "today-queue"), `queue-${row.also.verb}`));
-    assert.equal(asks.length, 2);
-    assert.equal(flashes.length, 2);
-  } finally {
-    reread();
-    globalThis.window.fetch = async () => refused();
-  }
 });
 
 test("a run's Approve from the queue is said the moment the server takes it, with what it scheduled, not after the runs are read again", async () => {
@@ -938,10 +899,10 @@ test("four rows: people take three while a run wants the fourth, and all four wh
     four.map((r) => textOf(find(r, (n) => classes(n).includes("cl-attn-who")))),
     ["Person one", "Person two", "Person three", "Person four"],
   );
-  assert.equal(
-    find(only, (n) => classes(n).includes("tq-foot")),
-    null,
-    "with the fourth person drawn there is nothing left to count",
+  assert.match(
+    textOf(find(only, (n) => classes(n).includes("tq-foot"))),
+    /Nothing more in the Inbox/,
+    "with the fourth person drawn there is nothing left to count, and the foot says so (E3)",
   );
 });
 
@@ -1621,7 +1582,7 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
 
 /* ------------------------------------ the composition ------------------------------------ */
 
-test("the page is three bands and nothing seeded: the standing line, the queue with the day, the card, worth a look with away", () => {
+test("the page is its bands and nothing seeded", () => {
   clear();
   set({
     today: busy(),
@@ -1634,8 +1595,9 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
   });
   W.__DEMO_MODE = true;
   const tree = draw(DashboardA);
-  const order = ["today-queue", "today-day", "today-card", "today-leaks", "today-away"].map((id) => byTestId(tree, id));
+  const order = ["today-queue", "today-card", "today-leaks", "today-away"].map((id) => byTestId(tree, id));
   assert.ok(order.every(Boolean), "every band");
+  assert.equal(byTestId(tree, "today-day"), null, "no day pane: the strip says the day (E3)");
   const names = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);
   for (const seeded of [
     "NowPlayingRail",
@@ -1651,54 +1613,29 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
     "BriefBeats",
   ])
     assert.ok(!names.includes(seeded), `${seeded} is gone from Today`);
-  const page = find(tree, (n) => classes(n).includes("dash-a-v2"));
-  assert.deepEqual(
-    page.props.children.map((c) => (typeof c.type === "function" ? c.type.name : String(c.props.className))),
-    // No band above the queue: on a phone Ask is the ✦'s full-screen takeover (ask-real.jsx), not a part of Today. The
-    // lists a member pinned (decision 0009) are one row under the card, drawn only when something is pinned.
-    ["HeroBrief", "dash-a-v2-core", "TodayCard", "TodayPins", "dash-a-v2-foot"],
-  );
   const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
-  const core = find(tree, (n) => classes(n).includes("dash-a-v2-core"));
-  assert.deepEqual(core.props.children.map(name), ["dash-a-v2-work", "TodayDay"]);
   // What is left to set up sits above the queue in its column, never across the page (canvas R10).
   const work = find(tree, (n) => classes(n).includes("dash-a-v2-work"));
   assert.deepEqual(work.props.children.map(name), ["TodaySetup", "AgentCommand"]);
-  const foot = find(tree, (n) => classes(n).includes("dash-a-v2-foot"));
-  assert.deepEqual(
-    foot.props.children.filter((c) => c && typeof c.type === "function").map((c) => c.type.name),
-    ["TodayLeaks", "TodayAway"],
-  );
   assert.equal(
-    buttons(byTestId(tree, "today-card"), "Open Reports").length,
+    buttons(byTestId(tree, "today-card"), "Reports").length,
     1,
-    "the card's one door to Reports (Worth a look's unanswered row keeps its own, to the tile that prints the figure)",
+    "the card's one door to Reports, in its head (Worth a look's unanswered row keeps its own, to the tile that prints the figure)",
   );
   assert.equal(
     all(tree, (n) => n.props?.["data-testid"] === "today-recap").length,
     1,
-    "the not-numbers live in one place",
+    "the not-numbers live in one place: the brief's",
   );
   W.__DEMO_MODE = false;
 });
 
 /* ------------------------------------ Glass (canvas E3) ------------------------------------ */
 
-// The look is on the document (kit/look/look.tsx lookNow); the stub's document says none, which is Classic, so every
-// test above is Classic's. These stamp Glass on it for their run: what Glass draws that Classic does not, after the
-// review of Today against E3 (1 October 2026): the queue's foot whatever was cut and one verb a row, the bell's rows
-// without a dismiss, the brief's Listen where the device can speak, the day's card with its door in the head, the
-// strip's bold start, and the bento without a day pane.
-const inGlass = (run) => {
-  const doc = W.document.documentElement;
-  const was = doc.getAttribute;
-  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
-  try {
-    return run();
-  } finally {
-    doc.getAttribute = was;
-  }
-};
+// Glass is the one look since Classic retired (the plan's step 5.7, 2 October 2026): what the review of Today against E3
+// (1 October 2026) gave it is what the page draws, with no stamp on the document to ask for: the queue's foot whatever
+// was cut and one verb a row, the bell's rows without a dismiss, the brief's Listen where the device can speak, the
+// day's card with its door in the head, the strip's bold start, and the bento without a day pane.
 const emptyBell = () => ({
   feed: () => [],
   onChange: () => () => {},
@@ -1708,9 +1645,9 @@ const emptyBell = () => ({
   unread: () => 0,
 });
 
-test("Glass: the queue's foot stands with nothing cut and says so, and a row carries its one verb", () => {
+test("the queue's foot stands with nothing cut and says so, and a row carries its one verb", () => {
   clear();
-  // Ana's row asks a second thing of you (snooze): Classic draws it as the quiet second verb.
+  // Ana's row asks a second thing of you (snooze): the row still carries one verb; the thread's acts are the Inbox's.
   const vm = busy();
   vm.queue.rows = vm.queue.rows.map((r, i) =>
     i === 0
@@ -1718,29 +1655,20 @@ test("Glass: the queue's foot stands with nothing cut and says so, and a row car
       : r,
   );
   set({ today: vm, __BROADCASTS: broadcasts() });
-  const classic = byTestId(draw(AgentCommand), "today-queue");
-  assert.equal(all(classic, (n) => n.props?.["data-testid"] === "queue-snooze").length, 1, "Classic: the second verb");
-  assert.equal(
-    find(classic, (n) => classes(n).includes("tq-foot")),
-    null,
-    "Classic: nothing cut, no foot",
-  );
-  inGlass(() => {
-    const queue = byTestId(draw(AgentCommand), "today-queue");
-    const foot = find(queue, (n) => classes(n).includes("tq-foot"));
-    assert.ok(foot, "the foot stands whatever was cut (E3)");
-    assert.match(textOf(foot), /Nothing more in the Inbox/, "and says the card holds everything");
-    const seeAll = buttons(foot, "See all");
-    assert.equal(seeAll.length, 1);
-    press(seeAll[0]);
-    assert.equal(went.at(-1), "inbox");
-    assert.equal(all(queue, (n) => n.props?.["data-testid"] === "queue-snooze").length, 0, "one verb a row (E3)");
-    assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 4, "the same four rows");
-    assert.ok(byTestId(queue, "today-queue-count"), "the count before the name");
-  });
+  const queue = byTestId(draw(AgentCommand), "today-queue");
+  const foot = find(queue, (n) => classes(n).includes("tq-foot"));
+  assert.ok(foot, "the foot stands whatever was cut (E3)");
+  assert.match(textOf(foot), /Nothing more in the Inbox/, "and says the card holds everything");
+  const seeAll = buttons(foot, "See all");
+  assert.equal(seeAll.length, 1);
+  press(seeAll[0]);
+  assert.equal(went.at(-1), "inbox");
+  assert.equal(all(queue, (n) => n.props?.["data-testid"] === "queue-snooze").length, 0, "one verb a row (E3)");
+  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 4, "the same four rows");
+  assert.ok(byTestId(queue, "today-queue-count"), "the count before the name");
 });
 
-test("Glass: the bell's rows carry no dismiss of their own; Mark all read stays", () => {
+test("the bell's rows carry no dismiss of their own; Mark all read stays", () => {
   clear();
   const rows = [
     bellRow("n:1", "review", "1 new rating on Google", "ok"),
@@ -1748,24 +1676,18 @@ test("Glass: the bell's rows carry no dismiss of their own; Mark all read stays"
   ];
   const api = { ...emptyBell(), feed: () => rows, unread: () => unreadCount(rows) };
   set({ today: busy(), __notifs: api });
-  const classic = draw(TodayAway);
-  assert.equal(all(classic, (n) => classes(n).includes("ta-x")).length, 2, "Classic: a dismiss per row");
-  inGlass(() => {
-    const glass = draw(TodayAway);
-    assert.equal(all(glass, (n) => n.props?.["data-testid"] === "today-away-row").length, 2, "the same rows");
-    assert.equal(all(glass, (n) => classes(n).includes("ta-x")).length, 0, "no dismiss (E3)");
-    assert.equal(buttons(glass, "Mark all read").length, 1);
-  });
+  const glass = draw(TodayAway);
+  assert.equal(all(glass, (n) => n.props?.["data-testid"] === "today-away-row").length, 2, "the same rows");
+  assert.equal(all(glass, (n) => classes(n).includes("ta-x")).length, 0, "no dismiss (E3)");
+  assert.equal(buttons(glass, "Mark all read").length, 1);
 });
 
 test("Glass brief: Listen is absent where the device cannot play audio, and the follow-up stands alone", () => {
   clear();
   set({ today: busy(), __REPORTS: reports() });
-  inGlass(() => {
-    const silent = draw(TodayBriefPane);
-    assert.equal(byTestId(silent, "today-brief-listen"), null, "no voice on this device: no Listen");
-    assert.equal(buttons(silent, "Ask a follow-up").length, 1, "the follow-up stands alone");
-  });
+  const silent = draw(TodayBriefPane);
+  assert.equal(byTestId(silent, "today-brief-listen"), null, "no voice on this device: no Listen");
+  assert.equal(buttons(silent, "Ask a follow-up").length, 1, "the follow-up stands alone");
 });
 
 /** Ask's voice stood in for (legacy-bridge/ask/speech.ts as the pane reads it off window.__ask): the clip lands when the test says. */
@@ -1824,9 +1746,6 @@ test("Glass brief: Listen reads the brief's own words in Ask's voice, says it is
   const s = speechStub();
   W.__ask = s.stub;
   globalThis.__ask = s.stub;
-  const doc = W.document.documentElement;
-  const was = doc.getAttribute;
-  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
   try {
     fresh();
     const tree = again(() => TodayBriefPane());
@@ -1864,7 +1783,6 @@ test("Glass brief: Listen reads the brief's own words in Ask's voice, says it is
     );
     assert.equal(s.spoken.length, 1, "and asked for nothing more");
   } finally {
-    doc.getAttribute = was;
     delete W.__ask;
     delete globalThis.__ask;
   }
@@ -1876,9 +1794,6 @@ test("Glass brief: a clip that could not be made says why beside Listen, in the 
   const s = speechStub();
   W.__ask = s.stub;
   globalThis.__ask = s.stub;
-  const doc = W.document.documentElement;
-  const was = doc.getAttribute;
-  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
   try {
     fresh();
     press(
@@ -1909,7 +1824,6 @@ test("Glass brief: a clip that could not be made says why beside Listen, in the 
       "and the old reason is gone",
     );
   } finally {
-    doc.getAttribute = was;
     delete W.__ask;
     delete globalThis.__ask;
   }
@@ -1921,9 +1835,6 @@ test("Glass brief: a pane drawn again while the clip plays (Today redrew itself)
   const s = speechStub();
   W.__ask = s.stub;
   globalThis.__ask = s.stub;
-  const doc = W.document.documentElement;
-  const was = doc.getAttribute;
-  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
   try {
     fresh();
     press(
@@ -1949,13 +1860,12 @@ test("Glass brief: a pane drawn again while the clip plays (Today redrew itself)
     );
     assert.equal(after.props["aria-pressed"], false, "the clip ending lets go of Stop");
   } finally {
-    doc.getAttribute = was;
     delete W.__ask;
     delete globalThis.__ask;
   }
 });
 
-test("Glass brief: who needs you in bold with the oldest wait, the calendar's day, what came in, the run waiting; and the voice reads the same words", () => {
+test("the brief: who needs you in bold with the oldest wait, the calendar's day, what came in, the run waiting; and the voice reads the same words", () => {
   clear();
   set({
     today: busy(),
@@ -1963,107 +1873,80 @@ test("Glass brief: who needs you in bold with the oldest wait, the calendar's da
     __BROADCASTS: broadcasts(),
     __CALENDAR: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]),
   });
-  // Classic draws no brief pane of its own words: the pane is Glass's, so the test only reads it in Glass.
-  inGlass(() => {
-    const tree = draw(TodayBriefPane);
-    const line = byTestId(tree, "today-brief-line");
-    const said = textOf(line);
-    const bold = all(line, (n) => n.type === "b").map(textOf);
-    // Who needs you first, in bold: Ana's handoff is the queue's one person waiting (busy()), and the headline's
-    // detail about her wait folds into the same sentence rather than naming her twice.
-    assert.ok(bold.includes("Ana Reyes"), `the name in bold: ${bold.join(" | ")}`);
-    assert.match(said, /^Ana Reyes needs you, waiting since \d/, said);
-    assert.ok(!said.includes("Ana Reyes has been waiting"), `said once: ${said}`);
-    // The call worth a listen, then the day: one appointment to come, with whom, in bold, and when.
-    assert.match(said, /One call is worth a listen\. 1 appointment today: next is Dulce Amaro at /, said);
-    assert.ok(bold.includes("Dulce Amaro"));
-    // Then what came in (the recap's line), then the run waiting for a word, its name in bold.
-    assert.ok(said.includes(busy().recap.line), said);
-    assert.match(said, /Win-back is waiting for your word: .*Nothing sends until you say so\./, said);
-    assert.ok(bold.includes("Win-back"));
-    // The same words are what the follow-up asks about.
-    press(buttons(tree, "Ask a follow-up")[0]);
-    assert.ok(asked.at(-1).prompt.startsWith(said), "the follow-up is grounded in the brief as drawn");
-  });
+  const tree = draw(TodayBriefPane);
+  const line = byTestId(tree, "today-brief-line");
+  const said = textOf(line);
+  const bold = all(line, (n) => n.type === "b").map(textOf);
+  // Who needs you first, in bold: Ana's handoff is the queue's one person waiting (busy()), and the headline's
+  // detail about her wait folds into the same sentence rather than naming her twice.
+  assert.ok(bold.includes("Ana Reyes"), `the name in bold: ${bold.join(" | ")}`);
+  assert.match(said, /^Ana Reyes needs you, waiting since \d/, said);
+  assert.ok(!said.includes("Ana Reyes has been waiting"), `said once: ${said}`);
+  // The call worth a listen, then the day: one appointment to come, with whom, in bold, and when.
+  assert.match(said, /One call is worth a listen\. 1 appointment today: next is Dulce Amaro at /, said);
+  assert.ok(bold.includes("Dulce Amaro"));
+  // Then what came in (the recap's line), then the run waiting for a word, its name in bold.
+  assert.ok(said.includes(busy().recap.line), said);
+  assert.match(said, /Win-back is waiting for your word: .*Nothing sends until you say so\./, said);
+  assert.ok(bold.includes("Win-back"));
+  // The same words are what the follow-up asks about.
+  press(buttons(tree, "Ask a follow-up")[0]);
+  assert.ok(asked.at(-1).prompt.startsWith(said), "the follow-up is grounded in the brief as drawn");
 });
 
-test("Glass card on a quiet day: the four figures as zeros, no quiet sentence in the head; Classic keeps the sentence", () => {
+test("the card on a quiet day: the four figures as zeros, no quiet sentence in the head", () => {
   clear();
   set({ today: quietDay(), __REPORTS: reports() });
-  const classic = byTestId(draw(TodayCard), "today-card");
-  assert.equal(byTestId(classic, "today-figures"), null, "Classic: no figures on a quiet day");
-  assert.ok(byTestId(classic, "today-quiet-line"), "Classic: the quiet sentence");
-  inGlass(() => {
-    const glass = byTestId(draw(TodayCard, { beats: false }), "today-card");
-    assert.equal(byTestId(glass, "today-quiet-line"), null, "Glass: the tile is the figures");
-    assert.deepEqual(
-      all(glass, (n) => classes(n).includes("tc-fig-n")).map(textOf),
-      ["0", "0", "0", "0"],
-      "the four zeros",
-    );
-    assert.equal(
-      all(glass, (n) => n.type === "button" && classes(n).includes("tc-fig-btn")).length,
-      0,
-      "no receipt to open: none of the four is a button",
-    );
-  });
-});
-
-test("Glass card: the door to Reports stands in the head as words, none in the foot; Classic keeps the foot's", () => {
-  clear();
-  set({ today: busy(), __REPORTS: reports() });
-  const classic = byTestId(draw(TodayCard), "today-card");
-  assert.equal(
-    buttons(
-      find(classic, (n) => classes(n).includes("tc-foot")),
-      "Open Reports",
-    ).length,
-    1,
+  const glass = byTestId(draw(TodayCard), "today-card");
+  assert.equal(byTestId(glass, "today-quiet-line"), null, "the tile is the figures");
+  assert.deepEqual(
+    all(glass, (n) => classes(n).includes("tc-fig-n")).map(textOf),
+    ["0", "0", "0", "0"],
+    "the four zeros",
   );
   assert.equal(
+    all(glass, (n) => n.type === "button" && classes(n).includes("tc-fig-btn")).length,
+    0,
+    "no receipt to open: none of the four is a button",
+  );
+});
+
+test("the card's door to Reports stands in the head as words, none in the foot", () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  const glass = byTestId(draw(TodayCard), "today-card");
+  const door = buttons(
+    find(glass, (n) => classes(n).includes("tc-head")),
+    "Reports",
+  );
+  assert.equal(door.length, 1, "the door in the head (E3)");
+  assert.equal(door[0].props["aria-label"], "Open Reports", "named for a reader as the foot's was");
+  press(door[0]);
+  assert.equal(went.at(-1), "reports");
+  assert.equal(
     buttons(
-      find(classic, (n) => classes(n).includes("tc-head")),
+      find(glass, (n) => classes(n).includes("tc-foot")),
       "Reports",
     ).length,
     0,
+    "none in the foot",
   );
-  inGlass(() => {
-    const glass = byTestId(draw(TodayCard, { beats: false }), "today-card");
-    const door = buttons(
-      find(glass, (n) => classes(n).includes("tc-head")),
-      "Reports",
-    );
-    assert.equal(door.length, 1, "the door in the head (E3)");
-    assert.equal(door[0].props["aria-label"], "Open Reports", "named for a reader as the foot's was");
-    press(door[0]);
-    assert.equal(went.at(-1), "reports");
-    assert.equal(
-      buttons(
-        find(glass, (n) => classes(n).includes("tc-foot")),
-        "Reports",
-      ).length,
-      0,
-      "none in the foot",
-    );
-    assert.ok(byTestId(glass, "today-period"), "the period's line stays");
-  });
+  assert.ok(byTestId(glass, "today-period"), "the period's line stays");
 });
 
-test("Glass strip: the next appointment's start in bold before its words, the cell saying Next", () => {
+test("the strip: the next appointment's start in bold before its words, the cell saying Next", () => {
   clear();
   set({ today: busy(), __CALENDAR: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]) });
-  inGlass(() => {
-    const strip = byTestId(draw(TodayStrip), "today-strip");
-    assert.ok(strip, "the strip stands: an appointment to come");
-    assert.equal(byTestId(strip, "today-strip-live"), null, "no call up");
-    const words = find(byTestId(strip, "today-strip-next"), (n) => classes(n).includes("ts-words"));
-    assert.equal(words.props["data-phase"], "Next", "a phone draws the phase into the words");
-    assert.ok(textOf(find(words, (n) => n.type === "b")).length > 0, "the start, in bold");
-    assert.match(textOf(find(words, (n) => classes(n).includes("ts-rest"))), /Dulce Amaro/, "then who it is with");
-  });
+  const strip = byTestId(draw(TodayStrip), "today-strip");
+  assert.ok(strip, "the strip stands: an appointment to come");
+  assert.equal(byTestId(strip, "today-strip-live"), null, "no call up");
+  const words = find(byTestId(strip, "today-strip-next"), (n) => classes(n).includes("ts-words"));
+  assert.equal(words.props["data-phase"], "Next", "a phone draws the phase into the words");
+  assert.ok(textOf(find(words, (n) => n.type === "b")).length > 0, "the start, in bold");
+  assert.match(textOf(find(words, (n) => classes(n).includes("ts-rest"))), /Dulce Amaro/, "then who it is with");
 });
 
-test("Glass bento (E3): the strip, the queue's column beside the brief and the bell, the card beside Worth a look, the pins; no day pane", () => {
+test("the bento (E3): the strip, the queue's column beside the brief and the bell, the card beside Worth a look, the pins; no day pane", () => {
   clear();
   set({
     today: busy(),
@@ -2074,27 +1957,25 @@ test("Glass bento (E3): the strip, the queue's column beside the brief and the b
     __PLAYBOOKS: { rows: [] },
     __notifs: emptyBell(),
   });
-  inGlass(() => {
-    const tree = draw(DashboardA);
-    const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
-    const page = find(tree, (n) => classes(n).includes("dash-a-v2-glass"));
-    assert.ok(page, "the Glass composition");
-    assert.deepEqual(page.props.children.map(name), [
-      "HeroBrief",
-      "TodayStrip",
-      "dash-a-v2-work",
-      "dash-a-v2-side",
-      "dash-a-v2-bottom",
-      "TodayPins",
-    ]);
-    const side = find(tree, (n) => classes(n).includes("dash-a-v2-side"));
-    assert.deepEqual(
-      side.props.children.map(name),
-      ["TodayBriefPane", "TodayAway"],
-      "no day pane: the strip says the day",
-    );
-    assert.equal(byTestId(tree, "today-day"), null);
-    const bottom = find(tree, (n) => classes(n).includes("dash-a-v2-bottom"));
-    assert.deepEqual(bottom.props.children.map(name), ["TodayCard", "TodayLeaks"]);
-  });
+  const tree = draw(DashboardA);
+  const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
+  const page = find(tree, (n) => classes(n).includes("dash-a-v2-glass"));
+  assert.ok(page, "the Glass composition");
+  assert.deepEqual(page.props.children.map(name), [
+    "HeroBrief",
+    "TodayStrip",
+    "dash-a-v2-work",
+    "dash-a-v2-side",
+    "dash-a-v2-bottom",
+    "TodayPins",
+  ]);
+  const side = find(tree, (n) => classes(n).includes("dash-a-v2-side"));
+  assert.deepEqual(
+    side.props.children.map(name),
+    ["TodayBriefPane", "TodayAway"],
+    "no day pane: the strip says the day",
+  );
+  assert.equal(byTestId(tree, "today-day"), null);
+  const bottom = find(tree, (n) => classes(n).includes("dash-a-v2-bottom"));
+  assert.deepEqual(bottom.props.children.map(name), ["TodayCard", "TodayLeaks"]);
 });

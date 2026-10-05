@@ -63,6 +63,7 @@ const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sa
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { playbooks: verbs } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
 const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
 const { ReachOutPane } = await import(`${SRC}/surfaces/campaigns/reach-out/row.tsx`);
@@ -128,6 +129,11 @@ const fresh = () => {
 const page = (param = null) => again(() => CampaignsHome({ param, nowMs: NOW }));
 const allBy = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id);
 const pressed = (n) => press(n);
+/** What the page last said to the frame's head (kit/head/standing.ts): the name, the line and the acts, which the frame draws. */
+const headSaid = () => {
+  const said = standingSaid();
+  return { props: { children: [said?.title ?? null, said?.sentence ?? null, said?.act ?? null] } };
+};
 
 /* ---------------------------------------------- the page, drawn ---------------------------------------------- */
 
@@ -172,24 +178,26 @@ test("a rung's bar is its share of the whole: everyone in People fills it, and t
 test("the head says the page's line with its numbers in bold, the Library with its count, and New message", () => {
   surfaces();
   fresh();
-  const tree = page();
-  const head = byTestId(tree, "cmh-head") ?? find(tree, (n) => n.props?.testid === "cmh-head");
-  assert.ok(head, "the page opens on its head");
-  const text = textOf(tree);
+  page();
+  assert.equal(standingSaid()?.title, "Campaigns", "the page opens on its head, said to the frame");
+  const head = headSaid();
+  const text = textOf(head);
   assert.match(text, /What goes out on its own as a customer reaches a moment, and what you send yourself\./);
   assert.match(text, /moments are covered, and 7 of your 29 people can hear from you/);
-  assert.ok(byTestId(tree, "cmh-library"));
-  assert.match(textOf(byTestId(tree, "cmh-library")), /Library/);
-  assert.ok(byTestId(tree, "cmh-new"));
+  assert.ok(byTestId(head, "cmh-library"));
+  assert.match(textOf(byTestId(head, "cmh-library")), /Library/);
+  assert.ok(byTestId(head, "cmh-new"));
 });
 
 test("the head keeps the quiet allowance line once half the month's emails or texts are used, and says nothing before", () => {
   surfaces({ broadcasts: { month_sent: { email: 1240, sms: 0 } } });
   fresh();
-  assert.match(textOf(page()), /1,240 of 2,000 emails used this month/);
+  page();
+  assert.match(textOf(headSaid()), /1,240 of 2,000 emails used this month/);
   surfaces({ broadcasts: { month_sent: { email: 100, sms: 0 } } });
   fresh();
-  assert.ok(!/used this month/.test(textOf(page())));
+  page();
+  assert.ok(!/used this month/.test(textOf(headSaid())));
 });
 
 test("the page draws nothing before the playbooks have landed, and a demo session draws the samples", () => {
@@ -248,7 +256,8 @@ test("a Turn on opens the composer on the moment it was pressed for", () => {
 test("New message opens the composer on Send once", () => {
   surfaces();
   fresh();
-  pressed(byTestId(page(), "cmh-new"));
+  page();
+  pressed(byTestId(headSaid(), "cmh-new"));
   assert.deepEqual(went, ["campaigns/new"]);
 });
 
@@ -433,7 +442,8 @@ test("a word the page does not know is the home, never a page of nothing", () =>
 test("the Library is a door to the Templates page, and Back closes a thing the page opened", () => {
   surfaces();
   fresh();
-  pressed(byTestId(page(), "cmh-library"));
+  page();
+  pressed(byTestId(headSaid(), "cmh-library"));
   assert.deepEqual(went, ["messages"], "the Library is the messages page, a room of the home");
   // A moment opened by a press is a pushed entry: closing it goes back, so Back and Close are one thing.
   fresh();
@@ -815,17 +825,20 @@ test("the head says offers by email are paused, from the email channel's own rea
     broadcasts: withOffers({ ok: false, why: "paused", paused: { at: "2026-10-01T00:00:00Z", reason: "bounces" } }),
   });
   fresh();
+  page();
   assert.equal(
-    textOf(byTestId(page(), "cmh-paused")),
+    textOf(byTestId(headSaid(), "cmh-paused")),
     "Offers and news by email are paused: too many offers went to addresses that did not accept them. Appointment messages and replies still go by email.",
     "the quiet line, under the sentence",
   );
   surfaces({ broadcasts: withOffers({ ok: true, why: null, paused: null }) });
   fresh();
-  assert.equal(byTestId(page(), "cmh-paused"), null, "offers open: a quiet page says nothing");
+  page();
+  assert.equal(byTestId(headSaid(), "cmh-paused"), null, "offers open: a quiet page says nothing");
   surfaces();
   fresh();
-  assert.equal(byTestId(page(), "cmh-paused"), null);
+  page();
+  assert.equal(byTestId(headSaid(), "cmh-paused"), null);
 });
 
 test("the home reads the clock again each minute and when the tab comes back, so Today and Tomorrow in Coming up roll over midnight while it is open", () => {
@@ -902,10 +915,11 @@ test("the Library's count is the Library page's own: the same templates, languag
     templatesAll: rows,
   });
   fresh();
-  const library = TemplatesPage();
-  const said = Number(/\d+/.exec(textOf(byTestId(library, "messages-count")))[0]);
+  TemplatesPage();
+  const said = Number(/\d+/.exec(textOf(byTestId(headSaid(), "messages-count")))[0]);
   fresh();
-  const act = Number(/\d+/.exec(textOf(byTestId(page(), "cmh-library")).replace("Library", ""))[0]);
+  page();
+  const act = Number(/\d+/.exec(textOf(byTestId(headSaid(), "cmh-library")).replace("Library", ""))[0]);
   assert.equal(act, said, "one count");
   assert.equal(
     act,

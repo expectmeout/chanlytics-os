@@ -279,7 +279,7 @@ const { installPolicyStore } = await import(`${S}/legacy-bridge/policy-store.ts`
 installPolicyStore(globalThis.window);
 // Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
 const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
-const { TodayCard } = await import(`${S}/surfaces/today/pages/card.tsx`);
+const { TodayBriefPane } = await import(`${S}/surfaces/today/pages/brief-pane.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastsPage } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { CampaignsHome } = await import(`${S}/surfaces/campaigns/home/home-page.tsx`);
@@ -411,7 +411,7 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a
   );
   // The layout is the Inbox's list + pane (Claude Video/docs/2026-10-02-campaigns-on-the-kit.md §3.1): the ledger stays the
   // list, and the report is the pane beside it, its head (a CmPane's) saying the run's name and state.
-  assert.ok(byTestId(tree, "bc-head"), "the report is a pane: the ledger stays the list beside it");
+  assert.ok(byTestId(tree, "bc-runs"), "the report is a pane: the ledger stays the list beside it");
   assert.equal(byTestId(tree, "bc-composer"), null);
   const solo0 = byTestId(tree, "bc-run-solo");
   assert.equal(paneTitle(tree), "Win-back · 2026-09-10", "the run's name is the pane's title");
@@ -634,8 +634,9 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
       "REGRESSION: Playbooks, and the page of every broadcast",
     );
     fresh();
-    // What ran today is a line of the day's card, under the work (TodayCard); it was a beat of the hero above it.
-    const recap = TodayCard();
+    // What ran today is a line of the brief beside the queue (TodayBriefPane, canvas E3); it was a beat of the hero
+    // above it, then of the day's card.
+    const recap = TodayBriefPane();
     press(buttonsSaying(byTestId(recap, "brief-run-done"), "Open")[0]);
     assert.deepEqual(went, ["broadcasts/run:b-done"]);
   } finally {

@@ -960,6 +960,11 @@ const { plLoadedWords } = await import("../../../../apps/dashboard/src/surfaces/
 const { PipelineScope } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/scope.tsx");
 // The kit's Menu, which a row and a card draw their acts with.
 const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
+const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
+/** The page's one filled button: in the frame's head on a desk (what the page says to it, standing.tsx), the bar's + on a phone. */
+const newOpen = (tree) =>
+  byTestId(tree, "pipeline-new-open") ??
+  find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "pipeline-new-open");
 /** A kit Menu's groups as the list the page built: a heading over its group, a divider between two, an act as `onClick`. */
 const listOf = (menu) =>
   menu.props.groups.flatMap((g, at) => [
@@ -1171,39 +1176,29 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
   const head = find(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("pl-sec-head"));
   assert.equal(head.props.id, undefined);
   const th = find(head, (n) => n.type === "th");
-  assert.deepEqual([th.props.scope, th.props.colSpan], ["rowgroup", 8]);
-  // The headings are contracts', after the selection's box, People's person cell first; Stage is the order it
-  // opens in. Came from and Valid until are the member's to show (Columns).
+  assert.deepEqual([th.props.scope, th.props.colSpan], ["rowgroup", 6]);
+  // The headings are contracts', after the selection's box, People's person cell first, the service under the name (canvas
+  // D1); where it stands is the order it opens in. Came from and Valid until are the member's to show (Columns).
   assert.deepEqual(
     all(
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).map((n) => textOf(n)),
-    ["", "Person", "Service", "Value", "Stage▲", "Next step", "Where it stands", "More"],
-  );
-  // The chip's column says its name to a screen reader only: no one word is right above every chip.
-  const chipHead = all(
-    find(tree, (n) => n.type === "thead"),
-    (n) => n.type === "th",
-  ).find((n) => textOf(n) === "Where it stands");
-  assert.deepEqual(
-    chipHead.props.children.map((k) => [k.type, k.props.className, textOf(k)]),
-    [["span", "rec-sr", "Where it stands"]],
-    "the house's visually hidden words, and nothing seen",
+    ["", "Person", "Value", "Where it stands▲", "Next step", "More"],
   );
   assert.deepEqual(
     all(tree, (n) => n.props?.className === "cl-th-sort").map(textOf),
-    ["Person", "Value", "Stage▲", "Next step"],
-    "the headings that sort are buttons, and Stage is the order it opens in",
+    ["Person", "Value", "Where it stands▲", "Next step"],
+    "the headings that sort are buttons, and where it stands is the order it opens in",
   );
-  // Each row: People's own person cell, the service, the value, the time in stage, and the chip in its tone.
+  // Each row: People's own person cell with the service under the name, the value, the time in stage, and the chip in its tone.
   const wes = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
   assert.ok(
     find(wes, (n) => String(n.props?.className || "").includes("cl-name-cell")),
     "People's person cell",
   );
   assert.deepEqual(
-    ["pipe-service", "pipe-value", "pipe-in-stage"].map((id) => textOf(byTestId(wes, id))),
+    ["row-words", "pipe-value", "pipe-in-stage"].map((id) => textOf(byTestId(wes, id))),
     ["Color correction", "$1,200", "11 d"],
   );
   const chip = byTestId(wes, "pipe-chip");
@@ -1475,7 +1470,7 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
     return true;
   };
   let tree = draw();
-  const open = byTestId(tree, "pipeline-new-open");
+  const open = newOpen(tree);
   assert.deepEqual(
     [open.props.className.includes("btn-primary"), textOf(open).trim()],
     [true, "New proposal"],
@@ -1511,7 +1506,7 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   assert.deepEqual(asked, [{ personId: "wes", mode: "propose" }]);
   assert.equal(byTestId(tree, "pipeline-new"), null, "the picker closes as the sheet opens");
   // Someone new, by number, through People's own door.
-  click(byTestId(tree, "pipeline-new-open"));
+  click(newOpen(tree));
   tree = draw();
   click(byTestId(tree, "pipeline-new-add-open"));
   tree = draw();
@@ -1535,7 +1530,7 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
         details: { fields: { phone: "That is not a mobile number." } },
       },
     });
-  click(byTestId(tree, "pipeline-new-open"));
+  click(newOpen(tree));
   tree = draw();
   click(byTestId(tree, "pipeline-new-add-open"));
   tree = draw();
@@ -1629,7 +1624,7 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
     assert.equal(went.at(-1), "clients/pipeline:v-clients");
     assert.equal(byTestId(draw(), "people-lists-sheet"), null, "a pick closes it");
     // New proposal's picker is a phone's sheet, whose search takes focus as it opens: that sheet has no focus rule.
-    click(byTestId(draw(), "pipeline-new-open"));
+    click(newOpen(draw()));
     const picker = draw();
     assert.ok(byTestId(picker, "pipeline-new-sheet"));
     assert.equal(byTestId(picker, "pipeline-new-search").props.autoFocus, true);
@@ -2545,7 +2540,7 @@ test("a viewer sees New proposal and why they may not press it, and a press open
   globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
   try {
     let tree = draw();
-    const open = byTestId(tree, "pipeline-new-open");
+    const open = newOpen(tree);
     assert.deepEqual([open.props["aria-disabled"], typeof open.props["aria-description"]], [true, "string"]);
     let stopped = false;
     open.props.onClick({
@@ -2586,8 +2581,8 @@ test("the headings sort within each group, kept in the member's view: Value, the
   click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Person")));
   tree = draw();
   assert.deepEqual(rowIds(tree), ["sara", "hana", "wes", "nia", "cat"]);
-  // Stage again: the Pipeline's own order, the way it opened, on the first press.
-  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Stage")));
+  // Where it stands again: the Pipeline's own order, the way it opened, on the first press.
+  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Where it stands")));
   tree = draw();
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
 });
@@ -2608,7 +2603,6 @@ test("Columns shows where they came from and the day a proposal stands until, as
     menu.props.options.map((o) => [o.key, o.on]),
     [
       ["name", true],
-      ["service", true],
       ["value", true],
       ["stage", true],
       ["next", true],
@@ -2626,31 +2620,40 @@ test("Columns shows where they came from and the day a proposal stands until, as
   assert.equal(textOf(valid("cat")), "", "a client's deal stands until no day");
 });
 
-test("each row and card wears its deal's steps beside the time in stage, hidden from a screen reader that hears the head and the chip", async () => {
+test("each card wears its deal's steps beside the time in stage, hidden from a screen reader that hears the head and the chip; a desk's row says it in words alone", async () => {
   await fresh();
-  const tree = draw();
-  const steps = (id) =>
-    all(rowNode(tree, id), (n) => n.props?.className === "pipe-step").map(
-      (n) => `${n.props["data-key"]}:${n.props["data-at"]}:${n.props["data-tone"]}`,
-    );
-  assert.deepEqual(
-    steps("wes"),
-    ["proposal:current:warn", "client:ahead:plain"],
-    "waiting on the owner, as its chip says",
-  );
-  assert.deepEqual(steps("cat"), ["proposal:done:plain", "client:current:ok"]);
-  assert.deepEqual(steps("hana"), ["consultation:done:plain", "proposal:current:warn", "client:ahead:plain"]);
-  assert.deepEqual(steps("sara"), ["consultation:current:info", "proposal:ahead:plain", "client:ahead:plain"]);
-  assert.equal(byTestId(rowNode(tree, "wes"), "pipe-track").props["aria-hidden"], "true");
+  const desk = draw();
   assert.equal(
-    textOf(byTestId(rowNode(tree, "wes"), "pipe-in-stage")),
+    byTestId(rowNode(desk, "wes"), "pipe-track"),
+    null,
+    "canvas D1: a desk's row has no picture of the steps, the chip's words say what it drew",
+  );
+  assert.equal(
+    textOf(byTestId(rowNode(desk, "wes"), "pipe-in-stage")),
     "11 d",
-    "the time in stage beside it, as before",
+    "the time in stage under the chip, as before",
   );
   await onPhone(async () => {
     await fresh();
-    const card = rowNode(draw(), "wes");
-    assert.ok(byTestId(card, "pipe-track"), "a phone's card says the steps in its facts line");
+    const tree = draw();
+    const steps = (id) =>
+      all(rowNode(tree, id), (n) => n.props?.className === "pipe-step").map(
+        (n) => `${n.props["data-key"]}:${n.props["data-at"]}:${n.props["data-tone"]}`,
+      );
+    assert.deepEqual(
+      steps("wes"),
+      ["proposal:current:warn", "client:ahead:plain"],
+      "waiting on the owner, as its chip says",
+    );
+    assert.deepEqual(steps("cat"), ["proposal:done:plain", "client:current:ok"]);
+    assert.deepEqual(steps("hana"), ["consultation:done:plain", "proposal:current:warn", "client:ahead:plain"]);
+    assert.deepEqual(steps("sara"), ["consultation:current:info", "proposal:ahead:plain", "client:ahead:plain"]);
+    assert.equal(byTestId(rowNode(tree, "wes"), "pipe-track").props["aria-hidden"], "true");
+    assert.equal(
+      textOf(byTestId(rowNode(tree, "wes"), "pipe-in-stage")),
+      "11 d",
+      "the time in stage beside it, as before",
+    );
   });
 });
 
@@ -2788,7 +2791,7 @@ test("beside an open peek on a desk the table keeps who and where they stand; th
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).map(textOf),
-    ["", "Person", "Where it stands"],
+    ["", "Person", "Where it stands▲"],
   );
   // Closed again, the table has all its columns back.
   press("Escape");
@@ -2798,7 +2801,7 @@ test("beside an open peek on a desk the table keeps who and where they stand; th
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).length,
-    8,
+    6,
   );
 });
 
@@ -3030,7 +3033,7 @@ test("their next step on the page: a column after Stage that sorts by its day, i
   let tree = draw();
   const heads = all(tree, (n) => n.props?.className === "cl-th-sort").map((n) => textOf(n).trim());
   const at = (w) => heads.findIndex((h) => h.startsWith(w));
-  assert.ok(at("Next step") === at("Stage") + 1, `after Stage: ${heads.join(", ")}`);
+  assert.ok(at("Next step") === at("Where it stands") + 1, `after where it stands: ${heads.join(", ")}`);
   const cell = (id) => byTestId(rowNode(tree, id), "pipe-next");
   const wesWhen = stepDayOf(day(-2), ZONE, now).words;
   assert.equal(textOf(byClass(cell("wes"), "pipe-next-words")), "Send the revised quote");

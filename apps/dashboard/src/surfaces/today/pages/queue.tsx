@@ -15,13 +15,11 @@ import type { TodayQueueRowVM, TodayVM } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../kit/look/look";
-import { inboxVerb } from "../../inbox/verbs";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, doorGlyph, canDo, gate, refusalFlash, surfaceFailed, useMoved, useToast } from "../shell";
+import { appNavigate, doorGlyph, surfaceFailed, useMoved, useToast } from "../shell";
 import { liveClock, useLiveNow } from "./live-now";
-import { broadcastsRead, runRows, runsPending, type Nav, type Say, type VerbKind } from "./queue-runs";
+import { broadcastsRead, runRows, runsPending, type Nav, type VerbKind } from "./queue-runs";
 
 export const AgentCommand = () => {
   useMoved("today");
@@ -75,52 +73,12 @@ const LiveRail = ({ nav }: { nav: Nav }) => {
 const CARD_MAX = 4;
 const PEOPLE_MAX = 3;
 
-/** A person's row's second verb: its words, and which of the two it is. */
-type Also = NonNullable<TodayQueueRowVM["also"]>;
-
 /**
- * A person's second verb, snooze or resolve, on its thread. What it returns is the caller's (the tests await it), so it
- * is typed as nothing React would read.
+ * The people the card draws, each with its one verb, as E3 does (Ruben, 1 Oct 2026: a second word on the row read as
+ * clutter); snooze and resolve are the thread's, in the Inbox.
  */
-const queueVerb: (flash: Say, r: TodayQueueRowVM, also: Also) => unknown = async (flash, r, also) => {
-  if (!canDo("approve")) return;
-  const which = also.verb;
-  // Said the moment the server takes it, not after the Inbox, the threads and Today are read again behind it
-  // (the row itself leaves with that re-read: the server owns the thread).
-  let said = false;
-  const done = () => {
-    said = true;
-    flash({
-      msg:
-        which === "snooze" ? (
-          <>
-            <b>{r.who}</b> snoozed: hidden until they wake or reply
-          </>
-        ) : (
-          <>
-            <b>{r.who}</b>: done, the receptionist has the thread back
-          </>
-        ),
-    });
-  };
-  const res = await inboxVerb(
-    { conversationId: also.conversationId, escalationId: also.escalationId, who: r.who },
-    which,
-    {},
-    { onAccepted: done },
-  );
-  if (!res.ok) flash(refusalFlash(res, which === "snooze" ? "Not snoozed" : "Not resolved"));
-  else if (!said) done();
-};
-
-/**
- * The people the card draws: each with its one verb, and in Classic a second, quiet one where the state asks a second
- * thing. Glass draws the one verb, as E3 does (Ruben, 1 Oct 2026: a second word on the row read as clutter); snooze and
- * resolve are the thread's, in the Inbox.
- */
-function personRows(rows: TodayQueueRowVM[], nav: Nav, flash: Say, verb: { kind: VerbKind; glass: boolean }) {
+function personRows(rows: TodayQueueRowVM[], nav: Nav, verb: { kind: VerbKind }) {
   return rows.map((r) => {
-    const also = verb.glass ? null : r.also;
     return (
       <AttnRow
         key={r.id}
@@ -133,16 +91,7 @@ function personRows(rows: TodayQueueRowVM[], nav: Nav, flash: Say, verb: { kind:
         status={r.status}
         tone={r.tone}
         cta={{ label: r.cta.label, kind: verb.kind(), onClick: () => nav(r.cta.to) }}
-        also={
-          also
-            ? {
-                label: also.label,
-                onClick: () => queueVerb(flash, r, also),
-                gate: gate("approve", also.verb === "snooze" ? "snooze a conversation" : "resolve a conversation"),
-                testid: `queue-${also.verb}`,
-              }
-            : null
-        }
+        also={null}
         onOpen={() => nav(r.cta.to)}
         testid={`queue-${r.kind}`}
       />
@@ -154,21 +103,19 @@ function personRows(rows: TodayQueueRowVM[], nav: Nav, flash: Say, verb: { kind:
  * The head: the title, what the rows hold in words (contracts', with the runs waiting), and the door to the Inbox. In
  * Glass the count stands before the title as its canvas draws it (E3), and the door carries its arrow.
  */
-function queueHead(vm: TodayVM, runsCount: number, nav: Nav, head: { glass: boolean; count: number }) {
+function queueHead(vm: TodayVM, runsCount: number, nav: Nav, head: { count: number }) {
   return (
     <div className="tq-head">
-      {head.glass && (
-        <span className="tq-num tabular" data-testid="today-queue-count">
-          {head.count}
-        </span>
-      )}
+      <span className="tq-num tabular" data-testid="today-queue-count">
+        {head.count}
+      </span>
       <span className="tq-title">Need you</span>
       <span className="tq-sub">
         {[...vm.queue.parts, TODAY_HELPERS.runsSub(runsCount)].filter(Boolean).join(" · ") || vm.queue.empty.sub}
       </span>
       <button type="button" className="tq-open" onClick={() => nav("inbox")}>
         Open Inbox
-        {head.glass && <Icon name={doorGlyph()} size={11} />}
+        <Icon name={doorGlyph()} size={11} />
       </button>
     </div>
   );
@@ -210,12 +157,11 @@ function queueList(vm: TodayVM, drawn: ReactElement[], runs: ReactElement[], tot
  * What the card could not hold, said with the door to it. In Glass the foot stands whatever was cut, as E3 draws it,
  * and says so when the card holds everything: the Inbox has nothing more that needs a person.
  */
-function queueFoot(rowsCut: number, runsCut: number, nav: Nav, glass: boolean) {
+function queueFoot(rowsCut: number, runsCut: number, nav: Nav) {
   const parts = [
     rowsCut > 0 ? `${rowsCut} more in the Inbox` : "",
     runsCut > 0 ? `${runsCut} more run${runsCut === 1 ? "" : "s"} in Campaigns` : "",
   ].filter(Boolean);
-  if (!parts.length && !glass) return null;
   return (
     <div className="tq-foot">
       <span>{parts.join(" · ") || "Nothing more in the Inbox"}</span>
@@ -228,7 +174,6 @@ function queueFoot(rowsCut: number, runsCut: number, nav: Nav, glass: boolean) {
 
 const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   useMoved("broadcasts");
-  const glass = useLook() === "glass";
   const [toastNode, ppFlash] = useToast();
   const nav: Nav = (to) => appNavigate(to);
   // A handoff whose thread's reply to a reach-out was read is that reply's row (contracts withReplies, PR 8).
@@ -243,7 +188,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // The run's seat, held only while a run wants it (CARD_MAX).
   const wants = runsPending();
   const peopleRoom = wants.waiting.length + wants.soon.length > 0 ? PEOPLE_MAX : CARD_MAX;
-  const drawn = personRows(rows.slice(0, peopleRoom), nav, ppFlash, { kind: verbKind, glass });
+  const drawn = personRows(rows.slice(0, peopleRoom), nav, { kind: verbKind });
   // A person who has been waiting comes before a run waiting for a word, so runs take only what is left.
   const {
     drawn: runs,
@@ -257,10 +202,10 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   return (
     <section className="tq today-queue" data-testid="today-queue">
       {/* No count over the rows: the sentence says what they hold, and the rows are right under it. */}
-      {queueHead(vm, runsCount, nav, { glass, count: total })}
+      {queueHead(vm, runsCount, nav, { count: total })}
       <LiveRail nav={nav} />
       {queueList(vm, drawn, runs, total)}
-      {queueFoot(rowsCut, runsCut, nav, glass)}
+      {queueFoot(rowsCut, runsCut, nav)}
       {toastNode}
     </section>
   );

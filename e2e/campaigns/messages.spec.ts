@@ -4,25 +4,16 @@ import { dealsAreOn, startersOffered } from "../../packages/contracts/src/index"
 import { atRoute, routeOf } from "../address";
 import { apiGet } from "../workspace";
 
-/** Whether the page wears Glass, the default look: there the top bar's crumbs are empty and hidden, and the frame's head names the room. */
-const wearsGlass = async (page: Page): Promise<boolean> =>
-  (await page.locator("html").getAttribute("data-look")) === "glass";
-
-/** The room's name, where the look says it: the head's title in Glass, the top bar's crumbs in Classic. */
+/** The room's name: the frame's head's title (the top bar's crumbs are empty and hidden in Glass, the one look). */
 async function expectRoomNamed(page: Page, name: string) {
-  if (await wearsGlass(page)) await expect(page.locator(".pg-head .pg-title")).toHaveText(name);
-  else await expect(page.locator(".crumbs")).toContainText(name);
+  await expect(page.locator(".pg-head .pg-title")).toHaveText(name);
 }
 
-/** A room's way back to Campaigns' home, which every room has: the head's "‹ Campaigns" in Glass, the first crumb in Classic. */
+/** A room's way back to Campaigns' home, which every room has: the head's "‹ Campaigns". */
 async function backToCampaigns(page: Page) {
-  if (await wearsGlass(page)) {
-    const back = page.locator(".pg-back");
-    await expect(back).toContainText("Campaigns");
-    await back.click();
-  } else {
-    await page.locator(".crumbs").getByRole("button", { name: "Campaigns" }).click();
-  }
+  const back = page.locator(".pg-back");
+  await expect(back).toContainText("Campaigns");
+  await back.click();
 }
 
 /**

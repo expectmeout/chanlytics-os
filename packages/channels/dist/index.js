@@ -2824,12 +2824,10 @@ var ROUTE_WORDS = {
 };
 var DEFAULT_LOOK_PREF = "glass";
 var LOOK_THEME_COLORS = {
-  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
   glass: { light: "#f1f2f6", dark: "#0f1014" }
 };
 var THEME_COLORS = LOOK_THEME_COLORS[DEFAULT_LOOK_PREF];
 var LOOK_THEME_INK = {
-  classic: { light: "#161616", dark: "#fbfaf8" },
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK = LOOK_THEME_INK[DEFAULT_LOOK_PREF];

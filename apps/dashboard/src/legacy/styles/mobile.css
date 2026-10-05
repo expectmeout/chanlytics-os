@@ -30,11 +30,10 @@
   .side-wrap.open { display: contents; }
   .side-wrap .sidebar {
     position: fixed;
-    top: 0; bottom: 0; left: 0;
+    top: 0; left: 0;
     z-index: 220;
     /* The desktop sidebar's own 248px (Ruben, 25 Sep): at 300 its words ended by 190 and the rest of it was empty. */
     width: min(248px, 84vw);
-    box-shadow: var(--shadow-lg);
     padding-bottom: env(safe-area-inset-bottom);
     transform: translateX(-102%);
     transition: transform 240ms var(--ease-out);
@@ -43,7 +42,6 @@
   @starting-style {
     .side-wrap.open .sidebar { transform: translateX(-102%); }
   }
-
 
   /* 44px-class tap targets inside the drawer */
   .side-wrap .nav-item { padding-top: 11px; padding-bottom: 11px; }
@@ -503,24 +501,21 @@
     /* Fixed, not flowed: the shell's column can run taller than the phone's
        viewport, and a bar that lives at the end of it lives below the fold. */
     position: fixed;
-    left: 0; right: 0; bottom: 0;
+    
     z-index: 120;
     background: var(--bg-raised);
-    border-top: 1px solid var(--line);
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
     /* The ✦ has its own place at the bar's right end (ask.css): no tab runs under it, and no page. */
     padding-right: 60px;
   }
   .phone-tab {
-    appearance: none; background: none; border: 0; color: var(--ink-dim); font: inherit; font-size: 10.5px;
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 4px 2px; min-height: 44px; border-radius: var(--radius-md); cursor: pointer;
+    appearance: none; background: none; border: 0; font: inherit; 
+    display: flex; flex-direction: column; align-items: center; 
+    cursor: pointer;
   }
-  .phone-tab.active { color: var(--accent); }
   .phone-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .phone-tab-icon { position: relative; display: inline-flex; }
   /* The amber tally on the icon (.tally .tally-icon .tally-warn): it counts people who need you. */
-  .phone-tab-badge { position: absolute; top: -6px; right: -12px; box-shadow: 0 0 0 2px var(--bg-raised); }
+  .phone-tab-badge { position: absolute; }
   /* The tab bar's More replaces the hamburger */
   .tb-menu { display: none; }
   /* The top bar says each thing once on a phone: Ask is the ✦ in the tab bar and the theme is in More, under your
@@ -531,9 +526,6 @@
   .main:has(.inbox) .crumbs > :not(:first-child) { display: none; }
   .main:has(.inbox) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
   .topbar .btn-icon { min-width: 44px; }
-  /* Room under every surface for the bar, and the toast sits above it */
-  .main-scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
-  .pp-toast-stack { bottom: calc(76px + env(safe-area-inset-bottom)); }
   /* The bell's sheet covers the tab bar, so while it is open the toast sits at the bottom edge, not over its notes. */
   :root:has(.tbn-pop:not([data-leaving])) .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
 
@@ -691,12 +683,12 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      own already, fixed over the page, so its menus stay placed against the window. It is as tall as what it holds, as
      the sidebar is on a desk, and never taller than the screen (components.css): its foot is `auto`, so its height
      never rests on how a browser aligns a fixed box between a top and a bottom. */
-  :where([data-look="glass"]) .side-wrap .sidebar {
+  .side-wrap .sidebar {
     bottom: auto;
     background: transparent;
     box-shadow: var(--surface-control-depth);
   }
-  :where([data-look="glass"]) .side-wrap .sidebar::before {
+  .side-wrap .sidebar::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -711,45 +703,45 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      2 Oct 2026: "darkens the background too much"). About a third of the look's scrim lets the page's own light through the
      drawer; the base rule's filter stays, and no blur is added, since a blurred page left the glass nothing lit to show. The wash is
      reached by its role: a class named nav-backdrop is counted by the primitives ratchet each time a rule names it. */
-  :where([data-look="glass"]) .side-wrap > [role="presentation"] {
+  .side-wrap > [role="presentation"] {
     background: color-mix(in oklab, var(--surface-scrim) 36%, transparent);
   }
   /* The Inbox's sending strip (fixed under the top bar, full width here) stands under the island while a call is up:
      over it, it hid the island whole (66 to 110px), the one door to Live, for as long as drafts waited. The strip of
      views it stands over is what it covers in Classic too. */
-  :where([data-look="glass"]) .main:has(> .live-bar) .ix-sending-strip {
+  .main:has(> .live-bar) .ix-sending-strip {
     top: 118px;
   }
   /* A page that takes the screen over (data-takeover on its root, above) is headed by its own person or call: the
      frame's head and strip of views, the tab bar and the room kept for it leave. */
-  :where([data-look="glass"]) .main:has(> .main-scroll > [data-takeover]) .pg-slot,
-  :where([data-look="glass"]) .app-root:has([data-takeover]) [data-testid="phone-tabs"] {
+  .main:has(> .main-scroll > [data-takeover]) .pg-slot,
+  .app-root:has([data-takeover]) [data-testid="phone-tabs"] {
     display: none;
   }
-  :where([data-look="glass"]) .main-scroll:has(> [data-takeover]) {
+  .main-scroll:has(> [data-takeover]) {
     padding-bottom: 0;
   }
   /* A bar docked at the foot says so with data-dock on the bar (People's selection: ✕, the count, an act): the page keeps
      its head and its strip, and the tab bar, Ask's circle (ask.css) and the room kept for them stand down, as an open
      thread's do. The bar is a capsule of the control layer's glass (kit.css), placed by the page. */
-  :where([data-look="glass"]) .app-root:has([data-dock]) [data-testid="phone-tabs"] {
+  .app-root:has([data-dock]) [data-testid="phone-tabs"] {
     display: none;
   }
-  :where([data-look="glass"]) .main-scroll:has([data-dock]) {
+  .main-scroll:has([data-dock]) {
     padding-bottom: 0;
   }
 }
 
 @media (max-width: 720px) {
   /* The strip of views at the rows' 16px, as every strip on a phone. */
-  :where([data-look="glass"]) .main > .stabs {
+  .main > .stabs {
     margin: 4px 16px 8px;
   }
 
   /* The tab bar is one capsule floating over the page, 14px clear of its sides and of the home bar, with the room for
      Ask's circle at its right (liquid.py tabbar): its tabs lozenges when picked, the picked one's glyph and word in
      coral at 600, and the count on the Inbox the neutral count, with no ring. */
-  :where([data-look="glass"]) .phone-tabs {
+  .phone-tabs {
     left: 14px;
     right: 86px;
     bottom: max(14px, env(safe-area-inset-bottom));
@@ -761,7 +753,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     box-shadow: var(--surface-control-depth);
     backdrop-filter: var(--surface-control-blur);
   }
-  :where([data-look="glass"]) .phone-tabs::after {
+  .phone-tabs::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -779,7 +771,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      the picked one its lozenge with the specular edge alone (the canvases draw no shadow under it), in coral; the
      count rides the tab's own corner. Reached by the bar's test id and the tab's place where their class is a
      primitive's word (the kit-primitives ratchet). */
-  :where([data-look="glass"]) .phone-tab {
+  .phone-tab {
     position: relative;
     height: 50px;
     min-height: 0;
@@ -791,20 +783,20 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     font-weight: var(--weight-medium);
     color: var(--ink-muted);
   }
-  :where([data-look="glass"]) .phone-tab.active {
+  .phone-tab.active {
     background: var(--selected-fill);
     box-shadow: var(--surface-inset-depth);
     font-weight: var(--weight-semibold);
     color: var(--tab-ink);
   }
-  :where([data-look="glass"]) [data-testid="phone-tabs"] > button > :first-child {
+  [data-testid="phone-tabs"] > button > :first-child {
     position: static;
   }
-  :where([data-look="glass"]) [data-testid="phone-tabs"] > button > :first-child > svg {
+  [data-testid="phone-tabs"] > button > :first-child > svg {
     width: 19px;
     height: 19px;
   }
-  :where([data-look="glass"]) .phone-tab-badge {
+  .phone-tab-badge {
     top: 4px;
     right: 10px;
     min-width: 16px;
@@ -816,10 +808,10 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
 
   /* Room under every surface for the bar, 14px clear of it, and the toast above it. */
-  :where([data-look="glass"]) .main-scroll {
+  .main-scroll {
     padding-bottom: calc(max(14px, env(safe-area-inset-bottom)) + 76px);
   }
-  :where([data-look="glass"]) .pp-toast-stack {
+  .pp-toast-stack {
     bottom: calc(max(14px, env(safe-area-inset-bottom)) + 76px);
   }
 }

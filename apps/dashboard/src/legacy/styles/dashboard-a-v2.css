@@ -1340,7 +1340,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    ==================================================================== */
 
 /* The page starts under the frame's head (kit/head/frame-head.tsx), at the page's gutter. */
-:where([data-look="glass"]) .main-scroll > .dash-a-v2 {
+.main-scroll > .dash-a-v2 {
   --pg-gutter: var(--gutter-page);
   padding-top: 0;
   gap: 14px;
@@ -1349,16 +1349,16 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The cards: the setup card and the queue, the day, the day's card, Worth a look and While you were away are clear panes
    with the look's rim and depth, and the head and foot bars lose their sunken fills. The day's card is reached by its
    testid: in the bento it sits in the bottom row, not under the page, and the ratchet counts its class. */
-:where([data-look="glass"]) .dash-a-v2 :is(.tq, .td-day, .tsec, [data-testid="today-card"]),
-:where([data-look="glass"]) .dash-a-v2 > section {
+.dash-a-v2 :is(.tq, .td-day, .tsec, [data-testid="today-card"]),
+.dash-a-v2 > section {
   position: relative;
   border: 0;
   border-radius: var(--surface-pane-radius);
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
-:where([data-look="glass"]) .dash-a-v2 :is(.tq, .td-day, .tsec, [data-testid="today-card"])::after,
-:where([data-look="glass"]) .dash-a-v2 > section::after {
+.dash-a-v2 :is(.tq, .td-day, .tsec, [data-testid="today-card"])::after,
+.dash-a-v2 > section::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1370,60 +1370,60 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-:where([data-look="glass"]) .dash-a-v2 :is(.tq-head, .td-day-head, .tsec-head) {
+.dash-a-v2 :is(.tq-head, .td-day-head, .tsec-head) {
   background: transparent;
   border-bottom-color: transparent;
 }
-:where([data-look="glass"]) .dash-a-v2 :is(.tq-foot, .td-day-foot, .tc-foot, .tsec-note) {
+.dash-a-v2 :is(.tq-foot, .td-day-foot, .tc-foot, .tsec-note) {
   background: transparent;
   border-top-color: var(--line);
 }
 /* E3 keeps 18px inside each pane and insets the hairlines by it: the pane carries the gutter, and its head, its rows
    and its foot run edge to edge within it (the rules below that set a padding set 0 at the sides too). */
-:where([data-look="glass"]) .dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 18px; }
-:where([data-look="glass"]) .dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) :is(.tq-head, .tsec-head, .tc-head, .tq-foot, .tq-failed, .tsec-note, .tl-failed, .tl-row) {
+.dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 18px; }
+.dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) :is(.tq-head, .tsec-head, .tc-head, .tq-foot, .tq-failed, .tsec-note, .tl-failed, .tl-row) {
   padding-left: 0;
   padding-right: 0;
 }
 /* The empty states too: the queue's line is what stands in its list that is not a row, the bell's the pane's second
    child where its list is not (the ratchet counts their names). */
-:where([data-look="glass"]) .dash-a-v2 .today-queue .tq-list > :not([role="button"]),
-:where([data-look="glass"]) .dash-a-v2 .ta > :nth-child(2):not(.ta-list) {
+.dash-a-v2 .today-queue .tq-list > :not([role="button"]),
+.dash-a-v2 .ta > :nth-child(2):not(.ta-list) {
   padding-left: 0;
   padding-right: 0;
 }
 
 /* A row you point at is lit. */
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-row:hover,
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-row:focus-visible {
+.dash-a-v2 .tq .cl-attn-row:hover,
+.dash-a-v2 .tq .cl-attn-row:focus-visible {
   background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
 }
 
 /* The verbs: a row's one act is the primary role's coral capsule, its other the control layer's inset capsule. The setup
    card's acts are the same two. */
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button,
-:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button:not([class*="skip"]) {
+.dash-a-v2 .tq .cl-attn-acts > button,
+.dash-a-v2 .today-setup .tq-list button:not([class*="skip"]) {
   height: 34px;
   border-radius: var(--radius-full);
   padding: 0 15px;
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
 }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button.primary,
-:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button.primary {
+.dash-a-v2 .tq .cl-attn-acts > button.primary,
+.dash-a-v2 .today-setup .tq-list button.primary {
   background: var(--primary-fill);
   border: 0;
   color: var(--primary-ink);
   font-weight: var(--weight-semibold);
   box-shadow: var(--primary-depth);
 }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button.primary:hover,
-:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button.primary:hover {
+.dash-a-v2 .tq .cl-attn-acts > button.primary:hover,
+.dash-a-v2 .today-setup .tq-list button.primary:hover {
   background: var(--primary-hover);
   filter: none;
 }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button:not(.primary),
-:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button:not(.primary, [class*="skip"]) {
+.dash-a-v2 .tq .cl-attn-acts > button:not(.primary),
+.dash-a-v2 .today-setup .tq-list button:not(.primary, [class*="skip"]) {
   background: var(--surface-inset-fill);
   border-color: var(--surface-inset-edge);
   color: var(--ink);
@@ -1433,32 +1433,32 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* ---- The bento (canvas E3): the strip across, the queue's column beside the brief and the bell, the day's card beside
    Worth a look, the pinned lists across; 14px between everything, as the canvas; under 1180px one column in that order
    (today-page.tsx GlassPage). The rows stretch: the queue is as tall as the two panes beside it, its foot at its bottom. */
-:where([data-look="glass"]) .main-scroll > .dash-a-v2-glass {
+.main-scroll > .dash-a-v2-glass {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 14px;
   align-items: stretch;
 }
-:where([data-look="glass"]) .dash-a-v2-glass > :is(.today-alert, .today-strip, .dash-a-v2-bottom, .tsec.tp) { grid-column: 1 / -1; }
-:where([data-look="glass"]) .dash-a-v2-glass > .dash-a-v2-work { grid-column: span 8; gap: 14px; }
-:where([data-look="glass"]) .dash-a-v2-glass > .dash-a-v2-work > .today-queue { flex: 1 1 auto; display: flex; flex-direction: column; }
-:where([data-look="glass"]) .dash-a-v2-glass .today-queue > .tq-foot { margin-top: auto; }
-:where([data-look="glass"]) .dash-a-v2-glass > .dash-a-v2-side { grid-column: span 4; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.dash-a-v2-glass > :is(.today-alert, .today-strip, .dash-a-v2-bottom, .tsec.tp) { grid-column: 1 / -1; }
+.dash-a-v2-glass > .dash-a-v2-work { grid-column: span 8; gap: 14px; }
+.dash-a-v2-glass > .dash-a-v2-work > .today-queue { flex: 1 1 auto; display: flex; flex-direction: column; }
+.dash-a-v2-glass .today-queue > .tq-foot { margin-top: auto; }
+.dash-a-v2-glass > .dash-a-v2-side { grid-column: span 4; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 /* The side's last pane reaches the queue's bottom edge (E3's right column fills its row): with one row in the bell the
    column stopped 160px short and the page showed through. */
-:where([data-look="glass"]) .dash-a-v2-glass > .dash-a-v2-side > :last-child { flex: 1 1 auto; }
+.dash-a-v2-glass > .dash-a-v2-side > :last-child { flex: 1 1 auto; }
 /* The bottom row: the day's card beside Worth a look, halves; one alone takes the row. */
-:where([data-look="glass"]) .dash-a-v2-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
-:where([data-look="glass"]) .dash-a-v2-bottom > :only-child { grid-column: 1 / -1; }
+.dash-a-v2-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.dash-a-v2-bottom > :only-child { grid-column: 1 / -1; }
 @media (max-width: 1180px) {
-  :where([data-look="glass"]) .dash-a-v2-glass > :is(.dash-a-v2-work, .dash-a-v2-side) { grid-column: 1 / -1; }
-  :where([data-look="glass"]) .dash-a-v2-bottom { grid-template-columns: minmax(0, 1fr); }
+  .dash-a-v2-glass > :is(.dash-a-v2-work, .dash-a-v2-side) { grid-column: 1 / -1; }
+  .dash-a-v2-bottom { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* The strip: one capsule of cells, a hairline between them -- the call with its clock and its door, the next appointment
    under its eyebrow, and the next opening as the one green capsule at the right (the canvas's "Open until"). It is as
    wide as what it says, at the page's left, 56px tall, as the canvas draws it. */
-:where([data-look="glass"]) .today-strip {
+.today-strip {
   position: relative;
   display: inline-flex;
   flex-wrap: wrap;
@@ -1474,9 +1474,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The strip is the control layer's glass (E3: the same glass as the sidebar and Ask), and blurs what passes behind it
    on a desk. */
 @media (min-width: 901px) {
-  :where([data-look="glass"]) .today-strip { backdrop-filter: var(--surface-control-blur); }
+  .today-strip { backdrop-filter: var(--surface-control-blur); }
 }
-:where([data-look="glass"]) .today-strip::after {
+.today-strip::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1488,7 +1488,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-:where([data-look="glass"]) .ts-cell {
+.ts-cell {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1498,10 +1498,10 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-size: var(--text-base);
   color: var(--ink);
 }
-:where([data-look="glass"]) .ts-cell + .ts-cell { border-left: 1px solid var(--line); }
-:where([data-look="glass"]) .ts-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:where([data-look="glass"]) .ts-words b { font-weight: var(--weight-semibold); }
-:where([data-look="glass"]) .ts-eyebrow {
+.ts-cell + .ts-cell { border-left: 1px solid var(--line); }
+.ts-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-words b { font-weight: var(--weight-semibold); }
+.ts-eyebrow {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   letter-spacing: 0.06em;
@@ -1509,12 +1509,12 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   color: var(--ink-dim);
 }
 /* The call's clock is the canvas's: mono, in the accent's words. */
-:where([data-look="glass"]) .ts-clock { font-family: var(--font-mono); font-size: var(--text-sm); letter-spacing: 0; color: var(--accent-ink); }
+.ts-clock { font-family: var(--font-mono); font-size: var(--text-sm); letter-spacing: 0; color: var(--accent-ink); }
 /* The appointment's start in the semibold, the rest of its words in the muted ink (E3). */
-:where([data-look="glass"]) .ts-rest { color: var(--ink-muted); }
-:where([data-look="glass"]) .ts-more { font-size: var(--text-sm); color: var(--ink-dim); }
-:where([data-look="glass"]) .ts-open { padding-right: 20px; }
-:where([data-look="glass"]) .ts-capsule {
+.ts-rest { color: var(--ink-muted); }
+.ts-more { font-size: var(--text-sm); color: var(--ink-dim); }
+.ts-open { padding-right: 20px; }
+.ts-capsule {
   display: inline-flex;
   align-items: center;
   height: 22px;
@@ -1526,13 +1526,13 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
-:where([data-look="glass"]) .ts-capsule.ts-closed { background: var(--surface-inset-fill); color: var(--ink-muted); }
+.ts-capsule.ts-closed { background: var(--surface-inset-fill); color: var(--ink-muted); }
 /* The call rides in the strip, not above the queue's rows. */
-:where([data-look="glass"]) .dash-a-v2 .tq-live { display: none; }
+.dash-a-v2 .tq-live { display: none; }
 /* The call on the line as E3 draws it: the coral dot with its ring, "On the line", the clock in the accent's words,
    eight bars that move while the call lasts, and Listen in as an inset capsule (the kit's button under the strip's own
    class). The ring and the bars hold still where motion is not welcome. */
-:where([data-look="glass"]) .ts-live-dot {
+.ts-live-dot {
   position: relative;
   flex: none;
   width: 8px;
@@ -1540,16 +1540,16 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   border-radius: var(--radius-circle);
   background: var(--accent);
 }
-:where([data-look="glass"]) .ts-live-dot::before {
+.ts-live-dot::before {
   content: "";
   position: absolute;
   inset: -3px;
   border-radius: var(--radius-circle);
   background: var(--accent-soft);
 }
-:where([data-look="glass"]) .ts-live > .ts-words { font-weight: var(--weight-semibold); }
-:where([data-look="glass"]) .ts-wave { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
-:where([data-look="glass"]) .ts-wave > i {
+.ts-live > .ts-words { font-weight: var(--weight-semibold); }
+.ts-wave { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
+.ts-wave > i {
   display: block;
   width: 2px;
   height: 14px;
@@ -1558,7 +1558,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   transform-origin: center;
   transform: scaleY(0.55);
 }
-:where([data-look="glass"]) .dash-a-v2 .ts-live > .ts-listen {
+.dash-a-v2 .ts-live > .ts-listen {
   height: 30px;
   margin-left: 4px;
   padding: 0 12px;
@@ -1571,17 +1571,17 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-weight: var(--weight-medium);
 }
 @media (prefers-reduced-motion: no-preference) {
-  :where([data-look="glass"]) .ts-live-dot::before { animation: today-ring 1.8s var(--ease-out) infinite; }
-  :where([data-look="glass"]) .ts-wave > i { animation: today-wave 0.9s var(--ease-in-out) infinite; }
-  :where([data-look="glass"]) .ts-wave > i:nth-child(3n + 2) { animation-duration: 1.12s; }
-  :where([data-look="glass"]) .ts-wave > i:nth-child(3n) { animation-duration: 1.34s; }
-  :where([data-look="glass"]) .ts-wave > i:nth-child(2) { animation-delay: 0.13s; }
-  :where([data-look="glass"]) .ts-wave > i:nth-child(3) { animation-delay: 0.26s; }
-  :where([data-look="glass"]) .ts-wave > i:nth-child(4) { animation-delay: 0.39s; }
-  :where([data-look="glass"]) .ts-wave > i:nth-child(5) { animation-delay: 0.52s; }
-  :where([data-look="glass"]) .ts-wave > i:nth-child(6) { animation-delay: 0.65s; }
-  :where([data-look="glass"]) .ts-wave > i:nth-child(7) { animation-delay: 0.78s; }
-  :where([data-look="glass"]) .ts-wave > i:nth-child(8) { animation-delay: 0.91s; }
+  .ts-live-dot::before { animation: today-ring 1.8s var(--ease-out) infinite; }
+  .ts-wave > i { animation: today-wave 0.9s var(--ease-in-out) infinite; }
+  .ts-wave > i:nth-child(3n + 2) { animation-duration: 1.12s; }
+  .ts-wave > i:nth-child(3n) { animation-duration: 1.34s; }
+  .ts-wave > i:nth-child(2) { animation-delay: 0.13s; }
+  .ts-wave > i:nth-child(3) { animation-delay: 0.26s; }
+  .ts-wave > i:nth-child(4) { animation-delay: 0.39s; }
+  .ts-wave > i:nth-child(5) { animation-delay: 0.52s; }
+  .ts-wave > i:nth-child(6) { animation-delay: 0.65s; }
+  .ts-wave > i:nth-child(7) { animation-delay: 0.78s; }
+  .ts-wave > i:nth-child(8) { animation-delay: 0.91s; }
 }
 @keyframes today-wave {
   0%, 100% { transform: scaleY(0.3); }
@@ -1590,7 +1590,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 
 /* The panes' titles at the canvas's size, and the queue's head: the count as the filled disc before the name, the
    sentence beside it, the door to the Inbox in ink with its arrow. */
-:where([data-look="glass"]) .dash-a-v2 :is(.tq-title, .td-day-title, .tsec-title, .tc-title) {
+.dash-a-v2 :is(.tq-title, .td-day-title, .tsec-title, .tc-title) {
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
@@ -1598,13 +1598,13 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* Reviewed against E3 on production, 2 October 2026: the head 18px from the pane's top as every pane's first row is,
    the foot 18px from its bottom, the face's initials at the base step, 5px between a row's lines, the sentence's leading
    the canvas's 1.42. */
-:where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head {
+.dash-a-v2 .today-queue .tq-head {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 10px;
   padding: 18px 0 10px;
 }
-:where([data-look="glass"]) .tq-num {
+.tq-num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1618,7 +1618,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-weight: var(--weight-semibold);
   line-height: 1;
 }
-:where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head > .tq-open {
+.dash-a-v2 .today-queue .tq-head > .tq-open {
   grid-column: 4;
   display: inline-flex;
   align-items: center;
@@ -1628,17 +1628,17 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   color: var(--ink-muted);
   text-decoration: none;
 }
-:where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head > .tq-open:hover { color: var(--ink); }
+.dash-a-v2 .today-queue .tq-head > .tq-open:hover { color: var(--ink); }
 
 /* The queue's rows as the canvas draws them: the face in a disc, who and when over the words over the state, the
    verbs at the right in the row's middle. */
-:where([data-look="glass"]) .dash-a-v2 .today-queue .cl-attn-row {
+.dash-a-v2 .today-queue .cl-attn-row {
   grid-template-columns: 40px minmax(0, 1fr) auto;
   gap: 5px 14px;
   align-items: center;
   padding: 19px 0;
 }
-:where([data-look="glass"]) .dash-a-v2 .today-queue .cl-attn-row > :first-child {
+.dash-a-v2 .today-queue .cl-attn-row > :first-child {
   display: flex;
   width: 40px;
   height: 40px;
@@ -1649,16 +1649,16 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts { grid-column: 3; grid-row: 1; justify-self: end; gap: 7px; padding-top: 0; }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-name { font-size: var(--text-md); font-weight: var(--weight-semibold); }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-meta { font-size: var(--text-sm); }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-body { gap: 5px; }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-md); line-height: 1.42; }
-:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-status { font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.dash-a-v2 .tq .cl-attn-acts { grid-column: 3; grid-row: 1; justify-self: end; gap: 7px; padding-top: 0; }
+.dash-a-v2 .tq .cl-attn-name { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.dash-a-v2 .tq .cl-attn-meta { font-size: var(--text-sm); }
+.dash-a-v2 .tq .cl-attn-body { gap: 5px; }
+.dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-md); line-height: 1.42; }
+.dash-a-v2 .tq .cl-attn-status { font-size: var(--text-sm); font-weight: var(--weight-medium); }
 /* The foot (E3): what the card could not hold in the dim ink, and See all as an inset capsule at the right; it stands
    whatever was cut (queue.tsx says so when nothing was) and sits at the pane's bottom. */
-:where([data-look="glass"]) .dash-a-v2 .tq-foot { padding: 12px 0 18px; font-size: var(--text-sm); color: var(--ink-dim); }
-:where([data-look="glass"]) .dash-a-v2 .tq-foot > button {
+.dash-a-v2 .tq-foot { padding: 12px 0 18px; font-size: var(--text-sm); color: var(--ink-dim); }
+.dash-a-v2 .tq-foot > button {
   height: 30px;
   padding: 0 13px;
   border: 1px solid var(--surface-inset-edge);
@@ -1669,33 +1669,33 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
-:where([data-look="glass"]) .dash-a-v2 .tq-foot > button:hover { color: var(--ink); border-color: var(--line-strong); }
+.dash-a-v2 .tq-foot > button:hover { color: var(--ink); border-color: var(--line-strong); }
 
 /* The brief (canvas E3): the three before its name, the hour it was written under the name in mono, the line in the
    muted ink with names in the page's, the lines that are not numbers under it as prose (no marks), the doors as words,
    and the one door to Ask at the foot. */
-:where([data-look="glass"]) .tb .tsec-head { align-items: center; gap: 12px; padding: 18px 0 0; }
-:where([data-look="glass"]) .tb-three { display: inline-flex; flex: none; width: 40px; height: 40px; color: var(--accent); }
-:where([data-look="glass"]) .tb-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-:where([data-look="glass"]) .dash-a-v2 .tb .tsec-title { font-size: var(--text-md); font-weight: var(--weight-semibold); }
-:where([data-look="glass"]) .tb-eyebrow {
+.tb .tsec-head { align-items: center; gap: 12px; padding: 18px 0 0; }
+.tb-three { display: inline-flex; flex: none; width: 40px; height: 40px; color: var(--accent); }
+.tb-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dash-a-v2 .tb .tsec-title { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.tb-eyebrow {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   letter-spacing: 0;
   text-transform: uppercase;
   color: var(--ink-dim);
 }
-:where([data-look="glass"]) .tb-body { display: flex; flex-direction: column; gap: 10px; padding: 14px 0 0; }
-:where([data-look="glass"]) .tb-line { margin: 0; font-size: var(--text-md); line-height: 1.5; color: var(--ink-muted); text-wrap: pretty; }
-:where([data-look="glass"]) .tb-line b { color: var(--ink); font-weight: var(--weight-semibold); }
-:where([data-look="glass"]) .tb-body .tc-beats { padding: 0; margin: 0; gap: 8px; }
-:where([data-look="glass"]) .tb-body .brief-beat { font-size: var(--text-base); line-height: 1.5; color: var(--ink-muted); }
-:where([data-look="glass"]) .tb-body .brief-beat-glyph { display: none; }
+.tb-body { display: flex; flex-direction: column; gap: 10px; padding: 14px 0 0; }
+.tb-line { margin: 0; font-size: var(--text-md); line-height: 1.5; color: var(--ink-muted); text-wrap: pretty; }
+.tb-line b { color: var(--ink); font-weight: var(--weight-semibold); }
+.tb-body .tc-beats { padding: 0; margin: 0; gap: 8px; }
+.tb-body .brief-beat { font-size: var(--text-base); line-height: 1.5; color: var(--ink-muted); }
+.tb-body .brief-beat-glyph { display: none; }
 /* The brief's acts (E3): Listen as an inset capsule with the play glyph and the length in mono beside it, Ask a follow-up
    as words alone; 16px under the line, 8px apart. */
-:where([data-look="glass"]) .tb-foot { display: flex; align-items: center; gap: 8px; padding: 16px 0 18px; }
-:where([data-look="glass"]) .dash-a-v2 .tb .tb-listen-head { display: none; }
-:where([data-look="glass"]) .dash-a-v2 .tb .tb-listen {
+.tb-foot { display: flex; align-items: center; gap: 8px; padding: 16px 0 18px; }
+.dash-a-v2 .tb .tb-listen-head { display: none; }
+.dash-a-v2 .tb .tb-listen {
   height: 34px;
   gap: 7px;
   padding: 0 14px;
@@ -1707,11 +1707,11 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
 }
-:where([data-look="glass"]) .dash-a-v2 .tb .tb-listen > svg { fill: currentColor; }
-:where([data-look="glass"]) .tb-listen-len { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; color: var(--ink-dim); }
+.dash-a-v2 .tb .tb-listen > svg { fill: currentColor; }
+.tb-listen-len { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; color: var(--ink-dim); }
 /* Why the voice could not be had, said once beside Listen in the server's words; nothing else speaks. */
-:where([data-look="glass"]) .tb-why { font-size: var(--text-xs); color: var(--ink-dim); min-width: 0; }
-:where([data-look="glass"]) .dash-a-v2 .tb-foot > .tb-follow {
+.tb-why { font-size: var(--text-xs); color: var(--ink-dim); min-width: 0; }
+.dash-a-v2 .tb-foot > .tb-follow {
   height: 34px;
   padding: 0 10px;
   border: 0;
@@ -1721,16 +1721,16 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
 }
-:where([data-look="glass"]) .dash-a-v2 .tb-foot > .tb-follow:hover { color: var(--ink); background: var(--surface-inset-fill); }
+.dash-a-v2 .tb-foot > .tb-follow:hover { color: var(--ink); background: var(--surface-inset-fill); }
 
 /* The day's card: the figures in columns with a hairline between them, the numbers at the canvas's size and weight, the
    word under each in the semibold. */
-:where([data-look="glass"]) .dash-a-v2 .tc-head { flex-wrap: nowrap; align-items: center; gap: 10px; padding: 18px 0 10px; }
+.dash-a-v2 .tc-head { flex-wrap: nowrap; align-items: center; gap: 10px; padding: 18px 0 10px; }
 /* The card's name never breaks (it stood on two lines beside the quiet day's line); the line gives way instead. */
-:where([data-look="glass"]) .dash-a-v2 .tc-title { flex: none; white-space: nowrap; }
-:where([data-look="glass"]) .dash-a-v2 .tc-line { flex: 1 1 auto; min-width: 0; }
+.dash-a-v2 .tc-title { flex: none; white-space: nowrap; }
+.dash-a-v2 .tc-line { flex: 1 1 auto; min-width: 0; }
 /* The door to Reports stands in the head as words with its arrow (card.tsx draws it there in Glass), not in the foot. */
-:where([data-look="glass"]) .dash-a-v2 .tc-head > button {
+.dash-a-v2 .tc-head > button {
   height: auto;
   margin-left: auto;
   padding: 0;
@@ -1741,22 +1741,22 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
 }
-:where([data-look="glass"]) .dash-a-v2 .tc-head > button:hover { color: var(--ink); }
-:where([data-look="glass"]) .dash-a-v2 .tc-figs { gap: 0; padding: 12px 0 10px; }
-:where([data-look="glass"]) .dash-a-v2 .tc-fig { padding: 4px 16px 4px 0; }
-:where([data-look="glass"]) .dash-a-v2 .tc-fig + .tc-fig { border-left: 1px solid var(--line); padding-left: 16px; }
-:where([data-look="glass"]) .dash-a-v2 .tc-fig-n { font-size: var(--text-figure); font-weight: var(--weight-medium); letter-spacing: -0.035em; line-height: 1; }
-:where([data-look="glass"]) .dash-a-v2 .tc-fig-w { margin-top: 6px; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
-:where([data-look="glass"]) .dash-a-v2 .tc-fig-m { font-size: var(--text-sm); }
+.dash-a-v2 .tc-head > button:hover { color: var(--ink); }
+.dash-a-v2 .tc-figs { gap: 0; padding: 12px 0 10px; }
+.dash-a-v2 .tc-fig { padding: 4px 16px 4px 0; }
+.dash-a-v2 .tc-fig + .tc-fig { border-left: 1px solid var(--line); padding-left: 16px; }
+.dash-a-v2 .tc-fig-n { font-size: var(--text-figure); font-weight: var(--weight-medium); letter-spacing: -0.035em; line-height: 1; }
+.dash-a-v2 .tc-fig-w { margin-top: 6px; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
+.dash-a-v2 .tc-fig-m { font-size: var(--text-sm); }
 /* The period's line at the foot: a hairline over it, the dim ink, no band and no button (the door is in the head). */
-:where([data-look="glass"]) .dash-a-v2 .tc-foot { margin-top: 14px; padding: 12px 0 18px; border-radius: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.dash-a-v2 .tc-foot { margin-top: 14px; padding: 12px 0 18px; border-radius: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 
 /* The bell's pane (canvas E3): its count the filled disc after its name; each row the kind's glyph in a rounded inset
    (a warning's in amber), the words beside it in the page's ink whatever the tone, the hour in mono at the right, and
    rows told apart by hairlines alone. */
-:where([data-look="glass"]) .dash-a-v2 .ta .tsec-head { align-items: center; gap: 10px; padding: 18px 0 10px; }
+.dash-a-v2 .ta .tsec-head { align-items: center; gap: 10px; padding: 18px 0 10px; }
 /* Mark all read is words alone at the right (E3), not a capsule. */
-:where([data-look="glass"]) .dash-a-v2 .ta .tsec-head > button {
+.dash-a-v2 .ta .tsec-head > button {
   height: auto;
   margin-left: auto;
   padding: 0;
@@ -1767,8 +1767,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
 }
-:where([data-look="glass"]) .dash-a-v2 .ta .tsec-head > button:hover { color: var(--ink); }
-:where([data-look="glass"]) .dash-a-v2 .ta .tq-count {
+.dash-a-v2 .ta .tsec-head > button:hover { color: var(--ink); }
+.dash-a-v2 .ta .tq-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1782,20 +1782,20 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-weight: var(--weight-semibold);
   line-height: 1;
 }
-:where([data-look="glass"]) .dash-a-v2 .ta .tq-count.calm {
+.dash-a-v2 .ta .tq-count.calm {
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
   color: var(--ink-dim);
 }
 /* A row (E3): the glyph, then the words with the hour at the row's right edge; no dismiss of its own (away.tsx draws
    none in Glass: a group is read when it is opened, and Mark all read clears the rest), no wash under a pointer. */
-:where([data-look="glass"]) .dash-a-v2 .ta-row { grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 12px 0; background: transparent; }
-:where([data-look="glass"]) .dash-a-v2 .ta-row:hover { background: transparent; }
+.dash-a-v2 .ta-row { grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 12px 0; background: transparent; }
+.dash-a-v2 .ta-row:hover { background: transparent; }
 /* A hairline over every row, the first under the head (E3), and the pane's 18px under the last row where no foot follows. */
-:where([data-look="glass"]) .dash-a-v2 .ta-row:first-child { border-top: 1px solid var(--line); }
-:where([data-look="glass"]) .dash-a-v2 .ta > .ta-list:last-child { padding-bottom: 18px; }
-:where([data-look="glass"]) .dash-a-v2 .ta-line1 { justify-content: space-between; gap: 12px; }
-:where([data-look="glass"]) .dash-a-v2 .ta-row > .tbn-icon {
+.dash-a-v2 .ta-row:first-child { border-top: 1px solid var(--line); }
+.dash-a-v2 .ta > .ta-list:last-child { padding-bottom: 18px; }
+.dash-a-v2 .ta-line1 { justify-content: space-between; gap: 12px; }
+.dash-a-v2 .ta-row > .tbn-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1806,23 +1806,23 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   box-shadow: var(--surface-inset-depth);
   color: var(--ink-muted);
 }
-:where([data-look="glass"]) .dash-a-v2 .ta-row.warn > :first-child {
+.dash-a-v2 .ta-row.warn > :first-child {
   background: var(--warn-soft);
   box-shadow: none;
   color: var(--warn-ink);
 }
-:where([data-look="glass"]) .dash-a-v2 .ta-row .ta-title { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
-:where([data-look="glass"]) .dash-a-v2 .ta-time { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; }
-:where([data-look="glass"]) .dash-a-v2 .ta-msg { font-size: var(--text-sm); }
+.dash-a-v2 .ta-row .ta-title { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
+.dash-a-v2 .ta-time { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; }
+.dash-a-v2 .ta-msg { font-size: var(--text-sm); }
 
 /* Worth a look (canvas E3): each row its sentence a size up, the tone's word as a neutral inset capsule at the right
    (never the warning's colour: amber is the bell's one warning), the arithmetic and who it names under it, and the
    doors as words, the row's own in ink with its arrow. The capsule is the row's first child, the kit's pill, which the
    look otherwise draws as a dot and a word; the ratchet counts the pill's name. */
-:where([data-look="glass"]) .dash-a-v2 .tl .tsec-head { padding: 18px 0 4px; }
-:where([data-look="glass"]) .dash-a-v2 .tl-row { gap: 8px 12px; padding: 14px 0; }
-:where([data-look="glass"]) .dash-a-v2 .tl-text { font-size: var(--text-md); line-height: 1.4; font-weight: var(--weight-medium); }
-:where([data-look="glass"]) .dash-a-v2 .tl-row > :first-child {
+.dash-a-v2 .tl .tsec-head { padding: 18px 0 4px; }
+.dash-a-v2 .tl-row { gap: 8px 12px; padding: 14px 0; }
+.dash-a-v2 .tl-text { font-size: var(--text-md); line-height: 1.4; font-weight: var(--weight-medium); }
+.dash-a-v2 .tl-row > :first-child {
   display: inline-flex;
   align-items: center;
   height: 22px;
@@ -1838,22 +1838,22 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   letter-spacing: -0.005em;
   white-space: nowrap;
 }
-:where([data-look="glass"]) .dash-a-v2 .tl-row > :first-child::before { display: none; }
-:where([data-look="glass"]) .dash-a-v2 .tl-foot { margin-top: 0; gap: 8px 14px; }
-:where([data-look="glass"]) .dash-a-v2 .tl-math { font-size: var(--text-sm); color: var(--ink-dim); }
-:where([data-look="glass"]) .dash-a-v2 .tl-people-lead { font-size: var(--text-sm); }
-:where([data-look="glass"]) .dash-a-v2 .tl-acts { gap: 14px; }
-:where([data-look="glass"]) .dash-a-v2 .tl-act { font-size: var(--text-sm); font-weight: var(--weight-medium); }
-:where([data-look="glass"]) .dash-a-v2 .tsec-note { padding: 10px 0 14px; font-size: var(--text-sm); }
+.dash-a-v2 .tl-row > :first-child::before { display: none; }
+.dash-a-v2 .tl-foot { margin-top: 0; gap: 8px 14px; }
+.dash-a-v2 .tl-math { font-size: var(--text-sm); color: var(--ink-dim); }
+.dash-a-v2 .tl-people-lead { font-size: var(--text-sm); }
+.dash-a-v2 .tl-acts { gap: 14px; }
+.dash-a-v2 .tl-act { font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.dash-a-v2 .tsec-note { padding: 10px 0 14px; font-size: var(--text-sm); }
 
 /* What is left to set up, compact (Ruben, 1 Oct 2026: kept, drawn cleanly): one eyebrow line in mono with the count,
    Hide at its right, then each row as the state's dot, the name over one line of its words, and its act at the right.
    The card's own parts are reached by their place and their testids, since the ratchet counts the card's names; a
    phone keeps mobile.css's one-row card, where the count rides beside the words. */
 @media (min-width: 721px) {
-  :where([data-look="glass"]) .dash-a-v2 .today-setup { gap: 4px; padding: 12px 18px; }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup > :first-child { align-items: center; }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup > :first-child > :first-child {
+  .dash-a-v2 .today-setup { gap: 4px; padding: 12px 18px; }
+  .dash-a-v2 .today-setup > :first-child { align-items: center; }
+  .dash-a-v2 .today-setup > :first-child > :first-child {
     gap: 6px;
     font-family: var(--font-mono);
     font-size: var(--text-xs);
@@ -1862,19 +1862,19 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
     text-transform: uppercase;
     color: var(--ink-dim);
   }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup > :first-child > :first-child::after { content: "·"; }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup [data-testid="today-setup-left"] { order: 1; font: inherit; color: inherit; }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup [data-testid="today-setup-hide"] { font-size: var(--text-sm); }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list > * { grid-template-columns: 8px minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-top: 0; }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :first-child { font-size: var(--text-base); font-weight: var(--weight-semibold); }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :last-child { display: block; font-size: var(--text-sm); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  :where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :last-child > :last-child { display: none; }
+  .dash-a-v2 .today-setup > :first-child > :first-child::after { content: "·"; }
+  .dash-a-v2 .today-setup [data-testid="today-setup-left"] { order: 1; font: inherit; color: inherit; }
+  .dash-a-v2 .today-setup [data-testid="today-setup-hide"] { font-size: var(--text-sm); }
+  .dash-a-v2 .today-setup .tq-list > * { grid-template-columns: 8px minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-top: 0; }
+  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :first-child { font-size: var(--text-base); font-weight: var(--weight-semibold); }
+  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :last-child { display: block; font-size: var(--text-sm); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :last-child > :last-child { display: none; }
 }
 
 /* A phone: the strip's cells are capsules in a row that scrolls, the rest one column. */
 @media (max-width: 720px) {
-  :where([data-look="glass"]) .today-strip {
+  .today-strip {
     display: flex;
     flex-wrap: nowrap;
     justify-self: stretch;
@@ -1889,10 +1889,10 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
     overflow-x: auto;
     scrollbar-width: none;
   }
-  :where([data-look="glass"]) .today-strip::after { display: none; }
+  .today-strip::after { display: none; }
   /* Each cell a 40px capsule of the control layer's glass (E3's phone board), gap 8; the appointment's cell says "Next"
      or "Now" in its bold words, the eyebrow being a desk's; Listen in is a desk's too, the Inbox's Live view a phone's. */
-  :where([data-look="glass"]) .ts-cell {
+  .ts-cell {
     flex: none;
     max-width: 82vw;
     height: 40px;
@@ -1903,19 +1903,19 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
     background: var(--surface-control-fill);
     box-shadow: var(--surface-control-depth);
   }
-  :where([data-look="glass"]) .ts-cell + .ts-cell { border-left: 0; }
-  :where([data-look="glass"]) .ts-eyebrow { display: none; }
-  :where([data-look="glass"]) .ts-next .ts-words::before { content: attr(data-phase) " "; font-weight: var(--weight-semibold); }
-  :where([data-look="glass"]) .dash-a-v2 .ts-live > .ts-listen { display: none; }
-  :where([data-look="glass"]) .ts-open { padding-right: 14px; }
-  :where([data-look="glass"]) .ts-capsule { padding: 0; background: transparent; }
+  .ts-cell + .ts-cell { border-left: 0; }
+  .ts-eyebrow { display: none; }
+  .ts-next .ts-words::before { content: attr(data-phase) " "; font-weight: var(--weight-semibold); }
+  .dash-a-v2 .ts-live > .ts-listen { display: none; }
+  .ts-open { padding-right: 14px; }
+  .ts-capsule { padding: 0; background: transparent; }
   /* The queue's head is the count, the name and the door: the sentence under them is a desk's. */
-  :where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head { padding: 16px 0 10px; }
+  .dash-a-v2 .today-queue .tq-head { padding: 16px 0 10px; }
   /* The dash keeps the boards' 12px from the screen's edges (E3's phone board: the strip and the panes at 12, the head
      at 16); the page's other phone capsules stand at 12 too. */
-  :where([data-look="glass"]) .main-scroll > .dash-a-v2 { --gutter-page: 12px; }
+  .main-scroll > .dash-a-v2 { --gutter-page: 12px; }
   /* A phone's queue ends with its last row (E3's phone board): what the card could not hold is the Inbox tab's. */
-  :where([data-look="glass"]) .dash-a-v2 .tq-foot { display: none; }
+  .dash-a-v2 .tq-foot { display: none; }
   /* The brief's foot on a phone holds the follow-up alone (Listen stands in its head), its words on the line's left edge
      and the touch floor's height split evenly between the line above and the pane's edge below; without it the last
      line sat on the pane's edge. */
@@ -1926,23 +1926,23 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .dash-a-v2 .tb-body .brief-beat-text { flex-basis: 100%; }
   .dash-a-v2 .tb-body { --beat-door-indent: -6px; }
   /* The day's card: its name on its own row with the door to Reports at the right, what the day says under them. */
-  :where([data-look="glass"]) .dash-a-v2 .tc-head { flex-wrap: wrap; }
-  :where([data-look="glass"]) .dash-a-v2 .tc-line { flex: 1 1 100%; order: 2; }
-  :where([data-look="glass"]) .dash-a-v2 .tc-head > :last-child { margin-left: auto; }
+  .dash-a-v2 .tc-head { flex-wrap: wrap; }
+  .dash-a-v2 .tc-line { flex: 1 1 100%; order: 2; }
+  .dash-a-v2 .tc-head > :last-child { margin-left: auto; }
   /* Mark all read is words at the head's height, not a thumb's 44px that pushed the name down. */
-  :where([data-look="glass"]) .dash-a-v2 .ta .tsec-head > :last-child { height: 32px; min-height: 32px; }
-  :where([data-look="glass"]) .dash-a-v2 .today-queue .tq-head > .tq-sub { display: none; }
+  .dash-a-v2 .ta .tsec-head > :last-child { height: 32px; min-height: 32px; }
+  .dash-a-v2 .today-queue .tq-head > .tq-sub { display: none; }
   /* A phone's row (the canvas's phone board): the face, the name over the words wrapping over the state in one line,
      and the one verb at the right in the row's middle; the channel and the wait are a desk's. */
-  :where([data-look="glass"]) .dash-a-v2 .today-queue .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 3px 12px; padding: 12px 0; }
-  :where([data-look="glass"]) .dash-a-v2 .today-queue .cl-attn-row > :first-child { width: 36px; height: 36px; font-size: var(--text-sm); }
-  :where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-meta { display: none; }
-  :where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-base); line-height: 1.4; color: var(--ink-muted); white-space: normal; }
-  :where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button { height: 36px; padding: 0 13px; font-size: var(--text-sm); }
+  .dash-a-v2 .today-queue .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 3px 12px; padding: 12px 0; }
+  .dash-a-v2 .today-queue .cl-attn-row > :first-child { width: 36px; height: 36px; font-size: var(--text-sm); }
+  .dash-a-v2 .tq .cl-attn-meta { display: none; }
+  .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-base); line-height: 1.4; color: var(--ink-muted); white-space: normal; }
+  .dash-a-v2 .tq .cl-attn-acts > button { height: 36px; padding: 0 13px; font-size: var(--text-sm); }
   /* The panes keep 16px inside on a phone (E3's phone board). */
-  :where([data-look="glass"]) .dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 16px; }
+  .dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 16px; }
   /* The brief's Listen stands at the right of its head on a phone (E3's phone board), not among the acts under the line. */
-  :where([data-look="glass"]) .dash-a-v2 .tb .tb-listen-head { display: inline-flex; margin-left: auto; }
-  :where([data-look="glass"]) .dash-a-v2 .tb-foot > .tb-listen { display: none; }
-  :where([data-look="glass"]) .dash-a-v2 .tb .tsec-head { padding-top: 16px; }
+  .dash-a-v2 .tb .tb-listen-head { display: inline-flex; margin-left: auto; }
+  .dash-a-v2 .tb-foot > .tb-listen { display: none; }
+  .dash-a-v2 .tb .tsec-head { padding-top: 16px; }
 }

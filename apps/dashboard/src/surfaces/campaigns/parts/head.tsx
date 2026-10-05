@@ -13,7 +13,6 @@ import type { MouseEvent, ReactNode } from "react";
 import { allowanceLines } from "@chanlytics/contracts";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../kit/look/look";
 import { useSurface } from "../../use-surface";
 
 interface CmHeadProps {
@@ -36,7 +35,7 @@ interface CmHeadProps {
  *           head is ONE line -- the numbers at the left, the tools and the act at the right, as People's controls
  *           row is. The crumb, the tab and a 22px title said "Playbooks" three times over one list (23 Sep).
  *
- * Under Glass the head is the frame's (kit/head/frame-head.tsx, the canvas C1): a tab's list opens on the surface's name,
+ * The head is the frame's (kit/head/frame-head.tsx, the canvas C1): a tab's list opens on the surface's name,
  * "Campaigns", with the head's line beside it and its act on the row of views, and a page that names one thing (an
  * opened run, the send screen) opens on that name. This says the head's parts to the frame and draws nothing of its
  * own there; the strip above still says which door this is.
@@ -46,15 +45,7 @@ interface CmHeadProps {
  * never a banner. It is read from whichever of Broadcasts and Playbooks has the month (`month_sent`), which the frame loads for
  * its tab counts; a month that could not be read says nothing.
  */
-export function CmHead({
-  title,
-  badge = null,
-  sub: said = null,
-  right = null,
-  quiet = false,
-  testid = null,
-}: CmHeadProps) {
-  const glass = useLook() === "glass";
+export function CmHead({ title, badge = null, sub: said = null, right = null, quiet = false }: CmHeadProps) {
   // Both are read, never one only when the other has nothing: a hook is called every time.
   const broadcasts = useSurface("broadcasts");
   const playbooks = useSurface("playbooks");
@@ -69,42 +60,22 @@ export function CmHead({
         <span data-testid="cm-month">{used.join(" · ")}</span>
       </>
     );
-  useStanding(
-    glass
-      ? {
-          title: badge ? (
-            <>
-              {title} {badge}
-            </>
-          ) : quiet ? (
-            "Campaigns"
-          ) : (
-            title
-          ),
-          // A tab's list is the surface's own page: no way back above its name.
-          back: quiet ? null : undefined,
-          sentence: sub,
-          act: right,
-        }
-      : null,
-  );
-  if (glass) return null;
-  return (
-    <header className={`cm-head${quiet ? " is-quiet" : ""}`} data-testid={testid || undefined}>
-      <div className="cm-head-text">
-        {badge ? (
-          <div className="cm-head-line">
-            <h1 className="cm-head-title">{title}</h1>
-            {badge}
-          </div>
-        ) : (
-          <h1 className={quiet ? "cm-head-title cm-sr" : "cm-head-title"}>{title}</h1>
-        )}
-        {sub && <div className="cm-head-sub">{sub}</div>}
-      </div>
-      {right && <div className="cm-head-right">{right}</div>}
-    </header>
-  );
+  useStanding({
+    title: badge ? (
+      <>
+        {title} {badge}
+      </>
+    ) : quiet ? (
+      "Campaigns"
+    ) : (
+      title
+    ),
+    // A tab's list is the surface's own page: no way back above its name.
+    back: quiet ? null : undefined,
+    sentence: sub,
+    act: right,
+  });
+  return null;
 }
 
 /** The dot between the parts of a head's line: a separator a screen reader skips. */
