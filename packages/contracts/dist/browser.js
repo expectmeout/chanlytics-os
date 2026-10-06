@@ -13012,6 +13012,7 @@ var JOB_KINDS = [
    */
   "event_deliver"
 ];
+var EVENT_SUBSCRIBERS = ["audit"];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
   "phone_number_quality_update",
@@ -33058,6 +33059,7 @@ export {
   ESCALATION_SUMMARIES,
   EVENT_EVIDENCE_KINDS,
   EVENT_KINDS,
+  EVENT_SUBSCRIBERS,
   EVERYONE_HINT,
   EVERYONE_LABEL,
   FALLBACK_DEFAULTS,
