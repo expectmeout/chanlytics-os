@@ -2027,6 +2027,21 @@ async function reachOutReport(db, tenantId, days) {
   return { ok: true, data };
 }
 
+// src/repositories/reports/first-replies.ts
+async function firstReplies(db, tenantId, since) {
+  const { data, error } = await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: since.toISOString() });
+  if (error) throw new Error(`first_replies: ${error.message}`);
+  return (data ?? []).flatMap(
+    (r) => Number.isFinite(r.ai_seconds) ? [
+      {
+        asked_at: r.asked_at,
+        s: Math.round(r.ai_seconds),
+        hold: Number.isFinite(r.ai_hold_s) ? Math.round(r.ai_hold_s) : 0
+      }
+    ] : []
+  );
+}
+
 // src/repositories/notifications.ts
 async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
@@ -3558,6 +3573,7 @@ export {
   failStrandedRun,
   failedMessageErrors,
   finishableRuns,
+  firstReplies,
   followUpTouchesSince,
   forgetActivityTokens,
   forgetNotification,
