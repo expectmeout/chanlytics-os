@@ -40,6 +40,7 @@ import { todayOverride } from "@/surfaces/today/surface";
 import { settingsOverride } from "./surfaces/settings";
 import { peopleOverride } from "@/surfaces/people/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
+import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
 import { SURFACE_ROUTES } from "@/surfaces/routes";
 import { liveOverride } from "@/surfaces/live/surface";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
@@ -157,6 +158,8 @@ const SURFACES = [
   peopleOverride,
   leadsOverride,
   reportsOverride,
+  // Today's period line and Worth a look: one small read of the period Reports shows (surfaces/reports/headline.ts).
+  reportsHeadlineOverride,
   liveOverride,
   broadcastsOverride,
   playbooksOverride,
@@ -188,6 +191,7 @@ const SURFACE_LABELS: Record<string, string> = {
   today: "Today",
   people: "People",
   reports: "Reports",
+  reports_headline: "Today's period",
   live: "Calls",
   calendar: "Calendar",
 };

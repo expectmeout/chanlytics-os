@@ -69,6 +69,7 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/people/surface.ts")).peopleOverride,
   (await importSrc("apps/dashboard/src/surfaces/leads/surface.ts")).leadsOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/reports/headline.ts")).reportsHeadlineOverride,
   (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,

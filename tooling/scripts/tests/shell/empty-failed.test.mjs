@@ -519,6 +519,26 @@ test("a period the page has read paints at once when picked again and is read ag
     asked.push(`${u.pathname.replace("/api/v1/", "")} ${u.searchParams.get("period")}`);
     await new Promise((r) => parked.push({ period: u.searchParams.get("period"), r }));
     if (u.pathname.endsWith("/reports/campaigns")) return json(200, { ok: true, data: { report: campaignsDto() } });
+    // A pick also reads the headline Today draws (period.ts), when none is held for it: a period's counts, in the wire's shape.
+    if (u.pathname.endsWith("/reports/headline"))
+      return json(200, {
+        ok: true,
+        data: {
+          headline: {
+            period: u.searchParams.get("period"),
+            days: 7,
+            empty: false,
+            messages_in: 1,
+            messages_before: null,
+            answered_ai: 1,
+            answered_you: 0,
+            unanswered: 0,
+            answered_share: 1,
+            calls: 0,
+            booking: null,
+          },
+        },
+      });
     return json(200, {
       ok: true,
       data: { report: reportDto(), booking: { calendar: "none", days: 7, asked: 0, booked: 0 } },

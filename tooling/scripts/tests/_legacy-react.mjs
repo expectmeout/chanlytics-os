@@ -116,6 +116,7 @@ const SURFACE_EVENTS = [
   ["setup", "surface:setup"],
   ["google", "surface:google"],
   ["reports", "surface:reports"],
+  ["reports_headline", "surface:reports_headline"],
   ["people", "surface:clients"],
   ["calendar", "surface:calendar"],
   ["playbooks", "surface:playbooks"],

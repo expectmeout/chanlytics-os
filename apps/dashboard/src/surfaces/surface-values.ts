@@ -21,7 +21,7 @@ import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
 import type { ReachOutsSurface } from "./campaigns/reach-out/surface";
 import type { SettingsSurface } from "../legacy-bridge/surfaces/settings";
 import type { ConversationsSurface, InboxSurface } from "./inbox/types";
-import type { TodayVM } from "@chanlytics/contracts";
+import type { ReportHeadlineVM, TodayVM } from "@chanlytics/contracts";
 import type { LiveSurface } from "./live/surface";
 import type { PeopleSurface } from "./people/surface";
 import type { CalendarSurface } from "./calendar/surface";
@@ -33,6 +33,8 @@ import type { PartnerSurface } from "./settings/partner/surface";
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
   reports: ReportsSurface;
+  /** Today's one small read of the period (contracts ReportHeadlineVM): the card's period line and Worth a look read it. */
+  reports_headline: ReportHeadlineVM;
   google: GoogleSurface;
   inbox: InboxSurface;
   conversations: ConversationsSurface;
@@ -139,6 +141,7 @@ function isSurfaceKey(key: string): key is SurfaceKey {
 // `SurfaceValues` without a line here is a type error.
 const SURFACE_KEYS: Record<SurfaceKey, true> = {
   reports: true,
+  reports_headline: true,
   google: true,
   inbox: true,
   conversations: true,

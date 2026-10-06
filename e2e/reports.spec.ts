@@ -167,7 +167,9 @@ test.describe("Reports on a real workspace", () => {
     await expect(report).toBeVisible();
 
     const req = page.waitForRequest(
-      (r) => r.url().includes("/api/v1/reports") && r.url().includes("period=7d") && r.method() === "GET",
+      // The Reports read alone: a pick also reads `reports/headline` (Today's line) and `reports/campaigns`, and the first of those is no answer.
+      (r) =>
+        new URL(r.url()).pathname.endsWith("/api/v1/reports") && r.url().includes("period=7d") && r.method() === "GET",
     );
     await report.getByTestId("period-7d").click();
     const seen = await req;
