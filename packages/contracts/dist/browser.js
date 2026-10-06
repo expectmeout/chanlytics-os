@@ -7620,7 +7620,7 @@ var RETENTION_DAYS = {
   ai_usage: 400,
   /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00336; decision 0032). */
   provider_events: 7,
-  /** What a write answered, under the key its page sent, so the same write sent twice is made once (purge_idempotency_keys, 00339; decision 0035). */
+  /** What a write answered, under the key its page sent, so the same write sent twice is made once (purge_idempotency_keys, 00340; decision 0035). */
   idempotency_keys: 1
 };
 var RATE_HITS_RETENTION_HOURS = 2;

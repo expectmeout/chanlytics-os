@@ -28629,7 +28629,7 @@ declare const RETENTION_DAYS: {
     readonly ai_usage: 400;
     /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00336; decision 0032). */
     readonly provider_events: 7;
-    /** What a write answered, under the key its page sent, so the same write sent twice is made once (purge_idempotency_keys, 00339; decision 0035). */
+    /** What a write answered, under the key its page sent, so the same write sent twice is made once (purge_idempotency_keys, 00340; decision 0035). */
     readonly idempotency_keys: 1;
 };
 /** Rate-limit counters (00059): two hours, in hours. */

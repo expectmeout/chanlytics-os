@@ -246,11 +246,11 @@ var ERASURE_LEGS = {
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
-  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00340)"
+  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
 var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
-var kept = (days) => ({ kind: "by_age", days });
+var byAge = (days) => ({ kind: "by_age", days });
 var DIGEST = { kind: "digest" };
 var NOT_PERSONAL = { kind: "not_personal" };
 var all = (strategy, ...names) => Object.fromEntries(names.map((n) => [n, strategy]));
@@ -306,7 +306,7 @@ var ERASURE_STRATEGIES = {
     data: scrubbedBy("events_trigger"),
     ...all(NOT_PERSONAL, "kind", "category", "subject_type", "request_id")
   },
-  idempotency_keys: all(kept("idempotency_keys"), "key", "route", "request_hash", "response"),
+  idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
   jobs: { payload: scrubbedBy("jobs_scrub", "erase_contact") },
   lead_places: all(withPerson("leads_trigger"), "place_id", "title", "street"),
   lead_search_members: all(scrubbedBy("leads_trigger"), "judgment", "reason"),
@@ -342,7 +342,7 @@ var ERASURE_STRATEGIES = {
   ),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
   notifications: {
-    ...all(kept("notifications"), "title", "body"),
+    ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id")
   },
   person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
@@ -362,7 +362,7 @@ var ERASURE_STRATEGIES = {
   ),
   provider_events: {
     body: scrubbedBy("deliveries_scrub"),
-    ...all(kept("provider_events"), "provider_event_id", "door", "url", "headers")
+    ...all(byAge("provider_events"), "provider_event_id", "door", "url", "headers")
   }
 };
 
@@ -2415,15 +2415,15 @@ var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfil
 var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;
 var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
 function assembleHistory(rows, limit) {
-  const kept2 = rows.filter((m) => {
+  const kept = rows.filter((m) => {
     const body = (m.body ?? "").trim();
     if (!body) return false;
     if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
     if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
     return true;
   });
-  kept2.sort((a, b) => effectiveAt(a) - effectiveAt(b));
-  return kept2.map((m) => ({
+  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
+  return kept.map((m) => ({
     // A call note is the customer's own history on another channel — one
     // agent, so it counts the same as a message.
     role: m.sender === "customer" ? "user" : "assistant",
@@ -2740,9 +2740,9 @@ async function releaseIdempotencyKey(db, p) {
   if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
 }
 async function keepIdempotencyReceipt(db, p) {
-  const kept2 = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: p.response }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.stamp).select("key");
-  if (kept2.error) throw new Error(`idempotency receipt: ${kept2.error.message}`);
-  return (kept2.data ?? []).length > 0;
+  const kept = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: p.response }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.stamp).select("key");
+  if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
+  return (kept.data ?? []).length > 0;
 }
 
 // src/jobs.ts
@@ -3774,9 +3774,9 @@ async function keepChannelQuality(db, tenantId, channelId, rating) {
     p_rating: rating
   });
   if (error) throw new Error(`channel_keep_quality: ${error.message}`);
-  const kept2 = KEPT_ANSWERS.find((a) => a === data);
-  if (kept2 === void 0) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
-  return kept2;
+  const kept = KEPT_ANSWERS.find((a) => a === data);
+  if (kept === void 0) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
+  return kept;
 }
 async function keepChannelStanding(db, tenantId, channelId, standing) {
   const { data, error } = await db.rpc("channel_keep_standing", {

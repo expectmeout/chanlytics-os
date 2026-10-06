@@ -55,7 +55,7 @@ export type ErasureStrategy =
 
 const withPerson = (by: ErasureLeg): ErasureStrategy => ({ kind: "with_person", by });
 const scrubbedBy = (...by: ErasureLeg[]): ErasureStrategy => ({ kind: "scrubbed", by });
-const kept = (days: keyof typeof RETENTION_DAYS): ErasureStrategy => ({ kind: "by_age", days });
+const byAge = (days: keyof typeof RETENTION_DAYS): ErasureStrategy => ({ kind: "by_age", days });
 const DIGEST: ErasureStrategy = { kind: "digest" };
 const NOT_PERSONAL: ErasureStrategy = { kind: "not_personal" };
 
@@ -116,7 +116,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     data: scrubbedBy("events_trigger"),
     ...all(NOT_PERSONAL, "kind", "category", "subject_type", "request_id"),
   },
-  idempotency_keys: all(kept("idempotency_keys"), "key", "route", "request_hash", "response"),
+  idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
   jobs: { payload: scrubbedBy("jobs_scrub", "erase_contact") },
   lead_places: all(withPerson("leads_trigger"), "place_id", "title", "street"),
   lead_search_members: all(scrubbedBy("leads_trigger"), "judgment", "reason"),
@@ -152,7 +152,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   ),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
   notifications: {
-    ...all(kept("notifications"), "title", "body"),
+    ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id"),
   },
   person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
@@ -172,6 +172,6 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   ),
   provider_events: {
     body: scrubbedBy("deliveries_scrub"),
-    ...all(kept("provider_events"), "provider_event_id", "door", "url", "headers"),
+    ...all(byAge("provider_events"), "provider_event_id", "door", "url", "headers"),
   },
 };
