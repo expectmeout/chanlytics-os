@@ -199,6 +199,15 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
       if (mine !== generation) return;
       move("speaking");
     },
+    /**
+     * Inside a press whose answer is read later (a hold to talk): the element made and started on silence, as a read's
+     * own press starts it, so the clip read once the answer lands, after a fetch and outside any gesture, may play on a
+     * phone. Nothing is read and nothing being read stops.
+     */
+    readySpeech: (): void => {
+      const d = device();
+      if (d) unlock(d);
+    },
     /** Stop reading, or stop waiting for the clip; nothing if nothing was. */
     stopSpeaking: () => {
       generation++;
