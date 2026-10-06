@@ -327,7 +327,9 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
       note: plural(days, "day"),
       headline: null,
       funnel: null,
+      funnelLabel: null,
       yes: null,
+      readNote: null,
       runs: [],
       quiet: false,
     };
@@ -335,17 +337,36 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
   const days = b.report?.days ?? RESULTS_DAYS;
   const note = plural(days, "day");
   const runs = cameBack(input, days);
-  if (!b.report) return { read: "read", days, note, headline: null, funnel: null, yes: null, runs, quiet: false };
+  if (!b.report)
+    return {
+      read: "read",
+      days,
+      note,
+      headline: null,
+      funnel: null,
+      funnelLabel: null,
+      yes: null,
+      readNote: null,
+      runs,
+      quiet: false,
+    };
   const t = b.report.totals;
   const W = LIFECYCLE_WORDS.results.funnel;
-  const share = (n: number) => (t.sent > 0 ? n / t.sent : 0);
-  const step = (id: "sent" | "delivered" | "read" | "replied", n: number) => ({
+  // A read is a share of WhatsApp's own sends (0030): a text or an email keeps no read receipt. Absent, of every send.
+  const readOf = t.readOf ?? t.sent;
+  const step = (id: "sent" | "delivered" | "read" | "replied", n: number, of = t.sent) => ({
     id,
     label: W[id],
-    meter: `${W[id]}: ${n}`,
+    meter: id === "read" && of !== t.sent ? `${W[id]}: ${n} of WhatsApp's ${of}` : `${W[id]}: ${n}`,
     n,
-    share: id === "sent" ? 1 : share(n),
+    share: id === "sent" ? 1 : of > 0 ? n / of : 0,
   });
+  const readNote =
+    t.sent === 0 || readOf === t.sent
+      ? null
+      : readOf > 0
+        ? LIFECYCLE_WORDS.results.readOf(readOf)
+        : LIFECYCLE_WORDS.results.noRead;
   return {
     read: "read",
     days,
@@ -356,9 +377,22 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
         : { n: 0, words: `messages sent in ${days} days` },
     funnel:
       t.sent > 0
-        ? [step("sent", t.sent), step("delivered", t.delivered), step("read", t.read), step("replied", t.replied)]
+        ? [
+            step("sent", t.sent),
+            step("delivered", t.delivered),
+            // No WhatsApp sent, no read to count: the step is left out, and the note says why.
+            ...(readOf > 0 ? [step("read", t.read, readOf)] : []),
+            step("replied", t.replied),
+          ]
+        : null,
+    funnelLabel:
+      t.sent > 0
+        ? readOf > 0
+          ? LIFECYCLE_WORDS.results.funnelLabel
+          : LIFECYCLE_WORDS.results.funnelLabelNoRead
         : null,
     yes: `${t.optIns} said yes · ${t.optOuts} asked to stop`,
+    readNote,
     runs,
     quiet: t.sent === 0 && t.optIns === 0 && t.optOuts === 0,
   };

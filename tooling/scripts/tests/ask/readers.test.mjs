@@ -3173,7 +3173,8 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["deals.select", "id, stage, proposed_at, decided_at"],
   [
     "broadcast_recipients.select",
-    "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta)",
+    // 6 Oct 2026: with the channel each went by, so a run says what each channel sent (0030).
+    "broadcast_id, contact_id, state, reason, sent_at, channel, messages(conversation_id, status, meta)",
   ],
   // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
   [

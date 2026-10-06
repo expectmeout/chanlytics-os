@@ -7,7 +7,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
-import { DEALS, NO_DEALS, quiet, surface } from "../_report-world.mjs";
+import { DEALS, NO_DEALS, campaignDto, quiet, surface } from "../_report-world.mjs";
 
 const reads = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
@@ -187,4 +187,32 @@ test("Reviews says the read failed, with its Retry, where Google could not be re
     null,
     "REGRESSION: a failed read said 'find your business on Google once'",
   );
+});
+
+test("the Campaigns lens draws its channels where more than one sent (0030): a bar each in the channel's own colour, its delivered share beside it, every figure in its table, and what a read is under it; one channel, no card", () => {
+  workspace("proposal");
+  const split = [
+    { channel: "whatsapp", sent: 14, delivered: 12, read: 11, replied: 3 },
+    { channel: "sms", sent: 4, delivered: 3, read: 0, replied: 1 },
+    { channel: "email", sent: 2, delivered: 1, read: 0, replied: 0 },
+  ];
+  const tree = draw("campaigns", { R: surface({ deals: DEALS, campaigns: { ...campaignDto(), by_channel: split } }) });
+  const card = byTestId(tree, "chart-campaign-channels");
+  assert.ok(card, "the card");
+  assert.match(textOf(card), /By channel/);
+  assert.match(textOf(card), /Read receipts are WhatsApp's alone: 11 of its 14 were read\./);
+  for (const words of ["WhatsApp", "14 · 86% delivered", "Text", "4 · 75% delivered", "Email", "2 · 50% delivered"])
+    assert.ok(textOf(card).includes(words), words);
+  assert.equal(byTestId(tree, "chart-channels"), null, "People's channels card is People's");
+  const one = draw("campaigns", {
+    R: surface({
+      deals: DEALS,
+      campaigns: {
+        ...campaignDto(),
+        by_channel: [{ channel: "whatsapp", sent: 20, delivered: 16, read: 11, replied: 4 }],
+      },
+    }),
+  });
+  assert.equal(byTestId(one, "chart-campaign-channels"), null, "one channel: nothing to split");
+  assert.equal(byTestId(draw("campaigns"), "chart-campaign-channels"), null, "a report from before the channels");
 });

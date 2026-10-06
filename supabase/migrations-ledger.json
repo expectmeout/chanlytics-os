@@ -330,6 +330,7 @@
     "00324_the_tables_leave_postgres_changes.sql": "2cf41b84cf614a50b1a8a6937b19ce80658b78648fe6ed3e61acab93fab9b711",
     "00326_two_records_of_one_person_become_one.sql": "6b57611e26d1b1fe6671d40b02ece6ca3b48b8c2ba9b01a1b559df5b458db89b",
     "00327_a_message_s_status_is_told_to_its_workspace.sql": "9caefa7bc9ddf706be5cab3acbebd77c066f73b6c90d60cbf4f4fb117840f97b",
-    "00328_a_person_s_every_open_deal.sql": "816bd45a3827f5217d111b2d08785d7f404848851b01ffc0a94f71247e51160b"
+    "00328_a_person_s_every_open_deal.sql": "816bd45a3827f5217d111b2d08785d7f404848851b01ffc0a94f71247e51160b",
+    "00329_a_campaign_is_counted_by_its_channel.sql": "6f85139338ee724ff227a6a8df42f985961755816deac7376130b20581efc0fa"
   }
 }

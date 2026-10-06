@@ -9,7 +9,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { REPLY_WINDOW_MS, clockStamp, toBroadcastVM, toRunReportVM } from "@chanlytics/contracts";
+import { REPLY_WINDOW_MS, clockStamp, sentByWords, toBroadcastVM, toRunReportVM } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -106,8 +106,11 @@ const tables = () => ({
       messages: { conversation_id: "cv-1", status: "read", meta: { status_at: { delivered: iso(60_000) } } },
       contacts: { display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: "+19175550100", email: null },
     }),
+    // By text (0030): the run went by two channels, and its read is WhatsApp's alone: a carrier's read on a text is
+    // no read, so the run's share never passes the whole.
     rec(P2, {
-      messages: { conversation_id: "cv-2", status: "delivered", meta: {} },
+      channel: "sms",
+      messages: { conversation_id: "cv-2", status: "read", meta: {} },
       contacts: { display_name: null, wa_profile_name: "Lu", phone_e164: "+19175550101", email: null },
     }),
     rec(P3, {
@@ -163,6 +166,7 @@ const rowOf = (b) => {
     sent: b.counts.sent,
     delivered: vm.deliveredPct === null ? null : `${vm.deliveredPct}%`,
     read: vm.readPct === null ? null : `${vm.readPct}%`,
+    ...(sentByWords(b.counts.sent_by) ? { sent_by_channel: sentByWords(b.counts.sent_by) } : {}),
     replied: b.counts.replied,
     held_back: b.counts.skipped,
     failed: b.counts.failed,
@@ -181,11 +185,15 @@ test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, e
     ["Needs you", true, "a playbook", "Quiet 30 days"],
   );
   assert.ok(out.broadcasts.find((b) => b.broadcast_id === BC3).why_it_failed, "a failed run says why");
-  // Who sent it, in the words the description reads it in; delivered and read are shares of what was sent.
+  // A run that went by WhatsApp and text says each, and its read is a share of WhatsApp's one (0030).
+  const both = out.broadcasts.find((b) => b.broadcast_id === BC1);
+  assert.deepEqual([both.sent_by_channel, both.read], ["1 on WhatsApp, 1 by text", "100%"]);
+  // Who sent it, in the words the description reads it in; delivered is a share of what was sent, read of what went by
+  // WhatsApp (0030), the one channel that keeps read receipts.
   const words = READ_DEFS.find((d) => d.name === "campaigns").actions.broadcasts.words;
   assert.equal(out.broadcasts.find((b) => b.broadcast_id === BC1).by, "a person");
   assert.ok(words.includes("whether a playbook or a person sent it"), words);
-  assert.ok(words.includes("the share of those delivered and read"), words);
+  assert.ok(words.includes("the share of those delivered, the share of those sent by WhatsApp that were read"), words);
   assert.ok(!out.broadcasts.some((b) => b.broadcast_id === BCB), "not another workspace's");
   for (const b of page.rows) assert.deepEqual(tc.read.broadcast.get(b.id), b, `${b.label}: the reader's row`);
 });

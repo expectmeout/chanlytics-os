@@ -511,6 +511,18 @@ function withHold(result) {
   return said.reply_time ? JSON.stringify({ ...said, reply_time: { ...said.reply_time, hold: null } }) : result;
 }
 
+/**
+ * 6 Oct 2026 (decision 0030): the report says the Campaigns lens beside it, from the lens's own read (readers/
+ * campaign-report.ts), the last thing it says: an error in this world, whose database has no campaign_series (a function
+ * it does not have is no read it counts). The one change to the bytes of a report it answers.
+ */
+function withCampaigns(result) {
+  const said = JSON.parse(result);
+  return said.error
+    ? result
+    : JSON.stringify({ ...said, campaigns: { error: "the campaign numbers could not be read just now" } });
+}
+
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
   assert.equal(new Set(Object.values(NAMES)).size, 26, "each to its own name.action");
@@ -646,7 +658,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     let result = want.result;
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
-    if (NAMES[old] === "report") result = withHold(result);
+    if (NAMES[old] === "report") result = withCampaigns(withHold(result));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);

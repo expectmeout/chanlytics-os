@@ -5,6 +5,7 @@ export {
   broadcastName,
   whenLabel,
   toBroadcastVM,
+  sentByWords,
   emptyAudienceRefusal,
   BROADCAST_STATES,
   RECIPIENT_STATES,

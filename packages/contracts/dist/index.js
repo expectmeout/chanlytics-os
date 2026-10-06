@@ -12307,6 +12307,15 @@ function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
   const ms2 = Date.parse(iso);
   return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
 }
+function readShare(c) {
+  const of = c.sent_by ? c.sent_by.whatsapp : c.sent;
+  return of > 0 ? Math.round(c.read / of * 100) : null;
+}
+function sentByWords(by) {
+  if (!by) return null;
+  const went = CONSENT_CHANNELS.filter((c) => by[c] > 0);
+  return went.length > 1 ? went.map((c) => `${by[c]} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ") : null;
+}
 function toBroadcastVM(d, tz, now = /* @__PURE__ */ new Date()) {
   const c = d.counts;
   const attempted = c.sent + c.skipped + c.failed;
@@ -12315,7 +12324,7 @@ function toBroadcastVM(d, tz, now = /* @__PURE__ */ new Date()) {
     stateLabel: BROADCAST_STATE_LABELS[d.state] ?? d.state,
     when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, tz, now),
     deliveredPct: c.sent > 0 ? Math.round(c.delivered / c.sent * 100) : null,
-    readPct: c.sent > 0 ? Math.round(c.read / c.sent * 100) : null,
+    readPct: readShare(c),
     open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
     progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
     failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null
@@ -26166,7 +26175,11 @@ var LIFECYCLE_WORDS = {
     link: "All runs",
     quiet: "Nothing went out, and nobody said yes or asked to stop.",
     funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
-    funnelLabel: "Sent, delivered, read and replied"
+    funnelLabel: "Sent, delivered, read and replied",
+    funnelLabelNoRead: "Sent, delivered and replied",
+    /** Under the funnel where a text or an email went too (0030): a read is WhatsApp's own receipt. */
+    readOf: (whatsappSent) => `Read is of WhatsApp's ${whatsappSent}: a text or an email keeps no read receipt.`,
+    noRead: "These went by text or email, which keep no read receipt."
   }
 };
 var LIFECYCLE_TOAST = {
@@ -26420,7 +26433,9 @@ function lifecycleResults(input) {
       note: plural(days2, "day"),
       headline: null,
       funnel: null,
+      funnelLabel: null,
       yes: null,
+      readNote: null,
       runs: [],
       quiet: false
     };
@@ -26428,24 +26443,45 @@ function lifecycleResults(input) {
   const days = b.report?.days ?? RESULTS_DAYS;
   const note = plural(days, "day");
   const runs = cameBack(input, days);
-  if (!b.report) return { read: "read", days, note, headline: null, funnel: null, yes: null, runs, quiet: false };
+  if (!b.report)
+    return {
+      read: "read",
+      days,
+      note,
+      headline: null,
+      funnel: null,
+      funnelLabel: null,
+      yes: null,
+      readNote: null,
+      runs,
+      quiet: false
+    };
   const t = b.report.totals;
   const W = LIFECYCLE_WORDS.results.funnel;
-  const share = (n) => t.sent > 0 ? n / t.sent : 0;
-  const step2 = (id, n) => ({
+  const readOf = t.readOf ?? t.sent;
+  const step2 = (id, n, of = t.sent) => ({
     id,
     label: W[id],
-    meter: `${W[id]}: ${n}`,
+    meter: id === "read" && of !== t.sent ? `${W[id]}: ${n} of WhatsApp's ${of}` : `${W[id]}: ${n}`,
     n,
-    share: id === "sent" ? 1 : share(n)
+    share: id === "sent" ? 1 : of > 0 ? n / of : 0
   });
+  const readNote = t.sent === 0 || readOf === t.sent ? null : readOf > 0 ? LIFECYCLE_WORDS.results.readOf(readOf) : LIFECYCLE_WORDS.results.noRead;
   return {
     read: "read",
     days,
     note,
     headline: t.sent > 0 ? { n: t.replied, words: `wrote back, of ${t.sent} sent` } : { n: 0, words: `messages sent in ${days} days` },
-    funnel: t.sent > 0 ? [step2("sent", t.sent), step2("delivered", t.delivered), step2("read", t.read), step2("replied", t.replied)] : null,
+    funnel: t.sent > 0 ? [
+      step2("sent", t.sent),
+      step2("delivered", t.delivered),
+      // No WhatsApp sent, no read to count: the step is left out, and the note says why.
+      ...readOf > 0 ? [step2("read", t.read, readOf)] : [],
+      step2("replied", t.replied)
+    ] : null,
+    funnelLabel: t.sent > 0 ? readOf > 0 ? LIFECYCLE_WORDS.results.funnelLabel : LIFECYCLE_WORDS.results.funnelLabelNoRead : null,
     yes: `${t.optIns} said yes \xB7 ${t.optOuts} asked to stop`,
+    readNote,
     runs,
     quiet: t.sent === 0 && t.optIns === 0 && t.optOuts === 0
   };
@@ -27385,8 +27421,38 @@ function bookedSeenOf(items, own) {
 }
 
 // src/reports/campaign-report.ts
+var CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
+  (c) => c.key !== "voice"
+);
 var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
 var WHEN2 = formatterOnUse([], { month: "short", day: "numeric" });
+function campaignChannelsOf(rows) {
+  return (rows ?? []).flatMap((r2) => {
+    const known = CAMPAIGN_CHANNELS.find((c) => c.key === r2.channel);
+    if (!known || !(r2.sent > 0)) return [];
+    const whatsapp = known.key === "whatsapp";
+    const deliveredPct = pct2(r2.delivered, r2.sent);
+    return [
+      {
+        channel: known.key,
+        label: known.label,
+        sent: r2.sent,
+        delivered: r2.delivered,
+        deliveredPct,
+        read: whatsapp ? r2.read : null,
+        readPct: whatsapp ? pct2(r2.read, r2.sent) : null,
+        replied: r2.replied,
+        repliedPct: pct2(r2.replied, r2.sent),
+        display: `${r2.sent} \xB7 ${deliveredPct === null ? "\u2014" : `${deliveredPct}%`} delivered`
+      }
+    ];
+  });
+}
+function channelsLine2(channels) {
+  if (channels.length < 2) return null;
+  const whatsapp = channels.find((c) => c.channel === "whatsapp");
+  return whatsapp ? `Read receipts are WhatsApp's alone: ${whatsapp.read} of its ${whatsapp.sent} were read.` : "A text or an email keeps no read receipt.";
+}
 function toCampaignReportVM(dto) {
   const days = dto.days;
   const series = dto.series ?? [];
@@ -27417,6 +27483,10 @@ function toCampaignReportVM(dto) {
     optIns: sumOf(previous.map((d) => d.opt_ins)),
     optOuts: sumOf(previous.map((d) => d.opt_outs))
   };
+  const channels = campaignChannelsOf(dto.by_channel);
+  const whatsapp = channels.find((c) => c.channel === "whatsapp");
+  const read = dto.by_channel ? whatsapp?.read ?? 0 : tot.read;
+  const readOf = dto.by_channel ? whatsapp?.sent ?? 0 : tot.sent;
   const noun = plural(days, "day");
   const rawSources = dto.sources ?? [];
   const sends2 = sumOf(rawSources.map((s) => s.runs));
@@ -27434,7 +27504,6 @@ function toCampaignReportVM(dto) {
     read: s.read,
     replied: s.replied,
     deliveredPct: pct2(s.delivered, s.sent),
-    readPct: pct2(s.read, s.sent),
     repliedPct: pct2(s.replied, s.sent),
     lastLabel: s.last_at ? WHEN2.format(new Date(s.last_at)) : "",
     share: s.sent / maxSent
@@ -27495,7 +27564,7 @@ function toCampaignReportVM(dto) {
     days,
     tiles,
     points,
-    totals: { ...tot, sends: sends2 },
+    totals: { ...tot, read, readOf, sends: sends2 },
     sources,
     empty: tot.sent === 0 && tot.optIns === 0 && tot.optOuts === 0,
     max: Math.max(1, ...points.map((p) => p.sent)),
@@ -27504,10 +27573,16 @@ function toCampaignReportVM(dto) {
       columns: ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
       rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts])
     },
+    channels,
+    channelTable: {
+      columns: ["Channel", "Sent", "Delivered", "Read", "Wrote back"],
+      rows: channels.map((c) => [c.label, c.sent, c.delivered, c.read, c.replied])
+    },
     lines: {
       // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
       funnel: tot.optIns || tot.optOuts ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.` : "Nobody said yes to messages or asked to stop.",
-      sent: sends2 ? sends2 === 1 ? "From one broadcast or playbook run." : `From ${sends2} broadcast and playbook runs.` : null
+      sent: sends2 ? sends2 === 1 ? "From one broadcast or playbook run." : `From ${sends2} broadcast and playbook runs.` : null,
+      channels: channelsLine2(channels)
     }
   };
 }
@@ -36098,6 +36173,7 @@ export {
   sendingDomainDtoOf,
   sendingDomainWords,
   sendingDomainsFootWords,
+  sentByWords,
   serverNotificationRows,
   serviceOf2 as serviceOf,
   serviceSuggestionsOf,

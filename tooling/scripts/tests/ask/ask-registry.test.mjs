@@ -77,7 +77,18 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
  * schema and examples); propose_thread_verb no longer points every role to a person's mode, which only an owner is
  * offered since PR 4.6.
  */
-const CHANGED = ["propose_campaign", "propose_list", "propose_thread_verb", "report"];
+const CHANGED = ["campaigns", "propose_campaign", "propose_list", "propose_thread_verb", "report"];
+/**
+ * 6 Oct 2026 (decision 0030, a campaign counted by its channel): report says the Campaigns lens beside the Deals
+ * section, and campaigns says a run's channels and that its read is a share of what went by WhatsApp. The one sentence
+ * each, and nothing else either says.
+ */
+const REPORT_CAMPAIGNS_WORDS =
+  "the Deals section where deals are on, and the Campaigns lens: what the broadcasts and playbooks sent, delivered and had written back, who said yes or asked to stop, the sources that sent the most, and by_channel where more than one channel sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); campaigns says error where its numbers could not be read.";
+const RUN_CHANNEL_WORDS = [
+  "how many were sent, the share of those delivered and read, and how many replied,",
+  "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
+];
 /**
  * What the report tool's description gained after PR 4.7 (the Reports fix wave, spec D14): its median and p90 reply time
  * include the hold the owner set, and reply_time.hold splits the replies against it. Nothing else of it moved.
@@ -269,7 +280,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb and report (its reply times say the hold) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, report (its reply times say the hold, and it says the Campaigns lens) and campaigns (a run's channels) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -304,13 +315,19 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
   for (const role of ROLES) {
     assert.equal(
       tool(role, "report").description,
-      was(role, "report").description.replace(
-        "the median and p90 reply time,",
-        `the median and p90 reply time ${REPORT_HOLD_WORDS},`,
-      ),
+      was(role, "report")
+        .description.replace("the median and p90 reply time,", `the median and p90 reply time ${REPORT_HOLD_WORDS},`)
+        .replace("and the Deals section where deals are on.", REPORT_CAMPAIGNS_WORDS),
       role,
     );
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
+    // campaigns (0030): a run's line says its channels and a read WhatsApp's alone; nothing else it says moved.
+    assert.equal(
+      tool(role, "campaigns").description,
+      was(role, "campaigns").description.replace(...RUN_CHANNEL_WORDS),
+      role,
+    );
+    assert.deepEqual(words(tool(role, "campaigns")), words(was(role, "campaigns")), role);
   }
   for (const role of ["operator", "partner", "owner"]) {
     // propose_thread_verb: the sentence that sent every role to an owner's action now says whose it is, which is true for

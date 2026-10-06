@@ -24,6 +24,7 @@ import {
   sendableTemplates,
   starterForTrigger,
   toBroadcastVM,
+  sentByWords,
   toRunReportVM,
   triggerOf,
   unmetNeed,
@@ -316,7 +317,9 @@ function broadcastLine(b: BroadcastDto, tz: string, now: Date) {
     people: b.recipient_count,
     sent: b.counts.sent,
     delivered: vm.deliveredPct === null ? null : `${vm.deliveredPct}%`,
+    // A read is WhatsApp's own receipt (0030): a share of what went by WhatsApp; a run on more than one channel says each.
     read: vm.readPct === null ? null : `${vm.readPct}%`,
+    ...(sentByWords(b.counts.sent_by) ? { sent_by_channel: sentByWords(b.counts.sent_by) } : {}),
     replied: b.counts.replied,
     held_back: b.counts.skipped,
     failed: b.counts.failed,
@@ -407,7 +410,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the broadcasts",
       words:
-        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, how many were sent, the share of those delivered and read, and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
+        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
       run: readBroadcasts,
     }),
     broadcast: readAction({

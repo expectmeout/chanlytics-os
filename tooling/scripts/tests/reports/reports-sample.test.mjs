@@ -85,3 +85,28 @@ test("Month is the days since the 1st: eighteen on the 18th, said as a period of
   assert.deepEqual([month.period, month.days, month.vm.answered.points.length], ["month", 18, 18]);
   assert.equal(reportsSample("90d", TODAY).period, "90d");
 });
+
+test("the sample's channels (0030) share each period's figures, every part inside its channel's own sends, on every day of a year and every period", () => {
+  for (let k = 0; k < 366; k++) {
+    const today = new Date(Date.parse("2026-01-01T12:00:00Z") + k * 86_400_000).toISOString().slice(0, 10);
+    for (const id of ["7d", "30d", "90d", "month"]) {
+      const { campaigns } = reportsSample(id, today);
+      const at = `${today} ${id}`;
+      const sum = (k2) => campaigns.channels.reduce((n, c) => n + c[k2], 0);
+      if (!campaigns.totals.sent) continue;
+      assert.deepEqual(
+        [sum("sent"), sum("delivered"), sum("replied")],
+        [campaigns.totals.sent, campaigns.totals.delivered, campaigns.totals.replied],
+        `${at}: the parts are the whole`,
+      );
+      for (const c of campaigns.channels) {
+        assert.ok(
+          c.delivered <= c.sent && c.replied <= c.sent && c.delivered >= 0 && c.replied >= 0,
+          `${at} ${c.label}`,
+        );
+        assert.ok(c.deliveredPct === null || c.deliveredPct <= 100, `${at} ${c.label}: at most all of it`);
+      }
+      assert.ok(campaigns.totals.read <= campaigns.totals.readOf, `${at}: a read of WhatsApp's own`);
+    }
+  }
+});

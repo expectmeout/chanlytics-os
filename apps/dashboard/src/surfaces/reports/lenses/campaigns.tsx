@@ -5,7 +5,7 @@ import { ChartCard } from "../../kit/charts/card";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { RptSection, RptSources } from "../blocks";
 import { RptReachOuts } from "../reach-outs";
-import { RPT_SENT } from "../series";
+import { RPT_CHANNEL_COLORS, RPT_SENT } from "../series";
 import { LensEmpty, type LensProps } from "./shared";
 
 /** From sent to replied: the campaigns' funnel, each step a share of what went out. */
@@ -71,6 +71,34 @@ function sentCard(cm: CampaignReportVM, days: number) {
   );
 }
 
+/**
+ * By channel (0030): what each channel sent and how much of it was delivered, the most first, in the colour each channel
+ * wears across Reports; its table has every figure, a read WhatsApp's alone. Drawn where more than one channel sent.
+ */
+function channelsCard(cm: CampaignReportVM) {
+  if (cm.channels.length < 2) return null;
+  return (
+    <ChartCard
+      className="rpt-span-12"
+      title="By channel"
+      testid="chart-campaign-channels"
+      takeaway={cm.lines.channels}
+      table={cm.channelTable}
+    >
+      <BarList
+        max={Math.max(...cm.channels.map((c) => c.sent))}
+        rows={cm.channels.map((c) => ({
+          id: c.channel,
+          label: c.label,
+          value: c.sent,
+          display: c.display,
+          color: RPT_CHANNEL_COLORS[c.channel],
+        }))}
+      />
+    </ChartCard>
+  );
+}
+
 /** What the broadcasts and playbooks sent: its cards, or why there are none (a failed read, or nothing sent). */
 function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) {
   if (!cm)
@@ -88,6 +116,7 @@ function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) 
     <div className="rpt-grid">
       {funnelCard(cm)}
       {sentCard(cm, days)}
+      {channelsCard(cm)}
       <ChartCard
         className="rpt-span-12"
         title="By playbook and broadcast"

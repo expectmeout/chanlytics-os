@@ -564,6 +564,22 @@ test("a campaign report that failed is said in the numbers' place, with a Retry;
   assert.deepEqual(refreshed, ["broadcasts"], "its Retry reads the broadcasts, where the report is read");
 });
 
+test("what came back says what a read is where a text or an email went too (0030), under the funnel, and nothing where WhatsApp alone sent", () => {
+  surfaces({
+    broadcasts: {
+      report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2, readOf: 6 } },
+    },
+  });
+  let tree = page();
+  assert.equal(
+    textOf(byTestId(byTestId(tree, "cmh-results"), "cmh-read-note")),
+    "Read is of WhatsApp's 6: a text or an email keeps no read receipt.",
+  );
+  surfaces();
+  tree = page();
+  assert.equal(byTestId(tree, "cmh-read-note"), null);
+});
+
 test("on a phone a failed read is said in the same places: over the moments, in the Also lines, and in what came back", () => {
   surfaces({
     playbooks: { countsRead: false },

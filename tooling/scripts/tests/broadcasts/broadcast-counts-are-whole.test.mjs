@@ -145,8 +145,27 @@ test("REGRESSION: a run counts every person on it past PostgREST's thousand rows
     messages: [...r1.inbound, ...r2.inbound],
   });
   const whole = {
-    r1: { queued: 0, sent: 650, skipped: 50, failed: 0, delivered: 650, read: 400, replied: 70 },
-    r2: { queued: 0, sent: 560, skipped: 40, failed: 0, delivered: 560, read: 300, replied: 60 },
+    // What each channel sent too (0030): rows from before channels name none, and went by WhatsApp.
+    r1: {
+      queued: 0,
+      sent: 650,
+      skipped: 50,
+      failed: 0,
+      delivered: 650,
+      read: 400,
+      replied: 70,
+      sent_by: { whatsapp: 650, sms: 0, email: 0 },
+    },
+    r2: {
+      queued: 0,
+      sent: 560,
+      skipped: 40,
+      failed: 0,
+      delivered: 560,
+      read: 300,
+      replied: 60,
+      sent_by: { whatsapp: 560, sms: 0, email: 0 },
+    },
   };
   const db = capped(tables());
   const runs = await listRuns({ supabase: db }, TID);
@@ -314,6 +333,7 @@ test("REGRESSION: a broadcast's detail lists every person on it -- it stopped at
     delivered: 1150,
     read: 700,
     replied: 90,
+    sent_by: { whatsapp: 1150, sms: 0, email: 0 },
   });
   assert.equal(d.recipients.filter((r) => r.replied).length, 90, "each one who wrote back says so on their own line");
 });
