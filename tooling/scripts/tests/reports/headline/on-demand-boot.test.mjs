@@ -185,3 +185,70 @@ test("the two overrides that read Reports are the two marked, and nothing else i
     "Reports' own is kept current by its live-feed rule and by its page's arrival",
   );
 });
+
+test("a return that leaves Reports out keeps it for its page: after a long absence on Today, Reports is read once as it comes on screen", async () => {
+  const r = await running("#/today");
+  try {
+    await r.go("#/reports");
+    await r.go("#/today");
+    r.take();
+    // Away for long: the return reads what Today draws and leaves Reports, which it would have read, for its page.
+    await r.away(10 * 60_000);
+    assert.equal(r.take().includes("reports"), false, "Today's return does not read Reports");
+    await r.go("#/reports");
+    assert.deepEqual(
+      r.take(),
+      ["reports"],
+      "REGRESSION: Reports came on screen with what it held from before the absence, and was never read again",
+    );
+    await r.go("#/today");
+    r.take();
+    await r.go("#/reports");
+    assert.deepEqual(r.take(), [], "kept once: the next arrival reads nothing new");
+  } finally {
+    r.stop();
+  }
+});
+
+test("a rejoin of the live feed reads the gap of what is drawn here, and keeps Reports for its page", async () => {
+  win.location.hash = "#/today";
+  const asked = [];
+  // The feed's statuses, as the runner's join hears them.
+  let onStatus = () => {};
+  const read = (key, extra = {}) => ({ key, debounceMs: 0, apply: async () => void asked.push(key), ...extra });
+  const overrides = [
+    read("workspace"),
+    read("today", { refreshOnMessageInserts: true }),
+    read("inbox", { refreshOnMessageInserts: true }),
+    read("reports", { onDemand: true, refreshOnMessageInserts: true }),
+  ];
+  const stop = runner.startSurfaces(overrides, (_onChange, opts) => {
+    onStatus = opts.onStatus;
+    return () => {};
+  });
+  const off = registry.readWhatWasMissed(
+    overrides,
+    (keys) => void runner.refreshSurfaces(overrides.filter((o) => keys.includes(o.key))),
+    win,
+  );
+  try {
+    await settle(30);
+    asked.length = 0;
+    onStatus("SUBSCRIBED");
+    onStatus("CHANNEL_ERROR");
+    onStatus("SUBSCRIBED");
+    await settle(30);
+    assert.deepEqual(
+      asked.splice(0).sort(),
+      ["inbox", "today"],
+      "REGRESSION: every rejoin of the feed read Reports' three routes on whatever page was on screen",
+    );
+    win.location.hash = "#/reports";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    assert.deepEqual(asked.splice(0), ["reports"], "the gap is read where Reports is drawn, as it comes on screen");
+  } finally {
+    stop();
+    off();
+  }
+});

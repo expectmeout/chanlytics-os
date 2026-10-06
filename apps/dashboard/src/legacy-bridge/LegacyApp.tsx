@@ -180,8 +180,9 @@ const SURFACES = [
  */
 hearSurfaces(SURFACES);
 const useSurface = surfaceHook({ useCallback, useSyncExternalStore });
-// A surface that let a message pass while its page was elsewhere is read once as its page comes on screen
-// (surface-registry.ts onlyOnItsPage).
+// What a page draws and has not read is read once as it comes on screen (surface-registry.ts readWhatWasMissed): a surface that
+// let a message pass while its page was elsewhere (onlyOnItsPage) or that a pass left for its page (keepForItsPage), and one read
+// only where it is drawn (onDemand) that was never read or has aged.
 readWhatWasMissed(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))));
 /** The runner's live feed: the workspace's topic, over this browser's Supabase client. */
 const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeWorkspaceChanges(createClient(), onChange, opts);

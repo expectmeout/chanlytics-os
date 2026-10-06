@@ -266,8 +266,20 @@ export function ownsTheScreen(key: string, route: string): boolean {
   return OWNS_WHAT_IT_DRAWS.has(page) && routeDrawsFor(page, param).includes(key);
 }
 
-/** Surfaces that let a live event pass while their page was elsewhere: read once when it comes on screen. */
+/**
+ * Surfaces that let a live event pass while their page was elsewhere, and ones a pass left for their page (keepForItsPage): read
+ * once when it comes on screen.
+ */
 const missedWhileAway = new Set<string>();
+
+/**
+ * A surface read only where it is drawn (`onDemand`), left out of a pass that read the others while its page was elsewhere (a
+ * return to the tab, the network back, a rejoin of the live feed, Retry-all): kept, so its page reads it once as it comes on
+ * screen (readWhatWasMissed) rather than show what the pass would have read again.
+ */
+export function keepForItsPage(key: string): void {
+  missedWhileAway.add(key);
+}
 
 /**
  * A surface that counts messages but is not where they are read -- People's rows, Reports' numbers, a campaign's
@@ -292,8 +304,8 @@ export function onlyOnItsPage(
  * Each move of the address: what its page draws and has not read is read once, through the runner (`read`, the running
  * runner's refresh). Two kinds of surface are due. One that let a live event pass while its page was elsewhere, when its page
  * owns the screen. And one marked `onDemand` (surface-data.ts), when a page that draws it (its own surface, or one the route
- * names) is on screen and it has never been read this session, or says it has aged: one list, so a surface that missed an event
- * and was never read is read once. Answers the stop.
+ * names) is on screen and it has never been read this session, a pass left it for its page (keepForItsPage), or it says it has
+ * aged: one list, so a surface that missed an event and was never read is read once. Answers the stop.
  */
 export function readWhatWasMissed(
   overrides: readonly { key: string; onDemand?: boolean; isStale?: () => boolean }[],

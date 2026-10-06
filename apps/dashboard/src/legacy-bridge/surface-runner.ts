@@ -16,7 +16,7 @@ import { ApiError } from "../client/api";
 import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { getConnection, getSurfaceStatuses, isSurfaceReady, setConnection, setStatus } from "./surface-status";
-import { ROUTE_WAIT_MS, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
+import { ROUTE_WAIT_MS, keepForItsPage, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh, type FeedWatch } from "./surface-realtime";
 import { getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
 
@@ -95,8 +95,7 @@ export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<voi
 /** The shell's Retry: every surface the running runner holds, read again now. */
 export async function refreshAllSurfaces(): Promise<void> {
   // Every surface the running runner holds that a page on screen draws: a surface read only where it is drawn waits for its page.
-  const drawn = screenOwn(window);
-  await refreshSurfaces(activeOverrides.filter((o) => !o.onDemand || drawn(o)));
+  await refreshSurfaces(readHere(activeOverrides));
 }
 
 /**
@@ -152,6 +151,20 @@ function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
   const [page, param] = routeOnScreen(win).split("/");
   const strangers = 1 + routeDrawsFor(page || "today", param || null).length;
   return (o) => rank(o) < strangers;
+}
+
+/**
+ * What a pass over these surfaces reads here (a return to the tab, the network back, a rejoin of the live feed, Retry-all): every
+ * one but a surface read only where it is drawn (`onDemand`) and not drawn here, which is kept for its page instead
+ * (surface-registry.ts keepForItsPage), so its page reads it once as it comes on screen and never shows what the pass missed.
+ */
+function readHere(overrides: readonly SurfaceOverride[]): SurfaceOverride[] {
+  const drawn = screenOwn(window);
+  return overrides.filter((o) => {
+    if (!o.onDemand || drawn(o)) return true;
+    keepForItsPage(o.key);
+    return false;
+  });
 }
 
 /**
@@ -318,8 +331,9 @@ function watchLiveFeed(run: SurfaceRun): FeedWatch {
     graceMs: REALTIME_GRACE_MS,
     onDown: (down) => setConnection({ realtimeDown: down }),
     // reconnect after sleep/offline: the feed replays nothing it missed, so
-    // refetch to close the gap
-    onReconnect: () => run.realtime.forEach((o) => refreshSoon(run, o)),
+    // refetch to close the gap (what is drawn here; the rest is kept for its
+    // page: readHere)
+    onReconnect: () => readHere(run.realtime).forEach((o) => refreshSoon(run, o)),
   });
 }
 
@@ -461,10 +475,9 @@ function listenForReturns(run: SurfaceRun): () => void {
     if (againRunning || run.cancelled) return;
     againRunning = true;
     const screen = screenRank(window);
-    const drawn = screenOwn(window);
     void inLanes(
       // What is drawn here, as the boot reads it; a surface read only where it is drawn waits for its page.
-      overrides.filter((o) => !o.onDemand || drawn(o)).sort((x, y) => screen(x) - screen(y)),
+      readHere(overrides).sort((x, y) => screen(x) - screen(y)),
       BOOT_LANES,
       (o) => refreshSurface(run, o, "refresh"),
     ).finally(() => {
