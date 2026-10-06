@@ -11,7 +11,7 @@
  *   and a tab pressed opens with the words last typed on it.
  * - The rows are the surface's newest read. The page held its list and its tabs' counts on a counter only a decision
  *   moved, so what the live feed read again while the page was open never reached the screen (5 Oct 2026): the stub
- *   keeps useMemo as React does here (memoAsReact), or a memo on the wrong inputs could never show.
+ *   keeps useMemo as React does (_legacy-react.mjs), or a memo on the wrong inputs could never show.
  * Run against the page (surfaces/inbox/pages/conversations-page.tsx) on a stub React, over the rows the seam holds, with the
  * tab's memory installed as the app installs it.
  */
@@ -28,7 +28,6 @@ import {
   byTestId,
   textOf,
   press,
-  memoAsReact,
 } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
@@ -47,8 +46,6 @@ installLegacyReact({
   canDo: () => true,
   gate: () => ({}),
 });
-// Before the page loads: its memos keep their value until their inputs change, as React keeps them.
-memoAsReact();
 Object.assign(globalThis, {
   CHANLY: {
     nav: (to) => went.push(["nav", to]),
