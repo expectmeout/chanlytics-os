@@ -872,6 +872,42 @@ test("REGRESSION: the period control never holds -- arrowing on to Month is a ch
   });
 });
 
+test("REGRESSION: a pick back to the period on screen, made while another loads, is shown at once and dims nothing -- the page waited on a read it did not need", async () => {
+  // A workspace of its own, where no period is held yet, so the pick in between stays out until it lands.
+  const was = location.pathname;
+  location.pathname = "/w/pick-back";
+  try {
+    await inPeriodTest("hold", async () => {
+      let tree = page();
+      choose(tree, "30 days");
+      await land();
+      redraw();
+      tree = redraw();
+      assert.equal(chosen(tree), "30 days", "30 days is read, and held");
+      choose(tree, "Month");
+      tree = redraw();
+      assert.equal(byTestId(tree, "reports-real").props["data-loading"], "", "Month is on its way");
+      choose(tree, "30 days");
+      redraw();
+      tree = redraw();
+      assert.equal(chosen(tree), "30 days", "the pick back is shown at once, from the 30 days held");
+      assert.equal(
+        byTestId(tree, "reports-real").props["data-loading"],
+        undefined,
+        "REGRESSION: the page dimmed, over the period it already showed, until a read behind it landed",
+      );
+      await land();
+      redraw();
+      tree = redraw();
+      assert.deepEqual(period.asked, ["30d", "month", "30d"], "Month's read, and the read behind the held 30 days");
+      assert.equal(chosen(tree), "30 days", "Month's answer, for a period left, is dropped");
+      assert.equal(cls(tree, "rpt-failed"), null, "and nothing failed");
+    });
+  } finally {
+    location.pathname = was;
+  }
+});
+
 test("Month is a period of its own: its tab, its read by that name, and the page says the days it holds", async () => {
   await inPeriodTest("hold", async () => {
     let tree = page();

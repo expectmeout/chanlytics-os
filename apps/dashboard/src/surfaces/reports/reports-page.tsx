@@ -150,7 +150,9 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
       setFailed(period);
     }
   };
-  const busy = pending !== null;
+  // Dimmed while the page shows another period than the one picked. A pick painted at once from a held view (a pick back to
+  // the period on screen, made while another loads) waits on nothing, though the read behind it is still out.
+  const busy = pending !== null && pending !== R.period;
   return (
     // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
     <div
