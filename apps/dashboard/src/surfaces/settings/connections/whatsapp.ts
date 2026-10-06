@@ -13,6 +13,7 @@
  * Moved from legacy-bridge/whatsapp-connect.ts with Settings › Connections (decision 0015 step 11): the Connections
  * pane imports `waConnect` ({ config(), start() }).
  */
+import type { LineCodeDto } from "@chanlytics/contracts";
 import { api, read } from "@/legacy-bridge/api";
 
 type ConnectResult =
@@ -31,6 +32,48 @@ const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
 const META_ORIGINS = new Set(["https://www.facebook.com", "https://web.facebook.com"]);
 /** How long a message from the popup may trail its callback and still be heard. */
 const LATE_MESSAGE_MS = 300;
+
+/**
+ * The mark a sign-up leaves in this tab's sessionStorage while Meta's window is open: the instant it began. A reload takes with
+ * it the listener Meta's window answers to and the SDK's login callback, so a sign-up Meta finishes after one never reaches
+ * Chanlytics (6 October: the window was open at 12:07, the page was loaded again at 12:11, Meta finished at 12:48 and no connect
+ * was ever asked; the one-time code rides the SDK's own callback, which a reloaded page cannot get back). The mark survives the
+ * reload (sessionStorage is the tab's), so Connections can say what to do. Kept in try/catch as the house keeps storage: where
+ * it is blocked the mark is a courtesy that is not made.
+ */
+const SIGNUP_MARK = "chanlytics.whatsapp.signup";
+
+/** Whether this page is running a sign-up now: a mark with none running is one a page that is gone left behind. */
+let signupRunning = false;
+
+/**
+ * When a sign-up was started on this tab by a page that is gone and never came back (an ISO instant), else null: no mark, storage
+ * blocked, a render with no window, or a sign-up this page is itself running (it has not failed to come back, it is still open).
+ */
+export function signupLeftOpenAt(win?: Window): string | null {
+  if (signupRunning) return null;
+  try {
+    return (win ?? window).sessionStorage.getItem(SIGNUP_MARK);
+  } catch {
+    return null;
+  }
+}
+
+function markSignup(win: Window): void {
+  try {
+    win.sessionStorage.setItem(SIGNUP_MARK, new Date().toISOString());
+  } catch {
+    /* storage blocked: the mark is a courtesy, and the sign-up goes on without it */
+  }
+}
+
+function clearSignupMark(win: Window): void {
+  try {
+    win.sessionStorage.removeItem(SIGNUP_MARK);
+  } catch {
+    /* storage blocked: there is no mark to take away */
+  }
+}
 
 /** The window as Meta's SDK leaves it: its global, the hook it calls once loaded, and the load this page started. */
 type SdkWindow = Window & { FB?: FB; fbAsyncInit?: () => void; __fbReady?: Promise<FB> };
@@ -98,8 +141,23 @@ export function parseSignupMessage(
 /** Meta's door, as the deployment has it: whether a number can be connected here, and by whom. */
 const signupConfig = () => read("GET channels/whatsapp/signup");
 
-/** The sign-up window, opened and followed to its end; the code and the ids go to the app's own route. */
+/**
+ * The sign-up, marked while it runs and unmarked however it ends (connected, cancelled, failed): a mark still there on the next
+ * load is a sign-up the page that began it never finished (signupLeftOpenAt).
+ */
 async function startSignup(win: Window = window): Promise<ConnectResult> {
+  signupRunning = true;
+  markSignup(win);
+  try {
+    return await runSignup(win);
+  } finally {
+    signupRunning = false;
+    clearSignupMark(win);
+  }
+}
+
+/** The sign-up window, opened and followed to its end; the code and the ids go to the app's own route. */
+async function runSignup(win: Window): Promise<ConnectResult> {
   const cfg = await signupConfig().catch(() => null);
   if (!cfg || !cfg.ready || !cfg.app_id || !cfg.config_id)
     return { ok: false, reason: "not_ready", message: "Chanlytics is not set up to connect numbers yet." };
@@ -161,3 +219,16 @@ async function startSignup(win: Window = window): Promise<ConnectResult> {
 
 /** Connect your WhatsApp number: the door's answer, and the sign-up. */
 export const waConnect = { config: signupConfig, start: () => startSignup() };
+
+/** The codes sent to the line lately, newest first: the edge reads them from the provider's own record on every call. */
+const readCodes = async (): Promise<LineCodeDto[]> => (await read("GET lines/codes")).codes;
+
+/**
+ * Ask Meta what it holds about the number now. The edge keeps the answer on the channel, and the refresh this write makes
+ * re-reads Settings, where the row says it.
+ */
+const checkStanding = async (): Promise<boolean> => (await api()("POST channels/whatsapp/standing")).ok;
+
+/** What the open Connections page asks beside the sign-up: the codes texted to the line, and the check of the number. */
+export const lineCodes = { read: readCodes };
+export const waStanding = { check: checkStanding };

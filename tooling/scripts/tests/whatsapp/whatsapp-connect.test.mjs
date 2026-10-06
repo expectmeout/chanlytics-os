@@ -297,3 +297,84 @@ test("the Integrations pane offers the connection to an owner or says exactly wh
   );
   // The diag showing the gates that decide who is answered is run in diag-door.test.mjs.
 });
+
+test("a sign-up leaves a mark in the tab's sessionStorage while Meta's window is open and takes it away however it ends; a page that finds one left by a page that is gone can say so, and the page that is running the sign-up never does", async () => {
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
+  );
+  const MARK = "chanlytics.whatsapp.signup";
+  const held = new Map();
+  const ops = [];
+  const storage = {
+    getItem: (k) => held.get(k) ?? null,
+    setItem: (k, v) => {
+      ops.push(["set", k]);
+      held.set(k, String(v));
+    },
+    removeItem: (k) => {
+      ops.push(["remove", k]);
+      held.delete(k);
+    },
+  };
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const whileRunning = [];
+  const win = {
+    sessionStorage: storage,
+    location: { pathname: "/w/harbor", search: "", hash: "" },
+    // Meta's door: asked first by every sign-up. While it is out the window has not opened, but the sign-up has begun.
+    fetch: async () => {
+      whileRunning.push([held.has(MARK), mod.signupLeftOpenAt(win)]);
+      await gate;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "no_config_id" },
+        }),
+        { status: 200 },
+      );
+    },
+  };
+  const realWindow = globalThis.window;
+  globalThis.window = win;
+  try {
+    // A page that is gone left a mark: this one says when the sign-up began.
+    const left = new Date(Date.now() - 5 * 60_000).toISOString();
+    held.set(MARK, left);
+    assert.equal(mod.signupLeftOpenAt(win), left);
+    const running = mod.waConnect.start();
+    await new Promise((resolve) => setImmediate(resolve));
+    release();
+    const result = await running;
+    assert.deepEqual(
+      [result.ok, result.reason],
+      [false, "not_ready"],
+      "Meta's door says it cannot start: the sign-up ends at once",
+    );
+    assert.deepEqual(
+      whileRunning,
+      [[true, null]],
+      "while it ran there was a mark, and this page, which was running it, did not call it left behind",
+    );
+    assert.deepEqual(
+      ops.map(([op]) => op),
+      ["set", "remove"],
+      "written when the sign-up began, taken away when it ended, whatever it came to",
+    );
+    assert.equal(held.has(MARK), false);
+    assert.equal(mod.signupLeftOpenAt(win), null, "and nothing is left behind once it has ended");
+
+    // Storage that is blocked: no mark is made, nothing throws, and no page claims a sign-up it cannot know of.
+    const blocked = () => {
+      throw new Error("storage is blocked");
+    };
+    win.sessionStorage = { getItem: blocked, setItem: blocked, removeItem: blocked };
+    assert.equal(mod.signupLeftOpenAt(win), null);
+    assert.equal((await mod.waConnect.start()).reason, "not_ready");
+  } finally {
+    if (realWindow === undefined) delete globalThis.window;
+    else globalThis.window = realWindow;
+  }
+});

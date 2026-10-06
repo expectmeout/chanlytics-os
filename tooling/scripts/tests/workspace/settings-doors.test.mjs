@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { IN_APP_CLASS, ROLE_PERMS, roleGate, stateOf, billingAccountDto } from "@chanlytics/contracts";
+import { IN_APP_CLASS, ROLE_PERMS, roleGate, stateOf, billingAccountDto, toChannelVM } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../_legacy-react.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
@@ -48,6 +48,8 @@ const asRole = (r) => {
   role.now = r;
   globalThis.window.__ME = { email: "dana@northside.example", role: r };
 };
+/** The timers a page set with window.setInterval, held and run by a test: a tick is a call of its function. */
+const intervals = [];
 globalThis.window = {
   location: {
     pathname: "/w/studio",
@@ -68,6 +70,13 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
+  setInterval: (fn, ms) => {
+    intervals.push({ fn, ms, live: true });
+    return intervals.length;
+  },
+  clearInterval: (h) => {
+    if (intervals[h - 1]) intervals[h - 1].live = false;
+  },
   __roleGate: roleGate,
   ST_STORE: { can: (a) => !!(ROLE_PERMS[role.now] || {})[a], myRole: () => role.now },
 };
@@ -179,12 +188,15 @@ const { BusinessRecordForm } = await import(`${SETTINGS}/record-form.tsx`);
 const { businessRecord } = await import(`${SETTINGS}/record.ts`);
 const { sendingDomains } = await import(`${SETTINGS}/domains.ts`);
 const { mailbox } = await import(`${SETTINGS}/mailbox.ts`);
-const { waConnect } = await import(`${SETTINGS}/whatsapp.ts`);
+const { waConnect, lineCodes, waStanding } = await import(`${SETTINGS}/whatsapp.ts`);
 const { googleVerbs } = await import("../../../../apps/dashboard/src/legacy-bridge/google.ts");
 const { MoreMenu } = await import("../../../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
 // What every pane draw asks, and nothing here may send: Meta's door, asked once, has nothing to say, and the browser has
 // come back from nowhere on Google's side.
 Object.assign(waConnect, { config: async () => null });
+// ...and so are what the open page asks beside it: the codes sent to the line, and the check of the number.
+Object.assign(lineCodes, { read: async () => [] });
+Object.assign(waStanding, { check: async () => true });
 Object.assign(googleVerbs, { outcome: () => null, outcomeWords: {} });
 
 const walk = (n, fn) => {
@@ -516,6 +528,30 @@ test("REGRESSION (one gate): the business record shows Save and File to a role t
   assert.ok(!textOf(tree).includes("Only an owner can"));
 });
 
+/* ------------------------------ Billing says where WhatsApp is billed ------------------------------ */
+
+test("Billing says, in contracts' words, that the WhatsApp messages the business starts are billed by Meta to the card on its WhatsApp account and not on this bill, and links what WhatsApp costs, which is on Connections", () => {
+  asRole("owner");
+  for (const over of [{ status: "none" }, { status: "active" }, { mode: "direct" }]) {
+    billing(over);
+    stripe();
+    const tree = render(Billing, { flash() {} });
+    const row = byTestId(tree, "billing-whatsapp");
+    assert.ok(row, JSON.stringify(over));
+    assert.equal(
+      textOf(byTestId(row, "billing-whatsapp-line")),
+      "WhatsApp messages your business starts are billed by Meta to the card on your WhatsApp account, not on this bill.",
+      JSON.stringify(over),
+    );
+    const link = byTestId(row, "billing-whatsapp-link");
+    assert.deepEqual(
+      [textOf(link), link.props.href],
+      ["What WhatsApp costs", "#/admin/integrations"],
+      "the shell's own address for Settings > Connections, where the explainer is under the WhatsApp row",
+    );
+  }
+});
+
 /* ------------------------------ Connections ------------------------------ */
 
 const Connections = (props) => PaneIntegrationsReal(props);
@@ -739,6 +775,328 @@ test("the email row's form: offered from the business's name, judged under its o
   await flush();
   tree = settle(Connections);
   assert.equal(byTestId(tree, "email-setup"), null, "the form closes; the row repaints from Setup's re-read");
+});
+
+/* ------------------------------ what Connections asks while it is open ------------------------------ */
+
+/** The workspace's own line, as Setup holds it, and what Setup says around it for the pane. */
+const OWN_LINE = {
+  id: "l1",
+  e164: "+16465550100",
+  kind: "chanlytics",
+  provider: "twilio",
+  area_code: 646,
+  voice_state: "answering",
+  sms_state: "active",
+  whatsapp_state: "none",
+  port_state: "none",
+  forwarding_state: "none",
+  step: null,
+  last_error: null,
+  state_since: "2026-09-01T00:00:00Z",
+  created_at: "2026-09-01T00:00:00Z",
+};
+const setupWithLine = () => ({
+  dto: {
+    business: { name: "Best Movers" },
+    lines: { rows: [OWN_LINE], ready: true },
+    requests: { line: null },
+    calendar: null,
+    email: null,
+  },
+});
+/** What a row says under its sentence, one string a note (the words, not the link after them). */
+const noteTexts = (tree, kind) =>
+  all(byTestId(tree, `connection-${kind}`), (n) => n.props?.["data-testid"] === "connection-note-text").map(textOf);
+/** The links its notes carry: each one's words, where it goes, and how it opens. */
+const noteLinks = (tree, kind) =>
+  all(
+    byTestId(tree, `connection-${kind}`),
+    // The kit's link and what it draws carry one test id: the link itself is the first of them.
+    (n) => n.props?.["data-testid"] === "connection-note-link" && n.type?.name === "LinkButton",
+  ).map((n) => [textOf(n), n.props.href, n.props.target, n.props.rel]);
+/** What WhatsApp costs, said last under a connected row and before Connect (contracts WHATSAPP_COST_WORDS). */
+const COST = [
+  "WhatsApp is billed by Meta, straight to the card on your WhatsApp account — not on your Chanlytics bill.",
+  "Free: replies to a customer within 24 hours of their last message — the receptionist's and yours.",
+  "Charged by Meta for each one delivered: reminders and notices sent after those 24 hours, and every campaign or offer.",
+  "Prices depend on the customer's country.",
+];
+const PRICES = [
+  "Meta's current prices",
+  "https://business.whatsapp.com/products/platform-pricing#rates",
+  "_blank",
+  "noopener noreferrer",
+];
+const MIN = 60_000;
+/** The WhatsApp channel as the settings read holds it, with what Meta holds about the number and when it was read. */
+const whatsappChannel = (standing, readAgoMs, over = {}) =>
+  toChannelVM({
+    id: "ch-wa",
+    kind: "whatsapp",
+    number_e164: "+13055550188",
+    status: "active",
+    created_at: "2026-09-01T00:00:00Z",
+    last_inbound_at: null,
+    standing,
+    standing_read_at: readAgoMs === null ? null : new Date(Date.now() - readAgoMs).toISOString(),
+    ...over,
+  });
+
+test("a Connect row draws what Meta will ask under its sentence; a sign-up an earlier page left open is named first, and forgotten the moment Connect is pressed again", async () => {
+  asRole("owner");
+  seam({ channels: [], google: null, setup: null });
+  const realStart = waConnect.start;
+  let finish;
+  Object.assign(waConnect, {
+    config: async () => ({ ready: true, reason: null }),
+    start: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  // The page that began a sign-up five minutes ago is gone: its mark is what a page that opens now finds.
+  globalThis.sessionStorage.setItem("chanlytics.whatsapp.signup", new Date(Date.now() - 5 * MIN).toISOString());
+  try {
+    render(Connections);
+    await flush();
+    let tree = settle(Connections);
+    const notes = noteTexts(tree, "whatsapp");
+    assert.equal(notes.length, 10, "the one it left behind, and the nine the owner meets before and in Meta's window");
+    assert.match(notes[0], /^A WhatsApp sign-up was started here and did not come back to Chanlytics/);
+    assert.match(notes[1], /^Meta asks you to sign in with Facebook/);
+    assert.deepEqual(
+      notes.slice(3, 7),
+      COST,
+      "what WhatsApp costs, between the code Meta texts and the payment method it asks for",
+    );
+    assert.match(notes[7], /^Add a payment method when Meta asks for one: without it, replies still go out/);
+    assert.equal(notes.at(-1), "Keep this page open until Meta's window closes.");
+    assert.deepEqual(noteLinks(tree, "whatsapp"), [PRICES], "one link, to Meta's own prices, which opens in a new tab");
+    const box = byTestId(tree, "connection-whatsapp-notes");
+    assert.match(
+      String(box.props.className),
+      /\bset-int-notes\b/,
+      "drawn in the row's own hint style, each note a line of its own",
+    );
+    press(byTestId(tree, "connect-whatsapp-btn"));
+    tree = settle(Connections);
+    assert.equal(
+      noteTexts(tree, "whatsapp").length,
+      9,
+      "pressing Connect again forgets what the earlier page left behind",
+    );
+    finish({
+      ok: false,
+      reason: "cancelled",
+      message: "The sign-up was closed before it finished. Nothing was connected.",
+    });
+    await flush();
+    assert.equal(
+      noteTexts(settle(Connections), "whatsapp").length,
+      9,
+      "and a sign-up that was cancelled does not bring it back",
+    );
+  } finally {
+    Object.assign(waConnect, { config: async () => null, start: realStart });
+    globalThis.sessionStorage.removeItem("chanlytics.whatsapp.signup");
+  }
+});
+
+test("the codes sent to the workspace's own line are asked for as Connections opens and every three seconds while Meta's window is open, and said on the Texting row; a read that fails changes nothing, and anyone but an owner asks nothing", async () => {
+  asRole("owner");
+  seam({ channels: [], google: null, setup: setupWithLine() });
+  const asked = [];
+  let codes = [];
+  const realRead = lineCodes.read;
+  const realStart = waConnect.start;
+  let finish;
+  Object.assign(lineCodes, {
+    read: async () => {
+      asked.push(asked.length);
+      if (codes === "down") throw new Error("the edge is down");
+      return codes;
+    },
+  });
+  Object.assign(waConnect, {
+    config: async () => ({ ready: true, reason: null }),
+    start: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  intervals.length = 0;
+  try {
+    render(Connections);
+    await flush();
+    let tree = settle(Connections);
+    assert.equal(asked.length, 1, "asked once as the page opens");
+    assert.deepEqual(
+      intervals.filter((i) => i.live),
+      [],
+      "and not again until Meta's window is open",
+    );
+    assert.deepEqual(noteTexts(tree, "sms"), [], "no code, no note");
+
+    codes = [{ code: "788-963", from: "WhatsApp", at: new Date(Date.now() - 2 * MIN).toISOString() }];
+    press(byTestId(tree, "connect-whatsapp-btn"));
+    tree = settle(Connections);
+    const timer = intervals.filter((i) => i.live);
+    assert.deepEqual(
+      timer.map((i) => i.ms),
+      [3000],
+      "every three seconds while Meta's window is open",
+    );
+    timer[0].fn();
+    await flush();
+    tree = settle(Connections);
+    assert.equal(asked.length, 2);
+    assert.deepEqual(noteTexts(tree, "sms"), [
+      "Code from WhatsApp: 788-963 · 2m ago",
+      "Codes sent to this line are never answered and never become people.",
+    ]);
+    codes = "down";
+    timer[0].fn();
+    await flush();
+    tree = settle(Connections);
+    assert.equal(asked.length, 3);
+    assert.equal(noteTexts(tree, "sms").length, 2, "a read that fails changes nothing: the page keeps what it has");
+
+    finish({
+      ok: false,
+      reason: "cancelled",
+      message: "The sign-up was closed before it finished. Nothing was connected.",
+    });
+    await flush();
+    settle(Connections);
+    assert.deepEqual(
+      intervals.filter((i) => i.live),
+      [],
+      "the sign-up ended: nobody is waiting for a code any more",
+    );
+
+    asRole("operator");
+    const before = asked.length;
+    render(Connections);
+    await flush();
+    assert.equal(asked.length, before, "an operator is never shown a code, so it is never asked for");
+  } finally {
+    Object.assign(lineCodes, { read: realRead });
+    Object.assign(waConnect, { config: async () => null, start: realStart });
+    asRole("owner");
+  }
+});
+
+test("a page that opens on a standing that is missing, or one that is not AVAILABLE and ten minutes old, asks Meta once; a fresh one, an AVAILABLE one, a number that is off, and a page that is not an owner's ask nothing", async () => {
+  const checks = [];
+  const realCheck = waStanding.check;
+  Object.assign(waStanding, {
+    check: async () => {
+      checks.push("asked");
+      return true;
+    },
+  });
+  const LIMITED = {
+    can_send: "LIMITED",
+    problems: [],
+    notes: [],
+    name: null,
+    name_status: null,
+    verification: null,
+    limit: null,
+    has_payment_method: null,
+    owner_business_id: null,
+    waba_id: null,
+  };
+  const opens = async (channels, role = "owner") => {
+    checks.length = 0;
+    asRole(role);
+    seam({ channels, google: null, setup: null });
+    render(Connections);
+    await flush();
+    settle(Connections);
+    return checks.length;
+  };
+  try {
+    assert.equal(await opens([whatsappChannel(null, null)]), 1, "nothing was kept");
+    assert.equal(
+      await opens([whatsappChannel({ ...LIMITED, can_send: "AVAILABLE" }, 2 * 24 * 60 * MIN)]),
+      0,
+      "AVAILABLE is the clock's to renew",
+    );
+    assert.equal(await opens([whatsappChannel(LIMITED, 5 * MIN)]), 0, "not available, read five minutes ago");
+    assert.equal(
+      await opens([whatsappChannel(LIMITED, 11 * MIN)]),
+      1,
+      "not available and eleven minutes old: a payment method added since shows as fixed now",
+    );
+    assert.equal(await opens([whatsappChannel(LIMITED, 11 * MIN)], "operator"), 0, "an operator's page never asks");
+    assert.equal(await opens([]), 0, "no number connected: nothing to ask about");
+    assert.equal(
+      await opens([whatsappChannel(null, null, { status: "disabled" })]),
+      0,
+      "a number that is switched off",
+    );
+    assert.equal(await opens(null), 0, "the channels could not be read");
+  } finally {
+    Object.assign(waStanding, { check: realCheck });
+    asRole("owner");
+  }
+});
+
+test("the WhatsApp row draws what Meta holds under its sentence, each note a line of its own: a number Meta will not let send needs attention, says Meta's problem, and gives its fix and the rest", async () => {
+  asRole("owner");
+  const blocked = {
+    can_send: "BLOCKED",
+    problems: [
+      {
+        entity: "WABA",
+        code: 141006,
+        said: "A payment method is required to send messages",
+        fix: "Add a payment method in WhatsApp Manager",
+      },
+    ],
+    notes: [],
+    name: "Harbor Moving",
+    name_status: "APPROVED",
+    verification: "not_verified",
+    limit: "TIER_250",
+    // The account has no payment method on file, and says which business owns it: the row says so, with the way to add one.
+    has_payment_method: false,
+    owner_business_id: "410540000000001",
+    waba_id: "205540000000001",
+  };
+  seam({ channels: [whatsappChannel(blocked, 0)], google: null, setup: null });
+  render(Connections);
+  await flush();
+  const tree = settle(Connections);
+  const row = byTestId(tree, "connection-whatsapp");
+  assert.equal(row.props["data-state"], "attention");
+  assert.equal(
+    textOf(find(row, (n) => n.props?.className === "set-team-mail")),
+    "Meta: A payment method is required to send messages.",
+  );
+  assert.deepEqual(noteTexts(tree, "whatsapp"), [
+    "Add a payment method in WhatsApp Manager.",
+    "No payment method on your WhatsApp account yet: replies still go out, but reminders and campaigns will not be delivered.",
+    "Your business isn't verified with Meta: you can start conversations with up to 250 people a day. Replies to customers who write first are not limited.",
+    ...COST,
+  ]);
+  assert.deepEqual(
+    noteLinks(tree, "whatsapp"),
+    [
+      [
+        "Add one in Meta",
+        "https://business.facebook.com/billing_hub/accounts/details/?business_id=410540000000001&asset_id=205540000000001&wizard_name=ADD_PM&account_type=whatsapp-business-account",
+        "_blank",
+        "noopener noreferrer",
+      ],
+      PRICES,
+    ],
+    "the way to add a payment method, on Meta's own page for this business and this account; and Meta's prices: each opens in a new tab",
+  );
+  assert.deepEqual(noteTexts(tree, "google_profile"), [], "a row with no notes draws no box");
+  assert.equal(byTestId(tree, "connection-google_profile-notes"), null);
 });
 
 /* ------------------------------ the attention row ------------------------------ */
