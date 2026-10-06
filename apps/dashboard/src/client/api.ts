@@ -147,13 +147,48 @@ function heard(deps: ApiDeps, code: string | undefined): void {
   if (code === "mfa_required") deps.onSecondFactor?.();
 }
 
+/**
+ * Each intent's key, from its first send until it lands (Options.once, decision 0035): `keyed` hands back the options
+ * with the key of the request they make (its method, address and body), made at its first send; `landed` lets it go, so
+ * the next send of that request is a new intent.
+ */
+function intentKeys() {
+  const held = new Map<string, string>();
+  const intentOf = new WeakMap<object, string>();
+  return {
+    keyed<O extends { once?: boolean; idempotencyKey?: string; body?: unknown }>(
+      method: string,
+      url: string,
+      opts: O,
+    ): O {
+      if (method === "GET" || !opts.once || opts.idempotencyKey) return opts;
+      const intent = `${method} ${url}\n${JSON.stringify(opts.body ?? null)}`;
+      const key = held.get(intent) ?? crypto.randomUUID();
+      held.set(intent, key);
+      const sent = { ...opts, idempotencyKey: key };
+      intentOf.set(sent, intent);
+      return sent;
+    },
+    landed(sent: object): void {
+      const intent = intentOf.get(sent);
+      if (intent) held.delete(intent);
+    },
+  };
+}
+
+/** Each client's intents, kept with its deps: one store per client a tab makes. */
+const INTENTS = new WeakMap<ApiDeps, ReturnType<typeof intentKeys>>();
+function intentsOf(deps: ApiDeps): ReturnType<typeof intentKeys> {
+  let store = INTENTS.get(deps);
+  if (!store) INTENTS.set(deps, (store = intentKeys()));
+  return store;
+}
+
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
   // `kept`: settled, answered, and held (holdAnswers) -- shared whatever its age until the hold is let go.
   const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean }>();
   let holds = 0;
-  // Each intent's key, by its request, from its first send until it lands (Options.once).
-  const intents = new Map<string, string>();
 
   function urlFor<K extends RouteKey>(key: K, opts: Options<K> = {}): string {
     const params = (opts.params ?? {}) as Record<string, string>;
@@ -188,12 +223,7 @@ export function createApi(deps: ApiDeps) {
   ): Promise<ApiResult<OutputOf<Routes[K]>>> {
     const isRead = ROUTES[key].method === "GET";
     const url = urlFor(key, opts);
-    const intent =
-      !isRead && opts.once && !opts.idempotencyKey
-        ? `${ROUTES[key].method} ${url}\n${JSON.stringify(opts.body ?? null)}`
-        : null;
-    if (intent && !intents.has(intent)) intents.set(intent, crypto.randomUUID());
-    const sent = intent ? { ...opts, idempotencyKey: intents.get(intent) } : opts;
+    const sent = intentsOf(deps).keyed(ROUTES[key].method, url, opts);
     if (isRead) {
       const hit = inFlight.get(url);
       if (hit && (hit.kept || now() - hit.at < (hit.early ? PREFETCH_SHARE_MS : INFLIGHT_MS)))
@@ -239,8 +269,7 @@ export function createApi(deps: ApiDeps) {
         };
       }
       if (!isRead) {
-        // Landed: the next send of this request is a new intent.
-        if (intent) intents.delete(intent);
+        intentsOf(deps).landed(sent);
         opts.onAccepted?.(j.data as OutputOf<Routes[K]>);
         // Something changed. A read still in flight was issued before that
         // change and cannot describe the world the operator is now in; sharing

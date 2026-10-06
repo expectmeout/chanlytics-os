@@ -233,6 +233,139 @@ async function migrationHead(db) {
   return { head: row?.head ?? null, applied: row?.applied ?? 0 };
 }
 
+// src/erasure-registry.ts
+var ERASURE_LEGS = {
+  erase_contact: "erase_contact: the person's calls, messages, conversations and identities deleted, scheduled jobs and decision payloads scrubbed, the tombstone written (00027, 00151)",
+  notes_trigger: "person_notes_erase_on_contact: their own notes deleted, the old notes field cleared, a note_for_you about them removed (00158)",
+  events_trigger: "contact_events_on_erase: an event that named them cut to who did it and from where (00131)",
+  consent_trigger: "erase_marketing_consent, consent_channels_on_erase, email_marketing_on_erase: their answers and where they came from cleared (00101)",
+  email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)",
+  proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
+  deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
+  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, its keys kept as digests",
+  jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten",
+  ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
+  deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
+  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00340)"
+};
+var withPerson = (by) => ({ kind: "with_person", by });
+var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
+var kept = (days) => ({ kind: "by_age", days });
+var DIGEST = { kind: "digest" };
+var NOT_PERSONAL = { kind: "not_personal" };
+var all = (strategy, ...names) => Object.fromEntries(names.map((n) => [n, strategy]));
+var ERASURE_STRATEGIES = {
+  ask_messages: { content: scrubbedBy("ask_scrub") },
+  calls: all(
+    withPerson("erase_contact"),
+    "retell_call_id",
+    "agent_id",
+    "call_type",
+    "from_e164",
+    "to_e164",
+    "from_raw",
+    "disconnection_reason",
+    "sentiment",
+    "summary",
+    "transcript",
+    "transcript_object",
+    "recording",
+    "public_log_url",
+    "cost",
+    "latency",
+    "raw",
+    "wanted",
+    "follow_up",
+    "caller_name",
+    "analysis"
+  ),
+  contact_identities: all(withPerson("erase_contact"), "external_id", "raw"),
+  contacts: {
+    phone_e164: scrubbedBy("erase_contact"),
+    display_name: scrubbedBy("erase_contact"),
+    wa_profile_name: scrubbedBy("erase_contact"),
+    consent_source: scrubbedBy("erase_contact"),
+    notes: scrubbedBy("notes_trigger", "erase_contact"),
+    marketing_consent_source: scrubbedBy("consent_trigger"),
+    email_marketing_source: scrubbedBy("consent_trigger"),
+    consent_channels: scrubbedBy("consent_trigger"),
+    marketing_channels: scrubbedBy("consent_trigger"),
+    email: scrubbedBy("email_trigger"),
+    email_suppressed_reason: scrubbedBy("email_trigger"),
+    proposal_url: scrubbedBy("proposal_trigger"),
+    erased_phone_hash: DIGEST,
+    erased_email_hash: DIGEST
+  },
+  conversations: all(withPerson("erase_contact"), "control_kind", "control_ref"),
+  deals: all(scrubbedBy("deals_trigger"), "note", "evidence", "proposal_url"),
+  decisions: { payload: scrubbedBy("erase_contact") },
+  escalations: { details: withPerson("erase_contact") },
+  event_deliveries: all(NOT_PERSONAL, "subscriber", "kind"),
+  event_outbox: { kind: NOT_PERSONAL },
+  events: {
+    data: scrubbedBy("events_trigger"),
+    ...all(NOT_PERSONAL, "kind", "category", "subject_type", "request_id")
+  },
+  idempotency_keys: all(kept("idempotency_keys"), "key", "route", "request_hash", "response"),
+  jobs: { payload: scrubbedBy("jobs_scrub", "erase_contact") },
+  lead_places: all(withPerson("leads_trigger"), "place_id", "title", "street"),
+  lead_search_members: all(scrubbedBy("leads_trigger"), "judgment", "reason"),
+  lead_suppressions: { hash: DIGEST },
+  leads: all(
+    scrubbedBy("leads_trigger"),
+    "place_id",
+    "business_name",
+    "category",
+    "street",
+    "city",
+    "region",
+    "postal_code",
+    "website_host",
+    "instagram_url",
+    "phone_e164",
+    "email",
+    "email_alternates",
+    "last_outcome",
+    "last_note",
+    "about",
+    "hours",
+    "image_url",
+    "price",
+    "reviews_dist",
+    "facebook_url",
+    "linkedin_url",
+    "tiktok_url",
+    "maps_url",
+    "neighborhood",
+    "logo_url",
+    "mark_path"
+  ),
+  messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
+  notifications: {
+    ...all(kept("notifications"), "title", "body"),
+    ...all(NOT_PERSONAL, "route", "subject_type", "subject_id")
+  },
+  person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
+  platform_metrics: all(
+    NOT_PERSONAL,
+    "messages_in",
+    "messages_out",
+    "provider_failures",
+    "handled",
+    "topics",
+    "ai_tokens",
+    "ai_usd",
+    "job_lag_ms",
+    "first_answer_ms",
+    "dead_letters",
+    "intake_lag_ms"
+  ),
+  provider_events: {
+    body: scrubbedBy("deliveries_scrub"),
+    ...all(kept("provider_events"), "provider_event_id", "door", "url", "headers")
+  }
+};
+
 // src/auth.ts
 import {
   createClient
@@ -416,11 +549,11 @@ async function personRow(db, tenantId, contactId) {
   return first ? rowOfPeopleList(first) : null;
 }
 async function everyoneIn(db, tenantId) {
-  const all = [];
+  const all2 = [];
   for (let after = null; ; ) {
-    const page = await peoplePage(db, tenantId, after ? { after } : { offset: all.length });
-    all.push(...page);
-    if (page.length < PEOPLE_PAGE) return all;
+    const page = await peoplePage(db, tenantId, after ? { after } : { offset: all2.length });
+    all2.push(...page);
+    if (page.length < PEOPLE_PAGE) return all2;
     after = peopleCursorOf(page[page.length - 1]);
   }
 }
@@ -1808,9 +1941,9 @@ async function finishableRuns(db, limit, tenantId) {
 }
 async function writtenEmails(db, ids) {
   const out = /* @__PURE__ */ new Set();
-  const all = [...new Set(ids)];
-  for (let i = 0; i < all.length; i += 100) {
-    const { data, error } = await db.from("messages").select("id").in("id", all.slice(i, i + 100));
+  const all2 = [...new Set(ids)];
+  for (let i = 0; i < all2.length; i += 100) {
+    const { data, error } = await db.from("messages").select("id").in("id", all2.slice(i, i + 100));
     if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
     for (const m of data ?? []) out.add(m.id);
   }
@@ -2282,15 +2415,15 @@ var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfil
 var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;
 var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
 function assembleHistory(rows, limit) {
-  const kept = rows.filter((m) => {
+  const kept2 = rows.filter((m) => {
     const body = (m.body ?? "").trim();
     if (!body) return false;
     if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
     if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
     return true;
   });
-  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
-  return kept.map((m) => ({
+  kept2.sort((a, b) => effectiveAt(a) - effectiveAt(b));
+  return kept2.map((m) => ({
     // A call note is the customer's own history on another channel — one
     // agent, so it counts the same as a message.
     role: m.sender === "customer" ? "user" : "assistant",
@@ -2607,9 +2740,9 @@ async function releaseIdempotencyKey(db, p) {
   if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
 }
 async function keepIdempotencyReceipt(db, p) {
-  const kept = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: p.response }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.stamp).select("key");
-  if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
-  return (kept.data ?? []).length > 0;
+  const kept2 = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: p.response }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.stamp).select("key");
+  if (kept2.error) throw new Error(`idempotency receipt: ${kept2.error.message}`);
+  return (kept2.data ?? []).length > 0;
 }
 
 // src/jobs.ts
@@ -3018,7 +3151,7 @@ async function followUpTouchesSince(db, tenantId, since, now) {
 }
 var FOLLOW_UP_PARAMS = '[{"kind":"proposal_link"}]';
 async function touchesOf(db, tenantId, since, now, followUpsOnly) {
-  const [all, zone] = await Promise.all([
+  const [all2, zone] = await Promise.all([
     readAllRows("broadcasts", (from, to) => {
       const q = db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).gte("created_at", since.toISOString());
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
@@ -3029,7 +3162,7 @@ async function touchesOf(db, tenantId, since, now, followUpsOnly) {
     )
   ]);
   const today = zone ? localDate(zone, now) : null;
-  const runs = all.filter(
+  const runs = all2.filter(
     (b) => !(b.state === "pending_approval" && today !== null && b.run_for !== null && b.run_for < today)
   );
   const ofRun = new Map(runs.map((b) => [b.id, b]));
@@ -3619,14 +3752,16 @@ async function keepChannelQuality(db, tenantId, channelId, rating) {
     p_rating: rating
   });
   if (error) throw new Error(`channel_keep_quality: ${error.message}`);
-  const kept = KEPT_ANSWERS.find((a) => a === data);
-  if (kept === void 0) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
-  return kept;
+  const kept2 = KEPT_ANSWERS.find((a) => a === data);
+  if (kept2 === void 0) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
+  return kept2;
 }
 export {
   CALL_CONTROL_S,
   DB_REQUEST_HEADER,
   DEFAULT_ROW_CAP,
+  ERASURE_LEGS,
+  ERASURE_STRATEGIES,
   HISTORY_COLUMNS,
   IDS_PER_READ,
   MAX_ROWS,

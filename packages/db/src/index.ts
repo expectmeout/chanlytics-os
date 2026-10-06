@@ -19,6 +19,8 @@ export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, 
 export type { AiFailures, UsageMonthRow } from "./ai-usage";
 export { keepInvoiceAmount } from "./billing-events";
 export { migrationHead } from "./ops";
+export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";
+export type { ErasureLeg, ErasureStrategy } from "./erasure-registry";
 export type { MigrationHead } from "./ops";
 export { signUpOnPublicKey, inviteUserByEmail, listSecondFactors, deleteSecondFactor } from "./auth";
 export { addToWaitlist, refreshWaitlistRow, waitlistWaiting, markWaitlistInvited } from "./waitlist";
