@@ -17,6 +17,7 @@
  */
 import { isCampaignEmail } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/channels";
+import { emitEvent } from "@chanlytics/db";
 import { carriedBy, nextBatch } from "./broadcast-send";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, type Db } from "./ledger";
@@ -174,6 +175,11 @@ async function failBroadcast(
   // No row means it finished by itself between the read and here, and there is
   // nothing to tell anyone about work that completed.
   if (!data?.length) return [{ what: "broadcast", changed: false, ...far }];
+  // On the ledger as every stopped run is (broadcast.stopped), best effort: never a reason this settlement throws.
+  await emitEvent(db, job.tenant_id, "broadcast.stopped", "broadcast", broadcastId, {
+    failure: "run_interrupted",
+    sent: far.reached,
+  });
   return [{ what: "broadcast", changed: true, notResumed: why, ...far }];
 }
 

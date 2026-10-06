@@ -3,31 +3,21 @@
  * 2.5), which re-exports it.
  */
 import type { DeliveryRefusal } from "../consent/consent";
-import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
+import type { ConsentChannel } from "../consent/consent-channels";
 import { triggerOf } from "../playbooks/playbook-triggers";
+import {
+  BROADCAST_FAILURES,
+  BROADCAST_FAILURE_WORDS,
+  broadcastFailureWords,
+  readFailure,
+  wordsFor,
+  type BroadcastFailure,
+  type WireFailure,
+  type Words,
+} from "./broadcast-failure-words";
 
-/**
- * The codes a run's `failure` holds: what the send job writes (core messages/broadcast.ts) and the one the job ledger
- * writes when a run died and none took it up again (jobs settle.ts). The column is free text, so the set is closed
- * here, and each table below is keyed by it: a code added without its words does not compile.
- *
- * `campaigns_domain_unverified` and `email_offers_paused` are written only for a run with nobody on it who goes another
- * way than email (RUN_STOPS): on any other run the email person is skipped, their own, and the run goes on.
- */
-export const BROADCAST_FAILURES = [
-  "paused",
-  "template_not_approved",
-  "wire_unavailable",
-  "run_interrupted",
-  "throttled",
-  "stalled",
-  "people_unreadable",
-  "after_hours",
-  "provider_limit",
-  "campaigns_domain_unverified",
-  "email_offers_paused",
-] as const;
-export type BroadcastFailure = (typeof BROADCAST_FAILURES)[number];
+export { BROADCAST_FAILURES, BROADCAST_FAILURE_WORDS, broadcastFailureWords };
+export type { BroadcastFailure, WireFailure };
 
 /**
  * The failures a run stops with for a fact about the whole workspace, never about the person the door was asked of: a
@@ -106,14 +96,6 @@ export function playbookRunNext(
 /** The failures that may outlast tomorrow and are not the owner's to end, as a run's page knows them (playbookRunNext). */
 const OUTLASTS_TOMORROW: ReadonlySet<BroadcastFailure> = new Set(["provider_limit", "template_not_approved"]);
 
-/** The failures whose words name the wire the run went out on: the rest read the same whichever channel it was. */
-const WIRE_FAILURES = ["wire_unavailable", "throttled", "stalled"] as const satisfies readonly BroadcastFailure[];
-export type WireFailure = (typeof WIRE_FAILURES)[number];
-
-const isFailure = (code: string): code is BroadcastFailure => (BROADCAST_FAILURES as readonly string[]).includes(code);
-const isWireFailure = (code: BroadcastFailure): code is WireFailure =>
-  (WIRE_FAILURES as readonly string[]).includes(code);
-
 /**
  * What a run's `failure` holds for a failure that names its wire: the code, and for any channel but WhatsApp the channel
  * after a colon (`wire_unavailable:email`). A code with none is WhatsApp's, which keeps every run written before runs
@@ -122,51 +104,6 @@ const isWireFailure = (code: BroadcastFailure): code is WireFailure =>
 export function wireFailure(code: WireFailure, channel: ConsentChannel): string {
   return channel === "whatsapp" ? code : `${code}:${channel}`;
 }
-
-/** A stored failure read: its code and the channel it names (WhatsApp where it names none); null for any other text. */
-function readFailure(stored: string): { code: BroadcastFailure; channel: ConsentChannel } | null {
-  const [code, named, ...rest] = stored.split(":");
-  if (code === undefined || !isFailure(code) || rest.length > 0) return null;
-  if (named === undefined) return { code, channel: "whatsapp" };
-  const channel = CONSENT_CHANNELS.find((c) => c === named);
-  return channel && isWireFailure(code) ? { code, channel } : null;
-}
-
-/** A words entry: the same on every channel, or one for each. */
-type Words = string | Record<ConsentChannel, string>;
-const wordsFor = (w: Words, channel: ConsentChannel): string => (typeof w === "string" ? w : w[channel]);
-
-/**
- * Why a whole broadcast stopped, in the owner's words: the codes the send job writes (core messages/broadcast.ts)
- * and the one the job ledger writes when a run died and none took it up again (jobs settle.ts). Spelled out, as
- * HELD_REASONS is, so the bundler can see through it. A failure that names its wire (WIRE_FAILURES) has one entry per
- * channel, and a code stored with no channel is read as WhatsApp's (readFailure).
- */
-export const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words> = {
-  paused: "the workspace was paused",
-  template_not_approved: "WhatsApp no longer approves its template",
-  wire_unavailable: {
-    whatsapp: "WhatsApp could not be reached",
-    sms: "the texting provider could not be reached",
-    email: "the mail provider could not be reached",
-  },
-  run_interrupted: "its send stopped partway and did not start again",
-  throttled: {
-    whatsapp: "WhatsApp kept limiting how fast this number may send",
-    sms: "the texting provider kept limiting how fast this line may send",
-    email: "the mail provider kept limiting how fast this workspace may send",
-  },
-  stalled: {
-    whatsapp: "its people or its number's credentials could not be read for half an hour",
-    sms: "its line's credentials could not be read for half an hour",
-    email: "its mailbox could not be read for half an hour",
-  },
-  people_unreadable: "its people could not be read for half an hour",
-  after_hours: "the day's sending hours ran out before it was done",
-  provider_limit: "the mail provider's limit for the day or the month was reached",
-  campaigns_domain_unverified: "the domain offers by email leave from is not verified with the mail provider",
-  email_offers_paused: "the workspace's offers by email were paused while complaints and bounces settled",
-};
 
 /**
  * How to get past each reason a run stops, in one sentence: a failed run says
@@ -291,11 +228,4 @@ export function broadcastFailureFix(
   }
   const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[read.code] : undefined;
   return after ? after(reached, read.channel) : wordsFor(BROADCAST_FAILURE_FIX[read.code], read.channel) || null;
-}
-
-/** A failed broadcast's reason: its words, a code nobody has written words for yet, or none recorded. */
-export function broadcastFailureWords(failure: string | null | undefined): string {
-  if (!failure) return "no reason was recorded";
-  const read = readFailure(failure);
-  return read ? wordsFor(BROADCAST_FAILURE_WORDS[read.code], read.channel) : "it could not finish";
 }

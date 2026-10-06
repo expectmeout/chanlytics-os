@@ -215,6 +215,7 @@ import {
 } from "../../core/dist/index.js";
 import {
   campaignMonthSent,
+  emitEvent,
   insertQueuedEmail,
   mailboxOfTenant,
   queuedRecipients,
@@ -422,10 +423,13 @@ async function broadcastSend(ctx, job) {
       // approval ask.
       workspacePaused: () => workspacePaused(db, job.tenant_id),
       fail: async (id, failure) => {
-        must(
+        const moved = must(
           "broadcast_send: cannot mark the broadcast failed",
-          await db.from("broadcasts").update({ state: "failed", failure, finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id)
+          await db.from("broadcasts").update({ state: "failed", failure, finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).neq("state", "failed").select("id")
         );
+        if (!moved?.length) return;
+        const sent = await countRecipients(db, job.tenant_id, id, "sent").catch(() => null);
+        await emitEvent(db, job.tenant_id, "broadcast.stopped", "broadcast", id, { failure, sent });
       },
       startSending: async (id) => {
         const rows = must(
@@ -894,6 +898,7 @@ async function dispatchJob(ctx, job) {
 // src/settle.ts
 import { isCampaignEmail } from "../../contracts/dist/index.js";
 import { logger as logger6 } from "../../channels/dist/index.js";
+import { emitEvent as emitEvent2 } from "../../db/dist/index.js";
 var NEVER_SENT = "the job that would have sent this never ran";
 var EMAIL_UNFINISHED = "An email arrived and could not be taken in \u2014 the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
 var MAY_HAVE_SENT = "the run that was sending this did not finish";
@@ -927,6 +932,10 @@ async function failBroadcast(db, job, broadcastId, why, far) {
   const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).in("state", ["scheduled", "sending"]).select("id");
   if (error) return [{ what: "broadcast", changed: false, ...far, error: `${why}; then ${error.message}` }];
   if (!data?.length) return [{ what: "broadcast", changed: false, ...far }];
+  await emitEvent2(db, job.tenant_id, "broadcast.stopped", "broadcast", broadcastId, {
+    failure: "run_interrupted",
+    sent: far.reached
+  });
   return [{ what: "broadcast", changed: true, notResumed: why, ...far }];
 }
 async function settleJob(db, job, certain) {
