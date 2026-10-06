@@ -2149,6 +2149,24 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   grid-row: 2;
   margin: 0;
 }
+/* Where a desk's act can be wide (Reports' period, People's Add a person as it opens into its two fields), the row of views
+   wraps: the act goes under the views, still at the right, where the row cannot hold both, rather than over them (a small
+   window with the sidebar open). The name's place keeps a line of its own, so the views stand where they stand on every page,
+   fourteen under it. */
+@media (width > 900px) {
+  .main:has(> .main-scroll > :is(.rpt, .clients)) .pg-slot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px var(--space-4);
+  }
+  .main:has(> .main-scroll > :is(.rpt, .clients)) .pg-head-slot {
+    flex: 1 0 100%;
+  }
+  .main:has(> .main-scroll > :is(.rpt, .clients)) .pg-act-slot {
+    margin-left: auto;
+  }
+}
 /* The page's act, at the right of the row of views, or of the name where the page has no views: the page's own
    (pg-act, said through the head) or the frame's, never both. */
 .pg-act-slot {

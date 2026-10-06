@@ -260,24 +260,8 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
 }
 
 /* The frame's row of views over Reports: the strip of lenses, and on a desk the period at its right (the page's act), held to the
-   page's measure so the period ends where the cards do, not at the window's edge (Ruben, 6 Oct 2026). A desk's row too narrow
-   for both (the sidebar open on a small window) puts the period under the lenses, still at the right, rather than over them:
-   the row wraps. On a desk the name is kept for a reader alone (components.css) and a lens has no way back above it, so its
-   place leaves the row's flow. */
+   page's measure so the period ends where the cards do, not at the window's edge (Ruben, 6 Oct 2026). Where the row is too
+   narrow for both, it wraps (components.css). */
 .main:has(> .main-scroll > .rpt) .pg-slot {
   max-width: var(--measure-wide);
-}
-@media (width > 900px) {
-  .main:has(> .main-scroll > .rpt) .pg-slot {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px var(--space-4);
-  }
-  .main:has(> .main-scroll > .rpt) .pg-head-slot {
-    position: absolute;
-  }
-  .main:has(> .main-scroll > .rpt) .pg-act-slot {
-    margin-left: auto;
-  }
 }
