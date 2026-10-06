@@ -31,7 +31,6 @@ export type {
   TodayDayVM,
 } from "./today-day";
 export { todayPeriodLine } from "./today-period";
-export type { WeekTileLike, ReportsLike } from "./today-period";
 export { todayRunWords, todayRunsSub, todayRunApproved } from "./today-runs";
 export type { RunLike, TodayRunWordsVM } from "./today-runs";
 export { todayLeaks, TODAY_LEAK_MAX } from "./today-leaks";

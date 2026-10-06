@@ -30643,11 +30643,10 @@ function leakFactsOf(reports, people, noReply, nowMs) {
 }
 function neverBookedLeak({ reports, list: list2, step: step2 }) {
   const b = reports ? reports.booking : null;
-  if (!(reports && b && b.present && b.pct !== null && (b.asked ?? 0) >= 5 && b.pct <= 25)) return null;
-  const asked = b.asked ?? 0;
-  const booked = b.booked ?? 0;
+  if (!(reports && b && b.present && b.pct !== null && b.asked >= 5 && b.pct <= 25)) return null;
+  const { asked, booked } = b;
   const never = list2("asked_never_booked");
-  const text = booked === 0 ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
+  const text = booked === 0 ? `${asked} people wrote or called in the last ${reports.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.rangeLabel} got onto the calendar.`;
   const math = never ? `${b.headline} \xB7 ${never.count} on Asked, never booked` : b.headline;
   return {
     id: "never-booked",
@@ -30664,10 +30663,10 @@ function neverBookedLeak({ reports, list: list2, step: step2 }) {
   };
 }
 function unansweredLeak({ reports, noReply }) {
-  const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
+  const a = reports ? reports.answered : null;
   if (!(reports && a && a.none >= 2)) return null;
   const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
-  const math = `of ${a.in} in the last ${reports.vm.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`;
+  const math = `of ${reports.messages.total} in the last ${reports.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`;
   return {
     id: "unanswered",
     tone: "warn",
@@ -30809,21 +30808,14 @@ function emailWires(email) {
 
 // src/today/today-period.ts
 function todayPeriodLine(r2) {
-  if (!r2 || !r2.vm) return null;
-  const v = r2.vm;
-  const lead = v.period?.now ?? `Last ${v.rangeLabel}`;
-  if (v.empty) return { text: `${lead}: nobody wrote or called.`, to: "reports" };
-  const a = v.answered;
-  if (!a) return null;
-  const messages = v.tiles.find((t) => t.id === "messages");
+  if (!r2) return null;
+  if (r2.empty) return { text: `${r2.lead}: nobody wrote or called.`, to: "reports" };
   const parts2 = [
-    `${a.totals.in} message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`
+    `${r2.messages.total} message${r2.messages.total === 1 ? "" : "s"}${r2.messages.compare ? ` (${r2.messages.compare})` : ""}`
   ];
-  if (a.share !== void 0 && a.share !== null)
-    parts2.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
-  const callCount = v.calls ? v.calls.total : 0;
-  if (callCount) parts2.push(`${callCount} call${callCount === 1 ? "" : "s"}`);
-  return { text: `${lead}: ${parts2.join(", ")}.`, to: "reports" };
+  if (r2.answered.share !== null) parts2.push(`${Math.round(r2.answered.share * 100)}% answered by the receptionist`);
+  if (r2.calls) parts2.push(`${r2.calls} call${r2.calls === 1 ? "" : "s"}`);
+  return { text: `${r2.lead}: ${parts2.join(", ")}.`, to: "reports" };
 }
 
 // src/today/today-runs.ts

@@ -6,7 +6,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { headlineOf, isReportDto, toBookingReportVM, toHeadlineVM, toReportVM } from "@chanlytics/contracts";
+import {
+  headlineOf,
+  isReportDto,
+  toBookingReportVM,
+  toHeadlineVM,
+  toReportVM,
+  todayLeaks,
+  todayPeriodLine,
+} from "@chanlytics/contracts";
 import { CALENDAR, quiet, reportDto } from "../_report-world.mjs";
 
 const NONE = { calendar: "none", days: 30, asked: 0, booked: 0 };
@@ -91,4 +99,52 @@ test("a database's answer is a report only when it holds the series and the days
   assert.equal(isReportDto({ series: [] }), false);
   assert.equal(isReportDto(null), false);
   assert.equal(isReportDto("report"), false);
+});
+
+/**
+ * Today's period line as it was written over the report's own view model (contracts today-period.ts, until the headline): the
+ * oracle the new line is held to. It reads the page's `period.now`, `answered`, the messages tile's comparison and `calls`.
+ */
+const periodLineOver = (page) => {
+  const total = page.answered.totals.in;
+  if (page.empty) return `${page.period.now}: nobody wrote or called.`;
+  const compare = page.tiles.find((t) => t.id === "messages")?.compare;
+  const parts = [`${total} message${total === 1 ? "" : "s"}${compare ? ` (${compare})` : ""}`];
+  if (page.answered.share !== null)
+    parts.push(`${Math.round(page.answered.share * 100)}% answered by the receptionist`);
+  if (page.calls.total) parts.push(`${page.calls.total} call${page.calls.total === 1 ? "" : "s"}`);
+  return `${page.period.now}: ${parts.join(", ")}.`;
+};
+
+for (const [name, dto, period, booking] of MATRIX)
+  test(`${name}: Today's period line says what it said over the report's own view model`, () => {
+    const line = todayPeriodLine(toHeadlineVM(headlineOf(dto, period, booking)));
+    assert.deepEqual(line, { text: periodLineOver(toReportVM(dto, { profile: null })), to: "reports" });
+  });
+
+test("Worth a look's two rows that read Reports say what they said: the booking gap and the messages nobody answered, text and arithmetic", () => {
+  // Three messages nobody answered on the first of September, and one of the twelve who asked is on the calendar.
+  const series = reportDto().series.map((d) => (d.day === "2026-09-01" ? { ...d, unanswered: 3 } : d));
+  const dto = { ...reportDto(), series };
+  const asked = { calendar: "ok", days: 7, asked: 12, booked: 1 };
+  const page = toReportVM(dto, { profile: null });
+  const totals = page.answered.totals;
+  const booking = toBookingReportVM(asked);
+  const { rows } = todayLeaks(toHeadlineVM(headlineOf(dto, "7d", asked)), null, []);
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    ["never-booked", "unanswered"],
+  );
+  assert.equal(
+    rows[0].text,
+    `Only ${booking.booked} of the ${booking.asked} people who wrote or called in the last ${page.rangeLabel} got onto the calendar.`,
+  );
+  assert.equal(rows[0].math, booking.headline);
+  assert.equal(rows[1].text, `${totals.none} customer messages never got an answer at all.`);
+  assert.equal(
+    rows[1].math,
+    `of ${totals.in} in the last ${page.rangeLabel} · the receptionist answered ${totals.ai}, you answered ${totals.you}`,
+  );
+  const unread = todayLeaks(toHeadlineVM(headlineOf(dto, "7d", null)), null, []).rows.map((r) => r.id);
+  assert.deepEqual(unread, ["unanswered"], "no calendar read is a setup step, not a leak");
 });

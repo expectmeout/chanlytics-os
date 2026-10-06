@@ -153,7 +153,7 @@ export function personRouteId(page: string, param?: string | null): string | nul
  * (surface-runner.ts screenRank) rather than in the runner's fixed order.
  *
  * Today draws the day beside its queue from the calendar, the queue's runs from
- * broadcasts, the card's period line and Worth a look from reports, the day's
+ * broadcasts, the card's period line and Worth a look from the reports headline (one small read, never the whole report), the day's
  * playbook rows, the bell's rows for While you were away, a call in progress
  * from live, the card's Setup and Google lines, and from People the day card's
  * needs-someone flag and channel glyphs and Worth a look's people -- last,
@@ -173,7 +173,7 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     "setup",
     "calendar",
     "broadcasts",
-    "reports",
+    "reports_headline",
     "playbooks",
     "notifications",
     "live",
