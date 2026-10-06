@@ -213,8 +213,8 @@ test("F42: only the production dashboard reaches the live store or a live call â
     .join("\n");
   assert.equal(
     (service.match(/if \(!deployment\.providersLive\)/g) ?? []).length,
-    11,
-    "the whisper, the steer, the sign-up config, the number connection, the template sync, create and delete, the playbook run, the end and the hand-over of a call, and a reach-out's preview",
+    12,
+    "the whisper, the steer, the sign-up config, the number connection, the check of what Meta holds about the number, the template sync, create and delete, the playbook run, the end and the hand-over of a call, and a reach-out's preview",
   );
   // The pause mirror was the eleventh, and is gone with the store it mirrored
   // into. The regression it carried is kept as a rule about the guard itself:

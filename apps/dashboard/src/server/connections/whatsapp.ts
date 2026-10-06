@@ -7,6 +7,8 @@ import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
 const SIGNUP_CONFIG_TIMEOUT_MS = 10_000;
 /** A connect is several Graph calls in a row (exchange, read back, subscribe, register): a minute. */
 const CONNECT_TIMEOUT_MS = MIN_MS;
+/** A check of the number is two Graph reads at once, a keeping and, when it turned bad, a notice: half a minute. */
+const STANDING_TIMEOUT_MS = 30_000;
 
 /* ---- Connect your WhatsApp: the edge holds the app secret and does the exchange ---- */
 
@@ -84,5 +86,25 @@ export async function connectWhatsApp(
       registration: j.registration ?? "registered",
     };
   }
+  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
+}
+
+type StandingCheck = { ok: true; kept: string; canSend: string } | { ok: false; reason: EdgeReason; detail?: string };
+
+/**
+ * The owner asks what Meta holds about the workspace's number now: the edge reads it with the business's own token, keeps it
+ * on the channel (where Connections' row reads it from) and tells the owner if it turned BLOCKED. Answers what was kept and
+ * Meta's word for whether the number may send; what Meta said stays on the channel. A preview never asks a real number.
+ */
+export async function checkWhatsAppStanding(tenantId: string, userId: string): Promise<StandingCheck> {
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
+  const r = await callEdge(
+    "/api/admin/whatsapp/standing",
+    { tenant_id: tenantId, user_id: userId },
+    { workspace: tenantId, user: userId, timeoutMs: STANDING_TIMEOUT_MS },
+  );
+  const j = (r.body ?? {}) as { ok?: boolean; kept?: string; can_send?: string; detail?: string };
+  if (edgeAnswered(r) && j.ok && typeof j.kept === "string" && typeof j.can_send === "string")
+    return { ok: true, kept: j.kept, canSend: j.can_send };
   return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
 }
