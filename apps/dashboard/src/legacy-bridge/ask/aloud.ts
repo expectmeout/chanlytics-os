@@ -15,13 +15,46 @@ interface Timers {
   setTimeout: (fn: () => void, ms: number) => unknown;
 }
 
-/** The waiting words, a whole sentence: in Spanish for a question in Spanish, else in English, as the door said its own. */
-const WAITING_WORDS = { en: "One moment.", es: "Un momento." } as const;
-const waitingWords = (language: AskLanguage): string => WAITING_WORDS[language === "es" ? "es" : "en"];
+/**
+ * The waiting words, each a short whole sentence, taken in turn as a person varies theirs (Ruben, 6 Oct: "one moment" was
+ * right, said the same every time it was not): in Spanish for a question in Spanish, else in English, as the door said
+ * its own.
+ */
+const WAITING_WORDS = {
+  en: [
+    "One moment.",
+    "Let me check.",
+    "Give me a second.",
+    "Let me look into that.",
+    "On it.",
+    "Checking now.",
+    "Let me pull that up.",
+    "Bear with me a second.",
+  ],
+  es: [
+    "Un momento.",
+    "Déjame revisar.",
+    "Dame un segundo.",
+    "Déjame ver.",
+    "Ya lo busco.",
+    "Lo reviso ahora.",
+    "Enseguida.",
+    "Un segundito.",
+  ],
+} as const;
 /** The longest the answer waits on the waiting words: about twice as long as they take to say. */
 const WAITING_WORDS_MAX_MS = 2_500;
 
-export function askAloud(speech: Speech, timers: Timers = globalThis) {
+/** `pick` places the page's first waiting words in the set (0 its top, toward 1 its end), so a page does not open on the same ones. */
+export function askAloud(speech: Speech, timers: Timers = globalThis, pick: () => number = Math.random) {
+  /** The waiting words' turn: where the page's draw put it, one on for every time they are said. */
+  let turn = Math.floor(pick() * WAITING_WORDS.en.length);
+  const waitingWords = (language: AskLanguage): string => {
+    const set = WAITING_WORDS[language === "es" ? "es" : "en"];
+    const words = set[turn % set.length] ?? set[0];
+    turn += 1;
+    return words;
+  };
   /** Whether the voice is on the waiting words, or fetching them: what the answer waits for. */
   let waiting = false;
   /** Until the voice is quiet, or WAITING_WORDS_MAX_MS pass. */
