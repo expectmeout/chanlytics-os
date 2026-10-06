@@ -1243,6 +1243,11 @@ test("on a desk Add a person is the page's act, at the right of the strip over t
     AddPersonButton,
     "with Add a person for its act, which the frame draws beside the strip",
   );
+  assert.match(
+    String(byTestId(said.act, "add-person")?.props.className),
+    /\bbtn-primary\b/,
+    "the list's one filled button, as Campaigns' New message is",
+  );
   said.act.props.onAdded("p9");
   assert.deepEqual(opened, ["p9"], "added, the person's page opens, as it did from the controls row");
   assert.equal(

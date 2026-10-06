@@ -2890,19 +2890,6 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     outline: none;
     box-shadow: var(--focus-ring);
   }
-  /* People's act, Add a person, is the inset capsule the canvas draws (P1), at the right of the strip over the list since it
-     left the controls row (Ruben, 6 Oct 2026); its height is the strip's, as every act of People's (components.css). */
-  .main:has(> .main-scroll > .clients) .pg-act-slot [data-testid="add-person"] {
-    border: 0;
-    border-radius: var(--radius-full);
-    background: var(--surface-inset-fill);
-    box-shadow:
-      var(--surface-inset-ring),
-      var(--surface-inset-depth);
-    font-size: var(--text-base);
-    font-weight: var(--weight-medium);
-    color: var(--ink);
-  }
   /* What a list says it can do for the people on it (the broadcast's door) is an inset too. */
   .main-scroll .cl-list-action {
     margin: 0 10px 12px;
