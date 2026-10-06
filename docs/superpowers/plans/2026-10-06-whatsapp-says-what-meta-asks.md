@@ -1,5 +1,13 @@
 # Connect WhatsApp says what Meta will ask, and the number says what Meta holds — Implementation Plan
 
+> **As built (6 October 2026), where it differs from the text below.** The migration is **00338**, not 00330: main took
+> 00330 to 00337 (#1447) while this lane was built. The notes before Meta's window are five, not nine, and what WhatsApp
+> costs is one line with Meta's prices linked (commit f44021c50). The contracts helpers `sentence` and `nameOf` are
+> `withStop` and `displayNameWords`. After the final review, `oneTimeCodeOf` asks for a sender's shape AND a sender's sign
+> (a kind of code a customer's gate or alarm never has, or the warning not to share it), a one-time code's delivery is the
+> one the intake ledger never keeps (decision 0032), a BLOCKED number's payment note no longer says replies still go out,
+> an AVAILABLE number with no payment method is read again when a page opens, and the row says one daily limit.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Connecting a WhatsApp number to Chanlytics says what Meta will ask, and a connected number says what Meta holds, in six parts and three additions. (1) Before Meta's window opens, the WhatsApp row says what Meta will ask (sign in with Facebook, a code texted to the number, a payment method), what WhatsApp costs and who bills it (Meta, to the card on the WhatsApp account, never Chanlytics), the 250-people limit of a new business and to keep the page open (Task 1, drawn in Task 11). (2) A code Meta texts to a Chanlytics line is shown to the owner within seconds, read from Twilio's own record and never stored (Tasks 2, 3, 8, 9, 11). (3) What Meta holds about the number (may it send, the display name's review, the verification and the tier, whether a payment method is on file) is read once by one function, kept through one database door, shown on the row, and told to the owner once when the number turns BLOCKED (Tasks 1, 5 to 11). (4) The receptionist never answers an automated code (Task 4). (5) A sign-up a reload left behind is named, and what to do is said (Tasks 1 and 11). (6) A partner's notice from Meta is routed by the account it names, not dropped as a fault (Task 12). And three additions made after the design: Meta's decision on a display name is heard (Task 13), the row says how to try a connected number from a phone and where to add a payment method, and Settings › Billing says where WhatsApp is billed (Tasks 1, 6 and 11). Task 14 is the documents and the verification of the whole.

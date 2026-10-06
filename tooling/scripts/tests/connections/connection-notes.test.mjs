@@ -46,7 +46,7 @@ const rowsOf = (inputs) => by(connectionRows({ ...base(), ...inputs }, NOW));
 /** What WhatsApp costs: who bills it, what is free, what is charged, in one line, and Meta's own page for the prices (no rate is written here). */
 const COST = [
   {
-    text: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.",
+    text: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.",
     link: { label: "Meta's current prices", href: "https://business.whatsapp.com/products/platform-pricing#rates" },
   },
 ];

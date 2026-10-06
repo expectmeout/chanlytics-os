@@ -19,6 +19,10 @@
 -- its first read. Either deploy order works: an edge that calls this before the migration is applied counts the read as
 -- unreadable (the door is not there), and the page reads a config with no standing as nothing read yet.
 --
+-- Each keep moves the channel row's updated_at, which 00330 folds into the receptionist's runtime stamp: a warm instance
+-- reads its runtime again once after a keep. A number is read at connection, on the six-hourly clock and when an owner opens
+-- a page on a stale standing, so that is a handful of reads a day.
+--
 -- The lock. tenant_channels is read and updated one row at a time; nothing here alters it. The guard of 00259 is set all
 -- the same, and every statement re-runs.
 set local lock_timeout = '3s';

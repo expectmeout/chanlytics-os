@@ -58,8 +58,11 @@ async function tellBlocked(p: StandingPorts, n: NumberAsked, standing: NumberSta
       notifications: await notificationsFor(p.db, n.tenant_id),
       isEnvDefault: false,
     };
-    await (p.tell ?? notify)(target, { ...NUM, subject: words.subject, body: words.body }, { db: p.db });
-    p.log.info("wa_standing_told", { tenant_id: n.tenant_id, channel_id: n.channel_id });
+    // The notice is the bell row, kept first (the workspace's own record), and the owner's mail; notify answers whether the
+    // mail went. The line says it, so a notice whose mail did not go is seen: the door has kept BLOCKED, and a later read
+    // will not tell it again.
+    const mailed = await (p.tell ?? notify)(target, { ...NUM, subject: words.subject, body: words.body }, { db: p.db });
+    p.log.info("wa_standing_told", { tenant_id: n.tenant_id, channel_id: n.channel_id, mailed: mailed === true });
     return true;
   } catch (e) {
     p.log.error("wa_standing_tell_failed", { tenant_id: n.tenant_id, channel_id: n.channel_id, error: errField(e) });

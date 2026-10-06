@@ -23,8 +23,14 @@ const CODES = [
   ["PayPal: 123456 is your security code. Don't share your code.", { code: "123456", from: null }],
   ["Your Chase one-time code is 482913. Never share it.", { code: "482913", from: "Chase" }],
   ["Your Signal verification code: 123-456", { code: "123-456", from: "Signal" }],
-  ["Your iCloud code is 4829", { code: "4829", from: "iCloud" }],
+  ["Your iCloud code is 4829. Don't share it.", { code: "4829", from: "iCloud" }],
   ["Use 482913 to verify your account. Do not share this code with anyone.", { code: "482913", from: null }],
+  ["Your verification code is 123456. Don't share it with anyone.", { code: "123456", from: null }],
+  // What WhatsApp sends an Android phone: the retriever's mark, a link holding the code again, and the warning.
+  [
+    "<#> Your WhatsApp code: 788-963\nYou can also tap on this link to verify your phone: v.whatsapp.com/788963\nDon't share this code with others\n4sgLq1p5sV6",
+    { code: "788-963", from: "WhatsApp" },
+  ],
 ];
 
 const CUSTOMERS = [
@@ -44,7 +50,32 @@ const CUSTOMERS = [
   "Are you open Saturday?",
   "STOP",
   "",
+  // A gate, a door, a lockbox or an alarm shared with the warning and an everyday word that a sender's text also uses
+  // (confirm, security, sign in): the words of a code, never a sender's shape (the final review of 6 October found each).
+  "The gate code is 4512, don't share it with anyone. Please confirm you got this.",
+  "Door code is 8821, never share it. I'll confirm the arrival time tomorrow.",
+  "Lockbox code: 4512. Don't share this. Confirming 9am Thursday.",
+  "Hi, the building security code is 4512 - don't share it with anyone",
+  "Parking code 4512, don't share it. Sign in at the front desk.",
+  "Use 4512 to open the gate, don't share it",
+  // The business's own promotion, named back to it: a name and a code, and the customer's sentence goes on.
+  "Hi it's Ana. Your Rewards code 123456 doesn't work",
+  "I tried your Summer code 2024 and it said invalid",
+  "Your Rewards code 123456 doesn't work, don't share it with them",
+  // An access, alarm or booking code given to the business in a sender's very words: security, access and confirmation
+  // are a customer's kinds too, so they are no sender's sign without a sender's name and the warning.
+  "Your access code is 4512, don't share it with anyone.",
+  "Hi! Your security code is 4512.",
+  "Your ADT security code is 4512.",
+  "Your confirmation code is 4512. Don't share it.",
+  "4512 is your access code",
+  "Your Airbnb access code is 4512, don't share it",
+  "Enter 4512 to confirm the gate opens, never share it",
+  "Use 4512 to sign in at the front desk, don't share it",
 ];
+
+/** A sender's shape with no sign of a sender beside it (no kind of code named, no warning): a customer writes these too. */
+const BARE = ["Your iCloud code is 4829", "Your WhatsApp code: 788-963", "Your Rewards code is 123456."];
 
 test("a code is read from the shapes senders write it in, with the name it read and the code as it was written", () => {
   for (const [body, want] of CODES) assert.deepEqual(oneTimeCodeOf(body), want, JSON.stringify(body));
@@ -54,17 +85,25 @@ test("a customer's text is never taken for a code: a door code, a question, a st
   for (const body of CUSTOMERS) assert.equal(oneTimeCodeOf(body), null, JSON.stringify(body));
 });
 
+test("a sender's shape alone is not enough: with no kind of code named and no warning not to share it, it is left to be answered as it was", () => {
+  for (const body of BARE) assert.equal(oneTimeCodeOf(body), null, JSON.stringify(body));
+});
+
 test("a long text is not a code, however it begins; a code with a letter or more digits against it is not a code", () => {
   assert.equal(oneTimeCodeOf(`${"x".repeat(320)} Your WhatsApp code: 788-963`), null);
   assert.deepEqual(
-    oneTimeCodeOf(`Your WhatsApp code: 788-963 ${"x".repeat(200)}`)?.code,
+    oneTimeCodeOf(`Your WhatsApp code: 788-963\n\nDon't share this code with others. ${"x".repeat(200)}`)?.code,
     "788-963",
     "a long one is still short enough",
   );
-  assert.equal(oneTimeCodeOf("Your WhatsApp code: 788963a"), null, "a letter against it");
-  assert.equal(oneTimeCodeOf("Your WhatsApp code: 123456789"), null, "nine digits are not a code");
-  assert.equal(oneTimeCodeOf("Your WhatsApp code: 78"), null, "two are not either");
-  assert.deepEqual(oneTimeCodeOf("Your WhatsApp code: 78896"), { code: "78896", from: "WhatsApp" }, "five are");
+  assert.equal(oneTimeCodeOf("Your WhatsApp code: 788963a. Don't share it."), null, "a letter against it");
+  assert.equal(oneTimeCodeOf("Your WhatsApp code: 123456789. Don't share it."), null, "nine digits are not a code");
+  assert.equal(oneTimeCodeOf("Your WhatsApp code: 78. Don't share it."), null, "two are not either");
+  assert.deepEqual(
+    oneTimeCodeOf("Your WhatsApp code: 78896. Don't share it."),
+    { code: "78896", from: "WhatsApp" },
+    "five are",
+  );
 });
 
 const NOW = Date.parse("2026-10-06T15:00:00Z");
@@ -98,14 +137,7 @@ test("the line's codes are the ones in the last fifteen minutes, newest first, a
   );
   assert.deepEqual(lineCodesFrom([], NOW), []);
   assert.deepEqual(lineCodesFrom([text("Are you open Saturday?", MIN)], NOW), [], "no code, none");
-  assert.equal(
-    lineCodesFrom([text("Your WhatsApp code: 788-963", 15 * MIN)], NOW).length,
-    1,
-    "fifteen minutes is within",
-  );
-  assert.equal(
-    lineCodesFrom([text("Your WhatsApp code: 788-963", 15 * MIN + 1)], NOW).length,
-    0,
-    "and a millisecond more is not",
-  );
+  const meta = "Your WhatsApp code: 788-963\n\nDon't share this code with others";
+  assert.equal(lineCodesFrom([text(meta, 15 * MIN)], NOW).length, 1, "fifteen minutes is within");
+  assert.equal(lineCodesFrom([text(meta, 15 * MIN + 1)], NOW).length, 0, "and a millisecond more is not");
 });

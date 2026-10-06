@@ -340,6 +340,6 @@
     "00335_the_claim_counts_capacity_and_every_lane_takes_turns.sql": "c2db84d86d4443434ba40cd2b05e0d5b01e258e2ab1168278cc1e5e56c7daefd",
     "00336_every_verified_delivery_is_kept_seven_days_under_the_provider_s_own_id.sql": "d6792e80f4be9f7c2db56c94f34ccaa5ba9f25018fd392d0462445335fea14aa",
     "00337_a_day_counts_how_long_a_provider_s_delivery_waited_to_be_taken_in.sql": "def3a864676048baf3fb85333e7a224cef8b8f726ba7ba7efe25cf122255c9ea",
-    "00338_a_number_s_standing_is_kept_and_said_when_it_changes.sql": "2450c5cdb528c339fe05b0e1f954ce43407bc239231b18d143cd65e1399d03d7"
+    "00338_a_number_s_standing_is_kept_and_said_when_it_changes.sql": "6c51bb4bd9043506e619e53e38ffc7ac50f98059cc6388f9ec27e2a6de591460"
   }
 }

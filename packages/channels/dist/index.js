@@ -2598,16 +2598,26 @@ var ONE_TIME_CODE_MAX_CHARS = 320;
 var CODE_DIGITS = String.raw`(\d{3,4}[ -]\d{3,4}|\d{4,8})`;
 var CODE = String.raw`(?<![\d\w])${CODE_DIGITS}(?![\d\w])`;
 var CODE_KIND = String.raw`(?:verification|security|confirmation|login|log-in|sign-in|access|one-time|authentication)`;
+var SENDERS_KIND = /^(?:verification|login|log-in|sign-in|one-time|authentication) ?$/i;
+var sendersKind = (kind) => kind !== void 0 && SENDERS_KIND.test(kind);
 var CODE_NAME = String.raw`([\p{L}\d&.'’-]+(?: [\p{L}\d&.'’-]+){0,2}?)`;
 var CODE_WORD = String.raw`(?:code|passcode|otp|pin)`;
+var ENDS = String.raw`(?=[ \t]*(?:$|[.,;!\r\n]))`;
 var YOUR_NAME_CODE = new RegExp(
-  String.raw`\byour ${CODE_NAME} (?:${CODE_KIND} )?${CODE_WORD}\b[ :]{0,3}(?:is\b[ :]{0,3})?${CODE}`,
+  String.raw`\byour ${CODE_NAME} (${CODE_KIND} )?${CODE_WORD}\b[ :]{0,3}(?:is\b[ :]{0,3})?${CODE}${ENDS}`,
   "iu"
 );
-var CODE_IS_YOUR_KIND = new RegExp(String.raw`${CODE} is your ${CODE_KIND} ${CODE_WORD}\b`, "iu");
-var CODE_IS_YOUR_NAME = new RegExp(String.raw`${CODE} is your ${CODE_NAME} (?:${CODE_KIND} )?${CODE_WORD}\b`, "iu");
+var YOUR_KIND_CODE = new RegExp(
+  String.raw`\byour (${CODE_KIND}) ${CODE_WORD}\b[ :]{0,3}(?:is\b[ :]{0,3})?${CODE}${ENDS}`,
+  "iu"
+);
+var CODE_IS_YOUR_KIND = new RegExp(String.raw`${CODE} is your (${CODE_KIND}) ${CODE_WORD}\b${ENDS}`, "iu");
+var CODE_IS_YOUR_NAME = new RegExp(
+  String.raw`${CODE} is your ${CODE_NAME} (${CODE_KIND} )?${CODE_WORD}\b${ENDS}`,
+  "iu"
+);
+var USE_TO_VERIFY = new RegExp(String.raw`\b(?:use|enter) ${CODE} to (?:verify|activate|authenticate)\b`, "iu");
 var DONT_SHARE = /\b(?:don'?t|do not|never) share (?:this|the|your|it)\b/i;
-var TO_VERIFY = /\b(?:verif\w*|confirm\w*|log ?in|sign ?in|security|one-time|authenticat\w*|2-?step|two-step)\b/i;
 var ANDROID_TAG = /^\s*<#>\s/;
 var NOT_A_SERVICE = /^(?:door|gate|garage|locker|lock|building|entry|promo|discount|coupon|gift|referral|booking|appointment|order|reservation|alarm|wi-?fi|security|verification|confirmation|login|log-in|sign-in|access|one-time|authentication)$/i;
 function serviceName(name) {
@@ -2616,15 +2626,21 @@ function serviceName(name) {
 }
 function oneTimeCodeOf(body) {
   if (body.length > ONE_TIME_CODE_MAX_CHARS || body.includes("?")) return null;
-  const [, name, digits] = YOUR_NAME_CODE.exec(body) ?? [];
+  const warned = DONT_SHARE.test(body);
+  const [, name, kind, digits] = YOUR_NAME_CODE.exec(body) ?? [];
   const sender = serviceName(name);
-  if (digits && sender) return { code: digits, from: sender };
-  const [, unnamed] = CODE_IS_YOUR_KIND.exec(body) ?? [];
-  if (unnamed) return { code: unnamed, from: null };
-  const [, named, namedBy] = CODE_IS_YOUR_NAME.exec(body) ?? [];
+  const signed = (k) => sendersKind(k) || k === void 0 && warned;
+  if (digits && sender && signed(kind)) return { code: digits, from: sender };
+  const [, kindWord, kindOnly] = YOUR_KIND_CODE.exec(body) ?? [];
+  if (kindOnly && sendersKind(kindWord) && warned) return { code: kindOnly, from: null };
+  const [, named, namedBy, namedKind] = CODE_IS_YOUR_NAME.exec(body) ?? [];
   const namedFrom = serviceName(namedBy);
-  if (named && namedFrom) return { code: named, from: namedFrom };
-  if (ANDROID_TAG.test(body) || DONT_SHARE.test(body) && TO_VERIFY.test(body)) {
+  if (named && namedFrom && signed(namedKind)) return { code: named, from: namedFrom };
+  const [, unnamed, unnamedKind] = CODE_IS_YOUR_KIND.exec(body) ?? [];
+  if (unnamed && (sendersKind(unnamedKind) || warned)) return { code: unnamed, from: null };
+  const [, used] = USE_TO_VERIFY.exec(body) ?? [];
+  if (used && warned) return { code: used, from: null };
+  if (ANDROID_TAG.test(body)) {
     const found = [...body.matchAll(new RegExp(CODE, "gu"))].map((m) => m[1]);
     const only = found.length === 1 ? found[0] : void 0;
     if (only) return { code: only, from: null };

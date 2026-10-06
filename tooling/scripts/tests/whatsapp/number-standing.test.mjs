@@ -480,6 +480,13 @@ test("every way the work can fail is an outcome and a line, never a throw: Meta 
     said.said.map(([level, event]) => [level, event]),
     [["error", "wa_standing_tell_failed"]],
   );
+  // A notice whose mail did not go (notify answers false) is still the bell row the owner reads, and the line says the mail
+  // did not go, so it is seen (the final review of 6 October: notify's answer was dropped).
+  w = world("first");
+  const quiet = lines();
+  const unsent = await readAndKeepStanding({ db: w.db, log: quiet.log, tell: async () => false }, TOKEN, NUMBER);
+  assert.deepEqual([unsent.outcome, unsent.told], ["first", true]);
+  assert.deepEqual(quiet.said, [["info", "wa_standing_told", { tenant_id: A, channel_id: "ch-1", mailed: false }]]);
   // A line carries the workspace and the channel, never the token, a number or Meta's own words.
   const text = JSON.stringify(said.said);
   assert.doesNotMatch(text, /EAAB|Bearer|10654000000000|3055550142|payment/);

@@ -22464,7 +22464,7 @@ var WHATSAPP_COST_WORDS = {
    * Who bills it, what is free and what is charged, in one line an owner reads under the row: a row says one thing at a time, and
    * the rates themselves are Meta's page (pricesLink), which says them by country and category.
    */
-  summary: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.",
+  summary: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.",
   pricesLink: "Meta's current prices",
   /** The one line Settings > Billing says, with `title` as the link to the explainer on Connections. */
   billingLine: "WhatsApp messages your business starts are billed by Meta to the card on your WhatsApp account, not on this bill."
@@ -22521,7 +22521,7 @@ function standingFromConfig(value) {
 }
 function standingNeedsRead(n, nowMs) {
   if (!n.standing) return true;
-  if (n.standing.can_send === "AVAILABLE") return false;
+  if (n.standing.can_send === "AVAILABLE" && n.standing.has_payment_method !== false) return false;
   const readAt = n.standingReadAt ? Date.parse(n.standingReadAt) : Number.NaN;
   return Number.isNaN(readAt) || nowMs - readAt > STANDING_STALE_MS;
 }
@@ -22532,14 +22532,17 @@ var withStop = (text) => {
 var problemWords = (p) => p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
 var BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
 var NO_PAYMENT_METHOD = "No payment method on your WhatsApp account yet: replies still go out, but reminders and campaigns will not be delivered.";
+var NO_PAYMENT_METHOD_BLOCKED = "No payment method on your WhatsApp account yet.";
 var PAYMENT_NOTE = "Without a payment method, Meta still delivers replies to customers who write first; it does not deliver the messages your business starts, like reminders and campaigns.";
 var PAYMENT_PROBLEM = /\bpayment\b/i;
 function paymentNotes(s) {
+  const blocked = s.can_send === "BLOCKED";
   if (s.has_payment_method === false) {
+    const text = blocked ? NO_PAYMENT_METHOD_BLOCKED : NO_PAYMENT_METHOD;
     const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
-    return href ? [{ text: NO_PAYMENT_METHOD, link: { label: "Add one in Meta", href } }] : [{ text: `${NO_PAYMENT_METHOD} Add one in Meta Business Suite \u203A Billing.` }];
+    return href ? [{ text, link: { label: "Add one in Meta", href } }] : [{ text: `${text} Add one in Meta Business Suite \u203A Billing.` }];
   }
-  const named = s.has_payment_method === null && s.problems.some((p) => PAYMENT_PROBLEM.test(p.said));
+  const named = !blocked && s.has_payment_method === null && s.problems.some((p) => PAYMENT_PROBLEM.test(p.said));
   return named ? [{ text: PAYMENT_NOTE }] : [];
 }
 function standingSentence(s) {
@@ -27723,10 +27726,11 @@ function tryItNotes(wa) {
 function whatsappRow(i, { wa, own, nowMs }) {
   const base = { kind: "whatsapp", icon: "chat", title: "WhatsApp Business" };
   if (wa) {
-    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
+    const standing = wa.on ? wa.standing : null;
+    const limit = wa.messagingLimit ?? standing?.limit ?? null;
+    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
     const flagged = wa.on && h.tone === "danger";
     const health = wa.on && h.tone !== "unknown" ? ` \xB7 ${h.label}` : "";
-    const standing = wa.on ? wa.standing : null;
     const blocked = standing?.can_send === "BLOCKED";
     const attention = flagged || blocked;
     return {
@@ -27740,7 +27744,7 @@ function whatsappRow(i, { wa, own, nowMs }) {
       // WhatsApp costs, on every row that is on.
       notes: [
         ...wa.on && !attention ? tryItNotes(wa) : [],
-        ...standingNotes(standing),
+        ...standingNotes(standing && { ...standing, limit }),
         ...wa.on ? whatsappCostNotes() : []
       ]
     };

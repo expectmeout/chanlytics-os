@@ -404,16 +404,19 @@ function tryItNotes(wa: ChannelVM): ConnectionNote[] {
 function whatsappRow(i: ConnectionInputs, { wa, own, nowMs }: ConnectionFacts): Draft {
   const base = { kind: "whatsapp" as const, icon: "chat", title: "WhatsApp Business" };
   if (wa) {
-    // What Meta has said about the number, in the words Sent, Campaigns
-    // and the assistant already use: a flagged number is exactly the "joined
-    // but not working" the attention state exists for.
-    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
-    const flagged = wa.on && h.tone === "danger";
-    const health = wa.on && h.tone !== "unknown" ? ` · ${h.label}` : "";
     // What Meta holds about the number (channel.standing, 00338) outranks what its rating implies: a number Meta will not
     // let send is joined and not working whatever its quality was, and Meta's own words say why. A word of Meta's that is
     // not BLOCKED is never taken for it; a switched-off channel says nothing of Meta's.
     const standing = wa.on ? wa.standing : null;
+    // One daily limit for the sentence and the notes: the quality webhook's word once Meta has sent one (it is sent when the
+    // tier moves), else the tier the standing read. Two would say "not reported yet" beside "up to 250 people a day".
+    const limit = wa.messagingLimit ?? standing?.limit ?? null;
+    // What Meta has said about the number, in the words Sent, Campaigns
+    // and the assistant already use: a flagged number is exactly the "joined
+    // but not working" the attention state exists for.
+    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
+    const flagged = wa.on && h.tone === "danger";
+    const health = wa.on && h.tone !== "unknown" ? ` · ${h.label}` : "";
     const blocked = standing?.can_send === "BLOCKED";
     const attention = flagged || blocked;
     return {
@@ -427,7 +430,7 @@ function whatsappRow(i: ConnectionInputs, { wa, own, nowMs }: ConnectionFacts): 
       // WhatsApp costs, on every row that is on.
       notes: [
         ...(wa.on && !attention ? tryItNotes(wa) : []),
-        ...standingNotes(standing),
+        ...standingNotes(standing && { ...standing, limit }),
         ...(wa.on ? whatsappCostNotes() : []),
       ],
     };

@@ -27,7 +27,7 @@ const ago = (ms) => new Date(NOW - ms).toISOString();
 
 /** What WhatsApp costs, said last under every connected row in one line: Meta bills it, to the card on the WhatsApp account. */
 const COST = [
-  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.",
+  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.",
 ];
 const PRICES = {
   label: "Meta's current prices",
@@ -122,10 +122,45 @@ test("a number Meta will not let send needs attention, says Meta's first problem
   assert.deepEqual(said(r), [
     "Add a payment method in WhatsApp Manager.",
     "The app is in development mode.",
-    PAYMENT_NOTE,
+    // No "replies still go out" here: a number Meta will not let send sends nothing (the final review of 6 October).
     "Your business isn't verified with Meta: you can start conversations with up to 250 people a day. Replies to customers who write first are not limited.",
   ]);
   assert.deepEqual(r.verb, { label: "Library", to: "messages", who: "operator" }, "the row's own verb stays");
+});
+
+test("a number Meta will not let send, whose account has no payment method, says only that it has none, with the way to add one", () => {
+  const r = whatsappRow(
+    channel({
+      ...BLOCKED,
+      problems: [BLOCKED.problems[0]],
+      has_payment_method: false,
+      owner_business_id: BUSINESS,
+      waba_id: ACCOUNT,
+    }),
+  );
+  assert.equal(r.sentence, "Meta: A payment method is required to send messages.");
+  assert.deepEqual(
+    r.notes.filter((n) => n.link?.label === "Add one in Meta"),
+    [{ text: "No payment method on your WhatsApp account yet.", link: ADD_ONE }],
+  );
+  assert.ok(!said(r).some((n) => /replies still go out|still delivers replies/.test(n)), JSON.stringify(said(r)));
+});
+
+test("the row's sentence and its notes say one daily limit: the quality webhook's once Meta has sent one, else the tier the standing read", () => {
+  const unverified = { ...AVAILABLE, verification: "not_verified", limit: "TIER_250" };
+  const before = whatsappRow(channel(unverified, { quality: "GREEN" }));
+  assert.match(before.sentence, /up to 250 new conversations a day/, before.sentence);
+  assert.ok(
+    said(before).some((n) => n.includes("up to 250 people a day")),
+    JSON.stringify(said(before)),
+  );
+  const moved = whatsappRow(channel(unverified, { quality: "GREEN", messaging_limit: "TIER_1K" }));
+  assert.match(moved.sentence, /up to 1,000 new conversations a day/, moved.sentence);
+  assert.ok(
+    said(moved).some((n) => n.includes("up to 1,000 people a day")),
+    JSON.stringify(said(moved)),
+  );
+  assert.ok(!said(moved).some((n) => n.includes("250")), "never the older tier beside the newer one");
 });
 
 test("a number Meta blocks without saying why says that much and nothing it did not say", () => {
@@ -240,6 +275,20 @@ test("a page that opens asks Meta again when nothing was kept, or when what was 
   assert.equal(standingNeedsRead(held(null, null), NOW), true, "never read");
   assert.equal(standingNeedsRead(held(null, 1 * MIN), NOW), true, "a stamp without an answer is nothing read");
   assert.equal(standingNeedsRead(held({ ...BLOCKED, can_send: "AVAILABLE" }, 3 * 24 * 60 * MIN), NOW), false);
+  // A number with no payment method can stay AVAILABLE (its replies still go out): it is asked about again, as a number that
+  // cannot send is, so a payment method added since shows as fixed at the next opening.
+  const unpaid = { ...AVAILABLE, has_payment_method: false };
+  assert.equal(
+    standingNeedsRead(held(unpaid, 11 * MIN), NOW),
+    true,
+    "AVAILABLE with no payment method, eleven minutes on",
+  );
+  assert.equal(standingNeedsRead(held(unpaid, 9 * MIN), NOW), false, "and not before ten");
+  assert.equal(
+    standingNeedsRead(held({ ...AVAILABLE, has_payment_method: null }, 11 * MIN), NOW),
+    false,
+    "a payment method that could not be read is not one that is missing",
+  );
   assert.equal(
     standingNeedsRead(held(BLOCKED, 9 * MIN), NOW),
     false,

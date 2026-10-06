@@ -1087,7 +1087,8 @@ Other lines to know:
   database door refusing to keep a reading or a display-name decision and the third the owner's notice failing to send
   (both errors, with the `channel_id` where a read wrote them; the webhook's line for a display name's decision holds the
   workspace and the `error` alone). None of them fails the thing that asked for the read. `wa_standing_told` is the owner
-  told that Meta will not let the number send. Meta's own words are never logged: they often name the number.
+  told that Meta will not let the number send: the bell row, and `mailed` says whether the owner's mail went too (false: a
+  mail provider or a mailbox to look at). Meta's own words are never logged: they often name the number.
 - `wa_signup_finished_unclaimed`: at info, not error: Meta finished a WhatsApp sign-up for an account no workspace holds
   (the owner reloaded or left the page before Chanlytics heard back), so there is nothing to keep. The line holds the
   `waba_id`, the `entry_id` Meta addressed the notice to (the partner's portfolio) and the `account_event`. The owner presses

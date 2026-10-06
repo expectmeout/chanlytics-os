@@ -1653,12 +1653,21 @@ declare function mergeConsent(a: CarrierConsent | null, b: CarrierConsent | null
 declare function withCarrierConsent(n: NormalizedInbound, c: CarrierConsent | null): NormalizedInbound;
 /**
  * Whether a text is a one-time code some service sent (Meta's, when an owner connects the line's number to WhatsApp), and
- * which. The receptionist never answers one and no person or message is made of it (apps/edge/lib/sms/sms-ingress.ts), so
- * the rule is conservative on purpose: a text taken for a code silences a customer, and one missed is only answered as it
- * was. It is a text of at most 320 characters with no question mark, and one of four things: "your <Name> code" with the
- * code after it, "<code> is your <Name> ... code" (or a kind of code and no name), a leading `<#>`, or "don't share it"
- * together with a word that says what the code is for and exactly one code. Digits only, four to eight. It answers the code as it
- * was written, and the name of the service when the text says one.
+ * which. The receptionist never answers one, no person or message is made of it, and its delivery is not kept
+ * (apps/edge/lib/sms), so the rule is conservative on purpose: a text taken for a code silences a customer for good, and
+ * one missed is only answered as it was. It is a text of at most 320 characters with no question mark, in a sender's own
+ * shape, with a sender's own sign beside it:
+ *   - "your <Name> [kind] code <code>" or "<code> is your <Name> [kind] code", the phrase ending there, and a sender's kind
+ *     of code named (verification, one-time, login, sign-in, authentication: never security, access or confirmation, which a
+ *     customer's alarm, gate or booking has too, and which rule the text out) or, with no kind named, the warning not to
+ *     share it ("Your WhatsApp code: 788-963 / Don't share this code with others");
+ *   - "your <kind> code <code>" with a sender's kind and the warning; "<code> is your <kind> code" with a sender's kind or
+ *     the warning;
+ *   - "use <code> to verify" (or activate, authenticate: never confirm or sign in, a gate's words too) and the warning;
+ *   - a leading `<#>`, Android's retriever mark, and exactly one code.
+ * A customer's text has the words of one at most ("the gate code is 4512, don't share it", "your Rewards code 123456
+ * doesn't work", "I tried your Summer code 2024"): none of them is a sender's shape and sign together. Digits only, four to
+ * eight. It answers the code as it was written, and the name of the service when the text says one.
  */
 declare function oneTimeCodeOf(body: string): {
     code: string;

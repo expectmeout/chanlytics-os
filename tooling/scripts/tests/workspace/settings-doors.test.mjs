@@ -817,7 +817,7 @@ const noteLinks = (tree, kind) =>
   ).map((n) => [textOf(n), n.props.href, n.props.target, n.props.rel]);
 /** What WhatsApp costs, said last under a connected row and before Connect (contracts WHATSAPP_COST_WORDS): one line, with Meta's prices after it. */
 const COST = [
-  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.",
+  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.",
 ];
 const PRICES = [
   "Meta's current prices",
@@ -1076,7 +1076,7 @@ test("the WhatsApp row draws what Meta holds under its sentence, each note a lin
   );
   assert.deepEqual(noteTexts(tree, "whatsapp"), [
     "Add a payment method in WhatsApp Manager.",
-    "No payment method on your WhatsApp account yet: replies still go out, but reminders and campaigns will not be delivered.",
+    "No payment method on your WhatsApp account yet.",
     "Your business isn't verified with Meta: you can start conversations with up to 250 people a day. Replies to customers who write first are not limited.",
     ...COST,
   ]);

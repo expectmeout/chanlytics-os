@@ -11763,9 +11763,10 @@ type NumberStanding = {
  */
 declare function standingFromConfig(value: unknown): NumberStanding | null;
 /**
- * Whether a page that has just opened should ask Meta again: nothing was kept, or what was kept is not AVAILABLE and was read
- * more than ten minutes ago (so a payment method added a minute ago shows as fixed without waiting for the six-hourly
- * read). An AVAILABLE number is the clock's to renew.
+ * Whether a page that has just opened should ask Meta again: nothing was kept, or what was kept is not AVAILABLE, or says the
+ * account has no payment method, and was read more than ten minutes ago (so a payment method added a minute ago shows as fixed
+ * without waiting for the six-hourly read: a number with none can stay AVAILABLE, since its replies still go out). Any other
+ * AVAILABLE number is the clock's to renew.
  */
 declare function standingNeedsRead(n: {
     standing: NumberStanding | null;
@@ -21238,7 +21239,7 @@ declare const WHATSAPP_COST_WORDS: {
      * Who bills it, what is free and what is charged, in one line an owner reads under the row: a row says one thing at a time, and
      * the rates themselves are Meta's page (pricesLink), which says them by country and category.
      */
-    readonly summary: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.";
+    readonly summary: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.";
     readonly pricesLink: "Meta's current prices";
     /** The one line Settings > Billing says, with `title` as the link to the explainer on Connections. */
     readonly billingLine: "WhatsApp messages your business starts are billed by Meta to the card on your WhatsApp account, not on this bill.";

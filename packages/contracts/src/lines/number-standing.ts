@@ -111,16 +111,17 @@ export function standingFromConfig(value: unknown): NumberStanding | null {
 }
 
 /**
- * Whether a page that has just opened should ask Meta again: nothing was kept, or what was kept is not AVAILABLE and was read
- * more than ten minutes ago (so a payment method added a minute ago shows as fixed without waiting for the six-hourly
- * read). An AVAILABLE number is the clock's to renew.
+ * Whether a page that has just opened should ask Meta again: nothing was kept, or what was kept is not AVAILABLE, or says the
+ * account has no payment method, and was read more than ten minutes ago (so a payment method added a minute ago shows as fixed
+ * without waiting for the six-hourly read: a number with none can stay AVAILABLE, since its replies still go out). Any other
+ * AVAILABLE number is the clock's to renew.
  */
 export function standingNeedsRead(
   n: { standing: NumberStanding | null; standingReadAt: string | null },
   nowMs: number,
 ): boolean {
   if (!n.standing) return true;
-  if (n.standing.can_send === "AVAILABLE") return false;
+  if (n.standing.can_send === "AVAILABLE" && n.standing.has_payment_method !== false) return false;
   const readAt = n.standingReadAt ? Date.parse(n.standingReadAt) : Number.NaN;
   return Number.isNaN(readAt) || nowMs - readAt > STANDING_STALE_MS;
 }
@@ -148,6 +149,8 @@ const BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right 
  */
 const NO_PAYMENT_METHOD =
   "No payment method on your WhatsApp account yet: replies still go out, but reminders and campaigns will not be delivered.";
+/** The same, for a number Meta will not let send at all: what is missing, and nothing about what still goes out, since nothing does. */
+const NO_PAYMENT_METHOD_BLOCKED = "No payment method on your WhatsApp account yet.";
 const PAYMENT_NOTE =
   "Without a payment method, Meta still delivers replies to customers who write first; it does not deliver the messages your business starts, like reminders and campaigns.";
 const PAYMENT_PROBLEM = /\bpayment\b/i;
@@ -156,15 +159,19 @@ const PAYMENT_PROBLEM = /\bpayment\b/i;
  * The note for the account's payment method. Where the account says none is on file, that is said plainly, with the way to add one: Meta's
  * billing page for this business and this account, or Meta Business Suite where either is not known. Where it could not be read, a
  * problem of Meta's that names a payment gets the note that says what a payment method is for, once; where one is on file, nothing.
+ * A number Meta will not let send sends nothing, replies included: its note says only what is missing (Meta's own problem and fix,
+ * the row's sentence and notes, say the rest).
  */
 function paymentNotes(s: NumberStanding): ConnectionNote[] {
+  const blocked = s.can_send === "BLOCKED";
   if (s.has_payment_method === false) {
+    const text = blocked ? NO_PAYMENT_METHOD_BLOCKED : NO_PAYMENT_METHOD;
     const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
     return href
-      ? [{ text: NO_PAYMENT_METHOD, link: { label: "Add one in Meta", href } }]
-      : [{ text: `${NO_PAYMENT_METHOD} Add one in Meta Business Suite › Billing.` }];
+      ? [{ text, link: { label: "Add one in Meta", href } }]
+      : [{ text: `${text} Add one in Meta Business Suite › Billing.` }];
   }
-  const named = s.has_payment_method === null && s.problems.some((p) => PAYMENT_PROBLEM.test(p.said));
+  const named = !blocked && s.has_payment_method === null && s.problems.some((p) => PAYMENT_PROBLEM.test(p.said));
   return named ? [{ text: PAYMENT_NOTE }] : [];
 }
 
