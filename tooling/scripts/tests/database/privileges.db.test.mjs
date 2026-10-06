@@ -145,6 +145,39 @@ union all
 select 'jobs_index_missing', case when to_regclass('public.jobs_tenant_kind_state') is null
                                    then array['jobs_tenant_kind_state'] else '{}'::text[] end
 union all
+select 'service_role_short', coalesce(array_agg(x order by x), '{}') from (
+  select c.relname || ': ' || array_to_string(array_remove(array[
+           case when not has_table_privilege('service_role', c.oid, 'SELECT') then 'select' end,
+           case when not has_table_privilege('service_role', c.oid, 'INSERT') then 'insert' end,
+           case when not has_table_privilege('service_role', c.oid, 'UPDATE') then 'update' end,
+           case when not has_table_privilege('service_role', c.oid, 'DELETE') then 'delete' end], null), ', ') as x
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relispartition
+     and not (has_table_privilege('service_role', c.oid, 'SELECT') and has_table_privilege('service_role', c.oid, 'INSERT')
+              and has_table_privilege('service_role', c.oid, 'UPDATE') and has_table_privilege('service_role', c.oid, 'DELETE'))
+) s
+union all
+select 'service_role_sequence_short', coalesce(array_agg(x order by x), '{}') from (
+  select c.relname::text as x
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind = 'S'
+     and not (has_sequence_privilege('service_role', c.oid, 'USAGE') and has_sequence_privilege('service_role', c.oid, 'SELECT'))
+) s
+union all
+select 'policy_ungranted', coalesce(array_agg(x order by x), '{}') from (
+  select c.relname || '.' || p.polname || ' (' || case p.polcmd when 'r' then 'select' when 'a' then 'insert'
+           when 'w' then 'update' when 'd' then 'delete' else 'all' end || ')' as x
+    from pg_policy p join pg_class c on c.oid = p.polrelid join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and not c.relispartition
+     and (p.polroles = '{0}' or 'authenticated'::regrole = any (p.polroles))
+     and not case p.polcmd
+           when 'r' then has_table_privilege('authenticated', c.oid, 'SELECT')
+           when 'a' then has_any_column_privilege('authenticated', c.oid, 'INSERT')
+           when 'w' then has_any_column_privilege('authenticated', c.oid, 'UPDATE')
+           when 'd' then has_table_privilege('authenticated', c.oid, 'DELETE')
+           else has_table_privilege('authenticated', c.oid, 'SELECT') end
+) s
+union all
 select 'anon_executes', coalesce(array_agg(x order by x), '{}') from (
   select p.oid::regprocedure::text as x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -203,19 +236,31 @@ test("anon executes no function in public, directly or through PUBLIC", { skip }
 });
 
 test(
-  "a table or function created in public starts closed to anon, and a function still reaches authenticated",
+  "a table or function created in public starts closed to anon, a table to everyone, and a function still reaches authenticated",
   { skip },
   () => {
     // Run, not read: make one of each inside a block and drop them before it
     // ends, so nothing is kept whether it passes or not. PUBLIC's EXECUTE on new
     // functions is a global default, so this is what proves the global revoke took.
+    // A new table and sequence grant authenticated and the service role nothing either (00338), as Supabase's own
+    // defaults do for a new table from 30 October 2026: what proves a replay fails the migration production would.
     query(`do $$
 begin
   create table public.__privileges_probe (id int);
+  create sequence public.__privileges_probe_seq;
   create function public.__privileges_probe_fn() returns int language sql as $f$ select 1 $f$;
   if has_table_privilege('anon', 'public.__privileges_probe', 'SELECT,INSERT,UPDATE,DELETE') then
     raise exception 'a new table in public grants anon';
   end if;
+  if has_table_privilege('service_role', 'public.__privileges_probe', 'SELECT,INSERT,UPDATE,DELETE')
+     or has_table_privilege('authenticated', 'public.__privileges_probe', 'SELECT,INSERT,UPDATE,DELETE') then
+    raise exception 'a new table in public grants a role by default, so a replay passes a migration that grants nothing';
+  end if;
+  if has_sequence_privilege('service_role', 'public.__privileges_probe_seq', 'USAGE,SELECT,UPDATE')
+     or has_sequence_privilege('authenticated', 'public.__privileges_probe_seq', 'USAGE,SELECT,UPDATE') then
+    raise exception 'a new sequence in public grants a role by default';
+  end if;
+  drop sequence public.__privileges_probe_seq;
   if has_function_privilege('anon', 'public.__privileges_probe_fn()', 'EXECUTE') then
     raise exception 'a new function in public is executable by anon';
   end if;
@@ -228,6 +273,29 @@ end
 $$`);
   },
 );
+
+test("every table in public grants the service role what the server does with it", { skip }, () => {
+  // The allow direction. The edge, the sweeps and the dashboard's server read and write every table as the service
+  // role; Supabase's defaults granted it until 00338 took them away, as Supabase does for new tables in existing
+  // projects from 30 October 2026. A table made since grants it in its own migration, or no server can touch it.
+  assert.deepEqual(
+    rules.service_role_short,
+    [],
+    "grant select, insert, update, delete on the table to service_role in the migration that makes it",
+  );
+  assert.deepEqual(rules.service_role_sequence_short, [], "grant usage, select on the sequence to service_role");
+});
+
+test("every policy a session acts through has the grant its command needs", { skip }, () => {
+  // A policy decides which rows, a grant whether at all: a policy for a command authenticated may not run is a door
+  // that never opens, and a read through it fails as permission denied. The partitions of events are read through
+  // their parent, whose policy and grant are the ones that count.
+  assert.deepEqual(
+    rules.policy_ungranted,
+    [],
+    "grant authenticated the command (or the columns it writes) in the migration that writes the policy",
+  );
+});
 
 test("a column UPDATE grant is a fence: no table also hands authenticated table-wide UPDATE", { skip }, () => {
   // REVOKE UPDATE on a table takes its column grants with it, so the order is
