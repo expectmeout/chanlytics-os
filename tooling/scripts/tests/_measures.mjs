@@ -49,6 +49,7 @@ import {
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
 import { bank } from "./_ratchet.mjs";
+import { CLOCKS } from "./clocks/_clocks.mjs";
 
 /** A function's limits: eslint.config.mjs's FUNCTION_LIMITS, as errors where this holds nothing. */
 export const LIMIT = { lines: 150, branches: 30, depth: 5 };
@@ -348,6 +349,19 @@ export const MEASURES = [
     measure: () => perFile(MARKUP, inlineStyles),
     advice:
       "Style it with a class that reads tokens, not a style prop: a value in a prop is one no look can reach (the interface kit's rule 1, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md).",
+  },
+  {
+    // Each registered clock's kind is clocks/_clocks.mjs's; ops/sweep-registry.db.test.mjs holds every row to one.
+    name: "event-shaped clocks",
+    file: "event-shaped-clocks.json",
+    measure: () =>
+      Object.fromEntries(
+        Object.entries(CLOCKS)
+          .filter(([, c]) => c.kind === "event-shaped")
+          .map(([name]) => [name, 1]),
+      ),
+    advice:
+      "A clock that runs a timer or a reaction belongs on a due row or after its event (decision 0031, invariant 6): set the job's due_at where the timer starts, or subscribe to the event, and keep the clock to reconcile, judge, keep or roll.",
   },
 ];
 
