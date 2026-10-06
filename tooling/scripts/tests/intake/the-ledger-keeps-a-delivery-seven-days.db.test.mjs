@@ -1,5 +1,5 @@
 /**
- * Every verified delivery is kept seven days under the provider's own id (00334, decision 0030 step 4), on a real
+ * Every verified delivery is kept seven days under the provider's own id (00335, decision 0031 step 4), on a real
  * Postgres: a redelivery under the same id keeps the first; the purge drops what is a week old and keeps what is
  * younger, run with its default so a default that drifts from contracts' RETENTION_DAYS fails here; an erasure's scrub
  * deletes the workspace's rows, and the rows no door could place, whose body names the person by any needle, without

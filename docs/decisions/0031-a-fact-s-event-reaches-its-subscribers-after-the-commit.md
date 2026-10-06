@@ -1,9 +1,9 @@
-# 0030 · A fact's event reaches its subscribers after the commit
+# 0031 · A fact's event reaches its subscribers after the commit
 
-**Status:** Built, steps 1 to 4 (6 October 2026, 00332 and 00334 with packages/jobs, packages/db and apps/edge): the
+**Status:** Built, steps 1 to 4 (6 October 2026, 00333 and 00335 with packages/jobs, packages/db and apps/edge): the
 envelope, subscriptions, outbox, deliveries, the relay first in every tick, the event_deliver kind, the audit
 subscriber, and the intake ledger seven webhook doors write before their verdict, with its purge, its scrub and its
-replay door. Decided on 6 October 2026 (Ruben: "all approved"), with 0029, and proposed the same day; the catalogue's schema
+replay door. Decided on 6 October 2026 (Ruben: "all approved"), with 0030, and proposed the same day; the catalogue's schema
 per kind arrives with each subscriber that reads one, and step 5, the first real subscriber, is Phase 2's. Written
 against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main,
 6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Where this
@@ -82,8 +82,8 @@ know how many readers there are.
 
 ## Shape
 
-Built as 00332 with three differences from the sketch below: a delivery carries its `kind` and the event's own clock
-(`event_at`), so relay lag is one subtraction and no partition is joined; the wake is 0031's `ask_for_tick`, shared by
+Built as 00333 with three differences from the sketch below: a delivery carries its `kind` and the event's own clock
+(`event_at`), so relay lag is one subtraction and no partition is joined; the wake is 0032's `ask_for_tick`, shared by
 `jobs_wake` and `event_outbox_wake`, and the poll knocks while the outbox is not empty; and a re-drive is a SQL door,
 `event_deliveries_redrive(p_subscriber)`, the service role's, with its edge door still to come.
 
@@ -150,7 +150,7 @@ begin
       from public.event_subscriptions s
      where s.kind = r.kind and not s.paused
     on conflict do nothing;
-    -- one job per delivery, keyed so a second relay of the same event writes none (0031 dedupe_key)
+    -- one job per delivery, keyed so a second relay of the same event writes none (0032 dedupe_key)
     insert into public.jobs (tenant_id, kind, due_at, payload, dedupe_key)
     select r.tenant_id, 'event_deliver', now(),
            jsonb_build_object('event_id', r.event_id, 'subscriber', d.subscriber, 'kind', r.kind),
@@ -184,28 +184,28 @@ create table public.provider_events (
 );
 ```
 
-As built in 00334. Kept seven days (contracts `RETENTION_DAYS.provider_events`); scrubbed on erasure by every spelling
+As built in 00335. Kept seven days (contracts `RETENTION_DAYS.provider_events`); scrubbed on erasure by every spelling
 of the person's number and address. Two doors are left out: ElevenLabs' post-call webhook, whose body is the
 transcript of a conversation with Ask, which names customers, and whose door keeps nothing of what was said; and
 Apify's, whose url carries the run's token, which the database keeps only as its hash.
 
 ## Steps
 
-**1 · The envelope and the catalogue.** Built in part, 00332: the two columns, nullable and written by nothing yet.
+**1 · The envelope and the catalogue.** Built in part, 00333: the two columns, nullable and written by nothing yet.
 The catalogue of kinds is `EVENT_KINDS` (contracts, held to the emitters by `repo/event-kinds.test.mjs`) and their
 versions `packages/db/src/events.ts`; a schema per kind arrives with the first subscriber that reads it, since a schema
 nobody reads is a promise nobody checks. _Both orders:_ nullable columns and a list nobody reads.
 
-**2 · Subscriptions, outbox, deliveries, the trigger.** Built, 00332, with one row: the audit subscriber on
+**2 · Subscriptions, outbox, deliveries, the trigger.** Built, 00333, with one row: the audit subscriber on
 `message.received`, so the copy runs on real traffic from the first day. _Both orders:_ tables neither app reads.
 
 **3 · The relay in the tick, and the `event_deliver` kind** with its handler, its caller, the `jobs.kind` CHECK and
-its lane together, as the rule says. Built, 00332 (`apps/edge/lib/ops/jobs-tick.ts`, `packages/jobs/src/handlers.ts`,
+its lane together, as the rule says. Built, 00333 (`apps/edge/lib/ops/jobs-tick.ts`, `packages/jobs/src/handlers.ts`,
 `packages/core/src/subscribers.ts`): the relay runs first in every tick, bounded by `RELAY_LIMIT`; the audit subscriber
-settles and does nothing else, and relay lag is the day's `relay_lag_ms` (00330). _Both orders:_ an older edge sees a
+settles and does nothing else, and relay lag is the day's `relay_lag_ms` (00331). _Both orders:_ an older edge sees a
 kind it does not know and keeps it, as today; a delivery to a subscriber it does not know is kept the same way.
 
-**4 · The intake ledger.** Built, 00334: seven webhook doors (`inbound-sms`, `sms-status`, `whatsapp`,
+**4 · The intake ledger.** Built, 00335: seven webhook doors (`inbound-sms`, `sms-status`, `whatsapp`,
 `retell-webhook`, `retell-inbound`, `resend-webhook`, `stripe-webhook`) keep the delivery they verified, as it came,
 under the provider's own id or the body's digest where it gave none, before their verdict, a delivery refused after its
 signature held included (a routing that could not be read, a channel switched off: Twilio never sends a text again)
@@ -220,7 +220,7 @@ form-encoded address, before the rows go (fail closed, as the finished jobs are)
 again, which a provider whose signature carries a timestamp (Resend, Stripe) passes within its window only.
 _Both orders:_ a table only the edge writes.
 
-**5 · The first real subscriber:** receipts as events into the inbox projection (0029, phase 2). Each later
+**5 · The first real subscriber:** receipts as events into the inbox projection (0030, phase 2). Each later
 subscriber is a step of its own note.
 
 ## Tests

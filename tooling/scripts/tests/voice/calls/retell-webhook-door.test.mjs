@@ -1381,7 +1381,7 @@ test("REGRESSION: a channel row that could not be READ is a 503, not 'nobody's a
     assert.deepEqual(
       w.tables.provider_events.map((r) => [r.provider, r.provider_event_id, r.door, r.tenant_id]),
       [["retell", `call_analyzed:${id}`, "/api/retell-webhook", null]],
-      "the delivery is kept, under no workspace, for the replay after a fix (00334)",
+      "the delivery is kept, under no workspace, for the replay after a fix (00335)",
     );
 
     // Retell's retry, with the database well: the same delivery does it all.

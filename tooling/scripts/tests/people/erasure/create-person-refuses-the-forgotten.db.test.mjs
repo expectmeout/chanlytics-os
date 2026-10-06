@@ -1,5 +1,5 @@
 /**
- * A person who asked to be forgotten is not added by hand, on a real database (00329, decision 0032 step 0).
+ * A person who asked to be forgotten is not added by hand, on a real database (00330, decision 0033 step 0).
  *
  * create_person is the door POST contacts and the calendar board call. It looked for a living row by number and
  * made one when none was there, and never asked whether the number had been erased, so an owner opening the Calendar

@@ -529,7 +529,7 @@ test("every other refusal is heard as its own status in an empty TwiML, said at 
         [[], [], []],
         "no receptionist ran, and nothing was answered",
       );
-      // Two texts were knocked: each kept once Twilio's signature held (00334), or neither when it could not be checked.
+      // Two texts were knocked: each kept once Twilio's signature held (00335), or neither when it could not be checked.
       assert.deepEqual(
         (w.tables.provider_events ?? []).map((r) => [r.provider, r.door]),
         c.kept
@@ -904,7 +904,7 @@ test("after the receptionist throws, only a text the database did not keep is re
   });
 });
 
-test("the delivery is kept under Twilio's id, as it came, before the verdict (00334); a text that is not proven keeps nothing; a redelivery keeps the first", async () => {
+test("the delivery is kept under Twilio's id, as it came, before the verdict (00335); a text that is not proven keeps nothing; a redelivery keeps the first", async () => {
   const w = world();
   w.open();
   const seen = receptionist();

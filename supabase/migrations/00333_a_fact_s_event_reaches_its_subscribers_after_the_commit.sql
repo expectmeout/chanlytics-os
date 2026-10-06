@@ -1,6 +1,6 @@
--- 00332 · A fact's event reaches its subscribers after the commit.
+-- 00333 · A fact's event reaches its subscribers after the commit.
 --
--- Decision 0030, steps 1 to 3 (the SQL half; the kind's handler, its caller and the audit subscriber ride with it in
+-- Decision 0031, steps 1 to 3 (the SQL half; the kind's handler, its caller and the audit subscriber ride with it in
 -- packages/jobs and apps/edge). The events ledger had no reader that acts: no table named a subscriber of a kind, and
 -- no trigger woke a reader. Now:
 --
@@ -16,19 +16,19 @@
 --   relay_events(p_limit)      the first step of every tick: drains the outbox under skip locked with no cursor (an
 --                              event whose transaction committed late is never skipped), writes one delivery per
 --                              subscriber and one event_deliver job each, keyed 'deliver:<event>:<subscriber>' so a
---                              second relay of the same event writes none (jobs.dedupe_key, 00331), and takes the row
+--                              second relay of the same event writes none (jobs.dedupe_key, 00332), and takes the row
 --                              off the outbox;
 --   event_deliver              the job kind that carries a delivery: its lane is the subscription's, read from the
 --                              payload (jobs.lane is generated, so the column is made again with one more case);
 --   event_deliveries_redrive   a failed or paused delivery scheduled again, for a subscriber, by the service role;
 --   the wake                   an outbox row written asks for the tick as a due job does (ask_for_tick, shared with
---                              jobs_wake from 00331), and the poll knocks when the outbox is not empty too, so a lost
+--                              jobs_wake from 00332), and the poll knocks when the outbox is not empty too, so a lost
 --                              knock costs ten seconds and never a stuck relay;
---   relay_lag_ms               the day's number (00330) is written now: how long an event waited for its deliveries,
+--   relay_lag_ms               the day's number (00331) is written now: how long an event waited for its deliveries,
 --                              from the delivery row's own clock against the event's, kept on the row (event_at).
 --
 -- One subscriber is seeded, 'audit' on message.received in lane 2: it does nothing but settle, so the relay's lag is
--- measured on real traffic before any subscriber that acts arrives (0030 step 3). A kind or a subscriber the running
+-- measured on real traffic before any subscriber that acts arrives (0031 step 3). A kind or a subscriber the running
 -- edge does not know is kept and alarmed as an unknown job kind is today (packages/jobs ledger.ts).
 --
 -- The floor: the three tables are the platform's. RLS on with no policy, so only the service role reaches them, as
@@ -43,9 +43,9 @@ set local lock_timeout = '3s';
 alter table public.events add column if not exists aggregate_version integer;
 alter table public.events add column if not exists causation_id uuid;
 comment on column public.events.aggregate_version is
-  'The version of the record this event is about, as the door left it (decision 0030): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00332.';
+  'The version of the record this event is about, as the door left it (decision 0031): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00333.';
 comment on column public.events.causation_id is
-  'The event this one was written in answer to, where a reaction wrote it (decision 0030). Null for a fact that arrived from outside, and for every row written before 00332.';
+  'The event this one was written in answer to, where a reaction wrote it (decision 0031). Null for a fact that arrived from outside, and for every row written before 00333.';
 
 /* ---------------------------------------------------------------------------- 2. the tables -- */
 
@@ -61,7 +61,7 @@ alter table public.event_subscriptions enable row level security;
 revoke all on public.event_subscriptions from anon, authenticated;
 grant all on public.event_subscriptions to service_role;
 comment on table public.event_subscriptions is
-  'Who reacts to an event kind (decision 0030): a subscriber''s name, the lane its deliveries run in, and whether it is paused. Platform-wide rows, written by a migration or the service role; a door never names a subscriber. RLS on with no policy: the service role alone.';
+  'Who reacts to an event kind (decision 0031): a subscriber''s name, the lane its deliveries run in, and whether it is paused. Platform-wide rows, written by a migration or the service role; a door never names a subscriber. RLS on with no policy: the service role alone.';
 
 create table if not exists public.event_outbox (
   event_id   uuid primary key,
@@ -75,7 +75,7 @@ alter table public.event_outbox enable row level security;
 revoke all on public.event_outbox from anon, authenticated;
 grant all on public.event_outbox to service_role;
 comment on table public.event_outbox is
-  'One row per event of a subscribed kind, written in the event''s own transaction by events_outbox_copy (decision 0030), and taken off by relay_events once its deliveries are written. Empty when the relay is caught up. RLS on with no policy: the service role alone.';
+  'One row per event of a subscribed kind, written in the event''s own transaction by events_outbox_copy (decision 0031), and taken off by relay_events once its deliveries are written. Empty when the relay is caught up. RLS on with no policy: the service role alone.';
 
 create table if not exists public.event_deliveries (
   event_id    uuid not null,
@@ -100,7 +100,7 @@ drop trigger if exists event_deliveries_set_updated_at on public.event_deliverie
 create trigger event_deliveries_set_updated_at before update on public.event_deliveries
   for each row execute function extensions.moddatetime('updated_at');
 comment on table public.event_deliveries is
-  'One row per event and subscriber (decision 0030): scheduled when the relay writes it and its job, done when the subscriber ran, failed when its job gave up, paused when the subscriber was paused as it ran. event_at is the event''s own clock, so relay lag is one subtraction. RLS on with no policy: the service role alone.';
+  'One row per event and subscriber (decision 0031): scheduled when the relay writes it and its job, done when the subscriber ran, failed when its job gave up, paused when the subscriber was paused as it ran. event_at is the event''s own clock, so relay lag is one subtraction. RLS on with no policy: the service role alone.';
 
 /* ------------------------------------------------------------------------------ 3. the copy -- */
 
@@ -122,7 +122,7 @@ end $$;
 revoke all on function public.events_outbox_copy() from public, anon, authenticated;
 grant execute on function public.events_outbox_copy() to service_role;
 comment on function public.events_outbox_copy() is
-  'After each event: a row on event_outbox when a subscription names its kind and is not paused (decision 0030). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
+  'After each event: a row on event_outbox when a subscription names its kind and is not paused (decision 0031). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
 
 drop trigger if exists events_outbox_copy on public.events;
 create trigger events_outbox_copy
@@ -132,7 +132,7 @@ create trigger events_outbox_copy
 
 /* ------------------------------------------------------------------------------ 4. the wake -- */
 
--- The ask, shared by every row that wants the tick: one a second, never waiting (00331's jobs_wake, now in one place).
+-- The ask, shared by every row that wants the tick: one a second, never waiting (00332's jobs_wake, now in one place).
 create or replace function public.ask_for_tick()
 returns boolean
 language plpgsql
@@ -154,7 +154,7 @@ end $$;
 revoke all on function public.ask_for_tick() from public, anon, authenticated;
 grant execute on function public.ask_for_tick() to service_role;
 comment on function public.ask_for_tick() is
-  'Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00331, 00332). True when it asked.';
+  'Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00332, 00333). True when it asked.';
 
 create or replace function public.jobs_wake()
 returns trigger
@@ -185,7 +185,7 @@ end $$;
 revoke all on function public.event_outbox_wake() from public, anon, authenticated;
 grant execute on function public.event_outbox_wake() to service_role;
 comment on function public.event_outbox_wake() is
-  'After a statement writes event_outbox: the relay runs first in every tick, so an outbox row asks for one (00332).';
+  'After a statement writes event_outbox: the relay runs first in every tick, so an outbox row asks for one (00333).';
 
 drop trigger if exists event_outbox_wake on public.event_outbox;
 create trigger event_outbox_wake
@@ -237,7 +237,7 @@ alter table public.jobs add column lane smallint generated always as (
   end
 ) stored;
 comment on column public.jobs.lane is
-  'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00332); null for a kind the case does not name, claimed last.';
+  'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00333); null for a kind the case does not name, claimed last.';
 
 /* ----------------------------------------------------------------------------- 6. the relay -- */
 
@@ -265,7 +265,7 @@ begin
       from public.event_subscriptions s
      where s.kind = r.kind and not s.paused
     on conflict do nothing;
-    -- One job per delivery, keyed so a second relay of the same event writes none (00331).
+    -- One job per delivery, keyed so a second relay of the same event writes none (00332).
     for d in
       select x.subscriber, s.lane
         from public.event_deliveries x
@@ -290,7 +290,7 @@ end $$;
 revoke all on function public.relay_events(integer) from public, anon, authenticated;
 grant execute on function public.relay_events(integer) to service_role;
 comment on function public.relay_events(integer) is
-  'The first step of every tick (decision 0030): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per unpaused subscriber and one event_deliver job each (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
+  'The first step of every tick (decision 0031): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per unpaused subscriber and one event_deliver job each (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
 
 create or replace function public.event_deliveries_redrive(p_subscriber text)
 returns integer
@@ -328,7 +328,7 @@ end $$;
 revoke all on function public.event_deliveries_redrive(text) from public, anon, authenticated;
 grant execute on function public.event_deliveries_redrive(text) to service_role;
 comment on function public.event_deliveries_redrive(text) is
-  'Every failed or paused delivery of one subscriber, scheduled again with a fresh event_deliver job (decision 0030): the re-drive, the service role''s. Answers how many.';
+  'Every failed or paused delivery of one subscriber, scheduled again with a fresh event_deliver job (decision 0031): the re-drive, the service role''s. Answers how many.';
 
 /* ------------------------------------------------------------------ 7. the first subscriber -- */
 
@@ -534,7 +534,7 @@ begin
     raise warning 'platform_metrics_roll: the lenses'' columns were not kept for %: %', p_day, sqlerrm;
   end;
 
-  -- The third keeps the spine's numbers (00330, decision 0029's Phase 0; relay lag since 00332), and fails alone too.
+  -- The third keeps the spine's numbers (00331, decision 0030's Phase 0; relay lag since 00333), and fails alone too.
   begin
     with
     -- How long a job waited for the ledger past its due time, by lane, at the 95th percentile: a first claim only
@@ -602,7 +602,7 @@ begin
                group by j.tenant_id, j.kind) d
        group by d.tenant_id
     ),
-    -- How long an event waited for the relay to write its deliveries, at the 95th percentile (00332, decision 0030):
+    -- How long an event waited for the relay to write its deliveries, at the 95th percentile (00333, decision 0031):
     -- the delivery row's own clock against the event's, kept on the row so the day's read joins no partition.
     relayed as (
       select d.tenant_id,
@@ -644,4 +644,4 @@ end $$;
 revoke all on function public.platform_metrics_roll(date) from public, anon, authenticated;
 grant execute on function public.platform_metrics_roll(date) to service_role;
 comment on function public.platform_metrics_roll(date) is
-  'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00330; relay lag since 00332): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
+  'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00331; relay lag since 00333): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';

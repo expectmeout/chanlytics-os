@@ -390,7 +390,7 @@ async function pushReceipts(ctx: JobContext, job: ClaimedJob): Promise<void> {
   }
 }
 
-/** What an event_deliver job names, read from its payload as the relay wrote it (00332). */
+/** What an event_deliver job names, read from its payload as the relay wrote it (00333). */
 function deliveryNamed(payload: Record<string, unknown>): { eventId: string; subscriber: string; kind: string } | null {
   const { event_id, subscriber, kind } = payload;
   return typeof event_id === "string" && typeof subscriber === "string" && typeof kind === "string"
@@ -404,7 +404,7 @@ function subscriberNamed(s: unknown): s is EventSubscriber {
 }
 
 /**
- * One event's delivery to one subscriber (00332, decision 0030). The relay wrote the delivery row and this job; the
+ * One event's delivery to one subscriber (00333, decision 0031). The relay wrote the delivery row and this job; the
  * subscriber runs over the event as the ledger holds it, and the row takes the verdict: done, paused when the
  * subscription was paused as it ran (a re-drive brings it back), failed with why when the subscriber threw or the
  * ledger no longer holds the event. A throw is thrown on, so the ledger tries again (RETRY_WAITS_MS) and the last try
@@ -463,7 +463,7 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"do
   // and the tick fails the job loudly rather than guessing.
   const handler = (HANDLERS as Record<string, Handler | undefined>)[job.kind];
   if (!handler) return "unknown_kind";
-  // A delivery to a subscriber this build does not know is a row a newer deploy wrote (00332): kept, as a kind is.
+  // A delivery to a subscriber this build does not know is a row a newer deploy wrote (00333): kept, as a kind is.
   if (job.kind === "event_deliver" && !subscriberNamed(job.payload.subscriber)) return "unknown_kind";
   // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,
   // the send it queued and the send's own lines are one search in the log; a job the database scheduled (a clock)

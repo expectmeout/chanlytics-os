@@ -81,7 +81,7 @@ export async function receiveSmsStatus(request: Request): Promise<Response> {
     }
   }
 
-  // Kept under Twilio's id and the status it carried, before the verdict (decision 0030, 00334).
+  // Kept under Twilio's id and the status it carried, before the verdict (decision 0031, 00335).
   await keepDelivery(db, {
     provider: "twilio",
     id: `${s.messageSid}:${s.status}`,

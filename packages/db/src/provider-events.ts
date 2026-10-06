@@ -1,5 +1,5 @@
 /**
- * The intake ledger (provider_events, 00334; decision 0030): every verified delivery a provider made to a door, kept a
+ * The intake ledger (provider_events, 00335; decision 0031): every verified delivery a provider made to a door, kept a
  * week under the provider's own id, as it came. The one place the table is typed. Written by the edge's doors before
  * their verdict (apps/edge/lib/intake/keep.ts), read by the replay door, scrubbed by an erasure.
  */

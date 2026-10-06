@@ -1,6 +1,6 @@
--- 00334 · Every verified delivery is kept seven days under the provider's own id.
+-- 00335 · Every verified delivery is kept seven days under the provider's own id.
 --
--- Decision 0030, step 4: the intake ledger. A provider's webhook was read, judged and gone; a delivery a fix could have
+-- Decision 0031, step 4: the intake ledger. A provider's webhook was read, judged and gone; a delivery a fix could have
 -- taken in waited for a redelivery the provider never sends (Twilio retries nothing on its own; Retell three times;
 -- Meta for a while). Now every door keeps the delivery it verified before its verdict, under the provider's own id, for
 -- a week, but two. ElevenLabs' post-call webhook carries the transcript of a conversation with Ask, which names
@@ -47,7 +47,7 @@ alter table public.provider_events enable row level security;
 revoke all on public.provider_events from anon, authenticated;
 grant all on public.provider_events to service_role;
 comment on table public.provider_events is
-  'Every verified delivery a provider made to a door, as it came, under the provider''s own id (decision 0030): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.';
+  'Every verified delivery a provider made to a door, as it came, under the provider''s own id (decision 0031): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.';
 
 create or replace function public.purge_provider_events(p_keep interval default '7 days')
 returns integer
@@ -119,4 +119,4 @@ end $$;
 revoke all on function public.provider_events_scrub(uuid, text[]) from public, anon, authenticated;
 grant execute on function public.provider_events_scrub(uuid, text[]) to service_role;
 comment on function public.provider_events_scrub(uuid, text[]) is
-  'An erasure''s hand on the intake ledger (decision 0030): the kept deliveries of the workspace, or of no workspace, whose body names the person by any of the needles (six characters or more; without regard to case; an address also form-encoded; a needle''s LIKE characters literal) are deleted. Answers how many.';
+  'An erasure''s hand on the intake ledger (decision 0031): the kept deliveries of the workspace, or of no workspace, whose body names the person by any of the needles (six characters or more; without regard to case; an address also form-encoded; a needle''s LIKE characters literal) are deleted. Answers how many.';

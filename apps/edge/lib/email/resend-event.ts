@@ -79,7 +79,7 @@ export async function receiveResendEvent(request: Request): Promise<Response> {
     L.warn(verdict.log);
     return refuse(verdict.status, verdict.status === 401 ? "unauthorized" : "bad_request");
   }
-  // Kept under svix's id, before the verdict is applied (decision 0030, 00334); its signature carries a timestamp, so a
+  // Kept under svix's id, before the verdict is applied (decision 0031, 00335); its signature carries a timestamp, so a
   // replay proves it within the window only.
   await keepDelivery(db, {
     provider: "resend",

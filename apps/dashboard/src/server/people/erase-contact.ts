@@ -191,7 +191,7 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
       500,
     );
   }
-  // The deliveries the intake ledger keeps a week (00334) hold the number and the words as a provider sent them: found
+  // The deliveries the intake ledger keeps a week (00335) hold the number and the words as a provider sent them: found
   // by every spelling the Ask scrub uses, while they are in hand, and fail closed for the same reason as the jobs.
   try {
     await scrubProviderEvents(serviceDb(), contact.tenant_id, keys.needles);

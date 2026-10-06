@@ -1,5 +1,5 @@
 /**
- * scheduleJobOnce writes the row's dedupe key beside its payload (jobs.dedupe_key, 00331, decision 0031 step 2): the
+ * scheduleJobOnce writes the row's dedupe key beside its payload (jobs.dedupe_key, 00332, decision 0032 step 2): the
  * three kinds the ledger held once per subject by an index of their own carry the same subject as their key, a kind
  * with no rule carries none, a second schedule of a live key is already_scheduled, and a database the migration has
  * not reached (no column: PGRST204) takes the row without the key, as before. Run over the database in memory, whose
@@ -54,7 +54,7 @@ test("a second schedule of a live key is already_scheduled; a key whose row fail
   assert.equal(tables.jobs.length, 2);
 });
 
-test("a database without the column takes the row without the key, so the edge and 00331 land in either order", async () => {
+test("a database without the column takes the row without the key, so the edge and 00332 land in either order", async () => {
   const sent = [];
   let first = true;
   const older = {

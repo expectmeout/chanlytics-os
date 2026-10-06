@@ -86,7 +86,7 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
   const L = logger({ from_tail: phoneTail(from), agent_id: agentId, call_id: inbound.call_id });
 
   const start = await planCallStart({ agentId, from, db: pg() });
-  // Kept under the call's id, before the answer (decision 0030, 00334); a call with no id is nothing to replay.
+  // Kept under the call's id, before the answer (decision 0031, 00335); a call with no id is nothing to replay.
   const ledger = pg();
   if (ledger && inbound.call_id)
     await keepDelivery(ledger, {

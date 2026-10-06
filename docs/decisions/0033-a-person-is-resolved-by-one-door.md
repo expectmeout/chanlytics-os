@@ -1,7 +1,7 @@
-# 0032 · A person is resolved by one door
+# 0033 · A person is resolved by one door
 
-**Status:** Decided on 6 October 2026 (Ruben: "all approved"), with 0029; step 0 (`create_person` refuses a number whose
-person asked to be forgotten, 00329) built with the note, the rest not yet built. Proposed the same day. Written against
+**Status:** Decided on 6 October 2026 (Ruben: "all approved"), with 0030; step 0 (`create_person` refuses a number whose
+person asked to be forgotten, 00330) built with the note, the rest not yet built. Proposed the same day. Written against
 commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6
 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Where this
 note and the code disagree, the code wins.
@@ -16,10 +16,10 @@ A `contacts` row comes to exist on nine paths, traced on 5 October 2026:
 | ------------------------------------- | ------------------------------------------------------------------------ | -------------------------- | ---------------- |
 | A text or an email                    | `ingest_inbound`, 00110 (its lookup has no erased or merged filter)      | identity, then phone       | at the door      |
 | A call                                | `ingest_call`, 00164 (its own lock key and lookup)                       | voice identity, then phone | at the door      |
-| Added by hand                         | `create_person`, 00053 (`POST contacts`)                                 | phone                      | since 00329      |
+| Added by hand                         | `create_person`, 00053 (`POST contacts`)                                 | phone                      | since 00330      |
 | A file                                | `import_person`, 00263                                                   | phone, then email          | yes              |
 | The calendar sweep                    | `apps/edge/lib/calendar/calendar-people.ts` (a direct insert)            | phone                      | yes              |
-| The board opening                     | `create_person` from `apps/dashboard/src/server/calendar/people-seen.ts` | phone                      | since 00329      |
+| The board opening                     | `create_person` from `apps/dashboard/src/server/calendar/people-seen.ts` | phone                      | since 00330      |
 | A lead marked Interested              | `lead_set_stage`, 00220 (`create_person`, or its own email-only insert)  | phone, else email          | in part          |
 | A reach-out's first email             | `reach_out_person`, 00184 (email only; the lead's phone dropped)         | email                      | yes              |
 | A booking link to a first-time caller | `apps/edge/lib/voice/call-booking-link.ts` (`getOrCreateContact`)        | phone                      | no event         |
@@ -45,7 +45,7 @@ imported, and an address learned later never link.
 
 `create_person` never asked whether a number had been erased; the digest kept for that purpose
 (`contacts.erased_phone_hash`, 00263) was read by the sweep and by `import_person` and not by the door the board calls
-when it opens (`apps/dashboard/app/api/v1/calendar/route.ts`). 00329 closes it with `import_person`'s refusal (PE001),
+when it opens (`apps/dashboard/app/api/v1/calendar/route.ts`). 00330 closes it with `import_person`'s refusal (PE001),
 which the board skips as one person refused (`afterPersonRefused`, `packages/contracts/src/calendar/calendar-people.ts`).
 
 ## Decision
@@ -64,7 +64,7 @@ which the board skips as one person refused (`afterPersonRefused`, `packages/con
    to) is settled by an owner through that door, or dismissed for the pair, and never merges on its own. Reads follow
    `merged_into_contact_id` as they do today, and `erase_contact` erases the records merged into a person with it.
 4. **A read never writes a person.** The board's write (`people-seen.ts`) moves to the sweep's path once the sweep is
-   event-driven (0029, phase 2); until then it stays, behind 00329.
+   event-driven (0030, phase 2); until then it stays, behind 00330.
 
 ## Shape
 
@@ -101,10 +101,10 @@ The verbs in core (`packages/core/src/people/`) take the outcome; the adapters a
 
 ## Steps
 
-**0 · The erasure gap.** 00329: built with this note. _Both orders:_ a door's body.
+**0 · The erasure gap.** 00330: built with this note. _Both orders:_ a door's body.
 
 **1 · The door, called by nobody.** `resolve_person` beside the nine writers, with `person.resolved` in the catalogue
-(0030 step 1) and `people/resolve-person.db.test.mjs`. _Both orders:_ a function nothing calls.
+(0031 step 1) and `people/resolve-person.db.test.mjs`. _Both orders:_ a function nothing calls.
 
 **2 · The writers move, one at a time,** each keeping its old path for a release: `create_person` and `import_person`
 first (members' doors, the smallest), then the calendar sweep and the board, then `lead_set_stage` and
@@ -129,7 +129,7 @@ alone, and writes `lead.converted` with a version bump, which `lead_link_contact
   `retell-webhook-door`, the lead and reach-out suites) through each move.
 - **The merge** is 0028's (`people/merge/merge-people.db.test.mjs`) and is not proved twice here: a doubt settled
   through it leaves the queue, and a pair dismissed is not raised again by the next arrival.
-- **00329** (`people/erasure/create-person-refuses-the-forgotten.db.test.mjs`): an erased number is refused with PE001 by hand
+- **00330** (`people/erasure/create-person-refuses-the-forgotten.db.test.mjs`): an erased number is refused with PE001 by hand
   and from the board, and the board goes on with the next person.
 
 ## Risks

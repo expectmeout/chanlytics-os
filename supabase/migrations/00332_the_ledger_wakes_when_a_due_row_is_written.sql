@@ -1,6 +1,6 @@
--- 00331 · The ledger wakes when a due row is written, and a job has one dedupe key.
+-- 00332 · The ledger wakes when a due row is written, and a job has one dedupe key.
 --
--- Decision 0031, steps 1 and 2. pg_cron asks every ten seconds whether a job is due and knocks on /api/jobs/tick when
+-- Decision 0032, steps 1 and 2. pg_cron asks every ten seconds whether a job is due and knocks on /api/jobs/tick when
 -- one is (trigger_jobs_tick, 00098; request_sweep, 00086); nothing knocked when a row was written, so every job waited
 -- for the poll on top of its due time. Now a statement that writes a row due now asks for the tick itself:
 --
@@ -12,7 +12,7 @@
 --                  ten seconds, covers its row. The poll stays as it was, the backstop; a tick that finds nothing costs
 --                  what it costs today. A row due later than two seconds asks for nothing: the tick's claim loop ends on
 --                  its first empty claim (packages/jobs tick.ts), so a knock before a row is due is a knock wasted, and
---                  the poll reaches the row within ten seconds of its due time as before. (0031's Shape said the poll's
+--                  the poll reaches the row within ten seconds of its due time as before. (0032's Shape said the poll's
 --                  interval; the runner's loop decides it, and the note follows the code.)
 --   dedupe_key     one text column, unique while a row is scheduled or fired (jobs_dedupe_live). A caller that must
 --                  schedule once passes the key; a second insert is a 23505 that scheduleJobOnce reads as
@@ -30,18 +30,18 @@ set local lock_timeout = '3s';
 
 alter table public.jobs add column if not exists dedupe_key text;
 comment on column public.jobs.dedupe_key is
-  'What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00331): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed.';
+  'What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00332): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed.';
 
 create unique index if not exists jobs_dedupe_live on public.jobs (dedupe_key)
   where dedupe_key is not null and state in ('scheduled', 'fired');
 comment on index public.jobs_dedupe_live is
-  'One live row per dedupe key (00331): a second schedule of the same key is refused (23505) while the first is scheduled or fired; a row that is done, canceled or failed lets the key be scheduled again.';
+  'One live row per dedupe key (00332): a second schedule of the same key is refused (23505) while the first is scheduled or fired; a row that is done, canceled or failed lets the key be scheduled again.';
 
 /* -------------------------------------------------------------------------------- 2. the wake -- */
 
 alter table public.sweep_status add column if not exists woken_at timestamptz;
 comment on column public.sweep_status.woken_at is
-  'When a row written to the ledger last asked for this sweep itself (jobs_wake, 00331): one ask a second, whatever the writers do.';
+  'When a row written to the ledger last asked for this sweep itself (jobs_wake, 00332): one ask a second, whatever the writers do.';
 
 create or replace function public.jobs_wake()
 returns trigger
@@ -72,7 +72,7 @@ end $$;
 revoke all on function public.jobs_wake() from public, anon, authenticated;
 grant execute on function public.jobs_wake() to service_role;
 comment on function public.jobs_wake() is
-  'After a statement writes jobs: a row scheduled and due within two seconds asks for the tick through request_sweep, at most once a second (sweep_status.woken_at), never waiting on another asker (00331, decision 0031).';
+  'After a statement writes jobs: a row scheduled and due within two seconds asks for the tick through request_sweep, at most once a second (sweep_status.woken_at), never waiting on another asker (00332, decision 0032).';
 
 drop trigger if exists jobs_wake on public.jobs;
 create trigger jobs_wake

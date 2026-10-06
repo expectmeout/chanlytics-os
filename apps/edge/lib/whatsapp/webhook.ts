@@ -68,7 +68,7 @@ function signedByMeta(request: Request, raw: string): boolean {
 }
 
 /**
- * Kept as it came, before the verdict (decision 0030, 00334). Meta names no delivery, and a batch may span
+ * Kept as it came, before the verdict (decision 0031, 00335). Meta names no delivery, and a batch may span
  * workspaces: the key is the body's digest, and the workspace is none.
  */
 async function keepMetaDelivery(request: Request, raw: string): Promise<void> {

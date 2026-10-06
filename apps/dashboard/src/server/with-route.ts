@@ -375,7 +375,7 @@ const DOOR_REFUSALS: Readonly<Record<string, { code: ErrorCode; status: number }
   "23505": { code: "conflict", status: 409 },
   "42501": { code: "forbidden", status: 403 },
   "22023": { code: "validation", status: 400 },
-  // A door's own code (00263 import_person, 00329 create_person): this person asked to be forgotten. A conflict, in
+  // A door's own code (00263 import_person, 00330 create_person): this person asked to be forgotten. A conflict, in
   // the door's words, as a taken number is; never the 503 a code nobody named would answer.
   PE001: { code: "conflict", status: 409 },
 };

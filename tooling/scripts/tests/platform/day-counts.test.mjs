@@ -70,7 +70,7 @@ test("the back office's read asks for the bounded window and answers the wire's 
           brain_p95_ms: null,
           messages_in: null,
           tokens: 0,
-          // A day rolled before 00330: the five read as none, never as zero.
+          // A day rolled before 00331: the five read as none, never as zero.
           job_lag_ms: null,
           first_answer_ms: null,
           duplicate_sends: null,
@@ -182,7 +182,7 @@ test("the card's words: the newest day only, the workspaces that answered nobody
   assert.deepEqual(platformDaysWords([]), { day: null, sentence: "No day has been counted yet.", lines: [] });
 });
 
-test("the spine's numbers in words (decision 0029, Phase 0): each part only where the day has it, and nothing for a day rolled before them", () => {
+test("the spine's numbers in words (decision 0030, Phase 0): each part only where the day has it, and nothing for a day rolled before them", () => {
   const full = platformDaysWords([stored(A, "Harbor Moving", "2026-09-28")]).lines[0];
   assert.equal(
     full.spine,
@@ -207,5 +207,5 @@ test("the spine's numbers in words (decision 0029, Phase 0): each part only wher
       relay_lag_ms: null,
     }),
   ]).lines[0];
-  assert.equal(before.spine, "", "a day rolled before 00330 says nothing of them");
+  assert.equal(before.spine, "", "a day rolled before 00331 says nothing of them");
 });

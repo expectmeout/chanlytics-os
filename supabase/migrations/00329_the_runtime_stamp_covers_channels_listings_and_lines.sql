@@ -1,4 +1,4 @@
--- 00328 · The runtime stamp covers channels, listings and lines.
+-- 00329 · The runtime stamp covers channels, listings and lines.
 --
 -- The receptionist reads its workspace once per message through loadTenantRuntime (apps/edge/lib/tenant-runtime.ts):
 -- the settings, the policies, the channel rows with their credentials, the workspace row and its Google listing,
@@ -35,4 +35,4 @@ $$;
 revoke all on function public.runtime_stamp(uuid) from public, anon, authenticated;
 grant execute on function public.runtime_stamp(uuid) to service_role;
 comment on function public.runtime_stamp(uuid) is
-  'What the receptionist''s runtime was read from, as one string: the settings'' version, the policies'' and the workspace row''s newest change, and the channels'', listings'' and lines'' count and newest change (00328). A warm instance reads the runtime again when it differs.';
+  'What the receptionist''s runtime was read from, as one string: the settings'' version, the policies'' and the workspace row''s newest change, and the channels'', listings'' and lines'' count and newest change (00329). A warm instance reads the runtime again when it differs.';
