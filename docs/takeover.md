@@ -44,7 +44,7 @@ as unknown as                       141
 as never                             13
 non-null assertions, x!             111
 index reads the compiler lets pass  482   in 128 files
-table names outside packages/db     485
+table names outside packages/db     484
 SQL functions outside packages/db   130   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
@@ -57,7 +57,7 @@ wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     298
 source-text reads in tests          767
 lint warnings                       355   in 153 files, 59 of them exhaustive-deps
-workspace route JS, KB gzipped      703   the shell included
+workspace route JS, KB gzipped      705   the shell included
 workspace route CSS, KB gzipped     144
 workspace pages' own JS, KB         558   gzipped, each page's chunks once, beside the route
 trees the lint's limits hold         44   15 of them with max-params waiting

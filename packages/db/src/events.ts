@@ -41,6 +41,8 @@ interface TableData {
   "billing.resumed": BillingData;
   "billing.updated": BillingData;
   "broadcast.sent": Open;
+  /** Why the run stopped (a BROADCAST_FAILURES code, with its channel where it names one) and how many it reached first. */
+  "broadcast.stopped": { failure: string; sent: number | null };
   "business.recorded": { legal_name: string | null; path: string };
   "channel.connected": {
     kind: "whatsapp";
@@ -117,6 +119,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "billing.resumed": { category: "billing", version: 1 },
   "billing.updated": { category: "billing", version: 1 },
   "broadcast.sent": { category: "message", version: 1 },
+  "broadcast.stopped": { category: "message", version: 1 },
   "business.recorded": { category: "setup", version: 1 },
   "channel.connected": { category: "system", version: 1 },
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },

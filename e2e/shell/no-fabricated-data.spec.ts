@@ -50,6 +50,16 @@ const REAL_ROUTES = Object.entries(SURFACE_STATES)
   .filter(([, state]) => state === "real")
   .map(([route]) => `#/${route}`);
 
+/**
+ * Every surface still classified `demo` in surface-registry.ts: the mockup's seeds may only render in a session that
+ * declared itself a demo, so a real session reaches the honest pane in their place (or, for a retired address, the page
+ * it lands on). Read from the registry for the same reason as REAL_ROUTES: a surface that turns real leaves this list
+ * by itself, and the test never points at one that is not demo any more.
+ */
+const DEMO_ROUTES = Object.entries(SURFACE_STATES)
+  .filter(([, state]) => state === "demo")
+  .map(([route]) => `#/${route}`);
+
 async function assertNothingInvented(page: Page, where: string) {
   const text = await page.locator("body").innerText();
   for (const seed of INVENTED) {
@@ -98,13 +108,15 @@ test.describe("a signed-in session never sees the mockup", () => {
     await assertNothingInvented(page, "settings after cold load");
   });
 
-  test("an unfinished surface says so, rather than showing invented numbers", async ({ page }) => {
-    // `demo` routes are gated on purpose. The honest failure is a "coming
-    // soon" pane; the dishonest one is a finished-looking fabrication.
-    await page.goto("/#/reports");
-    await page.waitForLoadState("networkidle");
-    await assertNothingInvented(page, "#/reports");
-  });
+  // `demo` routes are gated on purpose. The honest failure is a "coming soon" pane; the dishonest one is a
+  // finished-looking fabrication. (This opened #/reports, which has been real since it was wired to the database.)
+  for (const route of DEMO_ROUTES) {
+    test(`a surface still classed demo shows no invented data on ${route}`, async ({ page }) => {
+      await page.goto(`/${route}`);
+      await page.waitForLoadState("networkidle");
+      await assertNothingInvented(page, route);
+    });
+  }
 
   test("REGRESSION: the business settings form is reachable from the sidebar", async ({ page }) => {
     // It was not: /#/admin with no pane rendered the workspace pane while the

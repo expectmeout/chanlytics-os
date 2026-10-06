@@ -83,9 +83,6 @@ export interface TodayFacts extends TodayInput {
   speed: ReplySpeed | null;
   /** Whether the calls read succeeded; false means the rows omit the phone, and the card says so. */
   callsRead: boolean;
-  /** The salon's own wall clock and calendar day, from `now_local`; empty when it could not be parsed. */
-  clock: string;
-  datePart: string;
   wires: TodayWire[];
   /** The one number every surface shows for "need you": the Inbox badge counts the same threads by the same rule. */
   needsYouCount: number;
@@ -101,20 +98,6 @@ export interface TodayFacts extends TodayInput {
   traffic: number;
   /** When the oldest open handoff began, in the salon's words, for the headline's detail. */
   oldest: string | null;
-}
-
-/**
- * now_local is a naive tenant-local wall clock ("2026-08-27T11:00:19"), so
- * parsing it as a local Date yields the salon's own hour and weekday.
- */
-function todayClock(m: MetricsSummaryDto): { clock: string; datePart: string } {
-  const localNow = new Date(m.window.now_local);
-  const valid = !Number.isNaN(localNow.getTime());
-  const clock = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
-  const datePart = valid
-    ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} · ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
-    : "";
-  return { clock, datePart };
 }
 
 /** One normalisation of the wires, for the five things Today says about them. */
@@ -239,7 +222,6 @@ export function todayFacts(input: TodayInput): TodayFacts {
     speed: todayReplySpeed(metrics),
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
-    ...todayClock(metrics),
     wires: todayWires(metrics),
     needsYouCount: openEsc.length,
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),

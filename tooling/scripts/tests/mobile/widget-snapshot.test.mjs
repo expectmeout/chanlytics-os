@@ -9,7 +9,6 @@ import { todayWidgetSnapshot, parseTodayWidgetSnapshot } from "../../../../packa
 const vm = {
   standing: {
     headline: "2 people need you",
-    eyebrow: "",
     chips: [],
     lines: { text: "", down: false },
     alert: null,

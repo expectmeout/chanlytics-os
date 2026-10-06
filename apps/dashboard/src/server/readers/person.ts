@@ -6,11 +6,10 @@ import {
   dealsAreOn,
   personName,
   type MessageDto,
-  type PersonDecisionDto,
   type PersonDetailDto,
   type PersonEscalationDto,
 } from "@chanlytics/contracts";
-import { readAllRows } from "@chanlytics/db";
+import { personDecisions, readAllRows } from "@chanlytics/db";
 import {
   CALL_COLUMNS,
   CONVERSATION_COLUMNS,
@@ -83,38 +82,28 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         .eq("contact_id", id)
         .order("last_message_at", { ascending: false, nullsFirst: false }),
     );
-    // Their messages, escalations and the decisions on their threads: the one read that waits, for the threads' ids.
+    // Their messages, escalations and the decisions on them and on their threads (a person with no thread still has
+    // their own: the receptionist paused for them is recorded against them): the one read that waits, for the threads' ids.
     const threadRead = convsRead.then(async (convs) => {
       const convIds = convs.error ? [] : (convs.data ?? []).map((c) => c.id);
       if (!convIds.length) {
         return {
           byConv: new Map<string, MessageDto[]>(),
           escalations: [] as PersonEscalationDto[],
-          decisions: [] as PersonDecisionDto[],
+          decisions: await personDecisions(sb, tenantId, id, []),
         };
       }
-      const [msgs, escs, decs] = await Promise.all([
+      const [msgs, escs, decided] = await Promise.all([
         personMessages(rc, convIds),
         sb
           .from("escalations")
           .select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id")
           .in("conversation_id", convIds)
           .order("created_at", { ascending: false }),
-        sb
-          .from("decisions")
-          .select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload")
-          .eq("subject_type", "conversation")
-          .in("subject_id", convIds)
-          .order("created_at", { ascending: false })
-          .limit(500),
+        personDecisions(sb, tenantId, id, convIds),
       ]);
       if (escs.error) throw new Error(escs.error.message);
-      if (decs.error) throw new Error(decs.error.message);
-      return {
-        byConv: groupMessages(msgs),
-        escalations: escs.data ?? [],
-        decisions: (decs.data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null })),
-      };
+      return { byConv: groupMessages(msgs), escalations: escs.data ?? [], decisions: decided };
     });
     // Their appointments on the owner's calendar, when one is connected: the feed is read now, and matched to them once
     // their row says who they are. Never fatal: a feed that cannot be read costs this line, not the profile. A row that

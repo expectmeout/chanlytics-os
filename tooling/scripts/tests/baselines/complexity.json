@@ -180,7 +180,7 @@
     "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
-    "lines": 247,
+    "lines": 237,
     "branches": 50,
     "depth": 1
   },
@@ -390,13 +390,13 @@
     "depth": 2
   },
   "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {
-    "lines": 77,
-    "branches": 50,
+    "lines": 76,
+    "branches": 48,
     "depth": 0
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
-    "lines": 154,
-    "branches": 75,
+    "lines": 147,
+    "branches": 72,
     "depth": 3
   },
   "packages/contracts/src/workspace/billing.ts::toBillingVM#1": {

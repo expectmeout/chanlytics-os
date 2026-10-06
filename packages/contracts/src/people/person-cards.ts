@@ -18,7 +18,7 @@ import type { PersonDetailDto, PersonRowDto } from "./person-dto";
 import { asPersonMode, PERSON_MODE_WORDS, type PersonMode, type ReceptionistTone } from "./person-receptionist";
 import { ago, reasonShort } from "./person-row-facts";
 import { isOwned } from "./person-state";
-import { bookingLinkAction, type PersonProposalVM, repliesWords } from "./person-reach";
+import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
 import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
 import { addedBy, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
@@ -448,7 +448,7 @@ export function aboutOf({
 }: PersonCardContext): { k: string; v: string }[] {
   const about: { k: string; v: string }[] = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
-  if (base.email) about.push({ k: "Email", v: base.email });
+  if (base.email) about.push({ k: "Email", v: emailFactWords(base.email, base.emailSuppressed) });
   if (proposal) about.push({ k: "Proposal", v: proposal.host });
   if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
   about.push({
@@ -460,7 +460,11 @@ export function aboutOf({
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" · ") || "—" });
   if (base.hasChat && reply) {
-    const v = repliesWords(REPLY_VIA[reply.via], reply.window, { optedOut: base.stopped, who: base.name });
+    const v = repliesWords(REPLY_VIA[reply.via], reply.window, {
+      optedOut: base.stopped,
+      who: base.name,
+      emailStopped: base.emailSuppressed,
+    });
     if (v) about.push({ k: "Replies", v });
   }
   if (profile.visits) {

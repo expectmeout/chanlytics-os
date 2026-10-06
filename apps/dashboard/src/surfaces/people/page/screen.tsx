@@ -263,7 +263,14 @@ function peopleDeskControls(s: PeopleState) {
             !canDo("export")
               ? { label: "Export CSV", icon: "external", gate: gate("export") }
               : exportBlocked
-                ? { label: "Export CSV", icon: "external", title: exportBlocked, onClick: () => undefined }
+                ? // A list that can't be counted has no file to take, and the item says why when it is pressed (the reason is
+                  // contracts' own: a list's unknown words, or the list that isn't here), not only on hover.
+                  {
+                    label: "Export CSV",
+                    icon: "external",
+                    title: exportBlocked,
+                    onClick: () => plFlash({ msg: exportBlocked }),
+                  }
                 : {
                     label: "Export CSV",
                     icon: "external",

@@ -1,9 +1,20 @@
 import { DECISION_VERBS, EVENT_KINDS, type DecisionVerb } from "../shared/enums";
 import { LEAD_ENDING_WORDS } from "../leads/search/endings";
 import type { LeadRoundEnding } from "../leads/search/sets";
+import {
+  LEAD_CALL_OUTCOME_WORDS,
+  LEAD_CLOSED_WORDS,
+  LEAD_NOT_A_FIT_WORDS,
+  LEAD_STAGE_WORDS,
+} from "../leads/lead-words";
 import { domainHoldWords } from "../email/sending-domains";
+import { HELD_REASONS } from "../broadcasts/run-words";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
+import { plural } from "../shared/words";
 import type { Tone } from "../shell/tone";
+import type { ActivationMilestone } from "./activation";
+import { partnerEventBits } from "./partner";
+import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words";
 
 /**
  * The activity log: both ledgers, in an owner's words.
@@ -155,6 +166,7 @@ const WORDS: Record<string, string> = {
   "call.transferred": "A call was passed to a person",
   "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
+  "broadcast.stopped": "A broadcast stopped",
   "playbook.run": "A playbook ran",
   "channel.quality_rating": "A WhatsApp number's quality rating changed",
   "setup.requested": "Setup was requested",
@@ -174,6 +186,7 @@ const WORDS: Record<string, string> = {
   "google.connected": "Google Business Profile was connected",
   "google.disconnected": "Google Business Profile was disconnected",
   "google.replied": "A Google review was answered",
+  "google.reply_held": "A review reply was written and not posted",
   "mailbox.created": "The workspace's email address was set up",
   "mailbox.renamed": "The name on the workspace's email changed",
   "mailbox.offers_paused": "Offers by email were paused",
@@ -184,6 +197,11 @@ const WORDS: Record<string, string> = {
   "sending_domain.released": "A domain to send from is sending again",
   "sending_domain.resumed": "A domain to send from was resumed",
   "sending_domain.removed": "A domain to send from was removed",
+  "channel.connected": "A WhatsApp number was connected",
+  "lead.stage": "A lead moved",
+  "lead.emailed": "A lead was marked as emailed",
+  "lead.call": "A call to a lead was logged",
+  "lead.not_a_fit": "A lead was marked not a fit",
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
   "lead.converted": "A lead is Talking",
@@ -192,6 +210,21 @@ const WORDS: Record<string, string> = {
   "reach_out.replied": "A business wrote back to a reach-out",
   "reach_out.reply_undone": "A reply read as no was undone",
   "workspace.created": "The workspace was created",
+  "workspace.activated": "The workspace passed a milestone",
+  // The partner programme (0012), as the workspace's owner reads it; partnerEventBits says the rest of each.
+  "partner.attributed": "The workspace was made through a partner's link",
+  "partner.code_ignored": "A partner's code was not used",
+  "partner.earned": "A partner earned a share of a payment",
+  "partner.reversed": "A partner's share changed",
+  "partner.standing_set": "A partner's share was judged",
+  "partner.paid": "A partner was paid their share",
+  "partner.handover_sent": "A partner sent the workspace to its owner",
+  "partner.handover_accepted": "The owner accepted the workspace from its partner",
+  "partner.handover_declined": "The owner declined the workspace from its partner",
+  "partner.invited": "The workspace asked a partner to join",
+  "partner.invite_withdrawn": "The invitation to a partner was taken back",
+  "partner.invite_accepted": "A partner joined the workspace",
+  "partner.invite_declined": "A partner declined to join the workspace",
   "settings.changed": "Settings changed",
   "policy.changed": "An autonomy setting changed",
   "billing.updated": "Billing changed",
@@ -267,12 +300,124 @@ function offersPausedWords(p: Record<string, unknown>, base: string): string {
   return why ? `${base} · ${why}` : base;
 }
 
+/** A kind's words, then the facts a reader wants after them: each one the payload gave, in order, and none it did not. */
+const joinBits = (base: string, bits: readonly (string | null)[]): string => {
+  const said = bits.filter((b): b is string => !!b);
+  return said.length ? `${base} · ${said.join(" · ")}` : base;
+};
+
+/** A word out of a closed set a ledger row names by its key: nothing for a key the set does not hold (never a guess). */
+const wordOf = (words: Readonly<Record<string, string>>, key: string | null): string | null =>
+  key !== null && Object.hasOwn(words, key) ? (words[key] ?? null) : null;
+
+/**
+ * A lead moved to a stage (lead_set_stage, the bulk door, a reply's undo): the stage it went to, and why when it was
+ * closed, in the words the Leads page says them. The bulk door writes one row for the act, with the count.
+ */
+function leadStageWords(p: Record<string, unknown>, base: string): string {
+  const n = numberAt(p, "count");
+  const head = p.bulk === true && n !== null ? `${plural(n, "lead")} moved` : base;
+  return joinBits(head, [wordOf(LEAD_STAGE_WORDS, textAt(p, "stage")), wordOf(LEAD_CLOSED_WORDS, textAt(p, "reason"))]);
+}
+
+/** A lead marked not a fit, one or many (the bulk door's one row has the count), and why where one was given. */
+function leadNotAFitWords(p: Record<string, unknown>, base: string): string {
+  const n = numberAt(p, "count");
+  const head =
+    p.bulk === true && n !== null ? `${plural(n, "lead")} ${n === 1 ? "was" : "were"} marked not a fit` : base;
+  return joinBits(head, [wordOf(LEAD_NOT_A_FIT_WORDS, textAt(p, "why"))]);
+}
+
+/**
+ * A lead emailed has two writers: the owner saying they sent it (what is recorded is their word, never that it left), and a
+ * reach-out's own email, which names itself as the author.
+ */
+function leadEmailedWords(p: Record<string, unknown>, base: string): string {
+  return textAt(p, "by") === "reach_out" ? "A reach-out email went to a lead" : base;
+}
+
+/** What each activation milestone says of the workspace (contracts ACTIVATION_MILESTONES): a record, so a new one cannot lack its words. */
+const ACTIVATED_WORDS: Record<ActivationMilestone, string> = {
+  line_live: "its first line is answering",
+  first_reply: "its first reply went to a customer",
+  first_lead_search: "its first lead search was made",
+};
+
+/** Why an automatic review reply was held back (google.reply_held's `why`: contracts autoReplyHold). */
+const REPLY_HELD_WHY: Record<string, string> = { price: "it named a price", money: "it named money" };
+
+/** A message the send door held at the wire: the reason it refused, in the words a run's held people are given (HELD_REASONS). */
+function sendBlockedWords(p: Record<string, unknown>, base: string): string {
+  return joinBits(base, [wordOf(HELD_REASONS, textAt(p, "reason"))]);
+}
+
+/** Why a send failed that is not the provider's own answer, by the reason the send door (or a receipt) filed. */
+const SEND_FAILED_WHY: Record<string, string> = {
+  receipt: "the provider reported it as not delivered, after taking it",
+  no_credentials: "the channel has no credentials to send with",
+  no_sender_for_channel: "nothing is set up to send on that channel",
+};
+
+/**
+ * A message that could not be sent: why, as far as the event knows. A send the provider did not answer in time may have
+ * gone, and says so; one it gave no answer to at all (status 0) says that; otherwise the door's reason, or the provider's
+ * refusal. The provider's own words and code are on the message (the thread says them) and never in this line.
+ */
+function sendFailedWords(p: Record<string, unknown>, base: string): string {
+  const reason = textAt(p, "reason");
+  const provider =
+    numberAt(p, "http_status") === 0 ? "the provider gave no answer" : wordOf(HELD_REASONS, "send_failed");
+  const why =
+    p.outcome === "unknown"
+      ? "the provider didn't answer in time, so it may have gone"
+      : (wordOf(SEND_FAILED_WHY, reason) ?? (reason === "provider" ? provider : null));
+  return joinBits(base, [why]);
+}
+
+/**
+ * A run's end: a finished one with its tally, a stopped one with why, in the words its own page says it (contracts
+ * broadcastFailureWords), and how far it got.
+ */
+function runEndWords(kind: "broadcast.sent" | "broadcast.stopped", p: Record<string, unknown>, base: string): string {
+  const bits: string[] = [];
+  const sent = numberAt(p, "sent");
+  if (kind === "broadcast.sent") {
+    const held = numberAt(p, "held");
+    if (sent !== null) bits.push(`${sent} got it`);
+    if (held) bits.push(`${held} held`);
+  } else {
+    const failure = textAt(p, "failure");
+    if (failure) bits.push(broadcastFailureWords(failure));
+    if (sent !== null) bits.push(sent ? `${sent} got it first` : "nobody got it");
+  }
+  return [base, ...bits].join(" · ");
+}
+
 /** The kinds whose sentence is written whole, by its own function. */
 const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
+  ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
+  ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
   ["import", (p) => importWords(p)],
   ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
   ["mailbox.offers_paused", offersPausedWords],
+  ["lead.stage", leadStageWords],
+  ["lead.not_a_fit", leadNotAFitWords],
+  ["lead.emailed", leadEmailedWords],
+  ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
+  ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
+  ["google.reply_held", (p, base) => joinBits(base, [wordOf(REPLY_HELD_WHY, textAt(p, "why"))])],
+  ["message.send_blocked", sendBlockedWords],
+  ["message.send_failed", sendFailedWords],
+  // A partner's standing is between the platform and the partner: the owner reads that it was judged, never the
+  // verdict or who gave it (the raw label said no more before these words).
+  ...EVENT_KINDS.filter((k) => k.startsWith("partner.") && k !== "partner.standing_set").map(
+    (k): [string, (p: Record<string, unknown>, base: string) => string] => [
+      k,
+      (p, base) => joinBits(base, partnerEventBits(k, p)),
+    ],
+  ),
 ]);
 
 /**
@@ -355,13 +500,6 @@ export function activityWords(kind: string, payload: unknown): string {
       const n = numberAt(p, "recipients");
       if (n !== null) bits.push(`${n} people`);
       if (p.approved === true) bits.push("approved by hand");
-      break;
-    }
-    case "broadcast.sent": {
-      const sent = numberAt(p, "sent");
-      const held = numberAt(p, "held");
-      if (sent !== null) bits.push(`${sent} got it`);
-      if (held) bits.push(`${held} held`);
       break;
     }
     case "settings.changed": {
@@ -449,6 +587,7 @@ const TONES: Record<string, Tone> = {
   "message.send_failed": "danger",
   "message.send_blocked": "danger",
   "line.failed": "danger",
+  "broadcast.stopped": "danger",
   "line.texting_rejected": "danger",
   "contact.erased": "danger",
   "contact.blob_erased": "danger",

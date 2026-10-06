@@ -10,10 +10,12 @@
  * the menu, scroll to the top, close what stands over the page. A message the page cannot parse does nothing.
  */
 import {
+  callsStillUp,
   IN_APP_CLASS,
   parsePageMessage,
   parseShellMessage,
   todayWidgetSnapshot,
+  type LiveVM,
   type PageMessage,
   type TodayVM,
 } from "@chanlytics/contracts";
@@ -46,8 +48,8 @@ interface BridgeWindow {
   __notifs?: { unread(): number; onChange(cb: () => void): () => void };
   /** Today's view model, as the surface seam publishes it (surface-data.ts): what the widget shows. */
   TODAY_DATA?: TodayVM;
-  /** The Live page's view model: how many calls are in progress ends, or keeps, the phone's call activity. */
-  __LIVE?: { now: unknown[] };
+  /** The Live page's view model: how many calls are still up ends, or keeps, the phone's call activity. */
+  __LIVE?: Pick<LiveVM, "now" | "heartbeatMs">;
   addEventListener(type: string, fn: (e: Event) => void): void;
   removeEventListener(type: string, fn: (e: Event) => void): void;
   dispatchEvent(e: Event): boolean;
@@ -94,10 +96,11 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
   win.addEventListener("inbox:counts", counts);
   win.addEventListener("workspace:changed", workspace);
   win.addEventListener("surface:today", today);
-  // The calls in progress, for the Lock Screen's activity: none means the phone may end what it shows.
+  // The calls still up, for the Lock Screen's activity: none means the phone may end what it shows. A call marked live
+  // that the provider has gone quiet on is not up (liveStillUp, the rule every count of them asks).
   const calls = () => {
-    const live = win.__LIVE?.now;
-    if (Array.isArray(live)) post({ t: "calls", live: live.length });
+    const read = win.__LIVE;
+    if (read && Array.isArray(read.now)) post({ t: "calls", live: callsStillUp(read, Date.now()).length });
   };
   win.addEventListener("surface:live", calls);
   // The phone this page registered for the person signed in, so a sign-out can forget it (shell.ts signOut).

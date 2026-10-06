@@ -112,7 +112,6 @@ export interface TodayNoReplyVM {
 
 export interface TodayVM {
   standing: {
-    eyebrow: string;
     chips: Array<{ text: string; ok: boolean }>;
     /**
      * The wires, counted, in one sentence: "2 of 3 lines connected", "no lines

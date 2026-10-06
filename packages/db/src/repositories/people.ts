@@ -6,7 +6,7 @@
  * few people by their ids, for a read that holds their ids and not their names (Ask's message search).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NameableContact, PersonRowDto } from "@chanlytics/contracts";
+import type { NameableContact, PersonDecisionDto, PersonRowDto } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -43,6 +43,35 @@ export async function namesOfPeople(
     out.push(...(data ?? []));
   }
   return out;
+}
+
+/** The most decisions a person's page holds: the newest, so what drops is the oldest history. */
+const PERSON_DECISIONS = 500;
+
+/**
+ * What a person's page shows of what was decided: the ledger's rows about their threads (a take-over, a snooze, a
+ * resolve) and about them (pausing or resuming the receptionist for this person is recorded against the contact, not a
+ * thread: core person-mode, many-at-once), newest first, at most PERSON_DECISIONS. One read: a decision is about a
+ * contact or a conversation, and an id is never both's, so the subject's kind and its id each name the set and the
+ * pair is exactly the person and their threads. A person with no thread still has their own. A read that fails THROWS: a
+ * history the database could not answer is never a history with nothing in it.
+ */
+export async function personDecisions(
+  db: Db,
+  tenantId: string,
+  contactId: string,
+  conversationIds: readonly string[],
+): Promise<PersonDecisionDto[]> {
+  const { data, error } = await db
+    .from("decisions")
+    .select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload")
+    .eq("tenant_id", tenantId)
+    .in("subject_type", ["contact", "conversation"])
+    .in("subject_id", [contactId, ...conversationIds])
+    .order("created_at", { ascending: false })
+    .limit(PERSON_DECISIONS);
+  if (error) throw new Error(`person decisions: ${error.message}`);
+  return (data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null }));
 }
 
 /**

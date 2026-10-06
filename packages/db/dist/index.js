@@ -47,6 +47,7 @@ var WRITES = {
   "billing.resumed": { category: "billing", version: 1 },
   "billing.updated": { category: "billing", version: 1 },
   "broadcast.sent": { category: "message", version: 1 },
+  "broadcast.stopped": { category: "message", version: 1 },
   "business.recorded": { category: "setup", version: 1 },
   "channel.connected": { category: "system", version: 1 },
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
@@ -353,6 +354,12 @@ async function namesOfPeople(db, tenantId, ids) {
     out.push(...data ?? []);
   }
   return out;
+}
+var PERSON_DECISIONS = 500;
+async function personDecisions(db, tenantId, contactId, conversationIds) {
+  const { data, error } = await db.from("decisions").select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload").eq("tenant_id", tenantId).in("subject_type", ["contact", "conversation"]).in("subject_id", [contactId, ...conversationIds]).order("created_at", { ascending: false }).limit(PERSON_DECISIONS);
+  if (error) throw new Error(`person decisions: ${error.message}`);
+  return (data ?? []).map((d) => ({ ...d, payload: d.payload }));
 }
 function peopleCursorOf(row) {
   return row?.in_touch_at && row.added_at ? { at: row.in_touch_at, added: row.added_at, id: row.id } : null;
@@ -1160,7 +1167,9 @@ async function strandedRuns(db, p) {
 async function failStrandedRun(db, p) {
   const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.id).eq("tenant_id", p.tenantId).eq("state", "scheduled").select("id");
   if (error) throw new Error(`stranded runs: cannot mark run ${p.id} not sent: ${error.message}`);
-  return (data ?? []).length > 0;
+  if (!(data ?? []).length) return false;
+  await emitEvent(db, p.tenantId, "broadcast.stopped", "broadcast", p.id, { failure: "run_interrupted", sent: 0 });
+  return true;
 }
 
 // src/repositories/sending-domains.ts
@@ -3653,6 +3662,7 @@ export {
   pauseEmailOffers,
   peopleCursorOf,
   peoplePage,
+  personDecisions,
   personReplyMode,
   platformHoldStands,
   platformWide,
