@@ -1,8 +1,9 @@
 # 0036 · Every personal column has an erasure strategy
 
 **Status:** Proposed on 6 October 2026, not built: the registry 0031's invariant 10 names ("every table has a tenant, a
-floor and an erasure strategy") and leaves to a note of its own. Written against the branch
-`claude/chanlytics-os-architecture-analysis-ejqx0e` at `74112b2`. Where this note and the code disagree, the code wins.
+floor and an erasure strategy") and leaves to a note of its own. Written against commit
+`163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it. Where this note and the code disagree,
+the code wins.
 
 ## Context
 

@@ -1,9 +1,9 @@
 # 0035 · Every write is answered once per key
 
 **Status:** Proposed on 6 October 2026, not built: the second half of Phase 1's "one dedupe key, one idempotency key"
-(0031, invariant 3), whose first half, the ledger's `jobs.dedupe_key`, is 0033's and is built. Written against the
-branch `claude/chanlytics-os-architecture-analysis-ejqx0e` at `74112b2`. Where this note and the code disagree, the code
-wins.
+(0031, invariant 3), whose first half, the ledger's `jobs.dedupe_key`, is 0033's and is built. Written against
+commit `163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it. Where this note and the code
+disagree, the code wins.
 
 ## Context
 
