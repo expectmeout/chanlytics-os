@@ -97,6 +97,17 @@ export interface LineProvider {
   ): Promise<SmsSendResult>;
 }
 
+/**
+ * A text that arrived on one of the account's numbers, as the provider keeps it: the provider's own record, never ours.
+ * `atMs` is when the provider says it was sent (Twilio's `date_sent`, in milliseconds).
+ */
+export interface ReceivedText {
+  sid: string;
+  from: string;
+  body: string;
+  atMs: number;
+}
+
 export interface SmsSendResult {
   ok: boolean;
   /** The provider's message id (SM…), for the row. */

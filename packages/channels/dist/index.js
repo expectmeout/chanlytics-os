@@ -2505,7 +2505,12 @@ async function channelStep(run) {
 }
 
 // src/lines/sms.ts
-import { SMS_OPT_OUT_PATTERN, utf8Bytes } from "../../contracts/dist/index.js";
+import {
+  LINE_CODES_MAX,
+  LINE_CODES_WITHIN_MS,
+  SMS_OPT_OUT_PATTERN,
+  utf8Bytes
+} from "../../contracts/dist/index.js";
 function smsInboundFrom(form2) {
   const messageSid = form2.MessageSid || form2.SmsSid || "";
   const from = form2.From || "";
@@ -2561,6 +2566,49 @@ function mergeConsent(a, b) {
 function withCarrierConsent(n, c) {
   if (!c) return n;
   return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
+}
+var ONE_TIME_CODE_MAX_CHARS = 320;
+var CODE_DIGITS = String.raw`(\d{3,4}[ -]\d{3,4}|\d{4,8})`;
+var CODE = String.raw`(?<![\d\w])${CODE_DIGITS}(?![\d\w])`;
+var CODE_KIND = String.raw`(?:verification|security|confirmation|login|log-in|sign-in|access|one-time|authentication)`;
+var CODE_NAME = String.raw`([\p{L}\d&.'’-]+(?: [\p{L}\d&.'’-]+){0,2}?)`;
+var CODE_WORD = String.raw`(?:code|passcode|otp|pin)`;
+var YOUR_NAME_CODE = new RegExp(
+  String.raw`\byour ${CODE_NAME} (?:${CODE_KIND} )?${CODE_WORD}\b[ :]{0,3}(?:is\b[ :]{0,3})?${CODE}`,
+  "iu"
+);
+var CODE_IS_YOUR_KIND = new RegExp(String.raw`${CODE} is your ${CODE_KIND} ${CODE_WORD}\b`, "iu");
+var CODE_IS_YOUR_NAME = new RegExp(String.raw`${CODE} is your ${CODE_NAME} (?:${CODE_KIND} )?${CODE_WORD}\b`, "iu");
+var DONT_SHARE = /\b(?:don'?t|do not|never) share (?:this|the|your|it)\b/i;
+var TO_VERIFY = /\b(?:verif\w*|confirm\w*|log ?in|sign ?in|security|one-time|authenticat\w*|2-?step|two-step)\b/i;
+var ANDROID_TAG = /^\s*<#>\s/;
+var NOT_A_SERVICE = /^(?:door|gate|garage|locker|lock|building|entry|promo|discount|coupon|gift|referral|booking|appointment|order|reservation|alarm|wi-?fi|security|verification|confirmation|login|log-in|sign-in|access|one-time|authentication)$/i;
+function serviceName(name) {
+  if (!name) return null;
+  return name.split(" ").every((w) => /\p{Lu}/u.test(w) && !NOT_A_SERVICE.test(w)) ? name : null;
+}
+function oneTimeCodeOf(body) {
+  if (body.length > ONE_TIME_CODE_MAX_CHARS || body.includes("?")) return null;
+  const [, name, digits] = YOUR_NAME_CODE.exec(body) ?? [];
+  const sender = serviceName(name);
+  if (digits && sender) return { code: digits, from: sender };
+  const [, unnamed] = CODE_IS_YOUR_KIND.exec(body) ?? [];
+  if (unnamed) return { code: unnamed, from: null };
+  const [, named, namedBy] = CODE_IS_YOUR_NAME.exec(body) ?? [];
+  const namedFrom = serviceName(namedBy);
+  if (named && namedFrom) return { code: named, from: namedFrom };
+  if (ANDROID_TAG.test(body) || DONT_SHARE.test(body) && TO_VERIFY.test(body)) {
+    const found = [...body.matchAll(new RegExp(CODE, "gu"))].map((m) => m[1]);
+    const only = found.length === 1 ? found[0] : void 0;
+    if (only) return { code: only, from: null };
+  }
+  return null;
+}
+function lineCodesFrom(texts, nowMs) {
+  return [...texts].filter((t) => nowMs - t.atMs <= LINE_CODES_WITHIN_MS).sort((a, b) => b.atMs - a.atMs).flatMap((t) => {
+    const read = oneTimeCodeOf(t.body);
+    return read ? [{ code: read.code, from: read.from, at: new Date(t.atMs).toISOString() }] : [];
+  }).slice(0, LINE_CODES_MAX);
 }
 var SMS_OPTED_OUT_CODE = 21610;
 function smsRefusalOf(r) {
@@ -5003,6 +5051,7 @@ export {
   isValidSipPassword,
   keywordsFor,
   leadJudge,
+  lineCodesFrom,
   listAccounts,
   listCalls,
   listLocations,
@@ -5022,6 +5071,7 @@ export {
   normalizeCall,
   normalizeInbound,
   noteTenant,
+  oneTimeCodeOf,
   ownDomainIdentity,
   parseAccounts,
   parseLocations,
