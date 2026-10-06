@@ -213,7 +213,7 @@ export { closedOf } from "./reports/report-closed";
 export { reportFacts } from "./reports/report-facts";
 export { toHeadlineVM, isReportDto } from "./reports/report-headline";
 export { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, isReportPeriod, fixedDaysOf, monthDaysAt, reportPeriodOf, reportDaysAsked } from "./reports/report-periods";
-export { holdOf } from "./reports/report-speed";
+export { holdOf, replyHoldDtoOf } from "./reports/report-speed";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./reports/report-tiles";
 export { dayDate, fmtDay, quantile, priorOf, weekOf, reportHourWords, hoursOf, channelsOf, runningTotal, speedOf, callMoodTone, toReportVM, headlineOf, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_SHORT, REPORT_WEEK_LONG } from "./reports/reports";
 export { ROUTE_KEYS } from "./route-keys.generated";

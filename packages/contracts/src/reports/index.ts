@@ -69,8 +69,8 @@ export {
 export type { ReportPeriodId } from "./report-periods";
 export { toHeadlineVM, isReportDto } from "./report-headline";
 export type { ReportHeadlineDto, ReportHeadlineVM } from "./report-headline";
-export { holdOf } from "./report-speed";
-export type { ReportHoldVM } from "./report-speed";
+export { holdOf, replyHoldDtoOf } from "./report-speed";
+export type { ReportHoldVM, ReplyHoldDto } from "./report-speed";
 export { closedOf } from "./report-closed";
 export type { ReportArrivalDto, ReportProfile } from "./report-closed";
 export { reportFacts } from "./report-facts";

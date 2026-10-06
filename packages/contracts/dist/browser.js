@@ -16700,13 +16700,29 @@ function holdBuckets(replies) {
   ];
 }
 var absoluteBuckets = (sortedReply) => spanCounts(REPLY_BUCKETS, sortedReply);
+var replyHoldDtoOf = (hold) => hold ? { label: hold.label, at_end: hold.atEnd, later: hold.later, unheld: hold.unheld } : null;
+var repliesSeen = (hold) => hold.unheld + hold.atEnd + hold.later;
+var waitedHold = (hold) => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
 function heroSpeed(replies, medianLabel, hold) {
   if (!replies) return "";
-  const held = hold ? hold.atEnd + hold.later : 0;
-  const seen = hold ? hold.unheld + held : 0;
-  if (!hold || held * 2 <= seen) return ` Half of its replies went out within ${medianLabel}.`;
+  if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
+  const seen = repliesSeen(hold);
   if (hold.atEnd >= hold.later) return ` ${hold.atEnd} of ${seen} went out as your ${hold.label} hold ended.`;
   return ` ${hold.later} of ${seen} took longer than your ${hold.label} hold.`;
+}
+function replySpeedOf(median, hold) {
+  if (median === null) return null;
+  const counts = hold && {
+    label: hold.label,
+    atEnd: hold.at_end,
+    later: hold.later,
+    unheld: hold.unheld
+  };
+  if (!counts || !waitedHold(counts)) return { held: false, seconds: median };
+  return {
+    held: true,
+    words: counts.atEnd >= counts.later ? `as your ${counts.label} hold ended` : `later than your ${counts.label} hold`
+  };
 }
 function holdLine(hold) {
   if (hold.laterMost !== null) {
@@ -29528,6 +29544,8 @@ var andList = (xs) => xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join
 function secondsPhrase(s) {
   return durationWords(s);
 }
+var speedIn = (s, about = false) => s.held ? s.words : `in ${about ? "about " : ""}${secondsPhrase(s.seconds)}`;
+var speedClause = (s) => s === null ? "" : `typically ${speedIn(s)}`;
 function todayStanding(f) {
   const { metrics, wires } = f;
   const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
@@ -29600,20 +29618,20 @@ function todayQueueEmpty(f) {
   };
 }
 function todayAskFacts(f) {
-  const { period, callMinutes } = f;
+  const { period, callMinutes, speed } = f;
   return [
     { label: "Messages in", value: String(period.messages_in) },
     { label: "Answered by the receptionist", value: `${period.answered_by_ai} of ${period.messages_in}` },
-    period.median_reply_seconds_ai === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: secondsPhrase(period.median_reply_seconds_ai) },
+    speed === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: speed.held ? speed.words : secondsPhrase(speed.seconds) },
     { label: "Calls", value: period.calls ? `${period.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
   ];
 }
 function todayTrafficLine(f) {
-  const { period, callMinutes } = f;
+  const { period, callMinutes, speed } = f;
   const trafficParts = [];
   if (period.messages_in > 0) {
     trafficParts.push(
-      `${period.messages_in} message${period.messages_in === 1 ? "" : "s"} in, ${period.answered_by_ai} answered by the receptionist${period.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(period.median_reply_seconds_ai)}`}`
+      `${period.messages_in} message${period.messages_in === 1 ? "" : "s"} in, ${period.answered_by_ai} answered by the receptionist${speed === null ? "" : `, typically ${speedIn(speed)}`}`
     );
   }
   if (period.calls) {
@@ -29666,9 +29684,9 @@ function todayHeadline(f, alert, needsRows) {
       tone: "needs"
     };
   }
-  return calmHeadline(f.period);
+  return calmHeadline(f);
 }
-function calmHeadline(period) {
+function calmHeadline({ period, speed }) {
   const bits2 = [];
   if (period.messages_in) {
     bits2.push(
@@ -29678,9 +29696,7 @@ function calmHeadline(period) {
   if (period.calls) bits2.push(`${period.calls} call${period.calls === 1 ? "" : "s"}`);
   const allByReceptionist = period.unanswered_in_window === 0 && period.messages_out_you === 0;
   const headline = bits2.length ? allByReceptionist ? `The receptionist handled everything \u2014 ${bits2.join(" and ")} today. Nothing needs you.` : `${bits2.join(" and ")} today. Nothing needs you right now.` : "Nothing needs you.";
-  const detail = period.median_reply_seconds_ai !== null && period.messages_in > 0 ? `It answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically in about ${secondsPhrase(
-    period.median_reply_seconds_ai
-  )}.` : null;
+  const detail = speed !== null && period.messages_in > 0 ? `It answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.` : null;
   return { headline, detail, tone: "calm" };
 }
 function todaySentences(f, tone, alert) {
@@ -29809,6 +29825,14 @@ function tzDayAndTime(iso, tz, now) {
   }
 }
 
+// src/today/today-metrics.ts
+function emailWires(email) {
+  return email?.ready && email.mailbox ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }] : [];
+}
+function todayReplySpeed(m) {
+  return replySpeedOf(m.period.median_reply_seconds_ai, m.reply_hold ?? null);
+}
+
 // src/today/today-facts.ts
 var QUOTE_MAX = 240;
 function todayClock(m) {
@@ -29897,6 +29921,7 @@ function todayFacts(input) {
     tz,
     period,
     live: metrics.now,
+    speed: todayReplySpeed(metrics),
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
     ...todayClock(metrics),
@@ -29994,7 +30019,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   const reasons = tally(todays.map((e) => e.reason));
   const resolved = Math.max(0, p.escalations_new - todays.length);
   const answeredMeta = [
-    p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
+    speedClause(todayReplySpeed(m)),
     p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : ""
   ].filter(Boolean).join(", ") || (p.messages_in ? "none answered yet" : "nothing to answer yet");
   const handedOver = p.escalations_new;
@@ -30799,11 +30824,6 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
   const all = LEAK_ORDER.map((id) => LEAK_FINDERS[id](facts)).filter((x) => !!x);
   const more = Math.max(0, all.length - max);
   return { rows: all.slice(0, max), more, moreLine: more ? `and ${more} more` : null };
-}
-
-// src/today/today-metrics.ts
-function emailWires(email) {
-  return email?.ready && email.mailbox ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }] : [];
 }
 
 // src/today/today-period.ts
@@ -34086,6 +34106,7 @@ export {
   replyChipOf,
   replyDelayMs,
   replyFromLineOf,
+  replyHoldDtoOf,
   replyIntentQuestion,
   replyLeftAsOf,
   replyNoticeWords,
