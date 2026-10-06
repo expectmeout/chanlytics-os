@@ -754,3 +754,14 @@ test("the touch history looks back as far as a gap can reach, and no further", a
     "the recent touch holds; the one from over a year ago is not read at all",
   );
 });
+
+test("the day a visit moment is about is the calendar's own tomorrow and yesterday, a 23- or 25-hour day included", async () => {
+  const { visitMomentDay } = await import("@chanlytics/contracts");
+  const NY = "America/New_York";
+  // 7 Mar 2026, 11:30 PM EST: clocks spring forward that night, so 24 hours on is the 9th. Tomorrow is the 8th.
+  assert.equal(visitMomentDay("visit_tomorrow", NY, Date.parse("2026-03-08T04:30:00Z")), "2026-03-08");
+  // 1 Nov 2026, 12:30 AM EDT: clocks fall back that night, so 24 hours on is still the 1st. Tomorrow is the 2nd.
+  assert.equal(visitMomentDay("visit_tomorrow", NY, Date.parse("2026-11-01T04:30:00Z")), "2026-11-02");
+  // 2 Nov 2026, 1:00 AM EST, the morning after the 25-hour day: yesterday is the 1st.
+  assert.equal(visitMomentDay("visited", NY, Date.parse("2026-11-02T06:00:00Z")), "2026-11-01");
+});

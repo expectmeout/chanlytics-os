@@ -633,6 +633,155 @@ test("a visit run keeps each person's words on their row, from the visit the run
   ]);
 });
 
+test("a person with a visit later today and another tomorrow is reminded of TOMORROW's: the run reads the visit on its day, not the next one (wiring review P2 14)", async () => {
+  // Their next visit is today's, at 4 PM: "the next visit is tomorrow" was false, and tomorrow's reminder never went.
+  const today = visit("2026-09-06T20:00:00Z", "Cut"); // today, 4:00 PM in New York
+  const tomorrow = visit("2026-09-07T18:00:00Z", "Balayage"); // tomorrow, 2:00 PM
+  const read = { timezone: TZ, source: "calendar", state: "ok", next: today, last: null, near: [today, tomorrow] };
+  const row = toPersonRowVM(dto("a", { visits: read }), TZ, NOW);
+  assert.deepEqual(
+    row.visitDays.map((d) => d.date),
+    ["2026-09-06", "2026-09-07"],
+    "the row carries the day of each visit near today",
+  );
+  const { ports, of } = fakes();
+  const r = await runPlaybook(
+    ports,
+    cmd({
+      playbook: playbook({
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_name: "visit_reminder",
+        params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+      }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [row],
+        visits: new Map([["a", read]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "sent", "REGRESSION: nobody was named, the next visit being today's");
+  assert.deepEqual(
+    of("assemble")[0][2].map((x) => [x.contact_id, x.facts]),
+    [["a", { visit_when: "tomorrow at 2:00 PM", visit_service: "Balayage" }]],
+    "the words are tomorrow's visit, never today's",
+  );
+
+  // A read made before the calendar kept the near visits has the next and the last only, and is read as it always was:
+  // today's next visit names nobody for tomorrow.
+  const old = { timezone: TZ, source: "calendar", state: "ok", next: today, last: null };
+  const before = fakes();
+  const r2 = await runPlaybook(
+    before.ports,
+    cmd({
+      playbook: playbook({
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_name: "visit_reminder",
+        params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+      }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [toPersonRowVM(dto("a", { visits: old }), TZ, NOW)],
+        visits: new Map([["a", old]]),
+      }),
+    }),
+  );
+  assert.notEqual(r2.outcome, "sent");
+  assert.deepEqual(before.of("assemble"), [], "nobody named, as before");
+});
+
+test("two visits tomorrow, the first found by name alone and not surely theirs: the run names them for the second, and its words are the second's", async () => {
+  // A person saved as "Maria" (a first name alone): an event titled "Maria Lopez" is found by name and is a guess, so it
+  // never names them; their own visit, found by their number, does. The words were the first visit's of the day, the
+  // guess included.
+  const guess = { ...visit("2026-09-07T14:00:00Z", "Maria Lopez · Balayage"), via: "name" }; // 10:00 AM
+  const theirs = visit("2026-09-07T19:00:00Z", "Trim"); // 3:00 PM, by their number
+  const read = { timezone: TZ, source: "calendar", state: "ok", next: guess, last: null, near: [guess, theirs] };
+  const row = toPersonRowVM(dto("a", { display_name: "Maria", visits: read }), TZ, NOW);
+  const { ports, of } = fakes();
+  const r = await runPlaybook(
+    ports,
+    cmd({
+      playbook: playbook({
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_name: "visit_reminder",
+        params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+      }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [row],
+        visits: new Map([["a", read]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.deepEqual(
+    of("assemble")[0][2].map((x) => x.facts),
+    [{ visit_when: "tomorrow at 3:00 PM", visit_service: "Trim" }],
+    "REGRESSION: the words named the other Maria's 10:00 Balayage",
+  );
+  // With only the guess that day, nobody is named.
+  const alone = { ...read, next: guess, near: [guess] };
+  const none = fakes();
+  await runPlaybook(
+    none.ports,
+    cmd({
+      playbook: playbook({
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_name: "visit_reminder",
+        params: [{ kind: "visit_when" }],
+      }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [toPersonRowVM(dto("a", { display_name: "Maria", visits: alone }), TZ, NOW)],
+        visits: new Map([["a", alone]]),
+      }),
+    }),
+  );
+  assert.deepEqual(none.of("assemble"), []);
+});
+
+test("a person seen yesterday and again this morning is thanked for YESTERDAY's visit: the latest visit alone is today's", async () => {
+  const yesterday = visit("2026-09-05T15:00:00Z", "Balayage"); // yesterday, 11:00 AM in New York
+  const thisMorning = visit("2026-09-06T12:00:00Z", "Trim"); // today, 8:00 AM, over by now
+  const read = {
+    timezone: TZ,
+    source: "calendar",
+    state: "ok",
+    next: null,
+    last: thisMorning,
+    near: [yesterday, thisMorning],
+  };
+  const row = toPersonRowVM(dto("a", { visits: read }), TZ, NOW);
+  const { ports, of } = fakes();
+  const r = await runPlaybook(
+    ports,
+    cmd({
+      playbook: playbook({ trigger: "visited", policy_class: "booking", params: [{ kind: "visit_service" }] }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [row],
+        visits: new Map([["a", read]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "sent", "REGRESSION: the thank-you was never sent, the latest visit being this morning's");
+  assert.deepEqual(
+    of("assemble")[0][2].map((x) => x.facts),
+    [{ visit_when: "yesterday", visit_service: "Balayage" }],
+    "yesterday's service",
+  );
+});
+
 test("a visit's service slot carries the service alone: the person's name comes out of the event's title, and a title that was only their name says \"your appointment\"", async () => {
   const run = async (title, over = {}) => {
     const next = visit("2026-09-07T18:00:00Z", title);

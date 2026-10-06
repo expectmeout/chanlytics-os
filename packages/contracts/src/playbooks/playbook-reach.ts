@@ -5,7 +5,8 @@
 import { audienceMembers, type CampaignHow, saidYesOnAny } from "../broadcasts/broadcast-audience";
 import { reachFor } from "../broadcasts/reach-for";
 import { POLICY_CLASS_WORDS } from "../config/workspace-config/policy-classes";
-import type { MatchVia } from "../calendar/calendar-people";
+import { visitDateKey, type MatchVia, type PersonVisitsDto, type VisitDto } from "../calendar/calendar-people";
+import { dayPlusInZone } from "../calendar/zone-math";
 import { fullNameKey } from "../calendar/visit-service";
 import { purposeOfPlaybook } from "../consent/consent";
 import type { DealPaceVM } from "../deals/deal-waits";
@@ -14,7 +15,6 @@ import type { PersonRowVM } from "../people/person-row";
 
 import { breathHolds, followUpIsFor, followUpNames } from "./playbook-follow-ups";
 import { enrolPurpose, messageAboutOfTrigger, type RunMessage } from "./playbook-purpose";
-import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
@@ -166,6 +166,46 @@ function fullNameHolders(rows: readonly Pick<PersonRowVM, "givenName" | "waName"
 }
 
 /**
+ * The calendar day a visit moment is about, by the calendar's own clock and its own day arithmetic (a day is not always
+ * 24 hours): tomorrow for a reminder, yesterday for a thank-you. The one reading of it, for who a run names
+ * (playbookRunReach) and which visit its words are about (core run-playbook recipientFacts, visitOnDay).
+ */
+export function visitMomentDay(trigger: string, tz: string, nowMs: number): string {
+  return dayPlusInZone(tz, nowMs, trigger === "visit_tomorrow" ? 1 : -1).key;
+}
+
+/**
+ * A person's visit on a calendar day ("2026-09-08", by the calendar's own clock) that is surely theirs (`theirs`, the
+ * run's own test: theirVisitTest): the first that day for a reminder (`side` "next"), the latest for a thank-you ("last").
+ * The run names a person when such a visit exists, and its words name this one, so the two can never be two visits.
+ * Read from `near`; a read made before it was kept has only the next and the last, and is read as it always was.
+ */
+export function visitOnDay(
+  v: Pick<PersonVisitsDto, "timezone" | "next" | "last" | "near"> | null | undefined,
+  day: string,
+  side: "next" | "last",
+  theirs: (via: MatchVia) => boolean,
+): VisitDto | null {
+  if (!v) return null;
+  const onDay = (v.near ?? [side === "next" ? v.next : v.last]).filter(
+    (x): x is VisitDto => !!x && visitDateKey(x.start, v.timezone) === day && theirs(x.via),
+  );
+  return (side === "next" ? onDay[0] : onDay[onDay.length - 1]) ?? null;
+}
+
+/**
+ * Whose a visit is, for every row of a run: a row and how its visit was found, true when it is surely theirs
+ * (visitIsTheirs, over who holds each full saved name among `rows`). One test for who the run names and which visit its
+ * words are about.
+ */
+export function theirVisitTest(
+  rows: readonly Pick<PersonRowVM, "givenName" | "waName">[],
+): (r: Pick<PersonRowVM, "givenName" | "waName">, via: MatchVia | null) => boolean {
+  const holders = fullNameHolders(rows);
+  return (r, via) => visitIsTheirs(r, via, holders);
+}
+
+/**
  * Whether the visit a row was matched to is surely theirs, for a message that goes to them about it. A number or an address
  * on the event is exact: they are the person, or nobody. A name is a guess: any name of four letters or more matched, so a
  * client saved as "Maria" was sent a reminder for another Maria's appointment, with the event's whole title in it. A run
@@ -233,8 +273,8 @@ export function playbookRunReach(
   // How it goes: the ticks and the channels now, and what the moment's message is about (a visit's or a follow-up's is
   // theirs, which by email asks no yes; any other moment's is the business's news: decision D1).
   const how: CampaignHow = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
-  // Who holds each full saved name in the workspace, for a visit found by name alone (visitIsTheirs).
-  const holders = t.kind === "visit" ? fullNameHolders(rows) : new Map<string, number>();
+  // Whose a visit is, for a visit found by name alone: the run's one test (theirVisitTest), as its words read it.
+  const theirs = theirVisitTest(t.kind === "visit" ? rows : []);
   // Who the moment names, before anyone is left out.
   const named =
     t.kind === "visit"
@@ -242,18 +282,11 @@ export function playbookRunReach(
         // theirs (visitIsTheirs).
         rows.filter((r) => {
           if (!r.calendarTz) return false;
-          if (p.trigger === "visit_tomorrow")
-            return (
-              r.nextVisitDate !== null &&
-              r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS)) &&
-              visitIsTheirs(r, r.nextVisitVia, holders)
-            );
-          return (
-            r.lastVisitDate !== null &&
-            r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) &&
-            !r.booked &&
-            visitIsTheirs(r, r.lastVisitVia, holders)
-          );
+          // A visit ON the day, of any near today: not the next visit, which for a person with one later today is today's.
+          const day = visitMomentDay(p.trigger, r.calendarTz, nowMs);
+          const onDay = r.visitDays.some((d) => d.date === day && theirs(r, d.via));
+          if (p.trigger === "visit_tomorrow") return onDay;
+          return onDay && !r.booked;
         })
       : t.kind === "saved"
         ? audienceMembers(rows, "saved", null, listIds ?? new Set<string>())

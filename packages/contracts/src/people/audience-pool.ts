@@ -74,6 +74,7 @@ export function peopleVisitsOf(
       state: "ok",
       next: mark(toVisitDto(v.next)),
       last: mark(toVisitDto(v.last)),
+      near: v.near.map((x) => mark(toVisitDto(x))).filter((x): x is VisitDto => x !== null),
     });
   }
   return out;

@@ -122,8 +122,11 @@ export async function withVisits(
     };
   // Each visit already says whether it is a consultation (0004): peopleVisits marked it (contracts peopleVisitsOf), and
   // they are attached by the pool's one rule (withVisitsOf), as the Playbooks page and the edge's run attach them.
+  // The visits near today (`near`) are a run's to read (the Playbooks page and the edge read peopleVisits), never the
+  // list's: a person with several would carry them to the browser, which reads none.
+  const listed = new Map([...pv.visits].map(([id, v]) => [id, { ...v, near: undefined }]));
   return {
-    people: withVisitsOf(rows, pv.visits, pv.calendar),
+    people: withVisitsOf(rows, listed, pv.calendar),
     calendar: pv.calendar,
     booking_link: pv.bookingLink,
     consult_first: consultFirstOf(pv.rules),
