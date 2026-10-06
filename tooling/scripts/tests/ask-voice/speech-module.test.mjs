@@ -277,6 +277,54 @@ test("a hold readies the element inside its press, reading nothing and stopping 
   assert.doesNotThrow(() => askSpeech({}, { api: a }).readySpeech(), "a device with no Audio readies nothing");
 });
 
+test("the device is told what the page's audio is (WebKit's Audio Session API): a hold's readying says it listens, play-and-record; every read says playback before it plays, so the answer comes out of the loudspeaker and not the earpiece a phone gives a call; a device without the API is left alone", async () => {
+  const w = world();
+  const a = api();
+  const said = [];
+  w.win.navigator = {
+    audioSession: {
+      get type() {
+        return said.at(-1) ?? "auto";
+      },
+      set type(t) {
+        said.push(t);
+      },
+    },
+  };
+  const s = askSpeech(w.win, { api: a });
+  s.readySpeech();
+  assert.deepEqual(said, ["play-and-record"], "a hold: the page listens");
+  const read = s.speak("Two people need you.", "answer");
+  assert.deepEqual(said, ["play-and-record", "playback"], "a read: playback, said before anything plays");
+  a.land();
+  await tick();
+  assert.equal(said.at(-1), "playback", "still playback as the clip starts");
+  w.plays();
+  await read;
+  // Read aloud or Listen with no hold before them: playback too.
+  s.stopSpeaking();
+  void s.speak("The brief.", "brief");
+  assert.equal(said.at(-1), "playback");
+  // A device whose session refuses the word plays as it would have.
+  const w2 = world();
+  w2.win.navigator = {
+    audioSession: {
+      set type(_) {
+        throw new Error("NotSupportedError");
+      },
+    },
+  };
+  const s2 = askSpeech(w2.win, { api: api() });
+  assert.doesNotThrow(() => s2.readySpeech());
+  assert.equal(s2.state(), "idle");
+  // No Audio Session API at all (every browser but WebKit's): nothing is told and nothing breaks.
+  const w3 = world();
+  const s3 = askSpeech(w3.win, { api: api() });
+  assert.doesNotThrow(() => s3.readySpeech());
+  void s3.speak("Hello.", "answer");
+  assert.equal(s3.state(), "loading");
+});
+
 test("words longer than a clip may be are read up to the last whole sentence that fits, never refused: the route takes ASK_SPEECH_MAX_CHARS, and an answer over it could not be read aloud at all", async () => {
   const { ASK_SPEECH_MAX_CHARS } = await import("@chanlytics/contracts");
   const w = world();

@@ -265,11 +265,16 @@ deployment's profile (Opus 5.5 by default, low effort); the gate re-runs with sp
 >
 > Now a hold is the one mic and its words are a typed turn: their reads drawn as they run and never said, the answer
 > read aloud as it lands, in the one voice Listen and Read aloud use (the speech route). Ask's voice says one thing
-> while it works, "One moment." (a whole sentence; "Un momento." in Spanish), once, when ASK_VOICE_FIRST_WORDS_MS pass
-> with no answer begun, and the answer follows it, after it while it is being said, over it while its clip is still on
-> its way (`legacy-bridge/ask/aloud.ts`). The press stops what the voice was reading, readies its element inside the
-> press (a phone plays audio only from a gesture; the lift readies it too, a pointer going down being none to some),
-> and warms the model's cache, as the press asking for a session did. A quick question spoken (who needs me, the
+> while it works, a short whole sentence such as "One moment.", once, when ASK_VOICE_FIRST_WORDS_MS pass with no
+> answer begun, and the answer follows it, after it while it is being said, over it while its clip is still on its way
+> (`legacy-bridge/ask/aloud.ts`). The words take turns from a set of eight, never the same twice running ("Let me
+> check.", "Give me a second.", "Un momento." for a question in Spanish), from where each page's draw starts them
+> (Ruben, 6 Oct: the same line every time sounded canned). The press stops what the voice was reading, readies its
+> element inside the press (a phone plays audio only from a gesture; the lift readies it too, a pointer going down
+> being none to some), and warms the model's cache, as the press asking for a session did. It also tells the device
+> the page listens (`navigator.audioSession.type = "play-and-record"`, WebKit's Audio Session API), and every read
+> tells it `playback` before it plays: an iPhone that has heard the microphone keeps a call's session, which plays
+> through the earpiece, and the answer to a hold came out of it (Ruben, 6 Oct). A quick question spoken (who needs me, the
 > calls, the openings) is read aloud too. No hold asks the agent for anything: the Line's own wiring to it went
 > (`useAskVoice`, the hand-off on the lift), and its session, its spoken turn and the brain door are kept, unused,
 > until their retirement is decided. What this gives up: the voice starts once the answer is whole, about two seconds

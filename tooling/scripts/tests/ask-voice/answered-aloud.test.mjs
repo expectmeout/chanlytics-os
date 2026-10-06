@@ -81,11 +81,13 @@ function clock() {
   };
 }
 const tick = () => new Promise((r) => setImmediate(r));
+/** Where a page's draw puts the waiting words' turn: the top of the set, so a test knows the words it will hear. */
+const FIRST = () => 0;
 
 test("a spoken question slow to its first words hears the waiting words once, in its language, as ASK_VOICE_FIRST_WORDS_MS pass; one answered sooner hears nothing but its answer", async () => {
   const w = speechWorld();
   const c = clock();
-  const aloud = askAloud(w.speech, c);
+  const aloud = askAloud(w.speech, c, FIRST);
   let answered = false;
   aloud.waitAloud("en", () => answered);
   assert.deepEqual(w.spoken, [], "nothing said as the question goes");
@@ -98,19 +100,19 @@ test("a spoken question slow to its first words hears the waiting words once, in
   // In Spanish for a question asked in Spanish.
   const w2 = speechWorld();
   const c2 = clock();
-  askAloud(w2.speech, c2).waitAloud("es", () => false);
+  askAloud(w2.speech, c2, FIRST).waitAloud("es", () => false);
   c2.pass(ASK_VOICE_FIRST_WORDS_MS);
   assert.deepEqual(w2.spoken, [{ text: "Un momento.", purpose: "answer" }]);
   // A language Ask does not speak hears English, as the voice door's own lines did.
   const w5 = speechWorld();
   const c5 = clock();
-  askAloud(w5.speech, c5).waitAloud("other", () => false);
+  askAloud(w5.speech, c5, FIRST).waitAloud("other", () => false);
   c5.pass(ASK_VOICE_FIRST_WORDS_MS);
   assert.deepEqual(w5.spoken, [{ text: "One moment.", purpose: "answer" }]);
   // Answered before the clock: the Say drawn, the turn landed, or another question asked over it. Nothing is said.
   const w3 = speechWorld();
   const c3 = clock();
-  const quick = askAloud(w3.speech, c3);
+  const quick = askAloud(w3.speech, c3, FIRST);
   quick.waitAloud("en", () => {
     answered = true;
     return answered;
@@ -127,7 +129,7 @@ test("the answer follows the waiting words: after them while they are being said
   // Being said: the answer waits for their end, then is read.
   const w = speechWorld();
   const c = clock();
-  const aloud = askAloud(w.speech, c);
+  const aloud = askAloud(w.speech, c, FIRST);
   aloud.waitAloud("en", () => false);
   c.pass(ASK_VOICE_FIRST_WORDS_MS);
   w.plays();
@@ -143,7 +145,7 @@ test("the answer follows the waiting words: after them while they are being said
   // On their way: the answer is read at once, over them (the module's read replaces a clip still loading).
   const w2 = speechWorld();
   const c2 = clock();
-  const aloud2 = askAloud(w2.speech, c2);
+  const aloud2 = askAloud(w2.speech, c2, FIRST);
   aloud2.waitAloud("en", () => false);
   c2.pass(ASK_VOICE_FIRST_WORDS_MS);
   void aloud2.answerAloud("Two visits tomorrow.");
@@ -156,7 +158,7 @@ test("the answer follows the waiting words: after them while they are being said
   // Said and never ending (an element that reports no end): the answer goes after the cap.
   const w3 = speechWorld();
   const c3 = clock();
-  const aloud3 = askAloud(w3.speech, c3);
+  const aloud3 = askAloud(w3.speech, c3, FIRST);
   aloud3.waitAloud("en", () => false);
   c3.pass(ASK_VOICE_FIRST_WORDS_MS);
   w3.plays();
@@ -171,7 +173,7 @@ test("the answer follows the waiting words: after them while they are being said
   assert.equal(w3.watching(), 0);
   // Something else being read (no waiting words this turn): the answer does not wait on it.
   const w4 = speechWorld();
-  const aloud4 = askAloud(w4.speech, clock());
+  const aloud4 = askAloud(w4.speech, clock(), FIRST);
   void w4.speech.speak("An older answer.", "answer");
   w4.plays();
   void aloud4.answerAloud("The new answer.");
@@ -182,7 +184,7 @@ test("the answer follows the waiting words: after them while they are being said
 test("waiting words that could not be said are let go of quietly: the person is told nothing for them, and the answer is still read", async () => {
   const w = speechWorld();
   const c = clock();
-  const aloud = askAloud(w.speech, c);
+  const aloud = askAloud(w.speech, c, FIRST);
   aloud.waitAloud("en", () => false);
   c.pass(ASK_VOICE_FIRST_WORDS_MS);
   w.fails("The sound was held back on this device. Tap again to hear it.");
@@ -192,4 +194,43 @@ test("waiting words that could not be said are let go of quietly: the person is 
   assert.equal(w.spoken.at(-1).text, "Two people need you.");
   w.fails("Voice is off while this workspace is paused or its plan has ended.");
   await assert.rejects(read, /paused/, "the answer's own failure is the caller's to say");
+});
+
+test("the waiting words take turns, as a person's would: each spoken question that waits says the next of a set, never the same twice running, every one a short whole sentence in the question's language; a page starts the turn where its draw puts it", async () => {
+  /** The words said for this many waits in a row, on one page whose draw is `pick`. */
+  const said = (language, waits, pick = FIRST) => {
+    const w = speechWorld();
+    const c = clock();
+    const aloud = askAloud(w.speech, c, pick);
+    for (let i = 0; i < waits; i++) {
+      aloud.waitAloud(language, () => false);
+      c.pass(ASK_VOICE_FIRST_WORDS_MS);
+      w.ends();
+    }
+    return w.spoken.map((x) => x.text);
+  };
+  const en = said("en", 24);
+  const set = [...new Set(en)];
+  assert.ok(set.length >= 6, `a set to take turns from, not one line (${set.length})`);
+  assert.equal(en[0], "One moment.", "the top of the set");
+  for (let i = 1; i < en.length; i++) assert.notEqual(en[i], en[i - 1], `never the same twice running (${i})`);
+  assert.deepEqual(
+    en.slice(set.length, 2 * set.length),
+    en.slice(0, set.length),
+    "the whole set before any comes again",
+  );
+  for (const words of set) {
+    assert.match(words, /^[A-Z¡¿].*[.!?]$/u, `a whole sentence: ${words}`);
+    assert.ok(words.length <= 32, `short, said before the answer: ${words}`);
+  }
+  const es = said("es", 24);
+  const setEs = [...new Set(es)];
+  assert.equal(es[0], "Un momento.");
+  assert.ok(setEs.length >= 6);
+  for (const words of setEs) assert.ok(!set.includes(words), `Spanish for a question in Spanish: ${words}`);
+  assert.deepEqual(said("other", 3), en.slice(0, 3), "a language Ask does not speak hears the English set");
+  // Another page's draw starts the turn elsewhere in the set, and takes the same turns from there.
+  const later = said("en", set.length, () => 0.5);
+  assert.notEqual(later[0], en[0], "a page that draws another place starts there");
+  assert.deepEqual([...later].sort(), [...set].sort(), "and says the whole set before any comes again");
 });

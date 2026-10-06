@@ -2090,7 +2090,10 @@ import {
   triggerOf as triggerOf2,
   triggerOffered,
   vetoRunNotice,
-  visitFactsFor
+  visitFactsFor,
+  theirVisitTest,
+  visitMomentDay,
+  visitOnDay
 } from "../../contracts/dist/index.js";
 
 // src/campaigns/message-channels.ts
@@ -2228,12 +2231,16 @@ async function pastTheRoom(r, message, drawn, goesAt) {
 function recipientFacts(r, goesAt) {
   const { p, ctx } = r;
   const trig = triggerOf2(p.trigger);
+  const theirs = theirVisitTest(ctx.people);
   return (person) => {
     if (trig?.kind === "deal") return proposalFactsFor(p.trigger, person);
     const v = ctx.visits.get(person.id);
+    const day = v ? visitMomentDay(p.trigger, v.timezone, ctx.now.getTime()) : null;
+    const tomorrow = p.trigger === "visit_tomorrow";
+    const onDay = v && day ? visitOnDay(v, day, tomorrow ? "next" : "last", (via) => theirs(person, via)) : null;
     return visitFactsFor(
       p.trigger,
-      p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null,
+      onDay ?? (tomorrow ? v?.next ?? null : v?.last ?? null),
       ctx.tz,
       [person.givenName, person.waName],
       goesAt
