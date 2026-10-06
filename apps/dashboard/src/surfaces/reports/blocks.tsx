@@ -48,20 +48,33 @@ export function RptSection({
   );
 }
 
-const phoneQuery = () => (typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 760px)") : null);
+/** The page's own phone, under which it draws the meters smaller; and the frame's, under which the strip has no act beside it. */
+const RPT_PHONE_QUERY = "(max-width: 760px)";
+const FRAME_PHONE_QUERY = "(max-width: 900px)";
 
-/** A phone's page draws the meters smaller; kept current as the window changes size. */
-export function useRptPhone(): boolean {
-  const [phone, setPhone] = useState(!!phoneQuery()?.matches);
+const widthQuery = (query: string) => (typeof window.matchMedia === "function" ? window.matchMedia(query) : null);
+
+/** Whether the window answers a width query, kept current as the window changes size. */
+function useWidthMatches(query: string): boolean {
+  const [matches, setMatches] = useState(!!widthQuery(query)?.matches);
   useEffect(() => {
-    const q = phoneQuery();
+    const q = widthQuery(query);
     if (!q || !q.addEventListener) return undefined;
-    const on = (e: MediaQueryListEvent) => setPhone(e.matches);
+    const on = (e: MediaQueryListEvent) => setMatches(e.matches);
     q.addEventListener("change", on);
     return () => q.removeEventListener("change", on);
-  }, []);
-  return phone;
+  }, [query]);
+  return matches;
 }
+
+/** A phone's page draws the meters smaller; kept current as the window changes size. */
+export const useRptPhone = (): boolean => useWidthMatches(RPT_PHONE_QUERY);
+
+/**
+ * A desk's frame, over the kit's one breakpoint: the strip of lenses has the page's act at its right (components.css, the
+ * head's places), where the period stands. Under it the strip is a phone's, and the period keeps a row of its own.
+ */
+export const useRptDesk = (): boolean => !useWidthMatches(FRAME_PHONE_QUERY);
 
 /** The headline: the receptionist's part of the answered as a meter, the period before as a tick on its ring. */
 export function RptHero({ vm, phone }: { vm: ReportVM; phone: boolean }) {

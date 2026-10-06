@@ -4571,6 +4571,11 @@ div.tpl-slotbox:not([data-lines="1"]) {
   max-width: var(--measure-wide);
   padding: 16px var(--gutter-page) 120px;
 }
+/* The frame's row of views over the home and Sent keeps to their measure, so the head's acts (the Library, New message) end
+   at the page's right edge, over the panes, and not at the window's (Ruben, 6 Oct 2026). */
+.main:has(> .main-scroll > :is(.cmh, .bc-page)) .pg-slot {
+  max-width: var(--measure-wide);
+}
 /* Where the frame draws the head (the page's own CmHead draws none, so there is no .cm-head in it), the page starts under
    it, at the page's gutter, as Today's does. */
 .main-scroll > .cmh:not(:has(> .cm-head)) {

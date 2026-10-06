@@ -224,14 +224,22 @@ function peopleListSection(s: PeopleState) {
   );
 }
 
-/** A desktop's controls: the search, Add a person, Import, the file of everyone, and the Columns menu. */
+/**
+ * The page's act on a desk: Add a person, at the right of the strip of scopes over the list (the frame's act, said through its
+ * head: people-head.tsx), where Campaigns' Library and New message stand (Ruben, 6 Oct 2026: it stood in the list's controls row,
+ * inside the pane). A phone's is its more-menu's (phone-menu.ts); a role that may not change lists has none.
+ */
+export function peopleAct(s: PeopleState) {
+  const { phone, canEditLists, onOpenProfile, plFlash } = s;
+  return !phone && canEditLists ? <AddPersonButton onAdded={onOpenProfile} flash={plFlash} /> : null;
+}
+
+/** A desktop's controls: the search, Import, the file of everyone, and the Columns menu (Add a person is the page's act). */
 function peopleDeskControls(s: PeopleState) {
   const {
     searchRef,
     q,
     setQ,
-    canEditLists,
-    onOpenProfile,
     plFlash,
     canExport,
     setImportOpen,
@@ -248,7 +256,6 @@ function peopleDeskControls(s: PeopleState) {
         <input ref={searchRef} placeholder={`${PL_SEARCH_LABEL}…`} value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="cl-controls-right">
-        {canEditLists && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
         {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside them only
             turned round an order the table already shows and changes. */}
         <PeopleColumnsMenu options={colOptions} onPick={pickColumn} />

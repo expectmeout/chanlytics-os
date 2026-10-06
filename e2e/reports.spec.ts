@@ -9,7 +9,8 @@ import { routeOf } from "./address";
  *
  * The Overview: the receptionist's share of the answered as a meter beside Worth knowing, and a strip of five figures compared
  * with the period before in counts; then each lens's cards, each with a table twin, and nothing in dollars. Read-only: the
- * period control only issues a GET, and Ask is not pressed.
+ * period control only issues a GET. On a desk the period stands at the right of the strip of lenses (the frame's row, the
+ * page's act), outside the page's own element; on a phone, on a row of the page's own.
  */
 const INVENTED = [
   "Revenue",
@@ -53,9 +54,17 @@ test.describe("Reports on a real workspace", () => {
       );
     }
 
-    await expect(report.locator('[data-testid^="period-"]')).toHaveCount(4);
-    await expect(report.getByTestId("period-30d")).toHaveAttribute("aria-checked", "true");
-    await expect(report.getByRole("button", { name: "Ask about this period" })).toBeVisible();
+    const period = page.getByTestId("reports-period");
+    await expect(period.locator('[data-testid^="period-"]')).toHaveCount(4);
+    await expect(period.getByTestId("period-30d")).toHaveAttribute("aria-checked", "true");
+    await expect(
+      page.locator(".pg-act-slot").getByTestId("reports-period"),
+      "on a desk, at the strip's right",
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Ask about this period" }),
+      "the period row asks nothing",
+    ).toHaveCount(0);
 
     // A workspace nobody reached in the period has one honest card instead of the charts, and no Worth knowing.
     if (await report.getByTestId("reports-empty").count()) {
@@ -171,10 +180,10 @@ test.describe("Reports on a real workspace", () => {
       (r) =>
         new URL(r.url()).pathname.endsWith("/api/v1/reports") && r.url().includes("period=7d") && r.method() === "GET",
     );
-    await report.getByTestId("period-7d").click();
+    await page.getByTestId("period-7d").click();
     const seen = await req;
     expect(seen.url()).toContain("workspace=");
-    await expect(report.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
     await expect(report.getByTestId("reports-hero")).toBeVisible();
   });
 

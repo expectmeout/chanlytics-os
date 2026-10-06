@@ -3,8 +3,9 @@
  * lenses, each at its own address (`/w/<slug>/reports/<lens>`, the Overview at `/w/<slug>/reports`). The page follows its own
  * address, as People's does (the path the App Router page hands it), so a move between two lenses is a pushed or replaced entry and
  * never a request for a page, and every lens draws from the one read the surface holds, so a move asks for nothing and never
- * blanks the body. The frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the page draws one row above
- * everything (the period, its days and the Ask door) and the lens's body (lenses/). A real workspace draws the bridge's own numbers
+ * blanks the body. The frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the period and its days stand
+ * at the right of the strip's row on a desk, as the page's act (head.ts), and on a row of their own above the body on a phone; the
+ * page draws the lens's body (lenses/). A real workspace draws the bridge's own numbers
  * (`useSurface("reports")`); a demo session draws the same page from the contracts sample (sample.ts); without either, the page says
  * what Reports reads.
  */
@@ -17,14 +18,12 @@ import {
   type LensId,
   type ReportPeriodId,
 } from "@chanlytics/contracts";
-import { askAbout, demoSession } from "../legacy-verbs";
-import { Button } from "../kit/button/button";
+import { demoSession } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
-import { Icon } from "../kit/icon/icon";
 import { Segmented } from "../kit/segmented/segmented";
 import { Tooltip } from "../kit/tooltip/tooltip";
 import { useSurface } from "../use-surface";
-import { useRptPhone } from "./blocks";
+import { useRptDesk, useRptPhone } from "./blocks";
 import { lensShownHere } from "./chrome";
 import { useReportsStanding } from "./head";
 import { CampaignsLens } from "./lenses/campaigns";
@@ -54,26 +53,29 @@ function readsAWorkspace() {
   );
 }
 
-/** One row above everything: the period, the days it covers, and a door to ask about them. */
-function periodRow(p: {
+interface PeriodProps {
   R: ReportsSurface;
   /** The period the control shows: the pick as it is made, until the page's own catches up with it. */
   chosen: ReportPeriodId;
   failed: ReportPeriodId | null;
   pick: (period: ReportPeriodId) => Promise<void>;
-}) {
-  const { R, chosen, failed, pick } = p;
+}
+
+/** The period's three parts: the control, the days it covers, and what is said of a period that failed to load. */
+function periodParts({ R, chosen, failed, pick }: PeriodProps) {
   const vm = R.vm;
-  return (
-    <div className="rpt-head">
-      {/* The control never holds while a period loads: an arrow key chooses and choosing reads, so a key held on 30 days must be
-          able to go on to Month. Each pick is read, the surface drops the answer for a period left, and the latest pick wins. */}
+  return {
+    // The control never holds while a period loads: an arrow key chooses and choosing reads, so a key held on 30 days must be
+    // able to go on to Month. Each pick is read, the surface drops the answer for a period left, and the latest pick wins.
+    control: (
       <Segmented
         label="Period"
         value={chosen}
         onValueChange={(next) => void pick(next)}
         options={REPORT_RANGES.map((r) => ({ value: r.id, label: r.label, testid: `period-${r.id}` }))}
       />
+    ),
+    dates: (
       <Tooltip tip={`Days follow ${vm.timezone}`}>
         <span
           className="rpt-dates"
@@ -84,21 +86,38 @@ function periodRow(p: {
           {vm.since} to {vm.until}
         </span>
       </Tooltip>
-      {failed && (
-        <span className="rpt-failed" role="status" aria-live="polite">
-          Couldn't load {REPORT_RANGES.find((r) => r.id === failed)?.label}. Still showing {vm.rangeLabel}.
-        </span>
-      )}
-      <Button
-        size="sm"
-        className="rpt-ask"
-        aria-label="Ask about this period"
-        onClick={() => askAbout({ prompt: `What stood out in my last ${vm.rangeLabel}?` })}
-        data-testid="reports-ask"
-      >
-        <Icon name="sparkle" size={13} />
-        <span className="rpt-ask-label">Ask about this period</span>
-      </Button>
+    ),
+    failedLine: failed ? (
+      <span className="rpt-failed" role="status" aria-live="polite">
+        Couldn't load {REPORT_RANGES.find((r) => r.id === failed)?.label}. Still showing {vm.rangeLabel}.
+      </span>
+    ) : null,
+  };
+}
+
+/**
+ * The period on a desk: the page's act, at the right of the strip of lenses (head.ts), the control at the row's end with the days
+ * it covers before it (Ruben, 6 Oct 2026: it stood on a row of its own under the strip).
+ */
+function periodAct(p: PeriodProps) {
+  const { control, dates, failedLine } = periodParts(p);
+  return (
+    <div className="rpt-period" data-testid="reports-period">
+      {failedLine}
+      {dates}
+      {control}
+    </div>
+  );
+}
+
+/** The period on a phone: one row above the body, under the strip, as it stood. */
+function periodRow(p: PeriodProps) {
+  const { control, dates, failedLine } = periodParts(p);
+  return (
+    <div className="rpt-head" data-testid="reports-period">
+      {control}
+      {dates}
+      {failedLine}
     </div>
   );
 }
@@ -141,11 +160,10 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
     setPending(null);
   }, [fetchedAt]);
   const R = live || (demoSession() ? reportsSample(samplePeriod) : null);
-  useReportsStanding(lens, R);
-  if (!R) return readsAWorkspace();
+  const desk = useRptDesk();
   const pick = async (period: ReportPeriodId) => {
     // The one shown, or the one on its way: nothing to read. Any other pick is read, whatever else is out.
-    if (period === (pending ?? R.period)) return;
+    if (!R || period === (pending ?? R.period)) return;
     if (!live) {
       setSamplePeriod(period);
       return;
@@ -158,6 +176,9 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
       setFailed(period);
     }
   };
+  const period = R ? { R, chosen: pending ?? R.period, failed, pick } : null;
+  useReportsStanding(lens, R, period && desk ? periodAct(period) : null);
+  if (!R || !period) return readsAWorkspace();
   // Dimmed while the page shows another period than the one picked. A pick painted at once from a held view (a pick back to
   // the period on screen, made while another loads) waits on nothing, though the read behind it is still out.
   const busy = pending !== null && pending !== R.period;
@@ -170,9 +191,9 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
       data-loading={busy ? "" : undefined}
     >
       <div className="rpt-inner">
-        {/* One row above everything: the period, the days it covers, and a door to ask about them. The frame's head says
-            Reports and the lens's answer; the page does not title itself. */}
-        {periodRow({ R, chosen: pending ?? R.period, failed, pick })}
+        {/* On a phone, one row above everything: the period and the days it covers (a desk's stand at the right of the strip
+            of lenses, the page's act). The frame's head says Reports and the lens's answer; the page does not title itself. */}
+        {!desk && periodRow(period)}
         <div className="rpt-body" data-dims aria-busy={busy ? "true" : "false"}>
           {lensBody(lens, { R, pick, phone }, lensShownHere(lens))}
         </div>
