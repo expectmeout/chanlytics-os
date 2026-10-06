@@ -150,9 +150,12 @@ export { industryOf, businessTypeOf, companyTypeOf, industryWords, BUSINESS_INDU
 export { dataSentences, smsConsentSentence, businessPageVM, textingTermsVM, businessPageMetadata, textingTermsMetadata, registrationPreflight, SMS_CLAUSES } from "./lines/business-page";
 export { businessFieldsFor, businessGroupWordsFor, emptyBusinessRecord, businessRecordProblems, businessRecordForPath, businessRecordLine, ABOUT_MIN, ABOUT_MAX } from "./lines/business-record";
 export { channelFor, channelKindWords, toChannelVM, CHANNEL_KIND_WORDS, CHANNEL_ANSWERED } from "./lines/channels";
+export { LINE_CODES_WITHIN_MS, LINE_CODES_MAX, LINE_CODES_EVERY_MS } from "./lines/line-codes";
 export { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./lines/line-failure";
 export { lineReleaseAfterDays, billingEndedAt, lineReleaseStep, lineReleaseDay, lineReleaseWarning, lineReleasedWords, LINE_RELEASE_WARN_DAYS, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS } from "./lines/line-release";
+export { standingFromConfig, standingNeedsRead, standingAlertWords } from "./lines/number-standing";
 export { registrationPathOf, soleProprietorLimits, REGISTRATION_PATHS, SOLE_PROP_LIMITS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS } from "./lines/registration-path";
+export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
 export { APP_ROUTE_RE, PUSH_TOKEN_MAX, parsePageMessage, parseShellMessage } from "./mobile/app-bridge";
 export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_STALE_MS, CALL_ACTIVITY_ROLES, callActivityStart, callActivityPropsOf } from "./mobile/live-activity";
 export { todayWidgetSnapshot, parseTodayWidgetSnapshot } from "./mobile/widget";
@@ -234,7 +237,7 @@ export { zoneDayKey, clockTime, clockDate, clockDateYear, clockShort, clockStamp
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./shared/csv";
 export { EDGE_ERROR_CODES } from "./shared/edge-errors";
 export { normalizeEmail, whyNotAnEmail, addressInMessage } from "./shared/email-address";
-export { optInPurposeOf, optInLink, TENANT_STATUSES, MEMBERSHIP_ROLES, CHANNEL_KINDS, CONVERSATION_STATES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_TYPES, MESSAGE_STATUSES, CONSENT_STATES, JOB_KINDS, JOB_STATES, WABA_FIELDS, EVENT_KINDS, OPT_OUT_PATTERN, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, SMS_OPT_OUT_PATTERN, OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, ESCALATION_REASONS, ESCALATION_STATES, DECISION_VERBS, DECISION_SUBJECTS, ACTOR_TYPES, TEMPLATE_STATUSES } from "./shared/enums";
+export { optInPurposeOf, optInLink, waMeDigits, TENANT_STATUSES, MEMBERSHIP_ROLES, CHANNEL_KINDS, CONVERSATION_STATES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_TYPES, MESSAGE_STATUSES, CONSENT_STATES, JOB_KINDS, JOB_STATES, WABA_FIELDS, EVENT_KINDS, OPT_OUT_PATTERN, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, SMS_OPT_OUT_PATTERN, OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, ESCALATION_REASONS, ESCALATION_STATES, DECISION_VERBS, DECISION_SUBJECTS, ACTOR_TYPES, TEMPLATE_STATUSES } from "./shared/enums";
 export { ok, err } from "./shared/envelope";
 export { ERROR_CODES, AppError } from "./shared/errors";
 export { escapeHtml } from "./shared/html";

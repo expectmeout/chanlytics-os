@@ -397,13 +397,22 @@ export function optInPurposeOf(text: string): "conversational" | "marketing" | n
  */
 export const OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" } as const;
 
+/**
+ * What a wa.me link takes of a number: its digits, with no plus, spaces or brackets, from the number as E.164 or as it is shown, or
+ * null where there are too few to be one. The one place that says it: the opt-in link below and the Connections row's "try it" note.
+ */
+export function waMeDigits(number: string | null | undefined): string | null {
+  const digits = String(number ?? "").replace(/\D/g, "");
+  return digits.length < 8 ? null : digits;
+}
+
 /** WhatsApp opened on the workspace's number with the phrase ready to send; null without a usable number. */
 export function optInLink(
   numberE164: string | null | undefined,
   phrase: string = OFFERS_OPT_IN_PHRASES.en,
 ): string | null {
-  const digits = String(numberE164 ?? "").replace(/\D/g, "");
-  if (digits.length < 8) return null;
+  const digits = waMeDigits(numberE164);
+  if (!digits) return null;
   return `https://wa.me/${digits}?text=${encodeURIComponent(phrase)}`;
 }
 
