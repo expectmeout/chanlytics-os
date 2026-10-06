@@ -668,7 +668,14 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const readsReach =
       ["search_people", "list_audiences", "propose_broadcast", "propose_playbook"].includes(old) &&
       counted.includes("rpc:people_list");
-    const reads = readsReach ? [...counted, "tenant_channels.select", "lines.select"] : counted;
+    const reachReads = readsReach ? [...counted, "tenant_channels.select", "lines.select"] : counted;
+    // 6 Oct 2026 (#1431): a person's page reads the decisions recorded about them, not only those on their threads
+    // (packages/db personDecisions), so people.get reads `decisions` once even for a person with no thread, or none at all.
+    // The one change to its reads; its bytes are unchanged.
+    const reads =
+      NAMES[old] === "people.get" && !reachReads.includes("decisions.select")
+        ? [...reachReads, "decisions.select"]
+        : reachReads;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)
