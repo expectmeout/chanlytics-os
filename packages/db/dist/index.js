@@ -3361,6 +3361,13 @@ async function readLeadOne(db, tenantId, leadId, searchId) {
   return { lead, member, places: places.count ?? 1 };
 }
 
+// src/lines.ts
+async function ownLineOf(db, tenantId) {
+  const { data, error } = await db.from("lines").select("id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state").eq("tenant_id", tenantId).neq("provider", "carrier").neq("voice_state", "failed").order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's own line: ${error.message}`);
+  return data;
+}
+
 // src/realtime.ts
 var EVERY = ["INSERT", "UPDATE", "DELETE"];
 var INSERTS = ["INSERT"];
@@ -3733,6 +3740,7 @@ export {
   offersEmailReach,
   outreachFactsOf,
   outreachModeOf,
+  ownLineOf,
   ownVersionsFiled,
   parentEmailOf,
   pauseConversation,

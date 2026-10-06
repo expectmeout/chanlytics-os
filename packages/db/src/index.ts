@@ -380,6 +380,7 @@ export type {
   PartnerInviteMail,
 } from "./repositories/partner";
 export { readLeadOne } from "./repositories/leads";
+export { ownLineOf } from "./lines";
 export type { LeadOneLead, LeadOneMember } from "./repositories/leads";
 export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realtime";
 export type { SubscribeOptions } from "./realtime";

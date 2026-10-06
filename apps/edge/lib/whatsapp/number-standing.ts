@@ -12,12 +12,19 @@
  * outcome and a line (`wa_standing_read_failed`, `wa_standing_keep_failed`, `wa_standing_tell_failed`; `wa_standing_told` when
  * the owner was told). A line carries the workspace and the channel by id, Meta's answer by its status and code, and never a
  * token, a number or Meta's own words (they often name the number asked about, as the quality sweep's do not either).
+ *
+ * `checkNumberStanding` is the owner's check from Connections (POST /api/admin/whatsapp/standing): the workspace's active
+ * number, its own token, and this reading.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { keepChannelStanding, type Database, type WhatsappNumber } from "../packages/db.js";
-import { standingAlertWords, type NumberStanding } from "../packages/contracts.js";
-import { errField, type Logger } from "../log.js";
+import { json, refuse } from "../http.js";
+import { workspaceFor, type Admitted } from "../admin-auth.js";
+import { pg } from "../pg.js";
+import { keepChannelStanding, whatsappNumberOf, type Database, type WhatsappNumber } from "../packages/db.js";
+import { standingAlertWords, UUID, type NumberStanding } from "../packages/contracts.js";
+import { errField, logger, type Logger } from "../log.js";
 import { notify } from "../ops/notify.js";
+import { waCredentialsForTenant } from "../tenant-runtime.js";
 import { numberStanding } from "./meta-graph.js";
 import { NUM, notificationsFor } from "./waba-events.js";
 
@@ -81,4 +88,38 @@ export async function readAndKeepStanding(p: StandingPorts, token: string, n: Nu
     p.log.error("wa_standing_keep_failed", { tenant_id: n.tenant_id, channel_id: n.channel_id, error: errField(e) });
     return { outcome: "unreadable", standing: null, told: false };
   }
+}
+
+/**
+ * POST /api/admin/whatsapp/standing: an owner asks what Meta holds about the workspace's number now. The door is the knock
+ * (authorizeAdmin) and the body (readBody); this is the rest: the workspace's active WhatsApp number, its own credentials,
+ * and the one reading every caller makes. Refused as the template doors refuse: no number is 409 no_channel (a channel
+ * switched off while the read was out too), no credentials 503 no_token, Meta not answering 502 meta_failed; answered
+ * { ok, kept, can_send } and nothing of Meta's words.
+ */
+export async function checkNumberStanding(auth: Admitted, body: Partial<{ tenant_id?: unknown }>): Promise<Response> {
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  const tenantId = ws.tenantId ?? "";
+  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant");
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+  let number: WhatsappNumber | null;
+  try {
+    number = await whatsappNumberOf(db, tenantId);
+  } catch (e) {
+    return refuse(503, "channel_read_failed", errField(e));
+  }
+  if (!number) return refuse(409, "no_channel");
+  const creds = await waCredentialsForTenant(db, tenantId);
+  // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
+  if (creds.outcome !== "present") return refuse(503, "no_token");
+  const read = await readAndKeepStanding(
+    { db, log: logger({ tenant_id: tenantId }) },
+    creds.credentials.accessToken,
+    number,
+  );
+  if (read.outcome === "unreadable") return refuse(502, "meta_failed");
+  if (read.outcome === "gone") return refuse(409, "no_channel");
+  return json(200, { ok: true, kept: read.outcome, can_send: read.standing?.can_send ?? null });
 }

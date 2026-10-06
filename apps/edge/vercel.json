@@ -9,6 +9,9 @@
     "api/admin/lines.ts": {
       "maxDuration": 60
     },
+    "api/admin/lines/codes.ts": {
+      "maxDuration": 60
+    },
     "api/admin/llm.ts": {
       "maxDuration": 60
     },
@@ -22,6 +25,9 @@
       "maxDuration": 30
     },
     "api/admin/voice-provision.ts": {
+      "maxDuration": 60
+    },
+    "api/admin/whatsapp/standing.ts": {
       "maxDuration": 60
     },
     "api/apify-webhook.ts": {

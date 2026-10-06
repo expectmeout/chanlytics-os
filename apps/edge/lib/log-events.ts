@@ -236,6 +236,7 @@ export const LOG_EVENTS = [
   "leads_sweep_done",
   "leads_sweep_read_failed",
   "leads_sweep_reconcile_failed",
+  "line_codes_read_failed",
   "line_release_failed",
   "line_release_report",
   "line_release_sweep_failed",
