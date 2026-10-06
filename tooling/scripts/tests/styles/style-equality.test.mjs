@@ -12,7 +12,6 @@ const PROPERTIES = ["color", "border-top-left-radius"];
 const META = {
   format: 2,
   pages: {},
-  scenes: {},
   viewports: {},
   themes: ["dark"],
   edgeStep: 1 / 64,

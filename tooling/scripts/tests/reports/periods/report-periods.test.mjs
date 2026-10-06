@@ -61,6 +61,14 @@ test("a page that says it shows N days is described over N days, for any whole c
 const REMOVE_AFTER = "2026-10-19";
 const GRACE_DAYS = 30;
 
+/** Every test that still sends `days=` to a report route: the day the parameter ends says where else to look. */
+const SENDERS_OF_DAYS = [
+  "ask/ask-routes.test.mjs (reports and reports/campaigns, `?days=`)",
+  "ask/readers.test.mjs (the two loops that run a route beside its reader, `?days=${days}`)",
+  "reach-out-back/back-routes.test.mjs (reports/reach-outs, `&days=`)",
+  "reports/campaign-report.test.mjs (reports/campaigns, `?days=`)",
+];
+
 test("the days parameter ends on 19 October 2026: the change that removes it deletes its branch in report-periods.ts and this test", (t) => {
   assert.equal(reportPeriodOf({ days: "30" }), "30d", "still read, for the tabs and the head's old prefetch");
   const today = new Date().toISOString().slice(0, 10);
@@ -69,6 +77,6 @@ test("the days parameter ends on 19 October 2026: the change that removes it del
     t.diagnostic(`its day (${REMOVE_AFTER}) has passed: remove the days parameter from the three report routes`);
   assert.ok(
     today <= lastDay,
-    `the days parameter's day (${REMOVE_AFTER}) passed more than ${GRACE_DAYS} days ago: remove it (report-periods.ts reportPeriodOf, the three routes' query) and this test`,
+    `the days parameter's day (${REMOVE_AFTER}) passed more than ${GRACE_DAYS} days ago: remove it (report-periods.ts reportPeriodOf, the three routes' query), this test, and what still sends it: ${SENDERS_OF_DAYS.join("; ")}`,
   );
 });

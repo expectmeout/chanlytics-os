@@ -42,43 +42,7 @@
 .rp-agents { padding: 0; overflow: hidden; }
 .rp-agents .fl-card-head { padding: 14px 16px 10px; margin-bottom: 0; }
 
-/* ====================================================================
-   Shared with other surfaces: Messages draws rp2 cards; Today draws its
-   week, and Google its listing, with RpTile.
-   ==================================================================== */
 
-.rp2-card { position: relative; display: flex; flex-direction: column; }
-.rp2-card .fl-card-head { align-items: center; }
-.rp2-foot { font-size: 11.5px; color: var(--ink-dim); }
-
-/* The strip: the indicators in one frame with hairline dividers — not six cards. */
-.rp2-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
-.rp2-tiles.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.rp2-tile { display: flex; flex-direction: column; gap: 2px; padding: 11px 14px 9px; border: none; border-right: 1px solid var(--line); border-radius: 0; background: transparent; min-width: 0; box-shadow: none; }
-.rp2-tile:last-child { border-right: none; }
-.rp2-tile-label { font-family: var(--font-mono); text-transform: uppercase; color: var(--ink-faint); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rp2-tile-value { font-size: 21px; font-weight: 500; letter-spacing: -0.015em; color: var(--ink); line-height: 1.15; font-variant-numeric: tabular-nums; }
-.rp2-tile-meta { font-size: var(--text-xs); color: var(--ink-dim); line-height: 1.35; text-overflow: ellipsis; }
-.rp2-tiles.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@media (max-width: 1100px) {
-  .rp2-tiles, .rp2-tiles.five, .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .rp2-tile { border-bottom: 1px solid var(--line); }
-  .rp2-tile:nth-child(3n) { border-right: none; }
-}
-@media (max-width: 640px) {
-  .rp2-tiles, .rp2-tiles.five, .rp2-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rp2-tile:nth-child(3n) { border-right: 1px solid var(--line); }
-  .rp2-tile:nth-child(2n) { border-right: none; }
-}
-
-/* Cards: the same frame as the strip, tighter. */
-.rp2-card { padding: 12px 14px; border-radius: var(--radius-md); gap: 8px; }
-.rp2-card .fl-card-title { font-size: var(--text-sm); }
-.rp2-card .fl-card-sub { font-variant-numeric: tabular-nums; }
-/* The meaning line may take two lines before it clips. */
-.rp2-tile-meta { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-/* Twenty-one small capitals must fit a strip cell beside a sidebar. */
-.rp2-tile-label { font-size: 9px; letter-spacing: 0.05em; }
 
 /* ---- Google reviews: the words Google shows, with their stars ---- */
 /* The reviews take the whole row, so they read in columns at a comfortable measure rather than as one line of text
@@ -105,8 +69,8 @@
 .rp2-review-drafted.dim { color: var(--ink-dim); }
 
 /* ====================================================================
-   The Reports page: pages/reports.jsx (the shell and Google) and
-   pages/reports-sections.jsx. One radius scale: cards 12px (the kit's),
+   The Reports page (surfaces/reports/): the page, its lenses and Google's
+   section. One radius scale: cards 12px (the kit's),
    controls 6 to 9px. Ink blue is the one data hue and the coral accent
    never marks data here. The page owns its scroll, as a pane route does:
    the scroller is full width so its bar sits at the window edge, and the
@@ -163,27 +127,24 @@
 .rpt-fact + .rpt-fact { border-top: 1px solid var(--line); }
 /* A fact is one row; with a door the whole row is the button. */
 .rpt-fact .rpt-fact-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 0; text-align: left; border-radius: var(--radius-sm); }
-button.rpt-fact-row { cursor: pointer; }
-button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--ink); }
+/* A row that is a link is not underlined text: its words keep their own ink, and the door's chip is what answers a hover. */
+a.rpt-fact-row { text-decoration: none; }
+a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--ink); }
 /* The fact's kind is the one mark (.mark), neutral; a fact that asks for a look says so in its words. */
 .rpt-fact.is-warn .rpt-fact-text { color: var(--warn-ink); }
-.rpt-fact-copy { min-width: 0; font-size: 13px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpt-fact-copy { min-width: 0; font-size: 13px; line-height: 1.45; }
 .rpt-fact-text { color: var(--ink); }
 .rpt-fact-sub { color: var(--ink-dim); }
 .rpt-fact-sub::before { content: ", "; }
 .rpt-fact-door { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; transition: background var(--duration-fast), color var(--duration-fast); }
 .rpt-fact-quiet { margin: 4px 0 6px; font-size: 13px; color: var(--ink-dim); }
 
-/* The strip: five figures (the kit's Figure) in one frame with hairline dividers, a list of terms and their values. */
+/* The strip: five figures (the kit's Figure) in one frame with hairline dividers, a list of terms and their values; Google's four are
+   the same strip with one cell fewer. */
 .rpt-figures { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
 .rpt-cell { padding: 12px 18px 13px; }
 .rpt-cell + .rpt-cell { border-left: 1px solid var(--line); }
-/* Google's tiles further down are the shared RpTile (Today draws its week with it); on this page they wear this look. */
-.rpt .rp2-tiles { border-radius: var(--radius-lg); }
-.rpt .rp2-tile { padding: 12px 18px 13px; }
-.rpt .rp2-tile-label { font-family: inherit; font-size: var(--text-sm); letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--ink-muted); }
-.rpt .rp2-tile-value { font-size: var(--text-2xl); letter-spacing: -0.025em; line-height: 1.2; font-variant-numeric: normal; }
-.rpt .rp2-tile-meta { font-size: 12px; }
+.rpt-figures.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 /* ---------- inside the cards ---------- */
 .rpt-hours { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -208,8 +169,7 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 .rpt-deals-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
 .rpt-grid > .rpt-deals-lines { align-self: center; padding-left: 8px; }
 .rpt-sources { max-height: none; }
-.rpt-sources .rpt-src { font-size: 13px; color: var(--ink); font-weight: 500; text-align: left; border-radius: var(--radius-xs); }
-.rpt-sources .rpt-src:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rpt-sources .rpt-src { text-align: left; border-radius: var(--radius-xs); }
 .rpt-src-meta { display: block; font-size: 11.5px; color: var(--ink-dim); }
 .rpt-dim { color: var(--ink-dim); }
 
@@ -219,9 +179,14 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   .rpt-grid > .rpt-span-4 { grid-column: span 6; }
   .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
   .rpt-grid > .rpt-deals-lines { padding-left: 0; }
-  .rpt-figures, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rpt-figures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rpt-cell:nth-child(4) { border-left: none; }
   .rpt-cell:nth-child(n + 4) { border-top: 1px solid var(--line); }
+  /* Four make two rows of two, not three and one. */
+  .rpt-figures.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rpt-figures.four .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
+  .rpt-figures.four .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
+  .rpt-figures.four .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
 }
 @media (max-width: 760px) {
   .rpt-inner { padding: 0 16px 40px; }
@@ -240,14 +205,14 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   .rpt-hero-lead { grid-column: 2; grid-row: 1; }
   .rpt-hero-line, .rpt-hero-compare { grid-column: 1 / -1; }
   .rpt-hero-number { font-size: 25px; }
-  .rpt-fact-copy { white-space: normal; }
   .rpt-fact-sub::before { content: ""; }
   .rpt-fact-sub { display: block; }
-  .rpt-figures, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rpt-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
   .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
   .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .rpt-cell:last-child { grid-column: 1 / -1; border-left: none; }
+  .rpt-figures.four .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
   .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
   .rpt .ck-pie { flex-direction: column; align-items: stretch; }
   .rpt .ck-pie-figure { align-self: center; }
@@ -279,8 +244,8 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
-/* Google's strip of numbers sits inside its card: an inset there, not glass on glass. */
-.rp2-strip-google {
+/* Google's strip of four: an inset, not glass on glass. */
+.rpt-figures.four {
   border: 0;
   border-radius: var(--surface-inset-radius);
   background: var(--surface-inset-fill);

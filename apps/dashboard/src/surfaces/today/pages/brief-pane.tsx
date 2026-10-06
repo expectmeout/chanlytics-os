@@ -107,7 +107,7 @@ function listenButton(speech: ReturnType<typeof useSpeech>, line: string, place:
 }
 
 export const TodayBriefPane = () => {
-  useMoved(["today", "reports", "broadcasts"]);
+  useMoved(["today", "broadcasts"]);
   const vm = surfaceValue("today");
   const day = useDayVm();
   // The runs the queue holds for a word, said as the queue says them (todayRunWords).

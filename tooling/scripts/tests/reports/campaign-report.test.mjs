@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toCampaignReportVM } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 // The route runs below over a database in memory; a module that ever builds a service client reads these, and nothing
@@ -214,39 +214,8 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
     route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=14d&workspace=${W}`), ctx()),
     (e) => e.status === 400,
   );
-  const s = readCode("apps/dashboard/src/surfaces/reports/surface.ts");
-  assert.ok(
-    s.includes('read("GET reports/campaigns", { query: { period } })'),
-    "fetched with the same period, beside the receptionist's numbers",
-  );
-  assert.ok(
-    s.includes("campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report)"),
-    "its own read: null when it fails, never a blank page (D9)",
-  );
-  const lens = (name) => readCode(`apps/dashboard/src/surfaces/reports/lenses/${name}.tsx`);
-  const p = lens("campaigns");
-  assert.ok(
-    p.includes('testid="chart-funnel"'),
-    "the funnel: sent, delivered, wrote back (the campaign tiles folded into it: each number once)",
-  );
-  assert.ok(
-    p.includes('testid="chart-campaigns"'),
-    "chart-campaigns: the card, the empty and the failed read all carry it",
-  );
-  assert.ok(
-    p.includes('testid="chart-sources"') && p.includes('title="By playbook and broadcast"'),
-    "the sources card",
-  );
-  assert.ok(
-    p.includes('<RptSection title="Campaigns"') && lens("overview").includes("<RptTiles "),
-    "the page is sectioned, and the strip is one frame (its testid is executed: reports-page.test.mjs)",
-  );
-  assert.ok(
-    !/\$\d|revenue|booked from/i.test(
-      ["overview", "receptionist", "people", "pipeline", "campaigns", "reviews"].map(lens).join("\n"),
-    ),
-    "nothing in dollars",
-  );
+  // What the surface does with this read (its own request, null where it fails) and what the Campaigns lens draws from it are
+  // executed, not read as text: reports/lenses/reports-lens-page.test.mjs and shell/empty-failed.test.mjs.
 });
 
 test("the one sentence under each campaign card: who said yes to messages or stop, and how many runs sent it", () => {

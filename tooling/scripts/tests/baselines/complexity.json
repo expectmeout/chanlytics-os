@@ -386,7 +386,7 @@
   },
   "packages/contracts/src/today/today-figures.ts::figuresOf#1": {
     "lines": 200,
-    "branches": 55,
+    "branches": 54,
     "depth": 2
   },
   "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {

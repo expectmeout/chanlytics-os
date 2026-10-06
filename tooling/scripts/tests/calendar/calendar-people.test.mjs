@@ -1306,6 +1306,19 @@ test("asked, then booked: the report's one conversion line, in words that say wh
     ],
     [0, "Everyone who asked in the last 7 days has an appointment."],
   );
+  // One day (Month on the 1st): "1 day", never "1 days", in each place the card names its period.
+  assert.equal(
+    toBookingReportVM({ calendar: "ok", days: 1, asked: 2, booked: 1 }).words,
+    "of the people who wrote or called in the last 1 day have an appointment on the calendar",
+  );
+  assert.equal(
+    toBookingReportVM({ calendar: "ok", days: 1, asked: 3, booked: 3 }).rest,
+    "Everyone who asked in the last 1 day has an appointment.",
+  );
+  assert.equal(
+    toBookingReportVM({ calendar: "ok", days: 1, asked: 0, booked: 0 }).sub,
+    "nobody wrote or called in the last 1 day",
+  );
   // A page that draws the share itself (Reports' meter) says the rest in the view model's own words.
   assert.deepEqual(
     [

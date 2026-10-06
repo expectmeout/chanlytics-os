@@ -11,9 +11,9 @@ import { contactName } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
 import { reasonShort } from "../people/person-row-facts";
 import { capitalize, plural } from "../shared/words";
-import { andList, secondsPhrase } from "./today-bands";
+import { andList, secondsPhrase, speedClause } from "./today-bands";
 import { tzClock, tzDayAndTime } from "./today-clock";
-import type { MetricsSummaryDto } from "./today-metrics";
+import { todayReplySpeed, type MetricsSummaryDto } from "./today-metrics";
 import type { TodayFigureVM } from "./today-vm";
 
 /** "once", "twice", "3 times". */
@@ -169,7 +169,7 @@ export function figuresOf(
   const resolved = Math.max(0, p.escalations_new - todays.length);
   const answeredMeta =
     [
-      p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
+      speedClause(todayReplySpeed(m)),
       p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : "",
     ]
       .filter(Boolean)

@@ -76,9 +76,9 @@ test.describe("Google on a real workspace", () => {
     } else if (!linked) {
       await expect(page.getByTestId("google-none")).toContainText("Find it");
     } else {
-      const tiles = page.getByTestId("google-tiles").locator(".rp2-tile");
+      const tiles = page.getByTestId("google-tiles").locator("[data-figure]");
       await expect(tiles).toHaveCount(4);
-      for (const v of await tiles.locator(".rp2-tile-value").allInnerTexts())
+      for (const v of await tiles.locator(".figure-value").allInnerTexts())
         expect(v.trim()).toMatch(/^(\d+(\.\d)?|—|just now|\d+[smhd] ago|[A-Z][a-z]{2} \d{1,2})$/);
     }
 

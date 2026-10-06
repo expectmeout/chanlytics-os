@@ -400,15 +400,14 @@ both widths and the one look; and a page's **own restyle** by the running app, l
 `compare`, and `record` with `--against`, exits 0 when the two are equal: every edge within an eighth of a pixel (the
 browser once laid one line of text out 2/64 of a pixel apart in two recordings of one tree), a pseudo-element's laid-out
 lengths held the same way, and every other value the same. It exits 1 with the differences, what is gone or new before
-what moved (`--limit N` lists more), and 2 when the two were recorded differently (another browser, other pages,
-longhands or scenes) or the command failed.
+what moved (`--limit N` lists more), and 2 when the two were recorded differently (another browser, other pages
+or longhands) or the command failed.
 Either way it names the rules the change touched that no page of either tree drew: nothing here proves those, so the
 pull request names them with how they were checked, says what was compared, and that it was equal.
 
 What it cannot prove, so a pull request does not claim it:
 
-- a state no scene reaches: hover and focus but the scenes', a menu, sheet, fold or toast other than theirs, anything
-  after typing;
+- a state after the page is drawn: hover, focus, a menu, sheet, fold or toast, anything after typing;
 - a page that has left the shell, which the harness cannot draw (above), and the real surfaces the mockup stubs: Today, the
   Inbox, the Calendar and Live draw the seeded page, and Leads waits and then says it could not be read;
 - what the three's canvas draws, or any canvas;

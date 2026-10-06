@@ -1,6 +1,5 @@
 /**
- * What the lenses share (moved from sections.tsx, decision 0015): the props every lens body takes, and the card a period
- * nobody wrote or called in draws.
+ * What the lenses share: the props every lens body takes, and the card a period nobody wrote or called in draws.
  */
 import { lensEmpty, type LensId, type ReportPeriodId, type ReportVM } from "@chanlytics/contracts";
 import { EmptyState } from "../../kit/empty/empty";

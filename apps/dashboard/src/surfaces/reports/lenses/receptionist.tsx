@@ -1,5 +1,5 @@
-/** The Receptionist lens: who answered, how fast, why it stopped, the calls, and who booked (moved from sections.tsx). */
-import type { ReportVM } from "@chanlytics/contracts";
+/** The Receptionist lens: who answered, how fast, why it stopped, the calls, and who booked. */
+import { plural, type ReportVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { BarChart, BarList } from "../../kit/charts/bar";
 import { ChartCard, SegmentBar } from "../../kit/charts/card";
@@ -7,7 +7,7 @@ import { ckSecondsLabel } from "../../kit/charts/geometry";
 import { LineChart } from "../../kit/charts/line";
 import { EmptyState } from "../../kit/empty/empty";
 import { RptBooked, RptSection } from "../blocks";
-import { RPT_ANSWERED, RPT_CALLS, RPT_REPLY, rptMood, rptPlural, rptSpread } from "../series";
+import { RPT_ANSWERED, RPT_CALLS, RPT_REPLY, rptMood, rptSpread } from "../series";
 import type { ReportsSurface } from "../surface";
 import { nothingCameIn, type LensProps } from "./shared";
 
@@ -32,9 +32,9 @@ function answeredCard(vm: ReportVM, days: number) {
           height={188}
           animKey={days}
           ariaLabel="Customer messages per day, split by who answered. The arrow keys read each day."
-          tipNote={(d) => rptPlural(d.in, "customer message")}
+          tipNote={(d) => plural(d.in, "customer message")}
           describe={(d) =>
-            `${d.label}: ${rptPlural(d.in, "customer message")}, ${d.ai} answered by the receptionist, ${d.you} by you, ${d.none} unanswered`
+            `${d.label}: ${plural(d.in, "customer message")}, ${d.ai} answered by the receptionist, ${d.you} by you, ${d.none} unanswered`
           }
         />
       ) : (
@@ -89,7 +89,7 @@ function replyBody(vm: ReportVM, days: number) {
                     { key: "p50", label: "median reply", value: d.p50Label },
                     { key: "p90", color: "var(--chart-prior)", label: "slowest tenth", value: d.p90Label },
                   ],
-            note: d.p50 == null ? "No replies" : rptPlural(d.count, "reply", "replies"),
+            note: d.p50 == null ? "No replies" : plural(d.count, "reply", "replies"),
           })}
           describe={(d) =>
             d.p50 == null
@@ -182,7 +182,7 @@ function callsCard(vm: ReportVM, days: number) {
             yTicks={2}
             animKey={days}
             ariaLabel="Calls per day. The arrow keys read each day."
-            describe={(d) => `${d.label}: ${rptPlural(d.calls, "call")}`}
+            describe={(d) => `${d.label}: ${plural(d.calls, "call")}`}
           />
           <SegmentBar
             title="Caller mood, as the voice provider read it"

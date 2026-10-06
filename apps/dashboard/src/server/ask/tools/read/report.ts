@@ -5,9 +5,13 @@ import { load } from "../../../readers";
 import { report } from "../../../readers/report";
 import { defineRead, unlessNotFound, type ToolContext } from "../context";
 
+/** The counts of days the table offers (Month is no count: it is the days since the 1st, and the page's own), as the model is told them. */
+const PERIOD_DAYS = REPORT_RANGES.flatMap((r) => (r.days === null ? [] : [r.days]));
+const PERIOD_DAYS_SAID = `${PERIOD_DAYS.slice(0, -1).join(", ")} or ${PERIOD_DAYS.at(-1)}`;
+
 async function getReport(t: ToolContext, input: { days: number }): Promise<unknown> {
+  // The schema below refuses any other count, so the turn never gets here with one.
   const days = Number(input.days) || 30;
-  if (!REPORT_RANGES.some((r) => r.days === days)) return { error: "days must be 7, 30 or 90" };
   // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
   // beside it, with how the workspace's customers buy taken from the turn (ledger #1). A report the function will not
   // answer is the reader's 404, said as the tool always said it.
@@ -53,10 +57,9 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
 
 export const reportTool = defineRead({
   name: "report",
-  description:
-    "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
-  // The three periods as literals, not a number: the schema refuses 8, and says the three it takes.
-  input: z.object({ days: z.literal([7, 30, 90]) }),
+  description: `The Reports page for the last ${PERIOD_DAYS_SAID} days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes ${PERIOD_DAYS_SAID} and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.`,
+  // The table's counts as literals, not a number: the schema refuses 8, and says the ones it takes.
+  input: z.object({ days: z.literal(PERIOD_DAYS) }),
   label: "Reading Reports",
   run: getReport,
 });
