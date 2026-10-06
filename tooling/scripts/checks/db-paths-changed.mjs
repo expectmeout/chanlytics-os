@@ -35,6 +35,8 @@ export const DB_PATHS = [
   "tooling/scripts/tests/_*.mjs",
   // and the helpers kept in shared/ (the midday zone the hours-bound suites run in)
   "tooling/scripts/tests/shared/**",
+  // and the clocks' kinds, which the register's suite (ops/sweep-registry.db.test.mjs) holds every registered clock to
+  "tooling/scripts/tests/clocks/_*.mjs",
   // what the suites run against it: the packages that write rows, their sources and the dists built from them (a change
   // to contracts or channels that reaches a suite through one of them rewrites that dist, and so replays)
   "packages/core/**",
