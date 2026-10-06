@@ -75,10 +75,10 @@ async function listThreads(t: ToolContext, input: { filter: string }): Promise<u
       route: `inbox/th-${v.conversationId}`,
       who: v.who,
       state: threadState(v),
-      held_draft: v.veto
-        ? { message_id: v.veto.messageId, text: v.veto.draft.slice(0, 200), why: v.veto.why?.summary ?? null }
-        : v.heldDraft
-          ? { message_id: v.heldDraft.messageId, text: v.heldDraft.body.slice(0, 200) }
+      // A draft still waiting (heldDraftWaits), as the held filter counts it: one past its deadline is going out.
+      held_draft:
+        v.veto && heldDraftWaits(v, t.now.getTime())
+          ? { message_id: v.veto.messageId, text: v.veto.draft.slice(0, 200), why: v.veto.why?.summary ?? null }
           : null,
       last_message: v.preview.slice(0, 160),
       recent: v.timeline
@@ -132,15 +132,16 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
     state: threadState(vm),
     escalation: esc ? { id: esc.id, reason: reasonLabelOf(esc.reason), details: esc.details } : null,
     window_open: vm.windowOpen,
-    held_draft: vm.veto
-      ? {
-          message_id: vm.veto.messageId,
-          text: vm.veto.draft,
-          why: vm.veto.why
-            ? { summary: vm.veto.why.summary, reason: vm.veto.why.reason, facts: vm.veto.why.facts }
-            : null,
-        }
-      : null,
+    held_draft:
+      vm.veto && heldDraftWaits(vm, t.now.getTime())
+        ? {
+            message_id: vm.veto.messageId,
+            text: vm.veto.draft,
+            why: vm.veto.why
+              ? { summary: vm.veto.why.summary, reason: vm.veto.why.reason, facts: vm.veto.why.facts }
+              : null,
+          }
+        : null,
     messages: dto.messages.slice(-cap).map((m) => {
       const why = messageWhy(m);
       return {

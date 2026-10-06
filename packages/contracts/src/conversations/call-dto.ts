@@ -79,23 +79,33 @@ export interface CallDto {
 export const ABANDONED_MS = 15_000;
 
 export function abandonedCall(
-  dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail">,
+  dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome">,
 ): boolean {
   if (dto.direction !== "inbound") return false;
   // A dial that never connected is the other thing entirely, and a call that
   // reached voicemail already has its own row.
-  if (dto.status === "not_connected" || dto.in_voicemail) return false;
+  if (dto.status === "not_connected" || reachedVoicemail(dto)) return false;
   const ms = dto.duration_ms;
   if (typeof ms !== "number" || ms <= 0 || ms >= ABANDONED_MS) return false;
   return dto.disconnection_reason === "user_hangup";
 }
 
 /**
+ * Whether a call reached a voicemail, by any of the three signals its row can carry: the provider's analysis flag
+ * (in_voicemail, missing when the analysis did not run), the ending the provider recorded (voicemail_reached), and the
+ * outcome our own analysis gave. THE reading: the outcome ladder, an abandoned call, Today's rows and figures and a
+ * person's history ask it, so a pill cannot say Handled beside "Reached voicemail".
+ */
+export function reachedVoicemail(dto: Pick<CallDto, "in_voicemail" | "disconnection_reason" | "outcome">): boolean {
+  return dto.in_voicemail === true || dto.disconnection_reason === "voicemail_reached" || dto.outcome === "voicemail";
+}
+
+/**
  * Whether a call is a "missed call": a dial that never connected (`missed`, what the call view models carry for status
  * not_connected) and the customer's own. The one the receptionist placed and nobody answered is not missed by anyone
- * (callAttemptWords). A row that does not say who dialled is a customer's, as the bell reads it (FeedCall).
+ * (callAttemptWords). Every caller says who dialled; a row whose direction was never recorded (null) is a customer's.
  */
-export function missedCall(c: { missed: boolean; direction?: "inbound" | "outbound" | null }): boolean {
+export function missedCall(c: { missed: boolean; direction: "inbound" | "outbound" | null }): boolean {
   return c.missed && c.direction !== "outbound";
 }
 

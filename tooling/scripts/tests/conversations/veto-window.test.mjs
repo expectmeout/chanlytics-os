@@ -79,7 +79,7 @@ const takeOver = read("apps/dashboard/src/server/ports/core-ports.ts");
 test("'veto' reaches the brain instead of being held as a policy block", () => {
   // Before this, veto fell into the "hold everything for a human" branch — safe,
   // but it meant selecting veto silently disabled the receptionist.
-  assert.match(edge, /replyMode !== "auto" && replyMode !== "veto"/);
+  assert.match(edge, /!speaksUnattended\(replyMode\)/, "the gate asks the one rule");
 });
 
 test("a queued draft falls back to sending when it cannot be scheduled", () => {

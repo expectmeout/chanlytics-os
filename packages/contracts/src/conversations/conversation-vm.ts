@@ -13,7 +13,7 @@ import { agentFor, writtenChannelOf, threadChannelOf } from "./thread-channel";
 import { contactName, isIdentifierName, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime } from "./thread-clock";
 import { mediaVM, type MediaVM } from "./message-media";
-import { sentFactsOf, reachedCustomer, messageWords, isChatMessage } from "./message-words";
+import { sentFactsOf, messageWords, isChatMessage, lastExchanged } from "./message-words";
 import { messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
 import { standingOf, type Standing } from "./standing";
 import type { EscalationDto } from "./escalations";
@@ -122,10 +122,11 @@ export function toConversationVM(
   // to "open" ("they spoke last, you owe a reply") for a customer who had
   // merely phoned and been handled.
   const chat = dto.messages.filter(isChatMessage);
-  const callNotes = dto.messages.length - chat.length;
+  // A call's own note, never a team's note: what is not a chat message is not therefore a call.
+  const callNotes = dto.messages.filter((m) => m.type === "call_summary").length;
   // The last thing that actually happened between them: a queued or cancelled
   // draft is not the thread's last word, and previewing it read "handled".
-  const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  const last = lastExchanged(chat);
   // Who had that last word, when it was ours: the receptionist, the team, or a run. The row said
   // "Answered by the receptionist" whoever answered, and when the customer had spoken last.
   const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;

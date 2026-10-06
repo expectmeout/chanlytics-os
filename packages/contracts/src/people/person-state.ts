@@ -68,9 +68,10 @@ export function personStanding(r: StandingRow, nowMs: number, viewerId: string |
 /**
  * Whose attention a person's latest thread asks for, judged for `viewerId` (decision 0009): it needs you -- flagged
  * and nobody has it, or a reply counting down to send (standing.ts replyWaitsOnYou, as the Inbox counts it) -- or it
- * waits on you: you have it, or nobody is named on it and someone's reply paused the receptionist, and it is flagged
- * or they wrote last. A teammate's thread waits on them. People's Needs you and Waiting on you lists, and the row's
- * pill, are this.
+ * waits on you: you have it, by the one standing rule (holderOf's): flagged, and you claimed it or someone's reply
+ * paused the receptionist. A teammate's thread waits on them, and a name left on a thread nobody is working is no
+ * claim: the receptionist answers it. With no one looking a claim reads as yours (standing.ts reads an unknown so).
+ * People's Needs you and Waiting on you lists, and the row's pill, are this.
  */
 export function attentionOf(
   r: PersonRowDto,
@@ -79,12 +80,7 @@ export function attentionOf(
 ): "needs_you" | "waiting_on_you" | null {
   const v = personStanding(r, nowMs, viewerId);
   if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r.queued_reply_at }, nowMs)) return "needs_you";
-  const assignee = r.latest_assignee_user_id;
-  // With no one looking, an assignee reads as you (standing.ts): a row that cannot say whose claim it is does not
-  // accuse a teammate.
-  const owned = assignee ? !viewerId || assignee === viewerId : v.takenOver;
-  if (owned && (v.flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
-  return null;
+  return v.takenOver ? "waiting_on_you" : null;
 }
 
 /** When they last wrote or called: their message, or a call they placed. A call the owner made is not them asking. */

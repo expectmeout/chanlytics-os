@@ -61,17 +61,21 @@ const TEMPLATES_FRESH_MS = 5 * MIN_MS;
 type TemplatesAnswer = Awaited<ReturnType<typeof readTemplates>>;
 const readTemplates = () => read("GET templates");
 let keptTemplates: { at: number; answer: TemplatesAnswer } | null = null;
+/** Moved on by every forget: a read that went out before a save answers its own pass, and is not kept past the save. */
+let templatesGeneration = 0;
 
 /** A template written in this tab: the Inbox's next read asks for them again (refresh-map's templates writes). */
 export function forgetInboxTemplates(): void {
   keptTemplates = null;
+  templatesGeneration += 1;
 }
 
 /** The templates read, or the one kept from the last few minutes. A read that failed is never kept. */
 async function templatesFor(nowMs: number): Promise<TemplatesAnswer> {
   if (keptTemplates && nowMs - keptTemplates.at < TEMPLATES_FRESH_MS) return keptTemplates.answer;
+  const generation = templatesGeneration;
   const answer = await readTemplates();
-  keptTemplates = { at: nowMs, answer };
+  if (generation === templatesGeneration) keptTemplates = { at: nowMs, answer };
   return answer;
 }
 

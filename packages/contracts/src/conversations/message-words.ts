@@ -213,6 +213,22 @@ export function reachedCustomer(status: string | undefined): boolean {
   return status !== "queued" && status !== "failed" && status !== "canceled";
 }
 
+/**
+ * The last thing that happened between them: the newest message of the conversation (isChatMessage) they sent, or we
+ * sent and they received (reachedCustomer). A note, a call's note, a draft still held or canceled and a send that failed
+ * are not it. THE reading of who had the last word: Conversations' row, the Inbox's last word and Today's waiting rows
+ * ask it. Today read the thread's last row, and a teammate's note made a waiting customer look answered.
+ */
+export function lastExchanged<M extends Pick<MessageDto, "type" | "direction" | "status">>(
+  messages: readonly M[],
+): M | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (isChatMessage(m) && (m.direction === "inbound" || reachedCustomer(m.status))) return m;
+  }
+  return null;
+}
+
 const CALL_NOTE_PREFIX =
   /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/; // trade-word: the older notes said "salon"; the newer say "business"
 

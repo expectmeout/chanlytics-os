@@ -54,6 +54,11 @@ const AWAY_BEFORE_READ_AGAIN_MS = MIN_MS / 2;
 const BOOT_RETRY_MS = 800;
 /** A refresh waits this long after the last one asked for, unless the surface names its own debounce. */
 const REFRESH_DEBOUNCE_MS = 400;
+/**
+ * And never longer than this after the first: a broadcast's receipts are each their own notice, a few hundred
+ * milliseconds apart, and each restarted the wait, so a customer's new message reached no open page until they stopped.
+ */
+const REFRESH_MAX_WAIT_MS = 3_000;
 
 /**
  * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead) without
@@ -193,6 +198,8 @@ interface SurfaceRun {
   readonly cachedAtBoot: string | null;
   /** Each surface's pending refresh. */
   readonly timers: Map<string, ReturnType<typeof setTimeout>>;
+  /** When each pending refresh was first asked for: the wait ends by REFRESH_MAX_WAIT_MS after it. */
+  readonly firstAsked: Map<string, number>;
   cancelled: boolean;
   /** Leaves the live feed, once it is joined. */
   unsubscribe: (() => void) | null;
@@ -215,6 +222,7 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
     cachedAtBoot,
     cancelled: false,
     timers: new Map<string, ReturnType<typeof setTimeout>>(),
+    firstAsked: new Map<string, number>(),
     realtime: overrides.filter(subscribesToRealtime),
     unsubscribe: null,
     held: new Set(),
@@ -289,9 +297,16 @@ async function bootSurface(run: SurfaceRun, o: SurfaceOverride): Promise<void> {
 function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
   const prev = run.timers.get(o.key);
   if (prev) clearTimeout(prev);
+  const now = Date.now();
+  const first = run.firstAsked.get(o.key) ?? now;
+  run.firstAsked.set(o.key, first);
+  const wait = Math.max(0, Math.min(o.debounceMs ?? REFRESH_DEBOUNCE_MS, first + REFRESH_MAX_WAIT_MS - now));
   run.timers.set(
     o.key,
-    setTimeout(() => void refreshSurface(run, o, "refresh"), o.debounceMs ?? REFRESH_DEBOUNCE_MS),
+    setTimeout(() => {
+      run.firstAsked.delete(o.key);
+      void refreshSurface(run, o, "refresh");
+    }, wait),
   );
 }
 

@@ -1165,6 +1165,44 @@ test("who is waiting with nothing back: the customer wrote last an hour ago or m
   );
 });
 
+test("a team's note or a reply that never left, after the customer's words, does not hide that they are waiting", () => {
+  // Today read the thread's last ROW: a note a teammate left, or a draft someone canceled, made the customer's question
+  // look answered, where the Inbox's last word (the last thing that reached either side) still said they wrote last.
+  const trailing = (c) => ({
+    ...c,
+    messages: [
+      ...c.messages,
+      {
+        ...c.messages.at(-1),
+        id: `${c.id}-note`,
+        direction: "outbound",
+        sender: "system",
+        type: "note",
+        body: "Patch test required before colour.",
+        status: "delivered",
+        created_at: "2026-08-27T12:30:00Z",
+      },
+      {
+        ...c.messages.at(-1),
+        id: `${c.id}-canceled`,
+        direction: "outbound",
+        sender: "ai",
+        type: "text",
+        body: "We can fit you in at 3.",
+        status: "canceled",
+        created_at: "2026-08-27T12:40:00Z",
+      },
+    ],
+  });
+  const threads = busyThreads().map((c) => (c.id === "cv-d" ? trailing(c) : c));
+  const vm = toTodayVM(busyDay(), threads, [], busyCalls(), NOW);
+  assert.deepEqual(
+    vm.noReply.map((r) => [r.who, r.sinceMs]),
+    [["Dulce Amaro", Date.parse("2026-08-27T12:00:00Z")]],
+    "REGRESSION: the note and the canceled draft read as the business answering",
+  );
+});
+
 test("a reply to a reach-out read as a wrong person is not someone waiting with nothing back: nobody there is to answer, and a not-now still is one", () => {
   // The day's view model lists who waits; the readings (the Inbox's surface holds them) take out whom nobody is there to answer.
   const waiting = (readings) =>

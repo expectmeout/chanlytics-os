@@ -7,7 +7,8 @@ import { standingOf } from "../conversations/standing";
 import type { CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import type { EscalationDto } from "../conversations/escalations";
-import { messageWords, clipAtWord } from "../conversations/message-words";
+import { threadsWaitingOnYou } from "../conversations/inbox-thread";
+import { lastExchanged, messageWords, clipAtWord } from "../conversations/message-words";
 import { contactName } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
@@ -81,7 +82,7 @@ export interface TodayFacts extends TodayInput {
   /** Whether the calls read succeeded; false means the rows omit the phone, and the card says so. */
   callsRead: boolean;
   wires: TodayWire[];
-  /** The one number every surface shows for "need you": the Inbox badge counts the same threads by the same rule. */
+  /** The one number every surface shows for "need you": threadsWaitingOnYou, the number the badge is published with. */
   needsYouCount: number;
   /** The open escalations nobody has taken over, oldest waiting first, each read once. */
   escRecords: EscalationRecord[];
@@ -194,7 +195,7 @@ function escalationRecords(
 function closingConversations(conversations: ConversationDto[], escSet: Set<string>, now: Date): ConversationDto[] {
   return conversations.filter((c) => {
     if (escSet.has(c.id)) return false;
-    const last = c.messages[c.messages.length - 1];
+    const last = lastExchanged(c.messages);
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);
     return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * HOUR_MS : false;
@@ -219,7 +220,7 @@ export function todayFacts(input: TodayInput): TodayFacts {
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
     wires: todayWires(metrics),
-    needsYouCount: openEsc.length,
+    needsYouCount: threadsWaitingOnYou(conversations, escalations, now),
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
     closingConvs: closingConversations(conversations, escSet, now),

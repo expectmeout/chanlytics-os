@@ -105,7 +105,18 @@ test("an open escalation is needs_you, even for someone who opted out", () => {
 });
 
 test("waiting_on_you means a human owns the thread AND the last word was theirs", () => {
-  assert.equal(personStateFor(row({ latest_assignee_user_id: "u1" }), nowMs, ZONE), "waiting_on_you");
+  assert.equal(
+    personStateFor(row({ latest_assignee_user_id: "u1", latest_paused_until: iso(-3 * H) }), nowMs, ZONE),
+    "waiting_on_you",
+    "taken over: their name, and the receptionist paused for them",
+  );
+  // A name left on a thread nobody is working is not a claim (standing.ts): the receptionist answers it, as the
+  // Inbox and the person's page say ("Answering"). The list said Waiting on you over the same thread.
+  assert.equal(
+    personStateFor(row({ latest_assignee_user_id: "u1" }), nowMs, ZONE),
+    "active",
+    "REGRESSION: a quiet thread with a name on it was waiting on you while the receptionist answered it",
+  );
   assert.equal(
     personStateFor(row({ latest_paused_until: iso(-3 * H) }), nowMs, ZONE),
     "waiting_on_you",

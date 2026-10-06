@@ -3,7 +3,7 @@
  * clause and its receipt, and the proof the lines are listening. The words they are said in live here too;
  * the list join and the seconds phrase are today-bands.ts's.
  */
-import type { CallDto } from "../conversations/call-dto";
+import { reachedVoicemail, type CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import type { EscalationDto } from "../conversations/escalations";
 import { threadChannelWords } from "../conversations/thread-channel";
@@ -230,7 +230,7 @@ export function figuresOf(
   const voicemail = [
     ...new Map(
       callsInWindow
-        .filter((c) => c.in_voicemail)
+        .filter((c) => reachedVoicemail(c))
         .map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who]),
     ).values(),
   ].filter((who) => !UNNAMED_CALLER.has(who));

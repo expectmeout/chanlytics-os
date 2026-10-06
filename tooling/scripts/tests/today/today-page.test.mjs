@@ -1268,8 +1268,8 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
   );
   assert.deepEqual(
     waiting.map(textOf),
-    ["Dulce Amaro"],
-    "who is waiting with nothing back, from the threads the page holds",
+    ["Dulce Amaro", "Priya Nair"],
+    "who is waiting with nothing back, from the threads the page holds: the reply to Priya failed, so nothing reached her",
   );
   assert.equal(
     textOf(find(byTestId(band, "today-leak-unanswered"), (n) => classes(n).includes("tl-people-lead"))),
@@ -1308,17 +1308,17 @@ test("worth a look names no one a reply to a reach-out read as a wrong person: t
   const waiting = () =>
     all(byTestId(draw(TodayLeaks), "today-leak-unanswered"), (n) => classes(n).includes("tl-person")).map(textOf);
   const reading = (conversation_id, intent) => ({ conversation_id, intent, undone: false, claim: "person" });
-  assert.deepEqual(waiting(), ["Dulce Amaro"], "the fixture: the thread the view model lists");
+  assert.deepEqual(waiting(), ["Dulce Amaro", "Priya Nair"], "the fixture: the threads the view model lists");
   // The replies surface (legacy-bridge/reach-out/replies.ts) holds the readings; Today reads none of its own.
   set({ __REPLIES: { replies: [reading("cv-d", "wrong_person")], mailbox: null } });
-  assert.deepEqual(waiting(), [], "they are not the one to ask: nobody there is waiting");
+  assert.deepEqual(waiting(), ["Priya Nair"], "they are not the one to ask: nobody there is waiting");
   set({ __REPLIES: { replies: [reading("cv-d", "not_now")], mailbox: null } });
-  assert.deepEqual(waiting(), ["Dulce Amaro"], "a not-now is still someone to answer");
+  assert.deepEqual(waiting(), ["Dulce Amaro", "Priya Nair"], "a not-now is still someone to answer");
   // Not read yet, or read and failed (the surface holds null): nobody is taken for gone.
   set({ __REPLIES: null });
-  assert.deepEqual(waiting(), ["Dulce Amaro"]);
+  assert.deepEqual(waiting(), ["Dulce Amaro", "Priya Nair"]);
   set({ __REPLIES: undefined });
-  assert.deepEqual(waiting(), ["Dulce Amaro"]);
+  assert.deepEqual(waiting(), ["Dulce Amaro", "Priya Nair"]);
   // The count is Reports' over its period and is not touched: only the names under it are.
   set({ __REPLIES: { replies: [reading("cv-d", "wrong_person")], mailbox: null } });
   assert.match(textOf(byTestId(draw(TodayLeaks), "today-leak-unanswered")), /never got an answer at all/);
