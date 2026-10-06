@@ -33,7 +33,7 @@ const LATE = `${A}/late/c9.mp3`;
  * An owner erasing P1, who has a call recording and an address, a finished job that carried their number, two
  * scheduled ones that name them, and a policy row.
  * `faults` are the fake's; `storage` answers each remove() in turn; `rpcs` overrides erase_contact, the Ask scrub or
- * the kept deliveries' scrub (provider_events_scrub, 00336), or the scrub of other people's notes (person_notes_scrub, 00340).
+ * the kept deliveries' scrub (provider_events_scrub, 00336), or the scrub of other people's notes (person_notes_scrub, 00341).
  */
 async function erase({ erased = false, faults = {}, storage = [], rpcs = {} } = {}) {
   // Each erasure on a limiter of its own: the bucket allows five an hour, and a test here runs more than that.
@@ -107,7 +107,7 @@ test("an erasure runs its legs in the design's order: the block, the copies, Sto
     "rpc:scrub_ask_for_contact", // the copies keyed on the number, before anything is destroyed
     "jobs.update", // the finished job only
     "rpc:provider_events_scrub", // the deliveries the intake ledger keeps a week, by the same identifiers (00336)
-    "rpc:person_notes_scrub", // other people's notes, the needle overwritten in place (00340)
+    "rpc:person_notes_scrub", // other people's notes, the needle overwritten in place (00341)
     "rpc:erase_contact", // the rows, after Storage
     "policies.delete",
     "rpc:scrub_ask_for_contact",
@@ -241,7 +241,7 @@ test("past the rows every leg is best effort, and a late recording is swept and 
   });
   assert.equal(before.value.erased, true, "no ledger yet is nothing to scrub, never a refused erasure");
 
-  // The notes' second pass refused, and a database before 00340 with no notes scrub: neither undoes an erasure.
+  // The notes' second pass refused, and a database before 00341 with no notes scrub: neither undoes an erasure.
   let notePasses = 0;
   const notes = await erase({
     rpcs: {

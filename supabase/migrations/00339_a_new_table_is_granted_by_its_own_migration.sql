@@ -1,4 +1,4 @@
--- 00338 · A new table is granted by its own migration.
+-- 00339 · A new table is granted by its own migration.
 --
 -- Supabase's defaults give authenticated and the service role every privilege on each new table and sequence postgres
 -- makes in public (00122 took anon out of them), so no migration here has had to grant either: the edge, the sweeps and

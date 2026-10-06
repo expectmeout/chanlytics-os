@@ -2,7 +2,7 @@
 
 **Status:** Decided on 6 October 2026 (Ruben, as recommended: a person's numbers and addresses are scrubbed in place in
 other people's notes, nothing of anyone else's is deleted, names are left); step 1 built with the note (the registry
-and its ratchet, and the notes' scrub, 00340). Proposed the same day: the registry 0031's invariant 10 names ("every
+and its ratchet, and the notes' scrub, 00341). Proposed the same day: the registry 0031's invariant 10 names ("every
 table has a tenant, a floor and an erasure strategy") and leaves to a note of its own. Written against commit
 `163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it, and built on `266fff9a`. Where this note
 and the code disagree, the code wins.
@@ -46,7 +46,7 @@ schema holds to a closed set (contracts `SCHEMA_SETS`) holds none and is not lis
 migrations build and counts each such column the registry does not name, per column, and the count may only fall, so
 the registry fills table by table and a new personal column arrives with its strategy.
 
-In other people's notes a person's numbers and addresses are scrubbed in place (`person_notes_scrub`, 00340): each
+In other people's notes a person's numbers and addresses are scrubbed in place (`person_notes_scrub`, 00341): each
 spelling the erasure finds copies by (`erasureKeys`, the Ask and delivery scrubs' needles) is overwritten with
 `[erased]`, the note is kept, its names are left, and its version moves on. Nothing of anyone else's is deleted, and a
 name is no key: matching one would take words that are not the person's. The erasure runs it before the rows go (fail

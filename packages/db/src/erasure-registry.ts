@@ -40,7 +40,7 @@ export const ERASURE_LEGS = {
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
-  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00340)",
+  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
 } as const;
 
 export type ErasureLeg = keyof typeof ERASURE_LEGS;

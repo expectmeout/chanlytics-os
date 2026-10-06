@@ -1,4 +1,4 @@
--- 00339 · A write's answer is kept a day.
+-- 00340 · A write's answer is kept a day.
 --
 -- Decision 0035: route() answers any write in a workspace that carries an Idempotency-Key once, keeping the first answer
 -- on idempotency_keys (00004) under `req:<key>` with the request's hash, as it keeps an Ask card's under `card:` and core

@@ -1,5 +1,5 @@
 /**
- * Other people's notes keep nothing of a person erased (decision 0036, 00340) -- on a real database.
+ * Other people's notes keep nothing of a person erased (decision 0036, 00341) -- on a real database.
  *
  * An erasure takes the person's own notes with them (00158); a note about someone else that carries their number or
  * address is scrubbed in place by person_notes_scrub: every spelling erasureKeys makes, matched without regard to case,

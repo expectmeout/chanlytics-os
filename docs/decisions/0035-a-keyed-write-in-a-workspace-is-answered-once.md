@@ -1,7 +1,7 @@
 # 0035 · A keyed write in a workspace is answered once
 
 **Status:** Decided on 6 October 2026 (Ruben, as recommended: keys are kept a day, and the purge takes every row, a
-card's and a reply's too); step 1 built with the note (`route()`, 00339) and step 2 begun at broadcasts, the spend
+card's and a reply's too); step 1 built with the note (`route()`, 00340) and step 2 begun at broadcasts, the spend
 routes and a note. Proposed the same day as new scope: 0031 holds one dedupe key below the commit line (invariant 3,
 `jobs.dedupe_key`, 0033), and nothing there answers a request sent twice the same way, which is this note's. Written
 against commit `163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it, and built on `266fff9a`.
@@ -51,7 +51,7 @@ request held to its key (`apps/dashboard/src/server/route.ts`, `onceForKey`):
    header to it. `route-policy.json` pins the field; `docs/api.md` documents the header and names the writes that take
    none. A write with no workspace runs as it always has.
 5. **Keys are kept a day**, then purged by a nightly clock of the keep kind, every row whatever its prefix, a card's
-   and a reply's too (`purge_idempotency_keys`, 00339; contracts `RETENTION_DAYS.idempotency_keys`, which the privacy
+   and a reply's too (`purge_idempotency_keys`, 00340; contracts `RETENTION_DAYS.idempotency_keys`, which the privacy
    page states).
 
 The client keeps one key per intent, not per call (`once` in `apps/dashboard/src/client/api.ts`): a key is made at the
@@ -62,7 +62,7 @@ no key and runs as it always has.
 ## Steps
 
 1. **The server half:** the claim with the hash, the 422, the policy field and its pin, the purge and its clock. Built
-   (00339). Either deploy order: a client that sends no key is answered as before.
+   (00340). Either deploy order: a client that sends no key is answered as before.
 2. **The client half:** begun where Ruben put it first, at broadcasts and the spend routes, with a note:
    `POST broadcasts`, `POST lead-searches/[id]/more`, `POST lead-searches/import`, `POST leads/check-again`,
    `POST lines/buy`, `POST lines/register`, `POST reach-outs/preview` and `POST contacts/[id]/notes` send `once`; a new

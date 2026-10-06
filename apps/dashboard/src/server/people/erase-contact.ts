@@ -203,7 +203,7 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
       500,
     );
   }
-  // Other people's notes that carry their number or address (00340, decision 0036): the needle overwritten in place,
+  // Other people's notes that carry their number or address (00341, decision 0036): the needle overwritten in place,
   // the note kept, by the same spellings and for the same reason. Their own notes go with them in step 4.
   try {
     await scrubPersonNotes(serviceDb(), contact.tenant_id, contact.id, keys.needles);

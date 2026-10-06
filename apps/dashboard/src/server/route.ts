@@ -261,7 +261,7 @@ async function requestHashOf(req: Request, body: string): Promise<string> {
  * request that died holding it (killed mid-write, its receipt never kept) is taken over by the next once HOLD_MS has
  * passed, as core's reply key is, so a key never sticks. A route that keeps its own key (the reply, `idempotent:
  * "own"`), a request with no key or one too long to be a key, and a write with no workspace to keep it in (an account's
- * or the platform's) run as they always have. Every key is kept a day (purge_idempotency_keys, 00339).
+ * or the platform's) run as they always have. Every key is kept a day (purge_idempotency_keys, 00340).
  */
 async function onceForKey<O>(
   ctx: RouteCtx,

@@ -242,7 +242,7 @@ test(
     // Run, not read: make one of each inside a block and drop them before it
     // ends, so nothing is kept whether it passes or not. PUBLIC's EXECUTE on new
     // functions is a global default, so this is what proves the global revoke took.
-    // A new table and sequence grant authenticated and the service role nothing either (00338), as Supabase's own
+    // A new table and sequence grant authenticated and the service role nothing either (00339), as Supabase's own
     // defaults do for a new table from 30 October 2026: what proves a replay fails the migration production would.
     query(`do $$
 begin
@@ -276,7 +276,7 @@ $$`);
 
 test("every table in public grants the service role what the server does with it", { skip }, () => {
   // The allow direction. The edge, the sweeps and the dashboard's server read and write every table as the service
-  // role; Supabase's defaults granted it until 00338 took them away, as Supabase does for new tables in existing
+  // role; Supabase's defaults granted it until 00339 took them away, as Supabase does for new tables in existing
   // projects from 30 October 2026. A table made since grants it in its own migration, or no server can touch it.
   assert.deepEqual(
     rules.service_role_short,

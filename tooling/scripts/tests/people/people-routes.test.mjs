@@ -451,7 +451,7 @@ test("an erasure hands the Ask scrub, the kept deliveries' scrub and the notes' 
       [A, P1, needles],
       [A, P1, needles],
     ],
-    "other people's notes (00340), by the same spellings, the person's own left to go with them",
+    "other people's notes (00341), by the same spellings, the person's own left to go with them",
   );
   assert.deepEqual(
     seen.filter((s) => s.rpc).map((s) => s.rpc),

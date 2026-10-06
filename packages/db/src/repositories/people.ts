@@ -185,7 +185,7 @@ export async function erasureDigests(db: Db, tenantId: string, values: string[])
 }
 
 /**
- * An erasure's hand in other people's notes (person_notes_scrub, 00340; decision 0036): each of the person's numbers
+ * An erasure's hand in other people's notes (person_notes_scrub, 00341; decision 0036): each of the person's numbers
  * and addresses (`needles`, erasureKeys) overwritten with "[erased]" in place, in every note of the workspace but the
  * person's own, which go with them. Nothing is deleted and names are left. Answers how many notes changed. Service role.
  */
@@ -200,7 +200,7 @@ export async function scrubPersonNotes(
     p_contact_id: contactId,
     p_needles: [...needles],
   });
-  // A database before 00340 has no scrub, and the notes stay as they were: the dashboard may deploy first (either order).
+  // A database before 00341 has no scrub, and the notes stay as they were: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
   if (error) throw new Error(`person_notes_scrub: ${error.message}`);
   return data ?? 0;

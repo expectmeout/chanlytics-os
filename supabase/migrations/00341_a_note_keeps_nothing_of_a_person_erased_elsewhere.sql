@@ -1,4 +1,4 @@
--- 00340 · A note keeps nothing of a person erased elsewhere.
+-- 00341 · A note keeps nothing of a person erased elsewhere.
 --
 -- Decision 0036, its open question answered (Ruben, 6 October 2026): an erasure takes the person's own notes with them
 -- (person_notes_erase_on_contact, 00158), but a note about someone else could still carry their number or address, as

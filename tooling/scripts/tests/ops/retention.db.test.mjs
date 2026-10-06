@@ -269,7 +269,7 @@ test(
   "purge_idempotency_keys keeps a day of the keys writes were answered under, a card's and a reply's as a request's, and drops the rest",
   { skip },
   async () => {
-    // Decision 0035, 00339: run with its DEFAULT, so a default that drifts from RETENTION_DAYS.idempotency_keys fails.
+    // Decision 0035, 00340: run with its DEFAULT, so a default that drifts from RETENTION_DAYS.idempotency_keys fails.
     const keep = RETENTION_DAYS.idempotency_keys;
     const at = (d) => new Date(Date.now() - d * 86_400_000).toISOString();
     const rows = [

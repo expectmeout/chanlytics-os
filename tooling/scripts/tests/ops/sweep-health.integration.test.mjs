@@ -47,7 +47,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00314 added 'sending_domain_days', the nightly keeping of each sending domain's counters.
   // 00315 added 'channel_quality', the six-hourly read of each WhatsApp number's rating.
   // 00336 added 'purge_provider_events', the nightly purge of the deliveries the intake ledger keeps a week.
-  // 00339 added 'purge_idempotency_keys', the nightly purge of the keys writes were answered under, a day on.
+  // 00340 added 'purge_idempotency_keys', the nightly purge of the keys writes were answered under, a day on.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
