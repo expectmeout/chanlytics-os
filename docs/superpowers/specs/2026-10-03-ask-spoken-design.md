@@ -250,6 +250,32 @@ deployment's profile (Opus 5.5 by default, low effort); the gate re-runs with sp
 
 ### 3.5 The Line, listening
 
+> **Amended 5 Oct 2026, evening: the hold goes the typed way, and Ask's voice reads the answer** (Ruben chose it,
+> after a hold on production felt "like an amateur chat"). Three things he heard, and their causes in the door's own
+> numbers (session 03843715, the turn at 00:06:38 UTC):
+>
+> - **The voice said every read, again and again.** The door spoke each read's label as it started, and "One moment…"
+>   at 2.5 s: a question that searched the inbox four times queued four labels and the filler.
+> - **"Hold on" came at the start of the answer.** The vendor's voice speaks a sentence once it ends, and a line
+>   ending in "…" ends none: "One moment…" left the door 2.5 s into the turn and was heard about 5.6 s in, 1.5 s
+>   after the answer's first sentence, glued to it.
+> - **No reads were drawn while it spoke.** A spoken turn's lines came only from the vendor's text events, which held
+>   the labels to the answer as its voice did. The vendor's silent text (`agent_reasoning_response_part`) reaches text
+>   conversations alone, so a voice turn had no way to draw a read without saying it.
+>
+> Now a hold is the one mic and its words are a typed turn: their reads drawn as they run and never said, the answer
+> read aloud as it lands, in the one voice Listen and Read aloud use (the speech route). Ask's voice says one thing
+> while it works, "One moment." (a whole sentence; "Un momento." in Spanish), once, when ASK_VOICE_FIRST_WORDS_MS pass
+> with no answer begun, and the answer follows it, after it while it is being said, over it while its clip is still on
+> its way (`legacy-bridge/ask/aloud.ts`). The press stops what the voice was reading, readies its element inside the
+> press (a phone plays audio only from a gesture; the lift readies it too, a pointer going down being none to some),
+> and warms the model's cache, as the press asking for a session did. A quick question spoken (who needs me, the
+> calls, the openings) is read aloud too. No hold asks the agent for anything: the Line's own wiring to it went
+> (`useAskVoice`, the hand-off on the lift), and its session, its spoken turn and the brain door are kept, unused,
+> until their retirement is decided. What this gives up: the voice starts once the answer is whole, about two seconds
+> later than the agent began on a one-round answer; an answer after reads arrives whole within a tenth of a second of
+> its round's end anyway, the model thinking first.
+>
 > **Amended 5 Oct 2026, later: a spoken turn is a turn.** The Line drew a turn twice: a typed one from the stream's
 > events (`thread`, `trace`, `say`, `final`), a spoken one from the voice module's actions, by code of its own
 > that missed what the typed path had (a turn a later question had replaced still drew; a turn that failed vanished as

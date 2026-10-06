@@ -245,6 +245,38 @@ test("a read that began outside a press (an answer read aloud by itself) does no
   assert.equal(silences(), 2, "unlocked once it has played from a press");
 });
 
+test("a hold readies the element inside its press, reading nothing and stopping nothing, so the answer read once it lands (after the fetch, outside any gesture) plays on a phone; a readying the browser refused is tried again in the next press", async () => {
+  const w = world();
+  const a = api();
+  const s = askSpeech(w.win, { api: a });
+  const silences = () => w.elements[0].log.filter((l) => l.includes("audio/wav")).length;
+  s.readySpeech();
+  assert.equal(w.elements.length, 1, "the element made in the press");
+  assert.equal(silences(), 1, "and started on silence there");
+  assert.equal(s.state(), "idle", "nothing read");
+  assert.deepEqual(a.calls, [], "no clip asked for");
+  // A press iOS does not count as a gesture (a pointer going down): refused, and the lift readies it again.
+  w.refuses();
+  await tick();
+  s.readySpeech();
+  assert.equal(silences(), 2, "tried again inside the next press");
+  w.plays();
+  await tick();
+  s.readySpeech();
+  assert.equal(silences(), 2, "readied once it has played");
+  // The answer lands later, outside any press: it plays on the readied element.
+  const read = s.speak("Two people need you.", "answer");
+  assert.equal(silences(), 2, "no silence of its own");
+  a.land();
+  await tick();
+  w.plays();
+  await read;
+  assert.equal(s.state(), "speaking");
+  s.readySpeech();
+  assert.equal(s.state(), "speaking", "a readying stops nothing");
+  assert.doesNotThrow(() => askSpeech({}, { api: a }).readySpeech(), "a device with no Audio readies nothing");
+});
+
 test("words longer than a clip may be are read up to the last whole sentence that fits, never refused: the route takes ASK_SPEECH_MAX_CHARS, and an answer over it could not be read aloud at all", async () => {
   const { ASK_SPEECH_MAX_CHARS } = await import("@chanlytics/contracts");
   const w = world();
