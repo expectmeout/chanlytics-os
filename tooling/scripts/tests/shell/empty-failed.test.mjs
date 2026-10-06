@@ -378,6 +378,7 @@ console.error = (...a) => {
 };
 const { reportsOverride } = await import("../../../../apps/dashboard/src/surfaces/reports/surface.ts");
 console.error = realConsoleError;
+const { surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 test("REGRESSION (D9): a campaigns read that fails leaves the report standing with campaigns null -- it used to fail the whole surface, and the page went blank", async () => {
   const hits = [];
@@ -401,7 +402,7 @@ test("REGRESSION (D9): a campaigns read that fails leaves the report standing wi
   } finally {
     console.error = realConsoleError;
   }
-  const R = globalThis.window.__REPORTS;
+  const R = surfaceValue("reports");
   assert.ok(R && R.vm, "the receptionist's own numbers are published");
   assert.equal(R.campaigns, null, "the offers' numbers are their own state: unread");
   assert.ok(
@@ -425,7 +426,7 @@ test("both reads good: the campaigns are published; the report read failing fail
     return json(404, { ok: false, error: { code: "not_found", message: "no" } });
   };
   await reportsOverride.apply();
-  assert.ok(globalThis.window.__REPORTS.campaigns, "read, so published");
+  assert.ok(surfaceValue("reports").campaigns, "read, so published");
   globalThis.window.fetch = async (url) => {
     if (url.includes("/reports/campaigns")) return json(200, { ok: true, data: { report: campaignsDto() } });
     return json(500, { ok: false, error: { code: "internal", message: "down" } });
@@ -448,7 +449,7 @@ test("Worth knowing is published beside the numbers it is drawn from, once, by t
     return json(404, { ok: false, error: { code: "not_found", message: "no" } });
   };
   await reportsOverride.apply();
-  const R = globalThis.window.__REPORTS;
+  const R = surfaceValue("reports");
   assert.deepEqual(
     R.facts.map((f) => f.id),
     ["busiest"],
@@ -558,7 +559,7 @@ test("a period the page has read paints at once when picked again and is read ag
       await pause();
     }
   };
-  const shown = () => globalThis.window.__REPORTS?.period;
+  const shown = () => surfaceValue("reports")?.period;
   // A runner to refresh through (setReportRange reads the real surface through it); this one joins no live feed.
   const stop = startSurfaces([{ ...reportsOverride, refreshOnMessageInserts: false }]);
   try {

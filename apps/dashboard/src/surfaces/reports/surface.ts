@@ -26,10 +26,7 @@ import {
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
-import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
-
-// Today and Ask, which have not moved, still read this under its old name.
-declareSurfaceValue("reports", "__REPORTS");
+import { setSurfaceValue } from "../surface-values";
 
 /* ------------------------------- Reports --------------------------------- */
 
@@ -75,7 +72,7 @@ export interface ReportsSurface {
   facts: ReportFactVM[];
   /** The period this is of: what the control says is chosen, and what the views are held by. */
   period: ReportPeriodId;
-  /** The days the period is (Month: the days since the 1st): what Today and Ask read. */
+  /** The days the period is (Month: the days since the 1st): what Ask reads. */
   days: number;
   fetchedAt: number;
 }
