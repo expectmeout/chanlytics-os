@@ -13,7 +13,6 @@ import type { askSpeech } from "./speech";
 type Speech = Pick<ReturnType<typeof askSpeech>, "speak" | "state" | "watchSpeech">;
 interface Timers {
   setTimeout: (fn: () => void, ms: number) => unknown;
-  clearTimeout: (id: never) => void;
 }
 
 /** The waiting words, a whole sentence: in Spanish for a question in Spanish, else in English, as the door said its own. */
@@ -33,13 +32,13 @@ export function askAloud(speech: Speech, timers: Timers = globalThis) {
         if (over) return;
         over = true;
         off();
-        timers.clearTimeout(cap as never);
         resolve();
       };
       const off = speech.watchSpeech(() => {
         if (speech.state() !== "speaking") done();
       });
-      const cap = timers.setTimeout(done, WAITING_WORDS_MAX_MS);
+      // The cap, should the end never be told; once the voice is quiet it finds the wait over and does nothing.
+      timers.setTimeout(done, WAITING_WORDS_MAX_MS);
     });
   return {
     /** A question spoken and asked: the waiting words, once, unless `answered` says the answer began by then. */
