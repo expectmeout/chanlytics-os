@@ -220,14 +220,15 @@ test("the domains sweep yields before its limit, with a row's whole check still 
   );
 });
 
-test("the channel-quality sweep yields before its limit, with a read of Meta still to come", () => {
+test("the channel-quality sweep yields before its limit, with a read of Meta and a notice to the owner still to come", () => {
   // Its last read may start just before QUALITY_YIELD_AT_MS (counted from the door's first line) and wait out Graph's own
-  // bound, then write. Past the limit the platform kills the function mid-write.
+  // bound, then keep what Meta said and, for a number that turned BLOCKED, tell its owner (one notice, bound by
+  // NOTIFY_TIMEOUT_MS), then write. Past the limit the platform kills the function mid-write.
   const WRITES_MS = 3_000;
   const ceiling = FUNCTIONS["api/cron/channel-quality.ts"].maxDuration * 1000;
   assert.ok(
-    QUALITY_YIELD_AT_MS + GRAPH_TIMEOUT_MS + WRITES_MS <= ceiling,
-    `${QUALITY_YIELD_AT_MS} + ${GRAPH_TIMEOUT_MS} + ${WRITES_MS} must fit in ${ceiling} ms`,
+    QUALITY_YIELD_AT_MS + GRAPH_TIMEOUT_MS + NOTIFY_TIMEOUT_MS + WRITES_MS <= ceiling,
+    `${QUALITY_YIELD_AT_MS} + ${GRAPH_TIMEOUT_MS} + ${NOTIFY_TIMEOUT_MS} + ${WRITES_MS} must fit in ${ceiling} ms`,
   );
 });
 
