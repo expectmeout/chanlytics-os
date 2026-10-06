@@ -388,7 +388,7 @@ test("the door: no app secret and a wrong signature are each a 401 that reads no
     assert.equal(db.seen.length, 0, "not one row read before the signature holds");
     assert.deepEqual([seen.ingested, seen.sent], [[], []], "and nobody's receptionist ran");
 
-    // A signed body that is not JSON carries nothing to route: acknowledged, kept as every proven delivery is (00335),
+    // A signed body that is not JSON carries nothing to route: acknowledged, kept as every proven delivery is (00336),
     // and nothing read.
     assert.deepEqual(await answer(await knock("{ not json")), [200, { ok: true }]);
     assert.deepEqual(
@@ -800,7 +800,7 @@ test("the account's own news is routed by its WABA and never by a number: kept a
         );
 
         // No entry id: there is nothing to route the news by, so not one row is read; the delivery is kept, as every
-        // proven one is (00335).
+        // proven one is (00336).
         const before = db.seen.length;
         assert.deepEqual(await answer(await deliver(news(null))), [200, { ok: true }]);
         assert.deepEqual(
@@ -1336,7 +1336,7 @@ test("a failure that is the person's own no to offers (131050) is recorded as th
   );
 });
 
-test("the delivery is kept as it came under the body's digest, with no workspace, before the verdict (00335); a wrong signature keeps nothing", async () => {
+test("the delivery is kept as it came under the body's digest, with no workspace, before the verdict (00336); a wrong signature keeps nothing", async () => {
   const w = world();
   w.open();
   receptionist();

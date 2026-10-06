@@ -1,6 +1,6 @@
 /**
- * POST /api/admin/intake/replay, everything after the knock: one kept delivery (provider_events, 00335;
- * decision 0031) knocks on its own door again, in-process, with the headers and body as they came, so its signature is
+ * POST /api/admin/intake/replay, everything after the knock: one kept delivery (provider_events, 00336;
+ * decision 0032) knocks on its own door again, in-process, with the headers and body as they came, so its signature is
  * proved again and the door decides as it would have. What the door answers is answered back, so an operator sees a
  * 200 that took it in, a 401 from a signature whose window has passed (Resend's and Stripe's carry a timestamp),
  * or the door's own refusal. A delivery the ledger no longer holds is 404.

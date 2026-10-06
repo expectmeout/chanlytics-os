@@ -72,7 +72,7 @@ export async function receiveStripeEvent(request: Request): Promise<Response> {
   }
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  // Kept under Stripe's event id, before the verdict (decision 0031, 00335); its signature carries a timestamp, so a
+  // Kept under Stripe's event id, before the verdict (decision 0032, 00336); its signature carries a timestamp, so a
   // replay proves it within the window only.
   await keepDelivery(db, {
     provider: "stripe",

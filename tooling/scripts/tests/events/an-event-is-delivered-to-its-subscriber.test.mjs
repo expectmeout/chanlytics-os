@@ -1,5 +1,5 @@
 /**
- * One event's delivery to one subscriber (00333, decision 0031), run through the job runner's dispatch over a database
+ * One event's delivery to one subscriber (00334, decision 0032), run through the job runner's dispatch over a database
  * in memory: the handler runs the subscriber over the event as the ledger holds it and settles the delivery row; a
  * subscriber this build does not know is kept as an unknown kind; a paused subscription pauses the delivery; an event
  * the ledger no longer holds fails it; a subscriber that throws fails it with why and the job throws on. And the

@@ -1,4 +1,4 @@
--- 00330 · A person who asked to be forgotten is not added by hand.
+-- 00331 · A person who asked to be forgotten is not added by hand.
 --
 -- create_person (00053) is the door a member adds a person through: POST contacts, and the calendar board, which
 -- puts the people the feed's appointments name in People as it opens (apps/dashboard/src/server/calendar/people-seen.ts).
@@ -6,7 +6,7 @@
 -- erased: the digest kept on the erased row (contacts.erased_phone_hash, "so the calendar import and a late call
 -- event do not bring the person back") was read by the sweep's own insert (apps/edge/lib/calendar/calendar-people.ts)
 -- and by import_person (00263), and not here. So an owner opening the Calendar or Today brought back, from their own
--- appointment, a person who had asked to be forgotten (the wiring trace, 5 October 2026; decision 0033, step 0).
+-- appointment, a person who had asked to be forgotten (the wiring trace, 5 October 2026; decision 0034, step 0).
 --
 -- Now the door makes the digest itself (00263 erasure_digest, legacy until the re-key, keyed after) and refuses the
 -- number with import_person's words and code, PE001, which the board skips as one person refused, not everyone, and
@@ -88,4 +88,4 @@ end $$;
 revoke execute on function public.create_person(uuid, text, text, text, text) from public, anon;
 grant execute on function public.create_person(uuid, text, text, text, text) to authenticated;
 comment on function public.create_person(uuid, text, text, text, text) is
-  'Owner or operator adds a person by phone — get-or-create; a name fills only an empty one; consent stays unknown; a contact.added event says where they came from. A number whose person asked to be forgotten is refused (PE001, 00330).';
+  'Owner or operator adds a person by phone — get-or-create; a name fills only an empty one; consent stays unknown; a contact.added event says where they came from. A number whose person asked to be forgotten is refused (PE001, 00331).';

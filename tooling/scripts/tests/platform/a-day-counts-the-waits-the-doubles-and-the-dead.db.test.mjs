@@ -1,6 +1,6 @@
 /**
- * A day counts how long the ledger and the answer waited, the sends that doubled and the jobs that died (00331,
- * decision 0030's Phase 0), on a real Postgres.
+ * A day counts how long the ledger and the answer waited, the sends that doubled and the jobs that died (00332,
+ * decision 0031's Phase 0), on a real Postgres.
  *
  * The nightly roll's third statement keeps five columns of platform_metrics: job_lag_ms by lane (first claims only),
  * first_answer_ms by channel (the next outbound row after a customer's, whoever wrote it), duplicate_sends (the same

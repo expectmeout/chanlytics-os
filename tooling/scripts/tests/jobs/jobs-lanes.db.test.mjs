@@ -135,7 +135,7 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
     lead_check: 2,
     push_receipts: 2,
     outreach: 2, // an outbound_send whose purpose is outreach: a cold email is bulk
-    event_deliver: 2, // a delivery with no lane in its payload: bulk, the safe default (00333)
+    event_deliver: 2, // a delivery with no lane in its payload: bulk, the safe default (00334)
     delivery_lane_0: 0, // a delivery in its subscription's lane, read from the payload
     delivery_lane_bad: 2, // a lane the payload spells wrong is bulk, never an error
   };
@@ -196,7 +196,7 @@ test(
 );
 
 test(
-  "capacity (00334): a key at its cap leaves the next row of that key for a later tick and takes the next of another; a key with no row is no limit",
+  "capacity (00335): a key at its cap leaves the next row of that key for a later tick and takes the next of another; a key with no row is no limit",
   { skip },
   () => {
     const claimed = claimOrder(
@@ -226,7 +226,7 @@ test(
 );
 
 test(
-  "turns in every lane (00334): two workspaces' replies alternate when one has a burst, and a reply still goes before bulk",
+  "turns in every lane (00335): two workspaces' replies alternate when one has a burst, and a reply still goes before bulk",
   { skip },
   () => {
     const claimed = claimOrder(

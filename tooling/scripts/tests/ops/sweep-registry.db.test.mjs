@@ -105,7 +105,7 @@ const EVERY_CLOCK = {
   // A connected WhatsApp number's rating (00315): a six-hour clock that asks the edge only when a number is connected,
   // and records that it looked otherwise.
   channel_quality: "channel-quality-sweep",
-  // The intake ledger's kept deliveries (00335): nightly, a week on, judged by its run.
+  // The intake ledger's kept deliveries (00336): nightly, a week on, judged by its run.
   purge_provider_events: "purge-provider-events",
 };
 const RUN_JUDGED = [

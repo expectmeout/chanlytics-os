@@ -1,6 +1,6 @@
--- 00331 · A day counts how long the ledger and the answer waited, the sends that doubled and the jobs that died.
+-- 00332 · A day counts how long the ledger and the answer waited, the sends that doubled and the jobs that died.
 --
--- Decision 0030 (records, events, reactions and doors), Phase 0: five numbers in SQL before anything moves, so Phase 1's
+-- Decision 0031 (records, events, reactions and doors), Phase 0: five numbers in SQL before anything moves, so Phase 1's
 -- spine is measured against a day it can be compared with. Each is a column of platform_metrics (00277: one UTC day of
 -- one workspace, rolled nightly on its registered clock), read by the back office beside the day's other counts:
 --
@@ -12,7 +12,7 @@
 --   duplicate_sends  n              outbound rows with the same words to one thread within a minute of the last: the
 --                                   later one is the duplicate, and a pair across midnight counts once, on its second's day;
 --   dead_letters     {kind: n}      the jobs that died that day, by kind (state failed, which jobs_guard keeps final);
---   relay_lag_ms     ms             how long an event waited for its deliveries (decision 0031): the column is here so
+--   relay_lag_ms     ms             how long an event waited for its deliveries (decision 0032): the column is here so
 --                                   the day has its place; the relay's own migration writes it, and until then it is null.
 --
 -- A day nothing said anything about is null, never zero or {} (00316's rule); a workspace that sent and sent nothing
@@ -33,15 +33,15 @@ alter table public.platform_metrics add column if not exists dead_letters    jso
 alter table public.platform_metrics add column if not exists relay_lag_ms    integer check (relay_lag_ms    is null or relay_lag_ms >= 0);
 
 comment on column public.platform_metrics.job_lag_ms is
-  'How long a job waited for the ledger past its due time that day, by lane (jobs.lane: 0 a reply, 1 someone waiting, 2 bulk, none), at the 95th percentile in milliseconds, first claims only (00331). Null for a day with no claim.';
+  'How long a job waited for the ledger past its due time that day, by lane (jobs.lane: 0 a reply, 1 someone waiting, 2 bulk, none), at the 95th percentile in milliseconds, first claims only (00332). Null for a day with no claim.';
 comment on column public.platform_metrics.first_answer_ms is
-  'How long a customer waited for the first answer in their thread that day, by channel, at the 95th percentile in milliseconds, whoever answered (00331). Null for a day no customer was answered in.';
+  'How long a customer waited for the first answer in their thread that day, by channel, at the 95th percentile in milliseconds, whoever answered (00332). Null for a day no customer was answered in.';
 comment on column public.platform_metrics.duplicate_sends is
-  'Outbound rows that day with the same words to one thread within a minute of the last: the later one is the duplicate (00331). Null for a day nothing was sent in.';
+  'Outbound rows that day with the same words to one thread within a minute of the last: the later one is the duplicate (00332). Null for a day nothing was sent in.';
 comment on column public.platform_metrics.dead_letters is
-  'The jobs that died that day, by kind: state failed, which jobs_guard keeps final (00331). Null for a day none died in.';
+  'The jobs that died that day, by kind: state failed, which jobs_guard keeps final (00332). Null for a day none died in.';
 comment on column public.platform_metrics.relay_lag_ms is
-  'How long an event waited for its deliveries that day, at the 95th percentile in milliseconds (decision 0031): written by the relay''s own migration, null until then (00331).';
+  'How long an event waited for its deliveries that day, at the 95th percentile in milliseconds (decision 0032): written by the relay''s own migration, null until then (00332).';
 
 /* ---------------------------------------------------------------------------- 2. the roll -- */
 
@@ -240,7 +240,7 @@ begin
     raise warning 'platform_metrics_roll: the lenses'' columns were not kept for %: %', p_day, sqlerrm;
   end;
 
-  -- The third keeps the spine's numbers (00331, decision 0030's Phase 0), and fails alone too.
+  -- The third keeps the spine's numbers (00332, decision 0031's Phase 0), and fails alone too.
   begin
     with
     -- How long a job waited for the ledger past its due time, by lane, at the 95th percentile: a first claim only
@@ -338,7 +338,7 @@ end $$;
 revoke all on function public.platform_metrics_roll(date) from public, anon, authenticated;
 grant execute on function public.platform_metrics_roll(date) to service_role;
 comment on function public.platform_metrics_roll(date) is
-  'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00331): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
+  'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00332): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
 
 
 /* ---------------------------------------------------------------------------- 3. the read -- */
@@ -366,4 +366,4 @@ $$;
 revoke all on function public.platform_metrics_read(integer) from public, anon, authenticated;
 grant execute on function public.platform_metrics_read(integer) to service_role;
 comment on function public.platform_metrics_read(integer) is
-  'The back office''s read of platform_metrics (00277): the last p_days rolled days (at most 90), each workspace''s row with its name, newest day first, the spine''s five numbers beside the rest (00331).';
+  'The back office''s read of platform_metrics (00277): the last p_days rolled days (at most 90), each workspace''s row with its name, newest day first, the spine''s five numbers beside the rest (00332).';

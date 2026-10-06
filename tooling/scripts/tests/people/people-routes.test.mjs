@@ -438,7 +438,7 @@ test("an erasure hands the Ask scrub and the kept deliveries' scrub every spelli
       [A, needles],
       [A, needles],
     ],
-    "the intake ledger's copies (00335), by the same spellings, before erase_contact and after it",
+    "the intake ledger's copies (00336), by the same spellings, before erase_contact and after it",
   );
   assert.deepEqual(
     seen.filter((s) => s.rpc).map((s) => s.rpc),

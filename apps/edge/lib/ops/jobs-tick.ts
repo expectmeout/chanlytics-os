@@ -79,7 +79,7 @@ function replyLateBody(worstMs: number): string {
 
 export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
   try {
-    // The relay first (decision 0031, 00333): the outbox's events become deliveries and jobs, which this same tick then
+    // The relay first (decision 0032, 00334): the outbox's events become deliveries and jobs, which this same tick then
     // claims. A relay that fails is said and costs the tick nothing else: the next knock, or the poll, drains it.
     let relayed: number | null = null;
     try {

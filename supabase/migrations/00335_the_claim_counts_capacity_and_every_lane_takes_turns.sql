@@ -1,6 +1,6 @@
--- 00334 · The claim counts capacity, and every lane takes turns.
+-- 00335 · The claim counts capacity, and every lane takes turns.
 --
--- Decision 0032, step 4. claim_due_jobs (00281) took the lowest lane first, then within bulk a workspace with no bulk
+-- Decision 0033, step 4. claim_due_jobs (00281) took the lowest lane first, then within bulk a workspace with no bulk
 -- job running, then the earliest due. Lanes 0 and 1 had no turn-taking: a burst of one workspace's pushes queued ahead
 -- of another workspace's reply. And nothing counted how many jobs of one provider, one domain or one workspace were in
 -- flight: the runner is several overlapping serverless invocations with no shared memory, so a count can live only in
@@ -17,7 +17,7 @@
 --
 -- The order stays 00281's otherwise, and the claim's cost is the gate: measured on the replayed stack with 30,000 due
 -- rows (jobs/jobs-lanes.db.test.mjs says the cases; the pull request says the number). The reach-out sender's own
--- per-domain count (apps/edge/lib/reach-out/sender.ts) stays until its sends are jobs, which decision 0030's Phase 4
+-- per-domain count (apps/edge/lib/reach-out/sender.ts) stays until its sends are jobs, which decision 0031's Phase 4
 -- makes them; it is not a jobs row today, so no domain row replaces it yet.
 --
 -- Either deploy order: a table nobody fills, and clauses that change nothing for a row that names no key. Re-runnable.
@@ -37,7 +37,7 @@ alter table public.job_capacity enable row level security;
 revoke all on public.job_capacity from anon, authenticated;
 grant all on public.job_capacity to service_role;
 comment on table public.job_capacity is
-  'How many jobs naming a capacity key (scope:key in payload.capacity) may be fired under a live lease at once (00334, decision 0032): counted in claim_due_jobs, nowhere else. A key with no row is no limit. The service role''s alone.';
+  'How many jobs naming a capacity key (scope:key in payload.capacity) may be fired under a live lease at once (00335, decision 0033): counted in claim_due_jobs, nowhere else. A key with no row is no limit. The service role''s alone.';
 
 /* --------------------------------------------------------------------------------- 2. the claim -- */
 
@@ -107,4 +107,4 @@ $$;
 revoke all on function public.claim_due_jobs(integer, integer) from public, anon, authenticated;
 grant execute on function public.claim_due_jobs(integer, integer) to service_role;
 comment on function public.claim_due_jobs(integer, integer) is
-  'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018: a reply, then someone waiting, then bulk); within a lane a workspace with nothing of that lane running goes first (00334), then the earliest due; a row naming a capacity key that is full is left for a later tick (job_capacity). Takes back a fired row whose lease ran out with attempts + 1.';
+  'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018: a reply, then someone waiting, then bulk); within a lane a workspace with nothing of that lane running goes first (00335), then the earliest due; a row naming a capacity key that is full is left for a later tick (job_capacity). Takes back a fired row whose lease ran out with attempts + 1.';

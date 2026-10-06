@@ -48,7 +48,7 @@ export async function addPeopleSeen(
     if (error) {
       // One bad number is one person, not everyone behind them. See
       // afterPersonRefused: 22023 is the door refusing THIS row's shape, PE001
-      // this row's person, who asked to be forgotten (00330); anything else
+      // this row's person, who asked to be forgotten (00331); anything else
       // refuses every row and is worth stopping for.
       if (afterPersonRefused(error.code) === "skip") {
         refused += 1;

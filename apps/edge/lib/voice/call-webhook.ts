@@ -587,7 +587,7 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
   // placed either.
   const lookup = await routeDelivery(db, n);
   const routed = lookup.channel;
-  // Kept under the event and the call's id, before the verdict (decision 0031, 00335), a routing that could not be read
+  // Kept under the event and the call's id, before the verdict (decision 0032, 00336), a routing that could not be read
   // included: Retell stops after three tries, and the kept delivery is the replay after a fix.
   await keepDelivery(db, {
     provider: "retell",

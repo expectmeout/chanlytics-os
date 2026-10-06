@@ -1,5 +1,5 @@
 /**
- * The ledger wakes when a due row is written, and a job has one dedupe key (00332, decision 0032 steps 1 and 2), on a
+ * The ledger wakes when a due row is written, and a job has one dedupe key (00333, decision 0033 steps 1 and 2), on a
  * real Postgres.
  *
  * jobs_wake is a statement trigger: a row scheduled and due within two seconds asks for the tick through request_sweep

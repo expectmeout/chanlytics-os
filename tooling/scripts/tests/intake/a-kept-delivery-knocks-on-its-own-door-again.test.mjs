@@ -1,5 +1,5 @@
 /**
- * POST /api/admin/intake/replay (00335, decision 0031): a kept delivery knocks on its own door again, in-process,
+ * POST /api/admin/intake/replay (00336, decision 0032): a kept delivery knocks on its own door again, in-process,
  * with the url, the headers and the body as they came, and the door's answer is answered back. Run over a database in
  * memory with doors that record the knock: the replay itself, and every way the verb declines (no provider or id, a
  * provider the ledger does not keep, a delivery it no longer holds, a door it does not know, no database). The knock

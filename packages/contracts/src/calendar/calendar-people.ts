@@ -679,7 +679,7 @@ export function peopleFromItems(
  * and the safe unknown is the one that does less.
  */
 export function afterPersonRefused(code: string | null | undefined): "skip" | "stop" {
-  // 22023: the door refused this number's shape. PE001: this number's person asked to be forgotten (00330). Either
+  // 22023: the door refused this number's shape. PE001: this number's person asked to be forgotten (00331). Either
   // is one person, not everyone behind them.
   return code === "22023" || code === "PE001" ? "skip" : "stop";
 }

@@ -432,7 +432,7 @@ test("an agent nobody routes is answered 200 with the shell's own defaults, said
         ["tenant_channels", "select"],
         ["provider_events", "upsert"],
       ],
-      "the routing answer and the delivery kept under no workspace (00335), and nothing of anyone's facts or memory",
+      "the routing answer and the delivery kept under no workspace (00336), and nothing of anyone's facts or memory",
     );
     assert.deepEqual(log.said("inbound_ctx_unrouted"), [
       { stream: "warn", level: "warn", event: "inbound_ctx_unrouted", ...w.tail },
@@ -472,7 +472,7 @@ test("an agent nobody routes is answered 200 with the shell's own defaults, said
     assert.deepEqual(
       vdb.seen.map((q) => [q.table, q.op]),
       [["provider_events", "upsert"]],
-      "no agent, no routing key: not one row read, and the proven delivery kept under no workspace (00335)",
+      "no agent, no routing key: not one row read, and the proven delivery kept under no workspace (00336)",
     );
     const { agent_id: _none, ...tail } = v.tail;
     assert.deepEqual(

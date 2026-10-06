@@ -1,5 +1,5 @@
 /**
- * The intake ledger's door-side half (decision 0031, 00335): a door keeps the delivery it verified before its verdict,
+ * The intake ledger's door-side half (decision 0032, 00336): a door keeps the delivery it verified before its verdict,
  * under the provider's own id, so an intake can be replayed after a fix (api/admin/intake/replay) instead of
  * waiting for a redelivery the provider never sends. One call per door, after its signature and before its decision.
  *

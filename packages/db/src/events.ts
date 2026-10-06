@@ -281,7 +281,7 @@ export async function recordActivation(
   return !w.error;
 }
 
-/* ----------------------------------------------------------- the spine: the relay and a delivery (00333, decision 0031) */
+/* ----------------------------------------------------------- the spine: the relay and a delivery (00334, decision 0032) */
 
 /** The event a delivery is about, as the ledger holds it: what a subscriber is handed. */
 export interface DeliveredEvent {
@@ -304,7 +304,7 @@ export interface DeliveryRow {
 }
 
 /**
- * The first step of every tick (relay_events, 00333): the outbox's events become deliveries and jobs, up to `limit` of
+ * The first step of every tick (relay_events, 00334): the outbox's events become deliveries and jobs, up to `limit` of
  * them, oldest first and with no cursor. Answers how many events were relayed.
  */
 export async function relayEvents(db: Db, limit: number): Promise<number> {

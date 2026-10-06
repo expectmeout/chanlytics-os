@@ -31,7 +31,7 @@ export interface ScheduleParams {
 }
 
 /**
- * What makes a row once-only while it is scheduled or fired (jobs.dedupe_key, 00332, decision 0032): the three kinds the
+ * What makes a row once-only while it is scheduled or fired (jobs.dedupe_key, 00333, decision 0033): the three kinds the
  * ledger held once per subject by an index of their own carry the same subject as their key, so one index holds every
  * kind once the three retire. A kind with no rule has no key.
  */
@@ -83,7 +83,7 @@ export async function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"sched
   const key = dedupeKeyOf(p.kind, p.payload);
   const insert = (dedupeKey: string | null) => db.from("jobs").insert(rowToInsert(p, dedupeKey));
   let { error } = await insert(key);
-  // A database 00332 has not reached has no dedupe_key column (PostgREST: PGRST204): the row is written without the
+  // A database 00333 has not reached has no dedupe_key column (PostgREST: PGRST204): the row is written without the
   // key, held once by the kind's own index as before, so the edge and the migration may land in either order.
   if (error?.code === "PGRST204" && key) ({ error } = await insert(null));
   if (!error) return "scheduled";

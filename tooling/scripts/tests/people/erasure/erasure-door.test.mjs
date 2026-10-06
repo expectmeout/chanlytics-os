@@ -33,7 +33,7 @@ const LATE = `${A}/late/c9.mp3`;
  * An owner erasing P1, who has a call recording and an address, a finished job that carried their number, two
  * scheduled ones that name them, and a policy row.
  * `faults` are the fake's; `storage` answers each remove() in turn; `rpcs` overrides erase_contact, the Ask scrub or
- * the kept deliveries' scrub (provider_events_scrub, 00335).
+ * the kept deliveries' scrub (provider_events_scrub, 00336).
  */
 async function erase({ erased = false, faults = {}, storage = [], rpcs = {} } = {}) {
   const tables = {
@@ -103,7 +103,7 @@ test("an erasure runs its legs in the design's order: the block, the copies, Sto
     "contacts.update", // the block, with the number still on the row
     "rpc:scrub_ask_for_contact", // the copies keyed on the number, before anything is destroyed
     "jobs.update", // the finished job only
-    "rpc:provider_events_scrub", // the deliveries the intake ledger keeps a week, by the same identifiers (00335)
+    "rpc:provider_events_scrub", // the deliveries the intake ledger keeps a week, by the same identifiers (00336)
     "rpc:erase_contact", // the rows, after Storage
     "policies.delete",
     "rpc:scrub_ask_for_contact",

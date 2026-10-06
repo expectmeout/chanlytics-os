@@ -70,7 +70,7 @@ export async function receiveInboundText(request: Request): Promise<Response> {
     signature: request.headers.get("x-twilio-signature"),
     db,
   });
-  // Kept under Twilio's id once its signature held, before any verdict is acted on (decision 0031, 00335). Twilio never
+  // Kept under Twilio's id once its signature held, before any verdict is acted on (decision 0032, 00336). Twilio never
   // sends a text again, so one refused for a routing that could not be read, or a channel switched off, is the one a
   // fix takes in by replay.
   const proven = verdict.kind === "accept" ? { tenantId: verdict.routed.tenantId } : verdict.proven;

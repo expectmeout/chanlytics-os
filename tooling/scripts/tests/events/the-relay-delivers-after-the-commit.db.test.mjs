@@ -1,5 +1,5 @@
 /**
- * A fact's event reaches its subscribers after the commit (00333, decision 0031), on a real Postgres.
+ * A fact's event reaches its subscribers after the commit (00334, decision 0032), on a real Postgres.
  *
  * events_outbox_copy writes one outbox row per event of a subscribed kind, in the event's own transaction; relay_events
  * drains the outbox under skip locked with no cursor, writes one delivery per unpaused subscriber and one event_deliver

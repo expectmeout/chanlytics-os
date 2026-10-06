@@ -33,7 +33,7 @@ export const RETENTION_DAYS = {
   page_vitals: 30,
   /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
   ai_usage: 400,
-  /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00335; decision 0031). */
+  /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00336; decision 0032). */
   provider_events: 7,
 } as const;
 

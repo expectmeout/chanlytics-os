@@ -70,7 +70,7 @@ type SmsVerdict =
       level: "warn" | "error";
       alert: string | null;
       alertKey?: string;
-      /** Set when the refusal came after Twilio's signature held: the line's workspace, for the kept delivery (00335). */
+      /** Set when the refusal came after Twilio's signature held: the line's workspace, for the kept delivery (00336). */
       proven?: { tenantId: string | null };
     }
   | { kind: "accept"; line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean };

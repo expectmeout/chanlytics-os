@@ -183,7 +183,7 @@ function ledger({ faults = {}, claim, relay } = {}) {
   const vault = { channels: {}, lines: {} };
   const db = fakeDb(tables, faults, {
     get_cron_sweep_key: () => KEY,
-    // The relay runs first in every tick (00333): an outbox with nothing on it, unless a test says otherwise.
+    // The relay runs first in every tick (00334): an outbox with nothing on it, unless a test says otherwise.
     relay_events: relay ?? (() => 0),
     claim_due_jobs: claim ?? ((args) => claimDue(tables.jobs, args)),
     // A channel whose entry is a function is one Vault does not answer for ("unreadable"): the throw becomes the
@@ -898,7 +898,7 @@ test("a reply the ledger claimed more than a minute late pages the operator once
   });
 });
 
-test("the relay runs first in every tick (00333): what it relayed rides on the heartbeat's line, and a relay that fails is said and costs the tick nothing else", async () => {
+test("the relay runs first in every tick (00334): what it relayed rides on the heartbeat's line, and a relay that fails is said and costs the tick nothing else", async () => {
   const L = ledger({ relay: () => 3 });
   L.workspace().queue();
   await listening(async (log) => {

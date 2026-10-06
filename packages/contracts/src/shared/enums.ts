@@ -98,7 +98,7 @@ export const JOB_KINDS = [
    */
   "reply_read",
   /**
-   * One event's delivery to one subscriber (00333, decision 0031): the relay writes it beside the event_deliveries row,
+   * One event's delivery to one subscriber (00334, decision 0032): the relay writes it beside the event_deliveries row,
    * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
    * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
    * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
@@ -108,7 +108,7 @@ export const JOB_KINDS = [
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /**
- * Every subscriber a delivery can name (event_subscriptions.subscriber, 00333, decision 0031): each is a verb in core's
+ * Every subscriber a delivery can name (event_subscriptions.subscriber, 00334, decision 0032): each is a verb in core's
  * SUBSCRIBERS that may run twice on one delivery and leave the same rows. `audit` does nothing but settle, so the
  * relay's lag is measured on real traffic before any subscriber that acts arrives.
  */

@@ -354,10 +354,10 @@ before(async () => {
   await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
   await seed("lead_suggestions", { tenant_id: A, business_line: "a hair salon in Miami" }, null);
   await seed("platform_metrics", { tenant_id: A, day: "2026-09-26" }, null);
-  // A capacity row of this suite's own (00334), so "a member reads nothing" is not proved on an empty table.
+  // A capacity row of this suite's own (00335), so "a member reads nothing" is not proved on an empty table.
   const cap = await db.from("job_capacity").upsert({ scope: "provider", key: "tenancy-suite", max_in_flight: 1 });
   assert.equal(cap.error, null, `capacity: ${cap.error?.message}`);
-  // The spine (00333): an outbox row and a delivery of the workspace's, as the copy and the relay would write them.
+  // The spine (00334): an outbox row and a delivery of the workspace's, as the copy and the relay would write them.
   await seed(
     "event_outbox",
     { event_id: crypto.randomUUID(), tenant_id: A, kind: "message.received", event_at: "2026-10-06T00:00:00Z" },
@@ -752,13 +752,13 @@ const TENANT_TABLES = {
   partner_earnings: ["partner", () => earning(`evt_stranger_${Date.now()}`)],
   partner_invitations: ["brought", invitation],
   billing_card_marks: ["none", () => ({ tenant_id: A, card_fingerprint: "fp_stranger" })],
-  // The spine (00333, decision 0031): an event's outbox row and its deliveries follow their workspace; the service role
+  // The spine (00334, decision 0032): an event's outbox row and its deliveries follow their workspace; the service role
   // alone writes and reads them.
   event_outbox: [
     "none",
     () => ({ event_id: crypto.randomUUID(), tenant_id: A, kind: "message.received", event_at: "2026-10-06T00:00:00Z" }),
   ],
-  // The intake ledger (00335): a provider's delivery as it came, the service role's alone.
+  // The intake ledger (00336): a provider's delivery as it came, the service role's alone.
   provider_events: [
     "none",
     () => ({
@@ -797,8 +797,8 @@ const OTHER_TABLES = {
   platform_admins: "none",
   rate_hits: "none",
   sweep_status: "none",
-  event_subscriptions: "none", // who reacts to an event kind (00333): platform-wide rows, the service role's alone
-  job_capacity: "none", // how many jobs naming a key may run at once (00334): platform-wide rows, the service role's alone
+  event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
+  job_capacity: "none", // how many jobs naming a key may run at once (00335): platform-wide rows, the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()

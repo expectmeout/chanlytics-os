@@ -30,7 +30,7 @@ export async function platformDays(office: BackOffice): Promise<PlatformDayRowDt
     brain_p95_ms: row.brain_p95_ms,
     provider_failures: counts(row.provider_failures),
     tokens: Number(row.tokens),
-    // The spine's five (00331): a day rolled before them reads as none, never as zero.
+    // The spine's five (00332): a day rolled before them reads as none, never as zero.
     job_lag_ms: counts(row.job_lag_ms),
     first_answer_ms: counts(row.first_answer_ms),
     duplicate_sends: whole(row.duplicate_sends),

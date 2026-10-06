@@ -29,15 +29,15 @@ export interface PlatformDayRowDto {
   brain_p95_ms: number | null;
   provider_failures: Record<string, number>;
   tokens: number;
-  /** How long jobs waited for the ledger past their due time, by lane, 95th percentile (00331); {} for a day before it. */
+  /** How long jobs waited for the ledger past their due time, by lane, 95th percentile (00332); {} for a day before it. */
   job_lag_ms: Record<string, number>;
-  /** How long customers waited for a first answer, by channel, 95th percentile (00331); {} when nobody was answered. */
+  /** How long customers waited for a first answer, by channel, 95th percentile (00332); {} when nobody was answered. */
   first_answer_ms: Record<string, number>;
-  /** Sends of the same words to one thread within a minute (00331); null for a day nothing was sent in, or before it. */
+  /** Sends of the same words to one thread within a minute (00332); null for a day nothing was sent in, or before it. */
   duplicate_sends: number | null;
-  /** The jobs that died that day, by kind (00331); {} when none did. */
+  /** The jobs that died that day, by kind (00332); {} when none did. */
   dead_letters: Record<string, number>;
-  /** How long an event waited for its deliveries, 95th percentile (decision 0031); null until the relay writes it. */
+  /** How long an event waited for its deliveries, 95th percentile (decision 0032); null until the relay writes it. */
   relay_lag_ms: number | null;
 }
 
@@ -53,7 +53,7 @@ export interface PlatformDayLineVM {
   /** "3 sends failed (2 not taken, 1 may have gone)", or "" when none failed. */
   failures: string;
   /**
-   * The spine's numbers (decision 0030, Phase 0): "replies claimed within 1.2 s, bulk within 40.0 s; first answer within
+   * The spine's numbers (decision 0031, Phase 0): "replies claimed within 1.2 s, bulk within 40.0 s; first answer within
    * 38.0 s (whatsapp); 1 duplicate send; 2 jobs died (email_ingest 2)", each part only where the day has it, or "" for
    * a day rolled before they were counted.
    */
