@@ -139,6 +139,17 @@ function replyFacts(
   };
 }
 
+/**
+ * The row's preview: the last thing that happened between them. A call's note counts, since a contact who has only ever
+ * phoned has nothing else; a team's note does not, nor our words that never reached them.
+ */
+function previewOf(messages: readonly MessageDto[]): string {
+  const last = [...messages]
+    .reverse()
+    .find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
+  return last ? messageWords(last).slice(0, 110) : "";
+}
+
 export function toInboxThreadVM(
   dto: ConversationDto,
   escalation: EscalationDto | null,
@@ -155,11 +166,6 @@ export function toInboxThreadVM(
     ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) }
     : null;
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
-  // The last thing that happened between them: a call's note counts (a caller who only phoned has nothing else), a
-  // team's note does not.
-  const last = [...dto.messages]
-    .reverse()
-    .find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   // The wire a reply goes out on, as the reply route picks it (replyWireOf): where they last wrote. A text thread said
   // WhatsApp, its window read closed, and its composer offered only templates, which the route refuses on a text; an
@@ -320,8 +326,7 @@ export function toInboxThreadVM(
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
-    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
-    preview: last ? messageWords(last).slice(0, 110) : "",
+    preview: previewOf(dto.messages),
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther

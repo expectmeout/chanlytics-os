@@ -1300,11 +1300,7 @@ function reachedCustomer(status) {
   return status !== "queued" && status !== "failed" && status !== "canceled";
 }
 function lastExchanged(messages) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (isChatMessage(m) && (m.direction === "inbound" || reachedCustomer(m.status))) return m;
-  }
-  return null;
+  return [...messages].reverse().find((m) => isChatMessage(m) && (m.direction === "inbound" || reachedCustomer(m.status))) ?? null;
 }
 var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/;
 function isHeldDraft(m) {
@@ -17659,13 +17655,16 @@ function replyFacts(dto, primaryChannel, tz, now) {
     emailStopped: primaryChannel === "email" ? emailStoppedWords(dto.contact, tz, now) : null
   };
 }
+function previewOf(messages) {
+  const last = [...messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
+  return last ? messageWords(last).slice(0, 110) : "";
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
   const draftMsg = heldDraftOf(dto.messages);
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
-  const last = [...dto.messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chatChannel = writtenChannelOf(replyWireOf(dto.messages));
   const win = replyWindow(chatChannel, dto.last_wa_inbound_at, now).open;
@@ -17785,8 +17784,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
-    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
-    preview: last ? messageWords(last).slice(0, 110) : "",
+    preview: previewOf(dto.messages),
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther ? HELD_WORDS.theirs.sentence : escalation ? (

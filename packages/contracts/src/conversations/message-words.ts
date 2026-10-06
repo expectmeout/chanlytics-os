@@ -222,11 +222,10 @@ export function reachedCustomer(status: string | undefined): boolean {
 export function lastExchanged<M extends Pick<MessageDto, "type" | "direction" | "status">>(
   messages: readonly M[],
 ): M | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (isChatMessage(m) && (m.direction === "inbound" || reachedCustomer(m.status))) return m;
-  }
-  return null;
+  return (
+    [...messages].reverse().find((m) => isChatMessage(m) && (m.direction === "inbound" || reachedCustomer(m.status))) ??
+    null
+  );
 }
 
 const CALL_NOTE_PREFIX =
