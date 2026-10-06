@@ -75,15 +75,17 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   const leads = /^leads(:|$)/.test(param);
   // The Pipeline's address draws the Pipeline where deals are on, and People's own page where they are off (0008).
   const pipeline = /^pipeline(:|$)/.test(param) && !!live?.dealsOn;
-  // What the page says to the frame's head in Glass: People's standing; a person's page that its hero is the head (the
-  // frame draws the date's place as the way back). The Pipeline says its own, with its act (pipeline/standing.tsx).
-  // Leads says its own too, in its standing line (rail/standing.tsx).
-  usePeopleStanding(person ? "person" : pipeline || leads ? null : "people");
+  // What the page says to the frame's head in Glass: a person's page that its hero is the head (the frame draws the date's
+  // place as the way back). The Pipeline says its own, with its act (pipeline/standing.tsx); Leads says its own too, in its
+  // standing line (rail/standing.tsx); and People's list says its own, with its act, Add a person (page/people-real.tsx).
+  // Until the list can be drawn, the route says People's name.
+  const listDrawn = !!live || demoSession();
+  usePeopleStanding(person ? "person" : pipeline || leads || listDrawn ? null : "people");
   // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person.
   if (person) return <ClientProfile key={param} id={param} />;
   if (leads) return <LeadsScopePage param={param} />;
   // A workspace's People waits for its own surface (the frame's gate); a demo session draws the sample.
-  if (!live && !demoSession()) return null;
+  if (!listDrawn) return null;
   if (pipeline)
     return (
       <PipelineScope

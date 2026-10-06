@@ -2890,20 +2890,6 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     outline: none;
     box-shadow: var(--focus-ring);
   }
-  /* People's first act, Add a person, is the inset capsule the canvas draws (P1); the others stay words. */
-  .main-scroll .cl-controls-right > [data-testid="add-person"] {
-    height: var(--control-h-md);
-    padding: 0 14px;
-    border: 0;
-    border-radius: var(--radius-full);
-    background: var(--surface-inset-fill);
-    box-shadow:
-      var(--surface-inset-ring),
-      var(--surface-inset-depth);
-    font-size: var(--text-base);
-    font-weight: var(--weight-medium);
-    color: var(--ink);
-  }
   /* What a list says it can do for the people on it (the broadcast's door) is an inset too. */
   .main-scroll .cl-list-action {
     margin: 0 10px 12px;
