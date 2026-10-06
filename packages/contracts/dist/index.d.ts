@@ -23728,7 +23728,12 @@ type BookedSeen = {
 declare const BOOKED_SEEN_CAP = 500;
 /**
  * The feed's contacts for the booking door: each address and each number of each appointment, the business's own and
- * the organiser's left out as People's import leaves them, the earliest appointments first, at most `BOOKED_SEEN_CAP`.
+ * the organiser's left out as People's import leaves them, the newest appointments first, at most `BOOKED_SEEN_CAP`.
+ *
+ * Newest first, because the cap is what decides who the door hears about. The door converts a lead on an appointment
+ * starting after an email left, so what matters is what is to come and what just happened; a feed that carries its
+ * history (the parser keeps a single event whatever its date, feed.ts) filled the five hundred with appointments from
+ * long before any reach-out, and a booking made last week never reached the door (the wiring trace, 5 October 2026).
  */
 declare function bookedSeenOf(items: readonly FeedItem[], own: OwnAddresses): BookedSeen[];
 

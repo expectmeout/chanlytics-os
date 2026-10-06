@@ -60,6 +60,8 @@ test("a definer door's refusal keeps its words, at the status its SQLSTATE says"
     ["23505", { status: 409, code: "conflict" }],
     ["42501", { status: 403, code: "forbidden" }],
     ["22023", { status: 400, code: "validation" }],
+    // A door's own code (00263, 00329): this person asked to be forgotten. A conflict in the door's words.
+    ["PE001", { status: 409, code: "conflict" }],
     ["P0001", { status: 400, code: "validation" }],
   ]) {
     const words = `The door's own sentence for ${code}.`;

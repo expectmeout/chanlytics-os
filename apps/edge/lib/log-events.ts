@@ -102,6 +102,7 @@ export const LOG_EVENTS = [
   "calendar_people_added",
   "calendar_sweep",
   "calendar_sweep_failed",
+  "calendar_sweep_over_budget",
   "call_activity_failed",
   "call_activity_refused",
   "call_activity_started",

@@ -415,7 +415,10 @@ async function handToPerson(db: Db, routed: RoutedChannel, s: Extract<CallStep, 
   const L = logger();
   const rt = await loadTenantRuntime(db, routed);
   const pauseMs = pauseMsOf(rt.policy["reply"]?.limits);
-  await pauseConversation(db, routed.tenantId, s.conversationId, new Date(Date.now() + pauseMs).toISOString());
+  // Measured from the call's end, never from this delivery: Retell retries a slow delivery, and a pause measured
+  // from each one slid forward with every replay (docs/conversation-flow.md, G9). The same call ended once.
+  const from = s.endedAtIso ? Date.parse(s.endedAtIso) : Date.now();
+  await pauseConversation(db, routed.tenantId, s.conversationId, new Date(from + pauseMs).toISOString());
   const opened = await upsertEscalation(db, routed.tenantId, s.conversationId, "callback", s.details);
   L.info("call_callback_needed", { tenant_id: routed.tenantId, call: s.callId, escalation: opened });
 }

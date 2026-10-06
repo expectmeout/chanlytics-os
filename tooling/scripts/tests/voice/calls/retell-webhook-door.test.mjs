@@ -884,7 +884,6 @@ test("callback_needed: the thread is paused for the workspace's own hours, one c
         follow_up,
       },
     });
-    const before = Date.now();
     const res = await deliver(
       "call_analyzed",
       w.analysed(id, { call_analysis: analysis("Call Rosa back about the piano move on Saturday.") }),
@@ -894,10 +893,12 @@ test("callback_needed: the thread is paused for the workspace's own hours, one c
     const call = w.tables.calls[0];
     const thread = w.tables.conversations.find((c) => c.id === call.conversation_id);
     assert.equal(thread.state, "needs_human", "on Needs you");
-    const pausedFor = Date.parse(thread.paused_until) - before;
-    assert.ok(
-      pausedFor > 6 * 3_600_000 - 5_000 && pausedFor <= 6 * 3_600_000 + 5_000,
-      `paused for the workspace's six hours, not the default twenty-four: ${pausedFor} ms`,
+    // The world's call ended five seconds before NOW: the pause runs from the call's end, not from the delivery.
+    const pausedUntil = new Date(NOW - 5_000 + 6 * 3_600_000).toISOString();
+    assert.equal(
+      thread.paused_until,
+      pausedUntil,
+      "paused for the workspace's six hours, not the default twenty-four, measured from the call's end",
     );
 
     const esc = w.tables.escalations;
@@ -947,6 +948,11 @@ test("callback_needed: the thread is paused for the workspace's own hours, one c
     assert.equal(w.tables.notifications.length, 1, "told once");
     assert.equal(line.mail().length, 1);
     assert.equal(w.tables.messages.length, 1);
+    assert.equal(
+      w.tables.conversations.find((c) => c.id === call.conversation_id).paused_until,
+      pausedUntil,
+      "and the pause did not slide: a replay of the same call ends at the same moment (G9)",
+    );
 
     // The to-do's fallbacks. With no follow_up -- blank, or only whitespace --
     // the request is what the owner reads; with neither, the escalation still
@@ -1057,7 +1063,6 @@ test("callback_needed in a workspace with no reply policy of its own: the thread
   const line = wire();
   try {
     assert.equal(w.tables.policies.length, 0, "no policies row: nothing to read pause_hours from");
-    const before = Date.now();
     const res = await deliver(
       "call_analyzed",
       w.analysed(w.callId("callback-default"), {
@@ -1078,10 +1083,10 @@ test("callback_needed in a workspace with no reply policy of its own: the thread
     assert.deepEqual([res.status, await res.json()], [200, { ok: true }]);
     const thread = w.tables.conversations.find((c) => c.id === w.tables.calls[0].conversation_id);
     assert.equal(thread.state, "needs_human");
-    const pausedFor = Date.parse(thread.paused_until) - before;
-    assert.ok(
-      pausedFor > 24 * 3_600_000 - 5_000 && pausedFor <= 24 * 3_600_000 + 5_000,
-      `a day, the default the workspace never overrode: ${pausedFor} ms`,
+    assert.equal(
+      thread.paused_until,
+      new Date(NOW - 5_000 + 24 * 3_600_000).toISOString(),
+      "a day, the default the workspace never overrode, measured from the call's end",
     );
     assert.deepEqual(
       w.tables.escalations.map((e) => [e.conversation_id, e.reason, e.details]),

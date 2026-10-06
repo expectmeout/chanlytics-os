@@ -40,7 +40,7 @@ directories over 20 modules           3
 window globals                      100   names
 window publishers                   176   sites in 53 files
 copies                               73   of 21 names
-as unknown as                       141
+as unknown as                       140
 as never                             13
 non-null assertions, x!             111
 index reads the compiler lets pass  482   in 128 files

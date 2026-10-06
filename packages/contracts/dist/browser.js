@@ -11251,7 +11251,7 @@ function peopleFromItems(items, services, nowMs, window = {}) {
   return [...byPhone.values()].map((r2) => r2.email && (ridersOf.get(r2.email)?.size ?? 0) > 1 ? { ...r2, email: null } : r2).sort((a, b) => a.start - b.start);
 }
 function afterPersonRefused(code2) {
-  return code2 === "22023" ? "skip" : "stop";
+  return code2 === "22023" || code2 === "PE001" ? "skip" : "stop";
 }
 function bookedAfterAsk(visits, askedMs) {
   if (!visits) return false;
@@ -25230,7 +25230,7 @@ function unsubscribePageWords(v) {
 var BOOKED_SEEN_CAP = 500;
 function bookedSeenOf(items, own) {
   const out = [];
-  const byStart = [...items].sort((a, b) => a.start - b.start);
+  const byStart = [...items].sort((a, b) => b.start - a.start);
   for (const it of byStart) {
     const c = extractContacts(it, own);
     const start = new Date(it.start).toISOString();

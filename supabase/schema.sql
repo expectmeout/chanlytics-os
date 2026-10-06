@@ -1359,6 +1359,16 @@ begin
   if v_name is not null and char_length(v_name) > 80 then
     raise exception 'A name is at most 80 characters.' using errcode = '22023';
   end if;
+  -- Someone who asked to be forgotten is not brought back by their own appointment, nor by a member typing their
+  -- number: the digest is made here (00263), never handed in, and the refusal is import_person's.
+  if exists (
+    select 1
+      from contacts c
+     where c.tenant_id = p_tenant_id
+       and c.erased_phone_hash = public.erasure_digest(p_tenant_id, v_phone)
+  ) then
+    raise exception 'That person asked to be forgotten.' using errcode = 'PE001';
+  end if;
 
   select c.id into v_id
     from contacts c
@@ -1400,7 +1410,7 @@ end $_$;
 -- Name: FUNCTION create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text, p_title text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text, p_title text) IS 'Owner or operator adds a person by phone — get-or-create; a name fills only an empty one; consent stays unknown; a contact.added event says where they came from.';
+COMMENT ON FUNCTION public.create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text, p_title text) IS 'Owner or operator adds a person by phone — get-or-create; a name fills only an empty one; consent stays unknown; a contact.added event says where they came from. A number whose person asked to be forgotten is refused (PE001, 00329).';
 
 
 --
@@ -15545,9 +15555,23 @@ CREATE FUNCTION public.runtime_stamp(p_tenant_id uuid) RETURNS text
   select concat_ws('|',
     coalesce((select c.version::text from public.tenant_config c where c.tenant_id = p_tenant_id), '-'),
     coalesce((select max(p.updated_at)::text from public.policies p where p.tenant_id = p_tenant_id), '-'),
-    coalesce((select t.updated_at::text from public.tenants t where t.id = p_tenant_id), '-')
+    coalesce((select t.updated_at::text from public.tenants t where t.id = p_tenant_id), '-'),
+    -- A count beside the newest change: a row deleted (a line released) moves the count where it cannot move the max.
+    coalesce((select count(*)::text || '@' || max(ch.updated_at)::text
+                from public.tenant_channels ch where ch.tenant_id = p_tenant_id), '-'),
+    coalesce((select count(*)::text || '@' || max(g.updated_at)::text
+                from public.google_listings g where g.tenant_id = p_tenant_id), '-'),
+    coalesce((select count(*)::text || '@' || max(l.updated_at)::text
+                from public.lines l where l.tenant_id = p_tenant_id), '-')
   );
 $$;
+
+
+--
+-- Name: FUNCTION runtime_stamp(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.runtime_stamp(p_tenant_id uuid) IS 'What the receptionist''s runtime was read from, as one string: the settings'' version, the policies'' and the workspace row''s newest change, and the channels'', listings'' and lines'' count and newest change (00328). A warm instance reads the runtime again when it differs.';
 
 
 --
