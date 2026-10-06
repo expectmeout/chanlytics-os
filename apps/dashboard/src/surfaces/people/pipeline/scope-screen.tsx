@@ -220,7 +220,7 @@ function peekBlock(s: PipelineState) {
       phone={phone}
       onClose={doors.closePeek}
       onRetry={() => ui.setPeekTry((n) => n + 1)}
-      onOpenPage={() => d.pageRef.current(vm.id)}
+      onOpenPage={() => d.pageRef.current(P.personOf(vm.id))}
       onOpenThread={() => f.nav(pipeThreadRoute(vm.thread))}
       onCompose={(text) => pipeComposeIn(person, text, f.nav)}
       flash={plFlash}
@@ -276,16 +276,23 @@ function bulkBlock(s: PipelineState) {
   const { sel, setSel, canExport, clearSelection, plFlash } = f.controls;
   const { people } = f;
   if (!(picked.length > 0)) return null;
+  // People's bar acts on people (0029: a person with two open deals has a row for each): the people shown, each once,
+  // and those with any row picked; what it keeps of a selection is every picked row of theirs.
+  const shownPeople = [...new Map(r.shown.map((row) => [row.person.id, row.person])).values()];
+  const pickedPeople = new Set(r.shown.filter((row) => sel.has(row.id)).map((row) => row.person.id));
   return (
     <PeopleBulkBar
-      sel={sel}
-      rows={r.shown.map((row) => row.person)}
+      sel={pickedPeople}
+      rows={shownPeople}
       saved={people.saved || []}
       savedRead={people.savedRead !== false}
       canEdit={r.canRecord}
       canExport={canExport}
       onClear={clearSelection}
-      onKeep={(rest) => setSel(new Set(rest))}
+      onKeep={(rest) => {
+        const keep = new Set(rest);
+        setSel(new Set(r.shown.filter((row) => sel.has(row.id) && keep.has(row.person.id)).map((row) => row.id)));
+      }}
       flash={plFlash}
       acts={PIPE_BULK_ACTS}
       lead={

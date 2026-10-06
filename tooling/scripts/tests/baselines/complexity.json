@@ -140,8 +140,8 @@
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/deal.ts::proposeDeal#1": {
-    "lines": 115,
-    "branches": 68,
+    "lines": 109,
+    "branches": 66,
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
@@ -180,7 +180,7 @@
     "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
-    "lines": 237,
+    "lines": 233,
     "branches": 50,
     "depth": 1
   },
@@ -345,8 +345,8 @@
     "depth": 1
   },
   "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
-    "lines": 127,
-    "branches": 78,
+    "lines": 124,
+    "branches": 59,
     "depth": 0
   },
   "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {

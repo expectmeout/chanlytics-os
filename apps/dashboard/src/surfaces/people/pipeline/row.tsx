@@ -69,7 +69,8 @@ const pipeRowItems = (
   // A consultation's row starts a proposal, as dragging it into Proposal out does (contracts pipelineMove), whatever
   // deal of theirs closed before: its menu offered that old deal's Propose again. The sheet names the consultation's
   // service itself (dealSheetFor).
-  const deal = r.group === "consultations" ? null : r.person.deal;
+  // The row's own deal (0029): a person with two open deals has a row for each, and each row's menu acts on its own.
+  const deal = r.group === "consultations" ? null : r.deal;
   const acts: MoreItems =
     canRecord && dealSheetOffered()
       ? dealMenuActs(deal)
@@ -79,13 +80,17 @@ const pipeRowItems = (
             icon: PIPE_ACT_ICON[a.mode] || "deal",
             onClick: () => {
               pipeHoldFocus(r.id);
-              openDealSheet({ personId: r.id, mode: a.mode, dealId: a.mode === "propose" || !deal ? null : deal.id });
+              openDealSheet({
+                personId: r.person.id,
+                mode: a.mode,
+                dealId: a.mode === "propose" || !deal ? null : deal.id,
+              });
             },
           }))
       : [];
   const doors: MoreItems = [
     ...(r.person.threadId ? [{ label: W.thread, icon: "chat", onClick: () => onThread(r) }] : []),
-    { label: W.page, icon: "user", onClick: () => onPage(r.id) },
+    { label: W.page, icon: "user", onClick: () => onPage(r.person.id) },
   ];
   return acts.length ? [...acts, { divider: true }, ...doors] : doors;
 };

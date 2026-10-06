@@ -1013,6 +1013,34 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
     NOW.getTime(),
   ).rows.map((r) => r.id);
   assert.deepEqual(order, ["unanswered", "proposals-waiting", "quiet"]);
+  // A person with two proposals out (0029): each is a proposal waiting, as each is a row of the Pipeline's; the list
+  // counts the person once, and the sentence and the arithmetic each say theirs.
+  const twoOut = (followUp = null) => [
+    {
+      id: "p-two",
+      name: "Ana",
+      consent: { state: "opted_in" },
+      askedMs: null,
+      followUp,
+      deal: { id: "d-ads", stage: "proposed", sinceMs: NOW.getTime() - 9 * 86_400_000, brief: "Proposal out · 9 d" },
+      openDeals: [
+        { id: "d-ads", stage: "proposed", sinceMs: NOW.getTime() - 9 * 86_400_000, brief: "Proposal out · 9 d" },
+        { id: "d-seo", stage: "proposed", sinceMs: NOW.getTime() - 12 * 86_400_000, brief: "Proposal out · 12 d" },
+      ],
+    },
+  ];
+  const two = leakOf(people(twoOut()));
+  assert.equal(two.text, "2 proposals went out more than a week ago with nothing back.");
+  assert.equal(two.math, "1 on Proposal out · nothing heard since it went");
+  // The follow-up's stand their row carries is the shown proposal's: that one is in its hand, the other is said, and
+  // the person is named once.
+  const inHand = leakOf(people(twoOut({ kind: "will" })));
+  assert.equal(inHand.text, "1 proposal went out more than a week ago with nothing back.");
+  assert.match(inHand.math, /the follow-up has 1 more$/);
+  assert.deepEqual(
+    inHand.people.map((p) => p.id),
+    ["p-two"],
+  );
   // A workspace whose customers book never hears about a proposal, whatever deals it holds (0008).
   for (const dealsOn of [false, undefined])
     assert.equal(

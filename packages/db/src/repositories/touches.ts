@@ -23,7 +23,7 @@
  * holds its people.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_TIMEZONE, localDate, parseParamSpecs } from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, followUpKey, localDate, parseParamSpecs } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 import { readAllRows } from "../paged";
 
@@ -41,6 +41,13 @@ export interface Touch {
   /** Its run was made to wait for a person (pending_approval), today's, which may still go. */
   held: boolean;
   follow_up: boolean;
+  /**
+   * The proposal a follow-up was about (0029), so a person's second proposal is owed its own: the deal its recipient's
+   * words were written for (facts.deal_id) and the link they carried (facts.proposal_link). Null for any other touch,
+   * and for a follow-up whose words kept neither (contracts followUpKey reads them).
+   */
+  deal: string | null;
+  link: string | null;
 }
 
 /**
@@ -51,6 +58,8 @@ export interface TouchIndex {
   byThis: Map<string, Map<string, number>>;
   byAny: Map<string, number>;
   followUps: Map<string, number>;
+  /** The latest follow-up by person and by what it was about (contracts followUpKey, 0029): which proposals had theirs. */
+  followUpKeys: Map<string, Map<string, number>>;
 }
 
 /** Run ids per recipients query: they ride in the URL, which a proxy does not let grow without end. */
@@ -123,18 +132,26 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
   const out: Touch[] = [];
   const sinceMs = since.getTime();
   for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
-    const rows = await readAllRows<{ broadcast_id: string; contact_id: string; sent_at: string | null; state: string }>(
-      "broadcast_recipients",
-      (from, to) =>
-        db
-          .from("broadcast_recipients")
-          .select("broadcast_id, contact_id, sent_at, state")
-          .eq("tenant_id", tenantId)
-          .in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY))
-          .in("state", ["sent", "queued"])
-          .order("broadcast_id")
-          .order("contact_id")
-          .range(from, to),
+    const rows = await readAllRows<{
+      broadcast_id: string;
+      contact_id: string;
+      sent_at: string | null;
+      state: string;
+      proposal_link: string | null;
+      proposal_deal: string | null;
+    }>("broadcast_recipients", (from, to) =>
+      db
+        .from("broadcast_recipients")
+        // Of the words a recipient kept, the proposal's deal and link alone (0029): which one a follow-up was about.
+        .select(
+          "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+        )
+        .eq("tenant_id", tenantId)
+        .in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY))
+        .in("state", ["sent", "queued"])
+        .order("broadcast_id")
+        .order("contact_id")
+        .range(from, to),
     );
     for (const r of rows) {
       const run = ofRun.get(r.broadcast_id);
@@ -149,17 +166,24 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
         sent: r.state === "sent",
         held: run.state === "pending_approval",
         follow_up: followUp.has(run.id),
+        // As the run wrote them from the deal (contracts proposalFactsFor), so they are compared as they are.
+        deal: followUp.has(run.id) ? factString(r.proposal_deal) : null,
+        link: followUp.has(run.id) ? factString(r.proposal_link) : null,
       });
     }
   }
   return out;
 }
 
+/** A word a recipient's facts kept, or null: absent, empty, or not a string. */
+const factString = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+
 /** The touches by person, the way a run draws with them: the latest by any run, by each playbook, and follow-up. */
 export function touchIndex(touches: readonly Touch[]): TouchIndex {
   const byThis = new Map<string, Map<string, number>>();
   const byAny = new Map<string, number>();
   const followUps = new Map<string, number>();
+  const followUpKeys = new Map<string, Map<string, number>>();
   for (const t of touches) {
     const at = Date.parse(t.at);
     if (t.playbook_id) {
@@ -169,6 +193,12 @@ export function touchIndex(touches: readonly Touch[]): TouchIndex {
     }
     byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
     if (t.follow_up) followUps.set(t.contact_id, Math.max(followUps.get(t.contact_id) ?? 0, at));
+    if (t.follow_up) {
+      const m = followUpKeys.get(t.contact_id) ?? new Map<string, number>();
+      const key = followUpKey(t);
+      m.set(key, Math.max(m.get(key) ?? 0, at));
+      followUpKeys.set(t.contact_id, m);
+    }
   }
-  return { byThis, byAny, followUps };
+  return { byThis, byAny, followUps, followUpKeys };
 }

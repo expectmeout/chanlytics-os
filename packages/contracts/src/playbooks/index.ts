@@ -29,6 +29,7 @@ export {
   breathEndsAt,
   breathHolds,
   followUpIsFor,
+  followUpKey,
   playbookRunStop,
   playbookStopBy,
   followUpRunAt,

@@ -7045,6 +7045,7 @@ type Database = {
                     message_channels: string[];
                     needs_human: boolean;
                     offers_asked_at: string;
+                    open_deals: Json;
                     open_escalation_reason: string;
                     open_escalation_since: string;
                     phone_e164: string;

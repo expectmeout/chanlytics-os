@@ -191,12 +191,14 @@ export const dealBoard: Reader<undefined, DealBoard> = {
       return fu ? { ...v, followUp: followUpStandOf(v, fu, tz, nowMs, pace, ready) } : v;
     });
     const board = pipelineOf(rowsVm, nowMs, tz, pace);
+    // Each row cites the person it is and the deal it stands for (0029: a further deal of theirs is a row of its own,
+    // whose id is not theirs).
     const rows: RowRef[] = board.groups.flatMap((g) =>
       g.rows.flatMap((row): RowRef[] => {
-        const route = `clients/${row.id}`;
-        const deal = row.person.deal?.id;
+        const route = `clients/${row.person.id}`;
+        const deal = row.deal?.id;
         return [
-          { kind: "person", id: row.id, route, label: row.name },
+          { kind: "person", id: row.person.id, route, label: row.name },
           ...(deal
             ? [{ kind: "deal" as const, id: deal, route, label: [row.name, row.service].filter(Boolean).join(" · ") }]
             : []),

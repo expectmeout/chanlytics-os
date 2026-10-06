@@ -103,7 +103,6 @@
   "apps/dashboard/src/server/readers/escalations.ts": 1,
   "apps/dashboard/src/server/readers/notifications.ts": 3,
   "apps/dashboard/src/server/readers/person.ts": 11,
-  "apps/dashboard/src/server/readers/person.ts::rpc": 1,
   "apps/dashboard/src/server/readers/settings.ts": 3,
   "apps/dashboard/src/server/readers/templates.ts": 5,
   "apps/dashboard/src/server/receptionist/first-receptionist.ts": 1,

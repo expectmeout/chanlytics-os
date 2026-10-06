@@ -262,7 +262,8 @@ async function save({ st, setSt, flash, fold, sheet }: Host): Promise<void> {
         </>
       ),
     });
-  announce("deal:recorded", { personId: ask.personId });
+  // And the deal it moved (0029: the Pipeline gives the focus back to that deal's own row).
+  announce("deal:recorded", { personId: ask.personId, dealId: ask.dealId ?? null });
 }
 
 /** The Confirm that asks about what was typed: the fold's own question, or the sheet's Cancel's. */

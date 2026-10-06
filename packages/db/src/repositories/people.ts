@@ -6,7 +6,12 @@
  * few people by their ids, for a read that holds their ids and not their names (Ask's message search).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NameableContact, PersonDecisionDto, PersonRowDto } from "@chanlytics/contracts";
+import {
+  openDealsFromJson,
+  type NameableContact,
+  type PersonDecisionDto,
+  type PersonRowDto,
+} from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -117,7 +122,29 @@ export async function peoplePage(
     ...(after ? { p_after_at: after.at, p_after_added: after.added, p_after_id: after.id } : {}),
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  return data ?? [];
+  return (data ?? []).map(rowOfPeopleList);
+}
+
+type PeopleListRow = Database["public"]["Functions"]["people_list"]["Returns"][number];
+
+/**
+ * A people_list row as People reads it: every open deal (0029) arrives as jsonb, read into its shape, or left absent
+ * where the database has no such column. One reading for the list and the person page.
+ */
+function rowOfPeopleList({ open_deals, ...row }: PeopleListRow): PersonRowDto {
+  const deals = openDealsFromJson(open_deals);
+  return deals === undefined ? row : { ...row, open_deals: deals };
+}
+
+/**
+ * One person's People row, as the list shows it (people_list narrowed to them), or null for someone it does not hold.
+ * The person page reads its row here, so it is read the way the list reads it. A read that fails THROWS.
+ */
+export async function personRow(db: Db, tenantId: string, contactId: string): Promise<PersonRowDto | null> {
+  const { data, error } = await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contactId });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  const first = (data ?? [])[0];
+  return first ? rowOfPeopleList(first) : null;
 }
 
 /**

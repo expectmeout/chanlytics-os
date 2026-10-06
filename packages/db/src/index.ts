@@ -301,6 +301,7 @@ export {
   namesOfPeople,
   personDecisions,
   peoplePage,
+  personRow,
   peopleCursorOf,
   everyoneIn,
   erasureDigests,

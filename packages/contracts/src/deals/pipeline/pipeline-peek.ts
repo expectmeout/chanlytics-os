@@ -27,6 +27,8 @@ export interface PipelinePeekVM {
   facts: PipelinePeekFact[];
   /** Their thread's id ("th-…"), for the door to it; null for someone with no conversation. */
   thread: string | null;
+  /** The deal the row stands for (0029: a person's each open deal is a row), what its acts move; null for a consultation. */
+  dealId: string | null;
 }
 
 /**
@@ -54,6 +56,7 @@ export function pipelinePeekOf(
   if (n && !onCard) facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} · ${n.words} · ${n.when}` });
   return {
     id: row.id,
+    dealId: row.deal?.id ?? null,
     name: row.name,
     initials: p.initials,
     numeric: /^[+\d(]/.test(row.name) || row.name.includes("@"),

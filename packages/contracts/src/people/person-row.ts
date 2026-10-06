@@ -33,8 +33,8 @@ import type { FollowUpStand } from "../playbooks/playbooks";
 import { visitAnswersAsk, visitDateKey, visitDay, visitLine, type MatchVia } from "../calendar/calendar-people";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
 import { initialsOf, isEmailStopped, isIdentifierName } from "../conversations/thread-contact";
-import { dealOf, type DealVM } from "../deals/deal-vm";
-import { dealStageOf, type DealStandingStage } from "../deals/deal-consultations";
+import { dealOf, openDealsOf, type DealVM } from "../deals/deal-vm";
+import { dealStageOf, dealStagesOf, type DealStandingStage } from "../deals/deal-consultations";
 import type { PersonConsent } from "./person-consent";
 import { MONTH_MS, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
@@ -191,6 +191,11 @@ export interface PersonRowVM {
   /** Where they stand on the way to a deal, as the Pipeline groups them (deals.ts dealStageOf); null for none. */
   dealStage: DealStandingStage | null;
   /**
+   * Every stage they stand at (0029): `dealStage` and the stage of each open deal, once each. A client with a proposal
+   * out for another service stands at both, and People's deal lists hold them in both.
+   */
+  dealStages: DealStandingStage[];
+  /**
    * Gave the answer each kind of message asks (yes to messages, yes to offers), a way to reach them or not: what they
    * said, whatever channel it was for and whether the workspace can send on it (reach-any.ts answeredYes).
    */
@@ -226,6 +231,11 @@ export interface PersonRowVM {
   calendarTz: string | null;
   /** Their deal, as the page says it (0004); null where none was recorded. */
   deal: DealVM | null;
+  /**
+   * Every open deal, newest first (0029: contracts openDealsOf): a proposal out or a client, one per service. `deal` is
+   * the one the row shows; the Pipeline, the deal lists and the proposal follow-up read them all.
+   */
+  openDeals: DealVM[];
   /** The next or the last visit was a consultation (0004): the "Consultation booked" list. */
   consultationVisit: boolean;
   /** When their last visit ended, when it was a consultation (0008): the next step is a proposal. Null otherwise. */
@@ -285,6 +295,25 @@ function visitKeysOf(
     nextVisitVia: v?.next?.via ?? null,
     lastVisitVia: v?.last?.via ?? null,
     calendarTz: v?.timezone ?? null,
+  };
+}
+
+/**
+ * What a row's visits say of a consultation (0004, 0008): the next or the last is one, when the last ended and its
+ * title, and the one ahead. The Pipeline's group reads them (dealStageOf), and the consultation lists.
+ */
+function consultationKeysOf(
+  v: PersonRowDto["visits"],
+  nextVisitMs: number | null,
+): Pick<PersonRowVM, "consultationVisit" | "consultedMs" | "consultationTitle" | "consultAhead"> {
+  return {
+    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
+    consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
+    consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
+    consultAhead:
+      v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs)
+        ? { startMs: nextVisitMs, allDay: !!v.next.all_day }
+        : null,
   };
 }
 
@@ -456,19 +485,16 @@ export function toPersonRowVM(
     stopped: isOptedOutContact({ consent: r.consent, dnc: r.dnc }),
     ...visitKeysOf(v),
     deal: dealOf(r, tz, nowMs),
-    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
-    consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
-    consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
-    consultAhead:
-      v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs)
-        ? { startMs: nextVisitMs, allDay: !!v.next.all_day }
-        : null,
+    openDeals: openDealsOf(r, tz, nowMs),
+    ...consultationKeysOf(v, nextVisitMs),
     nextStep: nextStepOf(r, tz, nowMs),
     stepDue: stepIsDue(nextStepOf(r, tz, nowMs)),
     dealStage: null,
+    dealStages: [],
     followUp: null,
   };
   // The Pipeline's group for them, from the deal and the consultations just read: one rule for both pages.
   vm.dealStage = dealStageOf(vm, nowMs);
+  vm.dealStages = dealStagesOf(vm.dealStage, vm.openDeals);
   return vm;
 }

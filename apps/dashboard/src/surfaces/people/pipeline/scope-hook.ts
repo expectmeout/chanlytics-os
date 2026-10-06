@@ -15,6 +15,7 @@ import {
   usePipelinePeekDoors,
   usePipelinePeekReads,
   usePipelinePeekRow,
+  usePipelinePicksFollow,
   usePipelinePerson,
   usePipelinePlace,
   usePipelineRows,
@@ -52,8 +53,14 @@ export function usePipelineState(props: PipelineScopeProps) {
   const pk = usePipelinePeekRow(r, ui, f);
   const tableColumns = usePipelineColumns(f, pk);
   usePipelineBoardFocus(r, ui, place);
+  usePipelinePicksFollow(r, f);
   // The people picked, as the rows shown say them: a person a view no longer shows is not acted on.
-  const picked = r.selectable ? r.shown.filter((row) => f.controls.sel.has(row.id)).map((row) => row.person) : [];
+  // Each as its row says it (0029): the person with the row's own deal, and the row it was picked as.
+  const picked = r.selectable
+    ? r.shown
+        .filter((row) => f.controls.sel.has(row.id))
+        .map((row) => ({ ...row.person, deal: row.deal ?? row.person.deal, rowId: row.id }))
+    : [];
   usePipelineAddress(f, ui, doors);
   const d = usePipelineDoors(f, r, doors, onOpenProfile);
   const pickView = pipelinePickView({ f, ui, r, closeSheets });

@@ -194,6 +194,7 @@ test("which of a person's deals the page shows: open or current first, then the 
     ended_at: null,
     amount_cents: null,
     per: null,
+    currency: null,
     proposal_url: null,
     valid_until: null,
     lost_reason: null,
@@ -796,6 +797,86 @@ test("a People row carries its deal, and none without the columns (an older data
   const withDeal = toPersonRowVM(personRow(cols()), TZ, new Date(NOW)).deal;
   assert.equal(withDeal.stage, "proposed");
   assert.equal(withDeal.id, "d1");
+});
+
+test("a People row carries every open deal of theirs (0029): from people_list's open_deals, newest first, the open ones alone; the one deal from a database without them; and every stage they stand at", () => {
+  const { toPersonRowVM, openDealsFromJson } = contracts;
+  const open = (id, stage, o = {}) => ({
+    id,
+    stage,
+    service: o.service ?? null,
+    proposed_at: daysAgo(o.proposed ?? 20),
+    decided_at: o.decided === undefined ? null : daysAgo(o.decided),
+    ended_at: null,
+    amount_cents: o.cents ?? null,
+    per: o.per ?? null,
+    currency: o.currency ?? "USD",
+    proposal_url: o.url ?? null,
+    valid_until: null,
+    lost_reason: null,
+  });
+  // A client of SEO since last month with a proposal out for ads since last week: their deal is the proposal (open
+  // first, then the newest), and the client is among their open deals.
+  const row = toPersonRowVM(
+    personRow({
+      ...cols({ deal_id: "d2", deal_service: "Ads", deal_proposed_at: daysAgo(6) }),
+      open_deals: [
+        open("d2", "proposed", { service: "Ads", proposed: 6, url: "https://example.com/p/ads" }),
+        open("d1", "won", { service: "SEO", proposed: 60, decided: 45, cents: 250_000, per: "month", currency: "EUR" }),
+      ],
+    }),
+    TZ,
+    new Date(NOW),
+  );
+  assert.equal(row.deal.id, "d2", "the row shows its current deal, as before");
+  assert.deepEqual(
+    row.openDeals.map((d) => [d.id, d.stage, d.service, d.currency]),
+    [
+      ["d2", "proposed", "Ads", "USD"],
+      ["d1", "won", "SEO", "EUR"],
+    ],
+  );
+  assert.equal(row.openDeals[0].proposal?.url, "https://example.com/p/ads", "each with its own link");
+  assert.deepEqual([row.dealStage, row.dealStages], ["proposed", ["proposed", "won"]], "a client with a proposal out");
+  // A deal the list holds that is no longer open (the page's copy, a move behind) is not one of them.
+  const moved = toPersonRowVM(
+    personRow({ ...cols(), open_deals: [open("d1", "lost", { decided: 1 }), open("d3", "won", { decided: 2 })] }),
+    TZ,
+    new Date(NOW),
+  );
+  assert.deepEqual(
+    moved.openDeals.map((d) => d.id),
+    ["d3"],
+  );
+  // From a database before 00328, no open_deals: the one deal, while it is open; none open, none.
+  assert.deepEqual(
+    toPersonRowVM(personRow(cols()), TZ, new Date(NOW)).openDeals.map((d) => d.id),
+    ["d1"],
+  );
+  const passed = toPersonRowVM(personRow(cols({ deal_stage: "lost", deal_decided_at: daysAgo(2) })), TZ, new Date(NOW));
+  assert.deepEqual(
+    [passed.openDeals, passed.dealStages],
+    [[], ["lost"]],
+    "a pass is no open deal; where they stand is said",
+  );
+  assert.deepEqual(
+    toPersonRowVM(personRow({ ...cols(), open_deals: null }), TZ, new Date(NOW)).openDeals,
+    [],
+    "none open",
+  );
+  // What the column holds is read strictly: absent is a database before it, not a list is none, and an entry without
+  // an id or a stage is dropped.
+  assert.equal(openDealsFromJson(undefined), undefined);
+  assert.equal(openDealsFromJson(null), null);
+  assert.equal(openDealsFromJson({ id: "x", stage: "won" }), null);
+  assert.deepEqual(
+    openDealsFromJson([{ id: "x", stage: "won", amount_cents: "9" }, { stage: "won" }, null, "d", [1]]).map((d) => [
+      d.id,
+      d.amount_cents,
+      d.currency,
+    ]),
+    [["x", null, null]],
+  );
 });
 
 /** The least a person's page reads (PersonDetailDto): the row and empty arrays; the person-honest test builds the full one. */

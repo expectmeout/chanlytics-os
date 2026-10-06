@@ -358,7 +358,7 @@ const context = (over = {}) => ({
     textLine: null,
     email: { mailbox: false, domain: false },
   }),
-  touches: { byThis: new Map(), byAny: new Map(), followUps: new Map() },
+  touches: { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() },
   calendar: "none",
   visits: new Map(),
   ...over,

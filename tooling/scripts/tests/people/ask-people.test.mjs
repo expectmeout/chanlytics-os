@@ -415,6 +415,70 @@ test("the board is the page's: contracts pipelineOf over everyone in People, eac
   assert.deepEqual([off.data, off.rows], [{ deals_on: false, timezone: TZ, board: null }, []]);
 });
 
+test("a person with two open deals is two rows of the board, each the person and its own deal (0029): Ask's contact_id and every citation are theirs, never a row's id, and each row names the deal it stands for", async () => {
+  const D6 = "dededede-dede-4ede-8ede-dededededed6";
+  const open = (id, stage, service, days, o = {}) => ({
+    id,
+    stage,
+    service,
+    proposed_at: iso(NOW.getTime() - days * DAY),
+    decided_at: o.decided ?? null,
+    ended_at: null,
+    amount_cents: o.cents ?? null,
+    per: o.per ?? null,
+    currency: "USD",
+    proposal_url: null,
+    valid_until: null,
+    lost_reason: null,
+  });
+  // Quinn, a client of ad management, with a proposal out for a website since: the row shows the proposal (open first,
+  // then the newest), and open_deals holds both, the newest first.
+  const quinn = {
+    ...HARBOR[1],
+    deal_id: D6,
+    deal_stage: "proposed",
+    deal_service: "Website",
+    deal_proposed_at: iso(NOW.getTime() - 8 * DAY),
+    deal_decided_at: null,
+    deal_amount_cents: 300_000,
+    deal_per: "once",
+    open_deals: [
+      open(D6, "proposed", "Website", 8, { cents: 300_000, per: "once" }),
+      open(D2, "won", "Ad management", 40, { decided: iso(NOW.getTime() - 30 * DAY), cents: 250_000, per: "month" }),
+    ],
+  };
+  const rpcs = {
+    people_list: (a) =>
+      (a.p_tenant_id === A ? HARBOR.map((r) => (r.id === P2 ? quinn : r)) : []).slice(
+        a.p_offset ?? 0,
+        (a.p_offset ?? 0) + (a.p_limit ?? 1000),
+      ),
+  };
+  const tc = newToolContext(ctxFor(tables(), rpcs), A, "operator", TZ, NOW);
+  const run = await runTool(tc, { name: "people", input: { action: "pipeline" } });
+  assert.equal(run.isError, false, run.result);
+  const out = JSON.parse(run.result);
+  assert.deepEqual(
+    out.groups.flatMap((g) =>
+      g.people.filter((p) => p.name === "Quinn").map((p) => [g.group, p.contact_id, p.deal_id, p.route, p.service]),
+    ),
+    [
+      ["Proposal out", P2, D6, `clients/${P2}`, "Website"],
+      ["Clients", P2, D2, `clients/${P2}`, "Ad management"],
+    ],
+  );
+  assert.deepEqual(tc.read.person.get(P2), { kind: "person", id: P2, route: `clients/${P2}`, label: "Quinn" });
+  assert.deepEqual(
+    [D6, D2].map((id) => tc.read.deal.get(id)),
+    [
+      { kind: "deal", id: D6, route: `clients/${P2}`, label: "Quinn · Website" },
+      { kind: "deal", id: D2, route: `clients/${P2}`, label: "Quinn · Ad management" },
+    ],
+    "each deal its own row's, opened on the person's page",
+  );
+  assert.ok(![...tc.read.person.keys()].some((id) => id.includes("_")), "no row's id is ever a person's");
+});
+
 /** Ask's people tool, run through the registry for a member of harbor, on the fixture's clock. */
 const ask = async (input, t = tables(), role = "operator") => {
   const tc = newToolContext(ctxFor(t), A, role, TZ, NOW);
@@ -436,9 +500,9 @@ test("people.pipeline answers what the board's reader answers, as the Pipeline d
       count: g.count,
       comes_to: g.meta,
       people: g.rows.map((row) => ({
-        contact_id: row.id,
-        deal_id: row.person.deal?.id ?? null,
-        route: `clients/${row.id}`,
+        contact_id: row.person.id,
+        deal_id: row.deal?.id ?? null,
+        route: `clients/${row.person.id}`,
         name: row.name,
         service: row.service,
         value: row.value,

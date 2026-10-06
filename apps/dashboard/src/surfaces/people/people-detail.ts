@@ -410,7 +410,7 @@ export async function recordDeal(
     // sheet closes when the server takes the move rather than once every person has been read again. Not the deal it
     // recorded: a move on someone's older deal is not the one their row shows.
     onAccepted: (d) => {
-      if (d && d.current) placeDeal(id, d.current);
+      if (d && d.current) placeDeal(id, d.current, d.deal);
     },
     refresh: opts.refresh === false ? false : "behind",
   });
@@ -428,7 +428,8 @@ export async function recordDeal(
  * table a single move's re-read follows, whatever the last one answered (inboxBulk's rule).
  */
 export async function passDeals(
-  items: readonly { personId: string; dealId: string }[],
+  // `rowId`: the Pipeline row each was picked as (0029), which is what `passed` names, so its selection drops those rows.
+  items: readonly { personId: string; dealId: string; rowId?: string }[],
   reason: DealLostReason,
 ): Promise<{ passed: string[]; changed: string[]; failed: string[] }> {
   const passed: string[] = [];
@@ -452,7 +453,7 @@ export async function passDeals(
       { stage: "lost", deal_id: it.dealId, version: deal.version, lost_reason: reason },
       { refresh: false },
     );
-    if (r.ok) passed.push(it.personId);
+    if (r.ok) passed.push(it.rowId ?? it.personId);
     else if (r.message === DEAL_REFUSALS.moved) changed.push(it.personId);
     else failed.push(it.personId);
   }

@@ -202,6 +202,7 @@ export const plMatcher = (
       nextVisit?: string | null;
       lastVisit?: string | null;
       deal?: { service?: string | null } | null;
+      openDeals?: readonly { service?: string | null }[];
     }) => boolean)
   | null => {
   const needle = q.trim().toLowerCase();
@@ -215,7 +216,9 @@ export const plMatcher = (
     (p.quote || "").toLowerCase().includes(needle) ||
     (p.nextVisit || "").toLowerCase().includes(needle) ||
     (p.lastVisit || "").toLowerCase().includes(needle) ||
-    ((p.deal && p.deal.service) || "").toLowerCase().includes(needle);
+    ((p.deal && p.deal.service) || "").toLowerCase().includes(needle) ||
+    // Any open deal's service (0029): a client of one service with a proposal out for another is found by either.
+    (p.openDeals ?? []).some((d) => (d.service || "").toLowerCase().includes(needle));
 };
 
 /** The exact moment, by the business's clock: "Sep 6, 2026 · 3:10 PM". */

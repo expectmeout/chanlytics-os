@@ -2193,7 +2193,8 @@ function draw(r, message, how, listIds) {
     {
       byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(),
       byAny: ctx.touches.byAny,
-      followUps: ctx.touches.followUps
+      followUps: ctx.touches.followUps,
+      followUpKeys: ctx.touches.followUpKeys
     },
     ctx.now.getTime(),
     ctx.pace,
@@ -2252,7 +2253,8 @@ function touchEnrolled(r, goesAt, eligible, held) {
   r.ctx.touches = touchesAfterRun(
     r.ctx.touches,
     { playbookId: r.p.id, at: goesAt.getTime(), followUp: triggerOf2(r.p.trigger)?.kind === "deal" },
-    eligible.filter((person) => !skipped.has(person.id)).map((person) => person.id)
+    // With the proposal's link a follow-up carries to each (their deal is the proposal it is about, 0029).
+    eligible.filter((person) => !skipped.has(person.id)).map((person) => ({ id: person.id, deal: person.deal?.id ?? null, link: person.deal?.proposal?.url ?? null }))
   );
 }
 async function sayTheRun(run, made) {

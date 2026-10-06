@@ -98,6 +98,18 @@ export function dealStageOf(
 }
 
 /**
+ * Every stage a person stands at (0029): their group (dealStageOf), then each open deal's, once each. A client of one
+ * service with a proposal out for another stands at both, and a list of either holds them.
+ */
+export function dealStagesOf(
+  stage: DealStandingStage | null,
+  open: readonly Pick<DealVM, "stage">[],
+): DealStandingStage[] {
+  const theirs = open.map((d) => d.stage).filter((s): s is "proposed" | "won" => s === "proposed" || s === "won");
+  return [...new Set<DealStandingStage>(stage ? [stage, ...theirs] : theirs)];
+}
+
+/**
  * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
  * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
  * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without

@@ -5,7 +5,7 @@
 import type { PersonRowVM } from "../people/person-row";
 import { NO_CHANNEL_REACH, NO_NUMBER_REACH } from "../people/people-lists";
 import type { DealVM } from "../deals/deal-vm";
-import { proposalsWaiting, type DealPaceVM } from "../deals/deal-waits";
+import { eachOpenProposal, proposalsWaiting, type DealPaceVM } from "../deals/deal-waits";
 import { consultationsWithoutProposal, consultsHeldWords } from "../deals/deal-consultations";
 import { pipelineRoute } from "../deals/pipeline/pipeline-views";
 import { isOptedOutContact } from "../consent/consent";
@@ -270,8 +270,10 @@ function proposalsWaitingWords(
  * by hand or at all.
  */
 function yoursToFollowUp(waiting: readonly ProposalRow[]): TodayLeakVM["people"] {
+  // A person once, however many of their proposals wait (0029).
   return waiting
     .filter((r) => !isOptedOutContact({ consent: r.consent.state, dnc: r.consent.dnc }))
+    .filter((r, i, all) => all.findIndex((x) => x.id === r.id) === i)
     .slice(0, 2)
     .flatMap((r) =>
       r.id && r.name ? [{ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name}` }] : [],
@@ -285,7 +287,15 @@ function proposalsWaitingLeak({ people, list, dealsAt }: LeakFacts): TodayLeakVM
   const dealRows = (people?.rows ?? []).filter((r): r is ProposalRow => "deal" in r && "askedMs" in r);
   // Past the workspace's pace by a fifth once it has one (0008, amended), a week until then: the Pipeline's own rule.
   const pace = people?.dealPace ?? null;
-  const out = proposalsWaiting(dealRows, dealsAt(), pace);
+  // Each proposal out of theirs counts (0029: one per service). The follow-up's stand People's row carries is for the
+  // deal it shows, so only that proposal is in its hand.
+  const shownDeal = new Map(dealRows.map((r) => [r.id, r.deal]));
+  const proposals = eachOpenProposal(dealRows).map((r) => {
+    const shown = shownDeal.get(r.id) ?? null;
+    const same = !!shown && !!r.deal && (r.deal === shown || (r.deal.id !== null && r.deal.id === shown.id));
+    return same ? r : { ...r, followUp: null };
+  });
+  const out = proposalsWaiting(proposals, dealsAt(), pace);
   // Where a follow-up runs (0006), the ones it has in hand are not a leak: the row counts only the people it will not
   // reach -- no link, no yes, no number, or their one nudge already gone -- names two of them, and its door is the
   // Pipeline's own waiting view, where each row says which is which.

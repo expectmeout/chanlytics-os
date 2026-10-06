@@ -27,6 +27,7 @@ import {
   type LeadChannel,
   clockDate,
   DAY_MS,
+  dealIsOpen,
   dealSentence,
   dealsAreOn,
   offersFacts,
@@ -241,6 +242,12 @@ export interface LeadContext {
    * (dealsAreOn, 0008). Optional so every fake still compiles.
    */
   deal?: DealFacts | null;
+  /**
+   * Their other open deals (0029), newest first, each with its proposal's link: a client of one service may have a
+   * proposal out for another, and the receptionist hears each. Empty where none, or deals are off; optional so every
+   * fake still compiles.
+   */
+  otherDeals?: DealFacts[];
 }
 
 /** The workspace's answer to how its customers buy, from a contact read that embeds `tenants(sells_by)`. */
@@ -382,6 +389,8 @@ export async function readLeadContext(
         .order("created_at", { ascending: false })
     : { data: [] };
   const current = pickCurrentDeal(dealRows ?? []);
+  // Every other open deal of theirs, newest first (0029): a proposal out for one service beside a client of another.
+  const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
 
   // Their notes (0007): the kept ones that are not for the team only. Never a suggestion the receptionist wrote
   // itself, which waits for a person to keep it. An error is no list, and the old field is said instead.
@@ -415,15 +424,19 @@ export async function readLeadContext(
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
-    deal: current
-      ? {
-          stage: current.stage,
-          service: current.service,
-          proposed_at: current.proposed_at,
-          decided_at: current.decided_at,
-          ended_at: current.ended_at,
-        }
-      : null,
+    deal: current ? dealRowFacts(current) : null,
+    otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url })),
+  };
+}
+
+/** A deal row's facts as the receptionist and the phone read them: its stage, its service and its days. */
+function dealRowFacts(d: Pick<DealFacts, "stage" | "service" | "proposed_at" | "decided_at" | "ended_at">): DealFacts {
+  return {
+    stage: d.stage,
+    service: d.service,
+    proposed_at: d.proposed_at,
+    decided_at: d.decided_at,
+    ended_at: d.ended_at,
   };
 }
 
@@ -447,10 +460,10 @@ export async function readDealForPhone(db: Db, tenantId: string, phoneE164: stri
     .eq("tenant_id", tenantId)
     .eq("contact_id", c.id)
     .order("created_at", { ascending: false });
-  const d = pickCurrentDeal(data ?? []);
-  return d
-    ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at }
-    : null;
+  // A client of any service is a client (0029): their current deal may be a newer proposal for another one, which hid
+  // that they are one, and they were offered a consultation instead of the service.
+  const d = (data ?? []).find((x) => x.stage === "won") ?? pickCurrentDeal(data ?? []);
+  return d ? dealRowFacts(d) : null;
 }
 
 /**
@@ -544,14 +557,42 @@ export function describeLead(
   // answers a price question, so the proposal's sentence points at it instead of promising a follow-up.
   const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
   if (deal) bits.push(deal);
-  // The owner's priced answer for this person is a link (00154), the deal's now (0008):
-  // the receptionist hands it over and prices nothing itself. No link, nothing said.
-  const proposal = (lead.proposalUrl ?? "").trim();
-  if (proposal)
-    bits.push(
-      `The owner has a proposal ready for them at ${proposal}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out — say it is being sent to them in writing.`,
-    );
+  // Each other open deal of theirs (0029), its own sentence: a client of one service with a proposal out for another
+  // hears both.
+  const others = lead.otherDeals ?? [];
+  for (const d of others) {
+    const said = dealSentence(d, now.getTime(), tz, { hasLink: !!(d.proposal_url ?? "").trim() });
+    if (said) bits.push(said);
+  }
+  const links = proposalLinkWords(lead);
+  if (links) bits.push(links);
   return bits.join(" ");
+}
+
+/**
+ * The owner's priced answer for this person is a link (00154), the deal's now (0008): the receptionist hands it over and
+ * prices nothing itself, and no link is nothing said. With one deal open, its link answers a price question. With several
+ * (0029), each link is named by its service and answers for that proposal alone: a client's engagement, and a proposal
+ * out with no link, keep their own sentences (dealSentence), so a question about one never gets another's link.
+ */
+function proposalLinkWords(lead: LeadContext): string | null {
+  const others = lead.otherDeals ?? [];
+  const links = [
+    { url: (lead.proposalUrl ?? "").trim(), service: lead.deal?.service ?? null },
+    ...others
+      .filter((d) => d.stage === "proposed")
+      .map((d) => ({ url: (d.proposal_url ?? "").trim(), service: d.service })),
+  ].filter((x) => x.url);
+  const [first] = links;
+  if (!first) return null;
+  if (!others.length)
+    return `The owner has a proposal ready for them at ${first.url}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out — say it is being sent to them in writing.`;
+  const rest =
+    "and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out — say it is being sent to them in writing.";
+  if (links.length === 1)
+    return `The owner has a proposal${first.service ? ` for ${first.service}` : ""} ready for them at ${first.url}. If they ask about that proposal, its price or a quote for it, send that link ${rest}`;
+  const named = links.map((x) => (x.service ? `${x.service} at ${x.url}` : x.url)).join("; ");
+  return `The owner has proposals ready for them: ${named}. If they ask about one of these, its price or a quote for it, send the link for the one they mean (ask which, if it is not clear) ${rest}`;
 }
 
 /* -------------------------------------------------------------------------

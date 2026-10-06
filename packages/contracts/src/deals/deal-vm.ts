@@ -46,6 +46,8 @@ export interface DealColumns {
   deal_proposal_url?: string | null;
   deal_valid_until?: string | null;
   deal_lost_reason?: string | null;
+  /** The currency its amount is in: an open deal's (open_deals, 0029); people_list's one deal has none, read as USD. */
+  deal_currency?: string | null;
 }
 
 /** A deal as the door returns it and the person's page lists them. */
@@ -96,6 +98,7 @@ export function dealFactsOf(r: Partial<DealColumns> | null | undefined): DealFac
     ended_at: r.deal_ended_at ?? null,
     amount_cents: r.deal_amount_cents ?? null,
     per: r.deal_per ?? null,
+    currency: r.deal_currency ?? null,
     proposal_url: r.deal_proposal_url ?? null,
     valid_until: r.deal_valid_until ?? null,
     lost_reason: r.deal_lost_reason ?? null,
@@ -265,6 +268,97 @@ export function toDealVM(
 export function dealOf(r: Partial<DealColumns> | null | undefined, tz: string, nowMs: number): DealVM | null {
   const f = dealFactsOf(r);
   return f ? toDealVM({ ...f, id: r?.deal_id ?? null }, tz, nowMs) : null;
+}
+
+/** One of a person's open deals as people_list carries them (`open_deals`, 0029): the one deal's columns, unprefixed. */
+export interface OpenDealDto {
+  id: string;
+  stage: string;
+  service: string | null;
+  proposed_at: string | null;
+  decided_at: string | null;
+  ended_at: string | null;
+  amount_cents: number | null;
+  per: string | null;
+  currency: string | null;
+  proposal_url: string | null;
+  valid_until: string | null;
+  lost_reason: string | null;
+}
+
+const strOrNull = (v: unknown): string | null => (typeof v === "string" ? v : null);
+
+/**
+ * `open_deals` as people_list answers it (jsonb), read into its shape: undefined where the read has no such column (a
+ * database before 0029), null where none is open, and each entry kept only with an id and a stage. Never a cast: a
+ * value the database did not write as an object is no deal.
+ */
+export function openDealsFromJson(j: unknown): OpenDealDto[] | null | undefined {
+  if (j === undefined) return undefined;
+  if (!Array.isArray(j)) return null;
+  const out: OpenDealDto[] = [];
+  for (const x of j) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x as Record<string, unknown>;
+    const id = strOrNull(o.id);
+    const stage = strOrNull(o.stage);
+    if (!id || !stage) continue;
+    out.push({
+      id,
+      stage,
+      service: strOrNull(o.service),
+      proposed_at: strOrNull(o.proposed_at),
+      decided_at: strOrNull(o.decided_at),
+      ended_at: strOrNull(o.ended_at),
+      amount_cents: typeof o.amount_cents === "number" ? o.amount_cents : null,
+      per: strOrNull(o.per),
+      currency: strOrNull(o.currency),
+      proposal_url: strOrNull(o.proposal_url),
+      valid_until: strOrNull(o.valid_until),
+      lost_reason: strOrNull(o.lost_reason),
+    });
+  }
+  return out;
+}
+
+/**
+ * Every open deal of a People row (0029): a proposal out or a client, one per service, newest first. A person may hold
+ * several (deals_open_uq is per service), and the one deal the row shows hid the rest from the Pipeline, People's deal
+ * lists and the proposal follow-up. From `open_deals` where the read carries it (null: none open); a read from before it
+ * (absent) has the one deal, when it is open.
+ */
+export function openDealsOf(
+  r: ({ open_deals?: readonly OpenDealDto[] | null } & Partial<DealColumns>) | null | undefined,
+  tz: string,
+  nowMs: number,
+): DealVM[] {
+  if (!r) return [];
+  if (r.open_deals === undefined) {
+    const one = dealOf(r, tz, nowMs);
+    return one && dealIsOpen(one) ? [one] : [];
+  }
+  return (r.open_deals ?? [])
+    .map((x) =>
+      dealOf(
+        {
+          deal_id: x.id,
+          deal_stage: x.stage,
+          deal_service: x.service,
+          deal_proposed_at: x.proposed_at,
+          deal_decided_at: x.decided_at,
+          deal_ended_at: x.ended_at,
+          deal_amount_cents: x.amount_cents,
+          deal_per: x.per,
+          deal_currency: x.currency,
+          deal_proposal_url: x.proposal_url,
+          deal_valid_until: x.valid_until,
+          deal_lost_reason: x.lost_reason,
+        },
+        tz,
+        nowMs,
+      ),
+    )
+    .filter((d): d is DealVM => d !== null && dealIsOpen(d));
 }
 
 /**

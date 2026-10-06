@@ -429,3 +429,82 @@ test("a proposal's follow-up is a touch of its own (0006): from any playbook's r
   const seen = await touchesSince(fakeDb(waiting), T, new Date("2026-09-01T00:00:00Z"), now);
   assert.deepEqual(seen, [], "read, the 10th's run can never be approved on the 12th: it holds nobody");
 });
+
+test("a follow-up's touch keeps the proposal it was about (0029): the deal and the link its words carried, read alone of them, the latest by what each was about; one that kept neither is read as before", async () => {
+  const { touchesSince, touchIndex } = await import(at("packages/db/src/repositories/touches.ts"));
+  const now = new Date("2026-09-12T16:00:00Z");
+  const link = [{ kind: "first_name" }, { kind: "proposal_link" }];
+  const SEO = "https://example.com/p/seo";
+  const ADS = "https://example.com/p/ads";
+  const tables = {
+    tenants: [{ id: T, timezone: NY }],
+    broadcasts: [
+      row("f1", {
+        created_at: "2026-09-05T13:00:00Z",
+        scheduled_for: "2026-09-05T14:00:00Z",
+        run_for: "2026-09-05",
+        params: link,
+      }),
+      row("f2", {
+        created_at: "2026-09-08T13:00:00Z",
+        scheduled_for: "2026-09-08T14:00:00Z",
+        run_for: "2026-09-08",
+        params: link,
+      }),
+    ],
+    broadcast_recipients: [
+      {
+        tenant_id: T,
+        broadcast_id: "f1",
+        contact_id: "a",
+        state: "sent",
+        sent_at: "2026-09-05T14:00:03Z",
+        // From before the deal was kept beside the link: by its link alone.
+        facts: { first_name: "Ana", proposal_link: SEO },
+      },
+      {
+        tenant_id: T,
+        broadcast_id: "f2",
+        contact_id: "a",
+        state: "sent",
+        sent_at: "2026-09-08T14:00:03Z",
+        facts: { proposal_link: ADS, deal_id: "d-ads" },
+      },
+      // Kept neither: theirs, about no proposal in particular.
+      {
+        tenant_id: T,
+        broadcast_id: "f1",
+        contact_id: "b",
+        state: "sent",
+        sent_at: "2026-09-05T14:00:04Z",
+        facts: null,
+      },
+    ],
+  };
+  const db = fakeDb(tables);
+  const touches = await touchesSince(db, T, new Date("2026-09-01T00:00:00Z"), now);
+  assert.deepEqual(touches.map((t) => [t.contact_id, t.deal, t.link]).sort(), [
+    ["a", null, SEO],
+    ["a", "d-ads", ADS],
+    ["b", null, null],
+  ]);
+  assert.ok(
+    db.seen.some(
+      (q) =>
+        q.table === "broadcast_recipients" &&
+        /proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id/.test(q.columns),
+    ),
+    "the deal and the link alone of the words each recipient kept",
+  );
+  const idx = touchIndex(touches);
+  assert.deepEqual([...(idx.followUpKeys.get("a") ?? [])].sort(), [
+    ["deal:d-ads", Date.parse("2026-09-08T14:00:03Z")],
+    [`link:${SEO}`, Date.parse("2026-09-05T14:00:03Z")],
+  ]);
+  assert.deepEqual(
+    [...(idx.followUpKeys.get("b") ?? [])],
+    [["bare", Date.parse("2026-09-05T14:00:04Z")]],
+    "kept neither: read as it always was, any proposal of theirs that went before it",
+  );
+  assert.equal(idx.followUps.get("b"), Date.parse("2026-09-05T14:00:04Z"));
+});

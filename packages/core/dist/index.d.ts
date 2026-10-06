@@ -1680,6 +1680,8 @@ interface RunContext {
         byThis: Map<string, Map<string, number>>;
         byAny: Map<string, number>;
         followUps: Map<string, number>;
+        /** The latest follow-up by person and by what it was about (contracts followUpKey, 0029): which proposals had theirs. */
+        followUpKeys: Map<string, Map<string, number>>;
     };
     /** The workspace's calendar: a visit playbook runs only when it is "ok". */
     calendar: "ok" | "unavailable" | "none";

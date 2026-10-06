@@ -225,7 +225,9 @@ export function usePipelineAsk(r: PipelineRows) {
     const drawn = shown.slice(0, 40);
     setAskOnScreen({
       key: "pipeline",
-      ids: drawn.map((x) => x.id),
+      // Whose each row is (0029: a further deal of theirs is a row of its own), in the rows' order, so "the second one"
+      // is still the second drawn.
+      ids: drawn.map((x) => x.person.id),
       labels: drawn.map((x) => x.name || ""),
       view: searching ? `${view}:search` : view,
     });
@@ -256,7 +258,8 @@ export function usePipelinePeekDoors(r: PipelineRows, ui: PipelineUi, place: Pip
   const { setCursor } = place;
   // The people this view shows first, read in the background once the boot is in, so a row's peek and their page open
   // on what the tab already holds (people-detail.ts warmPeople).
-  const aheadKey = ids.slice(0, 12).join(",");
+  // By whose they are (0029: two rows of one person read them once).
+  const aheadKey = [...new Set(ids.slice(0, 12).map(P.personOf))].join(",");
   useEffect(() => {
     if (aheadKey) warmPeople(aheadKey.split(","));
   }, [aheadKey]);
@@ -266,7 +269,7 @@ export function usePipelinePeekDoors(r: PipelineRows, ui: PipelineUi, place: Pip
   const showPeek = useCallback(
     (id: string) => {
       setPeekId(id);
-      setPeek({ id, person: peekPerson(id), failed: null });
+      setPeek({ id, person: peekPerson(P.personOf(id)), failed: null });
     },
     [], // eslint-disable-line react-hooks/exhaustive-deps -- kept as the JSX drew it: the setters are React's own, one for the page's life
   );
@@ -302,10 +305,12 @@ export function usePipelinePeekReads(ui: PipelineUi, place: PipelinePlace, doors
       return undefined;
     }
     const id = peekId;
+    // A row's id names one of the person's rows (0029: `<person>_<deal>` for a further deal); the read is the person's.
+    const who = P.personOf(id);
     setPeek((s) => (s && s.id === id ? { ...s, failed: null } : { id, person: null, failed: null }));
     let live = true;
     const read = () => {
-      personDetail(id).then(
+      personDetail(who).then(
         (p) => {
           if (live)
             setPeek((s) => (s && s.id === id ? { ...s, person: p || s.person, failed: p || s.person ? null : "" } : s));
@@ -319,7 +324,7 @@ export function usePipelinePeekReads(ui: PipelineUi, place: PipelinePlace, doors
     // A deal recorded or moved, and a step set, changed or done (the card in the peek draws its next step): read again.
     const onDeal = (e: Event) => {
       const detail = e && (e as CustomEvent<{ personId?: string } | null>).detail;
-      if (e && detail && detail.personId === id) read();
+      if (e && detail && detail.personId === who) read();
     };
     window.addEventListener("deal:recorded", onDeal);
     window.addEventListener("note:saved", onDeal);
@@ -329,6 +334,30 @@ export function usePipelinePeekReads(ui: PipelineUi, place: PipelinePlace, doors
       window.removeEventListener("note:saved", onDeal);
     };
   }, [peekId, peekTry]); // eslint-disable-line react-hooks/exhaustive-deps -- kept as the JSX drew it: the setters are React's own
+}
+
+/**
+ * A pick of a further deal's row follows its deal when that row becomes the person's first, with their id, because
+ * another deal of theirs closed (0029, pipelineRowNow): it stays picked rather than dropping out of the selection.
+ */
+export function usePipelinePicksFollow(r: PipelineRows, f: PipelineFrame) {
+  const { all } = r;
+  const { sel, setSel } = f.controls;
+  useEffect(() => {
+    const moved = [...sel].flatMap((id): [string, string][] => {
+      const to = P.rowNow(all, id);
+      return to && to !== id ? [[id, to]] : [];
+    });
+    if (!moved.length) return;
+    setSel((cur) => {
+      const n = new Set(cur);
+      for (const [from, to] of moved) {
+        n.delete(from);
+        n.add(to);
+      }
+      return n;
+    });
+  }, [all]); // eslint-disable-line react-hooks/exhaustive-deps -- the picks follow the rows: a new reading of them is what it answers
 }
 
 /** The peek's head is the row's, wherever the row now stands: a move regroups them, and the peek says the new group. */
@@ -341,10 +370,11 @@ export function usePipelinePeekRow(r: PipelineRows, ui: PipelineUi, f: PipelineF
     for (const g of all.groups) for (const row of g.rows) if (row.id === peekId) return { row, group: g.key };
     return null;
   }, [all, peekId]);
-  // Someone who left the Pipeline (nothing to follow now) closes their peek.
+  // Someone who left the Pipeline (nothing to follow now) closes their peek. A further deal's row that became their
+  // first, with their id, when another deal of theirs closed (0029) keeps it: the peek follows the deal (pipelineRowNow).
   useEffect(() => {
-    if (peekId && !peekRow) setPeekId(null);
-  }, [peekId, peekRow]); // eslint-disable-line react-hooks/exhaustive-deps -- kept as the JSX drew it: the setter is React's own
+    if (peekId && !peekRow) setPeekId(P.rowNow(all, peekId));
+  }, [peekId, peekRow]); // eslint-disable-line react-hooks/exhaustive-deps -- a row gone is what it answers, read against the rows it went from; the setter is React's own
   // Once they are read, their deals say which step a deal card of theirs carries, so the peek says it once.
   // (A deal's id is a string or null here and a string in pipelinePeekOf, which only ever compares it: a null names no card.)
   const peekDeals = peek && peek.id === peekId && peek.person ? peek.person.deals || null : null;
@@ -392,7 +422,11 @@ export function usePipelineBoardFocus(r: PipelineRows, ui: PipelineUi, place: Pi
       setTimeout(() => {
         const doc = window.document;
         if (!doc || (doc.activeElement && doc.activeElement !== doc.body)) return;
-        const el = doc.getElementById && doc.getElementById(`person-${id}`);
+        // The row of the deal it moved (0029), else the person's first.
+        const deal = detail && (detail as { dealId?: string | null }).dealId;
+        const el =
+          doc.getElementById &&
+          ((deal && doc.getElementById(`person-${P.rowId(id, deal)}`)) || doc.getElementById(`person-${id}`));
         if (el && el.focus) el.focus({ preventScroll: true });
       }, 0);
     };
@@ -478,7 +512,7 @@ export function usePipelineDoors(
       onOpen: openPeek,
       // Read a person before their row is pressed, as People's rows do: the peek then opens on the tab's copy.
       onWarm: (id: string) => {
-        void warmPerson(id);
+        void warmPerson(P.personOf(id));
       },
       // The row's menu: the deal's acts where this member may record one, then their page and their thread.
       canRecord,

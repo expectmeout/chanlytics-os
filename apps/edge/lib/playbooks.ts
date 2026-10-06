@@ -210,7 +210,7 @@ export async function loadTenantRunContext(
   // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
   // hand counts for the breath (byAny) and for no playbook's gap; a proposal follow-up by any playbook, for the
   // follow-up's once per proposal (touchIndex, 0006).
-  const { byThis, byAny, followUps } = touchIndex(touched.data ?? []);
+  const { byThis, byAny, followUps, followUpKeys } = touchIndex(touched.data ?? []);
   // The calendar's appointments on every person, the way the People page
   // reads them: a visit playbook keys on the day, and its words come from
   // the visit itself. Read once per tenant per run.
@@ -288,7 +288,7 @@ export async function loadTenantRunContext(
     modes: new Map(policies.map((r) => [r.class, r.mode])),
     health,
     ready,
-    touches: { byThis, byAny, followUps },
+    touches: { byThis, byAny, followUps, followUpKeys },
     dealsOn,
     pace: dealsOn && yeses ? dealPaceOf(dealPaceFrom(yeses, now.getTime())) : null,
   };
