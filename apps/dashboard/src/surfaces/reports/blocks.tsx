@@ -95,7 +95,7 @@ export function RptHero({ vm, phone }: { vm: ReportVM; phone: boolean }) {
   );
 }
 
-/** One fact: its icon and words, and a door when it has one, the whole row one button. */
+/** One fact: its icon and words, and a door when it has one, the whole row one link. */
 function factRow(f: ReportFactVM) {
   const door = f.door;
   const body = (

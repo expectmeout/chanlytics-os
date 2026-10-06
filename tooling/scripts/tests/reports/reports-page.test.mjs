@@ -199,7 +199,7 @@ test("the headline: the receptionist's part of the answered as a meter, the peri
   assert.equal(cls(none, "rpt-hero-compare"), null, "and nothing to compare with");
 });
 
-test("Worth knowing: the bridge's facts in their order, one line each, a row with a door is one button", () => {
+test("Worth knowing: the bridge's facts in their order, one line each, a row with a door is one link", () => {
   const facts = all(card(page(), "reports-facts"), (n) => n.type === "li");
   assert.deepEqual(
     facts.map((f) => f.props["data-fact"]),
@@ -891,8 +891,8 @@ test("REGRESSION: the period control never holds -- arrowing on to Month is a ch
 
 test("REGRESSION: a pick back to the period on screen, made while another loads, is shown at once and dims nothing -- the page waited on a read it did not need", async () => {
   // A workspace of its own, where no period is held yet, so the pick in between stays out until it lands.
-  const was = location.pathname;
-  location.pathname = "/w/pick-back";
+  const was = globalThis.location.pathname;
+  globalThis.location.pathname = "/w/pick-back";
   try {
     await inPeriodTest("hold", async () => {
       let tree = page();
@@ -921,7 +921,7 @@ test("REGRESSION: a pick back to the period on screen, made while another loads,
       assert.equal(cls(tree, "rpt-failed"), null, "and nothing failed");
     });
   } finally {
-    location.pathname = was;
+    globalThis.location.pathname = was;
   }
 });
 
