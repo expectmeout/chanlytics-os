@@ -188,7 +188,8 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
 });
 
 // 49: the two kinds of a gate pausing and the back office resuming a workspace's offers by email (00299) are toned.
-const TONED_KINDS = 49;
+// 50: a run that stopped (broadcast.stopped) is danger, as a line that failed is.
+const TONED_KINDS = 50;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.

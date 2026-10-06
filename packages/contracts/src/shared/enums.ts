@@ -227,6 +227,12 @@ export const EVENT_KINDS = [
   "escalation.changed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
+  /**
+   * A broadcast stopped before it was done, or never went (state `failed`): its failure code and how many it reached
+   * first (contracts BROADCAST_FAILURES), from every place a run is failed. A finished run was on the ledger and a
+   * stopped one was not (the 4 Oct wiring review, P2 5).
+   */
+  "broadcast.stopped",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",

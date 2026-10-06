@@ -908,7 +908,7 @@ type WabaEventKind = `channel.${(typeof WABA_FIELDS)[number]}`;
  * kind emitted that is not here is a row nobody can name. Both were true for
  * months (three dead, fourteen undeclared) before the lint existed.
  */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.unreachable_sender", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "booking_link.sent", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.merged", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "platform.acted", "line.texting_on", "line.texting_approved", "line.texting_rejected", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "google.reply_held", "workspace.created", "settings.changed", "policy.changed", "billing.updated", "billing.paused", "billing.resumed", "call.recorded", "call.transferred", "usage.voice_seconds", "usage.ask_tokens", "webhook.auth", "webhook.delivery", "contact.added", "contact.named", "contact.noted", "contact.note_changed", "contact.note_removed", "contact.note_suggested", "contact.note_kept", "contact.note_dismissed", "contact.note_done", "contact.note_undone", "contact.email_set", "contact.proposal_set", "contact.email_suppressed", "ingest.unroutable", "policy.veto_window_skipped", "conversation.snooze_expired", "escalation.changed", "broadcast.sent", "playbook.run", "channel.connected", "channel.quality_rating", "mailbox.created", "mailbox.renamed", "mailbox.offers_paused", "mailbox.offers_resumed", "sending_domain.added", "sending_domain.verified", "sending_domain.held", "sending_domain.released", "sending_domain.resumed", "sending_domain.removed", "lead.round", "lead.no_card", "lead.stage", "lead.emailed", "lead.call", "lead.converted", "lead.not_a_fit", "lead.set_aside", "deal.proposed", "deal.won", "deal.lost", "deal.ended", "partner.attributed", "partner.code_ignored", "partner.earned", "partner.reversed", "partner.standing_set", "partner.paid", "partner.handover_sent", "partner.handover_accepted", "partner.handover_declined", "partner.invited", "partner.invite_withdrawn", "partner.invite_accepted", "partner.invite_declined", "reach_out.replied", "reach_out.reply_undone", "workspace.activated"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.unreachable_sender", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "booking_link.sent", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.merged", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "platform.acted", "line.texting_on", "line.texting_approved", "line.texting_rejected", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "google.reply_held", "workspace.created", "settings.changed", "policy.changed", "billing.updated", "billing.paused", "billing.resumed", "call.recorded", "call.transferred", "usage.voice_seconds", "usage.ask_tokens", "webhook.auth", "webhook.delivery", "contact.added", "contact.named", "contact.noted", "contact.note_changed", "contact.note_removed", "contact.note_suggested", "contact.note_kept", "contact.note_dismissed", "contact.note_done", "contact.note_undone", "contact.email_set", "contact.proposal_set", "contact.email_suppressed", "ingest.unroutable", "policy.veto_window_skipped", "conversation.snooze_expired", "escalation.changed", "broadcast.sent", "broadcast.stopped", "playbook.run", "channel.connected", "channel.quality_rating", "mailbox.created", "mailbox.renamed", "mailbox.offers_paused", "mailbox.offers_resumed", "sending_domain.added", "sending_domain.verified", "sending_domain.held", "sending_domain.released", "sending_domain.resumed", "sending_domain.removed", "lead.round", "lead.no_card", "lead.stage", "lead.emailed", "lead.call", "lead.converted", "lead.not_a_fit", "lead.set_aside", "deal.proposed", "deal.won", "deal.lost", "deal.ended", "partner.attributed", "partner.code_ignored", "partner.earned", "partner.reversed", "partner.standing_set", "partner.paid", "partner.handover_sent", "partner.handover_accepted", "partner.handover_declined", "partner.invited", "partner.invite_withdrawn", "partner.invite_accepted", "partner.invite_declined", "reach_out.replied", "reach_out.reply_undone", "workspace.activated"];
 type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -10444,8 +10444,10 @@ declare function visitTitleFor(title: string, name: string): string;
 declare function toPersonRowVM(r: PersonRowDto, tz: string, now: Date | undefined, viewerId: string | null | undefined, ready: ChannelsReady | null): PersonRowVM;
 
 /**
- * Why a run failed, in the owner's words, and what to do about it. Moved whole from broadcasts.ts (Reach out Part
- * 2.5), which re-exports it.
+ * A broadcast failure's code and the owner's words for it: the closed set a run's `failure` holds, how a stored one is
+ * read (with the channel it names), and the sentence for each. Moved whole from broadcast-failures.ts, which imports
+ * and re-exports it, so a reader of the words alone (the Activity log, in the browser) does not carry the playbook
+ * triggers that the fixes beside them need.
  */
 
 /**
@@ -10458,6 +10460,26 @@ declare function toPersonRowVM(r: PersonRowDto, tz: string, now: Date | undefine
  */
 declare const BROADCAST_FAILURES: readonly ["paused", "template_not_approved", "wire_unavailable", "run_interrupted", "throttled", "stalled", "people_unreadable", "after_hours", "provider_limit", "campaigns_domain_unverified", "email_offers_paused"];
 type BroadcastFailure = (typeof BROADCAST_FAILURES)[number];
+/** The failures whose words name the wire the run went out on: the rest read the same whichever channel it was. */
+declare const WIRE_FAILURES: readonly ["wire_unavailable", "throttled", "stalled"];
+type WireFailure = (typeof WIRE_FAILURES)[number];
+/** A words entry: the same on every channel, or one for each. */
+type Words = string | Record<ConsentChannel, string>;
+/**
+ * Why a whole broadcast stopped, in the owner's words: the codes the send job writes (core messages/broadcast.ts)
+ * and the one the job ledger writes when a run died and none took it up again (jobs settle.ts). Spelled out, as
+ * HELD_REASONS is, so the bundler can see through it. A failure that names its wire (WIRE_FAILURES) has one entry per
+ * channel, and a code stored with no channel is read as WhatsApp's (readFailure).
+ */
+declare const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words>;
+/** A failed broadcast's reason: its words, a code nobody has written words for yet, or none recorded. */
+declare function broadcastFailureWords(failure: string | null | undefined): string;
+
+/**
+ * Why a run failed, in the owner's words, and what to do about it. Moved whole from broadcasts.ts (Reach out Part
+ * 2.5), which re-exports it.
+ */
+
 /**
  * The failures a run stops with for a fact about the whole workspace, never about the person the door was asked of: a
  * billing pause, and the two holds on its offers and news by email (the workspace's offers paused by a gate,
@@ -10502,24 +10524,12 @@ declare function playbookRunNext(run: {
     playbook_id: string | null;
     trigger: string | null;
 }, by: PlaybookRunNextBy): string | null;
-/** The failures whose words name the wire the run went out on: the rest read the same whichever channel it was. */
-declare const WIRE_FAILURES: readonly ["wire_unavailable", "throttled", "stalled"];
-type WireFailure = (typeof WIRE_FAILURES)[number];
 /**
  * What a run's `failure` holds for a failure that names its wire: the code, and for any channel but WhatsApp the channel
  * after a colon (`wire_unavailable:email`). A code with none is WhatsApp's, which keeps every run written before runs
  * had a channel (00298) readable as it was, and keeps a WhatsApp run's row what an older reader of this column knows.
  */
 declare function wireFailure(code: WireFailure, channel: ConsentChannel): string;
-/** A words entry: the same on every channel, or one for each. */
-type Words = string | Record<ConsentChannel, string>;
-/**
- * Why a whole broadcast stopped, in the owner's words: the codes the send job writes (core messages/broadcast.ts)
- * and the one the job ledger writes when a run died and none took it up again (jobs settle.ts). Spelled out, as
- * HELD_REASONS is, so the bundler can see through it. A failure that names its wire (WIRE_FAILURES) has one entry per
- * channel, and a code stored with no channel is read as WhatsApp's (readFailure).
- */
-declare const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words>;
 /**
  * How to get past each reason a run stops, in one sentence: a failed run says
  * what to do next, not only what went wrong. These are the words for a run that
@@ -10535,8 +10545,6 @@ declare function broadcastFailureFix(failure: string | null | undefined, reached
     playbook_id: string | null;
     trigger: string | null;
 }): string | null;
-/** A failed broadcast's reason: its words, a code nobody has written words for yet, or none recorded. */
-declare function broadcastFailureWords(failure: string | null | undefined): string;
 
 /**
  * The sending number's health: its daily limit by tier, what it has used, and the refusal when a run would go over.

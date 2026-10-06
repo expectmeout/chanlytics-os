@@ -14,6 +14,7 @@ import { plural } from "../shared/words";
 import type { Tone } from "../shell/tone";
 import type { ActivationMilestone } from "./activation";
 import { partnerEventBits } from "./partner";
+import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words";
 
 /**
  * The activity log: both ledgers, in an owner's words.
@@ -165,6 +166,7 @@ const WORDS: Record<string, string> = {
   "call.transferred": "A call was passed to a person",
   "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
+  "broadcast.stopped": "A broadcast stopped",
   "playbook.run": "A playbook ran",
   "channel.quality_rating": "A WhatsApp number's quality rating changed",
   "setup.requested": "Setup was requested",
@@ -372,8 +374,29 @@ function sendFailedWords(p: Record<string, unknown>, base: string): string {
   return joinBits(base, [why]);
 }
 
+/**
+ * A run's end: a finished one with its tally, a stopped one with why, in the words its own page says it (contracts
+ * broadcastFailureWords), and how far it got.
+ */
+function runEndWords(kind: "broadcast.sent" | "broadcast.stopped", p: Record<string, unknown>, base: string): string {
+  const bits: string[] = [];
+  const sent = numberAt(p, "sent");
+  if (kind === "broadcast.sent") {
+    const held = numberAt(p, "held");
+    if (sent !== null) bits.push(`${sent} got it`);
+    if (held) bits.push(`${held} held`);
+  } else {
+    const failure = textAt(p, "failure");
+    if (failure) bits.push(broadcastFailureWords(failure));
+    if (sent !== null) bits.push(sent ? `${sent} got it first` : "nobody got it");
+  }
+  return [base, ...bits].join(" · ");
+}
+
 /** The kinds whose sentence is written whole, by its own function. */
 const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
+  ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
+  ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
   ["import", (p) => importWords(p)],
   ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
@@ -479,13 +502,6 @@ export function activityWords(kind: string, payload: unknown): string {
       if (p.approved === true) bits.push("approved by hand");
       break;
     }
-    case "broadcast.sent": {
-      const sent = numberAt(p, "sent");
-      const held = numberAt(p, "held");
-      if (sent !== null) bits.push(`${sent} got it`);
-      if (held) bits.push(`${held} held`);
-      break;
-    }
     case "settings.changed": {
       const fields = Array.isArray(p.fields)
         ? (p.fields as unknown[]).filter((f): f is string => typeof f === "string")
@@ -571,6 +587,7 @@ const TONES: Record<string, Tone> = {
   "message.send_failed": "danger",
   "message.send_blocked": "danger",
   "line.failed": "danger",
+  "broadcast.stopped": "danger",
   "line.texting_rejected": "danger",
   "contact.erased": "danger",
   "contact.blob_erased": "danger",
