@@ -5,8 +5,8 @@
  * model's own sentence, the empty, failed, unreadable-calendar and no-calendar states, a v2 payload, the Ask door, a
  * period that fails to load, Google's section, and the demo. The page's regressions live here too, moved from
  * reports-honest and rewritten for this page (C13, C25 to C28): every row a door, the period before drawn where it
- * reads, one keyboard stop per chart, tabs that hold while a period loads, and a table that leaves the page. The
- * period's own door (period.ts) runs for real, over a fetch this test holds, answers or refuses.
+ * reads, one keyboard stop per chart, a period control that never holds (the latest pick wins), and a table that
+ * leaves the page. The period's own door (period.ts) runs for real, over a fetch this test holds, answers or refuses.
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";

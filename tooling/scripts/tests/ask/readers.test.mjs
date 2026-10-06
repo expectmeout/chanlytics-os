@@ -1622,6 +1622,16 @@ test("the reports, for Ask and for the page: GET reports answers its reader's pa
   }
 });
 
+test("the Reports row Ask cites names its period as the page does: one day is '1 day', never '1 days' (Month on the 1st)", async () => {
+  for (const [days, label] of [
+    [1, "Reports, 1 day"],
+    [5, "Reports, 5 days"],
+  ]) {
+    const r = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days });
+    assert.deepEqual(r.rows, [{ kind: "page", id: "reports", route: "reports", label }], `${days}: ${label}`);
+  }
+});
+
 test("the report reader hands the workspace's hours and closures beside the report, from the config the booking line read; none said, null", async () => {
   const hours = { mon: { open: "09:30", close: "18:00" } };
   const closures = [{ date: "2026-09-18" }];
