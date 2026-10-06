@@ -22,6 +22,7 @@ import { Button } from "../kit/button/button";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { Segmented } from "../kit/segmented/segmented";
+import { Tooltip } from "../kit/tooltip/tooltip";
 import { useSurface } from "../use-surface";
 import { useRptPhone } from "./blocks";
 import { lensShownHere } from "./chrome";
@@ -73,9 +74,16 @@ function periodRow(p: {
         onValueChange={(next) => void pick(next)}
         options={REPORT_RANGES.map((r) => ({ value: r.id, label: r.label, testid: `period-${r.id}` }))}
       />
-      <span className="rpt-dates" title={`Days follow ${vm.timezone}`}>
-        {vm.since} to {vm.until}
-      </span>
+      <Tooltip tip={`Days follow ${vm.timezone}`}>
+        <span
+          className="rpt-dates"
+          // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- a focus stop for its tip, the one way a keyboard reads which zone the days follow
+          tabIndex={0}
+          aria-description={`Days follow ${vm.timezone}`}
+        >
+          {vm.since} to {vm.until}
+        </span>
+      </Tooltip>
       {failed && (
         <span className="rpt-failed" role="status" aria-live="polite">
           Couldn't load {REPORT_RANGES.find((r) => r.id === failed)?.label}. Still showing {vm.rangeLabel}.

@@ -167,6 +167,8 @@ const plot = (tree, id) => find(card(tree, id), (n) => classes(n).includes("ck-p
 const cls = (tree, c) => find(tree, (n) => classes(n).includes(c));
 const { Segmented } = await import(`${S}/surfaces/kit/segmented/segmented.tsx`);
 const { Field } = await import(`${S}/surfaces/kit/field/field.tsx`);
+const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
+const { Tooltip } = await import(`${S}/surfaces/kit/tooltip/tooltip.tsx`);
 /** The period control: the kit's segmented control, and the option a person presses, by its words. */
 const control = (tree) => find(tree, (n) => n.type === Segmented);
 const choose = (tree, label) => {
@@ -207,15 +209,20 @@ test("Worth knowing: the bridge's facts in their order, one line each, a row wit
   assert.ok(classes(facts[0]).includes("is-warn"), "in amber, with its icon");
   assert.equal(textOf(facts[1]), "Top reason it handed over: asked for a person2 timesSee them");
   assert.equal(textOf(facts[2]), "Tuesday was your busiest daypeak 10am to 12pm");
-  const row = find(facts[0], (n) => n.type === "button");
-  assert.ok(classes(row).includes("rpt-fact-row"), "the whole row is the door");
-  assert.equal(row.props.title, "1 message has no reply yet", "the sentence rides in the title, for a line cut short");
+  const row = find(facts[0], (n) => n.type === "a");
+  assert.ok(classes(row).includes("rpt-fact-row"), "the whole row is the door, and a door is a link");
+  assert.match(row.props.href, /inbox$/, "REGRESSION: a button that went nowhere a link could: no address in it");
+  assert.equal(
+    row.props.title,
+    undefined,
+    "no native title: the sentence is the row's words, wrapped, never cut short",
+  );
   press(row);
   assert.deepEqual(went, ["inbox"]);
   assert.equal(
-    find(facts[2], (n) => n.type === "button"),
+    find(facts[2], (n) => n.type === "a" || n.type === "button"),
     null,
-    "a fact with no door is no button",
+    "a fact with no door is no link and no button",
   );
 });
 
@@ -458,7 +465,7 @@ test("a workspace with no hours is asked for them through the page, with the doo
     !textOf(factOf(tree, "busiest")).includes("closed"),
     "and no count of what a guess would have called closed",
   );
-  press(find(hours, (n) => n.type === "button"));
+  press(find(hours, (n) => n.type === "a"));
   assert.deepEqual(went, ["admin/workspace"], "the door opens Settings, where the hours are kept");
   const unread = page({ report: calm, campaigns: null, profile: null });
   assert.equal(factOf(unread, "hours"), null, "a profile that could not be read says nothing of the hours");
@@ -617,6 +624,10 @@ test("the period control is the kit's Segmented over the table's periods, each o
     ],
   );
   assert.equal(c.props.label, "Period");
+  // The zone the days follow is the kit's tooltip over the dates (a native title reaches nobody on a keyboard); the dates are on screen.
+  const dates = find(tree, (n) => n.type === Tooltip);
+  assert.match(dates.props.tip, /^Days follow /);
+  assert.ok(textOf(dates.props.children).includes(" to "), "the days themselves are words on the page");
   const ask = byTestId(tree, "reports-ask");
   assert.equal(ask.props.size, "sm");
   assert.equal(ask.props["aria-label"], "Ask about this period");
@@ -718,11 +729,12 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
     const tree = page();
     const section = find(tree, (n) => n.type === "section" && n.props["aria-label"] === "Google reviews");
     assert.ok(section, "a section of its own");
-    assert.equal(
-      all(byTestId(tree, "google-tiles"), (n) => classes(n).includes("rp2-tile")).length,
-      4,
-      "the shared tile, as Today draws its week",
+    assert.deepEqual(
+      all(byTestId(tree, "google-tiles"), (n) => n.type === Figure).map((n) => n.props.id),
+      ["rating", "reviews", "ratings_gained", "newest_review"],
+      "the kit's Figure, in the strip's pattern, each named by its metric",
     );
+    assert.ok(classes(byTestId(tree, "google-tiles")).includes("rpt-figures"), "the strip's own frame");
     assert.ok(plot(tree, "chart-google-gained"), "the ratings gained, day by day, on the kit");
     assert.equal(takeaway(tree, "chart-google-gained"), "", "the count gained is the tiles'");
     assert.equal(all(tree, (n) => n.props?.["data-testid"] === "google-review").length, 1);
@@ -804,6 +816,11 @@ test("REGRESSION (C13): each source row opens its playbook or its broadcast -- t
   assert.equal(rows.length, 2);
   for (const r of rows) press(byTestId(r, "source-open"));
   assert.deepEqual(went, ["outbound/p1", "broadcasts/run:b1"], "REGRESSION: no door on either row");
+  assert.deepEqual(
+    rows.map((r) => byTestId(r, "source-open").props.href),
+    ["#/outbound/p1", "#/broadcasts/run:b1"],
+    "and each is a link with its address",
+  );
 });
 
 test("REGRESSION (C25): the period before is drawn where it reads -- beside the running total and round the week, never zigzagging over daily columns", () => {
@@ -983,7 +1000,7 @@ test("REGRESSION: a tile is a number, what it is and one line under it; the head
     head &&
       find(head, (n) => n.type === Segmented) &&
       chosen(head) === "7 days" &&
-      textOf(head).includes("Aug 29 to Sep 4"),
+      textOf(find(head, (n) => n.type === Tooltip)?.props.children).includes("Aug 29 to Sep 4"),
     `the period and its days: ${textOf(head)}`,
   );
   const said = textOf(tree);

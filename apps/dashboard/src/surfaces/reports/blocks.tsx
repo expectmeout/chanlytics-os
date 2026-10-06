@@ -10,20 +10,21 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
   bookedTileOf,
+  plural,
   type BookingReportVM,
   type CampaignSourceVM,
   type ReportFactVM,
   type ReportStripTile,
   type ReportVM,
 } from "@chanlytics/contracts";
-import { listRoute, navigate } from "../legacy-verbs";
+import { listRoute, routeDoor } from "../legacy-verbs";
 import { titleOf } from "../campaigns/templates/verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { Figure } from "../kit/figure/figure";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
 import { RadialChart } from "../kit/charts/radial";
-import { rptPlural } from "./series";
+import { Tooltip } from "../kit/tooltip/tooltip";
 
 /** A section of the page under its title, with a line of what it holds beside it where it has one. */
 export function RptSection({
@@ -45,26 +46,6 @@ export function RptSection({
       </header>
       {children}
     </section>
-  );
-}
-
-/**
- * A number, what it is, and one line of what it holds. It also drew a seven-point sparkline beside a number the chart
- * below plots properly, and a delta that claimed percentages on counts of two -- "+100% vs prior 7 days" is 2 to 4,
- * and "-100%" is a zero. The view model still carries both: Ask reads the change. Today draws its week with this tile,
- * and so do Google's tiles; the Reports strip itself is RptTiles.
- */
-export function RpTile({ t }: { t: { id: string; label: string; value: ReactNode; meta: string } }) {
-  return (
-    <div className="rp2-tile" data-tile={t.id}>
-      <div className="rp2-tile-label" title={t.label}>
-        {t.label}
-      </div>
-      <div className="rp2-tile-value">{t.value}</div>
-      <div className="rp2-tile-meta" title={t.meta}>
-        {t.meta}
-      </div>
-    </div>
   );
 }
 
@@ -116,7 +97,6 @@ export function RptHero({ vm, phone }: { vm: ReportVM; phone: boolean }) {
 
 /** One fact: its icon and words, and a door when it has one, the whole row one button. */
 function factRow(f: ReportFactVM) {
-  const said = f.sub ? `${f.text}, ${f.sub}` : f.text;
   const door = f.door;
   const body = (
     <>
@@ -138,20 +118,18 @@ function factRow(f: ReportFactVM) {
   return (
     <li key={f.id} className={`rpt-fact${f.tone ? ` is-${f.tone}` : ""}`} data-fact={f.id}>
       {door ? (
-        <LinkButton className="rpt-fact-row" title={said} onClick={() => navigate(door.to)}>
+        <LinkButton className="rpt-fact-row" {...routeDoor(door.to)}>
           {body}
         </LinkButton>
       ) : (
-        <div className="rpt-fact-row" title={said}>
-          {body}
-        </div>
+        <div className="rpt-fact-row">{body}</div>
       )}
     </li>
   );
 }
 
 // Worth knowing: what the bridge's reportFacts() found, in its order, one line each. A fact with a door is one
-// button, the whole row its target; the full sentence rides in its title for a line cut short.
+// link, the whole row its target; the sentence wraps rather than being cut short, so its words are all on the page.
 export function RptFacts({ facts }: { facts: ReportFactVM[] }) {
   return (
     <section className="ck-card rpt-facts" data-testid="reports-facts">
@@ -202,13 +180,11 @@ function bookedRest(bk: BookingReportVM) {
             the list's name rather than "See them", because the list counts its own month and this card counts the
             period above: the same people, near enough to go and look, not the same set to the person. */}
         {bk.unbooked > 0 && (
-          <LinkButton
-            title="People's own list of who wrote or called this month and has never been on the calendar"
-            onClick={() => navigate(listRoute("asked_never_booked"))}
-            data-testid="booked-rest-door"
-          >
-            Asked, never booked
-          </LinkButton>
+          <Tooltip tip="People's own list of who wrote or called this month and has never been on the calendar">
+            <LinkButton {...routeDoor(listRoute("asked_never_booked"))} data-testid="booked-rest-door">
+              Asked, never booked
+            </LinkButton>
+          </Tooltip>
         )}
       </span>
     </p>
@@ -253,14 +229,14 @@ function sourceRow(s: CampaignSourceVM) {
       <td>
         <LinkButton
           className="rpt-src"
-          onClick={() => navigate(s.kind === "broadcast" ? `broadcasts/run:${s.id}` : `outbound/${s.id}`)}
+          {...routeDoor(s.kind === "broadcast" ? `broadcasts/run:${s.id}` : `outbound/${s.id}`)}
           data-testid="source-open"
         >
           {s.name}
         </LinkButton>
         <span className="rpt-src-meta">
           {s.kindLabel}
-          {s.kind === "playbook" ? ` · ${rptPlural(s.runs, "run")}` : ""}
+          {s.kind === "playbook" ? ` · ${plural(s.runs, "run")}` : ""}
           {title ? ` · ${title}` : ""}
         </span>
       </td>
