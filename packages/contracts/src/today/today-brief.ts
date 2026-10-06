@@ -24,6 +24,7 @@ import {
   todayHeadline,
   todayQueueEmpty,
   todayQuietDay,
+  todaySendFailure,
   todaySentences,
   todayStanding,
   todayTrafficLine,
@@ -67,6 +68,8 @@ export function toTodayVM(
 
   /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
   if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
+    // A reply that failed is no traffic, but its line is never quiet (today-bands.ts todaySendFailure).
+    const failed = todaySendFailure(f);
     return {
       standing: {
         chips,
@@ -78,7 +81,13 @@ export function toTodayVM(
       },
       needsYou: null,
       windowClosing: null,
-      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
+      recap: {
+        label: "Today so far",
+        line: "Nothing has come in yet today.",
+        sentences: failed ? [failed] : [],
+        facts,
+        receipts: [],
+      },
       figures: null,
       zero_figures: null,
       proof,

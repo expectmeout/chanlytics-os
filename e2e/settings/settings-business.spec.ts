@@ -122,7 +122,11 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
       for (const el of [card, ...card.querySelectorAll("*")]) {
         const cs = getComputedStyle(el);
         const name = el.className || el.tagName;
-        if (cs.backgroundImage.includes("gradient")) gradients.push(`${name}: ${cs.backgroundImage.slice(0, 48)}`);
+        // The sheet's Close is the kit's glass circle, whose sheen is the look's control layer (kit.css, the sheet), not
+        // a ground the record paints.
+        const glass = el.matches(".rec-sheet-close");
+        if (!glass && cs.backgroundImage.includes("gradient"))
+          gradients.push(`${name}: ${cs.backgroundImage.slice(0, 48)}`);
         if (/mono/i.test(cs.fontFamily) && (el.textContent ?? "").trim()) monospace.push(`${name}: ${cs.fontFamily}`);
       }
       // A row that HAS its fact says it and stops: its hint is a sentence the editor says again over the box.
@@ -284,6 +288,10 @@ async function expectSheetQuiet(
         const cs = getComputedStyle(el);
         const name = `${el.tagName.toLowerCase()}.${String(el.className || "").split(" ")[0]}`;
         if (cs.display === "none") continue;
+        // The kit's own controls (a button, a segmented control, the sheet's Close) are the look's: Glass draws each
+        // as a capsule of its control layer, rim and sheen. The kit's gallery holds them (e2e/kit/kit.spec.ts: tokens,
+        // contrast, rings); this holds what the sheet paints of its own.
+        if (el.closest(".rec-sheet-close, .btn, .rec-seg")) continue;
         if (cs.backgroundImage.includes("gradient")) gradients.push(name);
         const r = el.getBoundingClientRect();
         if (r.height > 0 && parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderTopLeftRadius) >= r.height / 2)
@@ -417,9 +425,19 @@ async function motionsOn(page: Page, selector: string): Promise<Motion[][]> {
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 const EASE_IN = "cubic-bezier(0.7, 0, 0.84, 0)";
 const EASE_IN_OUT = "cubic-bezier(0.65, 0, 0.35, 1)";
-/** Wait out whatever is moving, so the next step starts from rest. */
+/**
+ * Wait out whatever is moving, so the next step starts from rest: every motion that ends. The frame's pools drift on a
+ * desk and Ask's dot breathes on a phone for ever (components.css), and a wait on those never finished.
+ */
 const settled = (page: Page): Promise<unknown> =>
-  page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+  page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => null)),
+    ),
+  );
 
 /**
  * The four motions of spec §9, and each of them gone under reduced motion, measured on the page as it runs them. The
@@ -950,7 +968,14 @@ test.describe("Settings › Business on a real workspace", () => {
     await expect(block, "the block it walked to takes focus, so a keyboard reads on from it").toBeFocused();
     // A block's door is latent until the block is approached (spec §11): walked to and focused, its door is drawn.
     const settled = () =>
-      page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+      page.evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => null)),
+        ),
+      );
     const opacity = (l: Locator) => l.evaluate((el) => getComputedStyle(el).opacity);
     if (await block.locator(".bt-prompt-door").count()) {
       await settled();
@@ -965,18 +990,30 @@ test.describe("Settings › Business on a real workspace", () => {
     // A block's door lands in the row's editor: the sheet goes, and focus is inside the fold or the inline editor it
     // opened. Escape then closes that editor, since nothing was typed. The seeded workspace's prompt is the product's
     // own opening lines, which no row of the page writes, so every block it has is the platform's and offers no door:
-    // that is asserted instead, and the door is walked on the salon's record.
+    // that is asserted instead, and the door is walked on the salon's record. The Autonomy tab's rules are a block too,
+    // and their door goes to that tab (prompt.tsx, BTP_DOORS), not to a row here: it is walked there.
     await door.click();
     await expect(sheet).toBeFocused();
-    const rowDoors = sheet.locator('[data-testid^="rec-prompt-door-"]:not([data-testid="rec-prompt-door-services"])');
+    const away = sheet.locator('[data-testid="rec-prompt-door-autonomy"]');
+    const rowDoors = sheet.locator(
+      '[data-testid^="rec-prompt-door-"]:not([data-testid="rec-prompt-door-services"]):not([data-testid="rec-prompt-door-autonomy"])',
+    );
     if ((await rowDoors.count()) === 0) {
       expect(
-        await sheet.locator('[data-testid^="rec-prompt-block-platform"]').count(),
+        (await sheet.locator('[data-testid^="rec-prompt-block-platform"]').count()) + (await away.count()),
         "a block a row wrote offers its door",
       ).toBe(await blocks.count());
-      await sheet.getByRole("button", { name: "Close" }).first().click();
-      await expect(sheet).toHaveCount(0);
-      await expect(door).toBeFocused();
+      if (await away.count()) {
+        await away.locator("xpath=ancestor::section[1]").hover();
+        await away.click();
+        await expect(page).toHaveURL(/\/settings\/autonomy$/);
+        await expect(page.locator(".pol-table")).toBeVisible();
+        await openRecord(page);
+      } else {
+        await sheet.getByRole("button", { name: "Close" }).first().click();
+        await expect(sheet).toHaveCount(0);
+        await expect(door).toBeFocused();
+      }
     } else {
       // At rest, with the pointer away from every block, no door is drawn; the pointer on a block draws its door.
       await page.mouse.move(0, 0);
@@ -1007,7 +1044,14 @@ test.describe("Settings › Business on a real workspace", () => {
       await expect(sheet).toBeVisible();
       if (channel === "Phone") await sheet.getByRole("radio", { name: "Phone" }).click();
       // The switch's own colour transition is measured once it has landed, not half-way between two tokens.
-      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+      await page.evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => null)),
+        ),
+      );
       await expect(page.getByTestId("rec-prompt-contents")).toBeHidden();
       const n = await blocks.count();
       expect(n, `${channel}: there are blocks to read`).toBeGreaterThan(0);
@@ -1242,7 +1286,14 @@ test.describe("Settings › Business on a real workspace", () => {
       await expect(sheet).toBeVisible();
       await expect(sheet).toHaveAttribute("aria-modal", "true");
       await expect(sheet).toHaveAccessibleName(/voice/i);
-      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+      await page.evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => null)),
+        ),
+      );
       const box = sheet.locator("textarea").first();
       await expect(box, "focus is not in the sheet's field").toBeFocused();
       const rise = await boxOf(sheet, "the sheet");
@@ -1259,7 +1310,14 @@ test.describe("Settings › Business on a real workspace", () => {
         (await box.inputValue()) === "Warm, and never in a hurry." ? "Calm and kind." : "Warm, and never in a hurry.";
       await box.fill(words);
       // What it will be told is drawn under the box as it is typed, and the sheet grows to hold it: measured again.
-      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+      await page.evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => null)),
+        ),
+      );
       const grown = await boxOf(sheet, "the sheet");
 
       // The page behind does not scroll under the sheet: not by a wheel on the wash over it, nor on the sheet itself.
@@ -1325,7 +1383,14 @@ test.describe("Settings › Business on a real workspace", () => {
       await page.getByTestId("rec-hours-add-mon").tap();
       await expect(page.getByTestId("rec-hours-remove-mon-1")).toBeVisible();
       // The switch just pressed is measured once its colour has landed, not half-way between two tokens.
-      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+      await page.evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => null)),
+        ),
+      );
       // And the pane's type: the sheet's buttons at the column's size, its times in figures that line up.
       const typed = await page.evaluate((sel) => {
         const sheet = document.querySelector(sel)!;

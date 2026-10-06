@@ -271,7 +271,7 @@ export function todaySentences(
   tone: TodayVM["standing"]["tone"],
   alert: string | null,
 ): TodaySentenceVM[] {
-  const { period, callMinutes, conversations, sinceMs } = f;
+  const { period, callMinutes } = f;
   const sentences: TodaySentenceVM[] = [];
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (period.answered_by_ai && !headlineCoversTraffic) {
@@ -301,30 +301,37 @@ export function todaySentences(
       text: `You sent ${period.messages_out_you} repl${period.messages_out_you === 1 ? "y" : "ies"} yourself.`,
     });
   }
-  // A reply that never reached the customer is the one line that must never be
-  // quiet — the send already escalated, but a card saying "handled everything"
-  // while a message died in transit would be a lie of omission.
-  if (period.send_failures) {
-    // The thread of the newest reply that failed, when the conversations read holds it: "See the thread"
-    // opened the Inbox list, where the owner had to go looking.
-    const lastFailed = conversations
-      .flatMap((c) =>
-        c.messages
-          .filter(
-            (x) =>
-              x.direction === "outbound" &&
-              x.status === "failed" &&
-              x.meta?.backfill !== true &&
-              new Date(x.created_at).getTime() >= sinceMs,
-          )
-          .map((x) => ({ conv: c, at: x.created_at })),
-      )
-      .sort((a, b) => b.at.localeCompare(a.at))[0];
-    sentences.push({
-      text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
-      warn: true,
-      ...(lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}),
-    });
-  }
+  const failed = todaySendFailure(f);
+  if (failed) sentences.push(failed);
   return sentences;
+}
+
+/**
+ * A reply that never reached the customer: the one line that must never be quiet. The send already escalated, but a
+ * card saying "handled everything" while a message died in transit would be a lie of omission; so it is said on a
+ * quiet day too (todayVM's quiet branch), where it was dropped with the day's other sentences (6 Oct 2026).
+ */
+export function todaySendFailure(f: TodayFacts): TodaySentenceVM | null {
+  const { period, conversations, sinceMs } = f;
+  if (!period.send_failures) return null;
+  // The thread of the newest reply that failed, when the conversations read holds it: "See the thread"
+  // opened the Inbox list, where the owner had to go looking.
+  const lastFailed = conversations
+    .flatMap((c) =>
+      c.messages
+        .filter(
+          (x) =>
+            x.direction === "outbound" &&
+            x.status === "failed" &&
+            x.meta?.backfill !== true &&
+            new Date(x.created_at).getTime() >= sinceMs,
+        )
+        .map((x) => ({ conv: c, at: x.created_at })),
+    )
+    .sort((a, b) => b.at.localeCompare(a.at))[0];
+  return {
+    text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
+    warn: true,
+    ...(lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}),
+  };
 }

@@ -499,6 +499,29 @@ test("a failed delivery is a warn sentence — never silent", () => {
   assert.match(warn.text, /failed to deliver — the customer got no answer/);
 });
 
+test("a failed delivery is said on a quiet day too, with its door to the thread", () => {
+  // Nothing came in today and nobody waits, so the day is quiet; the one thing that happened is a reply that never
+  // reached its customer. The quiet day returned the recap with no sentences, and the line went (6 Oct 2026).
+  const m = metrics({ period: { send_failures: 1 } });
+  const failed = {
+    id: "m9",
+    direction: "outbound",
+    sender: "ai",
+    type: "text",
+    body: "Yes, Tuesday at 3 works.",
+    media: null,
+    meta: null,
+    status: "failed",
+    created_at: "2026-08-27T13:00:00Z",
+  };
+  const vm = toTodayVM(m, [conv({ state: "open", messages: [failed] })], [], [], NOW);
+  assert.ok(vm.quiet, "nothing came in and nobody waits: the day is quiet");
+  const warn = vm.recap.sentences.find((x) => x.warn);
+  assert.ok(warn, "REGRESSION: a quiet day dropped the failed delivery's line");
+  assert.match(warn.text, /failed to deliver — the customer got no answer/);
+  assert.equal(warn.to, "inbox/th-c1", "its door is the thread whose reply failed");
+});
+
 test("calm-day sentences do not read the headline back", () => {
   // headline already says "handled everything — 3 messages…"; repeating the
   // counts as sentences would be the brief quoting its own first line.

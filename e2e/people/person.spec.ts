@@ -39,8 +39,9 @@ test.describe("A person's page on its path", () => {
     await expect(page.getByTestId("person-now")).toBeVisible();
     expect(routeOf(page.url())).toBe(`clients/${id}`);
 
-    // Its own Back goes to People, and the browser's Back and Forward walk the two.
-    await page.getByRole("button", { name: "Back to People" }).first().click();
+    // Its own Back goes to People, and the browser's Back and Forward walk the two. In Glass the way back is the frame
+    // head's, where the date stands (‹ People, kit/head/frame-head.tsx).
+    await page.locator(".pg-back", { hasText: "People" }).click();
     await expect.poll(() => routeOf(page.url())).toBe("clients");
     await expect(page.getByTestId("person-now")).toHaveCount(0);
     await page.goBack();

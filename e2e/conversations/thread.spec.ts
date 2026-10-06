@@ -99,7 +99,8 @@ async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"
   const list = page.locator(".ix-list");
   const pane = page.locator(".ix-thread-pane");
   await expect(async () => {
-    await list.getByRole("button", { name: new RegExp(`^${bucket}`) }).click({ timeout: 5_000 });
+    // The buckets are the kit's sub-tabs (tabs, their count in the name).
+    await list.getByRole("tab", { name: new RegExp(`^${bucket}`) }).click({ timeout: 5_000 });
     await list.locator(".ix-thread").filter({ hasText: ROBIN.name }).click({ timeout: 5_000 });
     await expect(pane.locator(".ix-th-name")).toContainText(ROBIN.name, { timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
