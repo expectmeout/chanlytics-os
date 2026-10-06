@@ -2087,6 +2087,7 @@ One UTC day of one workspace, counted (00277): messages in and out by channel, c
 | `duplicate_sends` | integer | yes |  | Outbound rows that day with the same words to one thread within a minute of the last: the later one is the duplicate (00332). Null for a day nothing was sent in. |
 | `dead_letters` | jsonb | yes |  | The jobs that died that day, by kind: state failed, which jobs_guard keeps final (00332). Null for a day none died in. |
 | `relay_lag_ms` | integer | yes |  | How long an event waited for its deliveries that day, at the 95th percentile in milliseconds (decision 0032): written by the relay's own migration, null until then (00332). |
+| `intake_lag_ms` | jsonb | yes |  | How long after the provider's own clock said it happened a door kept its delivery that day, by provider (meta, retell, resend), at the 95th percentile in milliseconds, from the intake ledger (00337, decision 0032). Twilio stamps nothing, so texts are not counted. Null for a day no stamped delivery arrived in. |
 
 Foreign keys:
 

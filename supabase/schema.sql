@@ -11963,13 +11963,13 @@ COMMENT ON FUNCTION public.platform_answer_silence(p_day date) IS 'The active wo
 -- Name: platform_metrics_read(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.platform_metrics_read(p_days integer DEFAULT 7) RETURNS TABLE(tenant_id uuid, name text, day date, messages_in jsonb, messages_out jsonb, asks integer, answered integer, replies_answered integer, replies_held integer, replies_handed_off integer, brain_p95_ms integer, provider_failures jsonb, tokens bigint, job_lag_ms jsonb, first_answer_ms jsonb, duplicate_sends integer, dead_letters jsonb, relay_lag_ms integer)
+CREATE FUNCTION public.platform_metrics_read(p_days integer DEFAULT 7) RETURNS TABLE(tenant_id uuid, name text, day date, messages_in jsonb, messages_out jsonb, asks integer, answered integer, replies_answered integer, replies_held integer, replies_handed_off integer, brain_p95_ms integer, provider_failures jsonb, tokens bigint, job_lag_ms jsonb, first_answer_ms jsonb, duplicate_sends integer, dead_letters jsonb, relay_lag_ms integer, intake_lag_ms jsonb)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
   select pm.tenant_id, t.name, pm.day, pm.messages_in, pm.messages_out, pm.asks, pm.answered, pm.replies_answered,
          pm.replies_held, pm.replies_handed_off, pm.brain_p95_ms, pm.provider_failures, pm.tokens,
-         pm.job_lag_ms, pm.first_answer_ms, pm.duplicate_sends, pm.dead_letters, pm.relay_lag_ms
+         pm.job_lag_ms, pm.first_answer_ms, pm.duplicate_sends, pm.dead_letters, pm.relay_lag_ms, pm.intake_lag_ms
     from public.platform_metrics pm
     join public.tenants t on t.id = pm.tenant_id
    where pm.day > (now() at time zone 'utc')::date - greatest(least(coalesce(p_days, 7), 90), 1) - 1
@@ -11981,7 +11981,7 @@ $$;
 -- Name: FUNCTION platform_metrics_read(p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_metrics_read(p_days integer) IS 'The back office''s read of platform_metrics (00277): the last p_days rolled days (at most 90), each workspace''s row with its name, newest day first, the spine''s five numbers beside the rest (00332).';
+COMMENT ON FUNCTION public.platform_metrics_read(p_days integer) IS 'The back office''s read of platform_metrics (00277): the last p_days rolled days (at most 90), each workspace''s row with its name, newest day first, the spine''s five numbers (00332) and intake lag (00337) beside the rest.';
 
 
 --
@@ -12287,6 +12287,91 @@ begin
   exception when others then
     raise warning 'platform_metrics_roll: the spine''s numbers were not kept for %: %', p_day, sqlerrm;
   end;
+  -- The fourth keeps intake lag (00337, decision 0032): how long after the provider's own clock said it happened a door
+  -- kept its delivery, by provider, at the 95th percentile, read from the deliveries the intake ledger keeps a week
+  -- (provider_events, 00336). Meta's message and status times, by the number each came to (tenant_channels keys a
+  -- WhatsApp number on its id); Retell's call times, a start for a call that started and the end for one that ended or
+  -- was analysed; Resend's created_at. Twilio stamps nothing it sends, so a text or its receipt is not counted, and
+  -- neither is a body that is not the provider's JSON. A provider's clock ahead of ours reads as no wait. A day re-run
+  -- after the week's purge finds nothing and leaves the number it kept. It fails alone too.
+  begin
+    with
+    kept as materialized (
+      select e.provider, e.provider_event_id, e.door, e.tenant_id, e.received_at, e.body::jsonb as doc
+        from public.provider_events e
+       where e.received_at >= v_t0 and e.received_at < v_t1
+         and e.provider in ('meta', 'retell', 'resend')
+         and e.body is json object
+    ),
+    met as (
+      select k.received_at, v.value -> 'metadata' ->> 'phone_number_id' as number_id, t.ts
+        from kept k
+        cross join lateral jsonb_path_query(k.doc, 'lax $.entry[*].changes[*].value') as v(value)
+        cross join lateral (
+          select m.value ->> 'timestamp' as ts
+            from jsonb_array_elements(case when jsonb_typeof(v.value -> 'messages') = 'array'
+                                           then v.value -> 'messages' else '[]'::jsonb end) m
+          union all
+          select s.value ->> 'timestamp'
+            from jsonb_array_elements(case when jsonb_typeof(v.value -> 'statuses') = 'array'
+                                           then v.value -> 'statuses' else '[]'::jsonb end) s
+        ) t
+       where k.provider = 'meta' and jsonb_typeof(v.value) = 'object'
+    ),
+    called as (
+      select k.tenant_id, k.received_at,
+             k.doc -> 'call' ->> (case when k.provider_event_id like 'call_started:%' then 'start_timestamp'
+                                       else 'end_timestamp' end) as ts
+        from kept k
+       where k.provider = 'retell' and k.door = '/api/retell-webhook' and k.tenant_id is not null
+         and jsonb_typeof(k.doc -> 'call') = 'object'
+    ),
+    told as (
+      select k.tenant_id, k.received_at, k.doc ->> 'created_at' as ts
+        from kept k
+       where k.provider = 'resend' and k.tenant_id is not null
+    ),
+    stamped as (
+      select c.tenant_id, 'meta'::text as provider,
+             extract(epoch from (m.received_at - to_timestamp(m.ts::double precision))) * 1000 as ms
+        from met m
+        join public.tenant_channels c on c.kind = 'whatsapp' and c.external_id = m.number_id
+       where m.ts ~ '^[0-9]{9,11}$'
+      union all
+      select c.tenant_id, 'retell',
+             extract(epoch from (c.received_at - to_timestamp(c.ts::double precision / 1000))) * 1000
+        from called c
+       where c.ts ~ '^[0-9]{12,14}$'
+      union all
+      select o.tenant_id, 'resend', extract(epoch from (o.received_at - o.ts::timestamptz)) * 1000
+        from told o
+       where o.ts ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)$'
+    ),
+    waited as (
+      select s.tenant_id, s.provider,
+             percentile_cont(0.95) within group (order by greatest(s.ms, 0)) as p95
+        from stamped s
+       group by s.tenant_id, s.provider
+    ),
+    intake as (
+      select w.tenant_id, jsonb_object_agg(w.provider, round(w.p95)::integer) as counts
+        from waited w
+       group by w.tenant_id
+    ),
+    written as (
+      insert into public.platform_metrics as pm (tenant_id, day, intake_lag_ms, rolled_at)
+      select i.tenant_id, p_day, i.counts, now()
+        from intake i
+       where exists (select 1 from public.tenants y where y.id = i.tenant_id)
+      on conflict (tenant_id, day) do update
+         set intake_lag_ms = excluded.intake_lag_ms, rolled_at = excluded.rolled_at
+      returning (xmax = 0) as inserted
+    )
+    select count(*) filter (where inserted)::integer into v_new from written;
+    v_n := v_n + coalesce(v_new, 0);
+  exception when others then
+    raise warning 'platform_metrics_roll: intake lag was not kept for %: %', p_day, sqlerrm;
+  end;
   return v_n;
 end $_$;
 
@@ -12295,7 +12380,7 @@ end $_$;
 -- Name: FUNCTION platform_metrics_roll(p_day date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00332; relay lag since 00334): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
+COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00332; relay lag since 00334): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone, then intake lag by provider (00337) in another. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty; past the deliveries'' week, intake lag is left as it was kept.';
 
 
 --
@@ -21075,6 +21160,7 @@ CREATE TABLE public.platform_metrics (
     duplicate_sends integer,
     dead_letters jsonb,
     relay_lag_ms integer,
+    intake_lag_ms jsonb,
     CONSTRAINT platform_metrics_ai_tokens_check CHECK (((ai_tokens IS NULL) OR (jsonb_typeof(ai_tokens) = 'object'::text))),
     CONSTRAINT platform_metrics_ai_usd_check CHECK (((ai_usd IS NULL) OR (jsonb_typeof(ai_usd) = 'object'::text))),
     CONSTRAINT platform_metrics_answered_check CHECK ((answered >= 0)),
@@ -21084,6 +21170,7 @@ CREATE TABLE public.platform_metrics (
     CONSTRAINT platform_metrics_duplicate_sends_check CHECK (((duplicate_sends IS NULL) OR (duplicate_sends >= 0))),
     CONSTRAINT platform_metrics_first_answer_ms_check CHECK (((first_answer_ms IS NULL) OR (jsonb_typeof(first_answer_ms) = 'object'::text))),
     CONSTRAINT platform_metrics_handled_check CHECK (((handled IS NULL) OR (jsonb_typeof(handled) = 'object'::text))),
+    CONSTRAINT platform_metrics_intake_lag_ms_check CHECK (((intake_lag_ms IS NULL) OR (jsonb_typeof(intake_lag_ms) = 'object'::text))),
     CONSTRAINT platform_metrics_job_lag_ms_check CHECK (((job_lag_ms IS NULL) OR (jsonb_typeof(job_lag_ms) = 'object'::text))),
     CONSTRAINT platform_metrics_relay_lag_ms_check CHECK (((relay_lag_ms IS NULL) OR (relay_lag_ms >= 0))),
     CONSTRAINT platform_metrics_replies_answered_check CHECK ((replies_answered >= 0)),
@@ -21170,6 +21257,13 @@ COMMENT ON COLUMN public.platform_metrics.dead_letters IS 'The jobs that died th
 --
 
 COMMENT ON COLUMN public.platform_metrics.relay_lag_ms IS 'How long an event waited for its deliveries that day, at the 95th percentile in milliseconds (decision 0032): written by the relay''s own migration, null until then (00332).';
+
+
+--
+-- Name: COLUMN platform_metrics.intake_lag_ms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.intake_lag_ms IS 'How long after the provider''s own clock said it happened a door kept its delivery that day, by provider (meta, retell, resend), at the 95th percentile in milliseconds, from the intake ledger (00337, decision 0032). Twilio stamps nothing, so texts are not counted. Null for a day no stamped delivery arrived in.';
 
 
 --

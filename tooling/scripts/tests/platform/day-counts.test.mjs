@@ -52,6 +52,7 @@ const stored = (tenant_id, name, day, over = {}) => ({
   duplicate_sends: 1,
   dead_letters: { email_ingest: 2 },
   relay_lag_ms: null,
+  intake_lag_ms: {},
   ...over,
 });
 const office = (rpc) => ({ db: fakeDb({}, {}, { platform_metrics_read: rpc }), session: null });
@@ -76,6 +77,7 @@ test("the back office's read asks for the bounded window and answers the wire's 
           duplicate_sends: null,
           dead_letters: null,
           relay_lag_ms: "soon",
+          intake_lag_ms: null,
         }),
       ];
     }),
@@ -100,11 +102,19 @@ test("the back office's read asks for the bounded window and answers the wire's 
     duplicate_sends: 1,
     dead_letters: { email_ingest: 2 },
     relay_lag_ms: null,
+    intake_lag_ms: {},
   });
   assert.deepEqual([read[1].messages_in, read[1].brain_p95_ms, read[1].tokens], [{}, null, 0]);
   assert.deepEqual(
-    [read[1].job_lag_ms, read[1].first_answer_ms, read[1].duplicate_sends, read[1].dead_letters, read[1].relay_lag_ms],
-    [{}, {}, null, {}, null],
+    [
+      read[1].job_lag_ms,
+      read[1].first_answer_ms,
+      read[1].duplicate_sends,
+      read[1].dead_letters,
+      read[1].relay_lag_ms,
+      read[1].intake_lag_ms,
+    ],
+    [{}, {}, null, {}, null, {}],
     "a day before the spine's numbers reads as none",
   );
 });
@@ -195,9 +205,14 @@ test("the spine's numbers in words (decision 0031, Phase 0): each part only wher
       duplicate_sends: 0,
       dead_letters: {},
       relay_lag_ms: 250,
+      intake_lag_ms: { retell: 41000, meta: 2300 },
     }),
   ]).lines[0];
-  assert.equal(some.spine, "the waiting claimed within 0.4 s; 0 duplicate sends; events relayed within 0.3 s");
+  assert.equal(
+    some.spine,
+    "the waiting claimed within 0.4 s; 0 duplicate sends; events relayed within 0.3 s; deliveries taken in within 41.0 s (meta, retell)",
+    "intake lag (00337): the slowest provider's wait, and which providers stamped their deliveries",
+  );
   const before = platformDaysWords([
     stored(A, "Harbor Moving", "2026-09-28", {
       job_lag_ms: {},

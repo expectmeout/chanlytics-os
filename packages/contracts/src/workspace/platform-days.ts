@@ -39,6 +39,11 @@ export interface PlatformDayRowDto {
   dead_letters: Record<string, number>;
   /** How long an event waited for its deliveries, 95th percentile (decision 0032); null until the relay writes it. */
   relay_lag_ms: number | null;
+  /**
+   * How long after the provider's own clock a door kept its delivery, by provider, 95th percentile (00337, decision
+   * 0032); {} for a day no stamped delivery arrived in, or before it.
+   */
+  intake_lag_ms: Record<string, number>;
 }
 
 /** One line of the card: a workspace's latest day, in words. */
@@ -124,6 +129,11 @@ function spineLine(r: PlatformDayRowDto): string {
     parts.push(`${plural(died, "job", "jobs")} died (${kinds.join(", ")})`);
   }
   if (r.relay_lag_ms !== null) parts.push(`events relayed within ${seconds(r.relay_lag_ms)}`);
+  const providers = Object.keys(r.intake_lag_ms).sort();
+  if (providers.length) {
+    const worst = Math.max(...Object.values(r.intake_lag_ms));
+    parts.push(`deliveries taken in within ${seconds(worst)} (${providers.join(", ")})`);
+  }
   return parts.join("; ");
 }
 

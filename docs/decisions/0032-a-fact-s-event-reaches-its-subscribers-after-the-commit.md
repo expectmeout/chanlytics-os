@@ -218,7 +218,10 @@ form-encoded address, before the rows go (fail closed, as the finished jobs are)
 (`provider_events_scrub`, from `apps/dashboard/src/server/people/erase-contact.ts`); the privacy page says the week; and
 `POST /api/admin/intake/replay` knocks on the delivery's own door again in-process, so its signature is proved
 again, which a provider whose signature carries a timestamp (Resend, Stripe) passes within its window only.
-_Both orders:_ a table only the edge writes.
+Intake lag is a number since 00337: each workspace's day, by provider, how long after the provider's own clock a
+door kept the delivery, at the 95th percentile, on the back office beside relay lag. Meta's messages are counted by
+the number they came to, Retell's calls and Resend's receipts by their workspace; Twilio stamps nothing it sends,
+so texts are not. _Both orders:_ a table only the edge writes.
 
 **5 · The first real subscriber:** receipts as events into the inbox projection (0031, phase 2). Each later
 subscriber is a step of its own note.

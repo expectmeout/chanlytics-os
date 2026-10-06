@@ -117,6 +117,7 @@ before(async () => {
 
 after(async () => {
   if (skip) return;
+  await db.from("provider_events").delete().like("provider_event_id", `%${RUN}%`);
   for (const t of made) {
     await db.from("jobs").delete().eq("tenant_id", t);
     await db.from("events").delete().eq("tenant_id", t);
@@ -210,5 +211,96 @@ test(
     if (mine) assert.ok("job_lag_ms" in mine && "relay_lag_ms" in mine, "the five ride beside the rest");
     const columns = ok(await db.rpc("platform_metrics_read", { p_days: 1 }), "read today");
     assert.ok(Array.isArray(columns));
+  },
+);
+
+test(
+  "intake lag (00337): how long after the provider's own clock a delivery was kept, by provider; a text, a body that is not JSON and a clock ahead of ours cost nothing",
+  { skip },
+  async () => {
+    const t = await workspace("intake");
+    const numberId = `PN${RUN}`;
+    ok(await db.from("tenant_channels").insert({ tenant_id: t, kind: "whatsapp", external_id: numberId }), "channel");
+    const keep = (rows) =>
+      db.from("provider_events").insert(
+        rows.map(([provider, id, door, tenant_id, received_at, body]) => ({
+          provider,
+          provider_event_id: `${id}${RUN}`,
+          door,
+          url: `https://edge.example.com${door}`,
+          tenant_id,
+          headers: {},
+          verified: true,
+          received_at,
+          body: typeof body === "string" ? body : JSON.stringify(body),
+        })),
+      );
+    const secs = (time) => String(Math.floor(Date.parse(at(time)) / 1000));
+    const ms = (time) => Date.parse(at(time));
+    const meta = (number, time) => ({
+      entry: [
+        { changes: [{ value: { metadata: { phone_number_id: number }, messages: [{ timestamp: secs(time) }] } }] },
+      ],
+    });
+    ok(
+      await keep([
+        // Meta, by the number it came to: stamped 10:00:00, kept 4 s on. Another number's is nobody's here.
+        ["meta", "sha256:a", "/api/whatsapp", null, at("10:00:04"), meta(numberId, "10:00:00")],
+        ["meta", "sha256:b", "/api/whatsapp", null, at("10:00:09"), meta(`PN-elsewhere-${RUN}`, "10:00:00")],
+        ["meta", "sha256:c", "/api/whatsapp", null, at("10:00:09"), "{ not json"],
+        // Retell: a call that started is read from its start, one that ended from its end: 2 s and 30 s.
+        [
+          "retell",
+          "call_started:c1",
+          "/api/retell-webhook",
+          t,
+          at("10:01:02"),
+          { call: { start_timestamp: ms("10:01:00") } },
+        ],
+        [
+          "retell",
+          "call_ended:c1",
+          "/api/retell-webhook",
+          t,
+          at("10:05:30"),
+          { call: { end_timestamp: ms("10:05:00") } },
+        ],
+        // Resend: 10 s, and a clock ahead of ours, which waited for nothing.
+        [
+          "resend",
+          "msg_1",
+          "/api/resend-webhook",
+          t,
+          at("10:10:10"),
+          { type: "email.delivered", created_at: at("10:10:00") },
+        ],
+        [
+          "resend",
+          "msg_2",
+          "/api/resend-webhook",
+          t,
+          at("10:20:00"),
+          { type: "email.delivered", created_at: at("10:20:05") },
+        ],
+        // Twilio stamps nothing it sends.
+        ["twilio", "SM1", "/api/inbound-sms", t, at("10:30:00"), "From=%2B15550100123&Body=hello"],
+      ]),
+      "kept",
+    );
+
+    assert.ok((await roll()) >= 0);
+    const row = await rolled(t);
+    assert.deepEqual(
+      row.intake_lag_ms,
+      { meta: 4000, retell: 28600, resend: 9500 },
+      "the 95th percentile by provider: Retell between 2 s and 30 s, Resend's early clock read as no wait",
+    );
+    assert.deepEqual(
+      [row.job_lag_ms, row.first_answer_ms, row.duplicate_sends, row.dead_letters, row.asks],
+      [null, null, null, null, 0],
+      "a workspace whose day was only deliveries has a row for them and nothing else",
+    );
+    const read = ok(await db.rpc("platform_metrics_read", { p_days: 1 }), "read");
+    assert.ok(Array.isArray(read), "the read answers with the column (00337)");
   },
 );

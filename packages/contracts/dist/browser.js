@@ -32627,6 +32627,11 @@ function spineLine(r2) {
     parts2.push(`${plural2(died, "job", "jobs")} died (${kinds.join(", ")})`);
   }
   if (r2.relay_lag_ms !== null) parts2.push(`events relayed within ${seconds(r2.relay_lag_ms)}`);
+  const providers = Object.keys(r2.intake_lag_ms).sort();
+  if (providers.length) {
+    const worst = Math.max(...Object.values(r2.intake_lag_ms));
+    parts2.push(`deliveries taken in within ${seconds(worst)} (${providers.join(", ")})`);
+  }
   return parts2.join("; ");
 }
 function receptionistLine(r2) {

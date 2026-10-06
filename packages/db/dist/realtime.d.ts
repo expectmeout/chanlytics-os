@@ -4415,6 +4415,7 @@ type Database = {
                     duplicate_sends: number | null;
                     first_answer_ms: Json | null;
                     handled: Json | null;
+                    intake_lag_ms: Json | null;
                     job_lag_ms: Json | null;
                     messages_in: Json;
                     messages_out: Json;
@@ -4440,6 +4441,7 @@ type Database = {
                     duplicate_sends?: number | null;
                     first_answer_ms?: Json | null;
                     handled?: Json | null;
+                    intake_lag_ms?: Json | null;
                     job_lag_ms?: Json | null;
                     messages_in?: Json;
                     messages_out?: Json;
@@ -4465,6 +4467,7 @@ type Database = {
                     duplicate_sends?: number | null;
                     first_answer_ms?: Json | null;
                     handled?: Json | null;
+                    intake_lag_ms?: Json | null;
                     job_lag_ms?: Json | null;
                     messages_in?: Json;
                     messages_out?: Json;
@@ -7536,6 +7539,7 @@ type Database = {
                     dead_letters: Json;
                     duplicate_sends: number;
                     first_answer_ms: Json;
+                    intake_lag_ms: Json;
                     job_lag_ms: Json;
                     messages_in: Json;
                     messages_out: Json;

@@ -454,6 +454,8 @@ test(
         "dead_letters",
         "duplicate_sends",
         "first_answer_ms",
+        // intake lag by provider (00337)
+        "intake_lag_ms",
         "job_lag_ms",
         "messages_in",
         "messages_out",

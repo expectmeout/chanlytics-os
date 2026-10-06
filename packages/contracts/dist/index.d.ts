@@ -29345,6 +29345,11 @@ interface PlatformDayRowDto {
     dead_letters: Record<string, number>;
     /** How long an event waited for its deliveries, 95th percentile (decision 0032); null until the relay writes it. */
     relay_lag_ms: number | null;
+    /**
+     * How long after the provider's own clock a door kept its delivery, by provider, 95th percentile (00337, decision
+     * 0032); {} for a day no stamped delivery arrived in, or before it.
+     */
+    intake_lag_ms: Record<string, number>;
 }
 /** One line of the card: a workspace's latest day, in words. */
 interface PlatformDayLineVM {

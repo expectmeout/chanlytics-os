@@ -36,6 +36,8 @@ export async function platformDays(office: BackOffice): Promise<PlatformDayRowDt
     duplicate_sends: whole(row.duplicate_sends),
     dead_letters: counts(row.dead_letters),
     relay_lag_ms: whole(row.relay_lag_ms),
+    // Intake lag by provider (00337): a day rolled before it reads as none.
+    intake_lag_ms: counts(row.intake_lag_ms),
   }));
 }
 
