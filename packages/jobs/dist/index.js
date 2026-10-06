@@ -89,13 +89,39 @@ function named(payload) {
     return payload;
   return { ...payload, request_id: id };
 }
+function dedupeKeyOf(kind, payload) {
+  const p = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const field = (name) => typeof p[name] === "string" ? p[name] : null;
+  switch (kind) {
+    case "email_ingest":
+      return field("mailbox_id") && field("received_id") ? `email_ingest:${field("mailbox_id")}:${field("received_id")}` : null;
+    case "lead_collect":
+      return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
+    case "reply_read":
+      return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
+    default:
+      return null;
+  }
+}
+function rowToInsert(p, key) {
+  return {
+    tenant_id: p.tenantId,
+    kind: p.kind,
+    due_at: p.dueAt.toISOString(),
+    payload: named(p.payload),
+    ...key ? { dedupe_key: key } : {}
+  };
+}
 async function scheduleJob(db, p) {
   const { data, error } = await db.from("jobs").insert({ tenant_id: p.tenantId, kind: p.kind, due_at: p.dueAt.toISOString(), payload: named(p.payload) }).select("id").single();
   if (error || !data) throw new Error(`schedule_job: ${error?.message ?? "no row"}`);
   return { jobId: data.id };
 }
 async function scheduleJobOnce(db, p) {
-  const { error } = await db.from("jobs").insert({ tenant_id: p.tenantId, kind: p.kind, due_at: p.dueAt.toISOString(), payload: named(p.payload) });
+  const key = dedupeKeyOf(p.kind, p.payload);
+  const insert = (dedupeKey) => db.from("jobs").insert(rowToInsert(p, dedupeKey));
+  let { error } = await insert(key);
+  if (error?.code === "PGRST204" && key) ({ error } = await insert(null));
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
   throw new Error(`schedule_job: ${error.message}`);

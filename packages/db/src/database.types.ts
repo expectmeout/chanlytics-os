@@ -2264,6 +2264,7 @@ export type Database = {
         Row: {
           attempts: number
           created_at: string
+          dedupe_key: string | null
           due_at: string
           fired_at: string | null
           id: string
@@ -2279,6 +2280,7 @@ export type Database = {
         Insert: {
           attempts?: number
           created_at?: string
+          dedupe_key?: string | null
           due_at: string
           fired_at?: string | null
           id?: string
@@ -2294,6 +2296,7 @@ export type Database = {
         Update: {
           attempts?: number
           created_at?: string
+          dedupe_key?: string | null
           due_at?: string
           fired_at?: string | null
           id?: string
@@ -5124,6 +5127,7 @@ export type Database = {
           request_id: number | null
           requested_at: string | null
           sweep: string
+          woken_at: string | null
         }
         Insert: {
           alerted_at?: string | null
@@ -5136,6 +5140,7 @@ export type Database = {
           request_id?: number | null
           requested_at?: string | null
           sweep: string
+          woken_at?: string | null
         }
         Update: {
           alerted_at?: string | null
@@ -5148,6 +5153,7 @@ export type Database = {
           request_id?: number | null
           requested_at?: string | null
           sweep?: string
+          woken_at?: string | null
         }
         Relationships: []
       }
@@ -5567,6 +5573,7 @@ export type Database = {
         Returns: {
           attempts: number
           created_at: string
+          dedupe_key: string | null
           due_at: string
           fired_at: string | null
           id: string

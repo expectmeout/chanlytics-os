@@ -1,9 +1,10 @@
 # 0031 · The ledger wakes when a due row is written, and the claim counts capacity
 
-**Status:** Decided on 6 October 2026 (Ruben: "all approved"), with 0029; not yet built. Proposed the same day. Written
-against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main,
-6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Nothing of
-it is built; the two changes the trace proposed in the ledger's neighbourhood that this note declines are recorded under
+**Status:** Built, steps 1 and 2 (6 October 2026, 00331): the wake and the dedupe key. Decided on 6 October 2026 (Ruben:
+"all approved"), with 0029, and proposed the same day; steps 3 and 4 are still to build. Written against commit
+`b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6 October
+2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Nothing of it is
+built; the two changes the trace proposed in the ledger's neighbourhood that this note declines are recorded under
 Decision. Where this note and the code disagree, the code wins.
 
 ## Context
@@ -41,8 +42,12 @@ change the plan.
 ## Decision
 
 1. **Wake on insert.** A statement trigger on `jobs` calls `request_sweep('jobs', '/api/jobs/tick')` when a row due
-   now, or within the poll's interval, is written, debounced by `sweep_status.requested_at` to at most one request a
-   second. The ten-second poll stays as the backstop, and a tick that finds nothing costs what it costs today.
+   now, or within the two seconds the knock takes to arrive, is written, debounced by `sweep_status.woken_at` to at
+   most one request a second and never waiting on another asker (the row is taken with `skip locked`). The ten-second
+   poll stays as the backstop, and a tick that finds nothing costs what it costs today. Built as 00331, which narrowed
+   the window from the poll's interval: the runner's claim loop ends on its first empty claim (`packages/jobs/src/tick.ts`),
+   so a knock before a row is due is a knock wasted, and `requested_at` could not be the debounce, since the poll's
+   own look moves it every ten seconds.
 2. **One dedupe key.** `jobs.dedupe_key text`, with a partial unique index over scheduled and fired rows. The three
    bespoke indexes retire one release after every caller writes the key. A caller that must schedule once passes the
    key; `scheduleJobOnce` reads the one 23505.
@@ -69,15 +74,19 @@ create table public.job_capacity (
   primary key (scope, key)
 );
 
--- The wake: a due row written asks for a tick, at most once a second.
+-- The wake, as 00331 built it: a row due within two seconds asks for a tick, at most once a second, never waiting.
 create or replace function public.jobs_wake() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if exists (select 1 from new_rows r where r.state = 'scheduled' and r.due_at <= now() + interval '10 seconds')
-     and not exists (select 1 from public.sweep_status s
-                      where s.sweep = 'jobs' and s.requested_at > now() - interval '1 second') then
-    perform public.request_sweep('jobs', '/api/jobs/tick');
+  if not exists (select 1 from new_rows r where r.state = 'scheduled' and r.due_at <= now() + interval '2 seconds') then
+    return null;
   end if;
+  perform 1 from public.sweep_status s
+    where s.sweep = 'jobs' and (s.woken_at is null or s.woken_at < now() - interval '1 second')
+      for update skip locked;
+  if not found then return null; end if;
+  update public.sweep_status set woken_at = now() where sweep = 'jobs';
+  perform public.request_sweep('jobs', '/api/jobs/tick');
   return null;
 end $$;
 create trigger jobs_wake after insert on public.jobs
@@ -90,11 +99,13 @@ milliseconds at 30,000 due rows on the replayed stack.
 
 ## Steps
 
-**1 · The wake.** The trigger and nothing else; `late_ms` in the tick's log line (`packages/jobs/src/tick.ts`) is the
-number that shows it. _Both orders:_ SQL alone; an edge that is not deployed answers the knock as it answers pg_cron's.
+**1 · The wake.** Built, 00331: the trigger and nothing else; `late_ms` in the tick's log line
+(`packages/jobs/src/tick.ts`) and `job_lag_ms` on the day (00330) are the numbers that show it. _Both orders:_ SQL
+alone; an edge that is not deployed answers the knock as it answers pg_cron's.
 
-**2 · The dedupe key.** The column and the index; `scheduleJobOnce` writes the key beside its payload for the three
-kinds; the three indexes stay one release. _Both orders:_ an older edge writes no key and trips the old index as today.
+**2 · The dedupe key.** Built, 00331: the column and the index; `scheduleJobOnce` writes the key beside its payload
+for the three kinds, and writes none to a database that has no column yet; the three indexes stay one release. _Both
+orders:_ an older edge writes no key and trips the old index as today.
 
 **3 · The three indexes retire.** _Both orders:_ every writer carries the key.
 

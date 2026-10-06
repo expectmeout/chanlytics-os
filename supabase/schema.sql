@@ -888,6 +888,7 @@ CASE
     WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2
     ELSE NULL::integer
 END) STORED,
+    dedupe_key text,
     CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
@@ -905,6 +906,13 @@ COMMENT ON COLUMN public.jobs.lease_until IS 'While in the future, a run holds t
 --
 
 COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; null for a kind it does not name, which is claimed last. A new kind names its lane with its handler, its caller and the jobs.kind CHECK.';
+
+
+--
+-- Name: COLUMN jobs.dedupe_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00331): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed.';
 
 
 --
@@ -4017,6 +4025,42 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed; done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
+
+
+--
+-- Name: jobs_wake(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.jobs_wake() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- Only a row the tick could claim when the knock arrives: scheduled, and due within the two seconds the knock takes.
+  if not exists (
+    select 1 from new_rows r where r.state = 'scheduled' and r.due_at <= now() + interval '2 seconds'
+  ) then
+    return null;
+  end if;
+  -- One ask a second, and never a wait: the row is taken with skip locked, so a writer that finds it held asks nothing.
+  perform 1
+     from public.sweep_status s
+    where s.sweep = 'jobs' and (s.woken_at is null or s.woken_at < now() - interval '1 second')
+      for update skip locked;
+  if not found then
+    return null;
+  end if;
+  update public.sweep_status set woken_at = now() where sweep = 'jobs';
+  perform public.request_sweep('jobs', '/api/jobs/tick');
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION jobs_wake(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.jobs_wake() IS 'After a statement writes jobs: a row scheduled and due within two seconds asks for the tick through request_sweep, at most once a second (sweep_status.woken_at), never waiting on another asker (00331, decision 0031).';
 
 
 --
@@ -21135,6 +21179,7 @@ CREATE TABLE public.sweep_status (
     max_silence interval,
     judged_by text DEFAULT 'request'::text NOT NULL,
     registered_at timestamp with time zone DEFAULT now() NOT NULL,
+    woken_at timestamp with time zone,
     CONSTRAINT sweep_status_judged_by_check CHECK ((judged_by = ANY (ARRAY['request'::text, 'run'::text])))
 );
 
@@ -21193,6 +21238,13 @@ COMMENT ON COLUMN public.sweep_status.judged_by IS 'request: judged on the HTTP 
 --
 
 COMMENT ON COLUMN public.sweep_status.registered_at IS 'A run-judged clock that has never run is healthy until max_silence has passed since it was registered.';
+
+
+--
+-- Name: COLUMN sweep_status.woken_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sweep_status.woken_at IS 'When a row written to the ledger last asked for this sweep itself (jobs_wake, 00331): one ask a second, whatever the writers do.';
 
 
 --
@@ -22766,6 +22818,20 @@ CREATE UNIQUE INDEX invitations_open_unique ON public.invitations USING btree (t
 
 
 --
+-- Name: jobs_dedupe_live; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX jobs_dedupe_live ON public.jobs USING btree (dedupe_key) WHERE ((dedupe_key IS NOT NULL) AND (state = ANY (ARRAY['scheduled'::text, 'fired'::text])));
+
+
+--
+-- Name: INDEX jobs_dedupe_live; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.jobs_dedupe_live IS 'One live row per dedupe key (00331): a second schedule of the same key is refused (23505) while the first is scheduled or fired; a row that is done, canceled or failed lets the key be scheduled again.';
+
+
+--
 -- Name: jobs_due_scheduled; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -23834,6 +23900,13 @@ CREATE TRIGGER jobs_guard BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNC
 --
 
 CREATE TRIGGER jobs_set_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: jobs jobs_wake; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER jobs_wake AFTER INSERT ON public.jobs REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.jobs_wake();
 
 
 --
@@ -28002,6 +28075,15 @@ GRANT ALL ON FUNCTION public.jobs_backlog(p_wait interval) TO service_role;
 REVOKE ALL ON FUNCTION public.jobs_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.jobs_guard() TO authenticated;
 GRANT ALL ON FUNCTION public.jobs_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION jobs_wake(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.jobs_wake() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.jobs_wake() TO authenticated;
+GRANT ALL ON FUNCTION public.jobs_wake() TO service_role;
 
 
 --
