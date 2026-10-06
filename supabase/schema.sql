@@ -11817,6 +11817,64 @@ COMMENT ON FUNCTION public.person_notes_erase_on_contact() IS 'When a person is 
 
 
 --
+-- Name: person_notes_scrub(uuid, uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_notes_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_needles  text[];
+  v_patterns text[];
+  v_needle   text;
+  v_body     text;
+  v_changed  integer := 0;
+  r          record;
+begin
+  select coalesce(array_agg(n order by char_length(n) desc, n), '{}')
+    into v_needles
+    from (select distinct lower(btrim(x)) as n from unnest(coalesce(p_needles, '{}'::text[])) x) d
+   where char_length(n) >= 6;
+  if cardinality(v_needles) = 0 then
+    return 0;
+  end if;
+  select array_agg('%' || replace(replace(replace(n, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+    into v_patterns
+    from unnest(v_needles) n;
+
+  for r in
+    select n.id, n.body
+      from public.person_notes n
+     where n.tenant_id = p_tenant_id
+       and n.contact_id is distinct from p_contact_id
+       and lower(n.body) like any (v_patterns)
+       for update
+  loop
+    v_body := r.body;
+    foreach v_needle in array v_needles loop
+      -- Every character of the needle as itself: a number's + and ( are not the pattern's.
+      v_body := regexp_replace(v_body, regexp_replace(v_needle, '([^[:alnum:]])', '\\\1', 'g'), '[erased]', 'gi');
+    end loop;
+    if v_body is distinct from r.body then
+      update public.person_notes
+         set body = left(v_body, 600), version = version + 1
+       where id = r.id;
+      v_changed := v_changed + 1;
+    end if;
+  end loop;
+  return v_changed;
+end $$;
+
+
+--
+-- Name: FUNCTION person_notes_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_notes_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'An erasure''s hand in other people''s notes (decision 0036): each of the person''s numbers and addresses overwritten with [erased] in place, the note''s version moved on; nothing deleted, names left. Answers how many notes changed. Service role only.';
+
+
+--
 -- Name: person_set_first_touch(uuid, uuid, text, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12823,6 +12881,37 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.purge_events(p_keep interval) IS 'Drops the evidence kinds (webhook receipts and deliveries, the allowlist''s skips, unreachable and unroutable inbounds, the two model-usage rows) older than p_keep (default 30 days; contracts RETENTION_DAYS.events_evidence). Every other event kind is the record and is never purged here.';
+
+
+--
+-- Name: purge_idempotency_keys(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_idempotency_keys(p_keep interval DEFAULT '1 day'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+begin
+  loop
+    delete from public.idempotency_keys k
+     where k.id in (select c.id from public.idempotency_keys c where c.created_at < now() - p_keep limit 1000);
+    get diagnostics v_n = row_count;
+    v_total := v_total + v_n;
+    exit when v_n < 1000;
+  end loop;
+  return v_total;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_idempotency_keys(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_idempotency_keys(p_keep interval) IS 'Nightly. Deletes the keys writes were answered under (cards, replies, requests) a day after their claim (contracts RETENTION_DAYS.idempotency_keys; decision 0035), a thousand at a time. Answers how many.';
 
 
 --
@@ -23406,6 +23495,13 @@ CREATE INDEX google_reviews_tenant_published_idx ON public.google_reviews USING 
 
 
 --
+-- Name: idempotency_keys_created_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idempotency_keys_created_at ON public.idempotency_keys USING btree (created_at);
+
+
+--
 -- Name: invitations_open_by_email; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -30013,6 +30109,14 @@ GRANT ALL ON FUNCTION public.person_notes_erase_on_contact() TO service_role;
 
 
 --
+-- Name: FUNCTION person_notes_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_notes_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_notes_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text, p_made_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -30164,6 +30268,14 @@ GRANT ALL ON FUNCTION public.purge_cron_history(p_keep interval, p_keep_per_job 
 
 REVOKE ALL ON FUNCTION public.purge_events(p_keep interval) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.purge_events(p_keep interval) TO service_role;
+
+
+--
+-- Name: FUNCTION purge_idempotency_keys(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_idempotency_keys(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_idempotency_keys(p_keep interval) TO service_role;
 
 
 --
@@ -32729,8 +32841,6 @@ GRANT ALL ON TABLE public.waitlist TO service_role;
 --
 
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
 
 
 --
@@ -32747,5 +32857,3 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIO
 --
 
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO postgres;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO authenticated;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO service_role;
