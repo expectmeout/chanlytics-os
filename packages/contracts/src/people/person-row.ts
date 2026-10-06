@@ -45,10 +45,12 @@ import {
   consentOf,
   firstContactOf,
   lastContactOf,
-  reasonShort,
+  theirTurnWords,
   type PersonFirstContact,
   type PersonLastContact,
 } from "./person-row-facts";
+import { reasonShort } from "../conversations/escalations";
+import { HELD_WORDS } from "../conversations/standing";
 import { heardAt, PERSON_STATE_LABELS, personStanding, personStateFor, type PersonState } from "./person-state";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { personReachOf, type PersonReach } from "../broadcasts/reach-any";
@@ -317,7 +319,12 @@ function rowReplyOf(
   emailStopped: boolean,
 ): Pick<PersonRowVM, "replyWindow" | "replyVia" | "bookingLinkAction"> {
   const via = replyChannelOfRow(r);
-  if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null, false) };
+  if (!via)
+    return {
+      replyWindow: null,
+      replyVia: null,
+      bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped }),
+    };
   const w = replyWindow(via, r.latest_wa_inbound_at, now);
   const win = {
     open: w.open,
@@ -328,7 +335,7 @@ function rowReplyOf(
   return {
     replyWindow: win,
     replyVia: REPLY_VIA[via],
-    bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win, emailStopped),
+    bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[via], window: win, emailStopped }),
   };
 }
 
@@ -379,7 +386,7 @@ export function toPersonRowVM(
           ? "a reply is about to send — you can still stop it"
           : "waiting for a person"
       : state === "waiting_on_you"
-        ? "you own the thread and they wrote last"
+        ? [HELD_WORDS.yours.pill.toLowerCase(), theirTurnWords(last)].filter(Boolean).join(", and ")
         : state === "opted_out"
           ? consent.sub
           : state === "new"

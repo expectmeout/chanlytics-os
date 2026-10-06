@@ -60,7 +60,7 @@ test("the demo's Live is the real view model over a sample business: a call on t
   assert.equal(a.now[0].transcript.length, 2, "the turns so far");
   assert.equal(a.recent.length, 1);
   assert.equal(a.recent[0].live, false);
-  assert.ok(a.recent[0].wanted && a.recent[0].followUp, "an ended call carries its analysis");
+  assert.ok(a.recent[0].wanted && a.recent[0].notes.todo, "an ended call carries its analysis");
   assert.equal(a.line.on, true);
   assert.equal(a.lineRead, true);
   assert.equal(a.fetchedAtMs, now.getTime());

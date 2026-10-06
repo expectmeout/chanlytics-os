@@ -58,6 +58,17 @@ test("the receptionist's booking template is never one WhatsApp refuses: judged 
     "call_text",
     "and a message of words alone is still the call's text",
   );
+  // The send puts the body's values on the wire and nothing else (channels sendTemplate), so a part it has no values
+  // for -- Meta's carousel of cards, a limited-time offer -- is refused for every recipient, whatever the body says.
+  for (const type of ["CAROUSEL", "LIMITED_TIME_OFFER"]) {
+    const parts = [...PLAIN, { type, cards: [] }];
+    assert.equal(contracts.templateBlocked({ components: parts }), "a part Chanlytics cannot fill", type);
+    assert.equal(
+      bookingTemplate([row("call_text", { components: parts })]),
+      null,
+      `REGRESSION: a message with a ${type.toLowerCase()} was judged sendable`,
+    );
+  }
 });
 
 test("the Inbox picker leaves out a message WhatsApp refuses, and says why in the one sentence it already has for what it holds back", () => {

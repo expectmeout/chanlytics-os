@@ -86,11 +86,11 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "needs_you" }),
   },
-  // Yours, or nobody's: a teammate's thread waits on them (standing.ts).
+  // Yours by the one standing rule (standing.ts): you took it over, or your reply paused the receptionist.
   {
     id: "waiting_on_you",
     label: "Waiting on you",
-    tip: "You have the thread, or nobody does, and they wrote last — a teammate's waits on them",
+    tip: "Threads you have: you took them over, or your reply paused the receptionist. A teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "waiting_on_you" }),

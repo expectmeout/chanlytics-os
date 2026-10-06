@@ -418,9 +418,14 @@ test("a snoozed thread's band names the request still standing in its own words,
   const band = find(pane, byTestId("ix-snoozed"));
   assert.ok(band, "the snoozed band is drawn");
   const said = textOf(band);
-  assert.match(said, /Reply failed to deliver — that's still waiting for you\./);
+  assert.match(said, /Reply failed to deliver\. That's still waiting for you\./);
   assert.doesNotMatch(said, /asked for a person/i);
   // With nothing open, nothing is said to be waiting.
   const quiet = textOf(find(paneOf(vmOf(snoozed, null)), byTestId("ix-snoozed")));
   assert.doesNotMatch(quiet, /still waiting for you/);
+  // A reason whose label says two things says them once, not under a second dash: the band read "The receptionist hit
+  // an error — a holding message went out — that's still waiting for you."
+  const errored = textOf(find(paneOf(vmOf(snoozed, { ...failed, reason: "brain_error" })), byTestId("ix-snoozed")));
+  assert.match(errored, /The receptionist hit an error — a holding message went out\. That's still waiting for you\./);
+  assert.equal(errored.split("—").length - 1, 1, "REGRESSION: one dash, the label's own");
 });

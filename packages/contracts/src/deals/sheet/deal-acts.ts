@@ -103,7 +103,7 @@ export function dealSendOf(
     const why = stopped ? DEAL_SEND_WHY.stopped : p.openThread ? DEAL_SEND_WHY.emailStopped : DEAL_SEND_WHY.none;
     return { can: false, reach, why, label };
   }
-  if (!proposalAction(p.replyVia, p.replyWindow, null, p.emailSuppressed).ready)
+  if (!proposalAction({ via: p.replyVia, window: p.replyWindow, emailStopped: p.emailSuppressed }, null).ready)
     return { can: false, reach, why: DEAL_SEND_WHY.window, label };
   return { can: true, reach, why: null, label };
 }

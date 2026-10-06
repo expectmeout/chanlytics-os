@@ -17,7 +17,20 @@ import ts from "typescript";
 import { ROOT } from "../_source.mjs";
 import { repoFiles, parse, importsOf, packageOf } from "../_ast.mjs";
 
-const PACKAGES = ["channels", "contracts", "core", "db", "jobs"];
+/** Every package: each folder of packages/ with a manifest, so one added later is held to these rules the day it lands. */
+const PACKAGES = fs
+  .readdirSync(path.join(ROOT, "packages"), { withFileTypes: true })
+  .filter((e) => e.isDirectory() && fs.existsSync(path.join(ROOT, "packages", e.name, "package.json")))
+  .map((e) => e.name);
+/**
+ * Every module a package's dist ships, by its extension: its index, and an entry of its own (contracts' browser.js and
+ * write-rules.js, db's realtime.js, which a page loads). Reading index.js alone left the others unchecked.
+ */
+const builtFiles = (p, ext) =>
+  fs
+    .readdirSync(path.join(ROOT, "packages", p, "dist"))
+    .filter((f) => f.endsWith(ext))
+    .map((f) => `packages/${p}/dist/${f}`);
 /** The projects whose sources are held to their manifest: the packages, and the two apps that run on a server. */
 const PROJECTS = [...PACKAGES.map((p) => `packages/${p}`), "apps/edge", "apps/dashboard"];
 
@@ -57,10 +70,10 @@ test("each package's built dist imports only what its package.json declares", ()
   for (const p of PACKAGES) {
     const m = manifest(`packages/${p}`);
     const runtime = runtimeOf(m);
-    for (const out of ["dist/index.js", "dist/index.d.ts"]) {
-      for (const { specifier } of importsOf(parse(`packages/${p}/${out}`))) {
+    for (const out of [...builtFiles(p, ".js"), ...builtFiles(p, ".d.ts")]) {
+      for (const { specifier } of importsOf(parse(out))) {
         const name = packageOf(specifier);
-        if (name && name !== m.name && !(name in runtime)) unlisted.push(`packages/${p}/${out}: ${specifier}`);
+        if (name && name !== m.name && !(name in runtime)) unlisted.push(`${out}: ${specifier}`);
       }
     }
   }
@@ -80,12 +93,14 @@ test("a package's built JavaScript reaches a sibling only by its built file's re
     const declared = Object.keys(runtimeOf(manifest(`packages/${p}`)))
       .filter((n) => n.startsWith("@chanlytics/"))
       .map((n) => n.slice("@chanlytics/".length));
-    for (const { specifier } of importsOf(parse(`packages/${p}/dist/index.js`))) {
-      const sibling = /^\.\.\/\.\.\/([a-z]+)\/dist\/index\.js$/.exec(specifier)?.[1];
-      if (specifier.startsWith("@chanlytics/")) wrong.push(`${p}: ${specifier}, by name`);
-      else if (specifier.startsWith(".") && !sibling) wrong.push(`${p}: ${specifier} is not a sibling's built file`);
-      else if (sibling && !declared.includes(sibling)) wrong.push(`${p}: ${sibling} is not in its package.json`);
-    }
+    for (const out of builtFiles(p, ".js"))
+      for (const { specifier } of importsOf(parse(out))) {
+        const sibling = /^\.\.\/\.\.\/([a-z]+)\/dist\/index\.js$/.exec(specifier)?.[1];
+        if (specifier.startsWith("@chanlytics/")) wrong.push(`${out}: ${specifier}, by name`);
+        else if (specifier.startsWith(".") && !sibling)
+          wrong.push(`${out}: ${specifier} is not a sibling's built file`);
+        else if (sibling && !declared.includes(sibling)) wrong.push(`${out}: ${sibling} is not in its package.json`);
+      }
   }
   assert.deepEqual(wrong, [], "the package's tsup.config.ts hands its build siblingsByPath");
 });
@@ -96,11 +111,11 @@ test("no package's dist carries a sibling's code: one module per package per pro
   // copy of channels' providerFetch and the breaker map beside it, so a send through core's deliver counted toward a
   // breaker the edge's direct channels calls never read.
   const carried = PACKAGES.flatMap((p) =>
-    [
-      ...fs
-        .readFileSync(path.join(ROOT, `packages/${p}/dist/index.js`), "utf8")
-        .matchAll(/^\/\/ \.\.\/([a-z]+)\/dist\//gm),
-    ].map((m) => `${p} carries ${m[1]}`),
+    builtFiles(p, ".js").flatMap((out) =>
+      [...fs.readFileSync(path.join(ROOT, out), "utf8").matchAll(/^\/\/ \.\.\/([a-z]+)\/dist\//gm)].map(
+        (m) => `${out} carries ${m[1]}`,
+      ),
+    ),
   );
   assert.deepEqual(carried, []);
   for (const p of PACKAGES.filter((x) => x !== "channels")) {

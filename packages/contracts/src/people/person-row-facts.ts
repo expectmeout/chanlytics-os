@@ -12,10 +12,6 @@ import { consentSourceLabel, STOP_ENDED_OFFERS_SOURCE, type PersonConsent } from
 import { fmtDate, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
 
-// The reason's clause, "Escalated, …", is the one vocabulary in conversations/escalations.ts; every reader here
-// kept this import path, so the map's move left no caller to change.
-export { reasonShort } from "../conversations/escalations";
-
 /** "just now" · "5m ago" · "3h ago" · "2d ago", the business's date past a week — the one family (time.ts, clock.ts). */
 export function ago(ms: number, tz: string, nowMs: number): string {
   return agoWords(ms, nowMs, { dateAfterMs: WEEK_MS, date: (at) => clockDate(at, tz, nowMs) });
@@ -30,6 +26,16 @@ export interface PersonLastContact {
   who: "they" | "receptionist" | "you" | "system" | null;
   /** "They wrote · 2h ago" */
   label: string;
+}
+
+/**
+ * Whose turn it is, when it is theirs: "they wrote last" after their message, "they called last" after their call; null
+ * when the last word was ours. What Waiting on you adds to "You have it", where it is true: a thread you took over and
+ * answered still waits on you, and it said they wrote last.
+ */
+export function theirTurnWords(last: Pick<PersonLastContact, "who" | "kind">): string | null {
+  if (last.who !== "they") return null;
+  return last.kind === "call" ? "they called last" : "they wrote last";
 }
 
 export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonLastContact {

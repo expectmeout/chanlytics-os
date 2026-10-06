@@ -88,6 +88,27 @@ export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
  * People knows only that one is queued, which it is exactly while it can still be stopped. It lived in inbox.jsx, and
  * People counted a thread the Inbox said waited on you as not waiting on anyone.
  */
+/**
+ * A thread's standing from its row and whether an escalation is open on it: the one place a conversation's columns
+ * become standingOf's input. The Inbox (threadStanding), Conversations and Today each built it by hand.
+ */
+export function standingOfThread(
+  thread: Pick<StandingInput, "state" | "paused_until" | "assignee_user_id" | "assignee_is_me">,
+  openEscalation: boolean,
+  nowMs: number,
+): StandingVerdict {
+  return standingOf(
+    {
+      state: thread.state,
+      paused_until: thread.paused_until,
+      assignee_user_id: thread.assignee_user_id,
+      assignee_is_me: thread.assignee_is_me,
+      open_escalation: openEscalation,
+    },
+    nowMs,
+  );
+}
+
 export function replyWaitsOnYou(
   r: { endsAtMs?: number | null; queued?: boolean; held?: boolean },
   nowMs: number,

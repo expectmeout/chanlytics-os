@@ -236,7 +236,8 @@ export function askPalette(win: Window, storage: Storage | null) {
         heldDrafts: feed.filter((i) => i.kind === "held_draft").length,
         // The count the quick answer gives (callsToday): a dial the receptionist placed is not a missed call.
         missedToday: tz ? callsToday(calls(), Date.now(), tz).missed.length : 0,
-        liveNow: calls().filter((c) => c.live).length,
+        // On the line by the heartbeat (callsToday's own count), never `live` alone.
+        liveNow: callsToday(calls(), Date.now(), tz).live.length,
         hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,
         // Whoever acts in the workspace (owner, operator, partner): the one table, as the pages' canDo("approve").
