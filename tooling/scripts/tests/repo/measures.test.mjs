@@ -107,7 +107,7 @@ test("a set's numbers are a record: its keys may only go, its numbers follow the
 
 // `corepack pnpm lint -- --update` wrote the warnings as measured, so it banked a rise, or a file and rule the
 // baseline did not name, as readily as a fall. It banks by the rule above now (checks/lint.mjs, `bankWarnings`);
-// the bundle budget's bank, which has a band, is held in bundle-budget.test.mjs.
+// the bundle budget's bank, which has a tolerance in bytes, is held in bundle-budget.test.mjs.
 const HOOKS = "react-hooks/exhaustive-deps";
 const UNUSED = "@typescript-eslint/no-unused-vars";
 const WARNINGS = { "apps/a.jsx": { [HOOKS]: 4, [UNUSED]: 1 }, "packages/b.ts": { [UNUSED]: 2 } };
