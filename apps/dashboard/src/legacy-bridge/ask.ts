@@ -5,9 +5,10 @@
  * is asked (ask/palette.ts), the Ask routes and the streamed turn
  * (ask/api.ts), a card's commit and undo through the verbs' own routes
  * (ask/commit.ts), reading aloud in Ask's voice (ask/speech.ts: the brief, an
- * answer's say, through the speech route), the agent's session a hold speaks
- * to (ask/voice.ts), and a spoken turn told in a typed turn's own events
- * (ask/spoken.ts). The mockup's palette
+ * answer's say, through the speech route), a held question's answer read
+ * aloud with the one line said while Ask works (ask/aloud.ts), and the voice
+ * agent's session with its spoken turn (ask/voice.ts, ask/spoken.ts), which
+ * no hold asks for since 5 Oct 2026. The mockup's palette
  * reaches all of it through this one object and nothing else, so what a
  * palette may do is the list below.
  */
@@ -29,6 +30,7 @@ import { hearAddress, routeOnScreen } from "./workspace";
 import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
 import { askSpeech, type SpeechPurpose } from "./ask/speech";
+import { askAloud } from "./ask/aloud";
 import { installVoice } from "./ask/voice";
 import { spokenTurns } from "./ask/spoken";
 import { pageContext, type ThreadMessage } from "./ask/context";
@@ -40,6 +42,7 @@ export { readLines } from "./ask/api";
 export type AskApi = ReturnType<typeof askPalette> &
   AskApiCalls &
   ReturnType<typeof askSpeech> &
+  ReturnType<typeof askAloud> &
   ReturnType<typeof installVoice> &
   ReturnType<typeof spokenTurns> & {
     /** Approve a card: the verb's own route, then the surfaces refresh. */
@@ -85,9 +88,9 @@ async function freshSession(): Promise<void> {
  * while the agent has the floor (an answer on its way, or being spoken): a session up and quiet, or still connecting,
  * is in no clip's way and is left for the next hold, so the clip that reads a typed-way answer does not end the session
  * the press asked for. The clip starts inside the press, the hang-up beside it and never before it: a phone plays
- * audio only from a gesture, and the hang-up is a round trip. A hold ends the clip, and is a question on its way:
- * the model's cache is warmed (`warm`, ask/api.ts warmModel) as the session is asked for, so the words spoken a few
- * seconds later find it written.
+ * audio only from a gesture, and the hang-up is a round trip. A session asked for ends the clip, and is a question on
+ * its way: the model's cache is warmed (`warm`, ask/api.ts warmModel), so the words spoken a few seconds later find it
+ * written. No hold asks for a session since 5 Oct 2026: the Line's press stops the clip and warms the cache itself.
  */
 export function oneVoice(
   clip: ReturnType<typeof askSpeech>,
@@ -149,6 +152,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     ...palette,
     ...api,
     ...speech,
+    ...askAloud(speech),
     ...voice,
     send,
     sendSpoken,

@@ -3299,9 +3299,11 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
     const asked = order.indexOf(read);
     assert.ok(asked >= 0 && asked < waited, `REGRESSION: ${read} waited for another round (${order.join(", ")})`);
   }
+  // In any order among themselves: since #1431 the decisions are read on the person and on their threads in one query, asked
+  // beside the escalations once the ids are in.
   assert.deepEqual(
-    order.slice(waited),
-    ["messages", "escalations", "decisions"],
+    order.slice(waited).sort(),
+    ["decisions", "escalations", "messages"],
     "only the threads' own reads wait, for their ids",
   );
   assert.deepEqual(

@@ -488,7 +488,8 @@ export const ConversationsPage = ({
   const swap = useSwapMotion(channel);
   // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
   const [phoneOpen, setPhoneOpen] = useState(!!initialId);
-  const [tick, setTick] = useState(0);
+  // A decision or a call's end is drawn at once (a row's pill), before any read: a draw, and nothing it is kept on.
+  const [, setTick] = useState(0);
   // Its own rows, and where a call opens depends on the threads the Inbox read (cvOpens): drawn again when either lands.
   useSurface("conversations");
   useSurface("inbox");
@@ -514,25 +515,23 @@ export const ConversationsPage = ({
 
   const matchesChannel = (c: ConversationRow) => inChannel(c, channel);
 
-  const visible = useMemo(
-    () => {
-      let list = CONVERSATIONS.filter(matchesChannel);
-      if (query.trim()) {
-        const q = query.toLowerCase();
-        list = list.filter(
-          (c) =>
-            c.who.toLowerCase().includes(q) ||
-            c.snippet.toLowerCase().includes(q) ||
-            (c.summary && (c.summary.headline + " " + c.summary.bullets.join(" ")).toLowerCase().includes(q)) ||
-            (c.transcript || []).some((l) => l.text.toLowerCase().includes(q)) ||
-            (c.messages || []).some((m) => m.text.toLowerCase().includes(q)),
-        );
-      }
-      return list;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as the JSX drew it: tick, because the SurfaceData swap replaces the array identity
-    [channel, query, tick],
-  );
+  // Kept on the rows themselves: each read publishes new ones. Kept on a counter only a decision moved, the list and the
+  // tabs' counts were the first read's for as long as the page was open (5 Oct 2026), and so was a call open beside them.
+  const visible = useMemo(() => {
+    let list = CONVERSATIONS.filter((c) => inChannel(c, channel));
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      list = list.filter(
+        (c) =>
+          c.who.toLowerCase().includes(q) ||
+          c.snippet.toLowerCase().includes(q) ||
+          (c.summary && (c.summary.headline + " " + c.summary.bullets.join(" ")).toLowerCase().includes(q)) ||
+          (c.transcript || []).some((l) => l.text.toLowerCase().includes(q)) ||
+          (c.messages || []).some((m) => m.text.toLowerCase().includes(q)),
+      );
+    }
+    return list;
+  }, [CONVERSATIONS, channel, query]);
 
   // The conversation asked for stays open while the box's words hide its row (the Inbox keeps a moved thread the same
   // way): the pane fell to the first match, another customer's thread with its reply box, the moment a search stopped
@@ -555,8 +554,7 @@ export const ConversationsPage = ({
   // them: a tab that is drawn always carries the number of rows it will show.
   const counts = useMemo(
     () => Object.fromEntries(CV_CHANNELS.map((t) => [t.id, CONVERSATIONS.filter((c) => inChannel(c, t.id)).length])),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as the JSX drew it: tick, because counts read the swapped global too
-    [tick],
+    [CONVERSATIONS, CV_CHANNELS],
   );
 
   return (

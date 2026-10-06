@@ -16,6 +16,7 @@ import { calledName, type ToolRun } from "./tools";
  * about three seconds, and the questions that paid it were asked in words the table did not hold -- how the business
  * stands, what is booked ("what do I have tomorrow"), who wrote, where the deals stand, and the day's calls asked of
  * Today, which counts them and lists none. Each is a row below; a read is 100 to 300 ms beside the page's own.
+ * Who canceled joined the same evening: asked by voice, it took two more rounds and four searches, 14 s to a word.
  */
 export const CROSS_PAGE_MAX = 2;
 
@@ -42,6 +43,18 @@ function daysOf(q: string): 7 | 30 | 90 {
   return 7;
 }
 
+/** The days a question about cancellations reads back: the day asked, the week before this one whole, or the period. */
+function cancelDaysOf(q: string): number {
+  if (/\b(today|hoy)\b/i.test(q)) return 1;
+  if (/\b(yesterday|ayer)\b/i.test(q)) return 2;
+  if (/\b(last|past|previous) week\b|\bsemana pasada\b/i.test(q)) return 14;
+  return daysOf(q);
+}
+
+/** Every form a cancellation is written in, at once: the search is never stemmed, and `or` finds either side. */
+const CANCEL_WORDS =
+  "cancel or canceled or cancelled or canceling or cancelling or cancellation or reschedule or rescheduled or cancelar or cancelo or canceló or cancelada or cancelado or cancelación or reprogramar";
+
 const REPORT =
   /\breports?\b|\binforme\b|\b(last|past|previous|these|últimos?|ultimos?)\s+(7|seven|30|thirty|90|ninety|siete|treinta|noventa)\s*(days|días|dias)\b|\bhow (did|was|were|are|is)\b.*\b(week|month|days|semana|mes)\b|\bcómo (fue|va|nos fue|estuvo)\b/i;
 const OPENINGS =
@@ -51,6 +64,11 @@ const OVERVIEW =
   /\bhow('?s| is| are| was)? (the |my |our )?(business|things|everything|we doing|it going)\b|\b(brief|update) me\b|\bcatch me up\b|\bwhat('?s| is) (new|going on|happening)\b|\bwhat did i miss\b|\bwhat should i do (next|now|today|first)\b|\bc[oó]mo (va|est[aá]) (el|mi|nuestro) negocio\b|\bc[oó]mo vamos\b|\bqu[eé] hay de nuevo\b|\bponme al d[ií]a\b/i;
 const CALENDAR =
   /\bcalendar\b|\bcalendario\b|\bagenda\b|\bappointments?\b|\bcitas?\b|\bwhat'?s on\b|\bqué hay\b|\b(what|who) do (i|we) have\b|\bwho('?s| is) coming\b|\bupcoming\b|\bbookings?\b(?! (link|page|notes?))|\b(my|our|the|today'?s|tomorrow'?s) schedule\b|\bqu[eé] tengo\b|\breservas?\b/i;
+/**
+ * Who canceled or moved a booking. No record keeps a cancellation (the appointments record, decision 0002, is not
+ * built) and the calendar holds only what is still booked, so what was said is searched instead of the calendar.
+ */
+const CANCELED = /\bcancel(s|ed|led|ing|ling|lations?)?\b|\breschedul|\bcancel[aeoó]|\breprogram/i;
 /** Where the deals stand (the Pipeline's own read, which says so where deals are off). */
 const PIPELINE = /\bpipeline\b|\bproposals?\b|\bdeals?\b|\bpropuestas?\b/i;
 /** Who wrote: the Inbox's threads, newest first. */
@@ -94,6 +112,7 @@ export function crossPagePlan(text: string, surface: string | null, view: string
     if (surface !== "reports" || String(days) !== view) add("report", { days });
   }
   if (OPENINGS.test(q)) add("calendar", { action: "openings", day: dayOf(q, ""), service: "" });
+  else if (CANCELED.test(q)) add("inbox", { action: "search", words: CANCEL_WORDS, days: cancelDaysOf(q) });
   else if (CALENDAR.test(q)) add("calendar", { action: "week", day: dayOf(q, "today") });
   if (PIPELINE.test(q)) add("people", { action: "pipeline" });
   if (PLAYBOOKS.test(q)) add("campaigns", { action: "playbooks" });
