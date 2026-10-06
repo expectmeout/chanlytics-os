@@ -20,6 +20,9 @@ import {
   pipelinePassDone,
   pipelinePeekDetail,
   pipelineBoardMore,
+  pipelinePersonOf,
+  pipelineRowId,
+  pipelineRowNow,
   PIPELINE_BOARD_CAP,
   PIPELINE_WORDS,
 } from "@chanlytics/contracts";
@@ -32,6 +35,11 @@ export const pipelineHelpers = () => ({
   rail: pipelineRail,
   route: pipelineRoute,
   parse: parsePipelineRoute,
+  // The person a row id names (0029: a further deal of theirs is a row of its own, `<person>_<deal>`).
+  personOf: pipelinePersonOf,
+  // A row's id from its person and deal, and the row that now holds what an id named (pipelineRowNow).
+  rowId: pipelineRowId,
+  rowNow: pipelineRowNow,
   viewLabel: pipelineViewLabel,
   // The row carries the deal: its order by the member's heading, a selection's pass and what it came to, what the
   // peek says once the person is read, and how many cards a board column shows.

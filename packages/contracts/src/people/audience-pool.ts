@@ -125,7 +125,7 @@ export interface PoolOptions {
  */
 export function poolRowOf(person: PersonRowDto, o: PoolOptions): PersonRowVM {
   const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready);
-  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null };
+  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null, openDeals: [], dealStages: [] };
 }
 
 /** Everyone's rows, as poolRowOf reads each. */

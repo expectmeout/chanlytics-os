@@ -114,18 +114,21 @@ const PipelinePeekHistory = ({
 // deal kit) for a member who may record one, and Call where there is a number.
 const PipelinePeekBar = ({
   person,
+  deal,
   call,
   canRecord,
   onCompose,
 }: {
   person: PersonVM;
+  /** The row's own deal (0029), of the person read; null for a consultation's row, which starts a proposal. */
+  deal: PersonVM["deal"];
   call: string | null;
   canRecord: boolean;
   onCompose: Compose;
 }) => {
   let act: DealAct | null = null;
   try {
-    act = canRecord ? dealNextAct(person, Date.now()) : null;
+    act = canRecord ? dealNextAct(person, Date.now(), deal) : null;
   } catch {
     act = null;
   }
@@ -137,7 +140,7 @@ const PipelinePeekBar = ({
         <button
           type="button"
           className="btn btn-primary pipe-peek-bar-act"
-          onClick={() => pdRun(person, act, person.deal ? person.deal.id : null, onCompose)}
+          onClick={() => pdRun(person, act, deal ? deal.id : null, onCompose)}
           data-testid="pipeline-peek-bar-act"
         >
           {act.label}
@@ -336,7 +339,13 @@ export const PipelinePeek = ({
         {peekDoors(vm, onOpenPage, onOpenThread)}
       </div>
       {phone && person ? (
-        <PipelinePeekBar person={person} call={call} canRecord={canRecord} onCompose={onCompose} />
+        <PipelinePeekBar
+          person={person}
+          deal={vm.dealId === null ? null : ((person.deals ?? []).find((d) => d.id === vm.dealId) ?? person.deal)}
+          call={call}
+          canRecord={canRecord}
+          onCompose={onCompose}
+        />
       ) : null}
     </aside>
   );

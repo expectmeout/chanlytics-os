@@ -36,7 +36,7 @@ import { campaignHow } from "@chanlytics/core";
 import { listPolicies } from "@chanlytics/db";
 import { archivedListWords, poolList, type AudiencePool } from "../../../people/audience";
 import { dealPaceRead, sellsByOf } from "../../../people/deals";
-import { checkPlaybookInput, proposalFollowUps } from "../../../campaigns/playbooks";
+import { checkPlaybookInput, noFollowUps, proposalFollowUps } from "../../../campaigns/playbooks";
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
@@ -294,14 +294,14 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
-    deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(new Map<string, number>()),
+    deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(noFollowUps()),
   ]);
   if (!followUps)
     return refuse("who already had a proposal follow-up could not be read just now; say so, and try again in a moment");
   const untouched = {
     byThis: new Map<string, number>(),
     byAny: new Map<string, number>(),
-    followUps,
+    ...followUps,
   };
   // A list's people, as a run counts them (listedPeople).
   const listed = listRef ? await listedPeople(t, pool, listRef) : { ids: null, label: null };

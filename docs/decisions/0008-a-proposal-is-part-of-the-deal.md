@@ -442,10 +442,9 @@ many more it holds.
 
 ### Still held
 
-- **One row per open deal.** `people_list` returns one deal per person (the
-  newest open), so a person with two open deals, one per service, shows one
-  row. Its fix is a database change (the row carrying every open deal) and
-  waits for its own note.
+- **One row per open deal.** Answered by [0029](0029-a-person-s-every-open-deal-is-worked.md) (6 October
+  2026): `people_list` carries every open deal (00328), and the Pipeline, People's deal lists, the proposal
+  follow-up, the receptionist, the phone and Ask read them all.
 - **A pass in the history.** The timeline reads the deal rows, not their
   events, so a deal passed and then proposed again shows no "Passed" line.
   The events hold it; reading them into the timeline is its own change.

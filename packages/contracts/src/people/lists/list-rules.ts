@@ -403,7 +403,8 @@ function holds(f: ListFact, v: PersonRowVM, inList: InList): boolean {
     case "assigned":
       return (v.assigned === f.value) === is;
     case "deal_stage":
-      return (v.dealStage === f.value) === is;
+      // Any stage they stand at (0029): a client with a proposal out for another service is in both lists.
+      return v.dealStages.includes(f.value) === is;
     case "in_list":
       return inList(f.list, v.id) === is;
   }

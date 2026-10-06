@@ -2444,8 +2444,15 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
 ];
 /**
  * The same queries in the order they reach the database since 2 Oct 2026: what is read of the workspace -- how its
@@ -2476,8 +2483,15 @@ const PEOPLE_ASKED_NOW = [
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
 ];
 /** A list of queries as a bag: the same reads, whatever their order. */
 const bagOf = (asked) => asked.map((q) => JSON.stringify(q)).sort();
@@ -3161,7 +3175,11 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
     "broadcast_recipients.select",
     "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta)",
   ],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
   ["rpc:people_list", null],
   ["policies.select", "subject_type, subject_id, mode"],
   ["tenants.select", "name, timezone"],
@@ -3169,7 +3187,10 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["deals.select", "id, contact_id, proposed_at"],
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
   ["segments.select", "id, name, rule, archived_at"],
   ["segment_members.select", "segment_id, contact_id"],
 ];

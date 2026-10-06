@@ -48,6 +48,7 @@ export {
   breathEndsAt,
   breathHolds,
   followUpIsFor,
+  followUpKey,
   playbookRunStop,
   playbookStopBy,
   followUpRunAt,
@@ -130,15 +131,18 @@ export const LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"] as const;
 
 /**
  * The words a follow-up's slot takes for one person: the link of the proposal their deal waits on (0006), from the
- * row the run read. Kept on the recipient row, as a visit's words are, so the send carries the link it was run for.
+ * row the run read, and that deal's id beside it (0029), so the run's touch keeps which proposal it was about (contracts
+ * followUpKey). Kept on the recipient row, as a visit's words are, so the send carries the link it was run for.
  */
 export function proposalFactsFor(
   trigger: string,
-  row: { deal: { proposal: { url: string } | null } | null } | null,
-): { proposal_link: string } | null {
+  row: { deal: { id?: string | null; proposal: { url: string } | null } | null } | null,
+): { proposal_link: string; deal_id?: string } | null {
   const t = triggerOf(trigger);
   const url = row?.deal?.proposal?.url ?? null;
-  return t && t.kind === "deal" && url ? { proposal_link: url } : null;
+  if (!(t && t.kind === "deal" && url)) return null;
+  const id = row?.deal?.id;
+  return id ? { proposal_link: url, deal_id: id } : { proposal_link: url };
 }
 
 /**

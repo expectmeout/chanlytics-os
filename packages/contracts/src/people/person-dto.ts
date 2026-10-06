@@ -9,7 +9,7 @@ import type { PersonVisitsDto } from "../calendar/calendar-people";
 import type { StepColumns } from "../notes/steps";
 import type { CallDto } from "../conversations/call-dto";
 import type { ConversationDto } from "../conversations/thread-dto";
-import type { DealDto } from "../deals/deal-vm";
+import type { DealDto, OpenDealDto } from "../deals/deal-vm";
 import type { DealPaceDto } from "../deals/deal-waits";
 import type { RecipientState } from "../broadcasts/broadcasts";
 import type { PersonNoteDto, PersonNoteTeamDto } from "../notes/person-notes";
@@ -123,6 +123,8 @@ export interface PersonRowDto {
   deal_proposal_url?: string | null;
   deal_valid_until?: string | null;
   deal_lost_reason?: string | null;
+  /** Every open deal, newest first (people_list, 0029); null with none open, absent on a row read before it. */
+  open_deals?: OpenDealDto[] | null;
   /** Their next step (00166): the earliest open note with a day. Absent on a row read before the columns existed. */
   step_id?: StepColumns["step_id"];
   step_body?: StepColumns["step_body"];

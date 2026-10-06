@@ -8,6 +8,7 @@ import { type AskedPurpose, purposeOfPlaybook } from "../consent/consent";
 import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/sells-by";
 import { type DealPaceVM, waitingOnProposal } from "../deals/deal-waits";
 import type { PersonRowVM } from "../people/person-row";
+import type { DealVM } from "../deals/deal-vm";
 import { readyOrWhatsApp } from "../broadcasts/reach-any";
 import { type ChannelsReady, DEFAULT_CAMPAIGN_CHANNELS, type ReachRow, reachFor } from "../broadcasts/reach-for";
 import { runDueNow } from "./playbook-schedule";
@@ -89,6 +90,60 @@ export function breathEndsAt(atMs: number): number {
 /** Whether a message sent at `atMs` still holds its person back at `nowMs` (the week's breath). */
 export function breathHolds(atMs: number, nowMs: number): boolean {
   return nowMs < breathEndsAt(atMs);
+}
+
+/**
+ * What a follow-up was about, as one key (0029): the deal its words were written for (facts.deal_id), else the link
+ * they carried (a follow-up from before the deal was kept), else "bare" (one that kept neither). The one spelling of it,
+ * for the database's reading of the touches (packages/db touchIndex) and a run's own (touchesAfterRun).
+ */
+export function followUpKey(about: { deal: string | null; link: string | null }): string {
+  return about.deal ? `deal:${about.deal}` : about.link ? `link:${about.link}` : "bare";
+}
+
+/**
+ * What a person has had of the proposal follow-up (0006): the latest, whatever it was about, and the latest by what each
+ * was about (followUpKey, 0029). `keys` absent: none read for them, so the latest alone answers, as it always did.
+ */
+export interface FollowUpsHad {
+  at: number | undefined;
+  keys: ReadonlyMap<string, number> | undefined;
+}
+
+/**
+ * Whether this proposal has had its follow-up (0006, one per proposal): one since it went that was about its deal, or
+ * that carried its link and kept no deal (one from before the deal was kept), or that kept neither (read as before:
+ * any follow-up since it went, followUpIsFor). A link edited since its follow-up does not owe it another: the deal is
+ * the same.
+ */
+export function followUpCovers(d: Pick<DealVM, "id" | "sinceMs" | "proposal">, had: FollowUpsHad): boolean {
+  if (!had.keys) return had.at !== undefined && followUpIsFor({ deal: d }, had.at);
+  const since = d.sinceMs ?? Number.POSITIVE_INFINITY;
+  const at = [
+    d.id ? had.keys.get(followUpKey({ deal: d.id, link: null })) : undefined,
+    d.proposal?.url ? had.keys.get(followUpKey({ deal: null, link: d.proposal.url })) : undefined,
+    had.keys.get(followUpKey({ deal: null, link: null })),
+  ];
+  return at.some((x) => x !== undefined && x >= since);
+}
+
+/**
+ * The proposal a follow-up is about now (0029): of the person's open proposals the follow-up names (followUpNames),
+ * the one waiting longest that has not had its own, else the one waiting longest (which has: the run counts it as
+ * heard, as it always did). Null when none is named. A person's second proposal out is followed up in its turn, with
+ * its own link, never covered by the first's.
+ */
+export function followUpDealOf(
+  r: Pick<PersonRowVM, "deal" | "openDeals" | "askedMs">,
+  nowMs: number,
+  pace: Pick<DealPaceVM, "waitDays"> | null,
+  had: FollowUpsHad,
+): DealVM | null {
+  const open = r.openDeals && r.openDeals.length ? r.openDeals : r.deal ? [r.deal] : [];
+  const named = open
+    .filter((d) => d.stage === "proposed" && followUpNames({ deal: d, askedMs: r.askedMs }, nowMs, pace))
+    .sort((a, b) => (a.sinceMs ?? 0) - (b.sinceMs ?? 0));
+  return named.find((d) => !followUpCovers(d, had)) ?? named[0] ?? null;
 }
 
 /** Whether a follow-up at `atMs` is the one this person's proposal was owed: one since it went (0006). */

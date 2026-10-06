@@ -2857,6 +2857,23 @@ test("where deals are off, People's rows carry no deal, whatever the database ho
     deal_amount_cents: 120000,
     deal_per: "once",
     deal_proposal_url: "https://docs.example.com/p/one",
+    // Every open deal of theirs (0029), which deals off hides as it hides the one.
+    open_deals: [
+      {
+        id: "d1",
+        stage: "proposed",
+        service: "Ad management",
+        proposed_at: iso(9 * 86_400_000),
+        decided_at: null,
+        ended_at: null,
+        amount_cents: 120000,
+        per: "once",
+        currency: "USD",
+        proposal_url: "https://docs.example.com/p/one",
+        valid_until: null,
+        lost_reason: null,
+      },
+    ],
     last_inbound_text: null,
   });
   await freshPage({ people: [proposed, person(2)], dealsOn: false });
@@ -2867,6 +2884,14 @@ test("where deals are off, People's rows carry no deal, whatever the database ho
     [null, null],
     "REGRESSION: a workspace whose customers book carried its old deals on every row",
   );
+  assert.deepEqual(
+    off.rows.map((r) => [r.openDeals, r.dealStages]),
+    [
+      [[], []],
+      [[], []],
+    ],
+    "none of them, nor where they stand (0029)",
+  );
   assert.ok(!off.lists.some((l) => l.id === "proposal_out"), "and no deal list");
   assert.doesNotMatch(off.attention.p1.sentence, /Proposal out/, "the row's line says no proposal");
   // Deals on: the same rows carry theirs.
@@ -2874,6 +2899,10 @@ test("where deals are off, People's rows carry no deal, whatever the database ho
   const on = globalThis.window.__PEOPLE;
   assert.equal(on.rows.find((r) => r.id === "p1").deal.stage, "proposed");
   assert.equal(on.rows.find((r) => r.id === "p1").deal.proposal.url, "https://docs.example.com/p/one");
+  assert.deepEqual(
+    on.rows.find((r) => r.id === "p1").openDeals.map((d) => d.id),
+    ["d1"],
+  );
   assert.equal(on.attention.p1.sentence, "Proposal out · 9 d");
   // A search's rows answer to the same switch.
   wire({ people: [], dealsOn: false, search: () => ({ people: [proposed], total: 1, has_more: false }) });

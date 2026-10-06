@@ -160,6 +160,13 @@ test("a scope from every address a page can open, by the page's own parser", () 
     label: "this person",
   });
   assert.equal(scopeFromRoute("clients", "pipeline:v-open"), null, "the Pipeline with no one open");
+  // A further deal of theirs is a row of its own, `<person>_<deal>` (0029): the peek is still on the person.
+  const DEAL = "dededede-dede-4ede-8ede-dededededed1";
+  assert.deepEqual(scopeFromRoute("clients", `pipeline:v-open:p-${P}_${DEAL}`), {
+    kind: "person",
+    id: P,
+    label: "this person",
+  });
   // Conversations writes `<tab>:<id>` as a row opens, a row alone on All, and a tab alone (pages/conversations.jsx).
   assert.deepEqual(scopeFromRoute("conversations", `phone:cv-${CALL}`), { kind: "call", id: CALL, label: "this call" });
   assert.deepEqual(scopeFromRoute("conversations", `whatsapp:${T1}`), {

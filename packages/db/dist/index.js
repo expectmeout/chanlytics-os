@@ -344,6 +344,9 @@ import {
 } from "../../contracts/dist/index.js";
 
 // src/repositories/people.ts
+import {
+  openDealsFromJson
+} from "../../contracts/dist/index.js";
 var PEOPLE_PAGE = 1e3;
 var IDS_PER_READ = 100;
 async function namesOfPeople(db, tenantId, ids) {
@@ -376,7 +379,17 @@ async function peoplePage(db, tenantId, page = {}) {
     ...after ? { p_after_at: after.at, p_after_added: after.added, p_after_id: after.id } : {}
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  return data ?? [];
+  return (data ?? []).map(rowOfPeopleList);
+}
+function rowOfPeopleList({ open_deals, ...row }) {
+  const deals = openDealsFromJson(open_deals);
+  return deals === void 0 ? row : { ...row, open_deals: deals };
+}
+async function personRow(db, tenantId, contactId) {
+  const { data, error } = await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contactId });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  const first = (data ?? [])[0];
+  return first ? rowOfPeopleList(first) : null;
 }
 async function everyoneIn(db, tenantId) {
   const all = [];
@@ -2222,6 +2235,7 @@ import {
   promptSafeName,
   clockDate,
   DAY_MS,
+  dealIsOpen,
   dealSentence,
   dealsAreOn,
   offersFacts,
@@ -2323,6 +2337,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
   }
   const { data: dealRows } = dealsOn ? await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false }) : { data: [] };
   const current = pickCurrentDeal(dealRows ?? []);
+  const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
   const { data: noteRows, error: nErr } = await db.from("person_notes").select("body, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("state", "kept").eq("team_only", false).order("created_at", { ascending: false }).limit(NOTES_READ);
   return {
     contactId: contact.id,
@@ -2344,21 +2359,25 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
-    deal: current ? {
-      stage: current.stage,
-      service: current.service,
-      proposed_at: current.proposed_at,
-      decided_at: current.decided_at,
-      ended_at: current.ended_at
-    } : null
+    deal: current ? dealRowFacts(current) : null,
+    otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url }))
+  };
+}
+function dealRowFacts(d) {
+  return {
+    stage: d.stage,
+    service: d.service,
+    proposed_at: d.proposed_at,
+    decided_at: d.decided_at,
+    ended_at: d.ended_at
   };
 }
 async function readDealForPhone(db, tenantId, phoneE164) {
   const { data: c } = await db.from("contacts").select("id, tenants(sells_by)").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
   if (!c || !dealsAreOn(sellsByOf(c.tenants))) return null;
   const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false });
-  const d = pickCurrentDeal(data ?? []);
-  return d ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at } : null;
+  const d = (data ?? []).find((x) => x.stage === "won") ?? pickCurrentDeal(data ?? []);
+  return d ? dealRowFacts(d) : null;
 }
 var NOTES_READ = 12;
 var NOTES_BUDGET = 1200;
@@ -2412,12 +2431,30 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC", channe
   if (notes) bits.push(notes);
   const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
   if (deal) bits.push(deal);
-  const proposal = (lead.proposalUrl ?? "").trim();
-  if (proposal)
-    bits.push(
-      `The owner has a proposal ready for them at ${proposal}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out \u2014 say it is being sent to them in writing.`
-    );
+  const others = lead.otherDeals ?? [];
+  for (const d of others) {
+    const said = dealSentence(d, now.getTime(), tz, { hasLink: !!(d.proposal_url ?? "").trim() });
+    if (said) bits.push(said);
+  }
+  const links = proposalLinkWords(lead);
+  if (links) bits.push(links);
   return bits.join(" ");
+}
+function proposalLinkWords(lead) {
+  const others = lead.otherDeals ?? [];
+  const links = [
+    { url: (lead.proposalUrl ?? "").trim(), service: lead.deal?.service ?? null },
+    ...others.filter((d) => d.stage === "proposed").map((d) => ({ url: (d.proposal_url ?? "").trim(), service: d.service }))
+  ].filter((x) => x.url);
+  const [first] = links;
+  if (!first) return null;
+  if (!others.length)
+    return `The owner has a proposal ready for them at ${first.url}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out \u2014 say it is being sent to them in writing.`;
+  const rest = "and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out \u2014 say it is being sent to them in writing.";
+  if (links.length === 1)
+    return `The owner has a proposal${first.service ? ` for ${first.service}` : ""} ready for them at ${first.url}. If they ask about that proposal, its price or a quote for it, send that link ${rest}`;
+  const named = links.map((x) => x.service ? `${x.service} at ${x.url}` : x.url).join("; ");
+  return `The owner has proposals ready for them: ${named}. If they ask about one of these, its price or a quote for it, send the link for the one they mean (ask which, if it is not clear) ${rest}`;
 }
 function hitKind(kind) {
   if (kind === "message" || kind === "call") return kind;
@@ -2909,7 +2946,7 @@ async function deleteList(db, id) {
 }
 
 // src/repositories/touches.ts
-import { DEFAULT_TIMEZONE, localDate, parseParamSpecs } from "../../contracts/dist/index.js";
+import { DEFAULT_TIMEZONE, followUpKey, localDate, parseParamSpecs } from "../../contracts/dist/index.js";
 var RUN_IDS_PER_QUERY = 200;
 var STOPPED = /* @__PURE__ */ new Set(["canceled", "failed"]);
 async function touchesSince(db, tenantId, since, now) {
@@ -2944,7 +2981,9 @@ async function touchesOf(db, tenantId, since, now, followUpsOnly) {
   for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
     const rows = await readAllRows(
       "broadcast_recipients",
-      (from, to) => db.from("broadcast_recipients").select("broadcast_id, contact_id, sent_at, state").eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
+      (from, to) => db.from("broadcast_recipients").select(
+        "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id"
+      ).eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
     );
     for (const r of rows) {
       const run = ofRun.get(r.broadcast_id);
@@ -2958,16 +2997,21 @@ async function touchesOf(db, tenantId, since, now, followUpsOnly) {
         at,
         sent: r.state === "sent",
         held: run.state === "pending_approval",
-        follow_up: followUp.has(run.id)
+        follow_up: followUp.has(run.id),
+        // As the run wrote them from the deal (contracts proposalFactsFor), so they are compared as they are.
+        deal: followUp.has(run.id) ? factString(r.proposal_deal) : null,
+        link: followUp.has(run.id) ? factString(r.proposal_link) : null
       });
     }
   }
   return out;
 }
+var factString = (v) => typeof v === "string" && v ? v : null;
 function touchIndex(touches) {
   const byThis = /* @__PURE__ */ new Map();
   const byAny = /* @__PURE__ */ new Map();
   const followUps = /* @__PURE__ */ new Map();
+  const followUpKeys = /* @__PURE__ */ new Map();
   for (const t of touches) {
     const at = Date.parse(t.at);
     if (t.playbook_id) {
@@ -2977,8 +3021,14 @@ function touchIndex(touches) {
     }
     byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
     if (t.follow_up) followUps.set(t.contact_id, Math.max(followUps.get(t.contact_id) ?? 0, at));
+    if (t.follow_up) {
+      const m = followUpKeys.get(t.contact_id) ?? /* @__PURE__ */ new Map();
+      const key = followUpKey(t);
+      m.set(key, Math.max(m.get(key) ?? 0, at));
+      followUpKeys.set(t.contact_id, m);
+    }
   }
-  return { byThis, byAny, followUps };
+  return { byThis, byAny, followUps, followUpKeys };
 }
 
 // src/repositories/deals.ts
@@ -3664,6 +3714,7 @@ export {
   peoplePage,
   personDecisions,
   personReplyMode,
+  personRow,
   platformHoldStands,
   platformWide,
   playbookChannels,

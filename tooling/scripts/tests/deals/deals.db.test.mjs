@@ -26,6 +26,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { personRow } from "@chanlytics/db";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -394,6 +395,64 @@ test(
     assert.match(name.error?.message ?? "", /permission denied/, "the grant is the column, never the row");
     const row = ok(await w.admin.from("tenants").select("sells_by, name").eq("id", w.tenant).single());
     assert.deepEqual(row, { sells_by: "proposal", name: "Deals" });
+  },
+);
+
+test(
+  "the people read carries every open deal of theirs (00328, 0029): the newest first, each with its link, amount and currency, never a passed one; none open is null; the repository reads it into its shape",
+  { skip },
+  async () => {
+    const two = ok(
+      await w.admin
+        .from("contacts")
+        .insert({ tenant_id: w.tenant, phone_e164: "+15125550173", display_name: "Fixture Deal Two" })
+        .select("id")
+        .single(),
+    ).id;
+    const none = await personRow(w.operator, w.tenant, two);
+    assert.equal(none.open_deals, null, "nothing open: null, read as none");
+    // A pass on a website, then a client of SEO billed in euros, then a proposal for ads: two open, one passed.
+    const web = await record(w.operator, { p_contact_id: two, p_stage: "proposed", p_service: "Website" });
+    const lost = await record(w.operator, { p_contact_id: two, p_stage: "lost", p_deal_id: web.deal.id, p_version: 1 });
+    assert.equal(lost.deal?.stage, "lost", JSON.stringify(lost));
+    const seo = await record(w.operator, { p_contact_id: two, p_stage: "proposed", p_service: "SEO" });
+    const won = await record(w.operator, {
+      p_contact_id: two,
+      p_stage: "won",
+      p_deal_id: seo.deal.id,
+      p_version: 1,
+      p_amount_cents: 150000,
+      p_per: "month",
+    });
+    assert.equal(won.deal?.stage, "won", JSON.stringify(won));
+    ok(await w.admin.from("deals").update({ currency: "EUR" }).eq("id", seo.deal.id));
+    const ads = await record(w.operator, {
+      p_contact_id: two,
+      p_stage: "proposed",
+      p_service: "Ads",
+      p_proposal_url: "https://docs.example.com/p/ads",
+    });
+    assert.ok(ads.deal, JSON.stringify(ads));
+    const [row] = ok(await w.operator.rpc("people_list", { p_tenant_id: w.tenant, p_contact_id: two }));
+    assert.equal(row.deal_id, ads.deal.id, "the one deal the row shows, as before: open first, then the newest");
+    assert.deepEqual(
+      row.open_deals.map((d) => [d.id, d.stage, d.service, d.proposal_url, d.amount_cents, d.per, d.currency]),
+      [
+        [ads.deal.id, "proposed", "Ads", "https://docs.example.com/p/ads", null, null, "USD"],
+        [seo.deal.id, "won", "SEO", null, 150000, "month", "EUR"],
+      ],
+      "every open one, the newest first; the pass is history",
+    );
+    // The way the People page and Ask read it: the column read into its shape.
+    const read = await personRow(w.operator, w.tenant, two);
+    assert.deepEqual(
+      read.open_deals.map((d) => [d.id, d.stage, d.currency]),
+      [
+        [ads.deal.id, "proposed", "USD"],
+        [seo.deal.id, "won", "EUR"],
+      ],
+    );
+    assert.equal(await personRow(w.stranger, w.tenant, two), null, "another workspace's member reads nobody");
   },
 );
 

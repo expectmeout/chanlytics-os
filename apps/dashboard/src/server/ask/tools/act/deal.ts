@@ -23,6 +23,18 @@ import {
 } from "@chanlytics/contracts";
 import { UUID, defineAct, noteRow, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
+/**
+ * Why a move found no row of theirs to move, and what to name instead. With several open (0029: one per service) it
+ * names which, since unnamed, the one their row shows would move without anyone saying it was that one; with one, a
+ * service that is not its own is named wrong, and naming none moves it.
+ */
+function whichRowWords(open: number, rows: readonly { service: string | null }[]): string {
+  const names = rows.map((r) => r.service ?? "no named service").join(" and ");
+  return open > 1
+    ? `their open deals are for ${names}; name the one this is for`
+    : `their ${open ? "open deal is" : "last deal is"} for ${names}; name that service or none`;
+}
+
 async function proposeDeal(
   t: ToolContext,
   input: {
@@ -89,7 +101,7 @@ async function proposeDeal(
   // The rows a move may move: the open ones (proposed, won; already_open is per service, so there may be two), else
   // the current row unless it has ended -- so a passed row moves to won, lost or ended too, since the door allows
   // any move but out of ended. A named service picks its own row among them (foldName: case and accents aside);
-  // unnamed, the current row moves. A proposal is a new row, unless it is a passed one sent again for its service.
+  // unnamed, the one row moves (0029). A proposal is a new row, unless it is a passed one sent again for its service.
   type Row = NonNullable<typeof current>;
   const isOpen = (r: Row) => r.stage === "proposed" || r.stage === "won";
   const sameService = (r: Row) => foldName((r.service ?? "").trim()) === foldName(named ?? "");
@@ -98,14 +110,8 @@ async function proposeDeal(
   let sameRow: Row | null = null;
   if (stage !== "proposed") {
     if (!movable.length) return refuse("they have no open deal to move; record a proposal first");
-    sameRow = named ? (movable.find(sameService) ?? null) : current;
-    if (!sameRow) {
-      const names = movable.map((r) => r.service ?? "no named service");
-      const whose = open.length > 1 ? "open deals are" : open.length ? "open deal is" : "last deal is";
-      return refuse(
-        `their ${whose} for ${names.join(" and ")}; name ${names.length > 1 ? "one of those" : "that service"} or none`,
-      );
-    }
+    sameRow = named ? (movable.find(sameService) ?? null) : open.length > 1 ? null : current;
+    if (!sameRow) return refuse(whichRowWords(open.length, movable));
   } else if (current && current.stage === "lost" && (!named || sameService(current))) {
     sameRow = current;
   }

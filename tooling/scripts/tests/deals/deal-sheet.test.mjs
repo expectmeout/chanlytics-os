@@ -1105,7 +1105,8 @@ test("the sheet opens where it is asked for, reads the person through the profil
   assert.equal(toasts.length, 1);
   assert.match(textOf(toasts[0].msg), /^Daniela — proposal recorded and on its way · sends in \d+ s unless you undo$/);
   assert.equal(typeof toasts[0].undo, "function");
-  assert.deepEqual(recorded, [{ personId: "p1" }], "the page is told, and reads them again");
+  // And which deal it moved (0029: the Pipeline gives the focus back to its row); a new proposal has none yet.
+  assert.deepEqual(recorded, [{ personId: "p1", dealId: null }], "the page is told, and reads them again");
   assert.equal(sheetOf(tree), null, "and the sheet has closed");
   assert.equal(recFolds.open(), null);
   assert.equal(recFolds.dirty(), false);
@@ -1153,7 +1154,7 @@ test("a move opens on the deal as it stands, says it once when recorded and send
     toasts.map((t) => textOf(t.msg)),
     ["Daniela · Client"],
   );
-  assert.deepEqual(recorded, [{ personId: "p1" }]);
+  assert.deepEqual(recorded, [{ personId: "p1", dealId: "d1" }], "the deal it moved");
   assert.equal(calls.filter((c) => c.path.endsWith("/reply")).length, 0, "a yes sends nothing");
 
   // A new proposal refused for a service already open: said under the service it names, and nothing sent.
@@ -1265,7 +1266,7 @@ test("a send refused after a good record says both and closes; where it cannot g
   assert.equal(toasts.length, 1);
   assert.equal(toasts[0].tone, "danger");
   assert.equal(textOf(toasts[0].msg), "Recorded. It did not send: Their WhatsApp window has closed.");
-  assert.deepEqual(recorded, [{ personId: "p1" }]);
+  assert.deepEqual(recorded, [{ personId: "p1", dealId: null }]);
   assert.equal(calls.filter((c) => c.path === "/api/v1/contacts/p1/deal").length, 1);
 
   // No reply courier where the sheet is drawn: recorded, and it says nothing went. REGRESSION: it said only the

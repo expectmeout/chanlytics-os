@@ -8,6 +8,7 @@
 import {
   type PersonRowDto,
   type DealDto,
+  type OpenDealDto,
   dealPaceOf,
   type DealPaceVM,
   type PersonRowVM,
@@ -198,7 +199,12 @@ export async function peopleMore(): Promise<void> {
  * it says the rest. It was the deal the door recorded, which is not the row's when the move was on someone's older
  * deal: their row jumped to it until the re-read. True when a row took it.
  */
-export function placeDeal(personId: string, deal: DealDto | null | undefined): boolean {
+export function placeDeal(
+  personId: string,
+  deal: DealDto | null | undefined,
+  /** The deal the move recorded (0029): it joins, moves in, or leaves the row's open deals, as its stage now says. */
+  recorded: DealDto | null | undefined = null,
+): boolean {
   if (!peopleLoaded || !deal || !deal.id) return false;
   const i = peopleLoaded.people.findIndex((r) => r.id === personId);
   if (i < 0) return false;
@@ -206,6 +212,9 @@ export function placeDeal(personId: string, deal: DealDto | null | undefined): b
   if (!row) return false;
   peopleLoaded.people[i] = {
     ...row,
+    ...(recorded && recorded.id && row.open_deals !== undefined
+      ? { open_deals: withOpenDeal(row.open_deals ?? [], recorded) }
+      : {}),
     deal_id: deal.id,
     deal_stage: deal.stage,
     deal_service: deal.service,
@@ -221,6 +230,31 @@ export function placeDeal(personId: string, deal: DealDto | null | undefined): b
   publishPeople();
   window.dispatchEvent(new CustomEvent("surface:clients"));
   return true;
+}
+
+/**
+ * A row's open deals once a move is recorded on one of them (0029): in its place while it is still open (a proposal
+ * out, a client), first as the newest when it is new, and gone once it has passed or ended.
+ */
+function withOpenDeal(open: readonly OpenDealDto[], d: DealDto): OpenDealDto[] {
+  const rest = open.filter((x) => x.id !== d.id);
+  if (d.stage !== "proposed" && d.stage !== "won") return rest;
+  const mine: OpenDealDto = {
+    id: d.id,
+    stage: d.stage,
+    service: d.service,
+    proposed_at: d.proposed_at,
+    decided_at: d.decided_at,
+    ended_at: d.ended_at,
+    amount_cents: d.amount_cents,
+    per: d.per,
+    currency: d.currency,
+    proposal_url: d.proposal_url ?? null,
+    valid_until: d.valid_until ?? null,
+    lost_reason: d.lost_reason ?? null,
+  };
+  const at = open.findIndex((x) => x.id === d.id);
+  return at < 0 ? [mine, ...rest] : [...rest.slice(0, at), mine, ...rest.slice(at)];
 }
 
 /**

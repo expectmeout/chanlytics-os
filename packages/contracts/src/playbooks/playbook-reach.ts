@@ -13,7 +13,7 @@ import type { DealPaceVM } from "../deals/deal-waits";
 import { GET_YES_ROUTE, saidYesWords } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
 
-import { breathHolds, followUpIsFor, followUpNames } from "./playbook-follow-ups";
+import { breathHolds, followUpCovers, followUpDealOf, followUpKey, type FollowUpsHad } from "./playbook-follow-ups";
 import { enrolPurpose, messageAboutOfTrigger, type RunMessage } from "./playbook-purpose";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, triggerOf } from "./playbook-triggers";
@@ -35,6 +35,8 @@ export interface Touches {
   byThis: Map<string, number>;
   byAny: Map<string, number>;
   followUps: Map<string, number>;
+  /** The latest follow-up by person and by what it was about (followUpKey, 0029; packages/db touchIndex). */
+  followUpKeys: Map<string, Map<string, number>>;
 }
 
 /** A workspace's touches as a run reads them: by each playbook (its gap), by any (the week's breath), and the proposal follow-ups. */
@@ -42,6 +44,7 @@ interface WorkspaceTouches {
   byThis: Map<string, Map<string, number>>;
   byAny: Map<string, number>;
   followUps: Map<string, number>;
+  followUpKeys: Map<string, Map<string, number>>;
 }
 
 /**
@@ -55,19 +58,26 @@ interface WorkspaceTouches {
 export function touchesAfterRun(
   touches: WorkspaceTouches,
   run: { playbookId: string; at: number; followUp: boolean },
-  people: Iterable<string>,
+  /** Each person enrolled, with the deal and the link a follow-up carries to them (null for any other moment). */
+  people: Iterable<{ id: string; deal: string | null; link: string | null }>,
 ): WorkspaceTouches {
   const byThis = new Map(touches.byThis);
   const mine = new Map(byThis.get(run.playbookId));
   const byAny = new Map(touches.byAny);
   const followUps = new Map(touches.followUps);
-  for (const id of people) {
+  const followUpKeys = new Map(touches.followUpKeys);
+  for (const { id, deal, link } of people) {
     mine.set(id, Math.max(mine.get(id) ?? 0, run.at));
     byAny.set(id, Math.max(byAny.get(id) ?? 0, run.at));
-    if (run.followUp) followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+    if (!run.followUp) continue;
+    followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+    const m = new Map(followUpKeys.get(id));
+    const key = followUpKey({ deal, link });
+    m.set(key, Math.max(m.get(key) ?? 0, run.at));
+    followUpKeys.set(id, m);
   }
   byThis.set(run.playbookId, mine);
-  return { byThis, byAny, followUps };
+  return { byThis, byAny, followUps, followUpKeys };
 }
 
 /**
@@ -273,6 +283,11 @@ export function playbookRunReach(
   // How it goes: the ticks and the channels now, and what the moment's message is about (a visit's or a follow-up's is
   // theirs, which by email asks no yes; any other moment's is the business's news: decision D1).
   const how: CampaignHow = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
+  // What each person has had of the follow-up: the latest, and the latest by what each was about (0029).
+  const hadOf = (id: string): FollowUpsHad => ({
+    at: touches.followUps.get(id),
+    keys: touches.followUpKeys.get(id),
+  });
   // Whose a visit is, for a visit found by name alone: the run's one test (theirVisitTest), as its words read it.
   const theirs = theirVisitTest(t.kind === "visit" ? rows : []);
   // Who the moment names, before anyone is left out.
@@ -291,7 +306,10 @@ export function playbookRunReach(
       : t.kind === "saved"
         ? audienceMembers(rows, "saved", null, listIds ?? new Set<string>())
         : t.kind === "deal"
-          ? rows.filter((r) => followUpNames(r, nowMs, pace))
+          ? rows.flatMap((r) => {
+              const d = followUpDealOf(r, nowMs, pace, hadOf(r.id));
+              return d ? [{ ...r, deal: d }] : [];
+            })
           : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesOnAny(r, purpose, how)).length;
@@ -342,11 +360,14 @@ export function playbookRunReach(
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
   // One follow-up per proposal (0006): a follow-up since the proposal went, from whichever playbook, one since deleted
   // too, is the one it owed. Every other moment keeps to its own gap.
-  const heardThis = (r: PersonRowVM, mine: number): boolean =>
-    t.kind === "deal" ? followUpIsFor(r, mine) : nowMs - mine < gapMs;
+  // A follow-up's proposal had its own when a follow-up carrying its link went since (followUpCovers, 0029).
+  const heardThis = (r: PersonRowVM): boolean => {
+    if (t.kind === "deal") return !!r.deal && followUpCovers(r.deal, hadOf(r.id));
+    const mine = touches.byThis.get(r.id);
+    return mine !== undefined && nowMs - mine < gapMs;
+  };
   const picked = allowed.filter((r) => {
-    const mine = t.kind === "deal" ? touches.followUps.get(r.id) : touches.byThis.get(r.id);
-    if (mine !== undefined && heardThis(r, mine)) {
+    if (heardThis(r)) {
       reach.heardThis += 1;
       return false;
     }

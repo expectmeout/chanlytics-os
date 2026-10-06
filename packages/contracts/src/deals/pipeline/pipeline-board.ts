@@ -28,10 +28,11 @@ export interface PipelineMove {
 export function pipelineMove(
   from: PipelineGroupKey,
   to: PipelineGroupKey,
-  row: { person: Pick<PipelineSource, "deal"> },
+  row: { deal: DealVM | null },
 ): PipelineMove | null {
   if (from === to) return null;
-  const deal = row.person.deal;
+  // The row's own deal (0029): a person with two open deals has a row for each, and a move is on the one it stands for.
+  const deal = row.deal;
   if (from === "consultations" && to === "proposals") return { mode: "propose", dealId: null };
   if (from === "proposals" && deal?.stage === "proposed") {
     if (to === "clients") return { mode: "won", dealId: deal.id };
@@ -85,8 +86,9 @@ export function pipelineSorted<T extends PipelineSource>(
         return sign * x.localeCompare(y);
       }
       // What the row shows: a consultation's row shows no value, whatever a deal of theirs that closed came to.
-      const x = a.r.value === null ? null : yearCents(a.r.person.deal);
-      const y = b.r.value === null ? null : yearCents(b.r.person.deal);
+      // And the row's own deal (0029): a person's two proposals are two values.
+      const x = a.r.value === null ? null : yearCents(a.r.deal);
+      const y = b.r.value === null ? null : yearCents(b.r.deal);
       if (x === y) return a.i - b.i;
       if (x === null) return 1;
       if (y === null) return -1;
@@ -103,7 +105,8 @@ export const PIPELINE_PASS_MAX = 50;
 /** A pass asked of a selection: the proposals out in it, why they passed, and those that stay as they are. */
 export interface PipelinePassManyVM {
   /** The proposals out this press records, fifty at most. */
-  deals: { personId: string; dealId: string }[];
+  /** Each with the row it was picked as (0029: a person's two proposals are two rows), so the selection drops it as it passes. */
+  deals: { personId: string; dealId: string; rowId: string }[];
   /** The bar's button, "Mark as passed · 2"; null with no proposal out among them. */
   button: string | null;
   /** The question's own Go, "Mark 2 as passed"; null with no proposal out among them. */
@@ -121,10 +124,11 @@ export interface PipelinePassManyVM {
  * and the one question -- why -- is asked once for all of them. The page records each through the deal door in turn,
  * with the version the person's own read says (a People row does not carry one).
  */
-export function pipelinePassMany(rows: readonly PipelineSource[]): PipelinePassManyVM {
+export function pipelinePassMany(rows: readonly (PipelineSource & { rowId?: string })[]): PipelinePassManyVM {
+  // Each picked row with its own deal (0029): `deal` is the row's, `rowId` the row it was picked as.
   const out = rows
     .filter((r) => r.deal && r.deal.stage === "proposed" && r.deal.id)
-    .map((r) => ({ personId: r.id, dealId: r.deal!.id as string }));
+    .map((r) => ({ personId: r.id, dealId: r.deal!.id as string, rowId: r.rowId ?? r.id }));
   const deals = out.slice(0, PIPELINE_PASS_MAX);
   const later = out.length - deals.length;
   const k = rows.length - out.length;

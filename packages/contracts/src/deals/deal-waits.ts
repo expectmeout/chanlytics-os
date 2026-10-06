@@ -102,6 +102,20 @@ export function waitingOnProposal(
   return !heardSinceProposal(r);
 }
 
+/**
+ * Each open proposal of the rows as a row of its own (0029): the person with that proposal as their deal, newest first.
+ * A person may hold one per service, and the one deal their row shows hid the rest from what counts them. From a row
+ * without `openDeals`, its one deal while it is a proposal out.
+ */
+export function eachOpenProposal<T extends { deal: DealVM | null; openDeals?: readonly DealVM[] }>(
+  rows: readonly T[],
+): T[] {
+  return rows.flatMap((r) => {
+    const open = r.openDeals && r.openDeals.length ? r.openDeals : r.deal ? [r.deal] : [];
+    return open.filter((d) => d.stage === "proposed").map((d) => ({ ...r, deal: d }));
+  });
+}
+
 /** Today's leak: the rows waiting on a proposal, by waitingOnProposal. */
 export function proposalsWaiting<T extends { deal: DealVM | null; askedMs: number | null }>(
   rows: readonly T[],

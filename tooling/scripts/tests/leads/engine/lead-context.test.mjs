@@ -16,7 +16,7 @@ import { readCode } from "../../_source.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assembleHistory, describeLead, readLeadContext, searchMessages } from "@chanlytics/db";
+import { assembleHistory, describeLead, readDealForPhone, readLeadContext, searchMessages } from "@chanlytics/db";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -399,6 +399,185 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
   assert.equal(ctx.hasEmail, true, "a contact row with an email");
   const ctxNoEmail = await readLeadContext(db, T, PHONE_NO_EMAIL);
   assert.equal(ctxNoEmail.hasEmail, false, "a contact row without an email");
+});
+
+test("a person with open deals for three services (0029): the receptionist hears each, and every proposal out with its own link, named by its service; the phone hears a client of any service as a client", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000002";
+  const PHONE = "+13055550124";
+  const c = {
+    id: "contact-2",
+    tenant_id: T,
+    phone_e164: PHONE,
+    display_name: "Ana",
+    wa_profile_name: null,
+    email: null,
+    tenants: { sells_by: "proposal" },
+  };
+  const deal = (over) => ({
+    tenant_id: T,
+    contact_id: c.id,
+    service: null,
+    stage: "proposed",
+    proposed_at: "2026-09-01T12:00:00Z",
+    decided_at: null,
+    ended_at: null,
+    amount_cents: null,
+    per: null,
+    proposal_url: null,
+    ...over,
+  });
+  // A client of SEO since September 5, then proposals for ads (the 12th) and a website (the 18th): open, all three.
+  const db = fakeDb({
+    contacts: [c],
+    conversations: [],
+    messages: [],
+    deals: [
+      deal({
+        id: "d-seo",
+        stage: "won",
+        service: "SEO",
+        decided_at: "2026-09-05T12:00:00Z",
+        created_at: "2026-09-01T12:00:00Z",
+      }),
+      deal({
+        id: "d-ads",
+        service: "Ads",
+        proposed_at: "2026-09-12T12:00:00Z",
+        proposal_url: "https://docs.example.com/p/ads",
+        created_at: "2026-09-12T12:00:00Z",
+      }),
+      deal({
+        id: "d-web",
+        service: "Website",
+        proposed_at: "2026-09-18T12:00:00Z",
+        proposal_url: "https://docs.example.com/p/web",
+        created_at: "2026-09-18T12:00:00Z",
+      }),
+    ],
+  });
+  const ctx = await readLeadContext(db, T, PHONE);
+  // The current deal is open first, then the newest: the website's proposal. The rest ride beside it, newest first.
+  assert.equal(ctx.deal?.service, "Website");
+  assert.deepEqual(
+    ctx.otherDeals.map((d) => [d.stage, d.service, d.proposal_url]),
+    [
+      ["proposed", "Ads", "https://docs.example.com/p/ads"],
+      ["won", "SEO", null],
+    ],
+  );
+  assert.ok(
+    ctx.otherDeals.every((d) => !("amount_cents" in d)),
+    "never an amount at the read",
+  );
+  const said = describeLead(ctx, new Date("2026-09-23T16:00:00Z"), "America/New_York");
+  assert.match(said, /A proposal \(Website\) went out to them on Sep 18/);
+  assert.match(said, /A proposal \(Ads\) went out to them on Sep 12/);
+  assert.match(said, /They are a client \(SEO\), since Sep 5\./);
+  assert.ok(
+    said.includes(
+      "The owner has proposals ready for them: Website at https://docs.example.com/p/web; Ads at https://docs.example.com/p/ads. If they ask about one of these, its price or a quote for it, send the link for the one they mean (ask which, if it is not clear) and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out — say it is being sent to them in writing.",
+    ),
+    said,
+  );
+  assert.doesNotMatch(
+    said,
+    /The owner has a proposal ready/,
+    "one sentence for the links, never one that says 'that link'",
+  );
+  // The phone: a client of any service is a client, though their newest open deal is a proposal for another.
+  assert.equal((await readDealForPhone(db, T, PHONE))?.stage, "won");
+  // REGRESSION: the phone heard the newest open deal, a proposal, and offered a client a consultation.
+  const proposalOnly = fakeDb({
+    contacts: [c],
+    deals: [deal({ id: "d-only", service: "Ads", created_at: "2026-09-12T12:00:00Z" })],
+  });
+  assert.equal((await readDealForPhone(proposalOnly, T, PHONE))?.stage, "proposed", "no client: the current deal");
+});
+
+test("with several deals open, each link answers for its own proposal alone (0029's review): a proposal with no link keeps its own words, and a client's engagement keeps its own", () => {
+  const base = {
+    contactId: "c3",
+    conversationId: null,
+    name: "Ana",
+    returning: true,
+    lastSeenAt: null,
+    history: [],
+    optedOut: false,
+    notes: null,
+  };
+  const NOW = new Date("2026-09-23T16:00:00Z");
+  const TZ = "America/New_York";
+  const proposed = (service, on, url = null) => ({
+    stage: "proposed",
+    service,
+    proposed_at: on,
+    decided_at: null,
+    ended_at: null,
+    proposal_url: url,
+  });
+  // A website's proposal with no link beside an ads proposal with one: the link answers for the ads alone.
+  const noLink = describeLead(
+    {
+      ...base,
+      deal: proposed("Website", "2026-09-18T12:00:00Z"),
+      proposalUrl: null,
+      otherDeals: [proposed("Ads", "2026-09-12T12:00:00Z", "https://docs.example.com/p/ads")],
+    },
+    NOW,
+    TZ,
+  );
+  assert.match(
+    noLink,
+    /A proposal \(Website\) went out to them on Sep 18[^.]*\. If they ask about it, say the person who sent it will follow up/,
+  );
+  assert.ok(
+    noLink.includes(
+      "The owner has a proposal for Ads ready for them at https://docs.example.com/p/ads. If they ask about that proposal, its price or a quote for it, send that link and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out — say it is being sent to them in writing.",
+    ),
+    noLink,
+  );
+  assert.doesNotMatch(
+    noLink,
+    /If they ask about price, a quote or the proposal, send that link/,
+    "never for any price",
+  );
+  // A client of SEO with a proposal out for ads: what the engagement costs goes to a person, the ads quote is its link.
+  const client = describeLead(
+    {
+      ...base,
+      deal: proposed("Ads", "2026-09-12T12:00:00Z"),
+      proposalUrl: "https://docs.example.com/p/ads",
+      otherDeals: [
+        {
+          stage: "won",
+          service: "SEO",
+          proposed_at: "2026-08-01T12:00:00Z",
+          decided_at: "2026-09-05T12:00:00Z",
+          ended_at: null,
+          proposal_url: null,
+        },
+      ],
+    },
+    NOW,
+    TZ,
+  );
+  assert.match(
+    client,
+    /They are a client \(SEO\), since Sep 5\. [^.]*\. Anything about their engagement or what it costs goes to a person/,
+  );
+  assert.match(
+    client,
+    /The owner has a proposal for Ads ready for them at https:\/\/docs\.example\.com\/p\/ads\. If they ask about that proposal/,
+  );
+  // One deal open: its link answers a price question, as it always did.
+  assert.match(
+    describeLead(
+      { ...base, deal: proposed("Ads", "2026-09-12T12:00:00Z"), proposalUrl: "https://docs.example.com/p/ads" },
+      NOW,
+      TZ,
+    ),
+    /The owner has a proposal ready for them at https:\/\/docs\.example\.com\/p\/ads\. If they ask about price, a quote or the proposal, send that link/,
+  );
 });
 
 test("the receptionist reads the team's kept notes (0007): never one for the team only, never its own suggestion, newest first", async () => {

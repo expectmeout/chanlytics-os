@@ -130,6 +130,8 @@ export const plNameCell = (
   p: PersonRowVM,
   { attention, onOpen }: Pick<PeopleCellCtx, "attention" | "onOpen">,
   said?: string | null,
+  /** The row it is drawn on, where that is not the person's own id (the Pipeline's further deal, 0029). */
+  rowId?: string,
 ) => {
   // Named by an identifier, a number or an address: nobody has named them yet.
   const byNumber = plIsNumber(p.name);
@@ -159,7 +161,7 @@ export const plNameCell = (
                 className="cl-row-name-them"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onOpen(p.id);
+                  onOpen(rowId ?? p.id);
                 }}
                 title="Give them a name on their profile"
                 data-testid="row-name-them"
@@ -361,7 +363,12 @@ export const PL_COLUMNS: PeopleColumn[] = [
     needs: (x) => !!x.dealsOn,
     cell: (p) => (
       <td key="deal" className="shrink cl-deal-cell" data-testid="row-deal">
-        {p.deal ? <StatePill kind="deal" value={p.deal.stage} /> : ""}
+        {/* A pill per stage their open deals stand at (0029): a client with a proposal out for another service is both. */}
+        {(p.openDeals.length ? [...new Set(p.openDeals.map((d) => d.stage))] : p.deal ? [p.deal.stage] : []).map(
+          (s) => (
+            <StatePill key={s} kind="deal" value={s} />
+          ),
+        )}
       </td>
     ),
   },

@@ -892,30 +892,53 @@ test("a run that was not made touches nobody, and one made to wait for a person 
   assert.deepEqual([...askCtx.touches.byAny], [["a", NOW.getTime()]]);
 });
 
-test("the touches a run adds are new maps, the latest touch stands, and only a proposal's follow-up is one", () => {
-  const given = { byThis: new Map(), byAny: new Map(), followUps: new Map() };
-  const after = touchesAfterRun(given, { playbookId: "pf", at: 5, followUp: true }, ["a", "b"]);
+test("the touches a run adds are new maps, the latest touch stands, and only a proposal's follow-up is one, kept by what it was about (0029)", () => {
+  const SEO = "https://example.com/p/seo";
+  const given = { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() };
+  const after = touchesAfterRun(given, { playbookId: "pf", at: 5, followUp: true }, [
+    { id: "a", deal: "d-seo", link: SEO },
+    { id: "b", deal: null, link: SEO },
+    { id: "c", deal: null, link: null },
+  ]);
   assert.deepEqual(
     [...after.followUps],
     [
       ["a", 5],
       ["b", 5],
+      ["c", 5],
     ],
   );
   assert.deepEqual(
-    [...given.byAny, ...given.followUps, ...given.byThis],
+    [...after.followUpKeys].map(([id, m]) => [id, [...m]]),
+    [
+      ["a", [["deal:d-seo", 5]]],
+      ["b", [[`link:${SEO}`, 5]]],
+      ["c", [["bare", 5]]],
+    ],
+    "by the deal it was about, else its link, else nothing kept",
+  );
+  assert.deepEqual(
+    [...given.byAny, ...given.followUps, ...given.byThis, ...given.followUpKeys],
     [],
     "the touches handed in are left as they were",
   );
-  const earlier = touchesAfterRun(after, { playbookId: "pf", at: 3, followUp: true }, ["a"]);
+  const earlier = touchesAfterRun(after, { playbookId: "pf", at: 3, followUp: true }, [
+    { id: "a", deal: "d-seo", link: SEO },
+  ]);
   assert.deepEqual(
     [...earlier.byAny],
     [
       ["a", 5],
       ["b", 5],
+      ["c", 5],
     ],
   );
-  assert.deepEqual([...touchesAfterRun(given, { playbookId: "pg", at: 5, followUp: false }, ["a"]).followUps], []);
+  assert.equal(earlier.followUpKeys.get("a")?.get("deal:d-seo"), 5, "the latest stands, by what it was about too");
+  assert.notEqual(earlier.followUpKeys.get("a"), after.followUpKeys.get("a"), "a person's keys are a new map too");
+  const other = touchesAfterRun(given, { playbookId: "pg", at: 5, followUp: false }, [
+    { id: "a", deal: "d-seo", link: SEO },
+  ]);
+  assert.deepEqual([...other.followUps, ...other.followUpKeys], [], "a run that follows nothing up keeps neither");
 });
 
 test('a reminder run asked for at night goes at nine and says "today": the words are relative to the moment the send goes; every visit is reminded, whatever the cap', async () => {
@@ -1276,7 +1299,7 @@ const followUpCtx = (people, over = {}) => ({
   dealsOn: true,
   pace: null,
   ready: ready({ textLine: TEXT_LINE, mailbox: true, domain: true }),
-  touches: { byThis: new Map(), byAny: new Map(), followUps: new Map() },
+  touches: { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() },
   ...over,
 });
 const FOLLOW_UPS = [
@@ -1344,6 +1367,57 @@ test("a proposal's follow-up touches its people as one had, and not those the mo
     "e2 and e3 are held for the month: skipped, touched by nothing",
   );
   assert.deepEqual([...ctx.touches.byAny.keys()].sort(), ["e1", "w"]);
+});
+
+test("a person with two proposals out (0029): the run follows up the one waiting longest, once, its words carry that proposal's link, and its touch keeps it, so the other is owed its own", async () => {
+  // A remodel's proposal out twenty days and a kitchen's out ten, as people_list reads them: the row shows the newer,
+  // and open_deals holds both, the newest first.
+  const open = (id, service, days, url) => ({
+    id,
+    stage: "proposed",
+    service,
+    proposed_at: iso(days * D),
+    decided_at: null,
+    ended_at: null,
+    amount_cents: null,
+    per: null,
+    currency: "USD",
+    proposal_url: url,
+    valid_until: null,
+    lost_reason: null,
+  });
+  const KITCHEN = "https://example.com/p/kitchen";
+  const REMODEL = "https://example.com/p/remodel";
+  const both = toPersonRowVM(
+    dto("w", {
+      deal_id: "deal-k",
+      deal_stage: "proposed",
+      deal_service: "Kitchen",
+      deal_proposed_at: iso(10 * D),
+      deal_proposal_url: KITCHEN,
+      open_deals: [open("deal-k", "Kitchen", 10, KITCHEN), open("deal-r", "Remodel", 20, REMODEL)],
+      last_inbound_at: iso(25 * D),
+      consent_channels: ["whatsapp", "sms"],
+      email: "w@example.com",
+    }),
+    TZ,
+    NOW,
+  );
+  const ctx = context(followUpCtx([both]));
+  const f = fakes({ template: UTILITY, versions: ["email"], monthSent: 0 });
+  const r = await runPlaybook(f.ports, cmd({ playbook: followUp(), ctx }));
+  assert.deepEqual([r.outcome, r.eligible], ["sent", 1], "one person, one message, whatever they have out");
+  const [, , recipients] = f.of("assemble")[0];
+  assert.deepEqual(
+    recipients.map((x) => [x.contact_id, x.facts?.proposal_link, x.facts?.deal_id]),
+    [["w", REMODEL, "deal-r"]],
+    "the one waiting longest, with its own link and its deal, though their row shows the kitchen's",
+  );
+  assert.deepEqual(
+    [...(ctx.touches.followUpKeys.get("w") ?? new Map()).keys()],
+    ["deal:deal-r"],
+    "the touch keeps which proposal it was about: the kitchen's is still owed its own",
+  );
 });
 
 test("a hold that could not be written leaves the people queued: the run is made, and its record says so", async () => {
