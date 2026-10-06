@@ -127,15 +127,11 @@ function blockFrom(by, scanCounts) {
     ],
     ["workspace route JS, KB gzipped", Math.round(budget.js / 1024), "the shell included"],
     ["workspace route CSS, KB gzipped", Math.round(budget.css / 1024), ""],
-    ...(typeof budget.pages === "number"
-      ? [
-          [
-            "workspace pages' own JS, KB",
-            Math.round(budget.pages / 1024),
-            "gzipped, each page's chunks once, beside the route",
-          ],
-        ]
-      : []),
+    [
+      "workspace pages' own JS, KB",
+      Math.round(total(budget.page) / 1024),
+      `gzipped, beyond the route, summed over ${keys(budget.page)} pages`,
+    ],
     // Not a debt: the trees the complexity ratchet has emptied, which the lint's limits hold (eslint.config.mjs), so
     // the register's prose never types how many.
     ["trees the lint's limits hold", LIMITED_TREES.length, `${WIDE_PARAMS.length} of them with max-params waiting`],

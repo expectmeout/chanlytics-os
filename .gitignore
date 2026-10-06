@@ -42,3 +42,6 @@ apps/dashboard/public/lead-map/
 /playwright-report/
 /test-results/
 /blob-report/
+
+# the bundle check's record of a build, written for CI's cache (tooling/scripts/checks/bundle-budget.mjs, --record)
+.bundle/
