@@ -17,7 +17,10 @@
  *      message stamped handled; nothing is answered on its own. The second is marked failed and its thread flagged
  *      (send_failed), except a campaign's email, which its run counts. Email is not swept here: its intake is a job
  *      with its own lease.
- *   2. deadman_candidates(UNANSWERED_AFTER): the open escalations nobody has been warned about, oldest first. Each
+ *   2. sweepStrandedRuns (lib/ops/stranded-runs.ts), on its own too (stranded_run_sweep_failed) and inside a time
+ *      budget: a run still scheduled ten minutes past its time with no broadcast_send job to start it is marked not
+ *      sent (run_interrupted) and its owner told once, with the run's own link. A reach-out's run is not one.
+ *   3. deadman_candidates(UNANSWERED_AFTER): the open escalations nobody has been warned about, oldest first. Each
  *      workspace's people are looked up once (loadTenantNotifications) and told through notify: a row on its bell of
  *      kind `deadman` and a mail carrying the customer to the workspace's OWN recipients. Only a delivered warning
  *      earns the once-guard, and it lives on the ROW (escalations.deadman_alerted_at, set by deadman_mark_alerted),
@@ -39,13 +42,14 @@
  * its `tenant_id`.
  */
 import { json } from "../http.js";
-import { notify, reachesTenant } from "../ops/notify.js";
+import { notify, notifyOnce, reachesTenant } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { errField } from "../log.js";
 import { pageOperator } from "../ops/page-operator.js";
 import { markProcessed } from "../packages/db.js";
 import { upsertEscalation } from "../packages/jobs.js";
 import { sweepUnfinished } from "./unfinished.js";
+import { sweepStrandedRuns } from "../ops/stranded-runs.js";
 import { MIN_MS } from "../packages/contracts.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
@@ -61,7 +65,10 @@ interface Candidate {
   opened_at: string;
   phone_e164: string | null;
 }
-export async function sweepDeadman({ db, L }: SweepTick): Promise<Response> {
+/** How long into the tick the stranded runs may keep telling: the two-hour watchdog after them needs the rest. */
+const STRANDED_BUDGET_MS = 20_000;
+
+export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Response> {
   // A customer's message the handler never finished with, and a queued reply
   // nothing is sending: accepted means recoverable, and until now neither had
   // anything to raise its hand (lib/unfinished.ts). Asked first and on its
@@ -80,6 +87,21 @@ export async function sweepDeadman({ db, L }: SweepTick): Promise<Response> {
   } catch (e) {
     L.error("unfinished_sweep_failed", { error: errField(e) });
   }
+  // A run still scheduled past its time with nothing on the ledger to send it (ops/stranded-runs.ts): asked on its own
+  // too, so it never costs the watchdog its tick.
+  let stranded = 0;
+  try {
+    ({ stranded } = await sweepStrandedRuns({
+      db,
+      L,
+      notifyOnce,
+      loadTenantNotifications,
+      deadline: started + STRANDED_BUDGET_MS,
+    }));
+  } catch (e) {
+    L.error("stranded_run_sweep_failed", { error: errField(e) });
+  }
+  const asked = { ...unfinished, stranded };
 
   const { data, error } = await db.rpc("deadman_candidates", { p_older_than: UNANSWERED_AFTER });
   if (error) {
@@ -87,7 +109,7 @@ export async function sweepDeadman({ db, L }: SweepTick): Promise<Response> {
     return json(500, { ok: false });
   }
   const candidates = (data ?? []) as unknown as Candidate[];
-  if (candidates.length === 0) return json(200, { ok: true, flagged: 0, ...unfinished });
+  if (candidates.length === 0) return json(200, { ok: true, flagged: 0, ...asked });
 
   // One addressing lookup per TENANT, not per escalation: a backlog is usually
   // one workspace having a bad morning.
@@ -168,6 +190,6 @@ export async function sweepDeadman({ db, L }: SweepTick): Promise<Response> {
     }
   }
 
-  L.info("deadman_swept", { candidates: candidates.length, flagged: alerted.length, ...unfinished });
-  return json(200, { ok: true, candidates: candidates.length, flagged: alerted.length, ...unfinished });
+  L.info("deadman_swept", { candidates: candidates.length, flagged: alerted.length, ...asked });
+  return json(200, { ok: true, candidates: candidates.length, flagged: alerted.length, ...asked });
 }

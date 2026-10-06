@@ -59,7 +59,8 @@ test.describe("Saved lists on People", () => {
   }) => {
     await page.goto("/#/segments");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("people-standing")).toBeVisible();
+    // People's standing, the frame's head's sentence in Glass (the page's own line is drawn on a phone alone).
+    await expect(page.locator(".pg-head .pg-sentence")).toContainText(/\d+ (person|people)\b/);
     await expect(page).toHaveURL(atRoute(/^clients$/));
     await expect(page.getByTestId("lists-real")).toHaveCount(0);
     const res = await apiGet(page, "/api/v1/segments");

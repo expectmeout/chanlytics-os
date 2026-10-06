@@ -23,8 +23,16 @@ import type { SweepTick } from "../ops/sweep-door.js";
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const REGISTRATIONS_PER_TICK = 20;
 
-/** The states that mean the carriers still have it. */
-const WAITING = ["registering", "approved"];
+/**
+ * The states asked about: the two that mean the carriers still have it, and a refusal. A refused campaign is corrected
+ * and resubmitted in Twilio's console as often as through this product, and the carriers' next verdict lands there and
+ * nowhere else: asked only about the waiting states, the Chanlytics line read `rejected` for weeks after the console
+ * resubmit was approved (5 Oct 2026), and its texting stayed off. A refused line is only READ here, and only while it
+ * has a campaign on file, which is the one thing about it the carriers can change: one whose campaign was taken off
+ * reads as a brand approved with nothing filed, which for a waiting line means "file it now", and a filing is a new
+ * vetting fee that is its owner's to spend (the replace door), never the sweep's.
+ */
+const ASKED = ["registering", "approved", "rejected"];
 export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response> {
   // Every line the carriers still hold, LEAST RECENTLY ASKED ABOUT first, so a
   // backlog drains in order. BOTH waiting states: a line that reaches
@@ -41,7 +49,9 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
   const { data: lines, error } = await db
     .from("lines")
     .select("*")
-    .in("sms_state", WAITING)
+    .in("sms_state", ASKED)
+    // A refused line, only with its campaign on file (above).
+    .or("sms_state.neq.rejected,campaign_sid.not.is.null")
     .not("brand_sid", "is", null)
     .order("updated_at", { ascending: true })
     .limit(REGISTRATIONS_PER_TICK);
@@ -76,8 +86,8 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
       // Moved means CHANGED. Counting "not registering any more" called a
       // line that has sat in the same state for a week a move, every hour.
       if (r.smsState !== line.sms_state) moved++;
-      // The wait's own ending: the brand is through, so the campaign can go.
-      if (r.brand === "APPROVED" && !line.campaign_sid) {
+      // The wait's own ending: the brand is through, so the campaign can go. Never for a refused line (ASKED).
+      if (r.brand === "APPROVED" && !line.campaign_sid && line.sms_state !== "rejected") {
         const rec = await db.from("business_records").select("*").eq("tenant_id", line.tenant_id).maybeSingle();
         const tenant = await db.from("tenants").select("name, slug").eq("id", line.tenant_id).maybeSingle();
         const fresh = await db.from("lines").select("*").eq("id", line.id).maybeSingle();

@@ -2749,9 +2749,16 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     font-size: var(--text-lg);
     color: var(--ink-muted);
   }
-  /* Who it is: the face at 36 and two lines at its height, the name over its wire. */
+  /* Who it is: the face at 36 and two lines at its height, the name over its wire. A thumb's press reaches the pill's
+     edges, an invisible margin over and under the 36px (the pill's 8px), as Actions keeps its 44 beside it. */
   :is(.inbox, .conversations)[data-takeover] .ix-th-who {
+    position: relative;
     gap: 10px;
+  }
+  :is(.inbox, .conversations)[data-takeover] .ix-th-who::before {
+    content: "";
+    position: absolute;
+    inset: -8px 0;
   }
   :is(.inbox, .conversations)[data-takeover] .ix-th-name {
     line-height: 1.2;

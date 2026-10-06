@@ -621,9 +621,9 @@
    lists holds anything placed against a box outside it (measured on each, 25 Sep). e2e/shell/phone.spec.ts holds every
    list to it. */
 @media (pointer: coarse) {
-  .ix-threads, .cv-rows, .lm-list, .lm-panel, .cl-main-scroll, .tpl-page > .cm-list, .route-view:has(> .bc-page) { position: relative; }
+  .ix-threads, .cv-rows, .lm-list, .lm-panel, .cl-main-scroll, .tpl-page > .cm-list, .bc-page > .cm-list { position: relative; }
   .ix-threads::after, .cv-rows::after, .lm-list::after, .lm-panel::after, .cl-main-scroll::after, .tpl-page > .cm-list::after,
-  .route-view:has(> .bc-page)::after {
+  .bc-page > .cm-list::after {
     content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none;
   }
 }

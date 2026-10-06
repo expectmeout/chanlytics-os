@@ -376,19 +376,20 @@ test("the message flow filed with the carriers describes one program, every way 
 
   // The description: who sends, to whom and why -- what 30886 said was unclear,
   // and what was accepted on the fourth review.
+  // In the shape the carriers approved on 5 Oct 2026 (campaign-facts.test.mjs).
   assert.match(
     desc,
-    /^Messages are sent by Marisa's Beauty Salon \(Marisa Beauty LLC\) to its own customers/,
-    "the registered name beside the trade name, as the brand was vetted, in the reviewers' own register",
+    /^Messages are sent by Marisa Beauty LLC, doing business as Marisa's Beauty Salon, to its own customers and prospects who opted in/,
+    "the registered name as the brand was vetted, doing business as the trade name, in the reviewers' own register",
   );
   assert.match(desc, /on Marisa's Beauty Salon's own behalf/, "the business, not the software it sends with");
-  assert.match(desc, /sent through the Chanlytics OS application/, "and the application layer named, as 30912 asks");
-  assert.match(
+  assert.match(desc, /by the Chanlytics OS application/, "and the application layer named, as 30912 asks");
+  assert.doesNotMatch(
     desc,
-    /wrote to Marisa's Beauty Salon first, or who said yes on its sign-up page \(https:\/\/app\.chanlytics\.com\/yes\/marisas\) or its signed sign-up form/,
-    "who the recipients are, and how they came",
+    /wrote to .* first/,
+    "REGRESSION: writing first described as how a recipient came, which the flow says is not an opt-in",
   );
-  assert.match(desc, /No marketing or promotional content is sent from this number/);
+  assert.match(desc, /No marketing or promotional content is sent\./);
   assert.doesNotMatch(
     desc,
     /offers and news|separate written opt-in/,
@@ -447,19 +448,22 @@ test("the samples match what the filing declares about them, and none is a promo
   const { samples } = campaignFactsFor(FILED);
   const all = samples.join("\n");
   assert.ok(samples.length >= 2 && samples.length <= 5, "Twilio takes two to five");
-  assert.equal(samples.length, 4);
+  assert.equal(samples.length, 5, "the shape the carriers approved: five");
   assert.ok(all.includes(FILED.hostedUrl), "a link, because the filing declares links -- the business's own page");
   assert.ok(
     all.includes(FILED.lineNumber),
     "a phone number, because the filing declares one -- and the WORKSPACE'S own",
   );
   assert.doesNotMatch(all, /offer|promot|news/i, "REGRESSION: a promotional sample in an informational campaign");
-  assert.match(all, /\[date\] at \[time\]/, "brackets mark what varies, as the guide asks");
+  assert.match(all, /\[Date\] at \[Time\]/, "brackets mark what varies, as the guide asks");
   assert.ok(
     samples.every((x) => x.includes("Marisa's Beauty Salon")),
     "every sample names the brand",
   );
-  assert.ok(samples.filter((x) => /Reply STOP/.test(x)).length >= 1, "opt-out language in at least one");
+  assert.ok(
+    samples.every((x) => /STOP to opt out/.test(x)),
+    "how to stop, in every sample, as the approved filing has it",
+  );
   // And it invents nothing: not a discount, not the platform's own number.
   assert.ok(!/\d+% off/.test(all), "REGRESSION: a made-up discount in a sample sent to a regulator");
   assert.ok(!/917\D{0,3}574\D?6416/.test(all), "REGRESSION: the platform's number presented as the business's");
@@ -679,22 +683,24 @@ test("every reason the wire can write has words the owner can read", () => {
   }
 });
 
-test("the campaign description opens with what the business does", () => {
+test("the campaign description says what the business does, right after who sends to whom", () => {
   // The ninth refusal (30919 on USE_CASE_DESCRIPTION, 22 Sep 2026): the description said who sends, to whom
   // and why, but never what the business is, so a reviewer could not tell what kind of business sends
-  // "appointment" messages.
+  // "appointment" messages. The shape the carriers then approved (5 Oct 2026) says it second, after who sends to whom.
   const about = "A beauty salon in Brooklyn: hair, colour and nails for walk-in and booked clients";
   const { description } = campaignFactsFor({ ...FILED, about: `  ${about}\n` });
   assert.ok(
-    description.startsWith(`About Marisa's Beauty Salon (Marisa Beauty LLC): ${about}. Messages are sent by `),
+    description.startsWith(
+      `Messages are sent by Marisa Beauty LLC, doing business as Marisa's Beauty Salon, to its own customers and prospects who opted in. ${about}. The texts are `,
+    ),
     description,
   );
   // Said once, as finished sentences, whatever the owner typed at the end.
-  assert.ok(campaignFactsFor({ ...FILED, about: `${about}.` }).description.includes(`${about}. Messages`));
-  assert.ok(campaignFactsFor({ ...FILED, about: `${about}!` }).description.includes(`${about}! Messages`));
+  assert.ok(campaignFactsFor({ ...FILED, about: `${about}.` }).description.includes(`${about}. The texts`));
+  assert.ok(campaignFactsFor({ ...FILED, about: `${about}!` }).description.includes(`${about}! The texts`));
 
   // Nothing said, nothing added: the description every filing already carries.
-  assert.ok(campaignFactsFor(FILED).description.startsWith("Messages are sent by Marisa's Beauty Salon"));
+  assert.ok(campaignFactsFor(FILED).description.startsWith("Messages are sent by Marisa Beauty LLC"));
   assert.ok(campaignFactsFor({ ...FILED, about: "   " }).description.startsWith("Messages are sent by"));
 
   // The longest description the record allows still fits Twilio's 40 to 4096.

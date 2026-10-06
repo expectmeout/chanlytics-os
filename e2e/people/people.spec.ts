@@ -50,21 +50,34 @@ async function assertMeasuredOnly(page: Page, where: string) {
     expect(cell, `${where} shows a dollar amount, and revenue has no column`).not.toMatch(/\$\d/);
 }
 
+/**
+ * How many People holds, said where Glass says it: the frame's head, its sentence under the page's name. The page's own
+ * standing line (people-standing) is that sentence now, and drawn on a phone alone (clients.css, "The page's standing
+ * line is the head's sentence now"); it stays in the page hidden, so a count of it still tells a real page from none.
+ */
+const headSentence = (page: Page) => page.locator(".pg-head .pg-sentence");
+const PEOPLE_SAID = /\d+ (person|people)\b/;
+
 test.describe("People on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
   });
 
-  test("the list is the workspace's people, in facts only, with no tab strip over it", async ({ page }) => {
+  test("the list is the workspace's people, in facts only, under its scopes' strip and no other", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("people-standing")).toBeVisible();
+    await expect(headSentence(page)).toContainText(PEOPLE_SAID);
     await assertMeasuredOnly(page, "#/clients");
 
     // The seeded strip offered Leads, Deal board and Lists. Leads and the deal board are seed data; Lists is a
-    // view of People now (its rail, a sheet on a phone). One real tab is no strip at all.
-    await expect(page.locator(".stabs .stabs-tab")).toHaveCount(0);
+    // view of People now (its rail, a sheet on a phone). The one strip over the list is People's own scopes, drawn by
+    // the frame (surfaces/people/chrome.ts): People and Leads, and the Pipeline where deals are on.
+    await expect(page.locator(".stabs")).toHaveCount(1);
+    expect((await page.getByTestId("people-scope").locator(".stabs-tab").allInnerTexts()).slice(0, 2)).toEqual([
+      "People",
+      "Leads",
+    ]);
 
     // The table's columns are the measured ones.
     // innerText follows the CSS text-transform, so compare case-insensitively.
@@ -103,7 +116,7 @@ test.describe("People on a real workspace", () => {
     // The one line's count equals the rows shown when nothing is filtered, and
     // it is the only place the page says it besides the table's own foot.
     const shown = await page.locator(".cl-table tbody tr:not(:has(.empty))").count();
-    const standing = (await page.getByTestId("people-standing").innerText()).trim();
+    const standing = (await headSentence(page).innerText()).trim();
     expect(standing).toMatch(new RegExp(`^${shown} (person|people)\\b`));
     await expect(page.locator(".cl-head-stats")).toHaveCount(0);
   });
@@ -149,10 +162,10 @@ test.describe("People on a real workspace", () => {
     const column = (await page.locator(".cl-prof-titles").boundingBox())!;
     expect(column.width, "the name's column keeps its width at 1000px").toBeGreaterThan(200);
 
-    // Back returns to the list, not to a "client not found" page. In Glass the page draws no way back of its own (the
-    // sidebar's People and the top bar's crumb are it), so the crumb is pressed.
-    await page.locator(".crumbs .crumb-link").first().click();
-    await expect(page.getByTestId("people-standing")).toBeVisible();
+    // Back returns to the list, not to a "client not found" page. In Glass the page draws no way back of its own: the
+    // frame's head draws it where the date stands (‹ People, kit/head/frame-head.tsx), so that is pressed.
+    await page.locator(".pg-back", { hasText: "People" }).click();
+    await expect(headSentence(page)).toContainText(PEOPLE_SAID);
   });
 
   // Runs for real only where deals are on (0008: the workspace answers that some customers get a proposal first): the
@@ -252,14 +265,14 @@ test.describe("People on a real workspace", () => {
     }
     // Leads came back on 18 Sep 2026 as a scope of People, so its old address
     // lands on that scope; the Deal board still lands on the list of clients.
-    for (const [gone, lands, standing] of [
-      ["leads", "#/clients/leads", "leads-standing"],
-      ["pipeline", "#/clients", "people-standing"],
-    ]) {
+    for (const [gone, lands, said] of [
+      ["leads", "clients/leads", /\d+ leads?\b/],
+      ["pipeline", "clients", PEOPLE_SAID],
+    ] as const) {
       await page.goto(`/#/${gone}`);
       await expect.poll(() => routeOf(page.url()), { message: `${gone} retires into People` }).toBe(lands);
-      // The Leads scope draws its own standing line, not People's: the old address lands on the scope, not beside it.
-      await expect(page.getByTestId(standing)).toBeVisible();
+      // The Leads scope says its own standing, not People's: the old address lands on the scope, not beside it.
+      await expect(headSentence(page)).toContainText(said);
     }
   });
 
@@ -278,7 +291,7 @@ test.describe("People on a real workspace", () => {
     if (!body.deals_on) {
       await expect(tab, "a workspace whose customers book is never offered a Pipeline").toHaveCount(0);
       await page.goto("/#/clients/pipeline");
-      await expect(page.getByTestId("people-standing")).toBeVisible();
+      await expect(headSentence(page)).toContainText(PEOPLE_SAID);
       await expect(page.getByTestId("pipeline")).toHaveCount(0);
       await expect.poll(() => routeOf(page.url()), { message: "People's own address takes its place" }).toBe("clients");
       return;
@@ -318,7 +331,7 @@ test.describe("People on a real workspace", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("People");
     if (!body.deals_on) {
-      await expect(page.getByTestId("people-standing")).toBeVisible();
+      await expect(headSentence(page)).toContainText(PEOPLE_SAID);
       await expect(page.getByTestId("pipeline")).toHaveCount(0);
       return;
     }
@@ -513,9 +526,9 @@ test.describe("People on a real workspace", () => {
     await expect(page.locator(".cl-head-stats")).toHaveCount(0);
     await expect(page.getByTestId("attention-strip")).toHaveCount(0);
 
-    const standing = page.getByTestId("people-standing");
+    const standing = headSentence(page);
     await expect(standing).toBeVisible();
-    await expect(standing).toContainText(/\d+ (person|people)/);
+    await expect(standing).toContainText(PEOPLE_SAID);
 
     // The line sits above the table, and the table's first row is close behind it.
     const lineBox = (await standing.boundingBox())!;
@@ -524,8 +537,9 @@ test.describe("People on a real workspace", () => {
 
     // When somebody needs a person the count is a button, and pressing it shows
     // exactly them -- the rail is hidden on a phone, so this is the way there.
+    // On a desk the line is the head's sentence, words alone; the count is a tap where the page draws its own line.
     const needs = page.getByTestId("people-standing-needs");
-    if (await needs.count()) {
+    if (await needs.isVisible()) {
       const said = (await needs.innerText()).trim();
       const n = Number(said.split(" ")[0]);
       await needs.click();
@@ -671,7 +685,9 @@ test.describe("People on a real workspace", () => {
    * People's head and Leads' are one head on a desktop (22 Sep). Measured on production at 1445px, they had drifted:
    * People's search sat 9px lower, its list's name 14px lower and its table 8px later, from a 28px floor on "N need
    * you" (a button in a line of plain words on Leads) and from two different rules for the space above and below the
-   * list's name. This holds the two to the same geometry, measured from the top of each page's standing line.
+   * list's name. This holds the two to the same geometry, measured from the top of each page's list pane: in Glass the
+   * standing line is the frame's head, kept for a reader on a desk, so it is no edge to measure from (5 Oct: the line
+   * hid, and People's table had drifted 8px again).
    */
   test("People's head and Leads' are the same head: the search, the rule, the list's name and the table land alike", async ({
     page,
@@ -680,7 +696,9 @@ test.describe("People on a real workspace", () => {
     const measure = async () =>
       page.locator(".clients").evaluate((root) => {
         const q = (s: string) => root.querySelector(s) as HTMLElement | null;
-        const st = q(".pl-standing");
+        // The list's pane, beside the rail under the strip, on both pages: the standing over it is the frame's head in
+        // Glass, a 1px box kept for a reader on a desk, and the page's own line is hidden.
+        const st = q(".cl-main");
         const ctl = q(".cl-controls");
         const search = q(".cl-controls .cl-search-wrap");
         const title = q(".cl-section-title");
@@ -715,9 +733,8 @@ test.describe("People on a real workspace", () => {
     test.skip(!leadsHead, "this workspace draws Leads' first day, not a list");
     const leads = await measure();
     test.skip(!people || !leads, "a head this workspace does not draw");
+    // The search's height and the buttons' are each held equal on the two pages here. That the search was as tall as the
+    // buttons was Classic's row (22 Sep): in Glass the search is a capsule of its own (canvas P1, clients.css).
     expect(leads, "REGRESSION: the two heads drifted -- a button's floor, and two rules for one gap").toEqual(people);
-    expect(people!.searchHeight, "the search is as tall as the buttons beside it, so the row is one line").toBe(
-      people!.tallestButton,
-    );
   });
 });

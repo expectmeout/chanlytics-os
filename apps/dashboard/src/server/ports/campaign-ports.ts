@@ -158,9 +158,17 @@ export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRun
           .eq("state", "pending_approval")
           .select("id"),
       ),
-    hold: async (id) => {
-      await ctx.supabase.from("broadcasts").update({ state: "pending_approval" }).eq("id", id);
-    },
+    // Only a run still scheduled is put back, and the verb is told whether it was (a forbidden or failed UPDATE does not
+    // raise: it changes no row).
+    hold: (id) =>
+      changed(
+        ctx.supabase
+          .from("broadcasts")
+          .update({ state: "pending_approval" })
+          .eq("id", id)
+          .eq("state", "scheduled")
+          .select("id"),
+      ),
     schedule: async (id, at) => {
       await schedule(tenantId, "broadcast_send", at, { broadcast_id: id });
     },

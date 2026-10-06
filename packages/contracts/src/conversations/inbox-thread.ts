@@ -95,6 +95,15 @@ export function conversationWaitsOnYou(
 }
 
 /**
+ * Whether a thread's held draft is still waiting, as its view model carries it: the draft is there and its deadline is
+ * ahead, by the one rule the Inbox's Needs you reads (replyWaitsOnYou). A queued draft past its deadline is going out
+ * in the owner's name, not waiting on them; Ask counts and names a held draft by this, as the Inbox does.
+ */
+export function heldDraftWaits(vm: Pick<InboxThreadVM, "heldDraft">, nowMs: number): boolean {
+  return !!vm.heldDraft && replyWaitsOnYou({ endsAtMs: vm.heldDraft.sendsAtMs }, nowMs);
+}
+
+/**
  * What the reply box needs to know of the person before it offers a way to write: that they asked to stop (nothing can be
  * sent), whether they said yes to offers (which templates can go), and that mail to their address has stopped, which only
  * matters where the reply goes by email (a thread on WhatsApp or by text is not held by a bounced address).

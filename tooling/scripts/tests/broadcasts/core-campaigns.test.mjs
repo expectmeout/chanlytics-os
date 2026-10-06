@@ -149,7 +149,7 @@ function fakes(over = {}) {
     schedule: undefined,
     record: "d1",
     release: true,
-    hold: undefined,
+    hold: true,
     withdraw: 1,
     cancel: true,
     dealsOn: false,
@@ -1149,6 +1149,27 @@ test("approve: a run not waiting is refused; one that changed under the approver
     stuck.said.map((l) => [l.event, l.step, l.broadcast_id, l.error]),
     [["campaign_step_failed", "schedule", "b1", "Error: schedule_job: no row"]],
   );
+  // The put-back is believed only when it changed the row (wiring review P2 8): one that changed nothing, or threw, leaves
+  // a run that reads "scheduled" with nothing to send it, and "still waiting; try again" over it was untrue.
+  const STRANDED =
+    "The send could not be scheduled, and the run could not be put back to wait for you. If it still says scheduled once its time has passed, it is marked not sent and you are told.";
+  for (const [hold, logged] of [
+    [false, "no row"],
+    [new Error("rls: no update"), "Error: rls: no update"],
+  ]) {
+    const stranded = fakes({ schedule: new Error("schedule_job: no row"), hold });
+    const told = await refusedLoudly(approveRun(stranded.ports, { row, now: NOW }));
+    assert.equal(told.e.message, STRANDED, String(hold));
+    assert.equal(told.e.status, 502);
+    assert.deepEqual(
+      told.said.map((l) => [l.event, l.step, l.error]),
+      [
+        ["campaign_step_failed", "schedule", "Error: schedule_job: no row"],
+        ["campaign_step_failed", "hold", logged],
+      ],
+      "both steps that failed are in the log, once each",
+    );
+  }
   const f = fakes();
   const r = await approveRun(f.ports, { row, now: NOW });
   assert.deepEqual(f.log, [

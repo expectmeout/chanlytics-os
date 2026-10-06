@@ -783,6 +783,8 @@ const PERSON_CALLS = [
   ],
 ];
 
+// 5 Oct 2026 (Ask honesty): a card names the person as People does (personName), so someone with nothing on their profile
+// is "Unknown" on the card, as they are on their row, where it said "this person".
 const PERSON_CALLS_NAMELESS = [
   [
     "a name for someone whose profile holds nothing at all: no name of their own, and nothing shown instead",
@@ -790,9 +792,9 @@ const PERSON_CALLS_NAMELESS = [
     {
       kind: "person_details",
       needs: "operator",
-      title: "Details for this person",
+      title: "Details for Unknown",
       summary: "Name: no name of their own → Ana",
-      payload: { contact_id: NAMELESS, who: "this person", name: "Ana", previous: { name: null } },
+      payload: { contact_id: NAMELESS, who: "Unknown", name: "Ana", previous: { name: null } },
       undo: "Set it back",
     },
     ["contacts.select"],
