@@ -770,6 +770,7 @@ declare const SCHEMA_SETS: {
     readonly "event_subscriptions.lane": readonly [];
     readonly "google_reviews.origin": readonly ["places", "profile"];
     readonly "invitations.role": readonly ["operator", "viewer"];
+    readonly "job_capacity.scope": readonly ["workspace", "provider", "domain"];
     readonly "jobs.kind": readonly ["outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver"];
     readonly "jobs.state": readonly ["scheduled", "fired", "done", "canceled", "failed"];
     readonly "lead_counters.kind": readonly ["allowance", "budget", "day"];

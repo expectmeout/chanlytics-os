@@ -354,6 +354,9 @@ before(async () => {
   await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
   await seed("lead_suggestions", { tenant_id: A, business_line: "a hair salon in Miami" }, null);
   await seed("platform_metrics", { tenant_id: A, day: "2026-09-26" }, null);
+  // A capacity row of this suite's own (00333), so "a member reads nothing" is not proved on an empty table.
+  const cap = await db.from("job_capacity").upsert({ scope: "provider", key: "tenancy-suite", max_in_flight: 1 });
+  assert.equal(cap.error, null, `capacity: ${cap.error?.message}`);
   // The spine (00332): an outbox row and a delivery of the workspace's, as the copy and the relay would write them.
   await seed(
     "event_outbox",
@@ -449,6 +452,7 @@ function earning(eventId) {
 }
 
 after(async () => {
+  if (!skip) await db.from("job_capacity").delete().eq("key", "tenancy-suite");
   if (skip) return;
   for (const [table, col, val] of probes) await db.from(table).delete().eq(col, val);
   if (A) await db.from("tenants").delete().eq("id", A);
@@ -768,6 +772,7 @@ const OTHER_TABLES = {
   rate_hits: "none",
   sweep_status: "none",
   event_subscriptions: "none", // who reacts to an event kind (00332): platform-wide rows, the service role's alone
+  job_capacity: "none", // how many jobs naming a key may run at once (00333): platform-wide rows, the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()

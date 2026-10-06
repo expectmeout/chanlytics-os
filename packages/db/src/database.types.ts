@@ -2462,6 +2462,27 @@ export type Database = {
           },
         ]
       }
+      job_capacity: {
+        Row: {
+          created_at: string
+          key: string
+          max_in_flight: number
+          scope: string
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          max_in_flight: number
+          scope: string
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          max_in_flight?: number
+          scope?: string
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           attempts: number

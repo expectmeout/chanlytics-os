@@ -196,6 +196,56 @@ test(
 );
 
 test(
+  "capacity (00333): a key at its cap leaves the next row of that key for a later tick and takes the next of another; a key with no row is no limit",
+  { skip },
+  () => {
+    const claimed = claimOrder(
+      `insert into public.job_capacity (scope, key, max_in_flight) values ('provider', 'meta', 1);`,
+      job("meta, running", {
+        kind: "broadcast_send",
+        due: 200,
+        payload: { capacity: ["provider:meta"] },
+        fired: 10,
+        lease: 80,
+      }),
+      job("meta, waiting its turn", { kind: "broadcast_send", due: 100, payload: { capacity: ["provider:meta"] } }),
+      job("twilio, no row so no limit", {
+        kind: "broadcast_send",
+        due: 50,
+        payload: { capacity: ["provider:twilio"] },
+      }),
+      job("no key", { kind: "broadcast_send", due: 10 }),
+      job("meta and twilio: one full key is enough to wait", {
+        kind: "lead_collect",
+        due: 5,
+        payload: { capacity: ["provider:twilio", "provider:meta"] },
+      }),
+    );
+    assert.deepEqual(claimed, ["twilio, no row so no limit", "no key"]);
+  },
+);
+
+test(
+  "turns in every lane (00333): two workspaces' replies alternate when one has a burst, and a reply still goes before bulk",
+  { skip },
+  () => {
+    const claimed = claimOrder(
+      job("a's running reply", { kind: "outbound_send", due: 60, fired: 5, lease: 85 }),
+      job("a's reply 1", { kind: "outbound_send", due: 100 }),
+      job("a's reply 2", { kind: "outbound_send", due: 90 }),
+      job("b's reply", { ws: "b", kind: "outbound_send", due: 10 }),
+      job("b's batch", { ws: "b", kind: "broadcast_send", due: 500 }),
+      job("a's line", { kind: "line_provision", due: 30 }),
+    );
+    assert.deepEqual(
+      claimed,
+      ["b's reply", "a's reply 1", "a's reply 2", "a's line", "b's batch"],
+      "a's running reply puts b's reply first; then a's own, oldest first; a reply running holds no lane-1 or bulk place",
+    );
+  },
+);
+
+test(
   "work kept for a later try holds its workspace's place until its claim's lease would have ended, and no longer",
   { skip },
   () => {

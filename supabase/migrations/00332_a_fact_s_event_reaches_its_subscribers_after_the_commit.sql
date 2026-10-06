@@ -119,8 +119,8 @@ begin
   end if;
   return null;
 end $$;
-revoke all on function public.events_outbox_copy() from public, anon;
-grant execute on function public.events_outbox_copy() to authenticated, service_role;
+revoke all on function public.events_outbox_copy() from public, anon, authenticated;
+grant execute on function public.events_outbox_copy() to service_role;
 comment on function public.events_outbox_copy() is
   'After each event: a row on event_outbox when a subscription names its kind and is not paused (decision 0030). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
 
@@ -151,8 +151,8 @@ begin
   perform public.request_sweep('jobs', '/api/jobs/tick');
   return true;
 end $$;
-revoke all on function public.ask_for_tick() from public, anon;
-grant execute on function public.ask_for_tick() to authenticated, service_role;
+revoke all on function public.ask_for_tick() from public, anon, authenticated;
+grant execute on function public.ask_for_tick() to service_role;
 comment on function public.ask_for_tick() is
   'Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00331, 00332). True when it asked.';
 
@@ -169,6 +169,9 @@ begin
   return null;
 end $$;
 
+revoke all on function public.jobs_wake() from public, anon, authenticated;
+grant execute on function public.jobs_wake() to service_role;
+
 create or replace function public.event_outbox_wake()
 returns trigger
 language plpgsql
@@ -179,8 +182,8 @@ begin
   perform public.ask_for_tick();
   return null;
 end $$;
-revoke all on function public.event_outbox_wake() from public, anon;
-grant execute on function public.event_outbox_wake() to authenticated, service_role;
+revoke all on function public.event_outbox_wake() from public, anon, authenticated;
+grant execute on function public.event_outbox_wake() to service_role;
 comment on function public.event_outbox_wake() is
   'After a statement writes event_outbox: the relay runs first in every tick, so an outbox row asks for one (00332).';
 

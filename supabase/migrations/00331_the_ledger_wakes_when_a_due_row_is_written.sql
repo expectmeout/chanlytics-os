@@ -68,8 +68,9 @@ begin
   perform public.request_sweep('jobs', '/api/jobs/tick');
   return null;
 end $$;
-revoke all on function public.jobs_wake() from public, anon;
-grant execute on function public.jobs_wake() to authenticated, service_role;
+-- A definer trigger function fires for every writer and is callable by none of them (database/privileges.db.test.mjs).
+revoke all on function public.jobs_wake() from public, anon, authenticated;
+grant execute on function public.jobs_wake() to service_role;
 comment on function public.jobs_wake() is
   'After a statement writes jobs: a row scheduled and due within two seconds asks for the tick through request_sweep, at most once a second (sweep_status.woken_at), never waiting on another asker (00331, decision 0031).';
 

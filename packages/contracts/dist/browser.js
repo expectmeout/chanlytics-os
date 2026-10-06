@@ -26501,6 +26501,7 @@ var SCHEMA_SETS = {
   "event_subscriptions.lane": [],
   "google_reviews.origin": ["places", "profile"],
   "invitations.role": ["operator", "viewer"],
+  "job_capacity.scope": ["workspace", "provider", "domain"],
   "jobs.kind": [
     "outbound_send",
     "broadcast_send",

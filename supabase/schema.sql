@@ -957,23 +957,53 @@ CREATE FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) 
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  with due as (
+  with
+  -- What is running: fired under a live lease, with the capacity keys each spends. Read once, not per row.
+  running as (
+    select r.tenant_id, r.lane, k.key
+      from public.jobs r
+      left join lateral jsonb_array_elements_text(
+        case when jsonb_typeof(r.payload -> 'capacity') = 'array' then r.payload -> 'capacity' else '[]'::jsonb end
+      ) as k(key) on true
+     where r.state = 'fired'
+       and r.fired_at > now() - make_interval(secs => p_lease_seconds)
+       and r.lease_until >= now()
+  ),
+  -- The keys that are full: as many running as the row allows.
+  full_keys as (
+    select c.scope || ':' || c.key as key
+      from public.job_capacity c
+      join (select key, count(*) as n from running where key is not null group by key) u
+        on u.key = c.scope || ':' || c.key
+     where u.n >= c.max_in_flight
+  ),
+  -- The workspaces with work of each lane running: they wait their turn behind those with none.
+  busy as (
+    select distinct tenant_id, lane from running where lane is not null
+  ),
+  due as (
     select c.id
       from public.jobs c
-     where (c.state = 'scheduled' and c.due_at <= now())
-        or (c.state = 'fired' and c.lease_until < now())
+     where ((c.state = 'scheduled' and c.due_at <= now())
+         or (c.state = 'fired' and c.lease_until < now()))
+       -- A row naming a full key waits. Judged cheaply: no key is full (read once), or the row names none, before its
+       -- keys are unpacked.
+       and (not exists (select 1 from full_keys)
+            or not (c.payload ? 'capacity')
+            or not exists (
+              select 1
+                from jsonb_array_elements_text(
+                  case when jsonb_typeof(c.payload -> 'capacity') = 'array' then c.payload -> 'capacity' else '[]'::jsonb end
+                ) as k(key)
+               where k.key in (select f.key from full_keys f)
+            ))
      order by c.lane nulls last,
-              -- false before true: a workspace with no bulk work running first. Read once and hashed, not per row.
-              c.lane = 2 and c.tenant_id in (
-                select r.tenant_id
-                  from public.jobs r
-                 where r.state = 'fired'
-                   and r.lane = 2
-                   and r.fired_at > now() - make_interval(secs => p_lease_seconds)
-                   and r.lease_until >= now()),
+              -- false before true: within the lane, a workspace with nothing of that lane running goes first. Read
+              -- once and hashed, not per row (00281's clause, for every lane).
+              (c.tenant_id, c.lane) in (select b.tenant_id, b.lane from busy b),
               c.due_at
      limit p_limit
-     for update of c skip locked
+       for update of c skip locked
   )
   update public.jobs j
      set state       = 'fired',
@@ -990,7 +1020,7 @@ $$;
 -- Name: FUNCTION claim_due_jobs(p_limit integer, p_lease_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take disjoint rows (SKIP LOCKED): the lowest lane first; within bulk, a workspace with no bulk job running before one with one (running: claimed within p_lease_seconds and still held); then the earliest due (decision 0018). attempts counts claims: 1 is the first run; more means a lease ran out before a run reported back.';
+COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018: a reply, then someone waiting, then bulk); within a lane a workspace with nothing of that lane running goes first (00333), then the earliest due; a row naming a capacity key that is full is left for a later tick (job_capacity). Takes back a fired row whose lease ran out with attempts + 1.';
 
 
 --
@@ -19617,6 +19647,27 @@ CREATE TABLE public.invitations (
 
 
 --
+-- Name: job_capacity; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.job_capacity (
+    scope text NOT NULL,
+    key text NOT NULL,
+    max_in_flight integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT job_capacity_max_in_flight_check CHECK ((max_in_flight > 0)),
+    CONSTRAINT job_capacity_scope_check CHECK ((scope = ANY (ARRAY['workspace'::text, 'provider'::text, 'domain'::text])))
+);
+
+
+--
+-- Name: TABLE job_capacity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.job_capacity IS 'How many jobs naming a capacity key (scope:key in payload.capacity) may be fired under a live lease at once (00333, decision 0031): counted in claim_due_jobs, nowhere else. A key with no row is no limit. The service role''s alone.';
+
+
+--
 -- Name: lead_judgments; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -22103,6 +22154,14 @@ ALTER TABLE ONLY public.idempotency_keys
 
 ALTER TABLE ONLY public.invitations
     ADD CONSTRAINT invitations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: job_capacity job_capacity_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.job_capacity
+    ADD CONSTRAINT job_capacity_pkey PRIMARY KEY (scope, key);
 
 
 --
@@ -26853,6 +26912,12 @@ CREATE POLICY invitations_member_read ON public.invitations FOR SELECT TO authen
 
 
 --
+-- Name: job_capacity; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.job_capacity ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: jobs; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -27703,7 +27768,6 @@ GRANT ALL ON FUNCTION public.ai_usage_purge(p_keep interval) TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.ask_for_tick() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.ask_for_tick() TO authenticated;
 GRANT ALL ON FUNCTION public.ask_for_tick() TO service_role;
 
 
@@ -28249,7 +28313,6 @@ GRANT ALL ON FUNCTION public.event_deliveries_redrive(p_subscriber text) TO serv
 --
 
 REVOKE ALL ON FUNCTION public.event_outbox_wake() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.event_outbox_wake() TO authenticated;
 GRANT ALL ON FUNCTION public.event_outbox_wake() TO service_role;
 
 
@@ -28290,7 +28353,6 @@ GRANT ALL ON FUNCTION public.events_note_first_touch() TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.events_outbox_copy() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.events_outbox_copy() TO authenticated;
 GRANT ALL ON FUNCTION public.events_outbox_copy() TO service_role;
 
 
@@ -28484,7 +28546,6 @@ GRANT ALL ON FUNCTION public.jobs_guard() TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.jobs_wake() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.jobs_wake() TO authenticated;
 GRANT ALL ON FUNCTION public.jobs_wake() TO service_role;
 
 
@@ -31591,6 +31652,13 @@ GRANT INSERT(created_at) ON TABLE public.idempotency_keys TO authenticated;
 
 GRANT ALL ON TABLE public.invitations TO authenticated;
 GRANT ALL ON TABLE public.invitations TO service_role;
+
+
+--
+-- Name: TABLE job_capacity; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.job_capacity TO service_role;
 
 
 --

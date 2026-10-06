@@ -135,6 +135,7 @@ test(
       ${ARMED}
       lock table public.jobs in share row exclusive mode;
       update public.jobs set due_at = now() + interval '100 years' where state = 'scheduled' and due_at <= now();
+      update public.jobs set lease_until = now() + interval '100 years' where state = 'fired' and lease_until < now();
       insert into public.jobs (tenant_id, kind, due_at, payload, dedupe_key)
            values (t, 'push_receipts', now(), '{}', 'once:' || t::text) returning id into first;
       begin

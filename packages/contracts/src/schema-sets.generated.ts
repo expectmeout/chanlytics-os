@@ -67,6 +67,7 @@ export const SCHEMA_SETS = {
   "event_subscriptions.lane": [],
   "google_reviews.origin": ["places", "profile"],
   "invitations.role": ["operator", "viewer"],
+  "job_capacity.scope": ["workspace", "provider", "domain"],
   "jobs.kind": [
     "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
     "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver",

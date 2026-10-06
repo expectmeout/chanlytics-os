@@ -692,6 +692,21 @@
       "where": null
     },
     {
+      "table": "job_capacity",
+      "name": "job_capacity_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "scope"
+        },
+        {
+          "column": "key"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "jobs",
       "name": "jobs_dedupe_live",
       "primary": false,

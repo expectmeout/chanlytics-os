@@ -124,6 +124,9 @@ const TABLES = [
   "person_moments",
   "person_notes",
   "platform_metrics",
+  // The spine (00332): an event's outbox row and its deliveries follow their workspace.
+  "event_outbox",
+  "event_deliveries",
   "playbooks",
   "policies",
   "reach_out_check_spend",

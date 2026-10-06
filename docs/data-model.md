@@ -35,9 +35,9 @@ what the script writes.
 | [`decisions`](#decisions) | `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
 | [`escalations`](#escalations) | `packages/db/src/repositories/outreach.ts` | on, 2 policies |
-| [`event_deliveries`](#event_deliveries) | none | on, no policy, so only the service role reaches it |
+| [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
-| [`event_subscriptions`](#event_subscriptions) | none | on, no policy, so only the service role reaches it |
+| [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
@@ -45,6 +45,7 @@ what the script writes.
 | [`google_reviews`](#google_reviews) | none | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
 | [`invitations`](#invitations) | none | on, 1 policy |
+| [`job_capacity`](#job_capacity) | none | on, no policy, so only the service role reaches it |
 | [`jobs`](#jobs) | `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
 | [`lead_counters`](#lead_counters) | none | on, no policy, so only the service role reaches it |
 | [`lead_judgments`](#lead_judgments) | none | on, no policy, so only the service role reaches it |
@@ -758,7 +759,7 @@ Foreign keys:
 
 One row per event and subscriber (decision 0030): scheduled when the relay writes it and its job, done when the subscriber ran, failed when its job gave up, paused when the subscriber was paused as it ran. event_at is the event's own clock, so relay lag is one subtraction. RLS on with no policy: the service role alone.
 
-- Owned by: none
+- Owned by: `packages/db/src/events.ts`
 - Primary key: `event_id`, `subscriber`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -804,7 +805,7 @@ Foreign keys:
 
 Who reacts to an event kind (decision 0030): a subscriber's name, the lane its deliveries run in, and whether it is paused. Platform-wide rows, written by a migration or the service role; a door never names a subscriber. RLS on with no policy: the service role alone.
 
-- Owned by: none
+- Owned by: `packages/db/src/events.ts`
 - Primary key: `kind`, `subscriber`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -1019,6 +1020,21 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `invitations_member_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### job_capacity
+
+How many jobs naming a capacity key (scope:key in payload.capacity) may be fired under a live lease at once (00333, decision 0031): counted in claim_due_jobs, nowhere else. A key with no row is no limit. The service role's alone.
+
+- Owned by: none
+- Primary key: `scope`, `key`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `scope` | text | no |  |  |
+| `key` | text | no |  |  |
+| `max_in_flight` | integer | no |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
 
 ### jobs
 

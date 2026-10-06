@@ -1,11 +1,12 @@
 # 0031 · The ledger wakes when a due row is written, and the claim counts capacity
 
-**Status:** Built, steps 1 and 2 (6 October 2026, 00331): the wake and the dedupe key. Decided on 6 October 2026 (Ruben:
-"all approved"), with 0029, and proposed the same day; steps 3 and 4 are still to build. Written against commit
-`b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6 October
-2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Nothing of it is
-built; the two changes the trace proposed in the ledger's neighbourhood that this note declines are recorded under
-Decision. Where this note and the code disagree, the code wins.
+**Status:** Built, steps 1, 2 and 4 (6 October 2026, 00331 and 00333): the wake, the dedupe key, capacity and turns in
+the claim. Decided on 6 October 2026 (Ruben: "all approved"), with 0029, and proposed the same day; step 3, the three
+indexes retiring, waits one release, and the reach-out sender keeps its own count until its sends are jobs (0029, Phase
+4). Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at
+`6a8e85f` (main, 6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the
+code. Nothing of it is built; the two changes the trace proposed in the ledger's neighbourhood that this note declines
+are recorded under Decision. Where this note and the code disagree, the code wins.
 
 ## Context
 
@@ -110,9 +111,10 @@ orders:_ an older edge writes no key and trips the old index as today.
 
 **3 · The three indexes retire.** _Both orders:_ every writer carries the key.
 
-**4 · Capacity and fairness in the claim.** The table, the clauses, `jobs/jobs-lanes.db.test.mjs` grown by the cases
-below; the reach-out sender's per-domain count becomes a `domain` row. _Both orders:_ an older edge's jobs carry no
-capacity keys and are never skipped.
+**4 · Capacity and fairness in the claim.** Built, 00333: the table, the clauses, `jobs/jobs-lanes.db.test.mjs`
+grown by the cases below. The reach-out sender's per-domain count is not a jobs row today
+(`apps/edge/lib/reach-out/sender.ts` claims `reach_out_sends` itself), so no `domain` row replaces it until its sends
+are jobs (0029, Phase 4). _Both orders:_ an older edge's jobs carry no capacity keys and are never skipped.
 
 ## Tests
 
