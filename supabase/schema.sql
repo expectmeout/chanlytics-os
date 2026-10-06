@@ -810,6 +810,54 @@ COMMENT ON FUNCTION public.channel_keep_quality(p_tenant_id uuid, p_channel_id u
 
 
 --
+-- Name: channel_keep_standing(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.channel_keep_standing(p_tenant_id uuid, p_channel_id uuid, p_standing jsonb) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_prev text;
+  v_next text;
+begin
+  -- Meta's words are capital letters and underscores (AVAILABLE, LIMITED, BLOCKED); what is kept is a document with that
+  -- word in it, and never one too large to be a few sentences of Meta's.
+  v_next := p_standing ->> 'can_send';
+  if jsonb_typeof(p_standing) is distinct from 'object'
+     or v_next is null
+     or v_next !~ '^[A-Z_]{2,24}$'
+     or pg_column_size(p_standing) > 16384 then
+    raise exception 'channel_keep_standing: not a standing' using errcode = '22023';
+  end if;
+  select c.config -> 'standing' ->> 'can_send' into v_prev
+    from public.tenant_channels c
+   where c.id = p_channel_id and c.tenant_id = p_tenant_id and c.kind = 'whatsapp'
+     for update;
+  if not found then
+    return 'gone';
+  end if;
+  update public.tenant_channels
+     set config = config || jsonb_build_object('standing', p_standing, 'standing_read_at', now())
+   where id = p_channel_id and tenant_id = p_tenant_id;
+  if v_prev is not distinct from v_next then
+    return 'same';
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'channel.standing', 'system', 'channel', p_channel_id,
+          jsonb_strip_nulls(jsonb_build_object('from', v_prev, 'to', v_next)));
+  return case when v_prev is null then 'first' else 'changed' end;
+end $_$;
+
+
+--
+-- Name: FUNCTION channel_keep_standing(p_tenant_id uuid, p_channel_id uuid, p_standing jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.channel_keep_standing(p_tenant_id uuid, p_channel_id uuid, p_standing jsonb) IS 'Keeps what Meta holds about a workspace''s WhatsApp number (whether it may send, what stands in the way, its display name''s review, the business''s verification and tier): merges the whole standing and standing_read_at into the channel''s config beside quality_rating and quality_read, never over them, and writes channel.standing { from, to } when the word of can_send changed (no from on the first read), in one transaction. Answers first, changed, same, or gone (not this workspace''s WhatsApp channel); refuses (22023) a standing that is not an object with a can_send of two to 24 capital letters and underscores, or is over 16 KB. The edge''s door (readAndKeepStanding in apps/edge/lib/whatsapp/number-standing.ts): at connection, on the channel-quality clock, and when an owner asks.';
+
+
+--
 -- Name: claim_conversation_control(uuid, uuid, text, uuid, text, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -27280,6 +27328,14 @@ GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) T
 
 REVOKE ALL ON FUNCTION public.channel_keep_quality(p_tenant_id uuid, p_channel_id uuid, p_rating text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.channel_keep_quality(p_tenant_id uuid, p_channel_id uuid, p_rating text) TO service_role;
+
+
+--
+-- Name: FUNCTION channel_keep_standing(p_tenant_id uuid, p_channel_id uuid, p_standing jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.channel_keep_standing(p_tenant_id uuid, p_channel_id uuid, p_standing jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.channel_keep_standing(p_tenant_id uuid, p_channel_id uuid, p_standing jsonb) TO service_role;
 
 
 --

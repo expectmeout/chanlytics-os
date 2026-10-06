@@ -385,6 +385,14 @@ export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realt
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
 export type { Page } from "./paged";
-export { duePlaybooks, dueCalendars, stampPlaybooksTried, whatsappNumbersToRead, keepChannelQuality } from "./sweeps";
+export {
+  duePlaybooks,
+  dueCalendars,
+  stampPlaybooksTried,
+  whatsappNumbersToRead,
+  whatsappNumberOf,
+  keepChannelQuality,
+  keepChannelStanding,
+} from "./sweeps";
 export type { DuePage, DuePlaybook, DueCalendar, WhatsappNumber } from "./sweeps";
 export type { Database, Json } from "./database.types";

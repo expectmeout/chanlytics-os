@@ -37,6 +37,8 @@ const ok = (r, what = "") => {
 let db;
 let whatsappNumbersToRead;
 let keepChannelQuality;
+let whatsappNumberOf;
+let keepChannelStanding;
 let A;
 let B;
 const made = [];
@@ -56,7 +58,8 @@ const channel = async (tenant, tag, over = {}) => {
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  ({ whatsappNumbersToRead, keepChannelQuality } = await import("@chanlytics/db"));
+  ({ whatsappNumbersToRead, keepChannelQuality, whatsappNumberOf, keepChannelStanding } =
+    await import("@chanlytics/db"));
   for (const tag of ["a", "b"]) {
     made.push(
       ok(
@@ -109,6 +112,8 @@ test(
       channel_id: ids.older,
       tenant_id: A,
       phone_number_id: `harbor-r-older-${stamp}`,
+      waba_id: null,
+      number_e164: null,
       read_at: older.read_at,
     });
     assert.ok(
@@ -148,3 +153,66 @@ test("a word the door refuses is refused in the door's words, and nothing is wri
   const after_ = ok(await db.from("tenant_channels").select("config").eq("id", ids.older).single()).config;
   assert.deepEqual(after_, before_);
 });
+
+test(
+  "a workspace's own number is read as the sweep reads it, with its WABA and its number: the oldest active one, none for a workspace without; a disabled number and a voice line are not one",
+  { skip },
+  async () => {
+    ok(
+      await db
+        .from("tenant_channels")
+        .update({ waba_id: "harbor-waba", number_e164: "+13055550142" })
+        .eq("id", ids.newer),
+      "give it a WABA and a number",
+    );
+    const mine = await whatsappNumberOf(db, A);
+    assert.deepEqual(mine, {
+      channel_id: ids.newer,
+      tenant_id: A,
+      phone_number_id: `harbor-r-newer-${stamp}`,
+      waba_id: "harbor-waba",
+      number_e164: "+13055550142",
+      read_at: mine.read_at,
+    });
+    assert.equal((await whatsappNumberOf(db, B)).channel_id, ids.theirs);
+    assert.equal(await whatsappNumberOf(db, "00000000-0000-4000-8000-000000000000"), null);
+    const listed = (await whatsappNumbersToRead(db, 1000)).find((n) => n.channel_id === ids.newer);
+    assert.deepEqual(
+      [listed.waba_id, listed.number_e164],
+      ["harbor-waba", "+13055550142"],
+      "the sweep reads the same two",
+    );
+  },
+);
+
+test(
+  "the standing it keeps is answered first, the same and changed as the door answers it, and gone for another workspace's channel; a standing the door refuses is refused in the door's words",
+  { skip },
+  async () => {
+    const s = (can_send) => ({
+      can_send,
+      problems: [],
+      notes: [],
+      name: null,
+      name_status: null,
+      verification: null,
+      limit: null,
+      has_payment_method: null,
+      owner_business_id: null,
+      waba_id: null,
+    });
+    assert.equal(await keepChannelStanding(db, A, ids.older, s("AVAILABLE")), "first");
+    assert.equal(await keepChannelStanding(db, A, ids.older, s("AVAILABLE")), "same");
+    assert.equal(await keepChannelStanding(db, A, ids.older, s("BLOCKED")), "changed");
+    assert.equal(
+      await keepChannelStanding(db, A, ids.theirs, s("BLOCKED")),
+      "gone",
+      "B's channel is not A's to keep a standing for",
+    );
+    assert.equal(await keepChannelStanding(db, A, ids.voice, s("BLOCKED")), "gone", "a voice line holds no standing");
+    await assert.rejects(
+      keepChannelStanding(db, A, ids.older, s("not a word")),
+      /^Error: channel_keep_standing: .*not a standing/,
+    );
+  },
+);

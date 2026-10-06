@@ -14054,6 +14054,8 @@ var EVENT_KINDS = [
   "channel.connected",
   /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
   "channel.quality_rating",
+  /** What Meta holds about a WhatsApp number (may it send, and what stands in the way) changed: read at connection, on a clock or when an owner asks (00330): { from?, to }, the word of can_send only. */
+  "channel.standing",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -23258,6 +23260,21 @@ function standingAlertWords(number2, s) {
   const first = s.problems.at(0);
   const body = first ? `WhatsApp can't send from ${which}: ${problemWords(first)}` : `WhatsApp can't send from ${which}. Meta did not say why; open Connections to read what it holds.`;
   return { subject: "WhatsApp can't send from your number", body };
+}
+var CAN_SEND_WORDS = {
+  AVAILABLE: "can send",
+  LIMITED: "limited",
+  BLOCKED: "blocked"
+};
+var sendWords = (w) => {
+  if (typeof w !== "string" || !w) return null;
+  return Object.hasOwn(CAN_SEND_WORDS, w) ? CAN_SEND_WORDS[w] ?? null : w.toLowerCase().replace(/_/g, " ");
+};
+function standingChangeWords(p) {
+  const to = sendWords(p.to);
+  const from = sendWords(p.from);
+  if (!to) return null;
+  return from ? `from ${from} to ${to}` : to;
 }
 
 // src/lines/line-codes.ts
@@ -33675,6 +33692,7 @@ var WORDS2 = {
   "broadcast.stopped": "A broadcast stopped",
   "playbook.run": "A playbook ran",
   "channel.quality_rating": "A WhatsApp number's quality rating changed",
+  "channel.standing": "A WhatsApp number's standing with Meta changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
   "line.answering": "A line started answering",
@@ -33847,6 +33865,7 @@ var WHOLE_SENTENCE = new Map([
   ["lead.emailed", leadEmailedWords],
   ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
   ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  ["channel.standing", (p, base) => joinBits(base, [standingChangeWords(p)])],
   ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
   ["google.reply_held", (p, base) => joinBits(base, [wordOf(REPLY_HELD_WHY, textAt(p, "why"))])],
   ["message.send_blocked", sendBlockedWords],
