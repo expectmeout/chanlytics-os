@@ -100,19 +100,38 @@ export function proposalAction(
 /**
  * What a reply to them may be, in the owner's words: the person page's Replies and the Pipeline peek's, one sentence.
  * WhatsApp takes any message for a day after they last wrote, and after that only a message WhatsApp approved ahead
- * of time; a text or an email goes any time. It said "Reply window · Closed · template only", and before it was
- * channel-aware it said so to a person who had only ever emailed. Null with no wire a reply goes out on.
+ * of time; a text or an email goes any time, unless their address has stopped accepting mail, which says so. It said
+ * "Reply window · Closed · template only", and before it was channel-aware it said so to a person who had only ever
+ * emailed. Null with no wire a reply goes out on.
  */
 import { optOutWords } from "../consent/consent";
+
+/**
+ * What a person's page says of an address that stopped accepting mail (a permanent bounce, a complaint or the provider's
+ * own list: isEmailStopped), short: `people_list` carries that it stopped and not why, so this says that and no more.
+ * The Replies row says it as a sentence and the address's own fact (emailFactWords) as a tag; the thread's reply box,
+ * which reads the reason, says it with the day (emailStoppedWords).
+ */
+const EMAIL_STOPPED_TAG = "stopped accepting mail";
+
+/** The person's address as the About rail and the Pipeline peek say it: the address, and that it stopped where it has. */
+export function emailFactWords(email: string, stopped: boolean): string {
+  return stopped ? `${email} · ${EMAIL_STOPPED_TAG}` : email;
+}
 
 export function repliesWords(
   via: "WhatsApp" | "Text" | "Email" | null,
   window: { open: boolean; hoursLeft: number } | null,
-  /** Whether they asked to stop: required, because a reader that forgets it says "Any time" over a STOP. */
-  stop: { optedOut: boolean; who: string },
+  /**
+   * Whether they asked to stop: required, because a reader that forgets it says "Any time" over a STOP. And whether mail
+   * to their address has stopped (isEmailStopped): required for the same reason, since "Any time, by email" over an
+   * address that bounced is the reply a person writes and the route refuses.
+   */
+  stop: { optedOut: boolean; who: string; emailStopped: boolean },
 ): string | null {
   if (stop.optedOut) return optOutWords(stop.who);
-  if (via === "Email") return "Any time, by email";
+  if (via === "Email")
+    return stop.emailStopped ? `Email can't reach them: their address ${EMAIL_STOPPED_TAG}` : "Any time, by email";
   if (via === "Text") return "Any time, by text";
   if (via !== "WhatsApp" || !window) return null;
   if (!window.open) return "Approved messages only, until they write again";

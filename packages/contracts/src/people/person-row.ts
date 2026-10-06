@@ -32,7 +32,7 @@ import { replyWindow } from "../config/policy";
 import type { FollowUpStand } from "../playbooks/playbooks";
 import { visitAnswersAsk, visitDateKey, visitDay, visitLine, type MatchVia } from "../calendar/calendar-people";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
-import { initialsOf, isIdentifierName } from "../conversations/thread-contact";
+import { initialsOf, isEmailStopped, isIdentifierName } from "../conversations/thread-contact";
 import { dealOf, type DealVM } from "../deals/deal-vm";
 import { dealStageOf, type DealStandingStage } from "../deals/deal-consultations";
 import type { PersonConsent } from "./person-consent";
@@ -301,7 +301,7 @@ function rowReachOf(
   consent: PersonConsent,
   ready: ChannelsReady | null,
 ): Pick<PersonRowVM, "lastChannel" | "emailSuppressed" | "saidYes" | "canReceive" | "whyNot"> {
-  const facts = { lastChannel: lastChannelOf(r.last_inbound_channel), emailSuppressed: !!r.email_suppressed_at };
+  const facts = { lastChannel: lastChannelOf(r.last_inbound_channel), emailSuppressed: isEmailStopped(r) };
   return { ...facts, ...personReachOf({ consent, phone: r.phone_e164, email: r.email ?? null, ...facts }, ready) };
 }
 

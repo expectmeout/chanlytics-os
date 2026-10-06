@@ -4,7 +4,7 @@
  * page's or pipeline-words.ts's.
  */
 import { dealIsOpen } from "../deal-vm";
-import { repliesWords } from "../../people/person-reach";
+import { emailFactWords, repliesWords } from "../../people/person-reach";
 import type { PersonVM } from "../../people/person-profile";
 import type { PipelineGroupKey, PipelineRowVM } from "./pipeline-vm";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words";
@@ -93,8 +93,17 @@ export function pipelinePeekDetail(p: PersonVM): PipelinePeekDetailVM {
     const dial = p.phone.replace(/[^\d+]/g, "");
     reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
   }
-  if (p.email) reach.push({ id: "email", label: W.email, words: p.email, call: null, copy: p.email });
-  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name }) : null;
+  if (p.email)
+    reach.push({
+      id: "email",
+      label: W.email,
+      words: emailFactWords(p.email, p.emailSuppressed),
+      call: null,
+      copy: p.email,
+    });
+  const replies = p.hasChat
+    ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed })
+    : null;
   if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
   const history = p.timeline
     .filter((t) => t.kind === "deal" && !t.ahead)

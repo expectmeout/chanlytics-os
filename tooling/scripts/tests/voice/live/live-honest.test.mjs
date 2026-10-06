@@ -107,7 +107,6 @@ test("REGRESSION (A20, L8): an ended call carries what the caller wanted, how it
   assert.equal(typeof vm.outcomeWords, "string");
   assert.ok(vm.outcomeWords.length > 0, "how it ended, in the owner's words");
   assert.equal(vm.followUp, "Call Emily back to confirm the bridal trial");
-  assert.equal(vm.callerName, "Emily");
   assert.equal(vm.lengthWords, "3 min 10 sec");
   const live = toLiveCallVM(call(), ZONE, new Date(NOW));
   assert.deepEqual(

@@ -1027,13 +1027,16 @@ test("the proposal's send is a deal's: a workspace whose customers book is never
 /* ---- the person page is honest about a stop, the reason, the team and the attempts (the 2 Oct 2026 audit) ---- */
 test("Replies says nothing can be sent to a person who asked to stop, in the composer's own words", () => {
   assert.equal(
-    repliesWords("Text", null, { optedOut: true, who: "Ben Example" }),
+    repliesWords("Text", null, { optedOut: true, who: "Ben Example", emailStopped: false }),
     "Ben Example asked to stop receiving messages. Nothing can be sent — they can text START to opt back in.",
   );
-  assert.equal(repliesWords("Text", null, { optedOut: false, who: "Ben Example" }), "Any time, by text");
-  assert.equal(repliesWords("Email", null, { optedOut: false, who: "x" }), "Any time, by email");
   assert.equal(
-    repliesWords("WhatsApp", { open: true, hoursLeft: 5 }, { optedOut: false, who: "x" }),
+    repliesWords("Text", null, { optedOut: false, who: "Ben Example", emailStopped: false }),
+    "Any time, by text",
+  );
+  assert.equal(repliesWords("Email", null, { optedOut: false, who: "x", emailStopped: false }), "Any time, by email");
+  assert.equal(
+    repliesWords("WhatsApp", { open: true, hoursLeft: 5 }, { optedOut: false, who: "x", emailStopped: false }),
     "Any message, for 5 more hours",
   );
 });

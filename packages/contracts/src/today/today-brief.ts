@@ -60,7 +60,6 @@ export function toTodayVM(
 ): TodayVM {
   const f = todayFacts({ metrics: m, conversations, escalations, calls, now, searches });
   const { chips, lines, alert } = todayStanding(f);
-  const eyebrow = `${f.datePart} · ${f.clock} · ${m.workspace.name}`;
   const proof = todayProof(f.live, f.tz, now);
   const noReply = todayNoReply(f);
   const facts = todayAskFacts(f);
@@ -70,7 +69,6 @@ export function toTodayVM(
   if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
     return {
       standing: {
-        eyebrow,
         chips,
         lines,
         alert: null,
@@ -97,7 +95,7 @@ export function toTodayVM(
   const callRows = todayCallRows(f);
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
-    standing: { eyebrow, chips, lines, alert, headline, detail, tone },
+    standing: { chips, lines, alert, headline, detail, tone },
     needsYou,
     windowClosing: todayWindowClosing(f),
     recap: {

@@ -302,12 +302,20 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
 /**
  * The owner's notice of an analysed call: the bell row and the mail, in the
  * owner's words, name first ("Emily phoned · 3 min · needs a call back").
+ * The name is the one the owner saved for the caller (`saved`: their name, else
+ * their WhatsApp name), as every page names a caller (contracts callerName);
+ * with none saved, what the caller said of themselves, then their number.
  * What the analysis said leads the body -- the request, the outcome, the
  * to-do -- and the provider's summary and the transcript follow. The
  * redacted body is what a platform operator may be told about a workspace
  * that cannot be addressed: no summary, no words.
  */
-export function callNotice(n: NormalizedCall, call: RetellCall, about: CallAbout | null): NotifyMessage {
+export function callNotice(
+  n: NormalizedCall,
+  call: RetellCall,
+  about: CallAbout | null,
+  saved: string | null,
+): NotifyMessage {
   const summary = n.summary || "(no summary)";
   const sentiment = n.sentiment || "n/a";
   const wanted = said(n.analysis?.caller_wanted);
@@ -315,7 +323,7 @@ export function callNotice(n: NormalizedCall, call: RetellCall, about: CallAbout
   const followUp = said(n.analysis?.follow_up);
   const callback = n.analysis?.outcome === "callback_needed";
   const durationS = n.durationMs ? Math.round(n.durationMs / 1000) : 0;
-  const who = said(n.analysis?.caller_name) || formatPhoneDisplay(call.from_number) || "Unknown caller";
+  const who = saved || said(n.analysis?.caller_name) || formatPhoneDisplay(call.from_number) || "Unknown caller";
   const length = durationS >= 60 ? `${Math.round(durationS / 60)} min` : `${durationS} s`;
   return {
     kind: "call",

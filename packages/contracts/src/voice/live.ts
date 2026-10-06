@@ -108,8 +108,6 @@ export interface LiveCallVM {
   outcomeWords: string | null;
   /** What to do next, from the analysis. */
   followUp: string | null;
-  /** The name the caller gave. */
-  callerName: string | null;
   /** "3 min 10 sec" once the call has ended: a length in words, so it never reads as a time beside a date. */
   lengthWords: string | null;
   transcript: LiveTurnVM[];
@@ -162,6 +160,18 @@ export function liveStillUp(
   return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
 }
 
+/**
+ * The calls of a read that are STILL up at `nowMs`: its `now`, each asked liveStillUp with the read's own heartbeat. What
+ * every count of calls in progress asks, so none counts `live` alone: the bar over the page (liveBar), the Live page and
+ * the tab strip's pulse, and the number the phone keeps a call's Lock Screen activity for.
+ */
+export function callsStillUp<C extends Pick<LiveCallVM, "live" | "heartbeatAtMs" | "startedAtMs">>(
+  read: { now: readonly C[]; heartbeatMs: number } | null | undefined,
+  nowMs: number,
+): C[] {
+  return (read?.now ?? []).filter((c) => liveStillUp(c, read?.heartbeatMs ?? 0, nowMs));
+}
+
 /** What the shell says across the top while someone is on the phone. */
 export interface LiveBarVM {
   /** The one call to open, or null when there are several and the bar opens the list. */
@@ -184,7 +194,7 @@ export interface LiveBarVM {
  * confirmations, and they belong on Live, which this opens.
  */
 export function liveBar(vm: LiveVM | null | undefined, nowMs: number): LiveBarVM | null {
-  const up = (vm?.now ?? []).filter((c) => liveStillUp(c, vm?.heartbeatMs ?? 0, nowMs));
+  const up = callsStillUp(vm, nowMs);
   if (up.length === 0) return null;
   if (up.length > 1) {
     return {
@@ -321,7 +331,6 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     wanted: live ? null : dto.wanted?.trim() || null,
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     followUp: live ? null : dto.follow_up?.trim() || null,
-    callerName: dto.caller_name?.trim() || null,
     lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
     transcript: turnsOf(dto),
   };

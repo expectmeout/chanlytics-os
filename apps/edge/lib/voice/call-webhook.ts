@@ -49,6 +49,7 @@ import {
 import {
   pauseConversation,
   resolveChannelDetailed,
+  callerNameOf,
   ingestCall,
   recordCallNote,
   linkCallMessage,
@@ -530,6 +531,30 @@ async function tellOwner(db: Db, routed: RoutedChannel | null, notice: NotifyMes
   await notify({ tenantId: routed?.tenantId ?? null, ...addressing }, notice);
 }
 
+/**
+ * The name the owner saved for the caller, for the notice to lead with (callerNameOf: their name, else their WhatsApp
+ * name): null for a caller nobody saved, or a call that was no one's. A read that fails is logged and read as none: it is
+ * the notice's last step after the claim that makes it once, so a throw here would lose the owner's notice for a name.
+ */
+async function savedCallerName(
+  db: Db,
+  routed: RoutedChannel | null,
+  contactId: string | null,
+  retellCallId: string,
+): Promise<string | null> {
+  if (!routed || !contactId) return null;
+  try {
+    return await callerNameOf(db, routed.tenantId, contactId);
+  } catch (e) {
+    logger().warn("call_notice_name_unreadable", {
+      tenant_id: routed.tenantId,
+      call: retellCallId,
+      error: errField(e),
+    });
+    return null;
+  }
+}
+
 export async function receiveCallEvent(request: Request): Promise<Response> {
   const L = logger();
   const raw = await request.text();
@@ -571,6 +596,8 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
   let notifyClaim: boolean | null = null;
   // What the bell row is about: the call, or the thread when it needs a call back.
   let callAbout: CallAbout | null = null;
+  // The person the ingest placed the call on, whose saved name the owner's notice leads with.
+  let callerId: string | null = null;
 
   try {
     if (!routed) await deadLetter(db, n);
@@ -581,6 +608,7 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
         { ingest: res, alreadyCorrected: corrected.has(n.retellCallId), canCorrect: !!env.RETELL_API_KEY },
       );
       callAbout = plan.about;
+      callerId = res.contact_id;
       notifyClaim = await applyPlan(db, routed, plan);
     }
   } catch (e) {
@@ -602,7 +630,8 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
       L.info("retell_analyzed_duplicate", { call_id: n.retellCallId });
       return json(200, { ok: true, duplicate: true });
     }
-    await tellOwner(db, routed, callNotice(n, call, callAbout));
+    const saved = await savedCallerName(db, routed, callerId, n.retellCallId);
+    await tellOwner(db, routed, callNotice(n, call, callAbout, saved));
   }
   return json(200, { ok: true });
 }
