@@ -30,7 +30,7 @@ import { LeadLightbox } from "../peek/lightbox";
 import { LeadPeek } from "../peek/peek";
 import type { LeadsScopeProps } from "../page/props";
 import { LeadsBulkBar } from "./bulk-bar";
-import { LeadsControlsRight } from "./controls";
+import { LeadsActs, LeadsControlsRight } from "./controls";
 import { LeadPlanSheet, LeadsPhoneBar } from "./phone-bar";
 import { LeadsRailRows } from "./rail";
 import { ldReviewSections } from "./review";
@@ -124,10 +124,15 @@ const phoneBarOf = (p: P) => (
   />
 );
 
-/** A desk's standing line and controls row, over the rows. */
+/** A desk's standing line (with the page's acts, which the frame's head draws at the strip's right) and controls row, over the rows. */
 const deskTopOf = (p: P) => (
   <>
-    <PeopleStanding scope="leads" leads={p.standing} onNeeds={p.onNeedsYou} />
+    <PeopleStanding
+      scope="leads"
+      leads={p.standing}
+      onNeeds={p.onNeedsYou}
+      act={<LeadsActs canFind={p.canFind} onFind={p.onFind} search={p.search} />}
+    />
 
     <div className="cl-controls">
       <div className="cl-search-wrap">
@@ -140,7 +145,7 @@ const deskTopOf = (p: P) => (
           onChange={(e) => p.onQ(e.target.value)}
         />
       </div>
-      <LeadsControlsRight p={p} search={p.search} />
+      <LeadsControlsRight p={p} />
     </div>
   </>
 );
@@ -237,7 +242,7 @@ const firstDayOf = (p: P) => (
     composer={
       <button
         type="button"
-        className="btn btn-primary fr-find"
+        className="btn btn-primary ld-first-find"
         onClick={() => p.onFind()}
         data-testid="leads-first-find"
         {...(p.canFind ? {} : gate("find", "find businesses for you"))}

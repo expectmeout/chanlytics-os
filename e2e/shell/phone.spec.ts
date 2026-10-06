@@ -793,6 +793,24 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * A strip wider than a phone scrolls across, and the view picked stands inside it (6 Oct 2026): Reports' six lenses
+   * passed the screen's edge, and on Reviews the strip stood at its start, with the lens picked out of sight.
+   */
+  test("the lens picked stands inside a strip wider than the phone", async ({ page }) => {
+    await page.goto("/#/reports/reviews");
+    await page.waitForLoadState("networkidle");
+    const strip = page.getByTestId("reports-lenses");
+    test.skip((await strip.count()) === 0, "no Reports on this workspace");
+    const shape = await strip.evaluate((el) => {
+      const s = el.getBoundingClientRect();
+      const t = (el.querySelector(".stabs-tab.active") as HTMLElement).getBoundingClientRect();
+      return { wider: el.scrollWidth > el.clientWidth, inside: t.left >= s.left - 1 && t.right <= s.right + 1 };
+    });
+    test.skip(!shape.wider, "the strip fits this phone");
+    expect(shape.inside, "REGRESSION: the lens picked stood past the screen's edge").toBe(true);
+  });
+
+  /**
    * A note is dismissed with a thumb (25 Sep). Its × waited for a pointer to hover the row, so on a phone it was
    * invisible and took no press (48 notes, and only Mark all read cleared them). On a touch screen it stands in each
    * row at its own size, with a press area a thumb wide, and the time beside it rather than under it. Read, not

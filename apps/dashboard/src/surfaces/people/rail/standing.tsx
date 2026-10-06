@@ -8,6 +8,7 @@
  * In Glass the frame's head says the line beside the page's name (kit/head/standing.ts), as People's and the Pipeline's
  * are said (page/people-head.tsx); the line under the controls stays for Classic (clients.css hides it in Glass).
  */
+import type { ReactNode } from "react";
 import { useStanding } from "../../kit/head/standing";
 
 /** Leads' standing line, as contracts' `leadsStanding` says it. */
@@ -25,7 +26,7 @@ interface StandingAgg {
 }
 
 type StandingProps =
-  | { scope: "leads"; leads: LeadsStanding; onNeeds: (id: string) => void }
+  | { scope: "leads"; leads: LeadsStanding; onNeeds: (id: string) => void; act?: ReactNode }
   | { scope?: "people" | "pipeline"; agg: StandingAgg; needsShown?: boolean; onNeeds: () => void };
 
 /** The search waiting on an answer, as the tap that opens it: in the line, and in the head's sentence. */
@@ -42,8 +43,19 @@ function leadsNeeds(needs: NonNullable<LeadsStanding["needsYou"]>, onNeeds: (id:
   );
 }
 
-/** Leads' line: drawn under the controls, and said to the frame's head as "People · 96 leads · 91 ready · 6 searches · 1 search needs you". */
-function LeadsStandingLine({ leads, onNeeds }: { leads: LeadsStanding; onNeeds: (id: string) => void }) {
+/**
+ * Leads' line: drawn under the controls, and said to the frame's head as "People · 96 leads · 91 ready · 6 searches · 1
+ * search needs you", with the page's acts (Reach out, Find leads) at the right of the strip.
+ */
+function LeadsStandingLine({
+  leads,
+  onNeeds,
+  act,
+}: {
+  leads: LeadsStanding;
+  onNeeds: (id: string) => void;
+  act?: ReactNode;
+}) {
   const needs = leads.needsYou;
   // The page is People's Leads scope, picked in the page's own strip, so it keeps People's name and has no way back (D1).
   useStanding({
@@ -55,6 +67,7 @@ function LeadsStandingLine({ leads, onNeeds }: { leads: LeadsStanding; onNeeds: 
       </>
     ),
     back: null,
+    act: act ?? undefined,
   });
   return (
     <div className="pl-standing" data-testid="leads-standing">
@@ -80,7 +93,7 @@ function LeadsStandingLine({ leads, onNeeds }: { leads: LeadsStanding; onNeeds: 
 }
 
 export function PeopleStanding(props: StandingProps) {
-  if (props.scope === "leads") return <LeadsStandingLine leads={props.leads} onNeeds={props.onNeeds} />;
+  if (props.scope === "leads") return <LeadsStandingLine leads={props.leads} onNeeds={props.onNeeds} act={props.act} />;
   const { agg, needsShown = false, onNeeds } = props;
   return (
     <div className="pl-standing" data-testid="people-standing">

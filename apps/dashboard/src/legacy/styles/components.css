@@ -2136,9 +2136,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
   /* A page whose views are in the slot and that names an act (People's three scopes, the Pipeline's New proposal, canvas
      D1-list): the act stands at the strip's right on the strip's row, a 36px capsule, where it stood on a row of its own
-     over the hidden name. */
-  .main:has(> .main-scroll > .clients) .pg-act-slot > span > button:first-child,
-  .main:has(> .main-scroll > .clients) .pg-act-slot > span > a:first-child {
+     over the hidden name. Leads names two (an open search's Reach out, then Find leads), and both are the strip's height. */
+  .main:has(> .main-scroll > .clients) .pg-act-slot > span > button,
+  .main:has(> .main-scroll > .clients) .pg-act-slot > span > a {
     height: var(--control-h-lg);
     padding: 0 16px;
     font-size: var(--text-base);

@@ -79,6 +79,19 @@ const stAfterPaint = (fn) => {
 // browser's.
 const stHref = (route) => { const a = stAddress(); return a && a.href ? a.href(route) : `#/${route}`; };
 const stOwnPress = (e) => !(e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey));
+// A strip wider than its place scrolls across (Reports' six lenses on a phone), and the view picked is brought into it,
+// a step clear of its edge: Reviews stood past the screen's right with the strip at its start, so the page said nothing of
+// which view it was (6 Oct 2026). A strip that fits is left as it is.
+const stShowPicked = (strip) => {
+  if (!strip || strip.scrollWidth <= strip.clientWidth) return;
+  const tab = strip.querySelector(".stabs-tab.active");
+  if (!tab) return;
+  const clear = 16;
+  const start = tab.offsetLeft - clear;
+  const end = tab.offsetLeft + tab.offsetWidth + clear;
+  if (start < strip.scrollLeft) strip.scrollLeft = Math.max(0, start);
+  else if (end > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = end - strip.clientWidth;
+};
 
 // `views` is a page that says its own views (surfaces/routes.ts SurfaceViews: People's scopes, from its chrome): the same strip,
 // drawn here once for every page, whether the views are a group's below or the page's own. A page's views are its tabs,
@@ -90,6 +103,7 @@ const SurfaceTabs = ({ page, param, views, onNavigate }) => {
   // The tab pressed answers at once: the address moves when the router lands, which on a slow connection is a beat
   // after the press. It is the page's own again as soon as the address says it is, and never kept past a few seconds.
   const [pending, setPending] = React.useState(null);
+  const stripRef = React.useRef(null);
   React.useEffect(() => { setPending(null); }, [page, pickedId]);
   React.useEffect(() => {
     if (!pending) return undefined;
@@ -106,6 +120,10 @@ const SurfaceTabs = ({ page, param, views, onNavigate }) => {
   const [groupKey, group] = own ? [own.name, null] : Object.entries(ST_GROUPS).find(([, g]) => g.match.includes(page)) || [null, null];
   const tabs = own ? own.tabs : group ? group.tabs.filter(t => !t.demoOnly || window.__DEMO_MODE) : [];
   const warmRoutes = tabs.map((t) => t.to).join(" ");
+  // Before the strip is painted, so it never shows at its start and then jumps; and again when its tabs change (Reports'
+  // Pipeline lens comes in once the workspace's list is read, and pushed the picked one along). A stub React without
+  // layout effects runs it as an effect.
+  (React.useLayoutEffect || React.useEffect)(() => { stShowPicked(stripRef.current); }, [page, pickedId, pending, warmRoutes]);
   React.useEffect(() => {
     const a = stAddress();
     if (warmRoutes && a && a.warmSoon) a.warmSoon(warmRoutes.split(" "));
@@ -115,7 +133,7 @@ const SurfaceTabs = ({ page, param, views, onNavigate }) => {
   // People, and the tabs vanished on the last two (the wiring audit's N24). A page that says its own views says none for one.
   if (!own && page === "clients" && param && !/^(seg|list|state):/.test(param)) return null;
   return (
-    <nav className={`stabs stabs-${groupKey}`} aria-label={own ? own.label : "Section views"} data-testid={own ? own.testid : undefined}>
+    <nav ref={stripRef} className={`stabs stabs-${groupKey}`} aria-label={own ? own.label : "Section views"} data-testid={own ? own.testid : undefined}>
       {tabs.map(t => {
         const badge = t.badge ? t.badge() : null;
         const pulse = t.pulse ? t.pulse() : false;
