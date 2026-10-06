@@ -213,6 +213,18 @@ test("past the rows every leg is best effort, and a late recording is swept and 
     "a kept delivery that would not go on the second pass does not undo an erasure",
   );
   assert.equal(passes, 2, "scrubbed before the rows, and tried again after them");
+
+  // A database before 00336 has no intake ledger: nothing is kept to scrub, so the dashboard may deploy first.
+  const before = await erase({
+    rpcs: {
+      provider_events_scrub: () => {
+        throw Object.assign(new Error("Could not find the function public.provider_events_scrub"), {
+          code: "PGRST202",
+        });
+      },
+    },
+  });
+  assert.equal(before.value.erased, true, "no ledger yet is nothing to scrub, never a refused erasure");
 });
 
 test("a re-drive of an erased person repeats the id-keyed legs and says which of them held", async () => {

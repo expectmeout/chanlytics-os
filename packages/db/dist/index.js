@@ -2646,6 +2646,7 @@ function headersOf(v) {
 }
 async function scrubProviderEvents(db, tenantId, needles) {
   const { data, error } = await db.rpc("provider_events_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
   if (error) throw new Error(`provider_events_scrub: ${error.message}`);
   return data ?? 0;
 }

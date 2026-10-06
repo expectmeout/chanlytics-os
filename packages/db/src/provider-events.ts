@@ -74,6 +74,8 @@ function headersOf(v: Json): Record<string, string> {
 /** An erasure's hand (provider_events_scrub): the kept deliveries naming any of the person's identifiers, deleted. */
 export async function scrubProviderEvents(db: Db, tenantId: string, needles: readonly string[]): Promise<number> {
   const { data, error } = await db.rpc("provider_events_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  // A database before 00336 has no ledger, so nothing is kept to scrub: the dashboard may deploy first (either order).
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
   if (error) throw new Error(`provider_events_scrub: ${error.message}`);
   return data ?? 0;
 }
