@@ -21,7 +21,7 @@
  */
 import { FIRST_RUN_ROUTE } from "@chanlytics/contracts";
 
-import { isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
+import { getSurfaceStatuses, isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
 import { hearAddress, routeOnScreen } from "./workspace";
 
 export type SurfaceState = "real" | "demo";
@@ -289,16 +289,27 @@ export function onlyOnItsPage(
 }
 
 /**
- * Each move of the address: a surface whose page comes on screen and that let an event pass is read once, through
- * the runner (`read`, the running runner's refresh). Answers the stop.
+ * Each move of the address: what its page draws and has not read is read once, through the runner (`read`, the running
+ * runner's refresh). Two kinds of surface are due. One that let a live event pass while its page was elsewhere, when its page
+ * owns the screen. And one marked `onDemand` (surface-data.ts), when a page that draws it (its own surface, or one the route
+ * names) is on screen and it has never been read this session, or says it has aged: one list, so a surface that missed an event
+ * and was never read is read once. Answers the stop.
  */
 export function readWhatWasMissed(
-  overrides: readonly { key: string }[],
+  overrides: readonly { key: string; onDemand?: boolean; isStale?: () => boolean }[],
   read: (keys: string[]) => void,
   win: Window = window,
 ): () => void {
   const onMove = () => {
-    const due = overrides.filter((o) => missedWhileAway.has(o.key) && ownsTheScreen(o.key, routeOnScreen(win)));
+    const route = routeOnScreen(win);
+    const { page, param } = pageOfRoute(route);
+    const drawn = routeSurfaces(page, param);
+    const readBefore = (key: string) => getSurfaceStatuses().get(key) === "live";
+    const due = overrides.filter((o) =>
+      o.onDemand
+        ? drawn.includes(o.key) && (missedWhileAway.has(o.key) || !readBefore(o.key) || !!o.isStale?.())
+        : missedWhileAway.has(o.key) && ownsTheScreen(o.key, route),
+    );
     for (const o of due) missedWhileAway.delete(o.key);
     if (due.length) read(due.map((o) => o.key));
   };

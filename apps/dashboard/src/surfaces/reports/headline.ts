@@ -52,6 +52,10 @@ export function isHeadlineStale(): boolean {
 export const reportsHeadlineOverride: SurfaceOverride = {
   key: "reports_headline",
   value: "reports_headline",
+  // Read where Today is drawn, as Today comes on screen, and again then when it has aged (a pick on Reports keeps it fresh behind the
+  // control: period.ts).
+  onDemand: true,
+  isStale: isHeadlineStale,
   events: ["surface:reports_headline"],
   // A period's reads take their turn; a pick of another period is read at once (activateOverride).
   view: () => shownReportPeriod(),

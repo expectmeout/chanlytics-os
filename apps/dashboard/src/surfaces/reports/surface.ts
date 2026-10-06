@@ -96,6 +96,9 @@ export function paintHeldReports(): boolean {
 export const reportsOverride: SurfaceOverride = {
   key: "reports",
   value: "reports",
+  // Read where Reports is drawn and nowhere else: every other page's boot leaves the whole report, the campaigns' and the reach-outs'
+  // reads alone (Today reads the headline, headline.ts). It is read as its page comes on screen.
+  onDemand: true,
   events: ["surface:reports"],
   refreshOnMessageInserts: true,
   // A message moves the period's numbers: read again only while its page is on screen, and once when it comes back

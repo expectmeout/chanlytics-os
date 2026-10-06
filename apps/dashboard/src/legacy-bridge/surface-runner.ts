@@ -94,7 +94,9 @@ export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<voi
 
 /** The shell's Retry: every surface the running runner holds, read again now. */
 export async function refreshAllSurfaces(): Promise<void> {
-  await refreshSurfaces(activeOverrides);
+  // Every surface the running runner holds that a page on screen draws: a surface read only where it is drawn waits for its page.
+  const drawn = screenOwn(window);
+  await refreshSurfaces(activeOverrides.filter((o) => !o.onDemand || drawn(o)));
 }
 
 /**
@@ -167,7 +169,9 @@ function onReturn(overrides: readonly SurfaceOverride[], readEverySurfaceAgain: 
     const away = hiddenAt === null ? Infinity : Date.now() - hiddenAt;
     hiddenAt = null;
     const statuses = getSurfaceStatuses();
-    const allLive = overrides.every((o) => statuses.get(o.key) === "live");
+    // A surface read only where it is drawn, and not drawn here, is none the feed could have let go stale: it does not count.
+    const drawn = screenOwn(window);
+    const allLive = overrides.every((o) => (o.onDemand && !drawn(o)) || statuses.get(o.key) === "live");
     if (away < AWAY_BEFORE_READ_AGAIN_MS && allLive && !getConnection().realtimeDown) return;
     readEverySurfaceAgain();
   };
@@ -376,7 +380,8 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
   const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : 1 + screen(o));
   const queued = [...overrides].sort((x, y) => rank(x) - rank(y));
   const pagesOwn = queued.filter((o) => o.key === "workspace" || own(o));
-  const strangers = queued.filter((o) => !pagesOwn.includes(o));
+  // A stranger that is read only where it is drawn is not booted: its page reads it as it comes on screen (readWhatWasMissed).
+  const strangers = queued.filter((o) => !pagesOwn.includes(o) && !o.onDemand);
   // Surfaces read the same lists in turn -- the calls, the templates, the contacts, and on Leads the page the view
   // asks for again as it mounts. Measured on the salon's Leads page: 31 reads at boot, 20 distinct, because a read
   // that had settled was not shared with the one asking a moment later. Every answer is held until the last surface
@@ -456,8 +461,10 @@ function listenForReturns(run: SurfaceRun): () => void {
     if (againRunning || run.cancelled) return;
     againRunning = true;
     const screen = screenRank(window);
+    const drawn = screenOwn(window);
     void inLanes(
-      [...overrides].sort((x, y) => screen(x) - screen(y)),
+      // What is drawn here, as the boot reads it; a surface read only where it is drawn waits for its page.
+      overrides.filter((o) => !o.onDemand || drawn(o)).sort((x, y) => screen(x) - screen(y)),
       BOOT_LANES,
       (o) => refreshSurface(run, o, "refresh"),
     ).finally(() => {
