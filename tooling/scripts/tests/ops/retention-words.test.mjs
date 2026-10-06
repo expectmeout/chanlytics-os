@@ -32,6 +32,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     page_vitals: 30,
     ai_usage: 400,
     provider_events: 7,
+    idempotency_keys: 1,
   });
   assert.equal(RATE_HITS_RETENTION_HOURS, 2);
   assert.equal(RECORDING_RETENTION_DAYS, 90);
@@ -51,6 +52,10 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   assert.match(
     words,
     /Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for 7 days so they can be replayed after a fault\./,
+  );
+  assert.match(
+    words,
+    /What a change made in the dashboard answered is kept for a day, so the same change sent twice is made once\./,
   );
   assert.match(
     words,

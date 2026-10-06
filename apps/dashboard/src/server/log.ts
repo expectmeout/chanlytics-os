@@ -175,6 +175,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "unsubscribe_unavailable",
   "waitlist_join",
   "waitlist_repeat_not_updated",
+  "write_receipt_unkept",
   "you_are_live_tell_failed",
 ] as const;
 export type DashboardLogEvent = (typeof DASHBOARD_LOG_EVENTS)[number];

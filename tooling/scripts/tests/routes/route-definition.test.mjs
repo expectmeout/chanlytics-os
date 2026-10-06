@@ -314,3 +314,107 @@ test("the export carries what the route takes and answers, as a type the client 
   assert.equal(POST.input, body, "a write's input is its body schema");
   assert.equal(read({ scope: account, handle: echo }).input, undefined, "a route that declares none carries none");
 });
+
+/** A POST carrying an Idempotency-Key, as a client sends one per intent (decision 0035). */
+const keyed = (q, body, key, path = "/api/v1/x") =>
+  new Request(`http://localhost${path}${q}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "idempotency-key": key },
+    body: JSON.stringify(body),
+  });
+/** A write that counts its runs and may fail once: what a key must keep from running twice. */
+function counted({ fail = false, ...spec } = {}) {
+  const runs = { n: 0 };
+  const POST = write({
+    scope: workspace,
+    role: "operator",
+    rate: null,
+    input: z.object({ text: z.string() }),
+    handle: async ({ input }) => {
+      runs.n += 1;
+      if (fail && runs.n === 1) throw new Error("the write failed");
+      return { run: runs.n, text: input.text };
+    },
+    ...spec,
+  });
+  return { POST, runs };
+}
+
+test("a keyed write is answered once: the same request again is given the first answer and runs nothing", async () => {
+  const { POST, runs } = counted();
+  const tables = { memberships: both("operator", "operator"), idempotency_keys: [] };
+  const first = await POST.run(keyed(`?workspace=${A}`, { text: "hi" }, "k-1"), ctxFor(tables));
+  const again = await POST.run(keyed(`?workspace=${A}`, { text: "hi" }, "k-1"), ctxFor(tables));
+  assert.deepEqual(first, { run: 1, text: "hi" });
+  assert.deepEqual(again, first, "the answer kept under the key");
+  assert.equal(runs.n, 1, "a request pressed twice wrote once");
+  const [kept] = tables.idempotency_keys;
+  assert.equal(kept.key, "req:k-1", "a request's key, apart from a card's and a reply's");
+  assert.match(kept.request_hash, /^[0-9a-f]{64}$/, "held to the request's hash");
+  assert.equal(kept.route, "POST /api/v1/x");
+  // Another workspace's key is its own, and another key is another write.
+  assert.deepEqual(await POST.run(keyed(`?workspace=${B}`, { text: "hi" }, "k-1"), ctxFor(tables)), {
+    run: 2,
+    text: "hi",
+  });
+  assert.deepEqual(await POST.run(keyed(`?workspace=${A}`, { text: "hi" }, "k-2"), ctxFor(tables)), {
+    run: 3,
+    text: "hi",
+  });
+});
+
+test("the same key on another request is refused, 422, in words, and runs nothing: another body, or another path", async () => {
+  const { POST, runs } = counted();
+  const tables = { memberships: only("operator"), idempotency_keys: [] };
+  await POST.run(keyed("", { text: "hi" }, "k-1"), ctxFor(tables));
+  await refused(POST.run(keyed("", { text: "hello" }, "k-1"), ctxFor(tables)), "conflict", 422);
+  await assert.rejects(POST.run(keyed("", { text: "hello" }, "k-1"), ctxFor(tables)), /used for another request/);
+  await refused(POST.run(keyed("", { text: "hi" }, "k-1", "/api/v1/y"), ctxFor(tables)), "conflict", 422);
+  assert.equal(runs.n, 1, "a reused key ran nothing");
+});
+
+test("a keyed write that fails lets its key go, so sending it again runs it", async () => {
+  const { POST, runs } = counted({ fail: true });
+  const tables = { memberships: only("operator"), idempotency_keys: [] };
+  await assert.rejects(POST.run(keyed("", { text: "hi" }, "k-1"), ctxFor(tables)), /the write failed/);
+  assert.deepEqual(tables.idempotency_keys, [], "no claim is left holding a write that did nothing");
+  assert.deepEqual(await POST.run(keyed("", { text: "hi" }, "k-1"), ctxFor(tables)), { run: 2, text: "hi" });
+});
+
+test("a route that keeps its own key, a write with no workspace to keep one in, and a request with no key run every time", async () => {
+  const own = counted({ idempotent: "own" });
+  const tables = { memberships: only("operator"), idempotency_keys: [] };
+  await own.POST.run(keyed("", { text: "hi" }, "k-1"), ctxFor(tables));
+  await own.POST.run(keyed("", { text: "hi" }, "k-1"), ctxFor(tables));
+  assert.equal(own.runs.n, 2, "the reply's key is core's to keep (0004)");
+  assert.deepEqual(own.POST.policy.idempotent, "own", "and its policy says so");
+  assert.equal("idempotent" in counted().POST.policy, false, "absent where not declared");
+
+  const runs = { n: 0 };
+  const mine = write({ scope: account, role: null, rate: null, handle: async () => ({ run: ++runs.n }) });
+  await mine.run(keyed("", {}, "k-1"), ctxFor(tables));
+  await mine.run(keyed("", {}, "k-1"), ctxFor(tables));
+  assert.equal(runs.n, 2, "an account's write has no workspace to key on (0035 names the 27)");
+
+  const bare = counted();
+  await bare.POST.run(post("", { text: "hi" }), ctxFor(tables));
+  await bare.POST.run(post("", { text: "hi" }), ctxFor(tables));
+  assert.equal(bare.runs.n, 2);
+  assert.deepEqual(tables.idempotency_keys, []);
+});
+
+test("a write with no schema is keyed by a copy of its body, and its handler still reads the body", async () => {
+  const runs = { n: 0 };
+  const POST = write({
+    scope: workspace,
+    role: "operator",
+    rate: null,
+    handle: async ({ req }) => ({ run: ++runs.n, read: await req.text() }),
+  });
+  const tables = { memberships: only("operator"), idempotency_keys: [] };
+  const first = await POST.run(keyed("", { a: 1 }, "k-1"), ctxFor(tables));
+  assert.deepEqual(first, { run: 1, read: '{"a":1}' });
+  assert.deepEqual(await POST.run(keyed("", { a: 1 }, "k-1"), ctxFor(tables)), first);
+  await refused(POST.run(keyed("", { a: 2 }, "k-1"), ctxFor(tables)), "conflict", 422);
+  assert.equal(runs.n, 1);
+});

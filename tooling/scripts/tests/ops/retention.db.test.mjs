@@ -264,3 +264,34 @@ test(
     }
   },
 );
+
+test(
+  "purge_idempotency_keys keeps a day of the keys writes were answered under, a card's and a reply's as a request's, and drops the rest",
+  { skip },
+  async () => {
+    // Decision 0035, 00339: run with its DEFAULT, so a default that drifts from RETENTION_DAYS.idempotency_keys fails.
+    const keep = RETENTION_DAYS.idempotency_keys;
+    const at = (d) => new Date(Date.now() - d * 86_400_000).toISOString();
+    const rows = [
+      ["req:old", keep + 0.1],
+      ["card:old", keep + 0.1],
+      ["u1:old", keep + 2],
+      ["req:young", keep - 0.1],
+      ["card:young", 0],
+    ].map(([key, age]) => ({
+      tenant_id: tenantId,
+      key,
+      route: "POST /api/v1/x",
+      request_hash: "",
+      response: { ok: true },
+      created_at: at(age),
+    }));
+    const { error } = await db.from("idempotency_keys").insert(rows);
+    assert.ifError(error);
+    const { data: purged, error: pErr } = await db.rpc("purge_idempotency_keys");
+    assert.ifError(pErr);
+    assert.ok(purged >= 3, `answers how many it removed (${purged})`);
+    const { data: left } = await db.from("idempotency_keys").select("key").eq("tenant_id", tenantId);
+    assert.deepEqual((left ?? []).map((r) => r.key).sort(), ["card:young", "req:young"]);
+  },
+);

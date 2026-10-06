@@ -1,7 +1,7 @@
 /**
  * An Ask card's write runs once (the scorecard, 29 September: "a broadcast or playbook card approved in two tabs runs
  * twice"). The card's commit names its proposal id as its idempotency key and says it is Ask's (x-via); the write door
- * (server/route.ts onceForCard) claims the key under the `card:` prefix on the first press, keeps the answer there, and
+ * (server/route.ts onceForKey) claims the key under the `card:` prefix on the first press, keeps the answer there, and
  * gives a second press, from any tab, that answer without running the write again. Run over a write route declared for
  * the test and a database in memory; the key ledger's own claims are proved in idempotency-claim.db.test.mjs.
  */
@@ -97,17 +97,21 @@ test("a write that fails lets the key go, so pressing again tries again", async 
   assert.equal(runs.n, 2);
 });
 
-test("only a card's key is claimed: no x-via, no key, or a key that is too long to be a card's runs as it always has", async () => {
+test("no key, or one too long to be a key, runs as it always has; a key with no x-via is a request's, apart from a card's", async () => {
   const { r, runs } = route();
   const tables = world();
-  await press(r, tables, "p-1", { via: null });
-  await press(r, tables, "p-1", { via: null });
   await press(r, tables, null);
   await press(r, tables, null);
   await press(r, tables, "k".repeat(121));
   await press(r, tables, "k".repeat(121));
-  assert.equal(runs.n, 6, "every one ran");
+  assert.equal(runs.n, 4, "every one ran");
   assert.deepEqual(tables.idempotency_keys, []);
+  // Since 0035 any keyed write is answered once: the same key without x-via is a request's, under its own prefix, so a
+  // card and a request that happen to share a key are two writes.
+  assert.deepEqual(await press(r, tables, "p-1", { via: null }), { ok: true, run: 5 });
+  assert.deepEqual(await press(r, tables, "p-1", { via: null }), { ok: true, run: 5 });
+  assert.deepEqual(await press(r, tables, "p-1"), { ok: true, run: 6 });
+  assert.deepEqual(tables.idempotency_keys.map((k) => k.key).sort(), ["card:p-1", "req:p-1"]);
 });
 
 test("a press that died holding its key is taken over by the next press once the hold's window has passed, and never before", async () => {

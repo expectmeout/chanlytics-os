@@ -476,7 +476,8 @@
       "scope": "row",
       "role": "operator",
       "rate": "reply",
-      "spend": false
+      "spend": false,
+      "idempotent": "own"
     },
     "GET conversations/[id]": {
       "kind": "read",

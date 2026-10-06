@@ -49,6 +49,12 @@ interface Options<K extends RouteKey> {
   body?: BodyOf<K>;
   /** For the reply: the same key on a retry means the same message, never a second one. */
   idempotencyKey?: string;
+  /**
+   * One intent, however often it is sent (decision 0035): the write carries an Idempotency-Key made at its first send
+   * and kept, for the same request (its route, address and body), until it lands. A press after a timeout is then the
+   * same request, which the server answers once; a send after it lands, or of another body, is a new intent.
+   */
+  once?: boolean;
   /** The Ask palette commits through the same routes a button does; the ledger keeps that a card was tapped. */
   via?: "ask";
   /** An undo names the decision it reverses (its id, from the commit's receipt); the ledger links the two rows. */
@@ -146,6 +152,8 @@ export function createApi(deps: ApiDeps) {
   // `kept`: settled, answered, and held (holdAnswers) -- shared whatever its age until the hold is let go.
   const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean }>();
   let holds = 0;
+  // Each intent's key, by its request, from its first send until it lands (Options.once).
+  const intents = new Map<string, string>();
 
   function urlFor<K extends RouteKey>(key: K, opts: Options<K> = {}): string {
     const params = (opts.params ?? {}) as Record<string, string>;
@@ -180,6 +188,12 @@ export function createApi(deps: ApiDeps) {
   ): Promise<ApiResult<OutputOf<Routes[K]>>> {
     const isRead = ROUTES[key].method === "GET";
     const url = urlFor(key, opts);
+    const intent =
+      !isRead && opts.once && !opts.idempotencyKey
+        ? `${ROUTES[key].method} ${url}\n${JSON.stringify(opts.body ?? null)}`
+        : null;
+    if (intent && !intents.has(intent)) intents.set(intent, crypto.randomUUID());
+    const sent = intent ? { ...opts, idempotencyKey: intents.get(intent) } : opts;
     if (isRead) {
       const hit = inFlight.get(url);
       if (hit && (hit.kept || now() - hit.at < (hit.early ? PREFETCH_SHARE_MS : INFLIGHT_MS)))
@@ -191,8 +205,8 @@ export function createApi(deps: ApiDeps) {
       let res: Response;
       try {
         res = early
-          ? await early.catch(() => deps.fetch(url, initFor(key, opts)))
-          : await deps.fetch(url, initFor(key, opts));
+          ? await early.catch(() => deps.fetch(url, initFor(key, sent)))
+          : await deps.fetch(url, initFor(key, sent));
       } catch (e) {
         // A request that never left changed nothing; one that timed out may
         // still be doing its work on the server, and a write must not be told
@@ -225,6 +239,8 @@ export function createApi(deps: ApiDeps) {
         };
       }
       if (!isRead) {
+        // Landed: the next send of this request is a new intent.
+        if (intent) intents.delete(intent);
         opts.onAccepted?.(j.data as OutputOf<Routes[K]>);
         // Something changed. A read still in flight was issued before that
         // change and cannot describe the world the operator is now in; sharing
