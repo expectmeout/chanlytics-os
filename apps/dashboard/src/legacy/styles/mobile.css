@@ -636,19 +636,18 @@
 /* ---- A thumb's press area where the look is smaller (25 Sep) --------------------------------------------------------
    These keep the size they are drawn at and gain an invisible press area toward 44px, only as far as the controls
    around each leave room (measured on each at 375px): a broadcast run's name
-   (2px under it, 100 over), a template's row (3px apart) and its ··· (drawn 6px wide), Reports' Ask, the top bar's
+   (2px under it, 100 over), a template's row (3px apart) and its ··· (drawn 6px wide), the top bar's
    crumb, a call's recording, the lead peek's steps, its address (5px over it, 15 under: 34px, the most it has), its
    phone note, its expand and its close, and the composer's language and its steps through the people. The composer's
    variable picker is a native select laid over its label, which takes no press area. */
 @media (pointer: coarse) {
-  .bc-run-name, .msg-row-what, .rpt-ask, .crumbs .crumb-link, .tl-call-file, .pk-deck-btn,
+  .bc-run-name, .msg-row-what, .crumbs .crumb-link, .tl-call-file, .pk-deck-btn,
   .pk-where-link, .pk-hint-mark, .mp-step .mp-step-btn { position: relative; }
-  .msg-row-what::after, .rpt-ask::after,
+  .msg-row-what::after,
   .crumbs .crumb-link::after, .tl-call-file::after, .pk-deck-btn::after, .pk-where-link::after, .pk-hint-mark::after,
   .pk-band-expand::after, .pk-x.pk-band-x::after, .mp-step .mp-step-btn::after {
     content: ""; position: absolute;
   }
-  .rpt-ask::after { inset: 0 -5px; }
   .crumbs .crumb-link::after { inset: 0 -6px; }
   .tl-call-file::after { inset: -11px; }
   .pk-deck-btn::after { inset: 0 -2px; }

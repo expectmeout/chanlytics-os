@@ -37,7 +37,8 @@ export function AddPersonButton({ onAdded, flash }: { onAdded: (id: string) => v
   };
   if (!open) {
     return (
-      <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)} data-testid="add-person">
+      // The list's one filled button, as Campaigns' New message and the Pipeline's New proposal are (Ruben, 6 Oct 2026).
+      <button className="btn btn-primary btn-sm" onClick={() => setOpen(true)} data-testid="add-person">
         <Icon name="plus" size={12} /> Add a person
       </button>
     );

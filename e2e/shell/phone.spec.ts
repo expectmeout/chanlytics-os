@@ -755,7 +755,6 @@ test.describe("Phone shell on a real workspace", () => {
     await check("campaigns", '[data-testid="cmh-open"]', "h", 42);
     await check("broadcasts", '[data-testid="bc-open-who"]', "h", 42);
     await check("messages", '[data-testid="template-open"]', "h", 42);
-    await check("reports", '[data-testid="reports-ask"]', "w", 40);
     // The crumb's row clips what passes its edge: 38 is the room it has.
     await check("conversations", "button.crumb-link", "w", 37);
     test.skip(seen.length === 0, "none of these drawn here");

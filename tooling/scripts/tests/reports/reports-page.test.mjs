@@ -2,8 +2,8 @@
  * The Reports page (apps/dashboard/src/surfaces/reports, TSX since decision 0015), EXECUTED on a stub React over the view
  * models the bridge publishes through the seam (surface-values.ts): the headline (the
  * receptionist's share, Worth knowing), the tiles compared in counts, every card under its testid with the view
- * model's own sentence, the empty, failed, unreadable-calendar and no-calendar states, a v2 payload, the Ask door, a
- * period that fails to load, Google's section, and the demo. The page's regressions live here too, moved from
+ * model's own sentence, the empty, failed, unreadable-calendar and no-calendar states, a v2 payload, the period (the head's
+ * act on a desk, a row of the page's own on a phone), a period that fails to load, Google's section, and the demo. The page's regressions live here too, moved from
  * reports-honest and rewritten for this page (C13, C25 to C28): every row a door, the period before drawn where it
  * reads, one keyboard stop per chart, a period control that never holds (the latest pick wins), and a table that
  * leaves the page. The period's own door (period.ts) runs for real, over a fetch this test holds, answers or refuses.
@@ -38,7 +38,6 @@ import {
 } from "./_report-world.mjs";
 
 const went = [];
-const asked = [];
 const flashed = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.__WORKSPACES = [
@@ -61,7 +60,6 @@ const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/legacy-verbs.ts).
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  askAbout: (a) => asked.push(a),
   usePPToast: () => [null, (m) => flashed.push([m.tone, textOf(m.msg)])],
   canDo: () => true,
 });
@@ -133,7 +131,6 @@ const drawOnce = (set) => {
   set();
   fresh();
   went.length = 0;
-  asked.length = 0;
   return draw();
 };
 const pageOnce = (opts) => drawOnce(() => setSurfaceValue("reports", surface(opts)));
@@ -169,8 +166,31 @@ const { Segmented } = await import(`${S}/surfaces/kit/segmented/segmented.tsx`);
 const { Field } = await import(`${S}/surfaces/kit/field/field.tsx`);
 const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
 const { Tooltip } = await import(`${S}/surfaces/kit/tooltip/tooltip.tsx`);
+const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
+/**
+ * What a person sees of the page: its tree, and on a desk what it said to the frame's head as its act (the period, at the right of
+ * the strip of lenses), which the frame draws beside it. The stub's window is a desk's: it matches no width query.
+ */
+const seen = (tree) => ({ type: "Fragment", props: { children: [tree, standingSaid()?.act ?? null] } });
+/** A phone's frame for one run: the window answers the frame's `(max-width: 900px)` as a phone's does. */
+const onAPhone = (run) => {
+  const was = globalThis.matchMedia;
+  globalThis.matchMedia = (q) => ({
+    media: q,
+    matches: q === "(max-width: 900px)",
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  try {
+    return run();
+  } finally {
+    globalThis.matchMedia = was;
+  }
+};
 /** The period control: the kit's segmented control, and the option a person presses, by its words. */
-const control = (tree) => find(tree, (n) => n.type === Segmented);
+const control = (tree) => find(seen(tree), (n) => n.type === Segmented);
+/** What is said of a period that failed to load, beside the control. */
+const failedLine = (tree) => cls(seen(tree), "rpt-failed");
 const choose = (tree, label) => {
   const c = control(tree);
   c.props.onValueChange(c.props.options.find((o) => o.label === label).value);
@@ -604,14 +624,19 @@ test("a v2 payload still draws: what it cannot know is said, never invented", ()
   assert.equal(cls(card(tree, "chart-rhythm"), "ck-heat"), null, "no hours without the grid");
 });
 
-test("Ask about this period asks Ask, in the period's words, and names itself for a phone that shows only its icon", () => {
-  const ask = byTestId(page(), "reports-ask");
-  assert.equal(ask.props["aria-label"], "Ask about this period");
-  press(ask);
-  assert.deepEqual(asked, [{ prompt: "What stood out in my last 7 days?" }]);
+test("the head names Reports on every lens with no way back above it: a lens is picked in the strip", () => {
+  for (const path of LENS_PATHS) {
+    lensAt = path;
+    const tree = pageOnce();
+    const said = standingSaid();
+    assert.equal(said.title, "Reports", `${path}: the name`);
+    assert.equal(said.back, null, `${path}: REGRESSION: "‹ Reports" stood over every lens but the Overview`);
+    assert.equal(byTestId(tree, "reports-ask"), null, `${path}: and no Ask door: the period row asks nothing`);
+  }
+  lensAt = LENS_PATHS[0];
 });
 
-test("the period control is the kit's Segmented over the table's periods, each option with a test id, and the Ask door is the kit's Button", () => {
+test("the period control is the kit's Segmented over the table's periods, each option with a test id", () => {
   const tree = page();
   const c = control(tree);
   assert.deepEqual(
@@ -625,12 +650,9 @@ test("the period control is the kit's Segmented over the table's periods, each o
   );
   assert.equal(c.props.label, "Period");
   // The zone the days follow is the kit's tooltip over the dates (a native title reaches nobody on a keyboard); the dates are on screen.
-  const dates = find(tree, (n) => n.type === Tooltip);
+  const dates = find(byTestId(seen(tree), "reports-period"), (n) => n.type === Tooltip);
   assert.match(dates.props.tip, /^Days follow /);
   assert.ok(textOf(dates.props.children).includes(" to "), "the days themselves are words on the page");
-  const ask = byTestId(tree, "reports-ask");
-  assert.equal(ask.props.size, "sm");
-  assert.equal(ask.props["aria-label"], "Ask about this period");
 });
 
 test("a period on its way keeps the one showing, dimmed by the one rule every page uses, and says it is busy", async () => {
@@ -667,7 +689,7 @@ test("a period that fails to load says so, keeps the one showing, and lets the t
     choose(tree, "30 days");
     for (let i = 0; i < 12; i++) await settle();
     tree = redraw();
-    assert.equal(textOf(cls(tree, "rpt-failed")), "Couldn't load 30 days. Still showing 7 days.");
+    assert.equal(textOf(failedLine(tree)), "Couldn't load 30 days. Still showing 7 days.");
     assert.equal(chosen(tree), "7 days", "the pick that failed is taken back: the control says what the page shows");
   });
 });
@@ -885,7 +907,7 @@ test("REGRESSION: the period control never holds -- arrowing on to Month is a ch
       "90 days",
       "the latest pick is the one shown: the surface dropped the answer for 30 days",
     );
-    assert.equal(cls(tree, "rpt-failed"), null, "and the pick that was left says nothing of its own");
+    assert.equal(failedLine(tree), null, "and the pick that was left says nothing of its own");
   });
 });
 
@@ -918,7 +940,7 @@ test("REGRESSION: a pick back to the period on screen, made while another loads,
       tree = redraw();
       assert.deepEqual(period.asked, ["30d", "month", "30d"], "Month's read, and the read behind the held 30 days");
       assert.equal(chosen(tree), "30 days", "Month's answer, for a period left, is dropped");
-      assert.equal(cls(tree, "rpt-failed"), null, "and nothing failed");
+      assert.equal(failedLine(tree), null, "and nothing failed");
     });
   } finally {
     globalThis.location.pathname = was;
@@ -938,7 +960,7 @@ test("Month is a period of its own: its tab, its read by that name, and the page
     redraw();
     tree = redraw();
     assert.equal(chosen(tree), "Month");
-    assert.equal(cls(tree, "rpt-failed"), null, "nothing failed");
+    assert.equal(failedLine(tree), null, "nothing failed");
   });
 });
 
@@ -994,7 +1016,7 @@ test("REGRESSION: a tile is a number, what it is and one line under it; the head
     null,
     "REGRESSION: a sparkline and a percentage delta in every tile",
   );
-  const head = cls(tree, "rpt-head");
+  const head = byTestId(seen(tree), "reports-period");
   // The period is the segmented control's chosen option (the stub draws a Base UI part as a leaf, so its words are read from its props).
   assert.ok(
     head &&
@@ -1129,11 +1151,35 @@ test("REGRESSION: recording a deal re-reads Reports as well as People -- an open
   );
 });
 
-test("the page's head row stands over every lens, once, and the lens alone is drawn under it", () => {
+test("on a desk the period is the head's act on every lens, at the right of the strip, and the page draws no row of its own", () => {
   for (const path of LENS_PATHS) {
     lensAt = path;
     const tree = pageOnce();
-    assert.equal(all(tree, (n) => classes(n).includes("rpt-head")).length, 1, `${path}: the period row, once`);
+    const act = standingSaid()?.act;
+    assert.equal(act?.props?.["data-testid"], "reports-period", `${path}: the period, said to the head as its act`);
+    assert.ok(classes(act).includes("rpt-period"), `${path}: drawn as the act's group, the days then the control`);
+    const kids = act.props.children.filter(Boolean);
+    assert.equal(kids.at(-1).type, Segmented, `${path}: the control at the row's end`);
+    assert.equal(kids.at(-2).type, Tooltip, `${path}: the days it covers before it`);
+    assert.equal(all(tree, (n) => classes(n).includes("rpt-head")).length, 0, `${path}: no period row in the page`);
+    assert.equal(byTestId(tree, "reports-period"), null, `${path}: the period once, in the head`);
   }
+  lensAt = LENS_PATHS[0];
+});
+
+test("on a phone the page's period row stands over every lens, once, and the head has no act", () => {
+  onAPhone(() => {
+    for (const path of LENS_PATHS) {
+      lensAt = path;
+      const tree = pageOnce();
+      assert.equal(all(tree, (n) => classes(n).includes("rpt-head")).length, 1, `${path}: the period row, once`);
+      const row = byTestId(tree, "reports-period");
+      assert.ok(
+        find(row, (n) => n.type === Segmented),
+        `${path}: the control in it`,
+      );
+      assert.equal(standingSaid()?.act, undefined, `${path}: a phone's strip has no act beside it`);
+    }
+  });
   lensAt = LENS_PATHS[0];
 });

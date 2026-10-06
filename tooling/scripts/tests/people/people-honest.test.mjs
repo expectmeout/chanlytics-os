@@ -499,6 +499,8 @@ Object.assign(globalThis.window, peoplePages);
 Object.assign(globalThis, peoplePages);
 installLists();
 const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
+const { AddPersonButton } = await import("../../../../apps/dashboard/src/surfaces/people/sheets/add-person.tsx");
+const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
 const { PL_FIRST_ROWS, PL_WINDOW_ROWS, PL_WINDOW_STEP } =
   await import("../../../../apps/dashboard/src/surfaces/people/table/row-window.ts");
 // The person's lists are TSX (surfaces/people/person): they read People through the seam, which the override publishes.
@@ -1230,6 +1232,39 @@ test("a desktop draws no phone bar, and keeps its controls row and its list head
   assert.ok(find(tree, (n) => n.props?.className === "cl-controls"));
   assert.ok(find(tree, (n) => n.props?.className === "cl-section-head"));
 });
+
+test("on a desk Add a person is the page's act, at the right of the strip over the list, and not in the list's controls row", async () => {
+  await freshPage({ people: [person(1)] });
+  const tree = draw();
+  const said = standingSaid();
+  assert.equal(said?.title, "People", "the list says People's standing itself");
+  assert.equal(
+    said?.act?.type,
+    AddPersonButton,
+    "with Add a person for its act, which the frame draws beside the strip",
+  );
+  assert.match(
+    String(byTestId(said.act, "add-person")?.props.className),
+    /\bbtn-primary\b/,
+    "the list's one filled button, as Campaigns' New message is",
+  );
+  said.act.props.onAdded("p9");
+  assert.deepEqual(opened, ["p9"], "added, the person's page opens, as it did from the controls row");
+  assert.equal(
+    find(tree, (n) => n.type === AddPersonButton),
+    null,
+    "REGRESSION: Add a person stood in the controls row, inside the list's pane",
+  );
+});
+
+test("on a phone the page says no act: its Add a person is the more-menu's", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1)] });
+    draw();
+    const said = standingSaid();
+    assert.equal(said?.title, "People");
+    assert.equal(said.act, undefined, "nothing beside a phone's strip");
+  }));
 
 test("on a phone search is a capsule at rest that opens into the field; Cancel gives the capsule back and clears the words", () =>
   onPhone(async () => {
