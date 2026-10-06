@@ -181,10 +181,13 @@ test.describe("Calendar on a real workspace", () => {
         // Scroll whatever scrolls to its end, then ask whether the last day and the legend are on screen. toBeVisible
         // cannot say it: a box cut off by an overflow is still "visible".
         const reached = await board.evaluate((cal) => {
+          // Whatever scrolls: the grid, the body, and on a phone the Calendar's pane (.cal-pane).
+          const scrolls = (el: Element | null) => !!el && el.scrollHeight > el.clientHeight + 1;
           const grid = cal.querySelector(".cal-scroll");
           const body = cal.querySelector(".cal-body");
-          for (const el of [grid, body, cal]) if (el) el.scrollTop = el.scrollHeight;
-          const scroller = grid ?? body ?? cal;
+          const pane = cal.querySelector(".cal-pane");
+          for (const el of [grid, body, pane, cal]) if (el) el.scrollTop = el.scrollHeight;
+          const scroller = [grid, body, pane].find(scrolls) ?? grid ?? body ?? cal;
           const bottom = (el: Element) => el.getBoundingClientRect().bottom;
           const days = scroller.querySelectorAll(
             '[data-testid="cal-col"], [data-testid="cal-month-cell"], [data-testid="cal-agenda-day"]',

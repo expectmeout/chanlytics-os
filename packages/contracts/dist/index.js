@@ -30652,7 +30652,7 @@ function calmHeadline({ period, speed }) {
   return { headline, detail, tone: "calm" };
 }
 function todaySentences(f, tone, alert) {
-  const { period, callMinutes, conversations, sinceMs } = f;
+  const { period, callMinutes } = f;
   const sentences = [];
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (period.answered_by_ai && !headlineCoversTraffic) {
@@ -30676,19 +30676,23 @@ function todaySentences(f, tone, alert) {
       text: `You sent ${period.messages_out_you} repl${period.messages_out_you === 1 ? "y" : "ies"} yourself.`
     });
   }
-  if (period.send_failures) {
-    const lastFailed = conversations.flatMap(
-      (c) => c.messages.filter(
-        (x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
-      ).map((x) => ({ conv: c, at: x.created_at }))
-    ).sort((a, b) => b.at.localeCompare(a.at))[0];
-    sentences.push({
-      text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} failed to deliver \u2014 the customer got no answer.`,
-      warn: true,
-      ...lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}
-    });
-  }
+  const failed = todaySendFailure(f);
+  if (failed) sentences.push(failed);
   return sentences;
+}
+function todaySendFailure(f) {
+  const { period, conversations, sinceMs } = f;
+  if (!period.send_failures) return null;
+  const lastFailed = conversations.flatMap(
+    (c) => c.messages.filter(
+      (x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
+    ).map((x) => ({ conv: c, at: x.created_at }))
+  ).sort((a, b) => b.at.localeCompare(a.at))[0];
+  return {
+    text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} failed to deliver \u2014 the customer got no answer.`,
+    warn: true,
+    ...lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}
+  };
 }
 
 // src/today/today-figures.ts
@@ -31141,6 +31145,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const facts = todayAskFacts(f);
   const empty = todayQueueEmpty(f);
   if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
+    const failed = todaySendFailure(f);
     return {
       standing: {
         chips,
@@ -31152,7 +31157,13 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       },
       needsYou: null,
       windowClosing: null,
-      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
+      recap: {
+        label: "Today so far",
+        line: "Nothing has come in yet today.",
+        sentences: failed ? [failed] : [],
+        facts,
+        receipts: []
+      },
       figures: null,
       zero_figures: null,
       proof,

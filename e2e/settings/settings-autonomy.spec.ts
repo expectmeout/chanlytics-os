@@ -41,8 +41,11 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     const text = await page.locator(".set-pane").innerText();
     for (const s of INVENTED) expect(text, `invented copy on the pane: "${s}"`).not.toContain(s);
 
+    // One row per class the workspace is offered (contracts policyClassOffered): eight where deals are off, as the
+    // nightly's are, the reach-outs' cold email among them since Reach out's Part 4; Proposal follow-ups makes nine.
     const rows = table.locator("tbody tr");
-    await expect(rows).toHaveCount(7);
+    await expect(rows).toHaveCount(8);
+    await expect(rows.filter({ hasText: "Cold email to businesses a search found" })).toHaveCount(1);
     // The reply row is the live switch: exactly one mode on, and it is enabled for an owner.
     const reply = rows.filter({ hasText: "Replies to customers" });
     await expect(reply.locator(".pol-dot.on")).toHaveCount(1);

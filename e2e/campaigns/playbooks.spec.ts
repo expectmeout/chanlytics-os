@@ -61,7 +61,8 @@ test.describe("Campaigns' home on a real workspace", () => {
     const sheet = page.getByTestId("cmh-composer");
     await expect(sheet).toBeVisible();
     await expect(sheet.getByTestId("bc-composer")).toBeVisible();
-    await sheet.getByTestId("cmh-kind-every").click();
+    // The switch stands in the sheet's head, outside its body's test id (home/new-message.tsx, the sheet's tools).
+    await page.getByTestId("cmh-kind-every").click();
     await expect(page).toHaveURL(atRoute(/^campaigns\/new:every$/));
     const composer = sheet.getByTestId("pb-composer");
     await expect(composer).toBeVisible();
@@ -72,9 +73,9 @@ test.describe("Campaigns' home on a real workspace", () => {
     await expect(moments.first()).toBeVisible();
     // The moments this workspace is offered, among them the win-back (by visits or by silence, whichever it can read).
     await expect(moments.filter({ hasText: "Win-back" }).first()).toBeVisible();
-    // Escape closes the list, and only the list.
+    // Escape closes the list, and only the list. (Base UI's Select keeps a list it opened in the page, hidden.)
     await page.keyboard.press("Escape");
-    await expect(page.locator(".rec-combo-pop")).toHaveCount(0);
+    await expect(page.locator(".rec-combo-pop")).toBeHidden();
     await expect(composer).toBeVisible();
     await expect(composer.getByTestId("pb-guard")).toBeVisible();
     if (approved.length === 0) {
