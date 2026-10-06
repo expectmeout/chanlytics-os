@@ -154,6 +154,13 @@ const repliesSeen = (hold: HoldCounts): number => hold.unheld + hold.atEnd + hol
  */
 const waitedHold = (hold: HoldCounts): boolean => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
 
+/** Whether the replies that waited a hold mostly went out as it ended, rather than later: the one tie-break both sentences read. */
+const endedWithHold = (hold: HoldCounts): boolean => hold.atEnd >= hold.later;
+
+/** How a sentence about speed ends against the hold, said once for Reports and Today: "as your 1-minute hold ended", or later. */
+const againstHold = (hold: HoldCounts): string =>
+  endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
+
 /**
  * How fast, beside the hero: against the hold where most replies waited one, since the setting is not the
  * receptionist's speed. Where most replies had no hold, the hold says nothing of them and the median does. The
@@ -162,9 +169,7 @@ const waitedHold = (hold: HoldCounts): boolean => (hold.atEnd + hold.later) * 2 
 export function heroSpeed(replies: number, medianLabel: string, hold: ReportHoldVM | null): string {
   if (!replies) return "";
   if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
-  const seen = repliesSeen(hold);
-  if (hold.atEnd >= hold.later) return ` ${hold.atEnd} of ${seen} went out as your ${hold.label} hold ended.`;
-  return ` ${hold.later} of ${seen} took longer than your ${hold.label} hold.`;
+  return ` ${endedWithHold(hold) ? hold.atEnd : hold.later} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
 }
 
 /** How fast the receptionist replied, as a sentence says it: the median, or the hold's words where most replies waited one. */
@@ -186,7 +191,7 @@ export function replySpeedOf(median: number | null, hold: ReplyHoldDto | null): 
   if (!counts || !waitedHold(counts)) return { held: false, seconds: median };
   return {
     held: true,
-    words: counts.atEnd >= counts.later ? `as your ${counts.label} hold ended` : `later than your ${counts.label} hold`,
+    words: againstHold(counts),
   };
 }
 

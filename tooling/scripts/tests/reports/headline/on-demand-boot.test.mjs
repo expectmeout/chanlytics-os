@@ -252,3 +252,25 @@ test("a rejoin of the live feed reads the gap of what is drawn here, and keeps R
     off();
   }
 });
+
+test("Retry reads what the status line names: a surface read only where it is drawn, stopped refreshing off its page, is read by Retry wherever it is", async () => {
+  const r = await running("#/today");
+  try {
+    r.take();
+    // Reports' last read failed after a good one (a write's refresh by name, made on another page): the line says Reports
+    // stopped refreshing, with its Retry, on whatever page is on screen.
+    status.setStatus("reports", "degraded");
+    await runner.refreshAllSurfaces();
+    assert.equal(
+      r.take().includes("reports"),
+      true,
+      "REGRESSION: Retry read everything but what the line said had stopped, and the line stayed",
+    );
+    assert.equal(status.getSurfaceStatuses().get("reports"), "live", "and the line has nothing left to say");
+    // One that has not stopped is still left for its page.
+    await runner.refreshAllSurfaces();
+    assert.equal(r.take().includes("reports"), false, "Retry on Today does not read a Reports that is live");
+  } finally {
+    r.stop();
+  }
+});

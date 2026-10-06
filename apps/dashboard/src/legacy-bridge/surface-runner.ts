@@ -95,7 +95,9 @@ export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<voi
 /** The shell's Retry: every surface the running runner holds, read again now. */
 export async function refreshAllSurfaces(): Promise<void> {
   // Every surface the running runner holds that a page on screen draws: a surface read only where it is drawn waits for its page.
-  await refreshSurfaces(readHere(activeOverrides));
+  // And every one the status line names as stopped refreshing, wherever it is drawn: Retry reads what the line says failed.
+  const statuses = getSurfaceStatuses();
+  await refreshSurfaces(readHere(activeOverrides, (o) => statuses.get(o.key) === "degraded"));
 }
 
 /**
@@ -157,11 +159,15 @@ function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
  * What a pass over these surfaces reads here (a return to the tab, the network back, a rejoin of the live feed, Retry-all): every
  * one but a surface read only where it is drawn (`onDemand`) and not drawn here, which is kept for its page instead
  * (surface-registry.ts keepForItsPage), so its page reads it once as it comes on screen and never shows what the pass missed.
+ * `alsoRead` names any such surface the pass reads all the same (Retry's: what the status line says stopped refreshing).
  */
-function readHere(overrides: readonly SurfaceOverride[]): SurfaceOverride[] {
+function readHere(
+  overrides: readonly SurfaceOverride[],
+  alsoRead: (o: SurfaceOverride) => boolean = () => false,
+): SurfaceOverride[] {
   const drawn = screenOwn(window);
   return overrides.filter((o) => {
-    if (!o.onDemand || drawn(o)) return true;
+    if (!o.onDemand || drawn(o) || alsoRead(o)) return true;
     keepForItsPage(o.key);
     return false;
   });

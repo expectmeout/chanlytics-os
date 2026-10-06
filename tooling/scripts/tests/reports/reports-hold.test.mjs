@@ -166,7 +166,10 @@ test("the bars, the hero and the line count one split: the bars' first two are t
   const [unheld, atEnd, ...later] = barsOf(vm).map(([, n]) => n);
   assert.deepEqual([unheld, atEnd, later.reduce((a, b) => a + b, 0)], [hold.unheld, hold.atEnd, hold.later]);
   assert.equal(vm.lines.reply, "9 replies took longer than the hold, at most 5m 1s more.");
-  assert.equal(vm.lines.hero, "16 of 25 customer messages, without you. 9 of 14 took longer than your 1-minute hold.");
+  assert.equal(
+    vm.lines.hero,
+    "16 of 25 customer messages, without you. 9 of 14 went out later than your 1-minute hold.",
+  );
 });
 
 test("a report with no hold keeps the bars on the seconds a reply took: from before 00304, or with none held", () => {
@@ -199,8 +202,8 @@ test("the hero speaks of the hold only where most replies waited one, and says w
   assert.equal(heroOf([...unheld(5), ...atEnd(3)]), "Half of its replies went out within 5s.", "most had no hold");
   assert.equal(heroOf([...unheld(4), ...atEnd(4)]), "Half of its replies went out within 33s.", "exactly half held");
   assert.equal(heroOf([...unheld(2), ...atEnd(5), ...late(1)]), "5 of 8 went out as your 1-minute hold ended.");
-  assert.equal(heroOf([...unheld(1), ...atEnd(1), ...late(5)]), "5 of 7 took longer than your 1-minute hold.");
-  assert.equal(heroOf(late(4)), "4 of 4 took longer than your 1-minute hold.", "every reply held and late");
+  assert.equal(heroOf([...unheld(1), ...atEnd(1), ...late(5)]), "5 of 7 went out later than your 1-minute hold.");
+  assert.equal(heroOf(late(4)), "4 of 4 went out later than your 1-minute hold.", "every reply held and late");
   assert.equal(
     heroOf([...unheld(1), ...atEnd(3), ...late(3)]),
     "3 of 7 went out as your 1-minute hold ended.",

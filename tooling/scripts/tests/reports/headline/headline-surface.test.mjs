@@ -187,3 +187,30 @@ test("a period pick paints the held headline and reads behind it only when none 
     stop();
   }
 });
+
+test("a pick that fails on a tab that holds no headline for the period kept leaves Today with no period line, never the period the page left", async () => {
+  const stop = startSurfaces([], () => () => {});
+  try {
+    reset("30d");
+    // The page shows thirty days; this tab never read thirty days' headline (Today was not on screen: it is on-demand).
+    setSurfaceValue("reports", { ...(surfaceValue("reports") ?? {}), period: "30d" });
+    // Ninety days' headline landed behind a pick (the lighter read answers first), and is what Today would say.
+    keepReportPeriod("90d");
+    await reportsHeadlineOverride.apply();
+    assert.equal(surfaceValue("reports_headline").period, "90d");
+    // ... and the pick's own read of the report fails: the page goes back to thirty days.
+    refuse = "90d";
+    const ok = await setReportRange("90d");
+    await settle();
+    assert.equal(ok, false, "the pick failed");
+    assert.equal(shownReportPeriod(), "30d", "the period goes back");
+    assert.equal(
+      surfaceValue("reports_headline"),
+      undefined,
+      "REGRESSION: Today kept saying 90 days while the page said thirty, there being no thirty days' headline to paint",
+    );
+    assert.equal(isHeadlineStale(), true, "and thirty days' is read as Today comes on screen");
+  } finally {
+    stop();
+  }
+});

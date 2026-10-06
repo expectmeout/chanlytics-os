@@ -19,7 +19,7 @@ import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
 import { MIN_MS, toHeadlineVM, type ReportHeadlineVM } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { setSurfaceValue } from "../surface-values";
+import { setSurfaceValue, surfaceValue } from "../surface-values";
 import { shownReportPeriod } from "./surface";
 
 /** How old a held headline may be before a pick of its period, or Today's coming on screen, reads it again. */
@@ -41,6 +41,18 @@ export function paintHeldHeadline(): boolean {
   setSurfaceValue("reports_headline", have.vm);
   window.dispatchEvent(new CustomEvent("surface:reports_headline"));
   return true;
+}
+
+/**
+ * After a pick that failed, Today says the period Reports kept: the headline held for it, or, where this tab holds none (Today was
+ * never on screen), no period line until Today reads one. Never the period the page left, whose headline may have landed behind
+ * the pick.
+ */
+export function paintKeptHeadline(): void {
+  if (paintHeldHeadline()) return;
+  if (surfaceValue("reports_headline")?.period === shownReportPeriod()) return;
+  setSurfaceValue("reports_headline", undefined);
+  window.dispatchEvent(new CustomEvent("surface:reports_headline"));
 }
 
 /** Whether the headline for the period now shown is held at all, and was read within HEADLINE_STALE_MS: when not, it wants a read. */

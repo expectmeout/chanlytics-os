@@ -5,7 +5,7 @@
 import type { ReportPeriodId } from "@chanlytics/contracts";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { surfaceValue } from "../surface-values";
-import { isHeadlineStale, paintHeldHeadline, reportsHeadlineOverride } from "./headline";
+import { isHeadlineStale, paintHeldHeadline, paintKeptHeadline, reportsHeadlineOverride } from "./headline";
 import { keepReportPeriod, paintHeldReports, reportsOverride, shownReportPeriod } from "./surface";
 
 /** Whether the period was changed: `false` when its read failed, and the page still shows the one it had. */
@@ -32,7 +32,7 @@ export async function setReportRange(period: ReportPeriodId): Promise<boolean> {
   if (surfaceValue("reports")?.period !== period) {
     keepReportPeriod(prev);
     // And Today says the period kept: the headline of the period that failed may have landed behind the pick.
-    paintHeldHeadline();
+    paintKeptHeadline();
     return false;
   }
   return true;

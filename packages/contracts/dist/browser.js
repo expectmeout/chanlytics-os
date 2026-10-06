@@ -16711,12 +16711,12 @@ var absoluteBuckets = (sortedReply) => spanCounts(REPLY_BUCKETS, sortedReply);
 var replyHoldDtoOf = (hold) => hold ? { label: hold.label, at_end: hold.atEnd, later: hold.later, unheld: hold.unheld } : null;
 var repliesSeen = (hold) => hold.unheld + hold.atEnd + hold.later;
 var waitedHold = (hold) => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
+var endedWithHold = (hold) => hold.atEnd >= hold.later;
+var againstHold = (hold) => endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
 function heroSpeed(replies, medianLabel, hold) {
   if (!replies) return "";
   if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
-  const seen = repliesSeen(hold);
-  if (hold.atEnd >= hold.later) return ` ${hold.atEnd} of ${seen} went out as your ${hold.label} hold ended.`;
-  return ` ${hold.later} of ${seen} took longer than your ${hold.label} hold.`;
+  return ` ${endedWithHold(hold) ? hold.atEnd : hold.later} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
 }
 function replySpeedOf(median, hold) {
   if (median === null) return null;
@@ -16729,7 +16729,7 @@ function replySpeedOf(median, hold) {
   if (!counts || !waitedHold(counts)) return { held: false, seconds: median };
   return {
     held: true,
-    words: counts.atEnd >= counts.later ? `as your ${counts.label} hold ended` : `later than your ${counts.label} hold`
+    words: againstHold(counts)
   };
 }
 function holdLine(hold) {
