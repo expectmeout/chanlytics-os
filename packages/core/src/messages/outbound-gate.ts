@@ -25,7 +25,14 @@
  * automated message may go, for whichever sender asks, so it moved here from apps/edge/lib/receptionist (4 Oct 2026),
  * unchanged, and the edge's voice path takes it through its package facade like every other rule it asks.
  */
-import { mayMessageFor, type PurposeBearing, type AskedPurpose, type MessageAbout } from "@chanlytics/contracts";
+import {
+  mayMessageFor,
+  type PurposeBearing,
+  type PurposeRefusal,
+  type AskedPurpose,
+  type MessageAbout,
+} from "@chanlytics/contracts";
+import { speaksUnattended } from "../inbound/reply-posture";
 
 interface OutboundFacts {
   /**
@@ -80,9 +87,9 @@ interface OutboundFacts {
 }
 
 export type OutboundRefusal =
-  | "opted_out"
-  | "not_opted_in"
-  | "no_marketing_consent"
+  // Consent's own reasons (contracts mayMessageFor), each with its script below: a reason the consent rule gains has no
+  // words until refusalScript gives it some, where a cast once let `unsubscribed` through with none.
+  | PurposeRefusal
   | "paused"
   | "human_has_it"
   | "policy_hold"
@@ -107,7 +114,7 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
   //    for a promotional message, a yes to conversation is not a yes to offers.
   //    One predicate, asked with this message's own purpose.
   const may = mayMessageFor(f.contact, f.purpose, { proactive: f.proactive, channel: f.channel, about: f.about });
-  if (!may.ok) return { allowed: false, refusal: (may.reason ?? "opted_out") as OutboundRefusal };
+  if (!may.ok) return { allowed: false, refusal: may.reason };
 
   // 1b. The workspace is paused: billing stopped, and with it everything
   //     automated. Before the policy, which a paused workspace may still have set to auto.
@@ -131,7 +138,7 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
   //    the receptionist composed so a person can redirect it, and a booking
   //    link the caller just asked for has nothing to redirect — refusing it
   //    silently punished the workspaces that chose the middle setting.
-  if (f.replyMode !== "auto" && f.replyMode !== "veto") return { allowed: false, refusal: "policy_hold" };
+  if (!speaksUnattended(f.replyMode)) return { allowed: false, refusal: "policy_hold" };
 
   // 5. Runaway guard. The conversational path caps bot replies per thread per
   //    day; nothing capped this one, so a caller who phoned thirty times — or a
@@ -163,6 +170,9 @@ export function refusalScript(refusal: OutboundRefusal, phoneDisplay: string | n
     // somebody else.
     case "not_opted_in":
       return "I can only send WhatsApp messages to the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.";
+    // Email's own no: reachable only where the gate is asked about an email (the phone agent's link goes by WhatsApp).
+    case "unsubscribed":
+      return "They unsubscribed from this business's email, so I cannot email them. Offer to book them on the call instead.";
     case "no_marketing_consent":
       return "I cannot send that on WhatsApp, because it is a promotional message and that number has not asked for those. Offer to book them on the call instead.";
     // The texting line's own refusal: the door returns it on channel "sms" only

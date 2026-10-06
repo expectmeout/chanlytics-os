@@ -11,7 +11,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { replyPosture, effectiveReplyMode } from "../../../../packages/core/src/inbound/reply-posture.ts";
+import {
+  replyPosture,
+  effectiveReplyMode,
+  speaksUnattended,
+} from "../../../../packages/core/src/inbound/reply-posture.ts";
 
 test("a routed workspace with a usable runtime follows its OWN policy", () => {
   assert.deepEqual(replyPosture({ runtimeUsable: true, policyMode: "auto" }), { replyMode: "auto" });
@@ -63,4 +67,11 @@ test("no person setting changes nothing", () => {
   assert.equal(effectiveReplyMode({ replyMode: "veto" }, null), "veto");
   assert.equal(effectiveReplyMode({ replyMode: "auto" }, undefined), "auto");
   assert.equal(effectiveReplyMode({ replyMode: "ask" }, ""), "ask");
+});
+
+test("speaksUnattended: auto and veto let the receptionist speak; every other mode, and nonsense, holds for a person", () => {
+  // Spelled out at four places (the gates, the unreadable message's two acknowledgements, the phone agent's gate) before
+  // it was one rule; a fifth mode added to one of them and not the others would have spoken where the rest held.
+  for (const mode of ["auto", "veto"]) assert.equal(speaksUnattended(mode), true, mode);
+  for (const mode of ["ask", "never", "", "AUTO", "nonsense"]) assert.equal(speaksUnattended(mode), false, mode);
 });

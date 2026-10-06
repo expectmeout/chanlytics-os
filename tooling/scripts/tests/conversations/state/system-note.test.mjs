@@ -89,3 +89,21 @@ test("Conversations' row reads the customer as having the last word", () => {
   assert.equal(row.outcome, "open");
   assert.equal(row.snippet, "Do I need a patch test before colour?");
 });
+
+test("a note is not a call in the thread's count, and not the Inbox row's preview", () => {
+  // Conversations counted every row that was not a chat message as a call ("1 message · 1 call"), and the Inbox's row
+  // previewed the team's note as the last thing said between them.
+  const row = toConversationVM(dto, null, ZONE, NOW);
+  assert.doesNotMatch(row.summary.bullets[0], /call/, "REGRESSION: the note was counted as a call");
+  assert.match(row.summary.bullets[0], /^1 message · started /);
+  const withCall = {
+    ...dto,
+    messages: [...dto.messages, msg({ id: "m3", type: "call_summary", body: "Asked about colour." })],
+  };
+  assert.match(toConversationVM(withCall, null, ZONE, NOW).summary.bullets[0], /^1 message · 1 call · started /);
+  assert.equal(
+    toInboxThreadVM(dto, null, ZONE, NOW).preview,
+    "Do I need a patch test before colour?",
+    "REGRESSION: the Inbox row previewed the note",
+  );
+});

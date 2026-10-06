@@ -4,11 +4,11 @@
  * today-queue.ts.
  */
 import { standingOf } from "../conversations/standing";
-import { abandonedCall, DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
+import { abandonedCall, reachedVoicemail, DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
 import { toCallVM, spokenDuration } from "../conversations/call-vm";
 import { reasonLabelOf } from "../conversations/escalations";
 import { messageAuthor } from "../conversations/message-author";
-import { messageText } from "../conversations/message-words";
+import { lastExchanged, messageText } from "../conversations/message-words";
 import { isTheirOwnWords, threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
 import { contactName, contactMeta } from "../conversations/thread-contact";
@@ -56,7 +56,8 @@ export function todayNeedsYou(f: TodayFacts): NonNullable<TodayVM["needsYou"]> {
     count: f.needsYouCount,
     hint: "The receptionist stopped and asked for a human.",
     rows,
-    empty: rows.length
+    // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.
+    empty: f.needsYouCount
       ? null
       : period.unanswered_in_window === 0 && period.messages_out_you === 0
         ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person."
@@ -116,7 +117,7 @@ export function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
         now.getTime(),
       );
       if (standing !== "quiet" && standing !== "needs_you") return [];
-      const last = c.messages[c.messages.length - 1];
+      const last = lastExchanged(c.messages);
       if (!last || !isTheirOwnWords(last)) return [];
       const lastMs = new Date(last.created_at).getTime();
       if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
@@ -171,7 +172,7 @@ const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", 
 /** What a call worth an ear says under its name: the first of these that is true. */
 function callNote(c: CallDto, live: boolean | undefined, analysisDue: boolean): string {
   if (live) return "In progress right now";
-  if (c.in_voicemail) return "Reached voicemail";
+  if (reachedVoicemail(c)) return "Reached voicemail";
   // BEFORE the summary branches, deliberately. A caller gone in six
   // seconds has no summary and never will have much of one, so the
   // chain below would have said "summary on its way" and buried the
@@ -193,7 +194,7 @@ export function todayCallRows(f: TodayFacts): TodayCallRowVM[] {
       .filter(
         ({ c, vm }) =>
           vm.live ||
-          c.in_voicemail ||
+          reachedVoicemail(c) ||
           c.sentiment === "Negative" ||
           !c.summary ||
           // Somebody rang and left with nothing. Measured before writing this:

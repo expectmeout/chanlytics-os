@@ -31,8 +31,12 @@ export interface SendQueuedPorts {
   /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
   purposeOf(template: { name: string; language: string } | undefined): Promise<SendPurpose>;
   deliver: Door;
-  /** The thread flagged for a person, with why. */
-  escalate(conversationId: string, reason: string, details: string): Promise<unknown>;
+  /** The thread flagged for a person, with why; how it landed (jobs upsertEscalation: a hold is told once). */
+  escalate(
+    conversationId: string,
+    reason: string,
+    details: string,
+  ): Promise<"opened" | "changed" | "refreshed" | "failed">;
   /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
   alert(news: JobNews): Promise<void>;
   /** The platform's own pager, for a provider refusing every send on a wire. */

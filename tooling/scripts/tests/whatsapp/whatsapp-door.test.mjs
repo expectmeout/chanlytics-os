@@ -1233,6 +1233,25 @@ test("the same failure said twice, in one delivery or two, raises once", async (
   );
 });
 
+test("the same failure twice in the FIRST delivery, while the row still says sent, raises once", async () => {
+  // The case above sends its doubled delivery after the row has failed, where the row alone says it was seen. Here
+  // both copies arrive together on a row that is still `sent`: each read it as news, so the owner had two bells and
+  // the ledger two failures for one message.
+  const w = world();
+  const { row, failed } = accepted(w);
+  w.open();
+  receptionist();
+  const twice = failed();
+  twice.entry[0].changes[0].value.statuses.push({ ...twice.entry[0].changes[0].value.statuses[0] });
+  assert.deepEqual(await answer(await deliver(twice)), [200, { ok: true }]);
+  assert.equal(row.status, "failed");
+  assert.deepEqual(
+    [holds(w).length, w.tables.notifications.length, kind(w.tables, "message.send_failed").length],
+    [1, 1, 1],
+    "REGRESSION: two bells and two ledger rows for one message",
+  );
+});
+
 test("a campaign's message, a customer's row and a delivery raise nothing; the failure still lands on the row", async () => {
   for (const [name, over] of [
     ["a broadcast's send", { meta: { source: "broadcast", broadcast_id: "b1", broadcast_name: "Spring" } }],

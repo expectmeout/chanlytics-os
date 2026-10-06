@@ -2419,6 +2419,31 @@ var whisperSpec = {
   open: () => null
 };
 
+// src/conversations/standing.ts
+var HELD_WORDS = {
+  yours: {
+    pill: "You have it",
+    sentence: "You're answering this one. The receptionist stays quiet until you hand it back."
+  },
+  theirs: {
+    pill: "A teammate has it",
+    sentence: "A teammate is answering this. The receptionist stays quiet until they hand it back."
+  }
+};
+function standingOf(i, nowMs) {
+  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
+  const flagged = i.open_escalation || i.state === "needs_human" || paused;
+  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
+  const mine = !!i.assignee_user_id || paused && !i.open_escalation;
+  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
+  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
+}
+function replyWaitsOnYou(r2, nowMs) {
+  if (r2.held) return false;
+  if (r2.endsAtMs !== void 0 && r2.endsAtMs !== null) return r2.endsAtMs > nowMs;
+  return !!r2.queued;
+}
+
 // src/conversations/thread-clock.ts
 function shortTime(iso, tz, now) {
   const ms2 = iso ? Date.parse(iso) : Number.NaN;
@@ -2768,11 +2793,16 @@ function isTheirOwnWords(m) {
   return isFromTheirSide(m) && isPersonsWords(m.meta);
 }
 function threadChannelOf(messages) {
+  const reply = replyWireOf(messages);
+  if (reply) return reply;
+  const ours = [...messages].reverse().find((m) => m.type !== "call_summary");
+  return ours ? writtenChannelOf(ours.channel) : "phone";
+}
+function replyWireOf(messages) {
   const wrote = lastWroteOn(messages);
   if (wrote) return wrote;
-  const newest = [...messages].reverse();
-  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
-  return written ? writtenChannelOf(written.channel) : "phone";
+  const theirs = [...messages].reverse().find(isFromTheirSide);
+  return theirs ? writtenChannelOf(theirs.channel) : null;
 }
 function threadChannelWords(messages) {
   return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
@@ -3267,21 +3297,6 @@ function consentOf(r2, tz, nowMs) {
   };
 }
 
-// src/conversations/standing.ts
-function standingOf(i, nowMs) {
-  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
-  const flagged = i.open_escalation || i.state === "needs_human" || paused;
-  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
-  const mine = !!i.assignee_user_id || paused && !i.open_escalation;
-  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
-  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
-}
-function replyWaitsOnYou(r2, nowMs) {
-  if (r2.held) return false;
-  if (r2.endsAtMs !== void 0 && r2.endsAtMs !== null) return r2.endsAtMs > nowMs;
-  return !!r2.queued;
-}
-
 // src/people/person-state.ts
 var PERSON_STATE_LABELS = {
   needs_you: "Needs you",
@@ -3317,17 +3332,15 @@ function personStanding(r2, nowMs, viewerId = null) {
 function attentionOf(r2, nowMs, viewerId = null) {
   const v = personStanding(r2, nowMs, viewerId);
   if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r2.queued_reply_at }, nowMs)) return "needs_you";
-  const assignee = r2.latest_assignee_user_id;
-  const owned = assignee ? !viewerId || assignee === viewerId : v.takenOver;
-  if (owned && (v.flagged || r2.last_message_direction === "inbound")) return "waiting_on_you";
-  return null;
+  return v.takenOver ? "waiting_on_you" : null;
 }
 function heardAt(r2) {
   const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
   return at3.length ? Math.max(...at3) : null;
 }
-function isOwned(r2, nowMs) {
-  return !!r2.latest_assignee_user_id || personStanding(r2, nowMs).takenOver;
+function holderOf(r2, nowMs, viewerId) {
+  const v = personStanding(r2, nowMs, viewerId);
+  return v.claimedByOther ? "theirs" : v.takenOver ? viewerId ? "yours" : "someone" : null;
 }
 function personStateFor(r2, nowMs, tz, viewerId = null) {
   const attention = attentionOf(r2, nowMs, viewerId);
@@ -3351,8 +3364,29 @@ var PERSON_MODE_WORDS = {
 function asPersonMode(s) {
   return s && PERSON_MODES.includes(s) ? s : null;
 }
-function receptionistOf(r2, tz, nowMs) {
-  if (isOwned(r2, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
+var HELD_THREAD = {
+  yours: {
+    tone: "yours",
+    label: HELD_WORDS.yours.pill,
+    title: HELD_WORDS.yours.pill,
+    detail: HELD_WORDS.yours.sentence
+  },
+  theirs: {
+    tone: "theirs",
+    label: HELD_WORDS.theirs.pill,
+    title: HELD_WORDS.theirs.pill,
+    detail: HELD_WORDS.theirs.sentence
+  },
+  someone: {
+    tone: "paused",
+    label: "Paused, a person owns the thread",
+    title: "Paused, a person owns this thread",
+    detail: "A person owns this thread; automatic replies resume when it is handed back."
+  }
+};
+function receptionistOf(r2, tz, nowMs, viewerId) {
+  const held = holderOf(r2, nowMs, viewerId);
+  if (held) return { tone: HELD_THREAD[held].tone, label: HELD_THREAD[held].label };
   if (r2.open_escalation_reason)
     return { tone: "escalated", label: `Escalated, ${reasonShort(r2.open_escalation_reason)}` };
   if (r2.needs_human) return { tone: "escalated", label: "Waiting for a person" };
@@ -7151,10 +7185,13 @@ var ASK_ANSWER_FORMAT = {
 var ABANDONED_MS = 15e3;
 function abandonedCall(dto) {
   if (dto.direction !== "inbound") return false;
-  if (dto.status === "not_connected" || dto.in_voicemail) return false;
+  if (dto.status === "not_connected" || reachedVoicemail(dto)) return false;
   const ms2 = dto.duration_ms;
   if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
   return dto.disconnection_reason === "user_hangup";
+}
+function reachedVoicemail(dto) {
+  return dto.in_voicemail === true || dto.disconnection_reason === "voicemail_reached" || dto.outcome === "voicemail";
 }
 function missedCall(c) {
   return c.missed && c.direction !== "outbound";
@@ -14655,7 +14692,7 @@ function callOutcomeFor(dto, live) {
   if (dto.status === "error") return "failed";
   if (abandonedCall(dto)) return "abandoned";
   if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
-  return dto.in_voicemail ? "voicemail" : "handled";
+  return reachedVoicemail(dto) ? "voicemail" : "handled";
 }
 function spokenDuration(ms2) {
   if (!ms2) return "Duration not recorded";
@@ -14726,7 +14763,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
       end
     };
   });
-  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (reachedVoicemail(dto) ? "Reached voicemail." : "No summary from this call.");
   return {
     id: `cv-${dto.id}`,
     real: true,
@@ -15022,6 +15059,9 @@ function isChatMessage(m) {
 function reachedCustomer(status) {
   return status !== "queued" && status !== "failed" && status !== "canceled";
 }
+function lastExchanged(messages) {
+  return [...messages].reverse().find((m) => isChatMessage(m) && (m.direction === "inbound" || reachedCustomer(m.status))) ?? null;
+}
 var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/;
 function isHeldDraft(m) {
   return m.status === "queued" && m.sender === "ai";
@@ -15076,8 +15116,8 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chat = dto.messages.filter(isChatMessage);
-  const callNotes = dto.messages.length - chat.length;
-  const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  const callNotes = dto.messages.filter((m) => m.type === "call_summary").length;
+  const last = lastExchanged(chat);
   const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
   const v = standingOf(
     {
@@ -16136,6 +16176,12 @@ function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date(
   const draft = heldDraftOf(dto.messages);
   return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
 }
+function threadsWaitingOnYou(conversations, escalations, now) {
+  const open = new Map(escalations.filter((e) => e.state === "open").map((e) => [e.conversation_id, e]));
+  const held = new Set(conversations.map((c) => c.id));
+  const loaded = conversations.filter((c) => conversationWaitsOnYou(c, open.get(c.id) ?? null, now)).length;
+  return loaded + [...open.keys()].filter((id) => !held.has(id)).length;
+}
 function heldDraftWaits(vm, nowMs) {
   return !!vm.heldDraft && replyWaitsOnYou({ endsAtMs: vm.heldDraft.sendsAtMs }, nowMs);
 }
@@ -16146,18 +16192,21 @@ function replyFacts(dto, primaryChannel, tz, now) {
     emailStopped: primaryChannel === "email" ? emailStoppedWords(dto.contact, tz, now) : null
   };
 }
+function previewOf(messages) {
+  const last = [...messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
+  return last ? messageWords(last).slice(0, 110) : "";
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
   const draftMsg = heldDraftOf(dto.messages);
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
-  const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
+  const chatChannel = writtenChannelOf(replyWireOf(dto.messages));
+  const win = replyWindow(chatChannel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
-  const chatChannel = writtenChannelOf(lastInbound?.channel);
   const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
   const written = [...new Set(dto.messages.filter(isChatMessage).map((m) => writtenChannelOf(m.channel)))];
   const channels = [
@@ -16272,15 +16321,14 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
-    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
-    preview: last ? messageWords(last).slice(0, 110) : "",
+    preview: previewOf(dto.messages),
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
-    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? (
+    summary: claimedByOther ? HELD_WORDS.theirs.sentence : escalation ? (
       // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
       // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
       escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : reasonSummaryOf(escalation.reason)
-    ) : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
+    ) : takenOver ? HELD_WORDS.yours.sentence : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
@@ -16298,14 +16346,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
 }
 function lastWordOf(dto) {
   const chat = dto.messages.filter(isChatMessage);
-  let at3 = chat.length - 1;
-  let failed = null;
-  for (; at3 >= 0; at3--) {
-    const m = chat[at3];
-    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
-    if (!failed && m.status === "failed") failed = m;
-  }
-  const last = at3 >= 0 ? chat[at3] : null;
+  const last = lastExchanged(chat);
+  const failed = [...chat.slice(last ? chat.indexOf(last) + 1 : 0)].reverse().find((m) => m.status === "failed") ?? null;
   const failedBy = failed ? messageAuthor(failed)?.words ?? "us" : null;
   if (!last) {
     if (failedBy)
@@ -17531,7 +17573,17 @@ var TONE_OF = /* @__PURE__ */ (() => ({
     booked: "ok",
     decided: "ok"
   },
-  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  // A thread somebody has wears the Inbox's own tones for it (`thread` above): yours is in hand, a teammate's is theirs.
+  standing: {
+    escalated: "warn",
+    queued: "info",
+    snoozed: "info",
+    paused: "plain",
+    yours: "info",
+    theirs: "plain",
+    silent: "plain",
+    answering: "ok"
+  },
   call: {
     live: "accent",
     missed: "plain",
@@ -17598,8 +17650,8 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   thread: {
     escalated: "Needs you",
     needs_you: "Needs you",
-    yours: "You have it",
-    theirs: "A teammate has it",
+    yours: HELD_WORDS.yours.pill,
+    theirs: HELD_WORDS.theirs.pill,
     snoozed: "Snoozed",
     done: "Done",
     open: "Customer wrote last",
@@ -17612,6 +17664,9 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
     queued: "Reply queued",
     snoozed: "Snoozed",
     paused: "Paused",
+    // A thread somebody has says what the Inbox's pill says of it (standing.ts HELD_WORDS).
+    yours: HELD_WORDS.yours.pill,
+    theirs: HELD_WORDS.theirs.pill,
     silent: "Silent",
     answering: "Answering"
   },
@@ -18356,9 +18411,12 @@ function visitDayWord(visit, tz, sendAt, assumed) {
 }
 
 // src/people/person-reach.ts
-function bookingLinkAction(replyVia, win) {
+var EMAIL_STOPPED_TAG = "stopped accepting mail";
+var EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
+function bookingLinkAction(replyVia, win, emailStopped) {
+  const notReady = (title) => ({ label: "Send the booking link", title, ready: false });
   if (replyVia === "Email")
-    return {
+    return emailStopped ? notReady(EMAIL_CANT_REACH) : {
       label: "Email the booking link",
       title: "Opens the thread with the link ready to send by email",
       ready: true
@@ -18375,20 +18433,19 @@ function bookingLinkAction(replyVia, win) {
       title: `Opens the thread with the link ready to send \xB7 any message for ${win.hoursLeft}h more`,
       ready: true
     };
-  return {
-    label: "Send the booking link",
-    title: "Only an approved message reaches them until they write again; their thread offers the one with the link",
-    ready: false
-  };
+  return notReady(
+    "Only an approved message reaches them until they write again; their thread offers the one with the link"
+  );
 }
 function proposalMessage(url) {
   return `Here's the proposal we put together for you: ${url}`;
 }
-function proposalAction(replyVia, win, sentWords2) {
+function proposalAction(replyVia, win, sentWords2, emailStopped) {
   const again = sentWords2 ? " again" : "";
   const sent2 = sentWords2 ? ` \xB7 sent ${sentWords2}` : "";
+  const notReady = (title) => ({ label: "Send the proposal", title, ready: false });
   if (replyVia === "Email")
-    return {
+    return emailStopped ? notReady(EMAIL_CANT_REACH) : {
       label: `Email the proposal${again}`,
       title: `Opens the thread with the proposal link ready to send by email${sent2}`,
       ready: true
@@ -18405,20 +18462,14 @@ function proposalAction(replyVia, win, sentWords2) {
       title: `Opens the thread with the proposal link ready to send \xB7 any message for ${win.hoursLeft}h more${sent2}`,
       ready: true
     };
-  return {
-    label: "Send the proposal",
-    title: "Only an approved message reaches them until they write again, so the proposal waits until they do",
-    ready: false
-  };
+  return notReady("Only an approved message reaches them until they write again, so the proposal waits until they do");
 }
-var EMAIL_STOPPED_TAG = "stopped accepting mail";
 function emailFactWords(email, stopped) {
   return stopped ? `${email} \xB7 ${EMAIL_STOPPED_TAG}` : email;
 }
 function repliesWords(via, window, stop) {
   if (stop.optedOut) return optOutWords(stop.who);
-  if (via === "Email")
-    return stop.emailStopped ? `Email can't reach them: their address ${EMAIL_STOPPED_TAG}` : "Any time, by email";
+  if (via === "Email") return stop.emailStopped ? EMAIL_CANT_REACH : "Any time, by email";
   if (via === "Text") return "Any time, by text";
   if (via !== "WhatsApp" || !window) return null;
   if (!window.open) return "Approved messages only, until they write again";
@@ -18426,7 +18477,7 @@ function repliesWords(via, window, stop) {
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
 }
 function mayReach(p) {
-  return !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc;
+  return !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc && !(p.replyVia === "Email" && p.emailSuppressed);
 }
 
 // src/deals/sheet/deal-acts.ts
@@ -18437,6 +18488,8 @@ function isDealSheetMode(s) {
 var DEAL_SEND_WHY = {
   window: "Their WhatsApp window has closed. Record it now, and send it from their thread when they write next.",
   stopped: "They asked not to be messaged.",
+  // The Replies row's own sentence (person-reach.ts), not a second one.
+  emailStopped: EMAIL_CANT_REACH,
   none: "There is no conversation with them yet."
 };
 function dealSendOf(p) {
@@ -18445,9 +18498,10 @@ function dealSendOf(p) {
   const reach = mayReach(p);
   if (!reach) {
     const stopped = p.consent.state === "opted_out" || p.consent.dnc;
-    return { can: false, reach, why: stopped ? DEAL_SEND_WHY.stopped : DEAL_SEND_WHY.none, label };
+    const why = stopped ? DEAL_SEND_WHY.stopped : p.openThread ? DEAL_SEND_WHY.emailStopped : DEAL_SEND_WHY.none;
+    return { can: false, reach, why, label };
   }
-  if (!proposalAction(p.replyVia, p.replyWindow, null).ready)
+  if (!proposalAction(p.replyVia, p.replyWindow, null, p.emailSuppressed).ready)
     return { can: false, reach, why: DEAL_SEND_WHY.window, label };
   return { can: true, reach, why: null, label };
 }
@@ -22442,6 +22496,20 @@ function rowReachOf(r2, consent, ready) {
   const facts = { lastChannel: lastChannelOf(r2.last_inbound_channel), emailSuppressed: isEmailStopped(r2) };
   return { ...facts, ...personReachOf({ consent, phone: r2.phone_e164, email: r2.email ?? null, ...facts }, ready) };
 }
+function rowReplyOf(r2, now, emailStopped) {
+  const via = replyChannelOfRow(r2);
+  if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null, false) };
+  const w = replyWindow(via, r2.latest_wa_inbound_at, now);
+  const win = {
+    open: w.open,
+    hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS)) : 0
+  };
+  return {
+    replyWindow: win,
+    replyVia: REPLY_VIA[via],
+    bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win, emailStopped)
+  };
+}
 function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null, ready) {
   const nowMs = now.getTime();
   const name = personName(r2);
@@ -22478,7 +22546,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r2, tz, nowMs),
+    receptionist: receptionistOf(r2, tz, nowMs, viewerId),
     firstContact: first,
     cameFrom: cameFromOf(r2),
     consent,
@@ -22496,20 +22564,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.next.title, name)}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.last.title, name)}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
-    // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
-    // WhatsApp's for everybody, so a person who had only ever emailed was shown
-    // "Closed · template only" -- a template they cannot receive, on a wire
-    // they have never used.
-    ...(() => {
-      const via = replyChannelOfRow(r2);
-      if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null) };
-      const w = replyWindow(via, r2.latest_wa_inbound_at, now);
-      const win = {
-        open: w.open,
-        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0
-      };
-      return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
-    })(),
+    ...rowReplyOf(r2, now, reach.emailSuppressed),
     channelWords: channelsOf2(r2).map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 "),
     askedMs,
     askedNotBooked,
@@ -23341,6 +23396,7 @@ function personCardContext(d, tz, now, viewerId) {
     tz,
     now,
     nowMs,
+    viewerId,
     row: row2,
     base,
     stamp: (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) }),
@@ -23379,16 +23435,13 @@ function lastExchangeOf({ profile, stamp }) {
   }
   return { customer, reply };
 }
-function rightNowOf({ profile, tz, now, nowMs, row: r2, base }) {
+function rightNowOf({ profile, tz, now, nowMs, viewerId, row: r2, base }) {
   const threadTo = r2.latest_conversation_id ? `inbox/th-${r2.latest_conversation_id}` : null;
   const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
-  if (isOwned(r2, nowMs)) {
-    return {
-      tone: "paused",
-      title: "Paused, a person owns this thread",
-      detail: "A person owns this thread; automatic replies resume when it is handed back.",
-      cta: openThread
-    };
+  const held = holderOf(r2, nowMs, viewerId);
+  if (held) {
+    const { tone, title, detail } = HELD_THREAD[held];
+    return { tone, title, detail, cta: openThread };
   }
   if (r2.open_escalation_reason) {
     const since = r2.open_escalation_since ? shortTime(r2.open_escalation_since, tz, now) : null;
@@ -23458,6 +23511,8 @@ var TONE_WORD = {
   queued: "Queued",
   snoozed: "Snoozed",
   paused: "Held for you",
+  yours: "Held for you",
+  theirs: "Paused",
   silent: "Silent"
 };
 var receptionistMeta = (label) => label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase();
@@ -23558,11 +23613,11 @@ function aboutOf({
 function sinceWords(base) {
   return base.firstContact.label === "\u2014" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`;
 }
-function replyFields(reply) {
+function replyFields(reply, emailStopped) {
   return {
     replyVia: REPLY_VIA[reply.via],
     replyWindow: reply.window,
-    bookingLinkAction: bookingLinkAction(REPLY_VIA[reply.via], reply.window)
+    bookingLinkAction: bookingLinkAction(REPLY_VIA[reply.via], reply.window, emailStopped)
   };
 }
 function receptionistModeOf(d) {
@@ -23693,7 +23748,7 @@ function callItems({ profile, stamp }) {
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
     const notes = callNoteLines(callNotesOf(k));
-    const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+    const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : reachedVoicemail(k) ? "Reached voicemail." : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
       ts: t,
@@ -23944,7 +23999,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
   const { base, nowMs, dealsOn, reply } = ctx;
   const vm = {
     ...base,
-    ...reply ? replyFields(reply) : {},
+    ...reply ? replyFields(reply, base.emailSuppressed) : {},
     since: sinceWords(base),
     metaLine: `${plural(base.threads, "conversation")} \xB7 ${plural(base.calls, "call")}`,
     lastExchange: lastExchangeOf(ctx),
@@ -23972,7 +24027,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
   const whole = {
     ...vm,
     proposal: ctx.proposal,
-    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, ctx.sentWords)
+    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, ctx.sentWords, vm.emailSuppressed)
   };
   return { ...whole, acts: personActs(whole) };
 }
@@ -29043,7 +29098,7 @@ function buildNotificationFeed(input) {
       key: `call:${c.callId}`,
       kind: "missed_call",
       at: c.startedAtMs,
-      title: `${callAttemptWords(c.direction ?? "inbound")} \xB7 ${c.who}`,
+      title: `${callAttemptWords(c.direction)} \xB7 ${c.who}`,
       message: c.number ? `${c.number} \u2014 the call never connected.` : "The call never connected.",
       to: `conversations/${c.cvId}`,
       icon: "phone",
@@ -29941,7 +29996,7 @@ function escalationRecords(openEsc, byConv, callByConv, tz, now) {
 function closingConversations(conversations, escSet, now) {
   return conversations.filter((c) => {
     if (escSet.has(c.id)) return false;
-    const last = c.messages[c.messages.length - 1];
+    const last = lastExchanged(c.messages);
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);
     return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * HOUR_MS : false;
@@ -29965,7 +30020,7 @@ function todayFacts(input) {
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
     wires: todayWires(metrics),
-    needsYouCount: openEsc.length,
+    needsYouCount: threadsWaitingOnYou(conversations, escalations, now),
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
     closingConvs: closingConversations(conversations, escSet, now),
@@ -30092,7 +30147,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   const moodWords = moods.length ? `The voice provider read ${andList(moods.map(moodOf))}.` : "";
   const voicemail = [
     ...new Map(
-      callsInWindow.filter((c) => c.in_voicemail).map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who])
+      callsInWindow.filter((c) => reachedVoicemail(c)).map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who])
     ).values()
   ].filter((who) => !UNNAMED_CALLER.has(who));
   const voicemailWords = voicemail.length ? `${andList(voicemail.length > 3 ? [...voicemail.slice(0, 3), `${voicemail.length - 3} more`] : voicemail)} reached voicemail.` : "";
@@ -30179,7 +30234,8 @@ function todayNeedsYou(f) {
     count: f.needsYouCount,
     hint: "The receptionist stopped and asked for a human.",
     rows,
-    empty: rows.length ? null : period.unanswered_in_window === 0 && period.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
+    // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.
+    empty: f.needsYouCount ? null : period.unanswered_in_window === 0 && period.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
   };
 }
 function todayWindowClosing(f) {
@@ -30216,7 +30272,7 @@ function todayNoReply(f) {
       now.getTime()
     );
     if (standing !== "quiet" && standing !== "needs_you") return [];
-    const last = c.messages[c.messages.length - 1];
+    const last = lastExchanged(c.messages);
     if (!last || !isTheirOwnWords(last)) return [];
     const lastMs = new Date(last.created_at).getTime();
     if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
@@ -30239,7 +30295,7 @@ function todayReceipts(f) {
 var NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
 function callNote(c, live, analysisDue) {
   if (live) return "In progress right now";
-  if (c.in_voicemail) return "Reached voicemail";
+  if (reachedVoicemail(c)) return "Reached voicemail";
   if (abandonedCall(c)) return `Hung up after ${spokenDuration(c.duration_ms)} \u2014 they left with nothing`;
   if (c.sentiment === "Negative") return "Caller sentiment: Negative \u2014 the voice provider's own read";
   if (analysisDue) return "Summary on its way from the voice provider";
@@ -30249,7 +30305,7 @@ function callNote(c, live, analysisDue) {
 function todayCallRows(f) {
   const { callsInWindow, tz, now } = f;
   return callsInWindow.filter((c) => c.status !== "not_connected").map((c) => ({ c, vm: toCallVM(c, tz, now) })).filter(
-    ({ c, vm }) => vm.live || c.in_voicemail || c.sentiment === "Negative" || !c.summary || // Somebody rang and left with nothing. Measured before writing this:
+    ({ c, vm }) => vm.live || reachedVoicemail(c) || c.sentiment === "Negative" || !c.summary || // Somebody rang and left with nothing. Measured before writing this:
     // with a provider summary the row was not worth an ear at all, since
     // `user_hangup` is not in NEEDS_EAR and rightly so — every ordinary
     // call ends that way. Without one it did arrive, as "No summary from
@@ -32817,6 +32873,7 @@ export {
   HAND_WORDS_MAX,
   HELD_ON,
   HELD_REASONS,
+  HELD_WORDS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
   INSTRUCTIONS_MAX,
@@ -33721,6 +33778,7 @@ export {
   holdDoors,
   holdOf,
   holdWords,
+  holderOf,
   hoursFromGoogle,
   hoursLines2 as hoursLines,
   hoursOf2 as hoursOf,
@@ -33780,7 +33838,6 @@ export {
   isOpeningProblem,
   isOptedOut,
   isOptedOutContact,
-  isOwned,
   isPartnerCode,
   isPersonRow,
   isPersonsWords,
@@ -34242,6 +34299,7 @@ export {
   reachSplit,
   reachSplitWords,
   reachedCustomer,
+  reachedVoicemail,
   readAgoLabel,
   readingPlan,
   readingSystemPrompt,
@@ -34468,6 +34526,7 @@ export {
   threadChannelOf,
   threadChannelWords,
   threadStanding,
+  threadsWaitingOnYou,
   tidyCallSummary,
   timetable,
   timezoneCity,

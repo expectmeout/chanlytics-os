@@ -718,6 +718,38 @@ test("Today publishes the badge by the Inbox's rule: the sidebar does not drop a
   }
 });
 
+test("Today's headline says the badge's number, and a flagged thread older than the newest hundred counts in both", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    const { todayOverride } = await import(`${S}/surfaces/today/surface.ts`);
+    const { surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+    VW_STORE.state = {};
+    // Rosa, Jess whose reply is counting down, and a customer flagged weeks ago whose thread is past the conversations
+    // read's newest hundred: the escalations read holds it, the conversations read does not. The Inbox reads that
+    // thread by id and counts it; Today published 2 over it on every read, and its headline said 2 as well.
+    const old = wireThread("c9", "Lena Ruiz", {}, { ...asked("c9", 60 * 24 * 20) });
+    const rows = salon();
+    todayWire(rows);
+    const wire = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      const res = await wire(url);
+      if (new URL(String(url), "https://app.chanlytics.com").pathname !== "/api/v1/escalations") return res;
+      const body = await res.json();
+      body.data.escalations.push({ ...old.esc, conversation_id: old.dto.id });
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    await todayOverride.apply();
+    assert.equal(counted.at(-1), 3, "REGRESSION: the badge read 2, under the Inbox's 3, every time Today read");
+    assert.equal(
+      surfaceValue("today")?.standing.headline,
+      "3 conversations need you.",
+      "REGRESSION: the headline counted escalations alone, so a reply counting down was on the badge and not here",
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
 test("a Today load asks for the replies to reach-outs once, as the surface that holds them does: Today asks for none of its own", async () => {
   const realFetch = globalThis.fetch;
   try {
@@ -818,6 +850,54 @@ test("the Inbox reads its approved templates once in a few minutes, not with eve
     templatesAnswer = true;
     await inboxOverride.apply();
     assert.equal(asked(), 5, "a failed read is asked for again, never kept as the answer");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("a template saved while the Inbox is reading is read again: the read that was already out does not keep the list from before the save", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    const { inboxOverride, forgetInboxTemplates } = await import(`${S}/surfaces/inbox/surface.ts`);
+    const { inboxData } = await import(`${S}/surfaces/inbox/store.ts`);
+    const { AFTER } = await import(`${S}/legacy-bridge/refresh-map.ts`);
+    const named = (name) => ({ templates: [{ id: name, name, language: "en_US", channel: "whatsapp" }], held: null });
+    let templates = () => Promise.resolve(named("before_the_save"));
+    let asked = 0;
+    globalThis.fetch = async (url) => {
+      const path = new URL(String(url), "https://app.chanlytics.com").pathname;
+      if (path === "/api/v1/templates") asked += 1;
+      const data =
+        path === "/api/v1/templates"
+          ? await templates()
+          : {
+              "/api/v1/conversations": { conversations: [] },
+              "/api/v1/escalations": { escalations: [] },
+              "/api/v1/workspaces": { workspaces: [] },
+            }[path];
+      return new Response(
+        JSON.stringify(data ? { ok: true, data } : { ok: false, error: { code: "not_found", message: "no" } }),
+        { status: data ? 200 : 404, headers: { "content-type": "application/json" } },
+      );
+    };
+    forgetInboxTemplates();
+    // A read goes out; its templates answer is on the way when the member saves a template.
+    let land;
+    templates = () => new Promise((resolve) => (land = () => resolve(named("before_the_save"))));
+    const reading = inboxOverride.apply();
+    while (!land) await new Promise((r) => setTimeout(r, 0));
+    // The save's own refresh, as the bridge runs it after the write (refresh-map's templates group).
+    AFTER["POST templates"]();
+    land();
+    await reading;
+    templates = () => Promise.resolve(named("after_the_save"));
+    await inboxOverride.apply();
+    assert.equal(asked, 2, "REGRESSION: the read that was out kept its answer, and the next read asked for none");
+    assert.deepEqual(
+      inboxData().templates.map((t) => t.name),
+      ["after_the_save"],
+      "REGRESSION: the picker offered the list from before the save for five minutes",
+    );
   } finally {
     globalThis.fetch = realFetch;
   }

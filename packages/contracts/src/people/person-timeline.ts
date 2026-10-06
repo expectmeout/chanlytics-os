@@ -25,7 +25,7 @@ import { MERGE_CONSENT_SOURCE } from "./person-merge";
 import { capitalize } from "../shared/words";
 import { callLength } from "../shared/clock";
 import { isIdentifierName } from "../conversations/thread-contact";
-import { callAttemptWords } from "../conversations/call-dto";
+import { callAttemptWords, reachedVoicemail } from "../conversations/call-dto";
 import { type MessageAuthor, messageAuthor } from "../conversations/message-author";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { clipAtWord, messageWords } from "../conversations/message-words";
@@ -266,7 +266,7 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
       : wanted ||
         (summary
           ? (summary.split(/(?<=[.!?])\s/)[0] ?? summary)
-          : k.in_voicemail
+          : reachedVoicemail(k)
             ? "Reached voicemail."
             : "No summary from this call.");
     items.push({

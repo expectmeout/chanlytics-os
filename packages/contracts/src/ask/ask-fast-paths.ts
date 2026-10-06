@@ -14,8 +14,8 @@ export interface FastCall {
   who: string;
   /** The dial never connected (the view models' `missed`): missed to the owner only where the customer dialled. */
   missed: boolean;
-  /** Who dialled; a row that does not say is a customer's (missedCall). */
-  direction?: "inbound" | "outbound";
+  /** Who dialled (missedCall). */
+  direction: "inbound" | "outbound";
   live: boolean;
   startedAtMs: number | null;
 }

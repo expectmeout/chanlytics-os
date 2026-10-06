@@ -35,7 +35,8 @@ const steps = readCode("packages/core/src/inbound/steps.ts");
 // set to Never who sends a voice note hears nothing back").
 
 test("WhatsApp: the non-text acknowledgement obeys the mode in force", () => {
-  assert.ok(wa.includes('const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");'));
+  // The mode in force, by the one rule (reply-posture.ts speaksUnattended, its truth table run in reply-posture.test.mjs).
+  assert.ok(wa.includes("const mayAck = !!brainCfg && speaksUnattended(replyMode);"));
   // The escalation and the alert still happen — a photo always needs a human.
   assert.ok(wa.includes('sink.escalate("non_text", `Customer sent a ${raw.type} message — ${why}.`)'));
 });

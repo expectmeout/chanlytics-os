@@ -306,6 +306,33 @@ function rowReachOf(
 }
 
 /**
+ * Where a reply to them goes, its window, and the booking link's words for that wire. Channel-aware: only WhatsApp has a
+ * window (policy replyWindow). This read WhatsApp's for everybody, so a person who had only ever emailed was shown
+ * "Closed · template only" -- a template they cannot receive, on a wire they have never used. `emailStopped` is whether
+ * mail to their address has stopped (rowReachOf's flag): the booking link is not offered by email then.
+ */
+function rowReplyOf(
+  r: PersonRowDto,
+  now: Date,
+  emailStopped: boolean,
+): Pick<PersonRowVM, "replyWindow" | "replyVia" | "bookingLinkAction"> {
+  const via = replyChannelOfRow(r);
+  if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null, false) };
+  const w = replyWindow(via, r.latest_wa_inbound_at, now);
+  const win = {
+    open: w.open,
+    hoursLeft: w.closesAtIso
+      ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS))
+      : 0,
+  };
+  return {
+    replyWindow: win,
+    replyVia: REPLY_VIA[via],
+    bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win, emailStopped),
+  };
+}
+
+/**
  * A People row, as it reads at `now` for `viewerId` (the member looking; null for a playbook's run, which has no one):
  * its words, and the facts a list's rule reads (list-rules.ts), each worked out once here in the workspace's own dates.
  * `ready` is what the workspace can send on now, which their reach is judged against (reach-any.ts): required, since a
@@ -380,7 +407,7 @@ export function toPersonRowVM(
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r, tz, nowMs),
+    receptionist: receptionistOf(r, tz, nowMs, viewerId),
     firstContact: first,
     cameFrom: cameFromOf(r),
     consent,
@@ -398,20 +425,7 @@ export function toPersonRowVM(
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleFor(v.next.title, name)}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, name)}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
-    // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
-    // WhatsApp's for everybody, so a person who had only ever emailed was shown
-    // "Closed · template only" -- a template they cannot receive, on a wire
-    // they have never used.
-    ...(() => {
-      const via = replyChannelOfRow(r);
-      if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null) };
-      const w = replyWindow(via, r.latest_wa_inbound_at, now);
-      const win = {
-        open: w.open,
-        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0,
-      };
-      return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
-    })(),
+    ...rowReplyOf(r, now, reach.emailSuppressed),
     channelWords: channelsOf(r)
       .map((c) => PERSON_CHANNEL_WORDS[c])
       .join(" · "),
