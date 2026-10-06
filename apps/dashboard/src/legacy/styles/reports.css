@@ -180,6 +180,10 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-hero, .rpt-facts { grid-column: 1 / -1; }
   .rpt-grid > .rpt-span-4 { grid-column: span 6; }
   .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
+  /* A half card the row leaves alone takes the row: the one after a wide card (How fast it answers), and the last of an odd
+     run of thirds (Asked, then booked). Each stood at half width beside nothing (6 Oct 2026). */
+  .rpt-grid > :is(.rpt-span-5, .rpt-span-7, .rpt-span-8) + .rpt-span-4:last-child,
+  .rpt-grid > .rpt-span-4:nth-child(odd):not(:has(+ .rpt-span-4)) { grid-column: 1 / -1; }
   .rpt-grid > .rpt-deals-lines { padding-left: 0; }
   .rpt-figures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rpt-cell:nth-child(4) { border-left: none; }
