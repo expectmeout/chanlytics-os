@@ -317,6 +317,7 @@ export {
   peopleCursorOf,
   everyoneIn,
   erasureDigests,
+  scrubPersonNotes,
   mergePeople,
 } from "./repositories/people";
 export type { PeopleCursor } from "./repositories/people";

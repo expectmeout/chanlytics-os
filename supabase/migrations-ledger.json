@@ -341,6 +341,7 @@
     "00336_every_verified_delivery_is_kept_seven_days_under_the_provider_s_own_id.sql": "d6792e80f4be9f7c2db56c94f34ccaa5ba9f25018fd392d0462445335fea14aa",
     "00337_a_day_counts_how_long_a_provider_s_delivery_waited_to_be_taken_in.sql": "def3a864676048baf3fb85333e7a224cef8b8f726ba7ba7efe25cf122255c9ea",
     "00338_a_new_table_is_granted_by_its_own_migration.sql": "e4c54d5833edb172beda0f372e6a44e99321b1a71de9b811c0f59d4b708d4448",
-    "00339_a_write_s_answer_is_kept_a_day.sql": "b9c997a1cac9f8d67fe5381a7c5f67d930584533d91d4789013838aa9132bb57"
+    "00339_a_write_s_answer_is_kept_a_day.sql": "b9c997a1cac9f8d67fe5381a7c5f67d930584533d91d4789013838aa9132bb57",
+    "00340_a_note_keeps_nothing_of_a_person_erased_elsewhere.sql": "6cee7935c1c2a5082dfebbd6103e87cb97513a03ed6e5735a820f04158148445"
   }
 }

@@ -98,6 +98,8 @@ export const DASHBOARD_LOG_EVENTS = [
   "erase_jobs_prescrub_failed",
   "erase_jobs_scrub_failed",
   "erase_jobs_scrubbed",
+  "erase_notes_prescrub_failed",
+  "erase_notes_scrub_failed",
   "erase_person_policy_failed",
   "erase_storage_failed",
   "erase_sweep_decision_failed",

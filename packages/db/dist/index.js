@@ -439,6 +439,16 @@ async function erasureDigests(db, tenantId, values) {
   }
   return out;
 }
+async function scrubPersonNotes(db, tenantId, contactId, needles) {
+  const { data, error } = await db.rpc("person_notes_scrub", {
+    p_tenant_id: tenantId,
+    p_contact_id: contactId,
+    p_needles: [...needles]
+  });
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`person_notes_scrub: ${error.message}`);
+  return data ?? 0;
+}
 async function mergePeople(db, keep, merge) {
   const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
   if (error) throw error;
@@ -3841,6 +3851,7 @@ export {
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
+  scrubPersonNotes,
   scrubProviderEvents,
   searchMessages,
   searchNamesByIds,

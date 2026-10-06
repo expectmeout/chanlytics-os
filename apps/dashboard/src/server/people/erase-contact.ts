@@ -15,7 +15,7 @@
  * order they run in, on the session's client for the rest.
  */
 import { AppError } from "@chanlytics/contracts";
-import { scrubProviderEvents, type Json } from "@chanlytics/db";
+import { scrubPersonNotes, scrubProviderEvents, type Json } from "@chanlytics/db";
 import { serviceDb } from "@/server/service-db";
 import { type erasureScope, recordDecision } from "@/server/verbs";
 import {
@@ -203,6 +203,18 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
       500,
     );
   }
+  // Other people's notes that carry their number or address (00340, decision 0036): the needle overwritten in place,
+  // the note kept, by the same spellings and for the same reason. Their own notes go with them in step 4.
+  try {
+    await scrubPersonNotes(serviceDb(), contact.tenant_id, contact.id, keys.needles);
+  } catch (e) {
+    log.error("erase_notes_prescrub_failed", { contact: contact.id, error: e });
+    throw new AppError(
+      "internal",
+      "The notes that carried this person's number or address could not be scrubbed, so nothing was deleted. Try again.",
+      500,
+    );
+  }
 }
 
 /* ---- 3. Storage, before the rows that name it ---- */
@@ -255,6 +267,7 @@ async function forgetAfterRows(ctx: RouteContext, contact: ErasedContact, keys: 
   const jobsScrubbed = await scrubJobsBestEffort(contact, keys.identifiers);
   log.info("erase_jobs_scrubbed", { contact: contact.id, jobs: jobsScrubbed });
   await scrubKeptDeliveriesBestEffort(contact, keys.needles);
+  await scrubOthersNotesBestEffort(contact, keys.needles);
 }
 
 /* ---- 5. anything that landed during the window ----
@@ -344,5 +357,14 @@ async function scrubKeptDeliveriesBestEffort(contact: ErasedContact, needles: re
     await scrubProviderEvents(serviceDb(), contact.tenant_id, needles);
   } catch (e) {
     log.error("erase_deliveries_scrub_failed", { contact: contact.id, error: e });
+  }
+}
+
+/** Other people's notes, again: one written while the erasure ran is caught here. A failure is logged and carries on. */
+async function scrubOthersNotesBestEffort(contact: ErasedContact, needles: readonly string[]): Promise<void> {
+  try {
+    await scrubPersonNotes(serviceDb(), contact.tenant_id, contact.id, needles);
+  } catch (e) {
+    log.error("erase_notes_scrub_failed", { contact: contact.id, error: e });
   }
 }
