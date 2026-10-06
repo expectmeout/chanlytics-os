@@ -3838,6 +3838,8 @@ test("the channels, for the page and for Ask: GET channels answers its reader's 
     "quality_event",
     "messaging_limit",
     "quality_at",
+    "standing",
+    "standing_read_at",
   ]);
   // When each last heard from a customer: WhatsApp's last inbound message, the line's last inbound call.
   const heard = channelsWorld({
@@ -3873,6 +3875,48 @@ test("the channels, for the page and for Ask: GET channels answers its reader's 
       ["whatsapp", "2026-09-20T10:00:00Z"],
     ],
     "by kind, each with when it last heard from a customer",
+  );
+});
+
+test("the channels carry what Meta holds about the WhatsApp number, as the edge kept it on the row's config, and when it was read: read back as held, so a config that holds no standing says none -- the page's route says the same as the reader, byte for byte", async () => {
+  const held = {
+    can_send: "BLOCKED",
+    problems: [
+      {
+        entity: "WABA",
+        code: 141006,
+        said: "A payment method is required to send messages",
+        fix: "Add a payment method in WhatsApp Manager",
+      },
+    ],
+    notes: [],
+    name: "Harbor Moving",
+    name_status: "APPROVED",
+    verification: "not_verified",
+    limit: "TIER_250",
+    has_payment_method: false,
+    owner_business_id: "410540000000001",
+    waba_id: "205540000000001",
+  };
+  const world = (config) =>
+    channelsWorld({
+      tenant_channels: [{ ...channelsWorld().tenant_channels[0], config }, channelsWorld().tenant_channels[1]],
+    });
+  const first = async (config) =>
+    (await kernel.load(turnIn(dayCtx(world(config))), channelsReader, undefined)).data.channels[0];
+  const stamped = { quality_rating: "GREEN", standing: held, standing_read_at: "2026-10-06T14:55:00Z" };
+  const ok = await first(stamped);
+  assert.deepEqual([ok.standing, ok.standing_read_at, ok.quality], [held, "2026-10-06T14:55:00Z", "GREEN"]);
+  const page = await channelsRoute.GET.run(req(`?workspace=${A}`), dayCtx(world(stamped)));
+  assert.equal(JSON.stringify(page.channels[0]), JSON.stringify(ok), "the route says what the reader says");
+  for (const standing of [undefined, null, "BLOCKED", [], {}, { can_send: "" }, { problems: [] }]) {
+    const c = await first({ standing });
+    assert.deepEqual([c.standing, c.standing_read_at], [null, null], JSON.stringify(standing));
+  }
+  assert.equal(
+    channelsRoute.GET.policy.role,
+    null,
+    "every member reads it, as they read the quality: the policy is the route's and is not changed",
   );
 });
 

@@ -150,7 +150,14 @@ export {
   LINE_COSTS,
   isAreaCode,
 } from "./lines/lines";
-export type { LineProviderName, ProviderAccount, AvailableNumber, LineProvider, SmsSendResult } from "./lines/lines";
+export type {
+  LineProviderName,
+  ProviderAccount,
+  AvailableNumber,
+  LineProvider,
+  SmsSendResult,
+  ReceivedText,
+} from "./lines/lines";
 export { twilioProvider, twilioUrls, TwilioError, fetchTwilio, twilioRequest } from "./lines/lines-twilio";
 export type { TwilioAnswer, TwilioHttp } from "./lines/lines-twilio";
 export { dryProvider } from "./lines/lines-dry";
@@ -164,6 +171,8 @@ export {
   smsKeywordConsent,
   mergeConsent,
   withCarrierConsent,
+  oneTimeCodeOf,
+  lineCodesFrom,
   smsRefusalOf,
   smsBody,
   smsInboundUrl,

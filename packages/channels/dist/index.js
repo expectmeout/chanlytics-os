@@ -2065,6 +2065,20 @@ async function sendSms(http2, acct, o) {
     ...a.outcome ? { outcome: ok2 ? "ok" : a.outcome === "ok" ? "unknown" : a.outcome } : {}
   };
 }
+var RECENT_TEXTS_PAGE = "20";
+async function recentTexts(http2, acct, to, sinceMs) {
+  const url = `${twilioUrls.messages(acct.sid)}?${new URLSearchParams({ To: to, PageSize: RECENT_TEXTS_PAGE })}`;
+  const b = need(await http2(acct, "GET", url), "list received texts");
+  return rowsOf(b, "messages").flatMap((m) => {
+    const sid2 = str(m, "sid");
+    const from = str(m, "from");
+    const body = str(m, "body");
+    const atMs = Date.parse(str(m, "date_sent") ?? "");
+    if (str(m, "direction") !== "inbound" || !sid2 || !from || body === null || Number.isNaN(atMs) || atMs < sinceMs)
+      return [];
+    return [{ sid: sid2, from, body, atMs }];
+  });
+}
 function twilioProvider(http2 = fetchTwilio) {
   return {
     name: "twilio",
@@ -2088,12 +2102,14 @@ function twilioProvider(http2 = fetchTwilio) {
     attachNumber: (acct, trunkSid, numberSid) => attachNumber(http2, acct, trunkSid, numberSid),
     createMessagingService: (acct, o) => createMessagingService(http2, acct, o),
     addNumberToService: (acct, serviceSid, numberSid) => addNumberToService(http2, acct, serviceSid, numberSid),
-    sendSms: (acct, o) => sendSms(http2, acct, o)
+    sendSms: (acct, o) => sendSms(http2, acct, o),
+    recentTexts: (acct, to, sinceMs) => recentTexts(http2, acct, to, sinceMs)
   };
 }
 
 // src/lines/lines-dry.ts
 var hex = (n, width = 32) => n.toString(16).padStart(width, "0");
+var DRY_TEXTS_PAGE = 20;
 function dryProvider(seed = 1) {
   let n = seed;
   const next = (prefix) => `${prefix}${hex(n++)}`;
@@ -2104,6 +2120,7 @@ function dryProvider(seed = 1) {
   const lists = /* @__PURE__ */ new Map();
   const credentials = /* @__PURE__ */ new Map();
   const originations = /* @__PURE__ */ new Map();
+  const received = /* @__PURE__ */ new Map();
   const rec = (op, ...args) => calls.push({ op, args });
   const acctOf = (a) => a.sid;
   return {
@@ -2221,6 +2238,16 @@ function dryProvider(seed = 1) {
     async sendSms(acct, o) {
       rec("sendSms", acctOf(acct), o.serviceSid, o.to);
       return { ok: true, sid: next("SM"), status: 201, code: null };
+    },
+    plantText(to, text) {
+      received.set(to, [...received.get(to) ?? [], text]);
+    },
+    // Not `async`: nothing here waits, and lint's `require-await` warnings in this file are a count that may only fall.
+    recentTexts(acct, to, sinceMs) {
+      rec("recentTexts", acctOf(acct), to, sinceMs);
+      return Promise.resolve(
+        (received.get(to) ?? []).filter((t) => t.atMs >= sinceMs).sort((a, b) => b.atMs - a.atMs).slice(0, DRY_TEXTS_PAGE)
+      );
     }
   };
 }
@@ -2505,7 +2532,12 @@ async function channelStep(run) {
 }
 
 // src/lines/sms.ts
-import { SMS_OPT_OUT_PATTERN, utf8Bytes } from "../../contracts/dist/index.js";
+import {
+  LINE_CODES_MAX,
+  LINE_CODES_WITHIN_MS,
+  SMS_OPT_OUT_PATTERN,
+  utf8Bytes
+} from "../../contracts/dist/index.js";
 function smsInboundFrom(form2) {
   const messageSid = form2.MessageSid || form2.SmsSid || "";
   const from = form2.From || "";
@@ -2561,6 +2593,65 @@ function mergeConsent(a, b) {
 function withCarrierConsent(n, c) {
   if (!c) return n;
   return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
+}
+var ONE_TIME_CODE_MAX_CHARS = 320;
+var CODE_DIGITS = String.raw`(\d{3,4}[ -]\d{3,4}|\d{4,8})`;
+var CODE = String.raw`(?<![\d\w])${CODE_DIGITS}(?![\d\w])`;
+var CODE_KIND = String.raw`(?:verification|security|confirmation|login|log-in|sign-in|access|one-time|authentication)`;
+var SENDERS_KIND = /^(?:verification|login|log-in|sign-in|one-time|authentication) ?$/i;
+var sendersKind = (kind) => kind !== void 0 && SENDERS_KIND.test(kind);
+var CODE_NAME = String.raw`([\p{L}\d&.'’-]+(?: [\p{L}\d&.'’-]+){0,2}?)`;
+var CODE_WORD = String.raw`(?:code|passcode|otp|pin)`;
+var ENDS = String.raw`(?=[ \t]*(?:$|[.,;!\r\n]))`;
+var YOUR_NAME_CODE = new RegExp(
+  String.raw`\byour ${CODE_NAME} (${CODE_KIND} )?${CODE_WORD}\b[ :]{0,3}(?:is\b[ :]{0,3})?${CODE}${ENDS}`,
+  "iu"
+);
+var YOUR_KIND_CODE = new RegExp(
+  String.raw`\byour (${CODE_KIND}) ${CODE_WORD}\b[ :]{0,3}(?:is\b[ :]{0,3})?${CODE}${ENDS}`,
+  "iu"
+);
+var CODE_IS_YOUR_KIND = new RegExp(String.raw`${CODE} is your (${CODE_KIND}) ${CODE_WORD}\b${ENDS}`, "iu");
+var CODE_IS_YOUR_NAME = new RegExp(
+  String.raw`${CODE} is your ${CODE_NAME} (${CODE_KIND} )?${CODE_WORD}\b${ENDS}`,
+  "iu"
+);
+var USE_TO_VERIFY = new RegExp(String.raw`\b(?:use|enter) ${CODE} to (?:verify|activate|authenticate)\b`, "iu");
+var DONT_SHARE = /\b(?:don'?t|do not|never) share (?:this|the|your|it)\b/i;
+var ANDROID_TAG = /^\s*<#>\s/;
+var NOT_A_SERVICE = /^(?:door|gate|garage|locker|lock|building|entry|promo|discount|coupon|gift|referral|booking|appointment|order|reservation|alarm|wi-?fi|security|verification|confirmation|login|log-in|sign-in|access|one-time|authentication)$/i;
+function serviceName(name) {
+  if (!name) return null;
+  return name.split(" ").every((w) => /\p{Lu}/u.test(w) && !NOT_A_SERVICE.test(w)) ? name : null;
+}
+function oneTimeCodeOf(body) {
+  if (body.length > ONE_TIME_CODE_MAX_CHARS || body.includes("?")) return null;
+  const warned = DONT_SHARE.test(body);
+  const [, name, kind, digits] = YOUR_NAME_CODE.exec(body) ?? [];
+  const sender = serviceName(name);
+  const signed = (k) => sendersKind(k) || k === void 0 && warned;
+  if (digits && sender && signed(kind)) return { code: digits, from: sender };
+  const [, kindWord, kindOnly] = YOUR_KIND_CODE.exec(body) ?? [];
+  if (kindOnly && sendersKind(kindWord) && warned) return { code: kindOnly, from: null };
+  const [, named, namedBy, namedKind] = CODE_IS_YOUR_NAME.exec(body) ?? [];
+  const namedFrom = serviceName(namedBy);
+  if (named && namedFrom && signed(namedKind)) return { code: named, from: namedFrom };
+  const [, unnamed, unnamedKind] = CODE_IS_YOUR_KIND.exec(body) ?? [];
+  if (unnamed && (sendersKind(unnamedKind) || warned)) return { code: unnamed, from: null };
+  const [, used] = USE_TO_VERIFY.exec(body) ?? [];
+  if (used && warned) return { code: used, from: null };
+  if (ANDROID_TAG.test(body)) {
+    const found = [...body.matchAll(new RegExp(CODE, "gu"))].map((m) => m[1]);
+    const only = found.length === 1 ? found[0] : void 0;
+    if (only) return { code: only, from: null };
+  }
+  return null;
+}
+function lineCodesFrom(texts, nowMs) {
+  return [...texts].filter((t) => nowMs - t.atMs <= LINE_CODES_WITHIN_MS).sort((a, b) => b.atMs - a.atMs).flatMap((t) => {
+    const read = oneTimeCodeOf(t.body);
+    return read ? [{ code: read.code, from: read.from, at: new Date(t.atMs).toISOString() }] : [];
+  }).slice(0, LINE_CODES_MAX);
 }
 var SMS_OPTED_OUT_CODE = 21610;
 function smsRefusalOf(r) {
@@ -5003,6 +5094,7 @@ export {
   isValidSipPassword,
   keywordsFor,
   leadJudge,
+  lineCodesFrom,
   listAccounts,
   listCalls,
   listLocations,
@@ -5022,6 +5114,7 @@ export {
   normalizeCall,
   normalizeInbound,
   noteTenant,
+  oneTimeCodeOf,
   ownDomainIdentity,
   parseAccounts,
   parseLocations,

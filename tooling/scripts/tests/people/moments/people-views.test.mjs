@@ -41,6 +41,12 @@ globalThis.React = {
     if (!(k in cells)) cells[k] = init;
     return [cells[k], (a) => (cells[k] = red(cells[k], a))];
   },
+  // The strip holds itself (a ref), to bring the view picked into it where it scrolls; nothing attaches one here.
+  useRef: (init) => {
+    const k = frames.key();
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
   useEffect: (fn) => {
     fn();
   },

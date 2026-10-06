@@ -1502,8 +1502,9 @@ html.legacy-on .tpl-fresh {
   color: var(--ink);
   white-space: pre-wrap;
 }
-/* The Leads door: beside it, Find leads steps back from primary; on a phone it is the full-width button above the tab bar. */
-.cl-controls-right:has(> .ro-door) > .btn-primary[data-testid="leads-find"] {
+/* The Leads door: beside it, at the right of the strip over the list (the page's acts, leads/scope/controls.tsx), Find leads
+   steps back from primary; on a phone it is the full-width button above the tab bar. */
+.pg-act-slot:has(> span > .ro-door) > span > .btn-primary[data-testid="leads-find"] {
   background: var(--bg);
   color: var(--ink);
   border-color: var(--line-strong);

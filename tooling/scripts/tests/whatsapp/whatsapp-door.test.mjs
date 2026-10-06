@@ -179,7 +179,8 @@ const kind = (tables, k) => tables.events.filter((e) => e.kind === k);
 
 /**
  * One workspace with one WhatsApp number, every identifier its own (see the
- * header). `open(faults)` hands the door a database over these tables.
+ * header). `open(faults, rpcs)` hands the door a database over these tables, with the
+ * functions a case needs beside the two every case has.
  */
 function world() {
   const i = ++seq;
@@ -226,8 +227,9 @@ function world() {
     refuseCost: () => {
       costRefused = true;
     },
-    open: (faults = {}) => {
+    open: (faults = {}, rpcs = {}) => {
       const db = fakeDb(tables, faults, {
+        ...rpcs,
         runtime_stamp: () => `stamp-${i}`,
         message_keep_cost: ({ p_tenant_id, p_external_id, p_pricing }) => {
           if (costRefused) throw new Error("function message_keep_cost does not exist");
@@ -822,6 +824,413 @@ test("the account's own news is routed by its WABA and never by a number: kept a
         assert.equal(kind(w.tables, "channel.phone_number_quality_update").length, 1);
         assert.equal(line.mail().length, 1);
         assert.deepEqual(byNumber(), [], "and still no number was routed");
+      }),
+    );
+  } finally {
+    line.restore();
+  }
+});
+
+/* ------------------------------------- a partner's notice names the account it is about */
+
+/**
+ * A partner's notice as Meta delivers it (webhooks reference, account_update): addressed to the PARTNER's business portfolio
+ * (`entry.id`), with the customer's WhatsApp account in `value.waba_info`. On 6 October twelve of them arrived addressed so, and
+ * every one was dropped as unroutable. The partner's portfolio and the customer's business are made up, and each case's own.
+ */
+const PORTFOLIO = (w) => String(307650000000000 + w.i);
+const partnerNotice = (w, event, waba, entryId = PORTFOLIO(w)) => ({
+  object: "whatsapp_business_account",
+  entry: [
+    {
+      id: entryId,
+      time: Math.floor(Date.now() / 1000),
+      changes: [
+        {
+          field: "account_update",
+          value: {
+            event,
+            waba_info: {
+              waba_id: waba,
+              owner_business_id: String(407650000000000 + w.i),
+              partner_app_id: "108340000000001",
+            },
+          },
+        },
+      ],
+    },
+  ],
+});
+
+test("a partner's notice is routed by the account it names, never by the portfolio it was addressed to: kept as the workspace's event with its waba_info, a removal told to the owner, an addition told to nobody", async () => {
+  const w = world();
+  const OWNER = "owner@harbor.test";
+  w.tables.tenant_config.push({ tenant_id: w.T, config: { notifications: { escalation_emails: [OWNER] } } });
+  const db = w.open();
+  receptionist();
+  const line = wire();
+  try {
+    await withEnv(MAIL, () =>
+      listening(async (log) => {
+        const added = partnerNotice(w, "PARTNER_ADDED", w.WABA);
+        assert.deepEqual(await answer(await deliver(added)), [200, { ok: true }]);
+        const channelReads = db.seen.filter((q) => q.table === "tenant_channels" && q.op === "select");
+        assert.deepEqual(
+          channelReads[0].filters,
+          [
+            ["eq", "kind", "whatsapp"],
+            ["eq", "waba_id", w.WABA],
+            ["eq", "status", "active"],
+          ],
+          "routed by the account the notice names: the portfolio it was addressed to holds no channel",
+        );
+        assert.deepEqual(
+          kind(w.tables, "channel.account_update").map((e) => [e.tenant_id, e.subject_id, e.data]),
+          [[w.T, `ch-${w.i}`, { waba_id: w.WABA, ...added.entry[0].changes[0].value }]],
+          "kept as Meta sent it, under the account that routed it",
+        );
+        assert.deepEqual(
+          [w.tables.notifications.length, line.mail().length],
+          [0, 0],
+          "a partner added is nobody's alert",
+        );
+
+        // Removed: the notice that says the receptionist can no longer answer, which an unrouted notice could never tell anyone.
+        assert.deepEqual(await answer(await deliver(partnerNotice(w, "PARTNER_REMOVED", w.WABA))), [200, { ok: true }]);
+        assert.deepEqual(
+          w.tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title]),
+          [[w.T, "number", "admin/integrations", "WhatsApp connection removed"]],
+          "the workspace's bell",
+        );
+        const mail = line.mail();
+        assert.deepEqual([mail.length, mail[0].to, mail[0].subject], [1, [OWNER], "WhatsApp connection removed"]);
+
+        // Addressed to nobody: the account it names is enough.
+        assert.deepEqual(await answer(await deliver(partnerNotice(w, "PARTNER_ADDED", w.WABA, ""))), [
+          200,
+          { ok: true },
+        ]);
+        assert.equal(kind(w.tables, "channel.account_update").length, 3);
+
+        assert.deepEqual(
+          log.said("wa_waba_event").map((l) => l.fields),
+          [
+            { field: "account_update", waba_id: w.WABA, outcome: "kept" },
+            { field: "account_update", waba_id: w.WABA, outcome: "alerted" },
+            { field: "account_update", waba_id: w.WABA, outcome: "kept" },
+          ],
+          "the line says the account the notice was about",
+        );
+        assert.deepEqual([log.said("waba_unroutable").length, log.said("wa_signup_finished_unclaimed").length], [0, 0]);
+      }),
+    );
+  } finally {
+    line.restore();
+  }
+});
+
+test("a partner's notice for an account no workspace holds is a sign-up that has not reached Chanlytics: one line at info, kept nowhere, nobody told; a notice addressed to an account we cannot find is still a fault", async () => {
+  const w = world();
+  const db = w.open();
+  receptionist();
+  const line = wire();
+  const stranger = `${w.WABA}0`;
+  try {
+    await withEnv(MAIL, () =>
+      listening(async (log) => {
+        assert.deepEqual(await answer(await deliver(partnerNotice(w, "PARTNER_ADDED", stranger))), [200, { ok: true }]);
+        assert.deepEqual(
+          log.said("wa_signup_finished_unclaimed").map((l) => [l.stream, l.fields]),
+          [["log", { waba_id: stranger, entry_id: PORTFOLIO(w), account_event: "PARTNER_ADDED" }]],
+          "news, said at info: the account, what the notice was addressed to, and the event",
+        );
+        assert.equal(log.said("waba_unroutable").length, 0, "not the error it was on 6 October");
+        assert.deepEqual(
+          log.said("wa_waba_event").map((l) => l.fields),
+          [{ field: "account_update", waba_id: stranger, outcome: "unclaimed" }],
+        );
+        const lookups = db.seen.filter((q) => q.table === "tenant_channels" && q.op === "select");
+        assert.deepEqual(
+          lookups.map((q) => q.filters.find(([, col]) => col === "waba_id")[2]),
+          [stranger],
+          "the account it names was looked up, and nothing else",
+        );
+        assert.deepEqual(
+          [w.tables.events.length, w.tables.notifications.length, line.mail().length],
+          [0, 0, 0],
+          "kept nowhere, nobody told",
+        );
+
+        // A notice that names no account, addressed to one nobody holds, is what waba_unroutable always meant.
+        const lost = {
+          object: "whatsapp_business_account",
+          entry: [{ id: stranger, changes: [{ field: "account_update", value: { event: "PARTNER_REMOVED" } }] }],
+        };
+        assert.deepEqual(await answer(await deliver(lost)), [200, { ok: true }]);
+        assert.deepEqual(
+          log.said("waba_unroutable").map((l) => [l.stream, l.fields]),
+          [["error", { waba_id: stranger, field: "account_update" }]],
+        );
+        assert.equal(log.said("wa_signup_finished_unclaimed").length, 1, "and is not said again as a sign-up");
+        assert.equal(log.said("wa_waba_event").at(-1).fields.outcome, "unrouted");
+        assert.deepEqual([w.tables.events.length, w.tables.notifications.length], [0, 0]);
+      }),
+    );
+  } finally {
+    line.restore();
+  }
+});
+
+test("accountOf: the account a notice names itself, else the one it was addressed to; an id that is not text names nothing, and a notice with neither is about no account", async () => {
+  const { accountOf } = await import(at("apps/edge/lib/whatsapp/waba-events.ts"));
+  assert.deepEqual(accountOf("2076", { event: "FLAGGED" }), { waba: "2076", named: false });
+  assert.deepEqual(accountOf("3076", { waba_info: { waba_id: " 2076 " } }), { waba: "2076", named: true });
+  assert.deepEqual(accountOf("", { waba_info: { waba_id: "2076" } }), { waba: "2076", named: true });
+  for (const info of [
+    undefined,
+    null,
+    "2076",
+    2076,
+    [],
+    {},
+    { waba_id: "" },
+    { waba_id: "  " },
+    { waba_id: 2076 },
+    { waba_id: null },
+  ])
+    assert.deepEqual(accountOf("3076", { waba_info: info }), { waba: "3076", named: false }, JSON.stringify(info));
+  assert.equal(accountOf("", {}), null);
+  assert.equal(accountOf("", { waba_info: { waba_id: " " } }), null);
+});
+
+/* ------------------------------------- Meta's decision on the display name */
+
+/** What Meta delivers when it decides a display name (webhooks reference, phone_number_name_update): entry.id is the WABA. */
+const nameNotice = (w, decision, over = {}) => ({
+  object: "whatsapp_business_account",
+  entry: [
+    {
+      id: w.WABA,
+      time: Math.floor(Date.now() / 1000),
+      changes: [
+        {
+          field: "phone_number_name_update",
+          value: {
+            display_phone_number: w.LINE.slice(1),
+            decision,
+            requested_verified_name: "Harbor Moving",
+            rejection_reason: null,
+            ...over,
+          },
+        },
+      ],
+    },
+  ],
+});
+/** What the edge kept about the number at its last read: its display name in review, the business not verified. */
+const HELD = {
+  can_send: "LIMITED",
+  problems: [],
+  notes: [],
+  name: "Harbor Nails",
+  name_status: "PENDING_REVIEW",
+  verification: "not_verified",
+  limit: "TIER_250",
+  has_payment_method: true,
+  owner_business_id: "410540000000001",
+  waba_id: "205540000000001",
+};
+/** The keeping door as the database answers it for this workspace's channel: the whole standing and its moment onto the config. */
+function keeper(w) {
+  const kept = [];
+  return {
+    kept,
+    rpcs: {
+      channel_keep_standing: ({ p_tenant_id, p_channel_id, p_standing }) => {
+        kept.push({ p_tenant_id, p_channel_id, p_standing });
+        const row = w.tables.tenant_channels.find((c) => c.id === p_channel_id && c.tenant_id === p_tenant_id);
+        if (!row) return "gone";
+        const was = row.config.standing?.can_send;
+        row.config = { ...row.config, standing: p_standing, standing_read_at: new Date().toISOString() };
+        return was === undefined ? "first" : was === p_standing.can_send ? "same" : "changed";
+      },
+    },
+  };
+}
+/** A workspace whose number was read: its standing and a rating on the config, and its owner's mailbox. */
+function readWorld() {
+  const w = world();
+  w.tables.tenant_channels[0].config = {
+    quality_rating: "GREEN",
+    standing: HELD,
+    standing_read_at: "2026-10-06T08:00:00.000Z",
+  };
+  w.tables.tenant_config.push({
+    tenant_id: w.T,
+    config: { notifications: { escalation_emails: ["owner@harbor.test"] } },
+  });
+  return w;
+}
+
+test("Meta's decision on the display name is kept as the workspace's event and applied to the standing the channel keeps, through the door the reading keeps it by: approved and in review are told to nobody", async () => {
+  for (const [decision, status] of [
+    ["APPROVED", "APPROVED"],
+    ["PENDING", "PENDING_REVIEW"],
+    ["DEFERRED", "PENDING_REVIEW"],
+  ]) {
+    const w = readWorld();
+    const k = keeper(w);
+    const db = w.open({}, k.rpcs);
+    receptionist();
+    const line = wire();
+    try {
+      await withEnv(MAIL, () =>
+        listening(async (log) => {
+          const notice = nameNotice(w, decision);
+          assert.deepEqual(await answer(await deliver(notice)), [200, { ok: true }], decision);
+          const channelReads = db.seen.filter((q) => q.table === "tenant_channels" && q.op === "select");
+          assert.deepEqual(
+            channelReads[0].filters,
+            [
+              ["eq", "kind", "whatsapp"],
+              ["eq", "waba_id", w.WABA],
+              ["eq", "status", "active"],
+            ],
+            "routed by the entry's id, which is the account, as the other account fields are",
+          );
+          assert.deepEqual(
+            kind(w.tables, "channel.phone_number_name_update").map((e) => [e.tenant_id, e.subject_id, e.data]),
+            [[w.T, `ch-${w.i}`, { waba_id: w.WABA, ...notice.entry[0].changes[0].value }]],
+            "kept as Meta sent it",
+          );
+          assert.deepEqual(
+            k.kept,
+            [
+              {
+                p_tenant_id: w.T,
+                p_channel_id: `ch-${w.i}`,
+                p_standing: { ...HELD, name: "Harbor Moving", name_status: status },
+              },
+            ],
+            `${decision}: the name and its word move, and nothing else of the standing`,
+          );
+          const cfg = w.tables.tenant_channels[0].config;
+          assert.deepEqual(
+            [cfg.standing.name_status, cfg.quality_rating],
+            [status, "GREEN"],
+            "on the config, beside what was there",
+          );
+          assert.deepEqual(
+            [w.tables.notifications.length, line.mail().length],
+            [0, 0],
+            `${decision} is nobody's alert`,
+          );
+          assert.deepEqual(
+            log.said("wa_waba_event").map((l) => l.fields),
+            [{ field: "phone_number_name_update", waba_id: w.WABA, outcome: "kept" }],
+          );
+        }),
+      );
+    } finally {
+      line.restore();
+    }
+  }
+});
+
+test("a declined display name is told to the owner with the way on and Meta's reason, and the row says it at once: the bell, the owner's mail and the kept standing", async () => {
+  const w = readWorld();
+  const k = keeper(w);
+  w.open({}, k.rpcs);
+  receptionist();
+  const line = wire();
+  try {
+    await withEnv(MAIL, () =>
+      listening(async (log) => {
+        const declined = nameNotice(w, "REJECTED", { rejection_reason: "NAME_FORMAT_UNACCEPTABLE" });
+        assert.deepEqual(await answer(await deliver(declined)), [200, { ok: true }]);
+        assert.deepEqual(
+          w.tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title, n.body]),
+          [
+            [
+              w.T,
+              "number",
+              "admin/integrations",
+              "WhatsApp display name declined",
+              "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
+            ],
+          ],
+          "the workspace's bell",
+        );
+        const mail = line.mail();
+        assert.deepEqual(
+          [mail.length, mail[0].to, mail[0].subject],
+          [1, ["owner@harbor.test"], "WhatsApp display name declined"],
+          "and the owner's mailbox",
+        );
+        assert.deepEqual(
+          [w.tables.tenant_channels[0].config.standing.name_status, w.tables.tenant_channels[0].config.standing.name],
+          ["DECLINED", "Harbor Moving"],
+          "and the row's note",
+        );
+        assert.deepEqual(
+          log.said("wa_waba_event").map((l) => l.fields),
+          [{ field: "phone_number_name_update", waba_id: w.WABA, outcome: "alerted" }],
+        );
+      }),
+    );
+  } finally {
+    line.restore();
+  }
+});
+
+test("a number whose standing was never read is left for the read, a decision that is none of Meta's four changes nothing, and a database that will not keep the standing costs the row its word and never the webhook its answer", async () => {
+  // Never read: the event is kept, no door is asked, and an approval is told to nobody.
+  const fresh = world();
+  const kFresh = keeper(fresh);
+  fresh.open({}, kFresh.rpcs);
+  receptionist();
+  const line = wire();
+  try {
+    await withEnv(MAIL, () =>
+      listening(async (log) => {
+        assert.deepEqual(await answer(await deliver(nameNotice(fresh, "APPROVED"))), [200, { ok: true }]);
+        assert.equal(kind(fresh.tables, "channel.phone_number_name_update").length, 1);
+        assert.deepEqual([kFresh.kept, fresh.tables.tenant_channels[0].config], [[], {}], "nothing to correct");
+
+        // A word that is none of Meta's four: kept as the event, nothing corrected, nothing said.
+        const odd = readWorld();
+        const kOdd = keeper(odd);
+        odd.open({}, kOdd.rpcs);
+        assert.deepEqual(await answer(await deliver(nameNotice(odd, "MAYBE"))), [200, { ok: true }]);
+        assert.deepEqual(
+          [kind(odd.tables, "channel.phone_number_name_update").length, kOdd.kept, odd.tables.notifications.length],
+          [1, [], 0],
+        );
+
+        // The database refuses the keeping: the owner is still told of a decline, the event is kept, the line says what failed.
+        const refused = readWorld();
+        refused.open(
+          {},
+          {
+            channel_keep_standing: () => {
+              throw new Error("the database is not keeping standings today");
+            },
+          },
+        );
+        assert.deepEqual(await answer(await deliver(nameNotice(refused, "REJECTED"))), [200, { ok: true }]);
+        assert.deepEqual(
+          [
+            kind(refused.tables, "channel.phone_number_name_update").length,
+            refused.tables.notifications.map((n) => n.title),
+            refused.tables.tenant_channels[0].config.standing.name_status,
+          ],
+          [1, ["WhatsApp display name declined"], "PENDING_REVIEW"],
+          "kept, told, and the row's word waits for the read",
+        );
+        assert.deepEqual(
+          log.said("wa_standing_keep_failed").map((l) => l.stream),
+          ["error"],
+        );
       }),
     );
   } finally {

@@ -37,7 +37,7 @@
  */
 import crypto from "node:crypto";
 import { phoneTail, pauseMsOf } from "../packages/contracts.js";
-import { WABA_FIELDS, handleWabaChange, notificationsFor } from "./waba-events.js";
+import { WABA_FIELDS, accountOf, handleWabaChange, notificationsFor } from "./waba-events.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
@@ -118,13 +118,12 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
         // on the WABA, not on a number: routed by waba_id, kept as an event,
         // and alerted through the same path a failed send uses.
         if (db && field && WABA_FIELDS.has(field)) {
-          const wabaId = String(entry.id || "");
-          const outcome = wabaId
-            ? await handleWabaChange(db, wabaId, { field, value: v as unknown as Record<string, unknown> }, (tid) =>
-                notificationsFor(db, tid),
-              )
-            : "unrouted";
-          L.info("wa_waba_event", { field, waba_id: wabaId || null, outcome });
+          // What the notice was addressed to; which account it is about is the function's to say (a partner's notice is
+          // addressed to the partner's portfolio and names the account itself).
+          const entryId = String(entry.id || "");
+          const value = v as unknown as Record<string, unknown>;
+          const outcome = await handleWabaChange(db, entryId, { field, value }, (tid) => notificationsFor(db, tid));
+          L.info("wa_waba_event", { field, waba_id: accountOf(entryId, value)?.waba ?? null, outcome });
           continue;
         }
         const phoneNumberId = v.metadata?.phone_number_id;

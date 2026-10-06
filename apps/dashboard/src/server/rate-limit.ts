@@ -101,6 +101,10 @@ export const RATE = {
   lines_buy: { limit: 3, windowMs: HOUR_MS, noun: "lines" },
   lines_retry: { limit: 10, windowMs: HOUR_MS, noun: "line retries" },
   lines_forwarding: { limit: 10, windowMs: HOUR_MS, noun: "forwarding changes" },
+  /** The codes texted to the line, read while Meta's sign-up window is open: the page asks every three seconds (twenty a minute), and once when it opens. */
+  lines_codes: { limit: 40, windowMs: MIN_MS, noun: "checks for codes" },
+  /** Asking Meta what it holds about a number: a Graph read each, asked only when a page opens on a standing that is missing or not available. */
+  whatsapp_standing: { limit: 12, windowMs: HOUR_MS, noun: "checks of your WhatsApp number" },
   /** The business on record: edited freely, but it is a write that leaves for a provider. */
   business_record: { limit: 20, windowMs: HOUR_MS, noun: "changes to your business record" },
   /** Filing with the carriers costs money and cannot be undone. */

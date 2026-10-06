@@ -135,3 +135,26 @@ test("a switched-off channel says what the code does with what still arrives: a 
     "what Meta said rides the view model",
   );
 });
+
+test("what Meta holds about the number, and when it was read, ride the view model; where nothing was read there is nothing", () => {
+  const standing = {
+    can_send: "LIMITED",
+    problems: [],
+    notes: ["Your display name has not been approved yet."],
+    name: "Harbor Moving",
+    name_status: "PENDING_REVIEW",
+    verification: "not_verified",
+    limit: "TIER_250",
+    has_payment_method: true,
+    owner_business_id: "410540000000001",
+    waba_id: "205540000000001",
+  };
+  const held = toChannelVM(wa({ standing, standing_read_at: "2026-09-04T15:50:00Z" }), NOW);
+  assert.deepEqual([held.standing, held.standingReadAt], [standing, "2026-09-04T15:50:00Z"]);
+  const none = toChannelVM(wa(), NOW);
+  assert.deepEqual([none.standing, none.standingReadAt], [null, null]);
+  assert.deepEqual(
+    [toChannelVM(wa({ standing: null }), NOW).standing, toChannelVM(wa({ standing: null }), NOW).standingReadAt],
+    [null, null],
+  );
+});

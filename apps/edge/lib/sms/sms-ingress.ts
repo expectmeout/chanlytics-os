@@ -34,6 +34,7 @@ import {
   carrierConsent,
   smsKeywordConsent,
   mergeConsent,
+  oneTimeCodeOf,
   SMS_HELD_REASON,
   SMS_HELD_DETAILS,
 } from "../packages/channels.js";
@@ -61,6 +62,11 @@ type Db = SupabaseClient<Database>;
  * chosen, so a fresh one every request means a fresh key every request, and
  * the only alarm channel this system has sends one email per POST to a public
  * URL. Those name a constant instead, so the whole class is capped like one.
+ *
+ * A code is a text that proved to be a one-time code some other service sent to the line (oneTimeCodeOf, Meta's when the
+ * owner connects the line's number to WhatsApp), whatever state the line is in: the line, the signature and the routing
+ * were proven first, so it is a text to this workspace's line, and `from` is the name of the service when the text said
+ * one. It is not answered and not kept; the owner reads it from the provider's own record (lib/lines/line-codes.ts).
  */
 type SmsVerdict =
   | {
@@ -73,6 +79,7 @@ type SmsVerdict =
       /** Set when the refusal came after Twilio's signature held: the line's workspace, for the kept delivery (00336). */
       proven?: { tenantId: string | null };
     }
+  | { kind: "code"; routed: RoutedChannel; from: string | null }
   | { kind: "accept"; line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean };
 
 /** One suppression key for every text to a number no line carries, whatever the caller writes in `To`. */
@@ -160,6 +167,11 @@ export async function planSmsIngress(o: {
           proven,
         };
   }
+
+  // A one-time code is nobody's to answer or to hold: not the receptionist's, and not a person's, whatever the line's
+  // state. The words are read, never the sender: Meta texted this line from two ordinary long numbers, one of them toll-free.
+  const code = oneTimeCodeOf(inbound.body);
+  if (code) return { kind: "code", routed, from: code.from };
 
   // Held: the carriers have not approved this line for texting yet, so the
   // text is kept for a person instead of answered.

@@ -293,6 +293,13 @@
       "rate": null,
       "spend": false
     },
+    "POST channels/whatsapp/standing": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "whatsapp_standing",
+      "spend": false
+    },
     "POST client-errors": {
       "kind": "write",
       "scope": "account",
@@ -818,6 +825,13 @@
       "role": "partner",
       "rate": "lines_buy",
       "spend": true
+    },
+    "GET lines/codes": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lines_codes",
+      "spend": false
     },
     "POST lines/forwarding": {
       "kind": "write",

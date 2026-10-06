@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
-import type { LineDto } from "@chanlytics/contracts";
+import type { LineCodeDto, LineDto } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured, type EdgeAnswer } from "../edge";
 import { deployment } from "../env";
 import { MIN_MS } from "@chanlytics/contracts";
@@ -120,4 +120,37 @@ export async function linesStatus(now = Date.now()): Promise<LinesStatus> {
       : { ready: false, provider: null, costs };
   statusCache = { at: now, value };
   return value;
+}
+
+/** How long a read of the codes waits on the edge, which waits on the provider's list: the page asks again in three seconds. */
+const LINE_CODES_TIMEOUT_MS = 12_000;
+
+/** A code as the edge answered it, in the shape the page holds, or nothing: what is not a code is dropped and never mended. */
+function lineCodeOf(c: unknown): LineCodeDto | null {
+  if (c === null || typeof c !== "object") return null;
+  const { code, from, at } = c as Record<string, unknown>;
+  return typeof code === "string" && typeof at === "string"
+    ? { code, from: typeof from === "string" ? from : null, at }
+    : null;
+}
+
+/**
+ * The one-time codes texted to the workspace's own line lately (GET lines/codes), read by the edge from the provider's own record
+ * and never kept here. A deployment that reaches no providers (a preview) has none to read, which is no failure; a read that
+ * failed is said (`ok: false`), for the route to refuse in words, never an empty list that reads as nobody writing.
+ */
+export async function lineCodesFor(
+  tenantId: string,
+  userId: string,
+): Promise<{ ok: true; codes: LineCodeDto[] } | { ok: false }> {
+  if (!edgeConfigured() || !deployment.providersLive) return { ok: true, codes: [] };
+  const a = await callEdge("/api/admin/lines/codes", null, {
+    workspace: tenantId,
+    user: userId,
+    method: "GET",
+    timeoutMs: LINE_CODES_TIMEOUT_MS,
+  });
+  const raw = a.body?.codes;
+  if (a.status !== 200 || a.body?.ok !== true || !Array.isArray(raw)) return { ok: false };
+  return { ok: true, codes: raw.map(lineCodeOf).filter((c): c is LineCodeDto => c !== null) };
 }

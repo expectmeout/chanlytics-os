@@ -27,6 +27,7 @@ export { normalizeLink, whyNotALink, linkHost } from "./link";
 export {
   optInPurposeOf,
   optInLink,
+  waMeDigits,
   TENANT_STATUSES,
   MEMBERSHIP_ROLES,
   CHANNEL_KINDS,

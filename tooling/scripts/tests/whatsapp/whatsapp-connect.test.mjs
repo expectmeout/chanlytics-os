@@ -235,6 +235,66 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
       "number@admin/integrations",
       `${field} ${JSON.stringify(value)} is the NUMBER's own health`,
     );
+  // A template moved to another category: to marketing it is a restriction, to anything else news kept quietly, and a notice
+  // that names nothing still says something. Held by value: these words are a function of their own (categoryWords).
+  const category = (value) => mod.describeWabaChange({ field: "template_category_update", value }, null);
+  assert.deepEqual(category({ message_template_name: "save_our_number", new_category: "MARKETING" }), {
+    kind: "template_blocked",
+    route: "messages",
+    subject: "Template “save_our_number” is now marketing",
+    body: "Meta moved the template “save_our_number” to marketing. Sends that use it now need the customer's recorded yes.",
+    alert: true,
+  });
+  assert.deepEqual(category({ message_template_name: "save_our_number", new_category: "UTILITY" }), {
+    kind: "template_ready",
+    route: "messages",
+    subject: "Template “save_our_number” is now utility",
+    body: "Meta moved the template “save_our_number” to utility.",
+    alert: false,
+  });
+  assert.deepEqual(category({}), {
+    kind: "template_ready",
+    route: "messages",
+    subject: "Template “a template” is now another category",
+    body: "Meta moved the template “a template” to another category.",
+    alert: false,
+  });
+
+  // Meta's decision on the display name (phone_number_name_update; entry.id is the WABA): approved is kept quietly, a decline is the
+  // owner's to read with the way on and Meta's reason, in the words Connections' row uses; one in progress has no notice of its own.
+  assert.ok(mod.WABA_FIELDS.has("phone_number_name_update"));
+  const named = (value) => mod.describeWabaChange({ field: "phone_number_name_update", value }, "+15551234567");
+  assert.deepEqual(
+    named({
+      display_phone_number: "15551234567",
+      decision: "APPROVED",
+      requested_verified_name: "Harbor Moving",
+      rejection_reason: null,
+    }),
+    {
+      kind: "number",
+      route: "admin/integrations",
+      subject: "WhatsApp display name approved",
+      body: "Meta approved the display name “Harbor Moving”.",
+      alert: false,
+    },
+  );
+  assert.deepEqual(
+    named({
+      decision: "REJECTED",
+      requested_verified_name: "Harbor Moving",
+      rejection_reason: "NAME_FORMAT_UNACCEPTABLE",
+    }),
+    {
+      kind: "number",
+      route: "admin/integrations",
+      subject: "WhatsApp display name declined",
+      body: "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
+      alert: true,
+    },
+  );
+  for (const decision of ["PENDING", "DEFERRED", "SOMETHING_ELSE", undefined])
+    assert.equal(named({ decision, requested_verified_name: "Harbor Moving" }), null, String(decision));
   // The webhook handling the account's fields by entry.id, before and instead
   // of routing by number, is run in whatsapp-door.test.mjs.
 });
@@ -296,4 +356,85 @@ test("the Integrations pane offers the connection to an owner or says exactly wh
     "the old by-hand line is gone",
   );
   // The diag showing the gates that decide who is answered is run in diag-door.test.mjs.
+});
+
+test("a sign-up leaves a mark in the tab's sessionStorage while Meta's window is open and takes it away however it ends; a page that finds one left by a page that is gone can say so, and the page that is running the sign-up never does", async () => {
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
+  );
+  const MARK = "chanlytics.whatsapp.signup";
+  const held = new Map();
+  const ops = [];
+  const storage = {
+    getItem: (k) => held.get(k) ?? null,
+    setItem: (k, v) => {
+      ops.push(["set", k]);
+      held.set(k, String(v));
+    },
+    removeItem: (k) => {
+      ops.push(["remove", k]);
+      held.delete(k);
+    },
+  };
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const whileRunning = [];
+  const win = {
+    sessionStorage: storage,
+    location: { pathname: "/w/harbor", search: "", hash: "" },
+    // Meta's door: asked first by every sign-up. While it is out the window has not opened, but the sign-up has begun.
+    fetch: async () => {
+      whileRunning.push([held.has(MARK), mod.signupLeftOpenAt(win)]);
+      await gate;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "no_config_id" },
+        }),
+        { status: 200 },
+      );
+    },
+  };
+  const realWindow = globalThis.window;
+  globalThis.window = win;
+  try {
+    // A page that is gone left a mark: this one says when the sign-up began.
+    const left = new Date(Date.now() - 5 * 60_000).toISOString();
+    held.set(MARK, left);
+    assert.equal(mod.signupLeftOpenAt(win), left);
+    const running = mod.waConnect.start();
+    await new Promise((resolve) => setImmediate(resolve));
+    release();
+    const result = await running;
+    assert.deepEqual(
+      [result.ok, result.reason],
+      [false, "not_ready"],
+      "Meta's door says it cannot start: the sign-up ends at once",
+    );
+    assert.deepEqual(
+      whileRunning,
+      [[true, null]],
+      "while it ran there was a mark, and this page, which was running it, did not call it left behind",
+    );
+    assert.deepEqual(
+      ops.map(([op]) => op),
+      ["set", "remove"],
+      "written when the sign-up began, taken away when it ended, whatever it came to",
+    );
+    assert.equal(held.has(MARK), false);
+    assert.equal(mod.signupLeftOpenAt(win), null, "and nothing is left behind once it has ended");
+
+    // Storage that is blocked: no mark is made, nothing throws, and no page claims a sign-up it cannot know of.
+    const blocked = () => {
+      throw new Error("storage is blocked");
+    };
+    win.sessionStorage = { getItem: blocked, setItem: blocked, removeItem: blocked };
+    assert.equal(mod.signupLeftOpenAt(win), null);
+    assert.equal((await mod.waConnect.start()).reason, "not_ready");
+  } finally {
+    if (realWindow === undefined) delete globalThis.window;
+    else globalThis.window = realWindow;
+  }
 });

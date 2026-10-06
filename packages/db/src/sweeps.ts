@@ -14,6 +14,10 @@
  *   whatsappNumbersToRead  the active WhatsApp numbers, never read first and then the longest unread: what the
  *                          channel-quality sweep (apps/edge/api/cron/channel-quality.ts, every six hours) reads.
  *   keepChannelQuality     the one write that sweep makes, through channel_keep_quality (00315).
+ *   whatsappNumberOf       the one active WhatsApp number of a workspace, as that sweep reads a number: what an owner's
+ *                          check of its standing reads (apps/edge/lib/whatsapp/number-standing.ts).
+ *   keepChannelStanding    what Meta holds about the number, kept through channel_keep_standing (00338): the sweep's second
+ *                          write, and the owner's check's and the connection's only one.
  * The functions are the service role's alone. The edge's calendar and playbooks sweeps read the pages through
  * lib/ops/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
  * whose rows lack the count, so a database without the function is a sweep that says so, never a quiet tick.
@@ -21,7 +25,7 @@
  * Cross-workspace: the hourly sweeps page what is due across every workspace; each row carries its tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PLAYBOOK_HOURS } from "@chanlytics/contracts";
+import { PLAYBOOK_HOURS, type NumberStanding } from "@chanlytics/contracts";
 import type { Database, Json } from "./database.types";
 
 type Db = SupabaseClient<Database>;
@@ -130,6 +134,10 @@ export interface WhatsappNumber {
   tenant_id: string;
   /** Meta's phone number id: the channel's external_id. */
   phone_number_id: string;
+  /** The WhatsApp Business Account the number belongs to, which the standing's verification and tier are read from; null where none is on the row. */
+  waba_id: string | null;
+  /** The number as the owner knows it, E.164; the words of an alert about it say it. */
+  number_e164: string | null;
   /** When a rating was last kept for it (config.quality_read_at); null before its first read. */
   read_at: string | null;
 }
@@ -149,7 +157,7 @@ function readAtOf(config: Json): string | null {
 export async function whatsappNumbersToRead(db: Db, limit: number): Promise<WhatsappNumber[]> {
   const { data, error } = await db
     .from("tenant_channels")
-    .select("id, tenant_id, external_id, config")
+    .select("id, tenant_id, external_id, waba_id, number_e164, config")
     .eq("kind", "whatsapp")
     .eq("status", "active")
     .order("config->>quality_read_at", { ascending: true, nullsFirst: true })
@@ -159,8 +167,36 @@ export async function whatsappNumbersToRead(db: Db, limit: number): Promise<What
     channel_id: r.id,
     tenant_id: r.tenant_id,
     phone_number_id: r.external_id,
+    waba_id: r.waba_id,
+    number_e164: r.number_e164,
     read_at: readAtOf(r.config),
   }));
+}
+
+/**
+ * One workspace's WhatsApp number: its oldest active channel, the one `channelFor` (contracts) picks, as the sweep reads a
+ * number. Null where the workspace has none. A read that fails throws.
+ */
+export async function whatsappNumberOf(db: Db, tenantId: string): Promise<WhatsappNumber | null> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("id, tenant_id, external_id, waba_id, number_e164, config")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "whatsapp")
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's WhatsApp number: ${error.message}`);
+  if (!data) return null;
+  return {
+    channel_id: data.id,
+    tenant_id: data.tenant_id,
+    phone_number_id: data.external_id,
+    waba_id: data.waba_id,
+    number_e164: data.number_e164,
+    read_at: readAtOf(data.config),
+  };
 }
 
 const KEPT_ANSWERS = ["first", "changed", "same", "gone"] as const;
@@ -185,5 +221,28 @@ export async function keepChannelQuality(
   if (error) throw new Error(`channel_keep_quality: ${error.message}`);
   const kept = KEPT_ANSWERS.find((a) => a === data);
   if (kept === undefined) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
+  return kept;
+}
+
+/**
+ * What Meta holds about a number, kept (channel_keep_standing, 00338): first read, changed (the word of `can_send`), the
+ * same as the last, or gone (not this workspace's WhatsApp channel any more). The whole standing is kept each time, and the
+ * event is written only when the word changed. Throws on the database's refusal and on an answer it does not know, so a
+ * caller counts the number as unread and tries it again.
+ */
+export async function keepChannelStanding(
+  db: Db,
+  tenantId: string,
+  channelId: string,
+  standing: NumberStanding,
+): Promise<(typeof KEPT_ANSWERS)[number]> {
+  const { data, error } = await db.rpc("channel_keep_standing", {
+    p_tenant_id: tenantId,
+    p_channel_id: channelId,
+    p_standing: standing,
+  });
+  if (error) throw new Error(`channel_keep_standing: ${error.message}`);
+  const kept = KEPT_ANSWERS.find((a) => a === data);
+  if (kept === undefined) throw new Error(`channel_keep_standing: answered ${JSON.stringify(data)}`);
   return kept;
 }

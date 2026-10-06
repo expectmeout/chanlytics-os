@@ -1076,6 +1076,24 @@ Other lines to know:
   through again; `GET /api/diag` (`breakers`) says each provider's state in the instance that answered, with how many
   times it has opened.
 - `emit_event_failed`, `paged_read_capped`: the database package's, now in the same shape.
+- `sms_code_skipped`: a text that was a one-time code (a service's "your code is ...") came to a Chanlytics line and was not
+  answered: no person, no conversation, no reply. The line holds the service it read (`service`), never the code or a
+  number. The owner reads the codes sent to the line on Settings, Connections, from Twilio's own record of them; nothing of
+  ours stores one. `line_codes_read_failed` (a warning, with the workspace) is Twilio refusing to list them for that page.
+- `wa_standing_read_failed`, `wa_standing_keep_failed`, `wa_standing_tell_failed`, `wa_standing_told`: what Meta holds about
+  a connected WhatsApp number (whether it may send, its display name, the business's verification, whether a payment method
+  is on file), read as a number is connected, by the channel-quality sweep and when an owner opens Connections. The first is
+  Meta not answering or refusing (a warning, with its `status` and `code`; the row keeps what it held); the second is the
+  database door refusing to keep a reading or a display-name decision and the third the owner's notice failing to send
+  (both errors, with the `channel_id` where a read wrote them; the webhook's line for a display name's decision holds the
+  workspace and the `error` alone). None of them fails the thing that asked for the read. `wa_standing_told` is the owner
+  told that Meta will not let the number send: the bell row, and `mailed` says whether the owner's mail went too (false: a
+  mail provider or a mailbox to look at). Meta's own words are never logged: they often name the number.
+- `wa_signup_finished_unclaimed`: at info, not error: Meta finished a WhatsApp sign-up for an account no workspace holds
+  (the owner reloaded or left the page before Chanlytics heard back), so there is nothing to keep. The line holds the
+  `waba_id`, the `entry_id` Meta addressed the notice to (the partner's portfolio) and the `account_event`. The owner presses
+  Connect WhatsApp again and chooses the account Meta already made. `waba_unroutable` stays an error: a change about an
+  account a workspace should hold and none does.
 
 ### Where the logs go
 

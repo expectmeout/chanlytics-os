@@ -1,7 +1,8 @@
 /**
  * The desk's controls at the right of the search (moved from legacy/pages/leads-scope.jsx, decision 0015): the map,
- * Values ⁄ Signals, which columns show, the file, Reach out's door and Ask's (spec F1: the three's still mark, never a
- * second live canvas). The canvas (L1) folds the map, Values ⁄ Signals and the file under one ⋯ beside Columns.
+ * Values ⁄ Signals, which columns show and the file. The canvas (L1) folds the map, Values ⁄ Signals and the file under
+ * one ⋯ beside Columns. The page's acts, Reach out's door and Ask's (spec F1: the three's still mark, never a second live
+ * canvas), stand at the right of the strip over the list, as People's Add a person does (`LeadsActs`).
  */
 import type { LeadSearchDto } from "@chanlytics/contracts";
 import { ReachOutDoor } from "../../campaigns/reach-out/door";
@@ -13,7 +14,6 @@ import type { ColumnOption } from "../../people/table/columns";
 import { PeopleColumnsMenu } from "../../people/table/columns-menu";
 
 interface ControlsProps {
-  canFind: boolean;
   canExport: boolean;
   exportHref: string | null;
   mapOpen: boolean;
@@ -22,10 +22,37 @@ interface ControlsProps {
   onValues: (on: boolean) => void;
   colOptions: readonly ColumnOption[];
   onPickColumn: (key: string) => void;
-  onFind: () => void;
 }
 
-export const LeadsControlsRight = ({ p, search }: { p: ControlsProps; search: LeadSearchDto | null }) => {
+/**
+ * The page's acts on a desk, said to the frame's head (people/rail/standing.tsx): an open search's reach-out door, then
+ * Find leads, which steps back from primary beside it (campaigns.css) so the view has one accent (Ruben, 6 Oct 2026: it
+ * stood in the controls row, inside the pane).
+ */
+export const LeadsActs = ({
+  canFind,
+  onFind,
+  search,
+}: {
+  canFind: boolean;
+  onFind: () => void;
+  search: LeadSearchDto | null;
+}) => (
+  <>
+    <ReachOutDoor search={search} />
+    <button
+      type="button"
+      className="btn btn-primary btn-sm"
+      onClick={() => onFind()}
+      data-testid="leads-find"
+      {...(canFind ? {} : gate("find", "find leads"))}
+    >
+      <Icon name="three" size={12} /> Find leads
+    </button>
+  </>
+);
+
+export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
   const exportItem = p.canExport
     ? {
         label: "Export",
@@ -61,16 +88,6 @@ export const LeadsControlsRight = ({ p, search }: { p: ControlsProps; search: Le
           ])}
         />
       </MenuInPlace>
-      <ReachOutDoor search={search} />
-      <button
-        type="button"
-        className="btn btn-primary btn-sm"
-        onClick={p.onFind}
-        data-testid="leads-find"
-        {...(p.canFind ? {} : gate("find", "find leads"))}
-      >
-        <Icon name="three" size={12} /> Find leads
-      </button>
     </div>
   );
 };

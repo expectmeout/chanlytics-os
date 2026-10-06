@@ -8,12 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-A write in a workspace that carries an `Idempotency-Key` header (at most 120 characters, one per intent) is answered
-once per key for a day: the same request sent again is given the first answer and changes nothing, the same key on
-another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
-with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
-
-214 handlers in 46 domains.
+216 handlers in 46 domains.
 
 ## activity
 
@@ -38,7 +33,7 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 ### `POST /api/v1/ask/messages/[id]/proposals/[pid]`
 
-Writes; for any signed-in person, for themselves; no rate bucket; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts`).
 
@@ -74,7 +69,7 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 ### `DELETE /api/v1/ask/threads/[id]`
 
-Writes; for any signed-in person, for themselves; no rate bucket; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/threads/[id]/route.ts`).
 
@@ -321,11 +316,17 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts`).
 
+### `POST /api/v1/channels/whatsapp/standing`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `whatsapp_standing` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/channels/whatsapp/standing/route.ts`).
+
 ## client-errors
 
 ### `POST /api/v1/client-errors`
 
-Writes; for any signed-in person, for themselves; counts against the `client_errors` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `client_errors` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -584,7 +585,7 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 ### `POST /api/v1/conversations/[id]/reply`
 
-Writes; for a member of the row's own workspace, operator or above; counts against the `reply` rate; spends nothing. Keeps its own `Idempotency-Key`.
+Writes; for a member of the row's own workspace, operator or above; counts against the `reply` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -714,13 +715,13 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 ### `POST /api/v1/handovers/[id]/accept`
 
-Writes; for any signed-in person, for themselves; counts against the `handover_answer` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `handover_answer` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/handovers/[id]/accept/route.ts`).
 
 ### `POST /api/v1/handovers/[id]/decline`
 
-Writes; for any signed-in person, for themselves; counts against the `handover_answer` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `handover_answer` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/handovers/[id]/decline/route.ts`).
 
@@ -956,6 +957,12 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `number` | string | yes | matches `^\+[1-9]\d{6,14}$` |
 | `area_code` | integer or string | no |  |
 
+### `GET /api/v1/lines/codes`
+
+Reads; for a member of the workspace the request names, partner or above; counts against the `lines_codes` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/lines/codes/route.ts`).
+
 ### `POST /api/v1/lines/forwarding`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lines_forwarding` rate; spends nothing.
@@ -1011,25 +1018,25 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 ### `PUT /api/v1/me`
 
-Writes; for any signed-in person, for themselves; counts against the `profile_set` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `profile_set` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/route.ts`).
 
 ### `DELETE /api/v1/me`
 
-Writes; for any signed-in person, for themselves; counts against the `profile_set` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `profile_set` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/route.ts`).
 
 ### `PUT /api/v1/me/devices`
 
-Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/devices/route.ts`).
 
 ### `DELETE /api/v1/me/devices`
 
-Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/devices/route.ts`).
 
@@ -1094,7 +1101,7 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 ### `POST /api/v1/partner`
 
-Writes; for any signed-in person, for themselves; counts against the `partner_become` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `partner_become` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -1103,7 +1110,7 @@ Writes; for any signed-in person, for themselves; counts against the `partner_be
 
 ### `PATCH /api/v1/partner`
 
-Writes; for any signed-in person, for themselves; counts against the `partner_letters` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `partner_letters` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -1117,13 +1124,13 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 ### `POST /api/v1/partner/invitations/[id]/accept`
 
-Writes; for any signed-in person, for themselves; counts against the `partner_invite_answer` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `partner_invite_answer` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/partner/invitations/[id]/accept/route.ts`).
 
 ### `POST /api/v1/partner/invitations/[id]/decline`
 
-Writes; for any signed-in person, for themselves; counts against the `partner_invite_answer` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `partner_invite_answer` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/partner/invitations/[id]/decline/route.ts`).
 
@@ -1135,7 +1142,7 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 ### `POST /api/v1/partner/workspaces`
 
-Writes; for any signed-in person, for themselves; counts against the `partner_handover` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `partner_handover` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -1145,7 +1152,7 @@ Writes; for any signed-in person, for themselves; counts against the `partner_ha
 
 ### `POST /api/v1/partner/workspaces/[id]/resend`
 
-Writes; for any signed-in person, for themselves; counts against the `partner_handover` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `partner_handover` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -1155,31 +1162,31 @@ Writes; for any signed-in person, for themselves; counts against the `partner_ha
 
 ### `POST /api/v1/platform/jobs/requeue`
 
-Writes; for platform staff; counts against the `platform_job_requeue` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_job_requeue` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/jobs/requeue/route.ts`).
 
 ### `POST /api/v1/platform/lines/refile`
 
-Writes; for platform staff; counts against the `platform_line_refile` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_line_refile` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/refile/route.ts`).
 
 ### `POST /api/v1/platform/lines/release`
 
-Writes; for platform staff; counts against the `platform_line_release` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_line_release` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/release/route.ts`).
 
 ### `POST /api/v1/platform/lines/replace`
 
-Writes; for platform staff; counts against the `platform_line_refile` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_line_refile` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/replace/route.ts`).
 
 ### `POST /api/v1/platform/lines/retry`
 
-Writes; for platform staff; counts against the `platform_line_retry` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_line_retry` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/retry/route.ts`).
 
@@ -1191,13 +1198,13 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 ### `POST /api/v1/platform/partners/payout`
 
-Writes; for platform staff; counts against the `platform_partner_payout` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_partner_payout` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/partners/payout/route.ts`).
 
 ### `POST /api/v1/platform/partners/second-factor`
 
-Writes; for platform staff; counts against the `platform_partner_second_factor` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_partner_second_factor` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -1206,13 +1213,13 @@ Writes; for platform staff; counts against the `platform_partner_second_factor` 
 
 ### `POST /api/v1/platform/partners/standing`
 
-Writes; for platform staff; counts against the `platform_partner_standing` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_partner_standing` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/partners/standing/route.ts`).
 
 ### `POST /api/v1/platform/partners/status`
 
-Writes; for platform staff; counts against the `platform_partner_status` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_partner_status` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/partners/status/route.ts`).
 
@@ -1224,7 +1231,7 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 ### `POST /api/v1/platform/waitlist/invited`
 
-Writes; for platform staff; counts against the `platform_waitlist_invited` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for platform staff; counts against the `platform_waitlist_invited` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/waitlist/invited/route.ts`).
 
@@ -1691,7 +1698,7 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 
 ### `POST /api/v1/vitals`
 
-Writes; for any signed-in person, for themselves; counts against the `vitals` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `vitals` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -1714,6 +1721,6 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 ### `POST /api/v1/workspaces/create`
 
-Writes; for any signed-in person, for themselves; counts against the `create_workspace` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+Writes; for any signed-in person, for themselves; counts against the `create_workspace` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/create/route.ts`).

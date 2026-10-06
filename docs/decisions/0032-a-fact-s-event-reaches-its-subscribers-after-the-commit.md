@@ -219,7 +219,10 @@ under the provider's own id or the body's digest where it gave none, before thei
 signature held included (a routing that could not be read, a channel switched off: Twilio never sends a text again)
 (`apps/edge/lib/intake/keep.ts`). Two are left out, and say why: `elevenlabs-webhook`, whose body is a transcript that
 names customers and whose door keeps nothing of what was said; and `apify-webhook`, whose url carries the run's token,
-which the database keeps only as its hash, and whose body is a pointer the collect reads the run back by. A delivery
+which the database keeps only as its hash, and whose body is a pointer the collect reads the run back by. And at
+`inbound-sms` one kind of text is never kept, whatever its verdict: a one-time code another service texted to a
+Chanlytics line (`oneTimeCodeOf`, the code verdict of the Connect WhatsApp lane), which nobody answers, so a replay of
+it takes nothing in, and which is a secret Twilio already keeps for the owner (`apps/edge/lib/lines/line-codes.ts`). A delivery
 either could not take is its 503, which its provider delivers again; `purge_provider_events` drops it a week on (contracts `RETENTION_DAYS.provider_events`);
 an erasure scrubs the rows that name the person by every spelling its Ask scrub uses, in any case and through a
 form-encoded address, before the rows go (fail closed, as the finished jobs are) and again after them (best effort)

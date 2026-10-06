@@ -12,6 +12,7 @@ import type { MouseEvent, ReactNode } from "react";
 import type { ConnectionRow as Row, ConnectionVerb } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, gate, gatedProps, navigate } from "../../legacy-verbs";
@@ -162,6 +163,29 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
           ) : null}
         </span>
         <span className="set-team-mail">{r.sentence}</span>
+        {r.notes.length > 0 && (
+          <span className="set-int-notes" data-testid={`connection-${r.kind}-notes`}>
+            {r.notes.map((note, at) => (
+              <span key={`${at}:${note.text}`} data-testid="connection-note">
+                <span data-testid="connection-note-text">{note.text}</span>
+                {note.link && (
+                  <>
+                    {" "}
+                    {/* Both go to Meta's own pages: a new tab, and nothing of this page's passes with it. */}
+                    <LinkButton
+                      href={note.link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="connection-note-link"
+                    >
+                      {note.link.label}
+                    </LinkButton>
+                  </>
+                )}
+              </span>
+            ))}
+          </span>
+        )}
         {armed === "remove" && (
           <Confirm
             question="Remove the listing?"

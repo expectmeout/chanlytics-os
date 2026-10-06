@@ -400,6 +400,9 @@
    the second part is a detail and reads as one. `.dim` had no rule anywhere. */
 .set-team-name .dim { font-weight: 400; color: var(--ink-dim); }
 .set-team-mail { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+/* What a row says beside its sentence (contracts ConnectionRow.notes): each note a line of its own, wrapped whole -- never cut with an
+   ellipsis as the sentence is, since an owner has to read it. */
+.set-int-notes { display: flex; flex-direction: column; gap: 3px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
 /* One tile for every connection. The ones that are NOT connected wore the
    solid black tile and were the loudest thing on the page; what is connected
    now has the ink, and what is not is quieter than it. */

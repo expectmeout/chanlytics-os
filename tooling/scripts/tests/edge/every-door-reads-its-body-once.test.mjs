@@ -68,6 +68,7 @@ const DOORS = [
   "whisper",
   "you-are-live",
   "whatsapp/connect",
+  "whatsapp/standing",
   "whatsapp/templates-create",
   "whatsapp/templates-delete",
   "whatsapp/templates-sync",
