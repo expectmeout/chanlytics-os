@@ -912,6 +912,39 @@ test("what came back: the funnel from what was sent, who said yes and who asked 
   assert.equal(t.quiet, false);
 });
 
+test("where a text or an email went too (0030), the funnel's read is a share of WhatsApp's own sends and a line says so; with nothing by WhatsApp there is no read to show", () => {
+  const mixed = results({ broadcasts: broadcasts({ report: report({ readOf: 6 }) }) });
+  assert.deepEqual(
+    mixed.funnel.map((f) => [f.id, f.n, f.share]),
+    [
+      ["sent", 8, 1],
+      ["delivered", 8, 1],
+      ["read", 5, 5 / 6],
+      ["replied", 3, 3 / 8],
+    ],
+  );
+  assert.equal(mixed.funnel.find((f) => f.id === "read").meter, "Read: 5 of WhatsApp's 6");
+  assert.equal(mixed.readNote, "Read is of WhatsApp's 6: a text or an email keeps no read receipt.");
+  const noWhatsApp = results({ broadcasts: broadcasts({ report: report({ read: 0, readOf: 0 }) }) });
+  assert.deepEqual(
+    noWhatsApp.funnel.map((f) => f.id),
+    ["sent", "delivered", "replied"],
+  );
+  assert.equal(noWhatsApp.readNote, "These went by text or email, which keep no read receipt.");
+  // WhatsApp alone, or a report from before the channels were counted: as it always was, and no line.
+  assert.deepEqual(
+    [results().readNote, results({ broadcasts: broadcasts({ report: report({ readOf: 8 }) }) }).readNote],
+    [null, null],
+  );
+  assert.equal(results().funnel.find((f) => f.id === "read").meter, "Read: 5");
+  // What a screen reader hears the list as: its steps, a read where there is one.
+  assert.deepEqual(
+    [results().funnelLabel, noWhatsApp.funnelLabel],
+    ["Sent, delivered, read and replied", "Sent, delivered and replied"],
+  );
+  assert.equal(results({ broadcasts: broadcasts({ report: null }) }).funnelLabel, null, "no funnel, no label");
+});
+
 test("a zero is shown as zero, and a period with nothing in it is said once", () => {
   const zero = results({
     broadcasts: broadcasts({

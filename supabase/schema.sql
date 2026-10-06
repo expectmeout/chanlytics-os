@@ -630,6 +630,8 @@ begin
   -- with the receipt WhatsApp gave it and the thread it landed in.
   sent as (
     select r.broadcast_id, r.contact_id, r.sent_at,
+           -- The channel it went by (00298); a row from before channels went by WhatsApp, as every run then did.
+           coalesce(r.channel, 'whatsapp') as channel,
            (r.sent_at at time zone v_tz)::date as day,
            m.status as message_status, m.conversation_id,
            b.playbook_id, b.name as broadcast_name, b.template_name
@@ -706,6 +708,18 @@ begin
       left join playbooks p on p.id = s.playbook_id
      where s.day >= v_cur
      group by coalesce(s.playbook_id, s.broadcast_id), (s.playbook_id is not null)
+  ),
+  -- The current period by the channel each message went by (0030): each channel's own receipts, read receipts
+  -- WhatsApp's alone, so a share of them is said over WhatsApp's own sends.
+  by_channel as (
+    select s.channel,
+           count(*)                            as sent,
+           count(*) filter (where s.delivered) as delivered,
+           count(*) filter (where s.was_read)  as was_read,
+           count(*) filter (where s.replied)   as replied
+      from sent_r s
+     where s.day >= v_cur
+     group by s.channel
   )
   select jsonb_build_object(
     'timezone', v_tz,
@@ -732,7 +746,14 @@ begin
                  'read', x.was_read,
                  'replied', x.replied,
                  'last_at', x.last_at) order by x.sent desc, x.last_at desc)
-               from sources x), '[]'::jsonb)
+               from sources x), '[]'::jsonb),
+    'by_channel', coalesce((select jsonb_agg(jsonb_build_object(
+                 'channel', c.channel,
+                 'sent', c.sent,
+                 'delivered', c.delivered,
+                 'read', c.was_read,
+                 'replied', c.replied) order by c.sent desc, c.channel)
+               from by_channel c), '[]'::jsonb)
   ) into v_result;
 
   return v_result;
@@ -743,7 +764,7 @@ end $$;
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source.';
+COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp).';
 
 
 --

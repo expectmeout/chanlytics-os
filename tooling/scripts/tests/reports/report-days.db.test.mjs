@@ -207,4 +207,70 @@ test("campaign_series: each day's sends, receipts, replies, yeses and stops land
     [report.sources[0].sent, report.sources[0].delivered, report.sources[0].read, report.sources[0].replied],
     [5, 2, 1, 1],
   );
+  assert.deepEqual(
+    report.by_channel,
+    [{ channel: "whatsapp", sent: 5, delivered: 2, read: 1, replied: 1 }],
+    "rows from before channels name none: they went by WhatsApp (0030)",
+  );
 });
+
+test(
+  "campaign_series by channel (0030): the current period's sends, receipts and replies, each channel its own; a row naming none went by WhatsApp; the period before is not in it",
+  { skip },
+  () => {
+    const seen = rolledBack(`
+    declare
+      t uuid; tpl uuid; b uuid; cid uuid; conv uuid; mid uuid; day0 timestamptz; report jsonb; spec record;
+    begin
+      insert into public.tenants (slug, name, timezone) values ('campaign-channels-' || gen_random_uuid(), 'Campaign channels', 'UTC')
+        returning id into t;
+      day0 := (date_trunc('day', now() at time zone 'UTC')) at time zone 'UTC';
+      insert into public.templates (tenant_id, name, language, channel) values (t, 'campaign_channels', 'en', 'whatsapp') returning id into tpl;
+      insert into public.broadcasts (tenant_id, name, template_id, template_name, template_language, scheduled_for)
+        values (t, 'Campaign channels', tpl, 'campaign_channels', 'en', day0 - interval '12 days') returning id into b;
+      -- The channel the row names, the message's own, its receipt, how many days ago it went, and whether it was answered.
+      for spec in select * from (values
+          (null::text, 'whatsapp', 'read', 0, true),
+          ('whatsapp', 'whatsapp', 'delivered', 1, false),
+          ('whatsapp', 'whatsapp', 'sent', 2, false),
+          ('sms', 'sms', 'delivered', 0, true),
+          ('sms', 'sms', 'sent', 1, false),
+          ('email', 'email', 'delivered', 2, false),
+          ('sms', 'sms', 'delivered', 10, false)
+        ) as v(rc, mc, receipt, k, answered)
+      loop
+        insert into public.contacts (tenant_id) values (t) returning id into cid;
+        insert into public.conversations (tenant_id, contact_id) values (t, cid) returning id into conv;
+        insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at)
+          values (t, conv, cid, spec.mc, 'outbound', 'human', 'text', 'an offer', spec.receipt,
+                  day0 - make_interval(days => spec.k) + interval '1 minute')
+          returning id into mid;
+        insert into public.broadcast_recipients (tenant_id, broadcast_id, contact_id, message_id, state, sent_at, channel)
+          values (t, b, cid, mid, 'sent', day0 - make_interval(days => spec.k) + interval '1 minute', spec.rc);
+        if spec.answered then
+          insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at)
+            values (t, conv, cid, spec.mc, 'inbound', 'customer', 'text', 'yes please', 'received',
+                    day0 - make_interval(days => spec.k) + interval '30 minutes');
+        end if;
+      end loop;
+      report := public.campaign_series(t, 7);
+      seen := jsonb_build_object('report', report);
+    end;
+  `);
+    const { report } = seen;
+    assert.deepEqual(
+      report.by_channel.map((c) => [c.channel, c.sent, c.delivered, c.read, c.replied]),
+      [
+        ["whatsapp", 3, 2, 1, 1],
+        ["sms", 2, 1, 0, 1],
+        ["email", 1, 1, 0, 0],
+      ],
+      "the most sent first; a read receipt is WhatsApp's, a delivered one each channel's own",
+    );
+    assert.deepEqual(
+      [report.sources[0].sent, report.series.reduce((n, d) => n + d.sent, 0)],
+      [6, 7],
+      "the period before's text is in the days and not in the current period's figures",
+    );
+  },
+);

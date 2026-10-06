@@ -4,12 +4,12 @@
  * Messages sent by broadcasts and playbook runs, each channel's own delivered
  * receipts (and WhatsApp's read receipts), who wrote back afterwards, and the people who said
  * yes or asked to stop — over the period and the one before it, and the
- * current period by source. Every number is a count over columns; the
- * shares are counts over counts; nothing is scored or estimated. Colors are
- * the page's.
+ * current period by source and by the channel each went by (0030). Every number is a count over columns; the
+ * shares are counts over counts; nothing is scored or estimated. A read is a share of WhatsApp's own sends alone:
+ * a text or an email keeps no read receipt. Colors are the page's.
  */
 import { DELIVERY_RECEIPTS_WORDS, REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
-import { dayDate, fmtDay, priorOf } from "./reports";
+import { REPORT_CHANNELS, dayDate, fmtDay, priorOf, type ReportChannelKey } from "./reports";
 import { deltaOf, pointsDelta, type ReportTileVM } from "./report-tiles";
 import { templateTitle } from "../templates/template-titles";
 import { sumOf } from "../shared/numbers";
@@ -39,6 +39,15 @@ export interface CampaignSourceDto {
   last_at: string | null;
 }
 
+/** One channel's part of the current period (`campaign_series.by_channel`, 0030): a row naming none went by WhatsApp. */
+interface CampaignChannelDto {
+  channel: string;
+  sent: number;
+  delivered: number;
+  read: number;
+  replied: number;
+}
+
 /** What `campaign_series(tenant, days)` returns. `series` spans TWO periods, newest last; `sources` is the current one. */
 export interface CampaignReportDto {
   timezone: string;
@@ -47,7 +56,28 @@ export interface CampaignReportDto {
   today: string;
   series: CampaignDayDto[];
   sources: CampaignSourceDto[];
+  /** The current period by channel, the most sent first (0030); absent from a database before it. */
+  by_channel?: CampaignChannelDto[];
   error?: string;
+}
+
+/** A channel a campaign sends on, in a report's own words for it (REPORT_CHANNELS): WhatsApp, a text, an email. */
+type CampaignChannelKey = Exclude<ReportChannelKey, "voice">;
+
+/** One channel's figures in the period, as the Campaigns lens draws them (0030). */
+interface CampaignChannelVM {
+  channel: CampaignChannelKey;
+  label: string;
+  sent: number;
+  delivered: number;
+  deliveredPct: number | null;
+  /** WhatsApp's alone, of its own sends: no other channel keeps a read receipt, so any other's is null, never a zero. */
+  read: number | null;
+  readPct: number | null;
+  replied: number;
+  repliedPct: number | null;
+  /** What its bar says beside it: what it sent, and how much of it was delivered. */
+  display: string;
 }
 
 export interface CampaignPointVM {
@@ -75,7 +105,6 @@ export interface CampaignSourceVM {
   read: number;
   replied: number;
   deliveredPct: number | null;
-  readPct: number | null;
   repliedPct: number | null;
   lastLabel: string;
   /** 0..1 of the source that sent the most. */
@@ -87,6 +116,11 @@ export interface CampaignTotals {
   delivered: number;
   /** WhatsApp's read receipts over the period (Campaigns' home draws them in its funnel). */
   read: number;
+  /**
+   * The sends a read is a share of: WhatsApp's own (0030), the one channel that keeps read receipts; every send from a
+   * database before the channels were counted, as it always was.
+   */
+  readOf: number;
   replied: number;
   sends: number;
   optIns: number;
@@ -105,12 +139,60 @@ export interface CampaignReportVM {
   /** Messages sent the period before, day for day beside this one's (null where there is no such day). */
   prior: (number | null)[];
   table: { columns: string[]; rows: (string | number)[][] };
-  /** The one sentence under each campaign card: who said yes or stop (the funnel), and how many runs sent it (null with none). */
-  lines: { funnel: string; sent: string | null };
+  /** The channels that sent in the period, the most first (0030): the lens draws them where more than one did. */
+  channels: CampaignChannelVM[];
+  /**
+   * The channels' figures as a table: each one's sent, delivered, read (WhatsApp's alone) and replies. A read that is no
+   * figure is null: the kit's table draws its own dash, and its CSV an empty cell.
+   */
+  channelTable: { columns: string[]; rows: (string | number | null)[][] };
+  /**
+   * The one sentence under each campaign card: who said yes or stop (the funnel), how many runs sent it (null with none),
+   * and what a read is, where more than one channel sent (null otherwise).
+   */
+  lines: { funnel: string; sent: string | null; channels: string | null };
 }
+
+/** The channels a campaign sends on, in a report's words and order. */
+const CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
+  (c): c is { key: CampaignChannelKey; label: string } => c.key !== "voice",
+);
 
 const pct = (n: number, d: number): number | null => (d ? Math.round((n / d) * 100) : null);
 const WHEN = formatterOnUse([], { month: "short", day: "numeric" });
+
+/** Each channel that sent in the period, its figures over its own sends; a read is WhatsApp's alone (0030). */
+function campaignChannelsOf(rows: readonly CampaignChannelDto[] | undefined): CampaignChannelVM[] {
+  return (rows ?? []).flatMap((r): CampaignChannelVM[] => {
+    const known = CAMPAIGN_CHANNELS.find((c) => c.key === r.channel);
+    if (!known || !(r.sent > 0)) return [];
+    const whatsapp = known.key === "whatsapp";
+    const deliveredPct = pct(r.delivered, r.sent);
+    return [
+      {
+        channel: known.key,
+        label: known.label,
+        sent: r.sent,
+        delivered: r.delivered,
+        deliveredPct,
+        read: whatsapp ? r.read : null,
+        readPct: whatsapp ? pct(r.read, r.sent) : null,
+        replied: r.replied,
+        repliedPct: pct(r.replied, r.sent),
+        display: `${r.sent} · ${deliveredPct === null ? "—" : `${deliveredPct}%`} delivered`,
+      },
+    ];
+  });
+}
+
+/** What a read is, said once under the channels where more than one sent (0030); null where one did or none. */
+function channelsLine(channels: readonly CampaignChannelVM[]): string | null {
+  if (channels.length < 2) return null;
+  const whatsapp = channels.find((c) => c.channel === "whatsapp");
+  return whatsapp
+    ? `Read receipts are WhatsApp's alone: ${whatsapp.read} of its ${whatsapp.sent} were read.`
+    : "A text or an email keeps no read receipt.";
+}
 
 export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const days = dto.days;
@@ -142,6 +224,11 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     optIns: sumOf(previous.map((d) => d.opt_ins)),
     optOuts: sumOf(previous.map((d) => d.opt_outs)),
   };
+  // By channel (0030): a read is a share of WhatsApp's own sends; before the channels were counted, of every send.
+  const channels = campaignChannelsOf(dto.by_channel);
+  const whatsapp = channels.find((c) => c.channel === "whatsapp");
+  const read = dto.by_channel ? (whatsapp?.read ?? 0) : tot.read;
+  const readOf = dto.by_channel ? (whatsapp?.sent ?? 0) : tot.sent;
   const noun = plural(days, "day");
   const rawSources = dto.sources ?? [];
   const sends = sumOf(rawSources.map((s) => s.runs));
@@ -159,7 +246,6 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     read: s.read,
     replied: s.replied,
     deliveredPct: pct(s.delivered, s.sent),
-    readPct: pct(s.read, s.sent),
     repliedPct: pct(s.replied, s.sent),
     lastLabel: s.last_at ? WHEN.format(new Date(s.last_at)) : "",
     share: s.sent / maxSent,
@@ -222,7 +308,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     days,
     tiles,
     points,
-    totals: { ...tot, sends },
+    totals: { ...tot, read, readOf, sends },
     sources,
     empty: tot.sent === 0 && tot.optIns === 0 && tot.optOuts === 0,
     max: Math.max(1, ...points.map((p) => p.sent)),
@@ -230,6 +316,11 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     table: {
       columns: ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
       rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts]),
+    },
+    channels,
+    channelTable: {
+      columns: ["Channel", "Sent", "Delivered", "Read", "Wrote back"],
+      rows: channels.map((c) => [c.label, c.sent, c.delivered, c.read, c.replied]),
     },
     lines: {
       // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
@@ -242,6 +333,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
           ? "From one broadcast or playbook run."
           : `From ${sends} broadcast and playbook runs.`
         : null,
+      channels: channelsLine(channels),
     },
   };
 }

@@ -75,7 +75,17 @@ test("totals, shares of sent, and deltas over the prior period", () => {
   const vm = toCampaignReportVM(dto());
   assert.equal(vm.days, 7);
   assert.equal(vm.points.length, 7);
-  assert.deepEqual(vm.totals, { sent: 20, delivered: 16, read: 11, replied: 4, sends: 3, optIns: 3, optOuts: 2 });
+  // From a database before the channels were counted (no by_channel), a read is a share of every send (0030).
+  assert.deepEqual(vm.totals, {
+    sent: 20,
+    delivered: 16,
+    read: 11,
+    readOf: 20,
+    replied: 4,
+    sends: 3,
+    optIns: 3,
+    optOuts: 2,
+  });
   const by = Object.fromEntries(vm.tiles.map((t) => [t.id, t]));
   assert.deepEqual(
     vm.tiles.map((t) => t.label),
@@ -110,24 +120,16 @@ test("totals, shares of sent, and deltas over the prior period", () => {
 test("the current period by source: a playbook's runs together, a broadcast alone, shares of the biggest, titles for people", () => {
   const vm = toCampaignReportVM(dto());
   assert.deepEqual(
-    vm.sources.map((s) => [
-      s.name,
-      s.kindLabel,
-      s.runs,
-      s.sent,
-      s.deliveredPct,
-      s.readPct,
-      s.repliedPct,
-      s.share,
-      s.template,
-    ]),
+    vm.sources.map((s) => [s.name, s.kindLabel, s.runs, s.sent, s.deliveredPct, s.repliedPct, s.share, s.template]),
     [
       // The playbook sends the retired win-back (2 Oct 2026), called apart from the set's own by its title.
-      ["Win-back", "Playbook", 2, 14, 86, 50, 21, 1, "Win-back (earlier)"],
-      ["A quick note · Sep 1", "Broadcast", 1, 6, 67, 67, 17, 6 / 14, "A quick note"],
+      ["Win-back", "Playbook", 2, 14, 86, 21, 1, "Win-back (earlier)"],
+      ["A quick note · Sep 1", "Broadcast", 1, 6, 67, 17, 6 / 14, "A quick note"],
     ],
   );
   assert.match(vm.sources[0].lastLabel, /Sep \d/);
+  // A read is a share of WhatsApp's own sends (0030): a source's sends are every channel's, so it says no read share.
+  assert.ok(!("readPct" in vm.sources[0]));
 });
 
 test("the honest empty, and the table twin", () => {
@@ -241,5 +243,55 @@ test("the one sentence under each campaign card: who said yes to messages or sto
     vm.tiles.map((t) => t.compare),
     [null, null, null, null, null],
     "a campaign tile compares nothing on Reports",
+  );
+});
+
+test("by channel (0030): each channel that sent, the most first, over its own sends; a read is WhatsApp's alone and the period's read a share of WhatsApp's sends; one channel, no split", () => {
+  // The period's twenty, as campaign_series splits them: its sums are the days' (sent 20, delivered 16, read 11, replied 4).
+  const withChannels = (by_channel) => toCampaignReportVM({ ...dto(), by_channel });
+  const vm = withChannels([
+    { channel: "whatsapp", sent: 14, delivered: 12, read: 11, replied: 3 },
+    { channel: "sms", sent: 4, delivered: 3, read: 0, replied: 1 },
+    { channel: "email", sent: 2, delivered: 1, read: 0, replied: 0 },
+  ]);
+  assert.deepEqual(
+    vm.channels.map((c) => [c.channel, c.label, c.sent, c.deliveredPct, c.read, c.readPct, c.repliedPct, c.display]),
+    [
+      ["whatsapp", "WhatsApp", 14, 86, 11, 79, 21, "14 · 86% delivered"],
+      ["sms", "Text", 4, 75, null, null, 25, "4 · 75% delivered"],
+      ["email", "Email", 2, 50, null, null, 0, "2 · 50% delivered"],
+    ],
+    "a text's and an email's read is no figure at all, never a zero",
+  );
+  assert.deepEqual([vm.totals.read, vm.totals.readOf], [11, 14], "the period's read: of WhatsApp's own fourteen");
+  assert.deepEqual(vm.channelTable, {
+    columns: ["Channel", "Sent", "Delivered", "Read", "Wrote back"],
+    rows: [
+      ["WhatsApp", 14, 12, 11, 3],
+      ["Text", 4, 3, null, 1],
+      ["Email", 2, 1, null, 0],
+    ],
+  });
+  // No figure is null, never a dash of the report's own: the kit's table draws its dash, and its CSV an empty cell.
+  assert.equal(vm.lines.channels, "Read receipts are WhatsApp's alone: 11 of its 14 were read.");
+  // One channel: nothing to split, so no line, and the lens draws no card.
+  const one = withChannels([{ channel: "whatsapp", sent: 20, delivered: 16, read: 11, replied: 4 }]);
+  assert.deepEqual([one.channels.length, one.lines.channels, one.totals.readOf], [1, null, 20]);
+  // Nothing by WhatsApp: no read to share.
+  const none = withChannels([
+    { channel: "sms", sent: 12, delivered: 10, read: 0, replied: 3 },
+    { channel: "email", sent: 8, delivered: 6, read: 0, replied: 1 },
+  ]);
+  assert.deepEqual(
+    [none.totals.read, none.totals.readOf, none.lines.channels],
+    [0, 0, "A text or an email keeps no read receipt."],
+  );
+  // A channel the report has no word for, or one that sent nothing, is no row.
+  assert.deepEqual(
+    withChannels([
+      { channel: "fax", sent: 3, delivered: 3, read: 0, replied: 0 },
+      { channel: "sms", sent: 0, delivered: 0, read: 0, replied: 0 },
+    ]).channels,
+    [],
   );
 });

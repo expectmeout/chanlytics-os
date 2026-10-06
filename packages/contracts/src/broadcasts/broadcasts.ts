@@ -31,7 +31,7 @@ import type { PersonRowVM } from "../people/person-row";
 import type { ParamSpec } from "../templates/templates";
 import type { AskedPurpose, MessageAbout } from "../consent/consent";
 import { consentGuardWords } from "../consent/consent-asks";
-import { CONSENT_CHANNELS } from "../consent/consent-channels";
+import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
 import type { Audience } from "./broadcast-audience";
 import { broadcastFailureWords } from "./broadcast-failures";
 import { answeredYes } from "./reach-any";
@@ -205,6 +205,11 @@ export interface BroadcastCounts {
   delivered: number;
   read: number;
   replied: number;
+  /**
+   * What went out by each channel (0030): a recipient naming none went by WhatsApp. Absent from a read that did not
+   * count them.
+   */
+  sent_by?: Record<ConsentChannel, number>;
 }
 
 export interface BroadcastDto {
@@ -250,6 +255,22 @@ export function whenLabel(iso: string, tz: string, now = new Date()): string {
   return Number.isFinite(ms) ? clockWhen(ms, tz, now.getTime()) : "";
 }
 
+/**
+ * A run's read share (0030): a read is WhatsApp's own receipt, so it is a share of what went by WhatsApp where the counts
+ * say; of everything sent where they do not. Null with nothing to share it of.
+ */
+function readShare(c: BroadcastCounts): number | null {
+  const of = c.sent_by ? c.sent_by.whatsapp : c.sent;
+  return of > 0 ? Math.round((c.read / of) * 100) : null;
+}
+
+/** What a run sent by each channel, in a line's words ("30 on WhatsApp, 6 by text"), where it went by more than one. */
+export function sentByWords(by: BroadcastCounts["sent_by"]): string | null {
+  if (!by) return null;
+  const went = CONSENT_CHANNELS.filter((c) => by[c] > 0);
+  return went.length > 1 ? went.map((c) => `${by[c]} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ") : null;
+}
+
 export function toBroadcastVM(d: BroadcastDto, tz: string, now = new Date()): BroadcastVM {
   const c = d.counts;
   const attempted = c.sent + c.skipped + c.failed;
@@ -258,7 +279,7 @@ export function toBroadcastVM(d: BroadcastDto, tz: string, now = new Date()): Br
     stateLabel: BROADCAST_STATE_LABELS[d.state] ?? d.state,
     when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, tz, now),
     deliveredPct: c.sent > 0 ? Math.round((c.delivered / c.sent) * 100) : null,
-    readPct: c.sent > 0 ? Math.round((c.read / c.sent) * 100) : null,
+    readPct: readShare(c),
     open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
     progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
     failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null,

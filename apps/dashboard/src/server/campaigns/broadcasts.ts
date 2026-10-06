@@ -82,7 +82,16 @@ export function statusAt(meta: unknown, status: string): string | null {
 }
 
 function emptyCounts(): BroadcastCounts {
-  return { queued: 0, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
+  return {
+    queued: 0,
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+    delivered: 0,
+    read: 0,
+    replied: 0,
+    sent_by: { whatsapp: 0, sms: 0, email: 0 },
+  };
 }
 
 /** Sent, skipped, failed from the recipient rows; delivered and read from their messages. */
@@ -96,12 +105,17 @@ function countRecipients(
     const c = counts.get(r.broadcast_id);
     if (!c) continue;
     if (r.state === "queued") c.queued += 1;
-    else if (r.state === "sent") c.sent += 1;
-    else if (r.state === "skipped") c.skipped += 1;
+    else if (r.state === "sent") {
+      c.sent += 1;
+      // By the channel it went by (0030): a row naming none went by WhatsApp, as every run before channels did.
+      if (c.sent_by) c.sent_by[r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp"] += 1;
+    } else if (r.state === "skipped") c.skipped += 1;
     else if (r.state === "failed") c.failed += 1;
     const status = r.messages?.status;
     if (status === "delivered" || status === "read") c.delivered += 1;
-    if (status === "read") c.read += 1;
+    // A read is WhatsApp's own receipt (0030): a text a carrier marked read is no read here, so a run's read share,
+    // over what went by WhatsApp, can never pass the whole.
+    if (status === "read" && r.channel !== "sms" && r.channel !== "email") c.read += 1;
     if (r.messages?.conversation_id && r.sent_at) {
       const m = threadsOf.get(r.broadcast_id) ?? new Map<string, string>();
       m.set(r.messages.conversation_id, r.sent_at);
@@ -297,7 +311,8 @@ async function peopleOnRuns(ctx: RouteContext, tenantId: string, ids: string[]):
     const people = (await readAllRows("run recipients", (from, to) =>
       ctx.supabase
         .from("broadcast_recipients")
-        .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta)")
+        // With the channel each went by (00298), so a run says what each sent and its read is WhatsApp's (0030).
+        .select("broadcast_id, contact_id, state, reason, sent_at, channel, messages(conversation_id, status, meta)")
         .eq("tenant_id", tenantId)
         .in("broadcast_id", chunk)
         .order("broadcast_id")

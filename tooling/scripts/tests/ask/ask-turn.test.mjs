@@ -920,6 +920,82 @@ test("the questions production paid a second round for (the week to 5 Oct 2026) 
   }
 });
 
+test("report says the Campaigns lens beside the page (0030): its tiles, the read a share of WhatsApp's own sends, by_channel where more than one sent, its sources; null where its read fails", async () => {
+  const today = iso(NOW.getTime()).slice(0, 10);
+  const days = (n) =>
+    Array.from({ length: 2 * n }, (_, i) => {
+      const day = new Date(Date.parse(`${today}T12:00:00Z`) - (2 * n - 1 - i) * 86_400_000).toISOString().slice(0, 10);
+      return i === 2 * n - 1
+        ? { day, sent: 20, delivered: 16, read: 11, replied: 4, opt_ins: 1, opt_outs: 0 }
+        : { day, sent: 0, delivered: 0, read: 0, replied: 0, opt_ins: 0, opt_outs: 0 };
+    });
+  const rpcs = {
+    ...RPCS,
+    report_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today,
+      series: [],
+      reasons: {},
+      reply_seconds: [],
+      sentiments: {},
+      voicemail: 0,
+    }),
+    campaign_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today,
+      series: days(a.p_days),
+      sources: [
+        {
+          id: "pb-1",
+          kind: "playbook",
+          name: "Win-back",
+          template_name: "winback_offer",
+          runs: 1,
+          sent: 20,
+          delivered: 16,
+          read: 11,
+          replied: 4,
+          last_at: `${today}T12:00:00Z`,
+        },
+      ],
+      by_channel: [
+        { channel: "whatsapp", sent: 14, delivered: 12, read: 11, replied: 3 },
+        { channel: "sms", sent: 6, delivered: 4, read: 0, replied: 1 },
+      ],
+    }),
+  };
+  const run = async (r) => {
+    const tc = newToolContext(ctxFor(tables(), r), A, "owner", TZ, NOW);
+    const out = await runTool(tc, { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+  const said = (await run(rpcs)).campaigns;
+  assert.deepEqual(said.tiles.map((t) => [t.label, t.value]).slice(0, 3), [
+    ["Messages sent", "20"],
+    ["Delivered", "80%"],
+    ["Replied", "20%"],
+  ]);
+  assert.equal(said.read, "11 of the 14 sent by WhatsApp");
+  assert.deepEqual(said.by_channel, [
+    { channel: "WhatsApp", sent: 14, delivered: "86%", read: "79%", wrote_back: "21%" },
+    { channel: "Text", sent: 6, delivered: "67%", read: null, wrote_back: "17%" },
+  ]);
+  assert.deepEqual(said.sources, [
+    { name: "Win-back", kind: "Playbook", runs: 1, sent: 20, delivered: "80%", wrote_back: "20%" },
+  ]);
+  const { campaign_series: _, ...without } = rpcs;
+  assert.deepEqual(
+    (await run(without)).campaigns,
+    { error: "the campaign numbers could not be read just now" },
+    "its read failed: said so, never as nothing sent, and the report stands",
+  );
+});
+
 test("a question that names another page's rows reads them before the model is asked, and the read rides in as data, never in system", async () => {
   const s = scripted([ROUND([answer("Quiet week.")])]);
   const t = tables();

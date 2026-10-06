@@ -109,7 +109,16 @@ export interface ReachCounts {
 /** What the campaign report read over the last days says: the totals the page's funnel is drawn from. */
 export interface LifecycleReport {
   days: number;
-  totals: { sent: number; delivered: number; read: number; replied: number; optIns: number; optOuts: number };
+  totals: {
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+    optIns: number;
+    optOuts: number;
+    /** The sends a read is a share of: WhatsApp's own (0030); absent, every send, as it always was. */
+    readOf?: number;
+  };
 }
 
 /** The broadcasts surface, as the home reads it. */
@@ -306,8 +315,12 @@ export interface LifecycleResultsTile {
   /** Null where the campaign report could not be read: the tile says so and shows the runs. */
   headline: { n: number; words: string } | null;
   funnel: readonly LifecycleFunnelStep[] | null;
+  /** What the funnel's steps are, as a screen reader hears the list (0030: no read step, no read in it); null with none. */
+  funnelLabel: string | null;
   /** "3 said yes · 2 asked to stop". */
   yes: string | null;
+  /** What the funnel's read is, where a text or an email went too (0030); null where WhatsApp alone sent. */
+  readNote: string | null;
   runs: readonly LifecycleCameBack[];
   /** Nothing went out and nobody answered: said once instead of four bars. */
   quiet: boolean;
