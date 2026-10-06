@@ -303,6 +303,7 @@ const RUN_ZONE = "America/New_York";
 /** A person as the People page reads them: said yes to messages, and to offers unless `offers` is false. */
 const person = (id, { offers = true, ...over } = {}) => ({
   id,
+  visitDays: [],
   state: "quiet",
   hasChat: true,
   calls: 0,
@@ -357,7 +358,7 @@ const context = (over = {}) => ({
     textLine: null,
     email: { mailbox: false, domain: false },
   }),
-  touches: { byThis: new Map(), byAny: new Map(), followUps: new Map() },
+  touches: { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() },
   calendar: "none",
   visits: new Map(),
   ...over,
@@ -398,7 +399,14 @@ test("an After-the-visit playbook that still sends the marketing thank-you it wa
   // enrolling people its message cannot reach.
   const yesterday = dayOf(NOW - D);
   const came = (id, over = {}) =>
-    person(id, { calendarTz: RUN_ZONE, lastVisitDate: yesterday, lastVisitMs: NOW - D, booked: false, ...over });
+    person(id, {
+      calendarTz: RUN_ZONE,
+      lastVisitDate: yesterday,
+      lastVisitMs: NOW - D,
+      visitDays: [{ date: yesterday, via: "phone" }],
+      booked: false,
+      ...over,
+    });
   const people = [came("a"), came("b", { offers: false }), person("c")];
   const playbook = stored({ trigger: "visited", name: "After the visit", policy_class: "reengage" });
   const ctx = context({ people, calendar: "ok" });

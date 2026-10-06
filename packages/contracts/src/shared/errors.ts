@@ -45,10 +45,11 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
  * The mark every AppError carries, in the runtime's global symbol registry so that every copy of this module
  * makes the same one.
  *
- * There is more than one copy. Each package's build inlines contracts (`tsup.config.ts`, `noExternal`), so the
- * dashboard loads the AppError in contracts' dist and a second one inside core's; a refusal a core verb throws
- * was never `instanceof` the class `withRoute` imports, and reached the owner as a 500, "Something went wrong.",
- * instead of the verb's own words and status (the scorecard of 26 September 2026, found by running it). Asking
+ * There was more than one copy: each package's build inlined contracts, so the dashboard loaded the AppError in
+ * contracts' dist and a second one inside core's, and a refusal a core verb threw was never `instanceof` the class
+ * `withRoute` imports. It reached the owner as a 500, "Something went wrong.", instead of the verb's own words and
+ * status (the scorecard of 26 September 2026, found by running it). Each dist now imports its siblings' (#1382), so
+ * production holds one copy; a test that loads a module from source beside a package's dist still holds two. Asking
  * for the mark instead of the prototype makes every copy recognise every other.
  */
 const APP_ERROR = Symbol.for("@chanlytics/contracts:AppError");

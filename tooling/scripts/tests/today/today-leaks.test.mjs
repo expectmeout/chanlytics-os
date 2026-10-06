@@ -29,8 +29,7 @@ import {
   consultsHeldWords,
   pipelineOf,
 } from "@chanlytics/contracts";
-// The mockup's sample is a real ReportsSurface (reportDto through toReportVM): the round trip the period line is tested on.
-import { reportsSample } from "../../../../apps/dashboard/src/surfaces/reports/sample.ts";
+import { headline } from "./_headline.mjs";
 
 // v2 returns { rows, more } and takes who is waiting before the cap; the rules pinned below are about the rows, so
 // they read them through this and stay as written.
@@ -39,26 +38,17 @@ const todayLeaks = (r, p, max) => todayLeaksV2(r, p, [], max).rows;
 const list = (id, label, count, action = null) => ({ id, label, group: "journey", count, action });
 const act = (cta, to, enabled = true) => ({ text: "", cta, to, enabled });
 
-/** The salon's own numbers on 17 Sep 2026, which is where every rule below came from. */
-const reports = (over = {}) => ({
-  vm: {
+/** The salon's own numbers on 17 Sep 2026, which is where every rule below came from: thirty days, 0 of the 18 who asked booked. */
+const reports = (over = {}) =>
+  headline({
     days: 30,
-    rangeLabel: "30 days",
-    since: "Aug 19",
-    until: "Sep 17",
-    empty: false,
-    tiles: [],
-    answered: { totals: { in: 21, ai: 16, you: 1, none: 4 } },
-    reasons: [
-      { id: "manual", label: "Flagged by you", value: 2 },
-      { id: "opt_out", label: "Asked to stop", value: 1 },
-    ],
-    ...(over.vm || {}),
-  },
-  campaigns: { tiles: [], empty: false },
-  booking: { present: true, headline: "0 of 18 booked", sub: "", pct: 0, asked: 18, booked: 0 },
-  ...(({ vm: _vm, ...rest }) => rest)(over),
-});
+    in: 21,
+    ai: 16,
+    you: 1,
+    none: 4,
+    booking: { calendar: "ok", days: 30, asked: 18, booked: 0 },
+    ...over,
+  });
 
 const NOW = new Date("2026-09-21T16:00:00Z");
 const at = (days) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
@@ -155,8 +145,11 @@ test("the leak that costs a customer comes first, and it carries the arithmetic 
 
 test("a healthy workspace gets no band at all -- nothing here congratulates anyone", () => {
   const clean = reports({
-    vm: { answered: { totals: { in: 21, ai: 20, you: 1, none: 0 } } },
-    booking: { present: true, headline: "16 of 18 booked", sub: "", pct: 89, asked: 18, booked: 16 },
+    in: 21,
+    ai: 20,
+    you: 1,
+    none: 0,
+    booking: { calendar: "ok", days: 30, asked: 18, booked: 16 },
   });
   assert.deepEqual(todayLeaks(clean, people([list("quiet", "Quiet 30+ days", 1, null)])), []);
   assert.deepEqual(todayLeaks(null, null), []);
@@ -164,18 +157,9 @@ test("a healthy workspace gets no band at all -- nothing here congratulates anyo
 });
 
 test("small numbers never fire: two people who did not book is a quiet week", () => {
-  const tiny = reports({ booking: { present: true, headline: "0 of 4 booked", sub: "", pct: 0, asked: 4, booked: 0 } });
+  const tiny = reports({ booking: { calendar: "ok", days: 30, asked: 4, booked: 0 } });
   assert.ok(!todayLeaks(tiny, people(), 4).some((l) => l.id === "never-booked"), "four asked is under the floor");
-  const noCal = reports({
-    booking: {
-      present: false,
-      headline: "—",
-      sub: "Connect your calendar under Settings › Business to see who booked.",
-      pct: null,
-      asked: 0,
-      booked: 0,
-    },
-  });
+  const noCal = reports({ booking: { calendar: "none", days: 30, asked: 0, booked: 0 } });
   assert.ok(
     !todayLeaks(noCal, people(), 4).some((l) => l.id === "never-booked"),
     "no calendar is not a leak, it is a setup step",
@@ -187,15 +171,18 @@ test("every rule has a floor, and each floor is a number somebody chose", () => 
   // One message nobody answered can be a wrong number or a STOP, and this rule
   // has no act to offer -- only a door to Reports, where the tile prints the
   // figure already. Two is a pattern.
-  const one = reports({ vm: { answered: { totals: { in: 21, ai: 19, you: 1, none: 1 } } } });
+  const one = reports({ in: 21, ai: 19, you: 1, none: 1 });
   assert.ok(!ids(one).includes("unanswered"));
-  const two = reports({ vm: { answered: { totals: { in: 21, ai: 18, you: 1, none: 2 } } } });
+  const two = reports({ in: 21, ai: 18, you: 1, none: 2 });
   assert.ok(ids(two).includes("unanswered"));
 
   // One person who said yes is not yet a list nobody can mail.
   const healthy = reports({
-    vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
-    booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+    in: 9,
+    ai: 9,
+    you: 0,
+    none: 0,
+    booking: { calendar: "ok", days: 30, asked: 9, booked: 8 },
   });
   const few = [
     list("opted_in", "Said yes to messages", 2, act("Get their yes to offers", "broadcasts")),
@@ -213,8 +200,11 @@ test("every rule has a floor, and each floor is a number somebody chose", () => 
 
 test("some booked, but few: the sentence changes and the number is theirs", () => {
   const some = reports({
-    vm: { answered: { totals: { in: 21, ai: 21, you: 0, none: 0 } } },
-    booking: { present: true, headline: "3 of 18 booked", sub: "", pct: 17, asked: 18, booked: 3 },
+    in: 21,
+    ai: 21,
+    you: 0,
+    none: 0,
+    booking: { calendar: "ok", days: 30, asked: 18, booked: 3 },
   });
   const [one] = todayLeaks(some, people());
   assert.equal(one.text, "Only 3 of the 18 people who wrote or called in the last 30 days got onto the calendar.");
@@ -222,8 +212,11 @@ test("some booked, but few: the sentence changes and the number is theirs", () =
 
 test("a list nobody can be mailed, and a list gone quiet -- the two that cost a chance, in that order", () => {
   const quietBooks = reports({
-    vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
-    booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+    in: 9,
+    ai: 9,
+    you: 0,
+    none: 0,
+    booking: { calendar: "ok", days: 30, asked: 9, booked: 8 },
   });
   const out = todayLeaks(quietBooks, people(), 4);
   assert.deepEqual(
@@ -275,8 +268,11 @@ test("REGRESSION: a yes to offers with no number to send one to is not 'nobody h
     row("p3", "Ivy Park", { phone_e164: "+13055550103" }),
   ];
   const bookedWell = reports({
-    vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
-    booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+    in: 9,
+    ai: 9,
+    you: 0,
+    none: 0,
+    booking: { calendar: "ok", days: 30, asked: 9, booked: 8 },
   });
   const reach = (rows) => todayLeaksV2(bookedWell, surface(rows)).rows.find((l) => l.id === "unreachable");
 
@@ -359,8 +355,11 @@ test("the reach row says no channel when that is what is missing: they said yes 
     aggregates: { total: rows.length },
   });
   const bookedWell = reports({
-    vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
-    booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+    in: 9,
+    ai: 9,
+    you: 0,
+    none: 0,
+    booking: { calendar: "ok", days: 30, asked: 9, booked: 8 },
   });
   const reach = (rows) => todayLeaksV2(bookedWell, surface(rows)).rows.find((l) => l.id === "unreachable");
   // The workspace's texting line is on and its WhatsApp number is not connected: a text carries no offers.
@@ -731,8 +730,11 @@ test("each row wears a word and an icon for its tone, and offers Ask its own fac
   );
   const { rows: reach } = todayLeaksV2(
     reports({
-      vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } },
-      booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 },
+      in: 9,
+      ai: 9,
+      you: 0,
+      none: 0,
+      booking: { calendar: "ok", days: 30, asked: 9, booked: 8 },
     }),
     people(),
   );
@@ -835,84 +837,21 @@ test("the dedupe covers all four queue kinds: a closing window's thread, a call 
 
 /* ------------------------------ the period, in one line ------------------------------ */
 
-test("the last seven days in one sentence, in Reports' own numbers and words, each read from the view model Reports draws", () => {
-  const r = reports({
-    vm: {
-      tiles: [
-        {
-          id: "messages",
-          label: "Customer messages",
-          value: "23",
-          meta: "",
-          delta: null,
-          spark: [],
-          compare: "up from 19",
-        },
-        { id: "calls", label: "Calls", value: "4", meta: "", delta: null, spark: [], compare: null },
-      ],
-      answered: { totals: { in: 23, ai: 21, you: 1, none: 1 }, share: 21 / 23 },
-      replyTime: { count: 21, medianLabel: "34s" },
-      calls: { total: 4 },
-      period: { now: "Last 7 days" },
-      rangeLabel: "7 days",
-    },
-  });
+test("the last seven days in one sentence, in Reports' own numbers and words, each read from the headline Reports' series makes", () => {
+  const r = headline({ days: 7, in: 23, ai: 21, you: 1, none: 1, calls: 4, before: 19 });
   assert.deepEqual(todayPeriodLine(r), {
     text: "Last 7 days: 23 messages (up from 19), 91% answered by the receptionist, 4 calls.",
     to: "reports",
   });
-  const quiet = reports({
-    vm: {
-      tiles: [],
-      answered: { totals: { in: 0, ai: 0, you: 0, none: 0 }, share: null },
-      empty: true,
-      period: { now: "Last 30 days" },
-      rangeLabel: "30 days",
-    },
-  });
+  const quiet = headline({ days: 30 });
   assert.equal(todayPeriodLine(quiet).text, "Last 30 days: nobody wrote or called.");
-  const noReplies = reports({
-    vm: {
-      tiles: [{ id: "messages", label: "Customer messages", value: "1", meta: "", delta: null, spark: [] }],
-      answered: { totals: { in: 1, ai: 0, you: 1, none: 0 }, share: 0 },
-      replyTime: { count: 0, medianLabel: "—" },
-      calls: { total: 1 },
-      rangeLabel: "7 days",
-    },
-  });
+  const noReplies = headline({ days: 7, in: 1, ai: 0, you: 1, calls: 1 });
   assert.equal(
     todayPeriodLine(noReplies).text,
     "Last 7 days: 1 message, 0% answered by the receptionist, 1 call.",
-    "no comparison without one; the singulars; the lead from the range when Reports gives no period words",
+    "no comparison without one; the singulars; the lead from the period's own words",
   );
   assert.equal(todayPeriodLine(null), null);
-  assert.equal(
-    todayPeriodLine(reports({ vm: { answered: undefined } })),
-    null,
-    "nothing to count from: no line rather than a zero",
-  );
-  assert.equal(
-    todayPeriodLine(reports({ campaigns: null })).to,
-    "reports",
-    "the offers' read failing touches nothing here (#686's first defect)",
-  );
-});
-
-test("the period line reads the view model Reports itself draws: a round trip through toReportVM", () => {
-  // The mockup's sample is a real ReportsSurface: reportDto → toReportVM, nothing typed by hand.
-  const surface = reportsSample("7d", "2026-09-18");
-  const { vm } = surface;
-  const line = todayPeriodLine(surface);
-  assert.equal(line.to, "reports");
-  assert.ok(line.text.startsWith(`${vm.period.now}: ${vm.answered.totals.in} messages`), line.text);
-  assert.ok(
-    line.text.includes(`% answered by the receptionist`) &&
-      line.text.includes(`${Math.round(vm.answered.share * 100)}%`),
-    "Reports' own share, rounded as its tile is",
-  );
-  assert.ok(!line.text.includes("median"), "the median reply stays on Reports, the sentence's one door");
-  assert.ok(line.text.endsWith(`${vm.calls.total} call${vm.calls.total === 1 ? "" : "s"}.`), line.text);
-  assert.ok(!line.text.includes("—"), "no em dash in a new sentence");
 });
 
 /* ------------------------------ the runs' words ------------------------------ */
@@ -1015,13 +954,7 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
     rows,
     dealsOn: true,
   });
-  const rows = todayLeaksV2(
-    reports({ booking: { present: false } }),
-    people(rowsWith(3, true)),
-    [],
-    4,
-    NOW.getTime(),
-  ).rows;
+  const rows = todayLeaksV2(reports({ booking: null }), people(rowsWith(3, true)), [], 4, NOW.getTime()).rows;
   const leak = rows.find((r) => r.id === "proposals-waiting");
   assert.ok(leak);
   assert.equal(leak.tag, "Waiting");
@@ -1030,19 +963,13 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
   assert.equal(leak.math, "3 on Proposal out · nothing heard since it went");
   assert.equal(leak.cta.to, "clients/seg:proposal_out");
   assert.equal(leak.also, null, "the list's step is not the leak's act: nobody is pushed by a broadcast to answer");
-  const one = todayLeaksV2(
-    reports({ booking: { present: false } }),
-    people(rowsWith(1, true)),
-    [],
-    4,
-    NOW.getTime(),
-  ).rows;
+  const one = todayLeaksV2(reports({ booking: null }), people(rowsWith(1, true)), [], 4, NOW.getTime()).rows;
   assert.equal(
     one.find((r) => r.id === "proposals-waiting").text,
     "1 proposal went out more than a week ago with nothing back.",
   );
   assert.equal(
-    todayLeaksV2(reports({ booking: { present: false } }), people(rowsWith(3, false)), [], 4, NOW.getTime()).rows.find(
+    todayLeaksV2(reports({ booking: null }), people(rowsWith(3, false)), [], 4, NOW.getTime()).rows.find(
       (r) => r.id === "proposals-waiting",
     ),
     undefined,
@@ -1053,9 +980,7 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
   const paced = (rows, pace) => ({ ...people(rows), dealPace: pace });
   const twelve = { medianDays: 12, yeses: 6, waitDays: 14, longerThanUsual: true, words: "Usually 12 days to a yes" };
   const leakOf = (p) =>
-    todayLeaksV2(reports({ booking: { present: false } }), p, [], 4, NOW.getTime()).rows.find(
-      (r) => r.id === "proposals-waiting",
-    );
+    todayLeaksV2(reports({ booking: null }), p, [], 4, NOW.getTime()).rows.find((r) => r.id === "proposals-waiting");
   assert.equal(leakOf(paced(rowsWith(3, true), twelve)), undefined);
   const late = rowsWith(2, true).map((r) => ({ ...r, deal: { ...r.deal, sinceMs: NOW.getTime() - 15 * 86_400_000 } }));
   const lateLeak = leakOf(paced(late, twelve));
@@ -1074,25 +999,53 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
   const answered = rowsWith(1, true).map((r) => ({ ...r, askedMs: NOW.getTime() - 86_400_000 }));
   for (const rs of [fresh, answered])
     assert.equal(
-      todayLeaksV2(reports({ booking: { present: false } }), people(rs), [], 4, NOW.getTime()).rows.find(
+      todayLeaksV2(reports({ booking: null }), people(rs), [], 4, NOW.getTime()).rows.find(
         (r) => r.id === "proposals-waiting",
       ),
       undefined,
     );
   // Between the answered row and the reach row: a customer one step from yes outranks a chance.
   const order = todayLeaksV2(
-    reports({ vm: { answered: { totals: { in: 21, ai: 16, you: 1, none: 4 } } }, booking: { present: false } }),
+    reports({ in: 21, ai: 16, you: 1, none: 4, booking: null }),
     { ...people(rowsWith(2, true)), lists: [...people(rowsWith(2, true)).lists, list("quiet", "Quiet 30+ days", 9)] },
     [],
     4,
     NOW.getTime(),
   ).rows.map((r) => r.id);
   assert.deepEqual(order, ["unanswered", "proposals-waiting", "quiet"]);
+  // A person with two proposals out (0029): each is a proposal waiting, as each is a row of the Pipeline's; the list
+  // counts the person once, and the sentence and the arithmetic each say theirs.
+  const twoOut = (followUp = null) => [
+    {
+      id: "p-two",
+      name: "Ana",
+      consent: { state: "opted_in" },
+      askedMs: null,
+      followUp,
+      deal: { id: "d-ads", stage: "proposed", sinceMs: NOW.getTime() - 9 * 86_400_000, brief: "Proposal out · 9 d" },
+      openDeals: [
+        { id: "d-ads", stage: "proposed", sinceMs: NOW.getTime() - 9 * 86_400_000, brief: "Proposal out · 9 d" },
+        { id: "d-seo", stage: "proposed", sinceMs: NOW.getTime() - 12 * 86_400_000, brief: "Proposal out · 12 d" },
+      ],
+    },
+  ];
+  const two = leakOf(people(twoOut()));
+  assert.equal(two.text, "2 proposals went out more than a week ago with nothing back.");
+  assert.equal(two.math, "1 on Proposal out · nothing heard since it went");
+  // The follow-up's stand their row carries is the shown proposal's: that one is in its hand, the other is said, and
+  // the person is named once.
+  const inHand = leakOf(people(twoOut({ kind: "will" })));
+  assert.equal(inHand.text, "1 proposal went out more than a week ago with nothing back.");
+  assert.match(inHand.math, /the follow-up has 1 more$/);
+  assert.deepEqual(
+    inHand.people.map((p) => p.id),
+    ["p-two"],
+  );
   // A workspace whose customers book never hears about a proposal, whatever deals it holds (0008).
   for (const dealsOn of [false, undefined])
     assert.equal(
       todayLeaksV2(
-        reports({ booking: { present: false } }),
+        reports({ booking: null }),
         { ...people(rowsWith(3, true)), dealsOn },
         [],
         4,
@@ -1142,8 +1095,7 @@ const dealCols = (stage, proposedMs, decidedMs = null) => ({
   deal_per: null,
 });
 /** A week that answered everyone and says nothing of booking: only the deal rows can speak. */
-const answeredWeek = () =>
-  reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: false } });
+const answeredWeek = () => reports({ in: 9, ai: 9, you: 0, none: 0, booking: null });
 const dealSurface = (rows, over = {}) => ({
   lists: [],
   aggregates: { total: rows.length },
@@ -1260,7 +1212,7 @@ test("the consultations row sits after the unanswered and before the proposals w
     dealsOn: true,
   };
   // Reports says four messages went unanswered; nothing about booking.
-  const r = reports({ booking: { present: false } });
+  const r = reports({ booking: null });
   const all = todayLeaksV2(r, surface, [], 4, NOW.getTime());
   assert.deepEqual(
     all.rows.map((l) => l.id),
@@ -1303,7 +1255,7 @@ test("proposals waiting with the follow-up on (0006): the ones it has in hand ar
     dealsOn: true,
   });
   const leakOf = (rows) =>
-    todayLeaksV2(reports({ booking: { present: false } }), people(rows), [], 4, NOW.getTime()).rows.find(
+    todayLeaksV2(reports({ booking: null }), people(rows), [], 4, NOW.getTime()).rows.find(
       (r) => r.id === "proposals-waiting",
     );
   const mixed = leakOf([

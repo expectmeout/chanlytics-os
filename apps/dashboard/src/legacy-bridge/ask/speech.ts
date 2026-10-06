@@ -25,9 +25,11 @@ interface SpeechWindow {
   Audio?: typeof Audio;
   URL?: typeof URL;
   Blob?: typeof Blob;
+  /** WebKit's Audio Session API (Safari 16.4 on): what kind of audio the page makes, where a device takes the word. */
+  navigator?: { audioSession?: { type: string } };
 }
 /** The device's three doors to audio, all present. */
-type Device = Required<SpeechWindow>;
+type Device = Required<Pick<SpeechWindow, "Audio" | "URL" | "Blob">>;
 
 export interface SpeechDeps {
   api: Pick<AskApiCalls, "speech">;
@@ -75,6 +77,22 @@ function silentWav(): ArrayBuffer {
   return buf;
 }
 
+type SessionType = "playback" | "play-and-record";
+/**
+ * The device told what the page's audio is, where it takes the word (6 Oct 2026): `play-and-record` as a hold listens,
+ * `playback` before a read. A phone that has heard the microphone keeps a call's session, and a call plays through the
+ * earpiece: the answer to a held question came out of it. Elsewhere nothing is told, and a device that refuses the word
+ * plays as it would have.
+ */
+function tellDevice(w: SpeechWindow, type: SessionType): void {
+  try {
+    const session = w.navigator?.audioSession;
+    if (session) session.type = type;
+  } catch {
+    /* the word refused */
+  }
+}
+
 export function askSpeech(win: Window, deps: SpeechDeps) {
   const w = win as unknown as SpeechWindow;
   /** The device's doors, or null where one is missing (a stand-in window, a browser without object URLs). */
@@ -83,6 +101,7 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
       ? { Audio: w.Audio, URL: w.URL, Blob: w.Blob }
       : null;
   const canSpeak = () => device() !== null;
+  const tellSession = (type: SessionType) => tellDevice(w, type);
   let state: SpeechState = "idle";
   const watchers = new Set<() => void>();
   const move = (next: SpeechState) => {
@@ -163,6 +182,7 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
     speak: async (text: string, purpose: SpeechPurpose): Promise<void> => {
       const d = device();
       if (!d) throw new Error("This device cannot play audio.");
+      tellSession("playback");
       const mine = ++generation;
       release();
       const a = unlock(d);
@@ -198,6 +218,16 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
       }
       if (mine !== generation) return;
       move("speaking");
+    },
+    /**
+     * Inside a press whose answer is read later (a hold to talk): the device told the page listens, and the element made
+     * and started on silence, as a read's own press starts it, so the clip read once the answer lands, after a fetch
+     * and outside any gesture, may play on a phone. Nothing is read and nothing being read stops.
+     */
+    readySpeech: (): void => {
+      tellSession("play-and-record");
+      const d = device();
+      if (d) unlock(d);
     },
     /** Stop reading, or stop waiting for the clip; nothing if nothing was. */
     stopSpeaking: () => {

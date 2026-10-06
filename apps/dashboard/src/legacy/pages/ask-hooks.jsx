@@ -101,7 +101,15 @@ const useAskSpeech = (A) => {
     if (A.state && A.state() !== "idle") { stop(); return null; }
     try { await A.speak(text, purpose); return null; } catch (e) { return (e && e.message) || ""; }
   };
-  return { canSpeak: !!(A && A.canSpeak && A.canSpeak()), speakingId: state === "speaking" ? "line" : null, loading: state === "loading" ? "line" : null, toggle, stop };
+  // A held question (legacy-bridge/ask/aloud.ts): the element readied inside the press, the one line said while Ask
+  // works, and the answer read as it lands, after that line; `answer` says why it could not, as `toggle` does.
+  const ready = () => { if (A && A.readySpeech) A.readySpeech(); };
+  const wait = (lang, answered) => { if (A && A.waitAloud) A.waitAloud(lang, answered); };
+  const answer = async (text) => {
+    if (!A || !A.answerAloud) return null;
+    try { await A.answerAloud(text); return null; } catch (e) { return (e && e.message) || ""; }
+  };
+  return { canSpeak: !!(A && A.canSpeak && A.canSpeak()), speakingId: state === "speaking" ? "line" : null, loading: state === "loading" ? "line" : null, toggle, stop, ready, wait, answer };
 };
 
 // A phone's thread (docs/superpowers/specs/2026-09-27-ask-chat-on-a-phone-design.md): the newest question stands at
@@ -246,18 +254,10 @@ const ahSlide = (from, stage, hero) => {
   }
 };
 
-// The agent's session a hold speaks to (legacy-bridge/ask/voice.ts; docs/superpowers/specs/2026-10-03-ask-spoken-design.md,
-// §3.5 as amended 4 and 5 Oct 2026): one at a time, its client fetched as the Line opens (`warm`), asked for on the
-// press of a hold (`ensure`), ended by Clear, by a typed question, by the Line closing, by a minute idle, or by the
-// agent going. The words of a hold are a turn the bridge runs (ask/spoken.ts, the Line's `A.sendSpoken`); the hook
-// follows the session itself (voice.ts watchVoice): whether it is up or on its way (`begun` is either: what an end
-// must end) and the agent's mode, and while the agent speaks it feeds the three its voice (mascot mood.ts `voice`),
-// read off the client twenty times a second. Where the device cannot (no microphone, or no secure page) `can` is
-// false and nothing starts.
 // A question on its way warms the model's cache (legacy-bridge/ask/api.ts warmModel; the server's ask/warm.ts): words on
 // the Line, typed or heard, that are more than a jump -- two words or more, eight characters, and no page, person,
 // thread or call they reach -- so the answer's first words come about two seconds sooner after Ask has stood idle. The
-// bridge sends one warm in four minutes however often it is asked; a hold on the mic asks through its session.
+// bridge sends one warm in four minutes however often it is asked; a hold on the mic warms it as it is pressed.
 const AH_WARM_CHARS = 8;
 const useAskWarm = ({ A, open, query }) => {
   useAhEffect(() => {
@@ -268,44 +268,7 @@ const useAskWarm = ({ A, open, query }) => {
   }, [A, open, query]);
 };
 
-const AH_VOICE_LEVEL_MS = 50;
-const useAskVoice = ({ A, M }) => {
-  const [up, setUp] = useAhState(false);
-  // Connecting: the press has landed and the session is not up yet.
-  const [connecting, setConnecting] = useAhState(false);
-  const [mode, setMode] = useAhState("listening");
-  const can = !!(A && A.canVoice && A.canVoice());
-  const rest = () => { setUp(false); setConnecting(false); setMode("listening"); };
-  // What the session says of itself, whoever's turn it is: the agent's mode (the mic's ring, the three) and its end.
-  useAhEffect(() => {
-    if (!A || !A.watchVoice) return undefined;
-    return A.watchVoice((a) => { if (a.t === "mode") setMode(a.mode); else if (a.t === "gone") { setUp(false); setConnecting(false); setMode("listening"); } });
-  }, [A, setUp, setConnecting, setMode]);
-  const landed = (got) => { setConnecting(false); setUp(!!got); return got; };
-  // The Line opening: the agent's client fetched ahead of the first press, so the press connects without waiting on it.
-  const warm = () => { if (can && A.warmVoice) A.warmVoice(); };
-  // The press: the session asked for (up by the lift, most holds); nothing to say yet.
-  const ensure = (input) => {
-    if (!can) return Promise.resolve(null);
-    if (!(A.voiceUp && A.voiceUp())) setConnecting(true);
-    return A.ensureVoice(input).then(landed, () => landed(null));
-  };
-  const hush = (on) => { if (A && A.hushVoice) A.hushVoice(on); };
-  // The end, with the person's reason (voice.ts: `button` Clear, `typed`, `navigated` the Line closing), kept on the row (00300).
-  const stop = async (reason = "button") => {
-    rest();
-    if (A && A.stopVoice) await A.stopVoice(reason);
-  };
-  const speaking = up && mode === "speaking";
-  useAhEffect(() => {
-    if (!speaking || !M || !M.mood.voice) return undefined;
-    const id = setInterval(() => M.mood.voice(A.level ? A.level() : 0, true), AH_VOICE_LEVEL_MS);
-    return () => { clearInterval(id); M.mood.voice(0, false); };
-  }, [speaking, A, M]);
-  return { can, up, connecting, begun: up || connecting, speaking, warm, ensure, hush, stop };
-};
-
 window.AskHooks = {
-  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskVoice, useAskWarm, useAskPin, useAskLatest,
+  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskWarm, useAskPin, useAskLatest,
   pinNow: ahPinNow, pinTop: ahPinTop, latestShown: ahLatestShown, slide: ahSlide, slideFrom: ahSlideFrom,
 };

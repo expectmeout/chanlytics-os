@@ -59,14 +59,14 @@ export function pipelineBoardActs({ ui }: Pick<ActsIn, "ui">) {
     const d = drag;
     dragEnd();
     const mv = d ? moveOf(d.from, to, d.row) : null;
-    if (mv && d && dealSheetOffered()) openDealSheet({ personId: d.id, mode: mv.mode, dealId: mv.dealId });
+    if (mv && d && dealSheetOffered()) openDealSheet({ personId: d.row.person.id, mode: mv.mode, dealId: mv.dealId });
   };
   // A card's Move to asks for the sheet a drop would, the card holding focus first so closing the sheet lands on it.
   const moveTo = (row: PipelineRowVM, from: PipelineGroupKey, to: PipelineGroupKey) => {
     const mv = moveOf(from, to, row);
     if (!mv || !dealSheetOffered()) return;
     pipeHoldFocus(row.id);
-    openDealSheet({ personId: row.id, mode: mv.mode, dealId: mv.dealId });
+    openDealSheet({ personId: row.person.id, mode: mv.mode, dealId: mv.dealId });
   };
   return { moveOf, dragEnd, drop, moveTo };
 }

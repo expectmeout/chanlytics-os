@@ -633,6 +633,155 @@ test("a visit run keeps each person's words on their row, from the visit the run
   ]);
 });
 
+test("a person with a visit later today and another tomorrow is reminded of TOMORROW's: the run reads the visit on its day, not the next one (wiring review P2 14)", async () => {
+  // Their next visit is today's, at 4 PM: "the next visit is tomorrow" was false, and tomorrow's reminder never went.
+  const today = visit("2026-09-06T20:00:00Z", "Cut"); // today, 4:00 PM in New York
+  const tomorrow = visit("2026-09-07T18:00:00Z", "Balayage"); // tomorrow, 2:00 PM
+  const read = { timezone: TZ, source: "calendar", state: "ok", next: today, last: null, near: [today, tomorrow] };
+  const row = toPersonRowVM(dto("a", { visits: read }), TZ, NOW);
+  assert.deepEqual(
+    row.visitDays.map((d) => d.date),
+    ["2026-09-06", "2026-09-07"],
+    "the row carries the day of each visit near today",
+  );
+  const { ports, of } = fakes();
+  const r = await runPlaybook(
+    ports,
+    cmd({
+      playbook: playbook({
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_name: "visit_reminder",
+        params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+      }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [row],
+        visits: new Map([["a", read]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "sent", "REGRESSION: nobody was named, the next visit being today's");
+  assert.deepEqual(
+    of("assemble")[0][2].map((x) => [x.contact_id, x.facts]),
+    [["a", { visit_when: "tomorrow at 2:00 PM", visit_service: "Balayage" }]],
+    "the words are tomorrow's visit, never today's",
+  );
+
+  // A read made before the calendar kept the near visits has the next and the last only, and is read as it always was:
+  // today's next visit names nobody for tomorrow.
+  const old = { timezone: TZ, source: "calendar", state: "ok", next: today, last: null };
+  const before = fakes();
+  const r2 = await runPlaybook(
+    before.ports,
+    cmd({
+      playbook: playbook({
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_name: "visit_reminder",
+        params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+      }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [toPersonRowVM(dto("a", { visits: old }), TZ, NOW)],
+        visits: new Map([["a", old]]),
+      }),
+    }),
+  );
+  assert.notEqual(r2.outcome, "sent");
+  assert.deepEqual(before.of("assemble"), [], "nobody named, as before");
+});
+
+test("two visits tomorrow, the first found by name alone and not surely theirs: the run names them for the second, and its words are the second's", async () => {
+  // A person saved as "Maria" (a first name alone): an event titled "Maria Lopez" is found by name and is a guess, so it
+  // never names them; their own visit, found by their number, does. The words were the first visit's of the day, the
+  // guess included.
+  const guess = { ...visit("2026-09-07T14:00:00Z", "Maria Lopez · Balayage"), via: "name" }; // 10:00 AM
+  const theirs = visit("2026-09-07T19:00:00Z", "Trim"); // 3:00 PM, by their number
+  const read = { timezone: TZ, source: "calendar", state: "ok", next: guess, last: null, near: [guess, theirs] };
+  const row = toPersonRowVM(dto("a", { display_name: "Maria", visits: read }), TZ, NOW);
+  const { ports, of } = fakes();
+  const r = await runPlaybook(
+    ports,
+    cmd({
+      playbook: playbook({
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_name: "visit_reminder",
+        params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+      }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [row],
+        visits: new Map([["a", read]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.deepEqual(
+    of("assemble")[0][2].map((x) => x.facts),
+    [{ visit_when: "tomorrow at 3:00 PM", visit_service: "Trim" }],
+    "REGRESSION: the words named the other Maria's 10:00 Balayage",
+  );
+  // With only the guess that day, nobody is named.
+  const alone = { ...read, next: guess, near: [guess] };
+  const none = fakes();
+  await runPlaybook(
+    none.ports,
+    cmd({
+      playbook: playbook({
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_name: "visit_reminder",
+        params: [{ kind: "visit_when" }],
+      }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [toPersonRowVM(dto("a", { display_name: "Maria", visits: alone }), TZ, NOW)],
+        visits: new Map([["a", alone]]),
+      }),
+    }),
+  );
+  assert.deepEqual(none.of("assemble"), []);
+});
+
+test("a person seen yesterday and again this morning is thanked for YESTERDAY's visit: the latest visit alone is today's", async () => {
+  const yesterday = visit("2026-09-05T15:00:00Z", "Balayage"); // yesterday, 11:00 AM in New York
+  const thisMorning = visit("2026-09-06T12:00:00Z", "Trim"); // today, 8:00 AM, over by now
+  const read = {
+    timezone: TZ,
+    source: "calendar",
+    state: "ok",
+    next: null,
+    last: thisMorning,
+    near: [yesterday, thisMorning],
+  };
+  const row = toPersonRowVM(dto("a", { visits: read }), TZ, NOW);
+  const { ports, of } = fakes();
+  const r = await runPlaybook(
+    ports,
+    cmd({
+      playbook: playbook({ trigger: "visited", policy_class: "booking", params: [{ kind: "visit_service" }] }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [row],
+        visits: new Map([["a", read]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "sent", "REGRESSION: the thank-you was never sent, the latest visit being this morning's");
+  assert.deepEqual(
+    of("assemble")[0][2].map((x) => x.facts),
+    [{ visit_when: "yesterday", visit_service: "Balayage" }],
+    "yesterday's service",
+  );
+});
+
 test("a visit's service slot carries the service alone: the person's name comes out of the event's title, and a title that was only their name says \"your appointment\"", async () => {
   const run = async (title, over = {}) => {
     const next = visit("2026-09-07T18:00:00Z", title);
@@ -743,30 +892,53 @@ test("a run that was not made touches nobody, and one made to wait for a person 
   assert.deepEqual([...askCtx.touches.byAny], [["a", NOW.getTime()]]);
 });
 
-test("the touches a run adds are new maps, the latest touch stands, and only a proposal's follow-up is one", () => {
-  const given = { byThis: new Map(), byAny: new Map(), followUps: new Map() };
-  const after = touchesAfterRun(given, { playbookId: "pf", at: 5, followUp: true }, ["a", "b"]);
+test("the touches a run adds are new maps, the latest touch stands, and only a proposal's follow-up is one, kept by what it was about (0029)", () => {
+  const SEO = "https://example.com/p/seo";
+  const given = { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() };
+  const after = touchesAfterRun(given, { playbookId: "pf", at: 5, followUp: true }, [
+    { id: "a", deal: "d-seo", link: SEO },
+    { id: "b", deal: null, link: SEO },
+    { id: "c", deal: null, link: null },
+  ]);
   assert.deepEqual(
     [...after.followUps],
     [
       ["a", 5],
       ["b", 5],
+      ["c", 5],
     ],
   );
   assert.deepEqual(
-    [...given.byAny, ...given.followUps, ...given.byThis],
+    [...after.followUpKeys].map(([id, m]) => [id, [...m]]),
+    [
+      ["a", [["deal:d-seo", 5]]],
+      ["b", [[`link:${SEO}`, 5]]],
+      ["c", [["bare", 5]]],
+    ],
+    "by the deal it was about, else its link, else nothing kept",
+  );
+  assert.deepEqual(
+    [...given.byAny, ...given.followUps, ...given.byThis, ...given.followUpKeys],
     [],
     "the touches handed in are left as they were",
   );
-  const earlier = touchesAfterRun(after, { playbookId: "pf", at: 3, followUp: true }, ["a"]);
+  const earlier = touchesAfterRun(after, { playbookId: "pf", at: 3, followUp: true }, [
+    { id: "a", deal: "d-seo", link: SEO },
+  ]);
   assert.deepEqual(
     [...earlier.byAny],
     [
       ["a", 5],
       ["b", 5],
+      ["c", 5],
     ],
   );
-  assert.deepEqual([...touchesAfterRun(given, { playbookId: "pg", at: 5, followUp: false }, ["a"]).followUps], []);
+  assert.equal(earlier.followUpKeys.get("a")?.get("deal:d-seo"), 5, "the latest stands, by what it was about too");
+  assert.notEqual(earlier.followUpKeys.get("a"), after.followUpKeys.get("a"), "a person's keys are a new map too");
+  const other = touchesAfterRun(given, { playbookId: "pg", at: 5, followUp: false }, [
+    { id: "a", deal: "d-seo", link: SEO },
+  ]);
+  assert.deepEqual([...other.followUps, ...other.followUpKeys], [], "a run that follows nothing up keeps neither");
 });
 
 test('a reminder run asked for at night goes at nine and says "today": the words are relative to the moment the send goes; every visit is reminded, whatever the cap', async () => {
@@ -1127,7 +1299,7 @@ const followUpCtx = (people, over = {}) => ({
   dealsOn: true,
   pace: null,
   ready: ready({ textLine: TEXT_LINE, mailbox: true, domain: true }),
-  touches: { byThis: new Map(), byAny: new Map(), followUps: new Map() },
+  touches: { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() },
   ...over,
 });
 const FOLLOW_UPS = [
@@ -1195,6 +1367,57 @@ test("a proposal's follow-up touches its people as one had, and not those the mo
     "e2 and e3 are held for the month: skipped, touched by nothing",
   );
   assert.deepEqual([...ctx.touches.byAny.keys()].sort(), ["e1", "w"]);
+});
+
+test("a person with two proposals out (0029): the run follows up the one waiting longest, once, its words carry that proposal's link, and its touch keeps it, so the other is owed its own", async () => {
+  // A remodel's proposal out twenty days and a kitchen's out ten, as people_list reads them: the row shows the newer,
+  // and open_deals holds both, the newest first.
+  const open = (id, service, days, url) => ({
+    id,
+    stage: "proposed",
+    service,
+    proposed_at: iso(days * D),
+    decided_at: null,
+    ended_at: null,
+    amount_cents: null,
+    per: null,
+    currency: "USD",
+    proposal_url: url,
+    valid_until: null,
+    lost_reason: null,
+  });
+  const KITCHEN = "https://example.com/p/kitchen";
+  const REMODEL = "https://example.com/p/remodel";
+  const both = toPersonRowVM(
+    dto("w", {
+      deal_id: "deal-k",
+      deal_stage: "proposed",
+      deal_service: "Kitchen",
+      deal_proposed_at: iso(10 * D),
+      deal_proposal_url: KITCHEN,
+      open_deals: [open("deal-k", "Kitchen", 10, KITCHEN), open("deal-r", "Remodel", 20, REMODEL)],
+      last_inbound_at: iso(25 * D),
+      consent_channels: ["whatsapp", "sms"],
+      email: "w@example.com",
+    }),
+    TZ,
+    NOW,
+  );
+  const ctx = context(followUpCtx([both]));
+  const f = fakes({ template: UTILITY, versions: ["email"], monthSent: 0 });
+  const r = await runPlaybook(f.ports, cmd({ playbook: followUp(), ctx }));
+  assert.deepEqual([r.outcome, r.eligible], ["sent", 1], "one person, one message, whatever they have out");
+  const [, , recipients] = f.of("assemble")[0];
+  assert.deepEqual(
+    recipients.map((x) => [x.contact_id, x.facts?.proposal_link, x.facts?.deal_id]),
+    [["w", REMODEL, "deal-r"]],
+    "the one waiting longest, with its own link and its deal, though their row shows the kitchen's",
+  );
+  assert.deepEqual(
+    [...(ctx.touches.followUpKeys.get("w") ?? new Map()).keys()],
+    ["deal:deal-r"],
+    "the touch keeps which proposal it was about: the kitchen's is still owed its own",
+  );
 });
 
 test("a hold that could not be written leaves the people queued: the run is made, and its record says so", async () => {

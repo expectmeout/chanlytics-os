@@ -144,7 +144,8 @@ test.describe("Broadcasts on a real workspace", () => {
 
     // Cancel closes the sheet, which a link arrived at: the address goes to the home, and Back is the way to Sent. The ledger
     // holds how a customer says yes: the card and the code, whenever there is a number.
-    await composer.getByTestId("bc-compose-close").click();
+    // The sheet's Close, which presses the composer's own Cancel (hidden in the sheet: home/pane-sheet.tsx).
+    await page.getByRole("dialog").getByLabel("Close", { exact: true }).click();
     await expect(page.getByTestId("bc-composer")).toHaveCount(0);
     await expect(page).toHaveURL(atRoute(/^campaigns$/));
     await page.goto("/#/broadcasts");

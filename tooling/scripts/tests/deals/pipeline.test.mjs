@@ -39,6 +39,8 @@ import {
   parsePipelineRoute,
   pipelineBoardMore,
   pipelineMove,
+  pipelinePersonOf,
+  pipelineRowNow,
   pipelineOf,
   pipelinePassDone,
   pipelinePassMany,
@@ -229,6 +231,169 @@ test("four groups, in order, and each person in one: consultations, proposals ou
   // The group words are the deal's own where it has them: a renamed stage renames its group.
   assert.equal(PIPELINE_WORDS.groups.proposals, DEAL_STAGE_WORDS.proposed);
   assert.equal(PIPELINE_WORDS.groups.closed, `${DEAL_STAGE_WORDS.lost} or ${DEAL_STAGE_WORDS.ended.toLowerCase()}`);
+});
+
+test("every open deal is a row of its own (0029): a client with a proposal out for another service is in both groups, two proposals out are two rows, each judged and moved on its own deal, and a person's first row keeps their id", () => {
+  /** One of a person's open deals as people_list carries it (open_deals), dated in days before NOW. */
+  const open = (id, stage, o = {}) => ({
+    id,
+    stage,
+    service: o.service ?? "Color correction",
+    proposed_at: iso(NOW - (o.proposed ?? 20) * DAY),
+    decided_at: o.decided === undefined ? null : iso(NOW - o.decided * DAY),
+    ended_at: null,
+    amount_cents: o.cents ?? null,
+    per: o.per ?? null,
+    currency: o.currency ?? "USD",
+    proposal_url: o.url === undefined ? "https://docs.example.com/proposal" : o.url,
+    valid_until: null,
+    lost_reason: null,
+  });
+  const rows = [
+    // A client of SEO, billed in euros, with a proposal out for ads nine days: their row shows the proposal (open
+    // first, then the newest), and open_deals holds both, the newest first.
+    personRow(NOW, "mia", "Mia", {
+      ...deal(NOW, "proposed", { proposed: 9, service: "Ads", cents: 80_000, per: "month" }),
+      open_deals: [
+        open("d-proposed-9", "proposed", { proposed: 9, service: "Ads", cents: 80_000, per: "month" }),
+        open("d-won-40", "won", {
+          proposed: 40,
+          decided: 30,
+          service: "SEO",
+          cents: 150_000,
+          per: "month",
+          currency: "EUR",
+        }),
+      ],
+    }),
+    // Two proposals out: ads six days, a website twelve.
+    personRow(NOW, "noa", "Noa", {
+      ...deal(NOW, "proposed", { proposed: 6, service: "Ads" }),
+      open_deals: [
+        open("d-proposed-6", "proposed", { proposed: 6, service: "Ads" }),
+        open("d-proposed-12", "proposed", { proposed: 12, service: "Website" }),
+      ],
+    }),
+  ].map((r) => toPersonRowVM(r, TZ, new Date(NOW)));
+  const vm = pipelineOf(rows, NOW, TZ, null);
+  const g = byKey(vm);
+  assert.deepEqual(
+    g.proposals.rows.map((r) => [r.id, r.person.id, r.deal.id, r.service]),
+    [
+      ["noa_d-proposed-12", "noa", "d-proposed-12", "Website"],
+      ["mia", "mia", "d-proposed-9", "Ads"],
+      ["noa", "noa", "d-proposed-6", "Ads"],
+    ],
+    "the one waiting longest first; the row a person's People row shows keeps their id",
+  );
+  assert.deepEqual(
+    g.clients.rows.map((r) => [r.id, r.person.id, r.deal.id, r.service]),
+    [["mia_d-won-40", "mia", "d-won-40", "SEO"]],
+    "the client a newer proposal hid",
+  );
+  assert.match(rowOf(vm, "mia_d-won-40").value, /€/, "in its own currency");
+  assert.deepEqual(
+    [...new Set(vm.groups.flatMap((x) => x.rows.map((r) => r.id)))].length,
+    4,
+    "every row its own id: a board, a selection and a peek tell them apart",
+  );
+  assert.deepEqual(
+    ["noa_d-proposed-12", "mia_d-won-40", "noa"].map(pipelinePersonOf),
+    ["noa", "mia", "noa"],
+    "a row's id says whose it is",
+  );
+  // Each judged on its own deal: Noa's website (twelve days) and Mia's ads (nine) wait; Noa's ads (six) does not yet.
+  assert.equal(
+    vm.summary.join(" · "),
+    "3 proposals out · $800 a month · 2 waiting over a week · 1 client · €1,500 a month",
+  );
+  assert.equal(chipOf(vm, "noa_d-proposed-12").words, PIPELINE_WORDS.nothingBack);
+  assert.notEqual(chipOf(vm, "noa")?.words, PIPELINE_WORDS.nothingBack);
+  const waits = pipelineRail(vm, NOW).find((s) => s.key === "waiting");
+  assert.equal(waits.rows.find((r) => r.view === "waiting").count, 2, "the rail counts the rows, as the line does");
+  // A move is on the deal the row stands for, never the one their People row shows.
+  assert.deepEqual(pipelineMove("proposals", "clients", rowOf(vm, "noa_d-proposed-12")), {
+    mode: "won",
+    dealId: "d-proposed-12",
+  });
+  assert.deepEqual(pipelineMove("clients", "closed", rowOf(vm, "mia_d-won-40")), { mode: "ended", dealId: "d-won-40" });
+  // A selection's pass, as the page picks rows (their person with the row's deal): each the deal it picked.
+  const picked = ["noa_d-proposed-12", "mia_d-won-40", "noa"].map((id) => {
+    const r = rowOf(vm, id);
+    return { ...r.person, deal: r.deal, rowId: r.id };
+  });
+  assert.deepEqual(pipelinePassMany(picked).deals, [
+    { personId: "noa", dealId: "d-proposed-12", rowId: "noa_d-proposed-12" },
+    { personId: "noa", dealId: "d-proposed-6", rowId: "noa" },
+  ]);
+  assert.equal(pipelinePassMany(picked).rest, "1 is not a proposal out and stays as it is");
+});
+
+test("a person's two open deals (0029's review): their next step is on the row of the deal it names, else on their first, so Steps due holds it once; the Value sort reads each row's own deal; a row renamed when another deal of theirs closes is found again by its deal", () => {
+  const open = (id, service, days, o = {}) => ({
+    id,
+    stage: "proposed",
+    service,
+    proposed_at: iso(NOW - days * DAY),
+    decided_at: null,
+    ended_at: null,
+    amount_cents: o.cents ?? null,
+    per: o.per ?? null,
+    currency: "USD",
+    proposal_url: "https://docs.example.com/proposal",
+    valid_until: null,
+    lost_reason: null,
+  });
+  const noa = (over = {}) =>
+    personRow(NOW, "noa", "Noa", {
+      ...deal(NOW, "proposed", { proposed: 6, service: "Ads", cents: 50_000, per: "once" }),
+      open_deals: [
+        open("d-proposed-6", "Ads", 6, { cents: 50_000, per: "once" }),
+        open("d-web", "Website", 12, { cents: 900_000, per: "once" }),
+      ],
+      ...over,
+    });
+  const vmOf = (raws, view = "all") =>
+    pipelineOf(
+      raws.map((r) => toPersonRowVM(r, TZ, new Date(NOW))),
+      NOW,
+      TZ,
+      null,
+      view,
+    );
+  // A step about the website, due today: on the website's row alone, and once under Steps due.
+  const aboutWeb = [noa(stepCols(NOW, "noa", 0, { dealId: "d-web" }))];
+  assert.deepEqual(
+    [rowOf(vmOf(aboutWeb), "noa_d-web").next?.dealId, rowOf(vmOf(aboutWeb), "noa").next],
+    ["d-web", null],
+  );
+  assert.deepEqual(
+    vmOf(aboutWeb, "steps").groups.flatMap((g) => g.rows.map((r) => r.id)),
+    ["noa_d-web"],
+    "Steps due holds it once",
+  );
+  // A step about the person: on their first row alone.
+  const aboutThem = vmOf([noa(stepCols(NOW, "noa", 0))]);
+  assert.deepEqual([rowOf(aboutThem, "noa").next?.id, rowOf(aboutThem, "noa_d-web").next], ["s-noa", null]);
+  // Value: each row's own deal, so someone between Noa's two deals ranks between them.
+  const vm = vmOf([noa(), personRow(NOW, "wes", "Wes", deal(NOW, "proposed", { proposed: 11, cents: 200_000 }))]);
+  assert.deepEqual(
+    byKey(pipelineSorted(vm, "value", "desc")).proposals.rows.map((r) => r.id),
+    ["noa_d-web", "wes", "noa"],
+  );
+  // The ads pass: the website is now the deal their row shows, and its row takes their id. What named it finds it.
+  const after = vmOf([
+    personRow(NOW, "noa", "Noa", {
+      ...deal(NOW, "proposed", { proposed: 12, service: "Website", cents: 900_000, per: "once" }),
+      deal_id: "d-web",
+      open_deals: [open("d-web", "Website", 12, { cents: 900_000, per: "once" })],
+    }),
+  ]);
+  assert.deepEqual(
+    ["noa_d-web", "noa", "noa_d-gone", "nobody"].map((id) => pipelineRowNow(after, id)),
+    ["noa", "noa", null, null],
+  );
+  assert.equal(pipelineRowNow(vm, "noa_d-web"), "noa_d-web", "a row still drawn is itself");
 });
 
 test("each row says one chip, and warn only where something waits on the owner", () => {
@@ -2712,6 +2877,262 @@ test("a row's menu: the deal's own acts where the member may record one, then th
     );
   } finally {
     globalThis.window.__ME = { role: "owner" };
+  }
+});
+
+test("a person with two open deals is two rows (0029): each is read, peeked, opened and acted on as the person, on the row's own deal; Ask hears whose each row is; a selection passes the deal each row stands for", async () => {
+  const now = Date.now();
+  const open = (id, service, days, o = {}) => ({
+    id,
+    stage: "proposed",
+    service,
+    proposed_at: iso(now - days * DAY),
+    decided_at: null,
+    ended_at: null,
+    amount_cents: o.cents ?? null,
+    per: o.per ?? null,
+    currency: "USD",
+    proposal_url: o.url ?? "https://docs.example.com/proposal",
+    valid_until: null,
+    lost_reason: null,
+  });
+  // Noa: a proposal out for ads six days (the deal their People row shows) and one for a website twelve days.
+  const noa = personRow(now, "noa", "Noa", {
+    ...deal(now, "proposed", { proposed: 6, service: "Ads" }),
+    open_deals: [
+      open("d-proposed-6", "Ads", 6),
+      open("d-web", "Website", 12, { cents: 400_000, per: "once", url: "https://docs.example.com/p/web" }),
+    ],
+  });
+  const seen = await fresh({ people: [...peopleNow(), noa] });
+  // Their page lists both deals, each at its own version.
+  seen.person = (id) => {
+    const d = detailOf(seen.rawOf(id));
+    if (id !== "noa") return d;
+    const web = {
+      ...d.deals[0],
+      id: "d-web",
+      service: "Website",
+      proposed_at: iso(now - 12 * DAY),
+      created_at: iso(now - 12 * DAY),
+      amount_cents: 400_000,
+      per: "once",
+      proposal_url: "https://docs.example.com/p/web",
+      version: 2,
+    };
+    return { ...d, deals: [d.deals[0], web] };
+  };
+  const asked = [];
+  globalThis.window.openDealSheet = (a) => {
+    asked.push(a);
+    return true;
+  };
+  let tree = draw();
+  assert.deepEqual(
+    rowIds(tree),
+    ["hana", "sara", "noa_d-web", "wes", "nia", "noa", "cat"],
+    "the website waits longest",
+  );
+  await settled();
+  assert.ok(seen.reads.includes("noa"), "read ahead, as the rows shown are");
+  assert.deepEqual(
+    seen.reads.filter((id) => id.includes("_")),
+    [],
+    "a person is read by their own id, never a row's",
+  );
+  assert.deepEqual(
+    globalThis.window.__askOnScreen.ids,
+    ["hana", "sara", "noa", "wes", "nia", "noa", "cat"],
+    "Ask hears whose each row is, in the rows' order",
+  );
+  // The website's row opens a peek on Noa, headed by that deal, on the tab's copy of them.
+  find(tree, (n) => n.type === "tr" && n.props?.id === "person-noa_d-web").props.onClick();
+  tree = draw();
+  assert.equal(textOf(byTestId(peekOf(tree), "pipeline-peek-sub")), "Proposal out · Website");
+  assert.equal(byTestId(peekOf(tree), "pipeline-peek-reading"), null, "the tab already holds them: no Reading…");
+  await settled();
+  tree = draw();
+  const cards = all(peekOf(tree), (n) => n.props?.["data-testid"] === "person-deal-card");
+  assert.deepEqual(cards.map((c) => textOf(byTestId(c, "person-deal-title"))).sort(), ["Ads", "Website"], "both cards");
+  const webCard = cards.find((c) => textOf(byTestId(c, "person-deal-title")) === "Website");
+  click(
+    all(webCard, (n) => n.props?.["data-testid"] === "person-deal-move").find((n) => textOf(n) === "Mark as client"),
+  );
+  assert.deepEqual(asked.at(-1), { personId: "noa", mode: "won", dealId: "d-web" });
+  click(byTestId(peekOf(tree), "pipeline-peek-page"));
+  assert.deepEqual(opened, ["noa"], "their page, never the row's id");
+  // The row's menu acts on its own deal, and its doors are the person's (the peek closed: beside it the row is compact).
+  click(byTestId(peekOf(draw()), "pipeline-peek-close"));
+  const items = listOf(find(rowNode(draw(), "noa_d-web"), (n) => n.type === Menu));
+  items[0].onClick();
+  assert.deepEqual(asked.at(-1), { personId: "noa", mode: "won", dealId: "d-web" });
+  items.at(-1).onClick();
+  assert.deepEqual(opened, ["noa", "noa"]);
+  // A selection of both rows passes both deals, each at the version its own read says, and both rows leave it.
+  const keepToast = globalThis.window.usePPToast;
+  globalThis.window.usePPToast = () => [null, () => {}];
+  try {
+    tree = draw();
+    const table = find(tree, (n) => n.type === PeopleTable);
+    for (const id of ["noa_d-web", "noa"]) table.props.onToggle(id);
+    tree = draw();
+    assert.equal(textOf(byTestId(byTestId(tree, "bulk-bar"), "pipe-pass-open")).trim(), "Mark as passed · 2");
+    click(byTestId(tree, "pipe-pass-open"));
+    tree = draw();
+    find(byTestId(tree, "pipe-pass"), (n) => n.type === globalThis.window.RecordToggleGroup).props.onChange("timing");
+    tree = draw();
+    await byTestId(tree, "pipe-pass-go").props.onClick();
+    await settled();
+    assert.deepEqual(seen.posted, [
+      { id: "noa", body: { stage: "lost", deal_id: "d-web", version: 2, lost_reason: "timing" } },
+      { id: "noa", body: { stage: "lost", deal_id: "d-proposed-6", version: 3, lost_reason: "timing" } },
+    ]);
+    assert.deepEqual([...find(draw(), (n) => n.type === PeopleTable).props.sel], [], "both rows passed, and left");
+  } finally {
+    globalThis.window.usePPToast = keepToast;
+  }
+});
+
+test("a person's further deal on the page (0029's review): People's bar counts people, the box finds any open deal's service, a client's row stands until no day, the phone's act is the row's own deal, and a row renamed by a move keeps its peek and its pick", async () => {
+  const now = Date.now();
+  const day = (d) => new Date(now + d * DAY).toISOString().slice(0, 10);
+  const open = (id, stage, service, days, o = {}) => ({
+    id,
+    stage,
+    service,
+    proposed_at: iso(now - days * DAY),
+    decided_at: o.decided === undefined ? null : iso(now - o.decided * DAY),
+    ended_at: null,
+    amount_cents: o.cents ?? null,
+    per: o.per ?? null,
+    currency: "USD",
+    proposal_url: o.url === undefined ? "https://docs.example.com/proposal" : o.url,
+    valid_until: o.validUntil ?? null,
+    lost_reason: null,
+  });
+  // Noa: two proposals out, ads (six days, their row's) and a website (twelve). Mia: a client of SEO whose row shows
+  // her ads proposal, which stands until a week from now.
+  const noa = personRow(now, "noa", "Noa", {
+    ...deal(now, "proposed", { proposed: 6, service: "Ads" }),
+    open_deals: [
+      open("d-proposed-6", "proposed", "Ads", 6),
+      open("d-web", "proposed", "Website", 12, { cents: 400_000, per: "once", url: "https://docs.example.com/p/web" }),
+    ],
+  });
+  const mia = personRow(now, "mia", "Mia", {
+    ...deal(now, "proposed", { proposed: 4, service: "Ads", validUntil: day(8) }),
+    open_deals: [
+      open("d-proposed-4", "proposed", "Ads", 4, { validUntil: day(8) }),
+      open("d-won-40", "won", "SEO", 40, { decided: 30, cents: 150_000, per: "month", url: null }),
+    ],
+  });
+  const seen = await fresh({ people: [...peopleNow(), noa, mia] });
+  const web = {
+    id: "d-web",
+    contact_id: "noa",
+    service: "Website",
+    stage: "proposed",
+    proposed_at: iso(now - 12 * DAY),
+    decided_at: null,
+    ended_at: null,
+    amount_cents: 400_000,
+    per: "once",
+    currency: "USD",
+    note: null,
+    version: 2,
+    created_at: iso(now - 12 * DAY),
+    proposal_url: "https://docs.example.com/p/web",
+    valid_until: null,
+    lost_reason: null,
+  };
+  /** Noa's page lists both her deals, each at its own version. */
+  const wireNoa = (sn) => {
+    sn.person = (id) => {
+      const d = detailOf(sn.rawOf(id));
+      return id === "noa" ? { ...d, deals: [d.deals[0], web] } : d;
+    };
+  };
+  wireNoa(seen);
+  const table = () => find(draw(), (n) => n.type === PeopleTable);
+  const count = () => textOf(byClass(byTestId(draw(), "bulk-bar"), "cl-bulk-count")).trim();
+  // People's bar acts on people: one of Noa's rows, or both, is one person.
+  table().props.onToggle("noa_d-web");
+  assert.equal(count(), "1 selected");
+  table().props.onToggle("noa");
+  assert.equal(count(), "1 selected", "one person, however many of their rows");
+  table().props.onToggle("wes");
+  assert.equal(count(), "2 selected");
+  for (const id of ["noa_d-web", "noa", "wes"]) table().props.onToggle(id);
+  // The box finds any open deal's service, whichever deal their row shows.
+  let tree = draw();
+  byTestId(tree, "pipeline-search").props.onChange({ target: { value: "website" } });
+  assert.deepEqual(rowIds(draw()), ["noa_d-web", "noa"]);
+  byTestId(draw(), "pipeline-search").props.onChange({ target: { value: "" } });
+  // A client's row stands until no day, whatever their proposal's is.
+  find(draw(), (n) => n.type === PeopleColumnsMenu).props.onPick("valid");
+  tree = draw();
+  const valid = (id) => textOf(byTestId(rowNode(tree, id), "pipe-valid")).trim();
+  assert.deepEqual([!!valid("mia"), valid("mia_d-won-40")], [true, ""]);
+  find(draw(), (n) => n.type === PeopleColumnsMenu).props.onPick("valid");
+  // On a phone, the peek's bar acts on the row's own deal: the website's link, not the ads'.
+  await onPhone(async () => {
+    wireNoa(await fresh({ people: [...peopleNow(), noa, mia] }));
+    find(draw(), (n) => n.type === "tr" && n.props?.id === "person-noa_d-web").props.onClick();
+    draw();
+    await settled();
+    click(byTestId(peekOf(draw()), "pipeline-peek-bar-act"));
+    const carried = JSON.parse(globalThis.sessionStorage.getItem("chanlytics-compose"));
+    assert.ok(carried.text.includes("docs.example.com/p/web"), carried.text);
+    click(byTestId(peekOf(draw()), "pipeline-peek-close"));
+  });
+  // The ads pass while the website's row is peeked and picked: the website becomes the deal their row shows and its row
+  // takes their id; the peek and the pick follow it there.
+  wireNoa(await fresh({ people: [...peopleNow(), noa, mia] }));
+  find(draw(), (n) => n.type === "tr" && n.props?.id === "person-noa_d-web").props.onClick();
+  table().props.onToggle("noa_d-web");
+  draw();
+  await settled();
+  const { recordDeal } = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
+  const ads = {
+    ...web,
+    id: "d-proposed-6",
+    service: "Ads",
+    stage: "lost",
+    proposed_at: iso(now - 6 * DAY),
+    created_at: iso(now - 6 * DAY),
+    decided_at: iso(now),
+    amount_cents: null,
+    per: null,
+    version: 4,
+    proposal_url: "https://docs.example.com/proposal",
+    lost_reason: "price",
+  };
+  const old = globalThis.window.fetch;
+  globalThis.window.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    if (u.pathname === "/api/v1/contacts/noa/deal" && init.method === "POST")
+      return json(200, { ok: true, data: { deal: ads, from: "proposed", decision_id: "dec-2", current: web } });
+    return old(url, init);
+  };
+  try {
+    const r = await recordDeal(
+      "noa",
+      { stage: "lost", deal_id: "d-proposed-6", version: 3, lost_reason: "price" },
+      { refresh: false },
+    );
+    assert.equal(r.ok, true, r.message);
+    draw();
+    await settled();
+    tree = draw();
+    assert.deepEqual(
+      rowIds(tree).filter((id) => id.startsWith("noa")),
+      ["noa"],
+      "the website's row is their first now",
+    );
+    assert.equal(textOf(byTestId(peekOf(tree), "pipeline-peek-sub")), "Proposal out · Website", "the peek followed it");
+    assert.deepEqual([...find(tree, (n) => n.type === PeopleTable).props.sel], ["noa"], "and so did the pick");
+  } finally {
+    globalThis.window.fetch = old;
   }
 });
 

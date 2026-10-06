@@ -29,7 +29,7 @@
 import type { IngestCallResult } from "../packages/db.js";
 import type { NormalizedCall, RetellCall } from "../packages/channels.js";
 import { callSummaryLine } from "../packages/channels.js";
-import { callOutcomeWords, formatPhoneDisplay, guardSpokenTurns } from "../packages/contracts.js";
+import { callerName, callOutcomeWords, guardSpokenTurns } from "../packages/contracts.js";
 import type { NotifyMessage } from "../ops/notify.js";
 import type { ForwardingCall } from "./forwarding.js";
 import type { CallForActivity } from "./call-activity.js";
@@ -306,7 +306,7 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
  * owner's words, name first ("Emily phoned · 3 min · needs a call back").
  * The name is the one the owner saved for the caller (`saved`: their name, else
  * their WhatsApp name), as every page names a caller (contracts callerName);
- * with none saved, what the caller said of themselves, then their number.
+ * with none saved, what the caller said of themselves, then their number, or that it was withheld.
  * What the analysis said leads the body -- the request, the outcome, the
  * to-do -- and the provider's summary and the transcript follow. The
  * redacted body is what a platform operator may be told about a workspace
@@ -325,7 +325,9 @@ export function callNotice(
   const followUp = said(n.analysis?.follow_up);
   const callback = n.analysis?.outcome === "callback_needed";
   const durationS = n.durationMs ? Math.round(n.durationMs / 1000) : 0;
-  const who = saved || said(n.analysis?.caller_name) || formatPhoneDisplay(call.from_number) || "Unknown caller";
+  // Then the line, as every page says it (contracts callerName): the number, or that it was withheld.
+  const who =
+    saved || said(n.analysis?.caller_name) || callerName({ from_e164: n.fromE164, from_raw: n.fromRaw, contact: null });
   const length = durationS >= 60 ? `${Math.round(durationS / 60)} min` : `${durationS} s`;
   return {
     kind: "call",

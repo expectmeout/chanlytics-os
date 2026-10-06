@@ -3,7 +3,7 @@
  *  Run: corepack pnpm test, or node --test tooling/scripts/tests/today/today-vm.test.mjs */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, withoutWrongPerson } from "@chanlytics/contracts";
+import { ESCALATION_REASONS, toTodayVM, withoutWrongPerson } from "@chanlytics/contracts";
 
 const NOW = new Date("2026-08-27T15:00:00Z"); // 11:00 America/New_York
 
@@ -499,6 +499,29 @@ test("a failed delivery is a warn sentence — never silent", () => {
   assert.match(warn.text, /failed to deliver — the customer got no answer/);
 });
 
+test("a failed delivery is said on a quiet day too, with its door to the thread", () => {
+  // Nothing came in today and nobody waits, so the day is quiet; the one thing that happened is a reply that never
+  // reached its customer. The quiet day returned the recap with no sentences, and the line went (6 Oct 2026).
+  const m = metrics({ period: { send_failures: 1 } });
+  const failed = {
+    id: "m9",
+    direction: "outbound",
+    sender: "ai",
+    type: "text",
+    body: "Yes, Tuesday at 3 works.",
+    media: null,
+    meta: null,
+    status: "failed",
+    created_at: "2026-08-27T13:00:00Z",
+  };
+  const vm = toTodayVM(m, [conv({ state: "open", messages: [failed] })], [], [], NOW);
+  assert.ok(vm.quiet, "nothing came in and nobody waits: the day is quiet");
+  const warn = vm.recap.sentences.find((x) => x.warn);
+  assert.ok(warn, "REGRESSION: a quiet day dropped the failed delivery's line");
+  assert.match(warn.text, /failed to deliver — the customer got no answer/);
+  assert.equal(warn.to, "inbox/th-c1", "its door is the thread whose reply failed");
+});
+
 test("calm-day sentences do not read the headline back", () => {
   // headline already says "handled everything — 3 messages…"; repeating the
   // counts as sentences would be the brief quoting its own first line.
@@ -924,9 +947,30 @@ test("the answered receipt is a sentence at every count: both times, each time, 
     fig({ messages_in: 3, messages_out_ai: 0, answered_by_ai: 0, conversations_active: 3, escalations_new: 1 }, [
       esc("a", "manual", 10),
     ]),
-    "Handed over once, because you flagged it.",
+    "Handed over once, because it was flagged by hand.",
     "nothing answered: no 'rest' to speak of",
   );
+  // Every reason reads as a reason. Four had no words here and fell through to the reason's short label, so the sentence
+  // read "Handed over once, the day's model budget is used up."
+  const once = (reason) =>
+    fig({ messages_in: 3, messages_out_ai: 2, answered_by_ai: 2, conversations_active: 3, escalations_new: 1 }, [
+      esc("a", reason, 10),
+    ]);
+  assert.equal(
+    once("budget"),
+    "Handed over once, because the day's model budget ran out. The rest it answered itself.",
+  );
+  assert.equal(
+    once("stale"),
+    "Handed over once, because a message arrived too late to answer. The rest it answered itself.",
+  );
+  assert.equal(once("paused"), "Handed over once, because the workspace is paused. The rest it answered itself.");
+  assert.equal(
+    once("state_unavailable"),
+    "Handed over once, because it could not read the thread. The rest it answered itself.",
+  );
+  for (const reason of ESCALATION_REASONS)
+    assert.match(once(reason), /^Handed over once, (because|for|while) /, reason);
 });
 
 test("the sentences stay true where the SQL's counts and the page's rows disagree", () => {
@@ -1162,6 +1206,44 @@ test("who is waiting with nothing back: the customer wrote last an hour ago or m
     toTodayVM(busyDay(), two, [], busyCalls(), NOW).noReply.map((r) => r.who),
     ["Ana Reyes", "Dulce Amaro"],
     "oldest wait first",
+  );
+});
+
+test("a team's note or a reply that never left, after the customer's words, does not hide that they are waiting", () => {
+  // Today read the thread's last ROW: a note a teammate left, or a draft someone canceled, made the customer's question
+  // look answered, where the Inbox's last word (the last thing that reached either side) still said they wrote last.
+  const trailing = (c) => ({
+    ...c,
+    messages: [
+      ...c.messages,
+      {
+        ...c.messages.at(-1),
+        id: `${c.id}-note`,
+        direction: "outbound",
+        sender: "system",
+        type: "note",
+        body: "Patch test required before colour.",
+        status: "delivered",
+        created_at: "2026-08-27T12:30:00Z",
+      },
+      {
+        ...c.messages.at(-1),
+        id: `${c.id}-canceled`,
+        direction: "outbound",
+        sender: "ai",
+        type: "text",
+        body: "We can fit you in at 3.",
+        status: "canceled",
+        created_at: "2026-08-27T12:40:00Z",
+      },
+    ],
+  });
+  const threads = busyThreads().map((c) => (c.id === "cv-d" ? trailing(c) : c));
+  const vm = toTodayVM(busyDay(), threads, [], busyCalls(), NOW);
+  assert.deepEqual(
+    vm.noReply.map((r) => [r.who, r.sinceMs]),
+    [["Dulce Amaro", Date.parse("2026-08-27T12:00:00Z")]],
+    "REGRESSION: the note and the canceled draft read as the business answering",
   );
 });
 

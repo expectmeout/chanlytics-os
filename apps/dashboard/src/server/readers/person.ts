@@ -9,7 +9,7 @@ import {
   type PersonDetailDto,
   type PersonEscalationDto,
 } from "@chanlytics/contracts";
-import { personDecisions, readAllRows } from "@chanlytics/db";
+import { personDecisions, personRow, readAllRows } from "@chanlytics/db";
 import {
   CALL_COLUMNS,
   CONVERSATION_COLUMNS,
@@ -67,12 +67,8 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
   async read(rc, { id }) {
     const tenantId = rc.tenantId;
     const sb = rc.ctx.supabase;
-    const rowRead = Promise.resolve(sb.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: id })).then(
-      ({ data, error }) => {
-        if (error) throw new Error(error.message);
-        return (data ?? [])[0] ?? null;
-      },
-    );
+    // The row the list shows, read as the list reads it (packages/db personRow: every open deal in its shape, 0029).
+    const rowRead = personRow(sb, tenantId, id);
     // A query builder runs again each time it is awaited: the conversations are read once and handed to both readers.
     const convsRead = Promise.resolve(
       sb

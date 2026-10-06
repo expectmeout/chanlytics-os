@@ -42,6 +42,7 @@ import {
   redrawWanted,
 } from "../_legacy-react.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
+import { headline as periodHeadline } from "./_headline.mjs";
 
 const ZONE = "America/New_York";
 // 4 PM in New York on Friday 18 September 2026.
@@ -292,23 +293,18 @@ const quietDay = () =>
     NOW,
   );
 
-const tile = (id, value, compare = null) => ({ id, label: id, value, meta: "", delta: null, spark: [], compare });
-const reports = () => ({
-  vm: {
-    days: 7,
-    rangeLabel: "7 days",
-    since: "Sep 12",
-    until: "Sep 18",
-    empty: false,
-    tiles: [tile("messages", "24", "up from 19"), tile("calls", "4")],
-    answered: { totals: { in: 24, ai: 21, you: 1, none: 2 }, share: 0.875 },
-    replyTime: { count: 21, medianLabel: "34s" },
-    calls: { total: 4 },
-    reasons: [],
-  },
-  campaigns: null,
-  booking: { present: true, headline: "2 of 18 booked", sub: "", pct: 11, asked: 18, booked: 2 },
-});
+/** What Today draws of Reports: the week of 24 messages, up from 19, two of the eighteen who asked on the calendar. */
+const headline = (over = {}) =>
+  periodHeadline({
+    in: 24,
+    ai: 21,
+    you: 1,
+    none: 2,
+    calls: 4,
+    before: 19,
+    booking: { calendar: "ok", days: 7, asked: 18, booked: 2 },
+    ...over,
+  });
 const list = (id, label, count, action = null) => ({ id, label, group: "journey", count, action });
 const people = () => ({
   rows: [
@@ -466,6 +462,7 @@ const bellRow = (id, kind, title, tone = "", about = null, to = "reports") => ({
 const set = (globals) => {
   for (const [k, v] of Object.entries(globals)) {
     if (k === "today") setSurfaceValue("today", v);
+    else if (k === "headline") setSurfaceValue("reports_headline", v);
     else if (v === undefined) delete W[k];
     else W[k] = v;
   }
@@ -474,7 +471,7 @@ const clear = () => {
   set({
     today: undefined,
     __TODAY_SAMPLE: undefined,
-    __REPORTS: undefined,
+    headline: undefined,
     __PEOPLE: undefined,
     __BROADCASTS: undefined,
     __REPLIES: undefined,
@@ -542,7 +539,7 @@ test("above the work, nothing while every line is up; a line that is down is one
 
 test("the brief's lines that are not numbers: never the traffic the figures say; a reply that failed to deliver, with its door to the thread", () => {
   clear();
-  set({ today: busy(), __REPORTS: reports(), __BROADCASTS: broadcasts() });
+  set({ today: busy(), headline: headline(), __BROADCASTS: broadcasts() });
   const pane = draw(TodayBriefPane);
   const beats = texts(byTestId(pane, "today-recap"), "brief-beat-text");
   assert.ok(
@@ -676,10 +673,10 @@ test("a receipt opens on hover, focus or a tap, says its why with one door, neve
 
 test("the foot: the last seven days in Reports' own numbers with one door; a failed Reports read says so; nothing while it loads", () => {
   clear();
-  set({ today: busy(), __REPORTS: reports() });
+  set({ today: busy(), headline: headline() });
   const tree = draw(TodayCard);
   const line = byTestId(tree, "today-period");
-  assert.equal(textOf(line), todayPeriodLine(reports()).text);
+  assert.equal(textOf(line), todayPeriodLine(headline()).text);
   assert.match(textOf(line), /^Last 7 days: 24 messages \(up from 19\), 88% answered by the receptionist, 4 calls\.$/);
   press(buttons(tree, "Reports")[0]);
   assert.equal(went.at(-1), "reports");
@@ -688,12 +685,7 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
     1,
     "one door to Reports on the card, in its head (E3): the period card had two",
   );
-  set({ __REPORTS: undefined });
-  failed.add("reports");
-  const broke = draw(TodayCard);
-  assert.equal(byTestId(broke, "today-period"), null);
-  assert.match(textOf(byTestId(broke, "today-period-failed")), /Couldn't read Reports/);
-  failed.clear();
+  set({ headline: undefined });
   const loading = draw(TodayCard);
   assert.equal(byTestId(loading, "today-period"), null);
   assert.equal(byTestId(loading, "today-period-failed"), null, "not read yet is not failed");
@@ -702,7 +694,7 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
 test("a quiet day: the tile is four zeros, and the brief says nothing came in and proves the lines are listening", () => {
   clear();
   const vm = quietDay();
-  set({ today: vm, __REPORTS: reports() });
+  set({ today: vm, headline: headline() });
   const tree = draw(TodayCard);
   assert.ok(byTestId(tree, "today-figures"), "the tile whole: four zeros (E3)");
   assert.equal(byTestId(tree, "today-quiet-line"), null, "no sentence in the head: the brief says the day");
@@ -1043,10 +1035,10 @@ test("each band of Today is drawn again when a surface it draws from lands, and 
   set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
   const bands = [
     ["the alert line", HeroBrief, ["today"]],
-    ["the day's card", TodayCard, ["today", "reports"]],
+    ["the day's card", TodayCard, ["today", "reports_headline"]],
     ["the setup card", TodaySetup, ["setup"]],
     ["the queue", AgentCommand, ["today", "broadcasts", "live"]],
-    ["Worth a look", TodayLeaks, ["reports", "people", "today"]],
+    ["Worth a look", TodayLeaks, ["reports_headline", "people", "today"]],
     ["the pins", TodayPins, ["people"]],
     ["the day", TodayDay, ["calendar", "playbooks", "people"]],
   ];
@@ -1211,10 +1203,10 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
   clear();
   const vm = busy();
   // The chrome bridge, as the app publishes it, so the one pill draws the row's tone.
-  set({ today: vm, __REPORTS: reports(), __PEOPLE: people(), __chrome: { state: stateOf } });
+  set({ today: vm, headline: headline(), __PEOPLE: people(), __chrome: { state: stateOf } });
   const tree = draw(TodayLeaks);
   const band = byTestId(tree, "today-leaks");
-  const { rows, moreLine } = todayLeaks(reports(), people(), vm.noReply);
+  const { rows, moreLine } = todayLeaks(headline(), people(), vm.noReply);
   assert.equal(rows.length, 2);
   // Worth a look asks for a look; a failure is red on every other badge, and these rows are not failures.
   for (const l of rows) assert.ok(["warn", "info"].includes(l.tone), `${l.id} is ${l.tone}`);
@@ -1268,8 +1260,8 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
   );
   assert.deepEqual(
     waiting.map(textOf),
-    ["Dulce Amaro"],
-    "who is waiting with nothing back, from the threads the page holds",
+    ["Dulce Amaro", "Priya Nair"],
+    "who is waiting with nothing back, from the threads the page holds: the reply to Priya failed, so nothing reached her",
   );
   assert.equal(
     textOf(find(byTestId(band, "today-leak-unanswered"), (n) => classes(n).includes("tl-people-lead"))),
@@ -1281,19 +1273,17 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
   assert.equal(textOf(byTestId(band, "today-leaks-more")).trim(), moreLine);
   assert.equal(moreLine, "and 2 more", "the reach row and the quiet row qualified too; the cap is two");
   set({
-    __REPORTS: {
-      ...reports(),
-      vm: { ...reports().vm, answered: { totals: { in: 23, ai: 23, you: 0, none: 0 } } },
-      booking: { present: true, headline: "17 of 18 booked", sub: "", pct: 94, asked: 18, booked: 17 },
-    },
+    headline: headline({
+      in: 23,
+      ai: 23,
+      you: 0,
+      none: 0,
+      booking: { calendar: "ok", days: 7, asked: 18, booked: 17 },
+    }),
     __PEOPLE: { ...people(), lists: [list("quiet", "Quiet 30+ days", 1, null)] },
   });
   assert.equal(draw(TodayLeaks).rendered, null, "a workspace with nothing wrong gets no band at all");
-  set({ __REPORTS: undefined, __PEOPLE: people() });
-  failed.add("reports");
-  assert.match(textOf(byTestId(draw(TodayLeaks), "today-leaks-failed")), /Couldn't read Reports/);
-  failed.clear();
-  set({ __REPORTS: reports(), __PEOPLE: undefined });
+  set({ headline: headline(), __PEOPLE: undefined });
   failed.add("people");
   assert.match(textOf(byTestId(draw(TodayLeaks), "today-leaks-failed")), /Couldn't read People/);
   failed.clear();
@@ -1304,21 +1294,21 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
 test("worth a look names no one a reply to a reach-out read as a wrong person: the replies the page already holds are laid over who waits, and a failed read excludes nobody", () => {
   clear();
   const vm = busy();
-  set({ today: vm, __REPORTS: reports(), __PEOPLE: people(), __chrome: { state: stateOf } });
+  set({ today: vm, headline: headline(), __PEOPLE: people(), __chrome: { state: stateOf } });
   const waiting = () =>
     all(byTestId(draw(TodayLeaks), "today-leak-unanswered"), (n) => classes(n).includes("tl-person")).map(textOf);
   const reading = (conversation_id, intent) => ({ conversation_id, intent, undone: false, claim: "person" });
-  assert.deepEqual(waiting(), ["Dulce Amaro"], "the fixture: the thread the view model lists");
+  assert.deepEqual(waiting(), ["Dulce Amaro", "Priya Nair"], "the fixture: the threads the view model lists");
   // The replies surface (legacy-bridge/reach-out/replies.ts) holds the readings; Today reads none of its own.
   set({ __REPLIES: { replies: [reading("cv-d", "wrong_person")], mailbox: null } });
-  assert.deepEqual(waiting(), [], "they are not the one to ask: nobody there is waiting");
+  assert.deepEqual(waiting(), ["Priya Nair"], "they are not the one to ask: nobody there is waiting");
   set({ __REPLIES: { replies: [reading("cv-d", "not_now")], mailbox: null } });
-  assert.deepEqual(waiting(), ["Dulce Amaro"], "a not-now is still someone to answer");
+  assert.deepEqual(waiting(), ["Dulce Amaro", "Priya Nair"], "a not-now is still someone to answer");
   // Not read yet, or read and failed (the surface holds null): nobody is taken for gone.
   set({ __REPLIES: null });
-  assert.deepEqual(waiting(), ["Dulce Amaro"]);
+  assert.deepEqual(waiting(), ["Dulce Amaro", "Priya Nair"]);
   set({ __REPLIES: undefined });
-  assert.deepEqual(waiting(), ["Dulce Amaro"]);
+  assert.deepEqual(waiting(), ["Dulce Amaro", "Priya Nair"]);
   // The count is Reports' over its period and is not touched: only the names under it are.
   set({ __REPLIES: { replies: [reading("cv-d", "wrong_person")], mailbox: null } });
   assert.match(textOf(byTestId(draw(TodayLeaks), "today-leak-unanswered")), /never got an answer at all/);
@@ -1331,11 +1321,11 @@ test("worth a look on a phone: the arithmetic waits behind the sentence, and the
   // font). The words stay in the row, hidden, so Ask and a phone run read the same line as a desk does.
   clear();
   const vm = busy();
-  set({ today: vm, __REPORTS: reports(), __PEOPLE: people() });
+  set({ today: vm, headline: headline(), __PEOPLE: people() });
   const had = W.matchMedia;
   W.matchMedia = (q) => ({ matches: q === "(max-width: 720px)" });
   try {
-    const { rows } = todayLeaks(reports(), people(), vm.noReply);
+    const { rows } = todayLeaks(headline(), people(), vm.noReply);
     const [first, second] = rows;
     const mathOf = (tree, id) => find(byTestId(tree, `today-leak-${id}`), (n) => classes(n).includes("tl-math"));
     let tree = draw(TodayLeaks);
@@ -1362,7 +1352,7 @@ test("worth a look on a phone: the arithmetic waits behind the sentence, and the
   }
   // A desk keeps the sentence a span and the arithmetic in view.
   const desk = draw(TodayLeaks);
-  const { rows } = todayLeaks(reports(), people(), vm.noReply);
+  const { rows } = todayLeaks(headline(), people(), vm.noReply);
   assert.equal(byTestId(desk, `today-leak-text-${rows[0].id}`), null);
   assert.equal(
     find(byTestId(desk, `today-leak-${rows[0].id}`), (n) => classes(n).includes("tl-math")).props.hidden,
@@ -1449,12 +1439,8 @@ test("REGRESSION: worth a look over People's real rows -- a yes to offers with n
     aggregates: { total: rows.length },
   };
   // A week that booked and answered, so the reach row is not under the cap.
-  const R = {
-    ...reports(),
-    vm: { ...reports().vm, answered: { totals: { in: 23, ai: 23, you: 0, none: 0 } } },
-    booking: { present: true, headline: "17 of 18 booked", sub: "", pct: 94, asked: 18, booked: 17 },
-  };
-  set({ today: busy(), __REPORTS: R, __PEOPLE: P });
+  const R = headline({ in: 23, ai: 23, you: 0, none: 0, booking: { calendar: "ok", days: 7, asked: 18, booked: 17 } });
+  set({ today: busy(), headline: R, __PEOPLE: P });
   const reach = byTestId(draw(TodayLeaks), "today-leak-unreachable");
   assert.ok(reach, "nobody can be sent an offer: the row stands");
   const want = todayLeaks(R, P).rows.find((l) => l.id === "unreachable");
@@ -1536,12 +1522,8 @@ test("worth a look where deals are on: the consultations row names the count's o
   const rows = [consulted("p-b", "Bea Ortiz", 2), consulted("p-a", "Abel Cruz", 4), consulted("p-c", "Cora Diaz", 1)];
   const P = { rows, lists: [], aggregates: { total: rows.length }, dealsOn: true };
   // A week that booked and answered, so the consultations are the one row.
-  const R = {
-    ...reports(),
-    vm: { ...reports().vm, answered: { totals: { in: 23, ai: 23, you: 0, none: 0 } } },
-    booking: { present: true, headline: "17 of 18 booked", sub: "", pct: 94, asked: 18, booked: 17 },
-  };
-  set({ today: busy(), __REPORTS: R, __PEOPLE: P });
+  const R = headline({ in: 23, ai: 23, you: 0, none: 0, booking: { calendar: "ok", days: 7, asked: 18, booked: 17 } });
+  set({ today: busy(), headline: R, __PEOPLE: P });
   const want = todayLeaks(R, P).rows.find((l) => l.id === "consults-waiting");
   assert.ok(want, "three consultations this week, no proposal after any");
   const row = byTestId(draw(TodayLeaks), "today-leak-consults-waiting");
@@ -1633,7 +1615,6 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
   set({
     today: busy(),
     __TODAY_SAMPLE: {
-      __REPORTS: reports(),
       __PEOPLE: people(),
       __BROADCASTS: broadcasts(),
       __CALENDAR: calendar([block("b9", 9, "Gloss")]),
@@ -1656,7 +1637,7 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
     "today-away-row",
   ])
     assert.equal(byTestId(demo, id), null, `${id}: not drawn from the sample, which nothing reads any more`);
-  for (const name of ["__REPORTS", "__PEOPLE", "__BROADCASTS", "__CALENDAR", "__PLAYBOOKS", "__notifs"])
+  for (const name of ["__PEOPLE", "__BROADCASTS", "__CALENDAR", "__PLAYBOOKS", "__notifs"])
     assert.equal(
       W[name],
       undefined,
@@ -1676,7 +1657,7 @@ test("the page is its bands and nothing seeded", () => {
   clear();
   set({
     today: busy(),
-    __REPORTS: reports(),
+    headline: headline(),
     __PEOPLE: people(),
     __BROADCASTS: broadcasts(),
     __CALENDAR: calendar([block("b9", 9, "Gloss")]),
@@ -1774,7 +1755,7 @@ test("the bell's rows carry no dismiss of their own; Mark all read stays", () =>
 
 test("Glass brief: Listen is absent where the device cannot play audio, and the follow-up stands alone", () => {
   clear();
-  set({ today: busy(), __REPORTS: reports() });
+  set({ today: busy(), headline: headline() });
   const silent = draw(TodayBriefPane);
   assert.equal(byTestId(silent, "today-brief-listen"), null, "no voice on this device: no Listen");
   assert.equal(buttons(silent, "Ask a follow-up").length, 1, "the follow-up stands alone");
@@ -1832,7 +1813,7 @@ const settled = () => new Promise((r) => setImmediate(r));
 
 test("Glass brief: Listen reads the brief's own words in Ask's voice, says it is getting the voice until the clip plays, Stop while it does, and a second press stops it", async () => {
   clear();
-  set({ today: busy(), __REPORTS: reports() });
+  set({ today: busy(), headline: headline() });
   const s = speechStub();
   W.__ask = s.stub;
   globalThis.__ask = s.stub;
@@ -1880,7 +1861,7 @@ test("Glass brief: Listen reads the brief's own words in Ask's voice, says it is
 
 test("Glass brief: a clip that could not be made says why beside Listen, in the server's words, and nothing else speaks; the next press tries again", async () => {
   clear();
-  set({ today: busy(), __REPORTS: reports() });
+  set({ today: busy(), headline: headline() });
   const s = speechStub();
   W.__ask = s.stub;
   globalThis.__ask = s.stub;
@@ -1921,7 +1902,7 @@ test("Glass brief: a clip that could not be made says why beside Listen, in the 
 
 test("Glass brief: a pane drawn again while the clip plays (Today redrew itself) says Stop and stops nothing; the clip ending on its own lets go", async () => {
   clear();
-  set({ today: busy(), __REPORTS: reports() });
+  set({ today: busy(), headline: headline() });
   const s = speechStub();
   W.__ask = s.stub;
   globalThis.__ask = s.stub;
@@ -1959,7 +1940,7 @@ test("the brief: who needs you in bold with the oldest wait, the calendar's day,
   clear();
   set({
     today: busy(),
-    __REPORTS: reports(),
+    headline: headline(),
     __BROADCASTS: broadcasts(),
     __CALENDAR: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]),
   });
@@ -1986,7 +1967,7 @@ test("the brief: who needs you in bold with the oldest wait, the calendar's day,
 
 test("the card on a quiet day: the four figures as zeros, no quiet sentence in the head", () => {
   clear();
-  set({ today: quietDay(), __REPORTS: reports() });
+  set({ today: quietDay(), headline: headline() });
   const glass = byTestId(draw(TodayCard), "today-card");
   assert.equal(byTestId(glass, "today-quiet-line"), null, "the tile is the figures");
   assert.deepEqual(
@@ -2003,7 +1984,7 @@ test("the card on a quiet day: the four figures as zeros, no quiet sentence in t
 
 test("the card's door to Reports stands in the head as words, none in the foot", () => {
   clear();
-  set({ today: busy(), __REPORTS: reports() });
+  set({ today: busy(), headline: headline() });
   const glass = byTestId(draw(TodayCard), "today-card");
   const door = buttons(
     find(glass, (n) => classes(n).includes("tc-head")),
@@ -2040,7 +2021,7 @@ test("the bento (E3): the strip, the queue's column beside the brief and the bel
   clear();
   set({
     today: busy(),
-    __REPORTS: reports(),
+    headline: headline(),
     __PEOPLE: people(),
     __BROADCASTS: broadcasts(),
     __CALENDAR: calendar([block("b9", 9, "Gloss")]),
@@ -2068,4 +2049,21 @@ test("the bento (E3): the strip, the queue's column beside the brief and the bel
   assert.equal(byTestId(tree, "today-day"), null);
   const bottom = find(tree, (n) => classes(n).includes("dash-a-v2-bottom"));
   assert.deepEqual(bottom.props.children.map(name), ["TodayCard", "TodayLeaks"]);
+});
+
+// LAST in the file: a surface's failure cannot be taken back (surface-status.ts has no reset), so every test above saw the headline unfailed.
+test("a headline whose read failed says so where its lines would be, on the card and in Worth a look; one that landed clears it", async () => {
+  const { setStatus } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+  clear();
+  set({ today: busy(), headline: undefined, __PEOPLE: people() });
+  setStatus("reports_headline", "seeded");
+  const broke = draw(TodayCard);
+  assert.equal(byTestId(broke, "today-period"), null);
+  assert.match(textOf(byTestId(broke, "today-period-failed")), /Couldn't read Reports/);
+  assert.match(textOf(byTestId(draw(TodayLeaks), "today-leaks-failed")), /Couldn't read Reports/);
+  // The shell's door maps its argument through the routes' surfaces and knows no `reports_headline`: it says nothing of this one.
+  assert.equal(failed.has("reports_headline"), false, "the page does not ask the stand-in");
+  set({ headline: headline() });
+  setStatus("reports_headline", "live");
+  assert.equal(byTestId(draw(TodayCard), "today-period-failed"), null, "a headline that landed is not failed");
 });

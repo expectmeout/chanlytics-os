@@ -26,10 +26,7 @@ import {
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
-import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
-
-// Today and Ask, which have not moved, still read this under its old name.
-declareSurfaceValue("reports", "__REPORTS");
+import { setSurfaceValue } from "../surface-values";
 
 /* ------------------------------- Reports --------------------------------- */
 
@@ -43,6 +40,9 @@ try {
 } catch {
   /* storage unavailable: the default period stands */
 }
+
+/** The period the page is on now, or on its way to: the one kept in this browser. */
+export const shownReportPeriod = (): ReportPeriodId => reportPeriod;
 
 /** The one period every chart on Reports is scoped to, kept in this browser. */
 export function keepReportPeriod(period: ReportPeriodId): void {
@@ -72,19 +72,11 @@ export interface ReportsSurface {
   facts: ReportFactVM[];
   /** The period this is of: what the control says is chosen, and what the views are held by. */
   period: ReportPeriodId;
-  /** The days the period is (Month: the days since the 1st): what Today and Ask read. */
+  /** The days the period is (Month: the days since the 1st): what Ask reads. */
   days: number;
   fetchedAt: number;
 }
 
-/**
- * Reports — the receptionist's own numbers over a period.
- *
- * The mockup drew revenue, bookings and eight agents. This publishes the
- * report view model built from one SQL function that already applies the
- * Today metrics' rules (tenant time zone, no undated imports, answered-by =
- * first reply). Realtime message inserts re-apply so today's column moves.
- */
 /** The periods this tab has read (held views): going back to one paints at once, and the read behind it keeps it current. */
 const reportsHeld = heldViews<ReportsSurface>(4);
 /** Paint a period this tab holds for the period now asked for; whether it did. The read behind it is the caller's. */
@@ -96,9 +88,17 @@ export function paintHeldReports(): boolean {
   return true;
 }
 
+/**
+ * Reports: the receptionist's own numbers over the period the page shows, built from one SQL function that already applies the
+ * Today metrics' rules (the tenant's time zone, no undated imports, answered-by = first reply), with the campaigns' and the
+ * reach-outs' reads beside it. Realtime message inserts re-apply it while its page is on screen, so today's column moves.
+ */
 export const reportsOverride: SurfaceOverride = {
   key: "reports",
   value: "reports",
+  // Read where Reports is drawn and nowhere else: every other page's boot leaves the whole report, the campaigns' and the reach-outs'
+  // reads alone (Today reads the headline, headline.ts). It is read as its page comes on screen.
+  onDemand: true,
   events: ["surface:reports"],
   refreshOnMessageInserts: true,
   // A message moves the period's numbers: read again only while its page is on screen, and once when it comes back

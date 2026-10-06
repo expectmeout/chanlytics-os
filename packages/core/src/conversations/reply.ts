@@ -6,6 +6,7 @@ import {
   isOptedOutContact,
   normalizeEmail,
   OPT_OUT_REFUSAL,
+  PURPOSE_REFUSALS,
   purposeOfTemplate,
   renderTemplate,
   REPLY_LIMITS,
@@ -238,12 +239,8 @@ async function shapeEmailReply(
   text: string,
   agreedTo: string | undefined,
 ): Promise<{ id: string; meta: Json }> {
-  if (isEmailStopped(conv)) {
-    throw new AppError(
-      "conflict",
-      "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way.",
-    );
-  }
+  // The send door's own words for it (deliver.ts refuses the same address at the wire), said before anything is queued.
+  if (isEmailStopped(conv)) throw new AppError("conflict", PURPOSE_REFUSALS.email_suppressed);
   const parent = await ports.email.parent(conv);
   if (!parent) throw new AppError("conflict", "There is no email from this person on this thread to reply to.");
   if (normalizeEmail(parent.from ?? "") !== to && agreedTo !== to) {

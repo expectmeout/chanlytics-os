@@ -126,7 +126,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/reports.css": {
-    "font": 16,
+    "font": 11,
     "radius": 1,
     "shadow": 0,
     "colour": 0,

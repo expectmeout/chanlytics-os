@@ -865,6 +865,27 @@ test("a stopped address holds only the replies that would go by email: a thread 
   assert.match(textOf(find(draw(both), hasClass("ix-composer"))), /asked to stop receiving messages/);
 });
 
+test("an automatic email from their address does not move the reply to email: the box says WhatsApp, where they last wrote", () => {
+  // They wrote on WhatsApp, then their mail server answered something with an out-of-office. The reply route sends
+  // where they last WROTE (dashboard verbs.ts replyChannelOf, contracts isTheirOwnWords), so WhatsApp. The thread read
+  // the newest row from their side instead: it said Email, read the stopped address, and took the box away from a
+  // reply that would have gone out on WhatsApp.
+  const outOfOffice = m("m2", 5, {
+    channel: "email",
+    body: "I'm away until Monday.",
+    meta: { email: { claim: "auto_reply" } },
+  });
+  const thread = conv({
+    contact: { ...conv().contact, email: "rosa@example.com", ...stoppedBy("hard_bounce") },
+    messages: [m("m1", 40), outOfOffice],
+  });
+  const vm = toInboxThreadVM(thread, null, ZONE, NOW);
+  assert.equal(vm.primaryChannel, "whatsapp", "REGRESSION: it said email, the wire of the out-of-office");
+  assert.equal(vm.emailStopped, null, "REGRESSION: a WhatsApp reply was held by the address that bounced");
+  assert.equal(vm.windowOpen, true, "the WhatsApp window they opened 40 minutes ago");
+  assert.ok(find(draw(vm), hasClass("ix-composer-text")), "the box to write in");
+});
+
 test("the conversations read carries the stop into the thread, and one predicate says it for the reply route, the send door and the box", async () => {
   const { toConversationDto } = await import("../../../../../apps/dashboard/src/server/dto.ts");
   const { CONVERSATION_COLUMNS } = await import("../../../../../apps/dashboard/src/server/dto.ts");

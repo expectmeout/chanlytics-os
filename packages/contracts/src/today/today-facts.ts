@@ -3,11 +3,12 @@
  * each read once, the closing windows and the day's calls. today-bands.ts, today-rows.ts and today-queue.ts
  * build the bands from them; today-brief.ts composes the view model.
  */
-import { standingOf } from "../conversations/standing";
+import { standingOfThread } from "../conversations/standing";
 import type { CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import type { EscalationDto } from "../conversations/escalations";
-import { messageWords, clipAtWord } from "../conversations/message-words";
+import { threadsWaitingOnYou } from "../conversations/inbox-thread";
+import { lastExchanged, messageWords, clipAtWord } from "../conversations/message-words";
 import { contactName } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
@@ -16,7 +17,8 @@ import { formatPhoneDisplay } from "../shared/phone";
 import type { LeadSearchDto } from "../leads/leads";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock, tzSince } from "./today-clock";
-import type { MetricsSummaryDto } from "./today-metrics";
+import type { ReplySpeed } from "../reports/report-speed";
+import { todayReplySpeed, type MetricsSummaryDto } from "./today-metrics";
 
 /**
  * How much of a customer's own words a queue row carries.
@@ -78,10 +80,12 @@ export interface TodayFacts extends TodayInput {
   tz: string;
   period: MetricsSummaryDto["period"];
   live: MetricsSummaryDto["now"];
+  /** How fast the receptionist replied: the median, or where most replies waited the owner's hold, against it (todayReplySpeed). */
+  speed: ReplySpeed | null;
   /** Whether the calls read succeeded; false means the rows omit the phone, and the card says so. */
   callsRead: boolean;
   wires: TodayWire[];
-  /** The one number every surface shows for "need you": the Inbox badge counts the same threads by the same rule. */
+  /** The one number every surface shows for "need you": threadsWaitingOnYou, the number the badge is published with. */
   needsYouCount: number;
   /** The open escalations nobody has taken over, oldest waiting first, each read once. */
   escRecords: EscalationRecord[];
@@ -124,18 +128,7 @@ function openEscalations(
     .filter((e) => {
       const conv = byConv.get(e.conversation_id);
       if (!conv) return true;
-      return (
-        standingOf(
-          {
-            state: conv.state,
-            paused_until: conv.paused_until,
-            assignee_user_id: conv.assignee_user_id,
-            assignee_is_me: conv.assignee_is_me,
-            open_escalation: true,
-          },
-          now.getTime(),
-        ).standing === "needs_you"
-      );
+      return standingOfThread(conv, true, now.getTime()).standing === "needs_you";
     })
     .sort((a, b) => a.created_at.localeCompare(b.created_at)); // oldest waiting first
 }
@@ -194,7 +187,7 @@ function escalationRecords(
 function closingConversations(conversations: ConversationDto[], escSet: Set<string>, now: Date): ConversationDto[] {
   return conversations.filter((c) => {
     if (escSet.has(c.id)) return false;
-    const last = c.messages[c.messages.length - 1];
+    const last = lastExchanged(c.messages);
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);
     return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * HOUR_MS : false;
@@ -216,10 +209,11 @@ export function todayFacts(input: TodayInput): TodayFacts {
     tz,
     period,
     live: metrics.now,
+    speed: todayReplySpeed(metrics),
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
     wires: todayWires(metrics),
-    needsYouCount: openEsc.length,
+    needsYouCount: threadsWaitingOnYou(conversations, escalations, now),
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
     closingConvs: closingConversations(conversations, escSet, now),

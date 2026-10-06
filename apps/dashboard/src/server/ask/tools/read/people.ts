@@ -292,10 +292,11 @@ async function readPipeline(t: ToolContext): Promise<unknown> {
       group: g.label,
       count: g.count,
       comes_to: g.meta,
+      // Each row as the person it is and the deal it stands for (0029: a further deal of theirs is a row of its own).
       people: rows.map((row) => ({
-        contact_id: row.id,
-        deal_id: row.person.deal?.id ?? null,
-        route: `clients/${row.id}`,
+        contact_id: row.person.id,
+        deal_id: row.deal?.id ?? null,
+        route: `clients/${row.person.id}`,
         name: row.name,
         service: row.service,
         value: row.value,

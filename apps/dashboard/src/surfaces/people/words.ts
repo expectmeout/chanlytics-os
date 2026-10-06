@@ -4,7 +4,7 @@
  * a face on a card, a selection as a CSV (moved whole from legacy/pages/people.jsx, decision 0015). The pages that have
  * not moved (Leads, the Pipeline, the person page) still read the names published in people-globals.ts.
  */
-import { csvCell, stateOf } from "@chanlytics/contracts";
+import { csvCell, HELD_WORDS, stateOf } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { pageClock } from "@/legacy-bridge/zone";
@@ -67,12 +67,15 @@ export const PL_RECEPT_MARK: Record<string, string> = {
   queued: "reply queued",
   snoozed: "snoozed",
   paused: "held for you",
+  yours: "held for you",
+  // A teammate's thread is said as the Inbox says it (standing.ts HELD_WORDS), in lower case beside the state.
+  theirs: HELD_WORDS.theirs.pill.toLowerCase(),
   silent: "silent",
 };
 /** The receptionist's word says what the state pill beside it already says: "escalated" is why they need you, "held for you" is waiting on you. */
 export const plReceptSaysTheState = (p: PersonRowVM): boolean =>
   (p.receptionist.tone === "escalated" && p.state === "needs_you") ||
-  (p.receptionist.tone === "paused" && p.state === "waiting_on_you");
+  ((p.receptionist.tone === "paused" || p.receptionist.tone === "yours") && p.state === "waiting_on_you");
 
 /** The sorts a phone offers from its more-menu, in the words it says them in. */
 export const PL_PHONE_SORTS: readonly {
@@ -199,6 +202,7 @@ export const plMatcher = (
       nextVisit?: string | null;
       lastVisit?: string | null;
       deal?: { service?: string | null } | null;
+      openDeals?: readonly { service?: string | null }[];
     }) => boolean)
   | null => {
   const needle = q.trim().toLowerCase();
@@ -212,7 +216,9 @@ export const plMatcher = (
     (p.quote || "").toLowerCase().includes(needle) ||
     (p.nextVisit || "").toLowerCase().includes(needle) ||
     (p.lastVisit || "").toLowerCase().includes(needle) ||
-    ((p.deal && p.deal.service) || "").toLowerCase().includes(needle);
+    ((p.deal && p.deal.service) || "").toLowerCase().includes(needle) ||
+    // Any open deal's service (0029): a client of one service with a proposal out for another is found by either.
+    (p.openDeals ?? []).some((d) => (d.service || "").toLowerCase().includes(needle));
 };
 
 /** The exact moment, by the business's clock: "Sep 6, 2026 · 3:10 PM". */

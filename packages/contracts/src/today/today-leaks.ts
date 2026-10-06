@@ -1,16 +1,16 @@
 /**
  * Worth a look: the few things Today holds that no row on it says on its own, each a re-print of a number
- * Reports (today-period.ts's `ReportsLike`) or People already publishes, in the order of what they cost.
+ * Reports (the headline, reports/report-headline.ts) or People already publishes, in the order of what they cost.
  */
 import type { PersonRowVM } from "../people/person-row";
 import { NO_CHANNEL_REACH, NO_NUMBER_REACH } from "../people/people-lists";
 import type { DealVM } from "../deals/deal-vm";
-import { proposalsWaiting, type DealPaceVM } from "../deals/deal-waits";
+import { eachOpenProposal, proposalsWaiting, type DealPaceVM } from "../deals/deal-waits";
 import { consultationsWithoutProposal, consultsHeldWords } from "../deals/deal-consultations";
 import { pipelineRoute } from "../deals/pipeline/pipeline-views";
 import { isOptedOutContact } from "../consent/consent";
 import { capitalize } from "../shared/words";
-import type { ReportsLike } from "./today-period";
+import type { ReportHeadlineVM } from "../reports/report-headline";
 import type { TodayNoReplyVM } from "./today-vm";
 
 /* ------------------------------ worth a look ----------------------------- */
@@ -124,7 +124,7 @@ const askWhy = (text: string, math: string): string => `${text} ${capitalize(mat
 
 /** What every finder reads: the day's surfaces, People's lists by id, and the one clock the deal rows are counted by. */
 interface LeakFacts {
-  reports: ReportsLike | null;
+  reports: ReportHeadlineVM | null;
   people: PeopleListsLike | null;
   noReply: readonly TodayNoReplyVM[];
   /** A People list by id; null where People was not read or has no such list. */
@@ -139,7 +139,7 @@ interface LeakFacts {
 }
 
 function leakFactsOf(
-  reports: ReportsLike | null,
+  reports: ReportHeadlineVM | null,
   people: PeopleListsLike | null,
   noReply: readonly TodayNoReplyVM[],
   nowMs: number,
@@ -160,14 +160,13 @@ function leakFactsOf(
 function neverBookedLeak({ reports, list, step }: LeakFacts): TodayLeakVM | null {
   const b = reports ? reports.booking : null;
   // Five is the floor: two people who did not book is a quiet week, not a leak.
-  if (!(reports && b && b.present && b.pct !== null && (b.asked ?? 0) >= 5 && b.pct <= 25)) return null;
-  const asked = b.asked ?? 0;
-  const booked = b.booked ?? 0;
+  if (!(reports && b && b.present && b.pct !== null && b.asked >= 5 && b.pct <= 25)) return null;
+  const { asked, booked } = b;
   const never = list("asked_never_booked");
   const text =
     booked === 0
-      ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.`
-      : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
+      ? `${asked} people wrote or called in the last ${reports.rangeLabel}. Not one of them is on the calendar.`
+      : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.rangeLabel} got onto the calendar.`;
   const math = never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline;
   return {
     id: "never-booked",
@@ -185,14 +184,14 @@ function neverBookedLeak({ reports, list, step }: LeakFacts): TodayLeakVM | null
 }
 
 function unansweredLeak({ reports, noReply }: LeakFacts): TodayLeakVM | null {
-  const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
+  const a = reports ? reports.answered : null;
   // Two, not one: a single message nobody answered can be a wrong number or a
   // STOP, and this rule has no act to offer, only a door to Reports where the
   // tile already prints the figure. Two is a pattern. The count is Reports'
   // over its period; the names are the threads waiting right now.
   if (!(reports && a && a.none >= 2)) return null;
   const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
-  const math = `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`;
+  const math = `of ${reports.messages.total} in the last ${reports.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`;
   return {
     id: "unanswered",
     tone: "warn",
@@ -271,8 +270,10 @@ function proposalsWaitingWords(
  * by hand or at all.
  */
 function yoursToFollowUp(waiting: readonly ProposalRow[]): TodayLeakVM["people"] {
+  // A person once, however many of their proposals wait (0029).
   return waiting
     .filter((r) => !isOptedOutContact({ consent: r.consent.state, dnc: r.consent.dnc }))
+    .filter((r, i, all) => all.findIndex((x) => x.id === r.id) === i)
     .slice(0, 2)
     .flatMap((r) =>
       r.id && r.name ? [{ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name}` }] : [],
@@ -286,7 +287,15 @@ function proposalsWaitingLeak({ people, list, dealsAt }: LeakFacts): TodayLeakVM
   const dealRows = (people?.rows ?? []).filter((r): r is ProposalRow => "deal" in r && "askedMs" in r);
   // Past the workspace's pace by a fifth once it has one (0008, amended), a week until then: the Pipeline's own rule.
   const pace = people?.dealPace ?? null;
-  const out = proposalsWaiting(dealRows, dealsAt(), pace);
+  // Each proposal out of theirs counts (0029: one per service). The follow-up's stand People's row carries is for the
+  // deal it shows, so only that proposal is in its hand.
+  const shownDeal = new Map(dealRows.map((r) => [r.id, r.deal]));
+  const proposals = eachOpenProposal(dealRows).map((r) => {
+    const shown = shownDeal.get(r.id) ?? null;
+    const same = !!shown && !!r.deal && (r.deal === shown || (r.deal.id !== null && r.deal.id === shown.id));
+    return same ? r : { ...r, followUp: null };
+  });
+  const out = proposalsWaiting(proposals, dealsAt(), pace);
   // Where a follow-up runs (0006), the ones it has in hand are not a leak: the row counts only the people it will not
   // reach -- no link, no yes, no number, or their one nudge already gone -- names two of them, and its door is the
   // Pipeline's own waiting view, where each row says which is which.
@@ -376,7 +385,7 @@ const LEAK_FINDERS: Record<TodayLeakId, (f: LeakFacts) => TodayLeakVM | null> = 
 };
 
 export function todayLeaks(
-  reports: ReportsLike | null,
+  reports: ReportHeadlineVM | null,
   people: PeopleListsLike | null,
   /** Who is waiting with nothing back, from the day's view model (`noReply`); the unanswered row names two of them. */
   noReply: readonly TodayNoReplyVM[] = [],

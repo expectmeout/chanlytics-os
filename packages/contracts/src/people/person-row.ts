@@ -33,8 +33,8 @@ import type { FollowUpStand } from "../playbooks/playbooks";
 import { visitAnswersAsk, visitDateKey, visitDay, visitLine, type MatchVia } from "../calendar/calendar-people";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
 import { initialsOf, isEmailStopped, isIdentifierName } from "../conversations/thread-contact";
-import { dealOf, type DealVM } from "../deals/deal-vm";
-import { dealStageOf, type DealStandingStage } from "../deals/deal-consultations";
+import { dealOf, openDealsOf, type DealVM } from "../deals/deal-vm";
+import { dealStageOf, dealStagesOf, type DealStandingStage } from "../deals/deal-consultations";
 import type { PersonConsent } from "./person-consent";
 import { MONTH_MS, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
@@ -45,10 +45,12 @@ import {
   consentOf,
   firstContactOf,
   lastContactOf,
-  reasonShort,
+  theirTurnWords,
   type PersonFirstContact,
   type PersonLastContact,
 } from "./person-row-facts";
+import { reasonShort } from "../conversations/escalations";
+import { HELD_WORDS } from "../conversations/standing";
 import { heardAt, PERSON_STATE_LABELS, personStanding, personStateFor, type PersonState } from "./person-state";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { personReachOf, type PersonReach } from "../broadcasts/reach-any";
@@ -189,6 +191,11 @@ export interface PersonRowVM {
   /** Where they stand on the way to a deal, as the Pipeline groups them (deals.ts dealStageOf); null for none. */
   dealStage: DealStandingStage | null;
   /**
+   * Every stage they stand at (0029): `dealStage` and the stage of each open deal, once each. A client with a proposal
+   * out for another service stands at both, and People's deal lists hold them in both.
+   */
+  dealStages: DealStandingStage[];
+  /**
    * Gave the answer each kind of message asks (yes to messages, yes to offers), a way to reach them or not: what they
    * said, whatever channel it was for and whether the workspace can send on it (reach-any.ts answeredYes).
    */
@@ -214,10 +221,21 @@ export interface PersonRowVM {
    */
   nextVisitVia: MatchVia | null;
   lastVisitVia: MatchVia | null;
+  /**
+   * The calendar days of their visits near today, each with how it was found to be theirs, by start: what a day-keyed
+   * playbook asks ("a visit tomorrow", playbook-reach.ts), which the next visit alone could not answer for a person with
+   * one later today. A read made before the calendar kept them gives the next and the last. Empty without a calendar.
+   */
+  visitDays: { date: string; via: MatchVia }[];
   /** The calendar's zone; null without a calendar. */
   calendarTz: string | null;
   /** Their deal, as the page says it (0004); null where none was recorded. */
   deal: DealVM | null;
+  /**
+   * Every open deal, newest first (0029: contracts openDealsOf): a proposal out or a client, one per service. `deal` is
+   * the one the row shows; the Pipeline, the deal lists and the proposal follow-up read them all.
+   */
+  openDeals: DealVM[];
   /** The next or the last visit was a consultation (0004): the "Consultation booked" list. */
   consultationVisit: boolean;
   /** When their last visit ended, when it was a consultation (0008): the next step is a proposal. Null otherwise. */
@@ -268,13 +286,34 @@ export function visitTitleFor(title: string, name: string): string {
  */
 function visitKeysOf(
   v: PersonRowDto["visits"],
-): Pick<PersonRowVM, "nextVisitDate" | "lastVisitDate" | "nextVisitVia" | "lastVisitVia" | "calendarTz"> {
+): Pick<PersonRowVM, "nextVisitDate" | "lastVisitDate" | "nextVisitVia" | "lastVisitVia" | "visitDays" | "calendarTz"> {
+  const near = v ? (v.near ?? [v.last, v.next].filter((x) => x !== null)) : [];
   return {
+    visitDays: v ? near.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     nextVisitVia: v?.next?.via ?? null,
     lastVisitVia: v?.last?.via ?? null,
     calendarTz: v?.timezone ?? null,
+  };
+}
+
+/**
+ * What a row's visits say of a consultation (0004, 0008): the next or the last is one, when the last ended and its
+ * title, and the one ahead. The Pipeline's group reads them (dealStageOf), and the consultation lists.
+ */
+function consultationKeysOf(
+  v: PersonRowDto["visits"],
+  nextVisitMs: number | null,
+): Pick<PersonRowVM, "consultationVisit" | "consultedMs" | "consultationTitle" | "consultAhead"> {
+  return {
+    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
+    consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
+    consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
+    consultAhead:
+      v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs)
+        ? { startMs: nextVisitMs, allDay: !!v.next.all_day }
+        : null,
   };
 }
 
@@ -295,6 +334,38 @@ function rowReachOf(
 ): Pick<PersonRowVM, "lastChannel" | "emailSuppressed" | "saidYes" | "canReceive" | "whyNot"> {
   const facts = { lastChannel: lastChannelOf(r.last_inbound_channel), emailSuppressed: isEmailStopped(r) };
   return { ...facts, ...personReachOf({ consent, phone: r.phone_e164, email: r.email ?? null, ...facts }, ready) };
+}
+
+/**
+ * Where a reply to them goes, its window, and the booking link's words for that wire. Channel-aware: only WhatsApp has a
+ * window (policy replyWindow). This read WhatsApp's for everybody, so a person who had only ever emailed was shown
+ * "Closed · template only" -- a template they cannot receive, on a wire they have never used. `emailStopped` is whether
+ * mail to their address has stopped (rowReachOf's flag): the booking link is not offered by email then.
+ */
+function rowReplyOf(
+  r: PersonRowDto,
+  now: Date,
+  emailStopped: boolean,
+): Pick<PersonRowVM, "replyWindow" | "replyVia" | "bookingLinkAction"> {
+  const via = replyChannelOfRow(r);
+  if (!via)
+    return {
+      replyWindow: null,
+      replyVia: null,
+      bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped }),
+    };
+  const w = replyWindow(via, r.latest_wa_inbound_at, now);
+  const win = {
+    open: w.open,
+    hoursLeft: w.closesAtIso
+      ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS))
+      : 0,
+  };
+  return {
+    replyWindow: win,
+    replyVia: REPLY_VIA[via],
+    bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[via], window: win, emailStopped }),
+  };
 }
 
 /**
@@ -344,7 +415,7 @@ export function toPersonRowVM(
           ? "a reply is about to send — you can still stop it"
           : "waiting for a person"
       : state === "waiting_on_you"
-        ? "you own the thread and they wrote last"
+        ? [HELD_WORDS.yours.pill.toLowerCase(), theirTurnWords(last)].filter(Boolean).join(", and ")
         : state === "opted_out"
           ? consent.sub
           : state === "new"
@@ -372,7 +443,7 @@ export function toPersonRowVM(
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r, tz, nowMs),
+    receptionist: receptionistOf(r, tz, nowMs, viewerId),
     firstContact: first,
     cameFrom: cameFromOf(r),
     consent,
@@ -390,20 +461,7 @@ export function toPersonRowVM(
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleFor(v.next.title, name)}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, name)}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
-    // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
-    // WhatsApp's for everybody, so a person who had only ever emailed was shown
-    // "Closed · template only" -- a template they cannot receive, on a wire
-    // they have never used.
-    ...(() => {
-      const via = replyChannelOfRow(r);
-      if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null) };
-      const w = replyWindow(via, r.latest_wa_inbound_at, now);
-      const win = {
-        open: w.open,
-        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0,
-      };
-      return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
-    })(),
+    ...rowReplyOf(r, now, reach.emailSuppressed),
     channelWords: channelsOf(r)
       .map((c) => PERSON_CHANNEL_WORDS[c])
       .join(" · "),
@@ -427,19 +485,16 @@ export function toPersonRowVM(
     stopped: isOptedOutContact({ consent: r.consent, dnc: r.dnc }),
     ...visitKeysOf(v),
     deal: dealOf(r, tz, nowMs),
-    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
-    consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
-    consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
-    consultAhead:
-      v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs)
-        ? { startMs: nextVisitMs, allDay: !!v.next.all_day }
-        : null,
+    openDeals: openDealsOf(r, tz, nowMs),
+    ...consultationKeysOf(v, nextVisitMs),
     nextStep: nextStepOf(r, tz, nowMs),
     stepDue: stepIsDue(nextStepOf(r, tz, nowMs)),
     dealStage: null,
+    dealStages: [],
     followUp: null,
   };
   // The Pipeline's group for them, from the deal and the consultations just read: one rule for both pages.
   vm.dealStage = dealStageOf(vm, nowMs);
+  vm.dealStages = dealStagesOf(vm.dealStage, vm.openDeals);
   return vm;
 }

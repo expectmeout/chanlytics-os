@@ -105,7 +105,18 @@ test("an open escalation is needs_you, even for someone who opted out", () => {
 });
 
 test("waiting_on_you means a human owns the thread AND the last word was theirs", () => {
-  assert.equal(personStateFor(row({ latest_assignee_user_id: "u1" }), nowMs, ZONE), "waiting_on_you");
+  assert.equal(
+    personStateFor(row({ latest_assignee_user_id: "u1", latest_paused_until: iso(-3 * H) }), nowMs, ZONE),
+    "waiting_on_you",
+    "taken over: their name, and the receptionist paused for them",
+  );
+  // A name left on a thread nobody is working is not a claim (standing.ts): the receptionist answers it, as the
+  // Inbox and the person's page say ("Answering"). The list said Waiting on you over the same thread.
+  assert.equal(
+    personStateFor(row({ latest_assignee_user_id: "u1" }), nowMs, ZONE),
+    "active",
+    "REGRESSION: a quiet thread with a name on it was waiting on you while the receptionist answered it",
+  );
   assert.equal(
     personStateFor(row({ latest_paused_until: iso(-3 * H) }), nowMs, ZONE),
     "waiting_on_you",
@@ -616,7 +627,10 @@ test("right now: escalation → paused-for-you with a deep link; queued, owned, 
 
   const bare = (over) => toPersonVM(detail({ row: row(over), escalations: [], decisions: [] }), ZONE, NOW).rightNow;
   assert.equal(bare({ queued_reply_at: iso(5 * S) }).tone, "queued");
-  assert.equal(bare({ latest_assignee_user_id: "u1" }).tone, "paused");
+  // A thread somebody has: flagged, and they claimed it (the standing rule; no one looking, so whose is not said).
+  assert.equal(bare({ latest_assignee_user_id: "u1", needs_human: true, latest_state: "needs_human" }).tone, "paused");
+  // A name left on a thread nobody is working is not a claim: the assignee is never cleared, and the receptionist answers.
+  assert.equal(bare({ latest_assignee_user_id: "u1" }).tone, "answering");
   assert.equal(bare({ consent: "opted_out" }).tone, "silent");
   assert.equal(bare({ latest_state: "snoozed", latest_snooze_until: iso(-18 * H) }).tone, "snoozed");
   assert.equal(bare({}).tone, "answering");
@@ -804,7 +818,8 @@ test("where a person came from, in the words People says it: one per stored valu
 });
 
 test("proposalAction: the send-the-proposal button's words by the wire, 'again' once it went out, and no button where a closed window would make it a lie", () => {
-  const f = contracts.proposalAction;
+  // The reach as every reach sentence reads it (ReplyReach): the wire, its window, whether mail to them has stopped.
+  const f = (via, window, sent) => contracts.proposalAction({ via, window, emailStopped: false }, sent);
   assert.deepEqual(f("Email", { open: true, hoursLeft: 0 }, null), {
     label: "Email the proposal",
     title: "Opens the thread with the proposal link ready to send by email",

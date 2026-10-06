@@ -23,6 +23,7 @@ import type { AskCitation } from "./citations";
 import type { ProposalNeeds } from "../ask-proposals/spec";
 import { parseLeadsRoute } from "../leads/lead-plan";
 import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
+import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm";
 import type { AskLanguage } from "./ask-language";
 
 /* ------------------------------------------------------------------ limits */
@@ -274,7 +275,11 @@ export function scopeFromRoute(page: string, param: string | null | undefined, l
       return null;
     }
     const pipeline = parsePipelineRoute(`clients/${param}`);
-    if (pipeline) return pipeline.peek ? { kind: "person", id: pipeline.peek, label: label || "this person" } : null;
+    // The peek names a row, and a further deal of theirs is a row of its own (0029): the person is whose it is.
+    if (pipeline)
+      return pipeline.peek
+        ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" }
+        : null;
     if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
   }
   return null;

@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, EmailHold, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeBearing, AskedPurpose, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, EmailHold, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -726,8 +726,8 @@ interface SendQueuedPorts {
         language: string;
     } | undefined): Promise<SendPurpose>;
     deliver: Door;
-    /** The thread flagged for a person, with why. */
-    escalate(conversationId: string, reason: string, details: string): Promise<unknown>;
+    /** The thread flagged for a person, with why; how it landed (jobs upsertEscalation: a hold is told once). */
+    escalate(conversationId: string, reason: string, details: string): Promise<"opened" | "changed" | "refreshed" | "failed">;
     /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
     alert(news: JobNews): Promise<void>;
     /** The platform's own pager, for a provider refusing every send on a wire. */
@@ -1543,7 +1543,7 @@ interface OutboundFacts {
     /** Clock, injected so this stays testable. */
     nowMs: number;
 }
-type OutboundRefusal = "opted_out" | "not_opted_in" | "no_marketing_consent" | "paused" | "human_has_it" | "policy_hold" | "booking_needs_a_person" | "daily_cap" | "sms_carries_no_promotions";
+type OutboundRefusal = PurposeRefusal | "paused" | "human_has_it" | "policy_hold" | "booking_needs_a_person" | "daily_cap" | "sms_carries_no_promotions";
 interface OutboundDecision {
     allowed: boolean;
     refusal: OutboundRefusal | null;
@@ -1680,6 +1680,8 @@ interface RunContext {
         byThis: Map<string, Map<string, number>>;
         byAny: Map<string, number>;
         followUps: Map<string, number>;
+        /** The latest follow-up by person and by what it was about (contracts followUpKey, 0029): which proposals had theirs. */
+        followUpKeys: Map<string, Map<string, number>>;
     };
     /** The workspace's calendar: a visit playbook runs only when it is "ok". */
     calendar: "ok" | "unavailable" | "none";
@@ -3909,14 +3911,14 @@ declare function answerInbound(input: InboundInput, ports: InboundPorts): Promis
 declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | null;
 
 /**
- * The subscribers a delivery can name (contracts EVENT_SUBSCRIBERS; decision 0030, 00332): each a verb over the event
+ * The subscribers a delivery can name (contracts EVENT_SUBSCRIBERS; decision 0031, 00333): each a verb over the event
  * it is handed, run by the event_deliver job (packages/jobs handlers.ts) after the relay wrote its delivery row.
  *
  * Every one may see the same delivery twice and must leave the same rows: a lease that ran out, a re-drive, a second
  * relay of a late commit are all second runs, and the ledger's rule below the commit line is at least once
- * (0029, invariant 3). The harness in tooling/scripts/tests/events runs each subscriber twice on one delivery.
+ * (0030, invariant 3). The harness in tooling/scripts/tests/events runs each subscriber twice on one delivery.
  *
- * `audit` settles and does nothing else: the first subscriber only measures the relay (0030, step 3). A subscriber that
+ * `audit` settles and does nothing else: the first subscriber only measures the relay (0031, step 3). A subscriber that
  * acts arrives with its own note, its ports and its schema for the kinds it reads.
  */
 

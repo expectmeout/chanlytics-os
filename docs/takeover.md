@@ -43,24 +43,24 @@ copies                               73   of 21 names
 as unknown as                       140
 as never                             13
 non-null assertions, x!             111
-index reads the compiler lets pass  482   in 128 files
+index reads the compiler lets pass  476   in 127 files
 table names outside packages/db     484
-SQL functions outside packages/db   130   called by .rpc
+SQL functions outside packages/db   129   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
-breakpoints outside the set          37   in 11 files
-literal style values                995   in 23 stylesheets
-primitives outside the kit         1909   selectors naming 779 classes
+breakpoints outside the set          35   in 11 files
+literal style values                990   in 23 stylesheets
+primitives outside the kit         1872   selectors naming 771 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     297
-source-text reads in tests          769
+source-text reads in tests          767
 lint warnings                       355   in 153 files, 59 of them exhaustive-deps
-workspace route JS, KB gzipped      705   the shell included
+workspace route JS, KB gzipped      707   the shell included
 workspace route CSS, KB gzipped     144
 workspace pages' own JS, KB         558   gzipped, each page's chunks once, beside the route
-trees the lint's limits hold         44   15 of them with max-params waiting
+trees the lint's limits hold         45   15 of them with max-params waiting
 ```
 
 <!-- measured:end -->

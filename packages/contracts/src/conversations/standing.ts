@@ -30,6 +30,22 @@ export interface StandingInput {
 
 export type Standing = "needs_you" | "yours" | "theirs" | "snoozed" | "quiet";
 
+/**
+ * What the Inbox says of a thread somebody has, once: the pill's words and the pane's sentence, for the thread you have
+ * and for one a teammate has. The Inbox's pills (shell/tone.ts), its pane (inbox-thread.ts) and a person's page
+ * (people/person-receptionist.ts) all read these, so a thread is not "yours" in one place and "a person's" in another.
+ */
+export const HELD_WORDS = {
+  yours: {
+    pill: "You have it",
+    sentence: "You're answering this one. The receptionist stays quiet until you hand it back.",
+  },
+  theirs: {
+    pill: "A teammate has it",
+    sentence: "A teammate is answering this. The receptionist stays quiet until they hand it back.",
+  },
+} as const satisfies Record<"yours" | "theirs", { pill: string; sentence: string }>;
+
 export interface StandingVerdict {
   standing: Standing;
   /** Something asked for a person: an open escalation, the needs_human state, or a live pause. */
@@ -72,6 +88,27 @@ export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
  * People knows only that one is queued, which it is exactly while it can still be stopped. It lived in inbox.jsx, and
  * People counted a thread the Inbox said waited on you as not waiting on anyone.
  */
+/**
+ * A thread's standing from its row and whether an escalation is open on it: the one place a conversation's columns
+ * become standingOf's input. The Inbox (threadStanding), Conversations and Today each built it by hand.
+ */
+export function standingOfThread(
+  thread: Pick<StandingInput, "state" | "paused_until" | "assignee_user_id" | "assignee_is_me">,
+  openEscalation: boolean,
+  nowMs: number,
+): StandingVerdict {
+  return standingOf(
+    {
+      state: thread.state,
+      paused_until: thread.paused_until,
+      assignee_user_id: thread.assignee_user_id,
+      assignee_is_me: thread.assignee_is_me,
+      open_escalation: openEscalation,
+    },
+    nowMs,
+  );
+}
+
 export function replyWaitsOnYou(
   r: { endsAtMs?: number | null; queued?: boolean; held?: boolean },
   nowMs: number,

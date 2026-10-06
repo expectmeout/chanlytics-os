@@ -35,7 +35,13 @@ const pipeColumns = (): PipelineColumn[] => {
   if (PIPE_COLUMNS) return PIPE_COLUMNS;
   const w = P.words.columns;
   PIPE_COLUMNS = [
-    { key: "name", label: w.person, sortable: true, pinned: true, cell: (r, x) => plNameCell(r.person, x) },
+    {
+      key: "name",
+      label: w.person,
+      sortable: true,
+      pinned: true,
+      cell: (r, x) => plNameCell(r.person, x, undefined, r.id),
+    },
     {
       key: "service",
       label: w.service,
@@ -107,7 +113,8 @@ const pipeColumns = (): PipelineColumn[] => {
       sortable: false,
       on: false,
       cell: (r) => {
-        const v = r.person.deal && r.person.deal.validUntil;
+        // The row's own deal (0029): a client's row has no day to stand until, whatever their proposal's is.
+        const v = r.deal && r.deal.validUntil;
         return (
           <td
             key="valid"
@@ -163,7 +170,7 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
       label: w.person,
       sortable: true,
       pinned: true,
-      cell: (r, x) => plNameCell(r.person, x, r.service),
+      cell: (r, x) => plNameCell(r.person, x, r.service, r.id),
     },
     kept("value"),
     {

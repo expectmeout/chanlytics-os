@@ -5,16 +5,16 @@
 import { audienceMembers, type CampaignHow, saidYesOnAny } from "../broadcasts/broadcast-audience";
 import { reachFor } from "../broadcasts/reach-for";
 import { POLICY_CLASS_WORDS } from "../config/workspace-config/policy-classes";
-import type { MatchVia } from "../calendar/calendar-people";
+import { visitDateKey, type MatchVia, type PersonVisitsDto, type VisitDto } from "../calendar/calendar-people";
+import { dayPlusInZone } from "../calendar/zone-math";
 import { fullNameKey } from "../calendar/visit-service";
 import { purposeOfPlaybook } from "../consent/consent";
 import type { DealPaceVM } from "../deals/deal-waits";
 import { GET_YES_ROUTE, saidYesWords } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
 
-import { breathHolds, followUpIsFor, followUpNames } from "./playbook-follow-ups";
+import { breathHolds, followUpCovers, followUpDealOf, followUpKey, type FollowUpsHad } from "./playbook-follow-ups";
 import { enrolPurpose, messageAboutOfTrigger, type RunMessage } from "./playbook-purpose";
-import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
@@ -35,6 +35,8 @@ export interface Touches {
   byThis: Map<string, number>;
   byAny: Map<string, number>;
   followUps: Map<string, number>;
+  /** The latest follow-up by person and by what it was about (followUpKey, 0029; packages/db touchIndex). */
+  followUpKeys: Map<string, Map<string, number>>;
 }
 
 /** A workspace's touches as a run reads them: by each playbook (its gap), by any (the week's breath), and the proposal follow-ups. */
@@ -42,6 +44,7 @@ interface WorkspaceTouches {
   byThis: Map<string, Map<string, number>>;
   byAny: Map<string, number>;
   followUps: Map<string, number>;
+  followUpKeys: Map<string, Map<string, number>>;
 }
 
 /**
@@ -55,19 +58,26 @@ interface WorkspaceTouches {
 export function touchesAfterRun(
   touches: WorkspaceTouches,
   run: { playbookId: string; at: number; followUp: boolean },
-  people: Iterable<string>,
+  /** Each person enrolled, with the deal and the link a follow-up carries to them (null for any other moment). */
+  people: Iterable<{ id: string; deal: string | null; link: string | null }>,
 ): WorkspaceTouches {
   const byThis = new Map(touches.byThis);
   const mine = new Map(byThis.get(run.playbookId));
   const byAny = new Map(touches.byAny);
   const followUps = new Map(touches.followUps);
-  for (const id of people) {
+  const followUpKeys = new Map(touches.followUpKeys);
+  for (const { id, deal, link } of people) {
     mine.set(id, Math.max(mine.get(id) ?? 0, run.at));
     byAny.set(id, Math.max(byAny.get(id) ?? 0, run.at));
-    if (run.followUp) followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+    if (!run.followUp) continue;
+    followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+    const m = new Map(followUpKeys.get(id));
+    const key = followUpKey({ deal, link });
+    m.set(key, Math.max(m.get(key) ?? 0, run.at));
+    followUpKeys.set(id, m);
   }
   byThis.set(run.playbookId, mine);
-  return { byThis, byAny, followUps };
+  return { byThis, byAny, followUps, followUpKeys };
 }
 
 /**
@@ -166,6 +176,46 @@ function fullNameHolders(rows: readonly Pick<PersonRowVM, "givenName" | "waName"
 }
 
 /**
+ * The calendar day a visit moment is about, by the calendar's own clock and its own day arithmetic (a day is not always
+ * 24 hours): tomorrow for a reminder, yesterday for a thank-you. The one reading of it, for who a run names
+ * (playbookRunReach) and which visit its words are about (core run-playbook recipientFacts, visitOnDay).
+ */
+export function visitMomentDay(trigger: string, tz: string, nowMs: number): string {
+  return dayPlusInZone(tz, nowMs, trigger === "visit_tomorrow" ? 1 : -1).key;
+}
+
+/**
+ * A person's visit on a calendar day ("2026-09-08", by the calendar's own clock) that is surely theirs (`theirs`, the
+ * run's own test: theirVisitTest): the first that day for a reminder (`side` "next"), the latest for a thank-you ("last").
+ * The run names a person when such a visit exists, and its words name this one, so the two can never be two visits.
+ * Read from `near`; a read made before it was kept has only the next and the last, and is read as it always was.
+ */
+export function visitOnDay(
+  v: Pick<PersonVisitsDto, "timezone" | "next" | "last" | "near"> | null | undefined,
+  day: string,
+  side: "next" | "last",
+  theirs: (via: MatchVia) => boolean,
+): VisitDto | null {
+  if (!v) return null;
+  const onDay = (v.near ?? [side === "next" ? v.next : v.last]).filter(
+    (x): x is VisitDto => !!x && visitDateKey(x.start, v.timezone) === day && theirs(x.via),
+  );
+  return (side === "next" ? onDay[0] : onDay[onDay.length - 1]) ?? null;
+}
+
+/**
+ * Whose a visit is, for every row of a run: a row and how its visit was found, true when it is surely theirs
+ * (visitIsTheirs, over who holds each full saved name among `rows`). One test for who the run names and which visit its
+ * words are about.
+ */
+export function theirVisitTest(
+  rows: readonly Pick<PersonRowVM, "givenName" | "waName">[],
+): (r: Pick<PersonRowVM, "givenName" | "waName">, via: MatchVia | null) => boolean {
+  const holders = fullNameHolders(rows);
+  return (r, via) => visitIsTheirs(r, via, holders);
+}
+
+/**
  * Whether the visit a row was matched to is surely theirs, for a message that goes to them about it. A number or an address
  * on the event is exact: they are the person, or nobody. A name is a guess: any name of four letters or more matched, so a
  * client saved as "Maria" was sent a reminder for another Maria's appointment, with the event's whole title in it. A run
@@ -233,8 +283,13 @@ export function playbookRunReach(
   // How it goes: the ticks and the channels now, and what the moment's message is about (a visit's or a follow-up's is
   // theirs, which by email asks no yes; any other moment's is the business's news: decision D1).
   const how: CampaignHow = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
-  // Who holds each full saved name in the workspace, for a visit found by name alone (visitIsTheirs).
-  const holders = t.kind === "visit" ? fullNameHolders(rows) : new Map<string, number>();
+  // What each person has had of the follow-up: the latest, and the latest by what each was about (0029).
+  const hadOf = (id: string): FollowUpsHad => ({
+    at: touches.followUps.get(id),
+    keys: touches.followUpKeys.get(id),
+  });
+  // Whose a visit is, for a visit found by name alone: the run's one test (theirVisitTest), as its words read it.
+  const theirs = theirVisitTest(t.kind === "visit" ? rows : []);
   // Who the moment names, before anyone is left out.
   const named =
     t.kind === "visit"
@@ -242,23 +297,19 @@ export function playbookRunReach(
         // theirs (visitIsTheirs).
         rows.filter((r) => {
           if (!r.calendarTz) return false;
-          if (p.trigger === "visit_tomorrow")
-            return (
-              r.nextVisitDate !== null &&
-              r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS)) &&
-              visitIsTheirs(r, r.nextVisitVia, holders)
-            );
-          return (
-            r.lastVisitDate !== null &&
-            r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) &&
-            !r.booked &&
-            visitIsTheirs(r, r.lastVisitVia, holders)
-          );
+          // A visit ON the day, of any near today: not the next visit, which for a person with one later today is today's.
+          const day = visitMomentDay(p.trigger, r.calendarTz, nowMs);
+          const onDay = r.visitDays.some((d) => d.date === day && theirs(r, d.via));
+          if (p.trigger === "visit_tomorrow") return onDay;
+          return onDay && !r.booked;
         })
       : t.kind === "saved"
         ? audienceMembers(rows, "saved", null, listIds ?? new Set<string>())
         : t.kind === "deal"
-          ? rows.filter((r) => followUpNames(r, nowMs, pace))
+          ? rows.flatMap((r) => {
+              const d = followUpDealOf(r, nowMs, pace, hadOf(r.id));
+              return d ? [{ ...r, deal: d }] : [];
+            })
           : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesOnAny(r, purpose, how)).length;
@@ -309,11 +360,14 @@ export function playbookRunReach(
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
   // One follow-up per proposal (0006): a follow-up since the proposal went, from whichever playbook, one since deleted
   // too, is the one it owed. Every other moment keeps to its own gap.
-  const heardThis = (r: PersonRowVM, mine: number): boolean =>
-    t.kind === "deal" ? followUpIsFor(r, mine) : nowMs - mine < gapMs;
+  // A follow-up's proposal had its own when a follow-up carrying its link went since (followUpCovers, 0029).
+  const heardThis = (r: PersonRowVM): boolean => {
+    if (t.kind === "deal") return !!r.deal && followUpCovers(r.deal, hadOf(r.id));
+    const mine = touches.byThis.get(r.id);
+    return mine !== undefined && nowMs - mine < gapMs;
+  };
   const picked = allowed.filter((r) => {
-    const mine = t.kind === "deal" ? touches.followUps.get(r.id) : touches.byThis.get(r.id);
-    if (mine !== undefined && heardThis(r, mine)) {
+    if (heardThis(r)) {
       reach.heardThis += 1;
       return false;
     }

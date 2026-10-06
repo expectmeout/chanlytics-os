@@ -59,6 +59,7 @@ const DAY = 86_400_000;
 const NOW = Date.parse("2026-09-06T15:00:00Z");
 const person = (id, over = {}) => ({
   id,
+  visitDays: [],
   state: "active",
   hasChat: true,
   calls: 0,
@@ -91,7 +92,7 @@ const HOW = {
   }),
 };
 const base = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30, ...HOW };
-const noTouch = { byThis: new Map(), byAny: new Map(), followUps: new Map() };
+const noTouch = { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() };
 
 /* ---- the page: Campaigns' home, TSX since decision 0015, drawn on the stub React over the surfaces the seam hands it ---- */
 
@@ -183,7 +184,13 @@ test("a reminder is owed to everyone with a visit tomorrow: the cap is a fatigue
   const TZ = "America/New_York";
   const tomorrow = tzDate(TZ, new Date(NOW + DAY));
   const rows = ["a", "b", "c", "d"].map((id, i) =>
-    person(id, { calendarTz: TZ, nextVisitDate: tomorrow, nextVisitMs: NOW + DAY + (4 - i) * 3_600_000, booked: true }),
+    person(id, {
+      calendarTz: TZ,
+      nextVisitDate: tomorrow,
+      nextVisitMs: NOW + DAY + (4 - i) * 3_600_000,
+      visitDays: [{ date: tomorrow, via: "phone" }],
+      booked: true,
+    }),
   );
   const visit = { trigger: "visit_tomorrow", cap_per_run: 1, gap_days: 90, cadence_days: 30, ...HOW };
   assert.deepEqual(
@@ -782,7 +789,12 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
     "no link, a reply since, too soon or another stage is not a proposal waiting; a stop and no yes are counted",
   );
   // The same proposal, followed up yesterday -- by this playbook or another, one since deleted too: never twice.
-  const sent = { byThis: new Map(), byAny: new Map([["a", NOW - DAY]]), followUps: new Map([["a", NOW - DAY]]) };
+  const sent = {
+    byThis: new Map(),
+    byAny: new Map([["a", NOW - DAY]]),
+    followUps: new Map([["a", NOW - DAY]]),
+    followUpKeys: new Map(),
+  };
   const again = playbookRunReach(rows, follow, sent, NOW, null);
   assert.deepEqual([again.reach.will, again.reach.heardThis], [0, 1], "a playbook message since the proposal: heard");
   // A week on, past the week's breath: still nobody, since one follow-up was owed for this proposal.
@@ -797,13 +809,19 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
     byThis: new Map(),
     byAny: new Map([["a", NOW - 20 * DAY]]),
     followUps: new Map([["a", NOW - 20 * DAY]]),
+    followUpKeys: new Map(),
   };
   assert.deepEqual(
     playbookRunReach(rows, follow, before, NOW, null).eligible.map((r) => r.id),
     ["a"],
   );
   // Nor is a message this playbook sent before it was a follow-up: only a follow-up is one.
-  const gapOnly = { byThis: new Map([["a", NOW - DAY]]), byAny: new Map(), followUps: new Map() };
+  const gapOnly = {
+    byThis: new Map([["a", NOW - DAY]]),
+    byAny: new Map(),
+    followUps: new Map(),
+    followUpKeys: new Map(),
+  };
   assert.deepEqual(
     playbookRunReach(rows, follow, gapOnly, NOW, null).eligible.map((r) => r.id),
     ["a"],
@@ -839,6 +857,53 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
     [0, "plain"],
     "a follow-up already had is done for that proposal, never the amber of waiting for time",
   );
+});
+
+test("a person with two proposals out (0029): each has its own follow-up with its own link, the one waiting longest first, one at a time; one's follow-up never covers the other's, and an edited link is still the same proposal", () => {
+  const SEO = "https://docs.example.com/proposal/seo";
+  const ADS = "https://docs.example.com/proposal/ads";
+  const seo = { id: "d1", stage: "proposed", service: "SEO", sinceMs: NOW - 20 * DAY, proposal: { url: SEO } };
+  const ads = { id: "d2", stage: "proposed", service: "Ads", sinceMs: NOW - 10 * DAY, proposal: { url: ADS } };
+  // Their row shows the newer (pickCurrentDeal); both are open.
+  const two = person("a", { deal: ads, openDeals: [ads, seo], askedMs: NOW - 30 * DAY });
+  const follow = { trigger: "proposal_waiting", cap_per_run: 25, gap_days: 90, cadence_days: 30, ...HOW };
+  /** What they had of the follow-up, by what each was about (contracts followUpKey): the latest of all, and its breath. */
+  const had = (keys) => {
+    const at = Math.max(...Object.values(keys));
+    return {
+      byThis: new Map(),
+      byAny: new Map([["a", at]]),
+      followUps: new Map([["a", at]]),
+      followUpKeys: new Map([["a", new Map(Object.entries(keys))]]),
+    };
+  };
+  const named = (touches, at, rows = [two]) =>
+    playbookRunReach(rows, follow, touches, at, null).eligible.map((r) => [r.id, r.deal.proposal.url]);
+  assert.deepEqual(named(noTouch, NOW), [["a", SEO]], "the one waiting longest, once, with its own link");
+  // SEO's went yesterday: Ads is owed its own, after the week's breath; within it, they are left for the week.
+  const afterSeo = had({ "deal:d1": NOW - DAY });
+  const week = playbookRunReach([two], follow, afterSeo, NOW, null);
+  assert.deepEqual([week.reach.will, week.reach.heardThis, week.reach.heardAny], [0, 0, 1], "the breath, not had");
+  assert.deepEqual(named(afterSeo, NOW + 8 * DAY), [["a", ADS]], "a week on: the other proposal's own follow-up");
+  // Both had theirs: nobody, as one proposal's follow-up was always once.
+  const afterBoth = had({ "deal:d1": NOW - DAY, "deal:d2": NOW + 8 * DAY });
+  const done = playbookRunReach([two], follow, afterBoth, NOW + 16 * DAY, null);
+  assert.deepEqual([done.reach.will, done.reach.heardThis], [0, 1]);
+  // REGRESSION (0029's review): a link edited after its follow-up made the same proposal owed a second one.
+  const edited = { ...seo, proposal: { url: "https://docs.example.com/proposal/seo-v2" } };
+  const twoEdited = person("a", { deal: ads, openDeals: [ads, edited], askedMs: NOW - 30 * DAY });
+  assert.deepEqual(named(afterSeo, NOW + 8 * DAY, [twoEdited]), [["a", ADS]], "SEO had its own: the deal is the same");
+  // A follow-up from before the deal was kept is read by its link; one that kept neither, and a reader that kept no
+  // keys at all, as it always was: one since a proposal went covers it.
+  assert.deepEqual(named(had({ [`link:${SEO}`]: NOW - DAY }), NOW + 8 * DAY), [["a", ADS]], "by its link");
+  assert.equal(playbookRunReach([two], follow, had({ bare: NOW - DAY }), NOW + 8 * DAY, null).reach.heardThis, 1);
+  const unkept = {
+    byThis: new Map(),
+    byAny: new Map(),
+    followUps: new Map([["a", NOW - DAY]]),
+    followUpKeys: new Map(),
+  };
+  assert.equal(playbookRunReach([two], follow, unkept, NOW + 8 * DAY, null).reach.heardThis, 1);
 });
 
 test("offered here (0006): a proposal's moment and its Autonomy class only where deals are on, every other everywhere", () => {

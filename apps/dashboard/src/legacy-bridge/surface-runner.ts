@@ -16,7 +16,7 @@ import { ApiError } from "../client/api";
 import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { getConnection, getSurfaceStatuses, isSurfaceReady, setConnection, setStatus } from "./surface-status";
-import { ROUTE_WAIT_MS, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
+import { ROUTE_WAIT_MS, keepForItsPage, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh, type FeedWatch } from "./surface-realtime";
 import { getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
 
@@ -54,6 +54,11 @@ const AWAY_BEFORE_READ_AGAIN_MS = MIN_MS / 2;
 const BOOT_RETRY_MS = 800;
 /** A refresh waits this long after the last one asked for, unless the surface names its own debounce. */
 const REFRESH_DEBOUNCE_MS = 400;
+/**
+ * And never longer than this after the first: a broadcast's receipts are each their own notice, a few hundred
+ * milliseconds apart, and each restarted the wait, so a customer's new message reached no open page until they stopped.
+ */
+const REFRESH_MAX_WAIT_MS = 3_000;
 
 /**
  * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead) without
@@ -94,7 +99,10 @@ export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<voi
 
 /** The shell's Retry: every surface the running runner holds, read again now. */
 export async function refreshAllSurfaces(): Promise<void> {
-  await refreshSurfaces(activeOverrides);
+  // Every surface the running runner holds that a page on screen draws: a surface read only where it is drawn waits for its page.
+  // And every one the status line names as stopped refreshing, wherever it is drawn: Retry reads what the line says failed.
+  const statuses = getSurfaceStatuses();
+  await refreshSurfaces(readHere(activeOverrides, (o) => statuses.get(o.key) === "degraded"));
 }
 
 /**
@@ -153,6 +161,24 @@ function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
 }
 
 /**
+ * What a pass over these surfaces reads here (a return to the tab, the network back, a rejoin of the live feed, Retry-all): every
+ * one but a surface read only where it is drawn (`onDemand`) and not drawn here, which is kept for its page instead
+ * (surface-registry.ts keepForItsPage), so its page reads it once as it comes on screen and never shows what the pass missed.
+ * `alsoRead` names any such surface the pass reads all the same (Retry's: what the status line says stopped refreshing).
+ */
+function readHere(
+  overrides: readonly SurfaceOverride[],
+  alsoRead: (o: SurfaceOverride) => boolean = () => false,
+): SurfaceOverride[] {
+  const drawn = screenOwn(window);
+  return overrides.filter((o) => {
+    if (!o.onDemand || drawn(o) || alsoRead(o)) return true;
+    keepForItsPage(o.key);
+    return false;
+  });
+}
+
+/**
  * What a return to the tab reads: every surface, unless the tab was away less than AWAY_BEFORE_READ_AGAIN_MS with the
  * live feed up and every one of these surfaces live. A failed surface is the one that MOST needs retrying -- it used to
  * be the one excluded, which is how a boot blip became permanent for the session. The visibilitychange listener.
@@ -167,7 +193,9 @@ function onReturn(overrides: readonly SurfaceOverride[], readEverySurfaceAgain: 
     const away = hiddenAt === null ? Infinity : Date.now() - hiddenAt;
     hiddenAt = null;
     const statuses = getSurfaceStatuses();
-    const allLive = overrides.every((o) => statuses.get(o.key) === "live");
+    // A surface read only where it is drawn, and not drawn here, is none the feed could have let go stale: it does not count.
+    const drawn = screenOwn(window);
+    const allLive = overrides.every((o) => (o.onDemand && !drawn(o)) || statuses.get(o.key) === "live");
     if (away < AWAY_BEFORE_READ_AGAIN_MS && allLive && !getConnection().realtimeDown) return;
     readEverySurfaceAgain();
   };
@@ -193,6 +221,8 @@ interface SurfaceRun {
   readonly cachedAtBoot: string | null;
   /** Each surface's pending refresh. */
   readonly timers: Map<string, ReturnType<typeof setTimeout>>;
+  /** When each pending refresh was first asked for: the wait ends by REFRESH_MAX_WAIT_MS after it. */
+  readonly firstAsked: Map<string, number>;
   cancelled: boolean;
   /** Leaves the live feed, once it is joined. */
   unsubscribe: (() => void) | null;
@@ -215,6 +245,7 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
     cachedAtBoot,
     cancelled: false,
     timers: new Map<string, ReturnType<typeof setTimeout>>(),
+    firstAsked: new Map<string, number>(),
     realtime: overrides.filter(subscribesToRealtime),
     unsubscribe: null,
     held: new Set(),
@@ -289,9 +320,16 @@ async function bootSurface(run: SurfaceRun, o: SurfaceOverride): Promise<void> {
 function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
   const prev = run.timers.get(o.key);
   if (prev) clearTimeout(prev);
+  const now = Date.now();
+  const first = run.firstAsked.get(o.key) ?? now;
+  run.firstAsked.set(o.key, first);
+  const wait = Math.max(0, Math.min(o.debounceMs ?? REFRESH_DEBOUNCE_MS, first + REFRESH_MAX_WAIT_MS - now));
   run.timers.set(
     o.key,
-    setTimeout(() => void refreshSurface(run, o, "refresh"), o.debounceMs ?? REFRESH_DEBOUNCE_MS),
+    setTimeout(() => {
+      run.firstAsked.delete(o.key);
+      void refreshSurface(run, o, "refresh");
+    }, wait),
   );
 }
 
@@ -314,8 +352,9 @@ function watchLiveFeed(run: SurfaceRun): FeedWatch {
     graceMs: REALTIME_GRACE_MS,
     onDown: (down) => setConnection({ realtimeDown: down }),
     // reconnect after sleep/offline: the feed replays nothing it missed, so
-    // refetch to close the gap
-    onReconnect: () => run.realtime.forEach((o) => refreshSoon(run, o)),
+    // refetch to close the gap (what is drawn here; the rest is kept for its
+    // page: readHere)
+    onReconnect: () => readHere(run.realtime).forEach((o) => refreshSoon(run, o)),
   });
 }
 
@@ -376,7 +415,8 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
   const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : 1 + screen(o));
   const queued = [...overrides].sort((x, y) => rank(x) - rank(y));
   const pagesOwn = queued.filter((o) => o.key === "workspace" || own(o));
-  const strangers = queued.filter((o) => !pagesOwn.includes(o));
+  // A stranger that is read only where it is drawn is not booted: its page reads it as it comes on screen (readWhatWasMissed).
+  const strangers = queued.filter((o) => !pagesOwn.includes(o) && !o.onDemand);
   // Surfaces read the same lists in turn -- the calls, the templates, the contacts, and on Leads the page the view
   // asks for again as it mounts. Measured on the salon's Leads page: 31 reads at boot, 20 distinct, because a read
   // that had settled was not shared with the one asking a moment later. Every answer is held until the last surface
@@ -457,7 +497,8 @@ function listenForReturns(run: SurfaceRun): () => void {
     againRunning = true;
     const screen = screenRank(window);
     void inLanes(
-      [...overrides].sort((x, y) => screen(x) - screen(y)),
+      // What is drawn here, as the boot reads it; a surface read only where it is drawn waits for its page.
+      readHere(overrides).sort((x, y) => screen(x) - screen(y)),
       BOOT_LANES,
       (o) => refreshSurface(run, o, "refresh"),
     ).finally(() => {

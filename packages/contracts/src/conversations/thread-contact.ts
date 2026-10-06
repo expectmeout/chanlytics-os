@@ -22,6 +22,11 @@ export function isIdentifierName(name: string): boolean {
   return /^[+\d(]/.test(name) || name.includes("@");
 }
 
+/** A name shortened for a line that says it again: the first name, or an identifier whole. The call row, Live's bar and Conversations' row read it. */
+export function shortName(name: string): string {
+  return isIdentifierName(name) ? name : name.split(" ")[0] || name;
+}
+
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
 export function contactMeta(
   dto: ConversationDto,

@@ -140,8 +140,8 @@
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/deal.ts::proposeDeal#1": {
-    "lines": 115,
-    "branches": 68,
+    "lines": 109,
+    "branches": 66,
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
@@ -180,7 +180,7 @@
     "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
-    "lines": 237,
+    "lines": 233,
     "branches": 50,
     "depth": 1
   },
@@ -305,13 +305,13 @@
     "depth": 1
   },
   "packages/contracts/src/conversations/call-vm.ts::toCallVM#1": {
-    "lines": 133,
-    "branches": 61,
+    "lines": 121,
+    "branches": 51,
     "depth": 1
   },
   "packages/contracts/src/conversations/inbox-thread.ts::toInboxThreadVM#1": {
-    "lines": 210,
-    "branches": 49,
+    "lines": 207,
+    "branches": 46,
     "depth": 2
   },
   "packages/contracts/src/deals/sheet/deal-sheet-body.ts::dealSheetBody#1": {
@@ -345,8 +345,8 @@
     "depth": 1
   },
   "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
-    "lines": 140,
-    "branches": 78,
+    "lines": 124,
+    "branches": 59,
     "depth": 0
   },
   "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {
@@ -386,12 +386,12 @@
   },
   "packages/contracts/src/today/today-figures.ts::figuresOf#1": {
     "lines": 200,
-    "branches": 55,
+    "branches": 54,
     "depth": 2
   },
   "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {
-    "lines": 76,
-    "branches": 48,
+    "lines": 62,
+    "branches": 36,
     "depth": 0
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {

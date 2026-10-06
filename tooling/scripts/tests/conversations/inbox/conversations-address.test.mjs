@@ -9,6 +9,9 @@
  *   closes it to its list.
  * - A search typed on Phone was gone after a trip to People: it is kept per tab in the tab's storage (tab-memory.ts),
  *   and a tab pressed opens with the words last typed on it.
+ * - The rows are the surface's newest read. The page held its list and its tabs' counts on a counter only a decision
+ *   moved, so what the live feed read again while the page was open never reached the screen (5 Oct 2026): the stub
+ *   keeps useMemo as React does (_legacy-react.mjs), or a memo on the wrong inputs could never show.
  * Run against the page (surfaces/inbox/pages/conversations-page.tsx) on a stub React, over the rows the seam holds, with the
  * tab's memory installed as the app installs it.
  */
@@ -115,7 +118,7 @@ const conv = (id, name, messages) => ({
   },
   messages,
 });
-const call = (id, name) =>
+const call = (id, name, over = {}) =>
   toCallVM(
     {
       id,
@@ -144,6 +147,7 @@ const call = (id, name) =>
       outcome: null,
       follow_up: null,
       caller_name: name,
+      ...over,
     },
     ZONE,
     NOW,
@@ -291,6 +295,47 @@ test("a link to a row on a tab opens that row on that tab, and a search that hid
   tree = redraw({ channel: "phone", initialId: "cv-k7" });
   assert.equal(rows(tree).length, 0, "the words hide its row");
   assert.ok(byTestId(tree, "cv-call-pane"), "and the pane keeps the row asked for, never the list's first");
+});
+
+test("the rows are the surface's newest read: what lands while the page is open shows in its row, its tab's count and the call open", () => {
+  const tabs = (tree) => find(tree, (n) => n.type === SubTabs).props.tabs;
+  const count = (tree, id) => tabs(tree).find((t) => t.id === id).count;
+  const said = (tree, who) => textOf(rows(tree).find((r) => textOf(r).includes(who)));
+  let tree = ConversationsPage({ channel: "all", initialId: "cv-k7" });
+  assert.equal(rows(tree).length, 2);
+  assert.equal(count(tree, "whatsapp"), 1);
+  assert.ok(!textOf(byTestId(tree, "cv-call-pane")).includes("booked the trial"));
+
+  // The live feed reads the surface again: Rosa wrote again, Ana wrote for the first time, and the call's summary is in.
+  const rosaAgain = toConversationVM(
+    conv("c1", "Rosa Díaz", [
+      msg({ id: "m1" }),
+      ours(),
+      msg({ id: "m3", body: "Can I bring my sister?", created_at: "2026-09-14T13:30:00Z" }),
+    ]),
+    null,
+    ZONE,
+    NOW,
+  );
+  const ana = toConversationVM(
+    conv("c2", "Ana Ruiz", [msg({ id: "m4", body: "Are you open on Sunday?" })]),
+    null,
+    ZONE,
+    NOW,
+  );
+  withRows([ana, rosaAgain, call("k7", "Emily Chen", { summary: "She booked the trial for Friday." })]);
+  tree = redraw({ channel: "all", initialId: "cv-k7" });
+  assert.equal(rows(tree).length, 3, "REGRESSION: a conversation that began while the page was open had no row");
+  assert.ok(said(tree, "Ana Ruiz").includes("Are you open on Sunday?"));
+  assert.ok(
+    said(tree, "Rosa").includes("Can I bring my sister?"),
+    "REGRESSION: a row said the words it had when the page opened",
+  );
+  assert.equal(count(tree, "whatsapp"), 2, "the tab counts the rows it shows");
+  assert.ok(
+    textOf(byTestId(tree, "cv-call-pane")).includes("She booked the trial for Friday."),
+    "the call open is drawn from the newest read",
+  );
 });
 
 /* ---------------------------------- F: the box's words ---------------------------------- */

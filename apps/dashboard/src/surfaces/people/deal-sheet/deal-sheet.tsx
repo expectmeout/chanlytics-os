@@ -23,6 +23,7 @@ import {
   dealSheetMerge,
   dealSheetRefusal,
   isDealSheetMode,
+  shortName,
 } from "@chanlytics/contracts";
 import type { DealSheetDraft, DealSheetMode, DealSheetProblem, DealSheetVM, PersonVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
@@ -108,10 +109,9 @@ function worked<T>(fn: () => T): T | null {
   }
 }
 
-/** What a toast calls them: their first name, or the whole of a name that is a number or an address. */
+/** What a toast calls them: their first name, or the whole of a name that is a number or an address (shortName). */
 function whoOf(p: PersonVM): string {
-  const n = String((p && p.name) || "").trim();
-  return /^[+\d(]/.test(n) || n.includes("@") ? n : n.split(" ")[0] || n;
+  return shortName(String((p && p.name) || "").trim());
 }
 
 /** The sheet for an ask over a person as read: worked out on every draw (pure). */
@@ -262,7 +262,8 @@ async function save({ st, setSt, flash, fold, sheet }: Host): Promise<void> {
         </>
       ),
     });
-  announce("deal:recorded", { personId: ask.personId });
+  // And the deal it moved (0029: the Pipeline gives the focus back to that deal's own row).
+  announce("deal:recorded", { personId: ask.personId, dealId: ask.dealId ?? null });
 }
 
 /** The Confirm that asks about what was typed: the fold's own question, or the sheet's Cancel's. */

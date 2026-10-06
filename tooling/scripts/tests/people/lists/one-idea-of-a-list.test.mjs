@@ -218,8 +218,16 @@ const localDays = (at) => localDaysBetween(at, NOW, TZ);
  * reason in words, or null when it cannot explain the difference.
  */
 const APPROVED = {
-  // Call 1: a teammate's thread is theirs.
-  waiting_on_you: (r) => (r.latest_assignee_user_id === MATE ? "a teammate has the thread" : null),
+  // Call 1: a teammate's thread is theirs. 6 Oct 2026 (A13): a name on a thread nobody is working (no flag, no pause)
+  // is no claim, the receptionist answers it, and a snoozed thread waits on purpose: the one standing rule (holderOf).
+  waiting_on_you: (r) => {
+    if (r.latest_assignee_user_id === MATE) return "a teammate has the thread";
+    if (!r.latest_assignee_user_id) return null;
+    if (r.latest_state === "snoozed") return "a snoozed thread waits on purpose";
+    const paused = r.latest_paused_until !== null && ts(r.latest_paused_until) > NOW;
+    const flagged = !!r.open_escalation_reason || r.needs_human || r.latest_state === "needs_human" || paused;
+    return flagged ? null : "a name on a quiet thread is no claim";
+  },
   // Call 1: whatever the standing; and the workspace's dates, and a first contact on the row's earliest line.
   new_week: (r, o) => {
     if (["needs_you", "waiting_on_you", "opted_out"].includes(o.state)) return "new whatever the standing";

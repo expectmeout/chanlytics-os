@@ -6,7 +6,7 @@
 import type { MessageDto } from "./thread-dto";
 import { MEDIA_LABEL, mediaKind } from "./message-media";
 import { splitQuotedReply } from "./message-email";
-import { writtenChannelOf } from "./thread-channel";
+import { isChatMessage, writtenChannelOf } from "./thread-channel";
 
 /** What an email's `delivered` receipt says: their mail server took it, which is as far as an email can be followed. */
 const EMAIL_DELIVERED = "Reached their mail server";
@@ -198,19 +198,24 @@ function settledWords(e: Record<string, unknown>): string | null {
     : null;
 }
 
-/**
- * A message that is part of the conversation: words said on a wire. A call's note and a system note are not --
- * the first is the call's own row, the second a line the platform wrote on the thread, which read as "by WhatsApp
- * Receptionist · Delivered" and flipped the row's pill until the 2 Oct 2026 audit. The thread's "last word", its
- * channels and Conversations' preview all ask this one question.
- */
-export function isChatMessage(m: Pick<MessageDto, "type">): boolean {
-  return m.type !== "call_summary" && m.type !== "note";
-}
-
 /** Did the customer actually receive these words? */
 export function reachedCustomer(status: string | undefined): boolean {
   return status !== "queued" && status !== "failed" && status !== "canceled";
+}
+
+/**
+ * The last thing that happened between them: the newest message of the conversation (isChatMessage) they sent, or we
+ * sent and they received (reachedCustomer). A note, a call's note, a draft still held or canceled and a send that failed
+ * are not it. THE reading of who had the last word: Conversations' row, the Inbox's last word and Today's waiting rows
+ * ask it. Today read the thread's last row, and a teammate's note made a waiting customer look answered.
+ */
+export function lastExchanged<M extends Pick<MessageDto, "type" | "direction" | "status">>(
+  messages: readonly M[],
+): M | null {
+  return (
+    [...messages].reverse().find((m) => isChatMessage(m) && (m.direction === "inbound" || reachedCustomer(m.status))) ??
+    null
+  );
 }
 
 const CALL_NOTE_PREFIX =

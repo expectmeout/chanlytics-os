@@ -111,6 +111,7 @@ test("Reports draws the reach-outs' section: the funnel, the angles, the domains
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ro-domain-row").length, 1);
   assert.match(textOf(byTestId(tree, "ro-domains")), /mail\.example\.com.*Verified/);
   went.length = 0;
+  assert.match(byTestId(tree, "ro-source-open").props.href, /^#\//, "the chain's name is a link with its address");
   press(byTestId(tree, "ro-source-open"));
   assert.deepEqual(went, ["outbound/r1"]);
 });

@@ -4,7 +4,8 @@
  */
 import { tidyCallSummary } from "../voice/call-words";
 import { clockTime } from "../shared/clock";
-import { ago } from "./person-row-facts";
+import { ago, theirTurnWords } from "./person-row-facts";
+import { HELD_WORDS } from "../conversations/standing";
 import type { PersonRowVM } from "./person-row";
 import type { ReceptionistTone } from "./person-receptionist";
 import { fmtDate } from "./person-helpers";
@@ -69,8 +70,10 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
   else sentence = "Nothing written yet";
   const r = p.receptionist;
   let status: string[];
-  if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
-  else if (r.tone === "answering")
+  if (p.state === "waiting_on_you") {
+    const turn = theirTurnWords(p.lastContact);
+    status = turn ? [HELD_WORDS.yours.pill, turn] : [HELD_WORDS.yours.pill];
+  } else if (r.tone === "answering")
     status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
   else status = r.label.split(", ");
   if (p.state === "needs_you" && p.needsYouSinceMs !== null)

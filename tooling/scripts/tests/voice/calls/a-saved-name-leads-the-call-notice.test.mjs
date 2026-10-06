@@ -49,7 +49,7 @@ function nameReadDown(db, tables) {
 }
 
 /** A workspace whose caller is saved as `saved` (columns of the contact), and an analysed call in which they gave `spoken`. */
-async function noticeFor({ saved, spoken, unreadable = false }) {
+async function noticeFor({ saved, spoken, unreadable = false, withheld = false }) {
   const w = world();
   w.tables.tenant_config.push({
     tenant_id: w.T,
@@ -63,6 +63,7 @@ async function noticeFor({ saved, spoken, unreadable = false }) {
     const id = w.callId("named");
     const call = w.analysed(id);
     call.call_analysis.custom_analysis_data.caller_name = spoken;
+    if (withheld) delete call.from_number;
     const res = await deliver("call_analyzed", call);
     assert.deepEqual([res.status, await res.json()], [200, { ok: true }]);
     assert.equal(w.tables.notifications.length, 1, "the owner is told once");
@@ -88,6 +89,12 @@ test("with no saved name the caller's own word stands, then the number: nothing 
   assert.equal(stranger.bell, "Rosa phoned · 2 min", "nobody on file: what they said, as before");
   const silent = await noticeFor({ spoken: "" });
   assert.equal(silent.bell, "+1 (646) 555-0123 phoned · 2 min", "no name anywhere: the number, formatted");
+  const hidden = await noticeFor({ spoken: "", withheld: true });
+  assert.equal(
+    hidden.bell,
+    "Caller ID withheld phoned · 2 min",
+    "REGRESSION: 'Unknown caller', where every page says Caller ID withheld (contracts callerName)",
+  );
 });
 
 test("a name that cannot be read never costs the owner their notice: it falls back to what they said", async () => {

@@ -1306,6 +1306,19 @@ test("asked, then booked: the report's one conversion line, in words that say wh
     ],
     [0, "Everyone who asked in the last 7 days has an appointment."],
   );
+  // One day (Month on the 1st): "1 day", never "1 days", in each place the card names its period.
+  assert.equal(
+    toBookingReportVM({ calendar: "ok", days: 1, asked: 2, booked: 1 }).words,
+    "of the people who wrote or called in the last 1 day have an appointment on the calendar",
+  );
+  assert.equal(
+    toBookingReportVM({ calendar: "ok", days: 1, asked: 3, booked: 3 }).rest,
+    "Everyone who asked in the last 1 day has an appointment.",
+  );
+  assert.equal(
+    toBookingReportVM({ calendar: "ok", days: 1, asked: 0, booked: 0 }).sub,
+    "nobody wrote or called in the last 1 day",
+  );
   // A page that draws the share itself (Reports' meter) says the rest in the view model's own words.
   assert.deepEqual(
     [
@@ -2418,7 +2431,7 @@ test("REGRESSION: the owner invited to meetings on their own calendar is not a c
 
   const index = indexFeed(f.items, own);
   assert.deepEqual(allVisitsIn(index, owner), [], "none of the meetings on their own calendar is a visit");
-  assert.deepEqual(visitsIn(index, owner, NOW), { next: null, last: null });
+  assert.deepEqual(visitsIn(index, owner, NOW), { next: null, last: null, near: [] });
   assert.equal(index.byEmail.get(OWNER_ADDR), undefined, "and the address is not indexed at all");
   // A customer on an event the owner is copied on is still that customer's.
   assert.deepEqual(

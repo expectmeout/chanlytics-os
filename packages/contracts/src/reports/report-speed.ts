@@ -126,6 +126,41 @@ export function holdBuckets(replies: readonly HoldReply[] | undefined): [string,
 export const absoluteBuckets = (sortedReply: readonly number[]): [string, string, number][] =>
   spanCounts(REPLY_BUCKETS, sortedReply);
 
+/** The counts of a hold the sentences need: what the metrics carry to Today, and what `ReportHoldVM` has beside them. */
+type HoldCounts = Pick<ReportHoldVM, "label" | "atEnd" | "later" | "unheld">;
+
+/**
+ * The summary the day's metrics carry (snake_case: it rides a route): the hold most replies waited, in words, and how many replies
+ * went out as it ended, later than it, and with none. Constant in size, whatever the day held; made on the server by `holdOf` and
+ * read by `replySpeedOf`, so the rule's slack is applied once.
+ */
+export interface ReplyHoldDto {
+  label: string;
+  at_end: number;
+  later: number;
+  unheld: number;
+}
+
+/** The hold's summary for the wire: null where no reply waited a hold. */
+export const replyHoldDtoOf = (hold: ReportHoldVM | null): ReplyHoldDto | null =>
+  hold ? { label: hold.label, at_end: hold.atEnd, later: hold.later, unheld: hold.unheld } : null;
+
+/** The replies a hold was counted over: those that waited it (as it ended, or later) and those sent with none. */
+const repliesSeen = (hold: HoldCounts): number => hold.unheld + hold.atEnd + hold.later;
+
+/**
+ * Whether most of the replies seen waited a hold (more than half): the one test for saying the speed against the hold,
+ * which Reports' hero and Today's sentences both ask. A hold that few replies waited says nothing of the receptionist's speed.
+ */
+const waitedHold = (hold: HoldCounts): boolean => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
+
+/** Whether the replies that waited a hold mostly went out as it ended, rather than later: the one tie-break both sentences read. */
+const endedWithHold = (hold: HoldCounts): boolean => hold.atEnd >= hold.later;
+
+/** How a sentence about speed ends against the hold, said once for Reports and Today: "as your 1-minute hold ended", or later. */
+const againstHold = (hold: HoldCounts): string =>
+  endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
+
 /**
  * How fast, beside the hero: against the hold where most replies waited one, since the setting is not the
  * receptionist's speed. Where most replies had no hold, the hold says nothing of them and the median does. The
@@ -133,11 +168,31 @@ export const absoluteBuckets = (sortedReply: readonly number[]): [string, string
  */
 export function heroSpeed(replies: number, medianLabel: string, hold: ReportHoldVM | null): string {
   if (!replies) return "";
-  const held = hold ? hold.atEnd + hold.later : 0;
-  const seen = hold ? hold.unheld + held : 0;
-  if (!hold || held * 2 <= seen) return ` Half of its replies went out within ${medianLabel}.`;
-  if (hold.atEnd >= hold.later) return ` ${hold.atEnd} of ${seen} went out as your ${hold.label} hold ended.`;
-  return ` ${hold.later} of ${seen} took longer than your ${hold.label} hold.`;
+  if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
+  return ` ${endedWithHold(hold) ? hold.atEnd : hold.later} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
+}
+
+/** How fast the receptionist replied, as a sentence says it: the median, or the hold's words where most replies waited one. */
+export type ReplySpeed = { held: false; seconds: number } | { held: true; words: string };
+
+/**
+ * The reply speed in the words Today's sentences take ("typically in 34s", "typically as your 1-minute hold ended"): the median,
+ * or, where most replies waited the owner's hold, against it (spec D14), by the classes `holdOf` counts and the test the hero
+ * asks. Null with no median to speak of.
+ */
+export function replySpeedOf(median: number | null, hold: ReplyHoldDto | null): ReplySpeed | null {
+  if (median === null) return null;
+  const counts: HoldCounts | null = hold && {
+    label: hold.label,
+    atEnd: hold.at_end,
+    later: hold.later,
+    unheld: hold.unheld,
+  };
+  if (!counts || !waitedHold(counts)) return { held: false, seconds: median };
+  return {
+    held: true,
+    words: againstHold(counts),
+  };
 }
 
 /** The line under the speed chart where replies waited a hold: what took longer than it, or that none did. */

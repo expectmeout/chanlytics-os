@@ -61,12 +61,10 @@ export function callNotesOf(a: {
   caller_email?: string | null;
 }): CallNotes {
   const name = a.caller_name?.trim();
+  const email = a.caller_email?.trim();
   return {
     todo: callTodoWords(a.follow_up),
-    gave: [
-      name ? `Gave their name as ${name}` : "",
-      a.caller_email ? `Gave their email as ${a.caller_email}` : "",
-    ].filter(Boolean),
+    gave: [name ? `Gave their name as ${name}` : "", email ? `Gave their email as ${email}` : ""].filter(Boolean),
   };
 }
 

@@ -1,6 +1,8 @@
 /**
- * A call on the wire: the call DTO, whether an inbound caller left with nothing (`abandonedCall`), and why a
- * call ended, in the owner's words. The call's row is call-vm.ts; Live and Today read these too.
+ * A call on the wire: the call DTO, and what every surface reads of it once, here: a dial that never connected
+ * (`neverConnected`), whether an inbound caller left with nothing (`abandonedCall`), a voicemail (`reachedVoicemail`),
+ * where its recording stands (`recordingStateOf`) and why it ended, in the owner's words (`endedHowOf`). The call's row
+ * is call-vm.ts; Live, Today and a person's page read these too.
  */
 
 export interface CallDto {
@@ -79,23 +81,55 @@ export interface CallDto {
 export const ABANDONED_MS = 15_000;
 
 export function abandonedCall(
-  dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail">,
+  dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome">,
 ): boolean {
   if (dto.direction !== "inbound") return false;
   // A dial that never connected is the other thing entirely, and a call that
   // reached voicemail already has its own row.
-  if (dto.status === "not_connected" || dto.in_voicemail) return false;
+  if (neverConnected(dto) || reachedVoicemail(dto)) return false;
   const ms = dto.duration_ms;
   if (typeof ms !== "number" || ms <= 0 || ms >= ABANDONED_MS) return false;
   return dto.disconnection_reason === "user_hangup";
 }
 
+/** Retell's not_connected: the dial never connected. An attempt, not a call, whoever dialled (missedCall says whose). */
+export function neverConnected(dto: Pick<CallDto, "status">): boolean {
+  return dto.status === "not_connected";
+}
+
+/** Where a call's recording stands: saved, still being fetched, not saved, removed on the retention schedule, or none. */
+export type RecordingState = "ready" | "pending" | "failed" | "purged" | "none";
+
+/** A call's recording state, from the row's own fetch state: what the call card, Live and a person's history say. */
+export function recordingStateOf(dto: Pick<CallDto, "recording">): RecordingState {
+  const at = dto.recording?.fetch_state;
+  if (at === "stored") return "ready";
+  if (at === "failed" || at === "purged") return at;
+  return dto.recording ? "pending" : "none";
+}
+
+/** Why the call ended, in the owner's words, or the provider's own word for an ending the labels do not know; null when it gave none. */
+export function endedHowOf(dto: Pick<CallDto, "disconnection_reason">): string | null {
+  const why = dto.disconnection_reason;
+  return why ? (DISCONNECTION_LABELS[why] ?? why.replace(/_/g, " ")) : null;
+}
+
+/**
+ * Whether a call reached a voicemail, by any of the three signals its row can carry: the provider's analysis flag
+ * (in_voicemail, missing when the analysis did not run), the ending the provider recorded (voicemail_reached), and the
+ * outcome our own analysis gave. THE reading: the outcome ladder, an abandoned call, Today's rows and figures and a
+ * person's history ask it, so a pill cannot say Handled beside "Reached voicemail".
+ */
+export function reachedVoicemail(dto: Pick<CallDto, "in_voicemail" | "disconnection_reason" | "outcome">): boolean {
+  return dto.in_voicemail === true || dto.disconnection_reason === "voicemail_reached" || dto.outcome === "voicemail";
+}
+
 /**
  * Whether a call is a "missed call": a dial that never connected (`missed`, what the call view models carry for status
  * not_connected) and the customer's own. The one the receptionist placed and nobody answered is not missed by anyone
- * (callAttemptWords). A row that does not say who dialled is a customer's, as the bell reads it (FeedCall).
+ * (callAttemptWords). Every caller says who dialled; a row whose direction was never recorded (null) is a customer's.
  */
-export function missedCall(c: { missed: boolean; direction?: "inbound" | "outbound" | null }): boolean {
+export function missedCall(c: { missed: boolean; direction: "inbound" | "outbound" | null }): boolean {
   return c.missed && c.direction !== "outbound";
 }
 

@@ -43,8 +43,10 @@ export {
   toDealVM,
   dealOf,
   dealSentence,
+  openDealsOf,
+  openDealsFromJson,
 } from "./deal-vm";
-export type { DealColumns, DealDto, DealFacts, DealVM } from "./deal-vm";
+export type { DealColumns, DealDto, DealFacts, DealVM, OpenDealDto } from "./deal-vm";
 export {
   heardSinceProposal,
   isYes,
@@ -99,7 +101,7 @@ export {
 export type { DealSheetField, DealSheetDraft, DealSheetVM } from "./sheet/deal-sheet";
 export { dealSheetBody, dealSheetRefusal } from "./sheet/deal-sheet-body";
 export type { DealSheetBody, DealSheetProblem, DealSheetOutcome } from "./sheet/deal-sheet-body";
-export { PIPELINE_GROUPS } from "./pipeline/pipeline-vm";
+export { PIPELINE_GROUPS, pipelinePersonOf, pipelineRowId, pipelineRowNow } from "./pipeline/pipeline-vm";
 export type {
   PipelineGroupKey,
   PipelineSource,

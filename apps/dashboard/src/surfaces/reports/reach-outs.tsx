@@ -8,7 +8,7 @@
  * failed and says so; a workspace with no reach-out draws nothing.
  */
 import type { ReachOutDomainRow, ReachOutReportVM, ReachOutSourceLine } from "@chanlytics/contracts";
-import { navigate } from "../legacy-verbs";
+import { routeDoor } from "../legacy-verbs";
 import { BarChart, BarList } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
@@ -40,9 +40,13 @@ function RptReachOutSources({ rows }: { rows: ReachOutSourceLine[] }) {
             <tr key={s.id} data-testid={s.kind === "chain" ? "ro-source-row" : "ro-step-row"}>
               <td>
                 {s.kind === "chain" ? (
-                  <LinkButton className="rpt-src" onClick={() => s.to && navigate(s.to)} data-testid="ro-source-open">
-                    {s.name}
-                  </LinkButton>
+                  s.to ? (
+                    <LinkButton className="rpt-src" {...routeDoor(s.to)} data-testid="ro-source-open">
+                      {s.name}
+                    </LinkButton>
+                  ) : (
+                    <span className="rpt-src">{s.name}</span>
+                  )
                 ) : (
                   <span className="rpt-src-meta">{s.name}</span>
                 )}
@@ -166,8 +170,8 @@ function reachOutCards(ro: ReachOutReportVM) {
   );
 }
 
-export function RptReachOuts({ R }: { R: ReportsSurface | null }) {
-  const ro = R ? R.reachOuts : undefined;
+export function RptReachOuts({ R }: { R: ReportsSurface }) {
+  const ro = R.reachOuts;
   // Nothing reads it here (the demo): nothing of it is drawn.
   if (ro === undefined) return null;
   if (ro === null) {

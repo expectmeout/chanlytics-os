@@ -74,6 +74,7 @@ export function peopleVisitsOf(
       state: "ok",
       next: mark(toVisitDto(v.next)),
       last: mark(toVisitDto(v.last)),
+      near: v.near.map((x) => mark(toVisitDto(x))).filter((x): x is VisitDto => x !== null),
     });
   }
   return out;
@@ -124,7 +125,7 @@ export interface PoolOptions {
  */
 export function poolRowOf(person: PersonRowDto, o: PoolOptions): PersonRowVM {
   const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready);
-  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null };
+  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null, openDeals: [], dealStages: [] };
 }
 
 /** Everyone's rows, as poolRowOf reads each. */

@@ -84,7 +84,7 @@ export function askSpeech(): AskSpeech | undefined {
 /* ------------------------------ the surfaces ------------------------------ */
 
 /**
- * A surface the bridge published, by its global's name (`__REPORTS`, `__PEOPLE`, `__BROADCASTS`, ...): what the page
+ * A surface the bridge published, by its global's name (`__PEOPLE`, `__BROADCASTS`, `__CALENDAR`, ...): what the page
  * borrowed through `todaySurface(name)`. Nothing before its first read.
  */
 export function borrowed<T extends object>(name: string): T | undefined {

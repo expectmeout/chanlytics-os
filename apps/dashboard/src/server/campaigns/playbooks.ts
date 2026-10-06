@@ -150,14 +150,25 @@ function followUpTouchesFor(
   return followUpTouchesSince(ctx.supabase, tenantId, new Date(since), now);
 }
 
+/** Who had a proposal follow-up, by person, and by what each was about (0029, packages/db touchIndex). */
+interface FollowUpsRead {
+  followUps: Map<string, number>;
+  followUpKeys: Map<string, Map<string, number>>;
+}
+
+/** No follow-up had: no proposal out, or deals off. */
+export const noFollowUps = (): FollowUpsRead => ({ followUps: new Map(), followUpKeys: new Map() });
+
 /**
  * Who had a proposal follow-up, or is in a run made for one, from any playbook, one since deleted too (packages/db
  * touchIndex followUps): whom the run leaves out, and so the Playbooks counts and Ask (0006). None out, none. A read
- * that fails throws.
+ * that fails throws. By the proposal's link too (0029): a person's second proposal is owed its own.
  */
-export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now: Date): Promise<Map<string, number>> {
+export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpsRead> {
   const out = await proposalsOut(ctx, tenantId);
-  return out ? touchIndex(await followUpTouchesFor(ctx, tenantId, now, out)).followUps : new Map<string, number>();
+  if (!out) return noFollowUps();
+  const { followUps, followUpKeys } = touchIndex(await followUpTouchesFor(ctx, tenantId, now, out));
+  return { followUps, followUpKeys };
 }
 
 /**
@@ -480,11 +491,11 @@ export async function triggerPools(
         log.error("playbook_pools_follow_ups_failed", { tenant_id: tenantId, error: e });
         return null;
       })
-    : new Map<string, number>();
+    : noFollowUps();
   const breath = {
     byThis: new Map<string, number>(),
     byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])),
-    followUps: followUps ?? new Map<string, number>(),
+    ...(followUps ?? noFollowUps()),
   };
   // One pass per moment, the runner's own: who it would pick, who waits for the
   // week's breath, and who it names and leaves out whatever the week. A moment

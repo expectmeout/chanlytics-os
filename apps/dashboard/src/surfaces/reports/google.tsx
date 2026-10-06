@@ -17,12 +17,13 @@ import { canDo, useLegacyToast } from "../legacy-verbs";
 import { BarChart } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
 import { EmptyState } from "../kit/empty/empty";
+import { Figure } from "../kit/figure/figure";
 import { Button } from "../kit/button/button";
 import { Field } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
 import { useSurface } from "../use-surface";
-import { RpTile, RptSection } from "./blocks";
+import { RptSection } from "./blocks";
 import { RPT_GAINED } from "./series";
 
 /** What the receptionist does under a new review: the mode Settings holds, `never` opening the box empty. */
@@ -248,11 +249,20 @@ export function GoogleSection({ days, range }: { days: number; range: LensRange 
   }
   return (
     <RptSection title="Google reviews" meta={`${L.name} · ${L.checked.charAt(0).toLowerCase()}${L.checked.slice(1)}`}>
-      <div className="rp2-tiles rp2-strip-google four" data-testid="google-tiles">
+      {/* The strip's own pattern (RptTiles in blocks.tsx): the kit's figure in a list of terms, named by its metric; four, not five. */}
+      <dl className="rpt-figures four" data-testid="google-tiles">
         {vm.tiles.map((t) => (
-          <RpTile key={t.id} t={t} />
+          <Figure
+            key={t.id}
+            className="rpt-cell"
+            id={t.metric}
+            label={t.label}
+            value={t.value}
+            change={t.compare}
+            meta={t.meta}
+          />
         ))}
-      </div>
+      </dl>
       <div className="rpt-grid">
         {gainedCard(vm, days)}
         {latestCard(vm, L.mapsUri, operator)}

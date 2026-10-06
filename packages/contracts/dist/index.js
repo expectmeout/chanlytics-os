@@ -1154,19 +1154,26 @@ function lastWroteOn(messages) {
   const theirs = [...messages].reverse().find(isTheirOwnWords);
   return theirs ? writtenChannelOf(theirs.channel) : null;
 }
-var WRITTEN_TYPES = ["text", "template", "media"];
+function isChatMessage(m) {
+  return m.type !== "call_summary" && m.type !== "note";
+}
 function isFromTheirSide(m) {
-  return m.sender === "customer" && m.direction !== "outbound" && WRITTEN_TYPES.includes(m.type);
+  return m.sender === "customer" && m.direction !== "outbound" && isChatMessage(m);
 }
 function isTheirOwnWords(m) {
   return isFromTheirSide(m) && isPersonsWords(m.meta);
 }
 function threadChannelOf(messages) {
+  const reply = replyWireOf(messages);
+  if (reply) return reply;
+  const ours = [...messages].reverse().find((m) => m.type !== "call_summary");
+  return ours ? writtenChannelOf(ours.channel) : "phone";
+}
+function replyWireOf(messages) {
   const wrote = lastWroteOn(messages);
   if (wrote) return wrote;
-  const newest = [...messages].reverse();
-  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
-  return written ? writtenChannelOf(written.channel) : "phone";
+  const theirs = [...messages].reverse().find(isFromTheirSide);
+  return theirs ? writtenChannelOf(theirs.channel) : null;
 }
 function threadChannelWords(messages) {
   return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
@@ -1288,11 +1295,11 @@ function settledWords(e) {
   if (settled) return settled;
   return e.outcome === "unknown" ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again." : null;
 }
-function isChatMessage(m) {
-  return m.type !== "call_summary" && m.type !== "note";
-}
 function reachedCustomer(status) {
   return status !== "queued" && status !== "failed" && status !== "canceled";
+}
+function lastExchanged(messages) {
+  return [...messages].reverse().find((m) => isChatMessage(m) && (m.direction === "inbound" || reachedCustomer(m.status))) ?? null;
 }
 var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/;
 function isHeldDraft(m) {
@@ -4952,12 +4959,32 @@ function waitingOnProposal(r2, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS) return false;
   return !heardSinceProposal(r2);
 }
+function eachOpenProposal(rows) {
+  return rows.flatMap((r2) => {
+    const open = r2.openDeals && r2.openDeals.length ? r2.openDeals : r2.deal ? [r2.deal] : [];
+    return open.filter((d) => d.stage === "proposed").map((d) => ({ ...r2, deal: d }));
+  });
+}
 function proposalsWaiting(rows, nowMs, pace) {
   return rows.filter((r2) => waitingOnProposal(r2, nowMs, pace));
 }
 
 // src/deals/pipeline/pipeline-vm.ts
 var PIPELINE_GROUPS = ["consultations", "proposals", "clients", "closed"];
+function pipelineRowId(personId, dealKey) {
+  return dealKey === null ? personId : `${personId}_${dealKey}`;
+}
+function pipelineRowNow(vm, rowId) {
+  const rows = vm.groups.flatMap((g) => g.rows);
+  if (rows.some((row2) => row2.id === rowId)) return rowId;
+  const at3 = rowId.indexOf("_");
+  const deal = at3 < 0 ? null : rowId.slice(at3 + 1);
+  return deal && rows.find((row2) => row2.deal?.id === deal)?.id || null;
+}
+function pipelinePersonOf(rowId) {
+  const at3 = rowId.indexOf("_");
+  return at3 < 0 ? rowId : rowId.slice(0, at3);
+}
 
 // src/deals/deal-words.ts
 var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
@@ -5145,7 +5172,7 @@ function pipelineViewLabel(view, pace) {
   if (view === "all") return PIPELINE_WORDS.rail.all;
   return GROUP_WORDS[view];
 }
-var PEEK_ID = /^[A-Za-z0-9_-]{1,64}$/;
+var PEEK_ID = /^[A-Za-z0-9_-]{1,80}$/;
 function pipelineRoute(v = {}) {
   const parts2 = ["clients/pipeline"];
   const view = v.view && isPipelineView(v.view) ? v.view : "all";
@@ -5190,8 +5217,10 @@ function pipelineRail(vm, nowMs) {
     }))
   ];
   const proposals = vm.groups.find((g) => g.key === "proposals")?.rows ?? [];
-  const waiting = proposals.filter((r2) => waitingOnProposal(r2.person, nowMs, vm.pace)).length;
-  const lapsed = proposals.filter((r2) => !!r2.person.deal?.validUntil?.lapsed).length;
+  const waiting = proposals.filter(
+    (r2) => waitingOnProposal({ deal: r2.deal, askedMs: r2.person.askedMs }, nowMs, vm.pace)
+  ).length;
+  const lapsed = proposals.filter((r2) => !!r2.deal?.validUntil?.lapsed).length;
   const steps = vm.groups.reduce((n, g) => n + g.rows.filter(stepDue).length, 0);
   const waits = [
     { view: "waiting", label: waitingLabel(vm.pace), count: waiting, tone: "warn" },
@@ -5268,7 +5297,8 @@ function scopeFromRoute(page, param, label) {
       return null;
     }
     const pipeline = parsePipelineRoute(`clients/${param}`);
-    if (pipeline) return pipeline.peek ? { kind: "person", id: pipeline.peek, label: label || "this person" } : null;
+    if (pipeline)
+      return pipeline.peek ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" } : null;
     if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
   }
   return null;
@@ -5979,6 +6009,9 @@ function contactName(dto) {
 }
 function isIdentifierName(name) {
   return /^[+\d(]/.test(name) || name.includes("@");
+}
+function shortName(name) {
+  return isIdentifierName(name) ? name : name.split(" ")[0] || name;
 }
 function contactMeta(dto, channel = "WhatsApp") {
   const id = formatPhoneDisplay(dto.contact.phone_e164) ?? dto.contact.email ?? null;
@@ -7154,7 +7187,7 @@ var LIST_RULE_FIELDS = [
     label: "Standing",
     kind: "standing",
     needs: [],
-    draft: "value needs_you (waiting for a person) or waiting_on_you (you have the thread and they wrote last)"
+    draft: "value needs_you (waiting for a person) or waiting_on_you (a thread you have: you took it over, or your reply paused the receptionist)"
   },
   {
     id: "assigned",
@@ -7377,7 +7410,7 @@ function holds(f, v, inList) {
     case "assigned":
       return v.assigned === f.value === is;
     case "deal_stage":
-      return v.dealStage === f.value === is;
+      return v.dealStages.includes(f.value) === is;
     case "in_list":
       return inList(f.list, v.id) === is;
   }
@@ -7536,11 +7569,11 @@ var BUILTIN_LISTS = [
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "needs_you" })
   },
-  // Yours, or nobody's: a teammate's thread waits on them (standing.ts).
+  // Yours by the one standing rule (standing.ts): you took it over, or your reply paused the receptionist.
   {
     id: "waiting_on_you",
     label: "Waiting on you",
-    tip: "You have the thread, or nobody does, and they wrote last \u2014 a teammate's waits on them",
+    tip: "Threads you have: you took them over, or your reply paused the receptionist. A teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "waiting_on_you" })
@@ -7895,6 +7928,43 @@ var listSpec = {
   }
 };
 
+// src/conversations/standing.ts
+var HELD_WORDS = {
+  yours: {
+    pill: "You have it",
+    sentence: "You're answering this one. The receptionist stays quiet until you hand it back."
+  },
+  theirs: {
+    pill: "A teammate has it",
+    sentence: "A teammate is answering this. The receptionist stays quiet until they hand it back."
+  }
+};
+function standingOf(i, nowMs) {
+  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
+  const flagged = i.open_escalation || i.state === "needs_human" || paused;
+  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
+  const mine = !!i.assignee_user_id || paused && !i.open_escalation;
+  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
+  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
+}
+function standingOfThread(thread, openEscalation, nowMs) {
+  return standingOf(
+    {
+      state: thread.state,
+      paused_until: thread.paused_until,
+      assignee_user_id: thread.assignee_user_id,
+      assignee_is_me: thread.assignee_is_me,
+      open_escalation: openEscalation
+    },
+    nowMs
+  );
+}
+function replyWaitsOnYou(r2, nowMs) {
+  if (r2.held) return false;
+  if (r2.endsAtMs !== void 0 && r2.endsAtMs !== null) return r2.endsAtMs > nowMs;
+  return !!r2.queued;
+}
+
 // src/conversations/thread-clock.ts
 function shortTime(iso, tz, now) {
   const ms2 = iso ? Date.parse(iso) : Number.NaN;
@@ -7957,6 +8027,105 @@ function addedBy(added) {
     who: added.source === "calendar" ? "Calendar" : "Leads",
     how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`
   };
+}
+
+// src/conversations/escalations.ts
+var ESCALATION_REASON_LABELS = {
+  human_token: "Customer asked for a person",
+  refusal: "Assistant declined to answer",
+  brain_error: "The receptionist hit an error \u2014 a holding message went out",
+  non_text: "Sent a voice note / photo",
+  send_failed: "Reply failed to deliver",
+  policy_block: "Held by your reply setting \u2014 nothing was sent",
+  policy_ask: "Set to Ask me first \u2014 a person answers this one",
+  person_hold: "You handle this person \u2014 the receptionist stays out",
+  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
+  deadman: "Nobody picked this up \u2014 flagged after silence",
+  manual: "Flagged manually",
+  opt_out: "Asked to stop receiving messages",
+  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
+  stale: "Arrived hours late \u2014 too old to answer automatically",
+  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
+  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
+  paused: "Held \u2014 the workspace is paused until billing resumes",
+  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
+  email_review: "Wrote by email \u2014 a person answers"
+};
+var ESCALATION_REASON_SHORT = {
+  human_token: "asked for a person",
+  refusal: "the receptionist declined to answer",
+  brain_error: "the receptionist hit an error",
+  non_text: "sent a voice note or photo",
+  send_failed: "reply failed to deliver",
+  policy_block: "held by your reply setting",
+  policy_ask: "set to Ask me first",
+  person_hold: "you handle this person",
+  rate_cap: "too many replies too fast",
+  deadman: "nobody picked this up",
+  manual: "flagged by hand",
+  opt_out: "asked to stop",
+  state_unavailable: "the receptionist could not read this thread",
+  stale: "arrived hours late",
+  budget: "the day's model budget is used up",
+  callback: "needs a call back",
+  paused: "the workspace is paused until billing resumes",
+  carriers: "the carriers have not approved this line",
+  email_review: "wrote by email"
+};
+function reasonShort(reason) {
+  if (!reason) return "";
+  return ESCALATION_REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
+}
+var ESCALATION_REASON_WHY = {
+  human_token: "because a customer asked for a person",
+  refusal: "because it declined to answer",
+  brain_error: "because it hit an error",
+  non_text: "for something it can't read",
+  send_failed: "because a reply failed to send",
+  policy_block: "because your reply setting held it",
+  policy_ask: "for a booking or a question set to Ask me first",
+  person_hold: "because you handle this person",
+  rate_cap: "because the reply limit was reached",
+  deadman: "because no answer came in time",
+  manual: "because it was flagged by hand",
+  opt_out: "because they asked to stop",
+  state_unavailable: "because it could not read the thread",
+  stale: "because a message arrived too late to answer",
+  budget: "because the day's model budget ran out",
+  callback: "because they need a call back",
+  paused: "because the workspace is paused",
+  carriers: "while waiting on carriers",
+  email_review: "because they wrote by email"
+};
+function reasonWhy(reason) {
+  return ESCALATION_REASON_WHY[reason] ?? `because ${reasonShort(reason)}`;
+}
+var ESCALATION_SUMMARIES = {
+  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
+  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
+  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
+  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
+  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
+  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
+  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
+  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
+  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
+  manual: "Flagged by hand for a human.",
+  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
+  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
+  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
+  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
+  callback: "They phoned and the receptionist couldn't finish it.",
+  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
+  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
+};
+function reasonLabelOf(reason) {
+  return ESCALATION_REASON_LABELS[reason] ?? reason;
+}
+function reasonSummaryOf(reason) {
+  return ESCALATION_SUMMARIES[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
 }
 
 // src/people/person-merge.ts
@@ -8083,84 +8252,13 @@ function saidYesTo(r2, purpose, channel, about) {
   return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
 }
 
-// src/conversations/escalations.ts
-var ESCALATION_REASON_LABELS = {
-  human_token: "Customer asked for a person",
-  refusal: "Assistant declined to answer",
-  brain_error: "The receptionist hit an error \u2014 a holding message went out",
-  non_text: "Sent a voice note / photo",
-  send_failed: "Reply failed to deliver",
-  policy_block: "Held by your reply setting \u2014 nothing was sent",
-  policy_ask: "Set to Ask me first \u2014 a person answers this one",
-  person_hold: "You handle this person \u2014 the receptionist stays out",
-  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
-  deadman: "Nobody picked this up \u2014 flagged after silence",
-  manual: "Flagged manually",
-  opt_out: "Asked to stop receiving messages",
-  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically",
-  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
-  paused: "Held \u2014 the workspace is paused until billing resumes",
-  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers"
-};
-var ESCALATION_REASON_SHORT = {
-  human_token: "asked for a person",
-  refusal: "the receptionist declined to answer",
-  brain_error: "the receptionist hit an error",
-  non_text: "sent a voice note or photo",
-  send_failed: "reply failed to deliver",
-  policy_block: "held by your reply setting",
-  policy_ask: "set to Ask me first",
-  person_hold: "you handle this person",
-  rate_cap: "too many replies too fast",
-  deadman: "nobody picked this up",
-  manual: "flagged by hand",
-  opt_out: "asked to stop",
-  state_unavailable: "the receptionist could not read this thread",
-  stale: "arrived hours late",
-  budget: "the day's model budget is used up",
-  callback: "needs a call back",
-  paused: "the workspace is paused until billing resumes",
-  carriers: "the carriers have not approved this line",
-  email_review: "wrote by email"
-};
-function reasonShort(reason) {
-  if (!reason) return "";
-  return ESCALATION_REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
-}
-var ESCALATION_SUMMARIES = {
-  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
-  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
-  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
-  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
-  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
-  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
-  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
-  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
-  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
-  manual: "Flagged by hand for a human.",
-  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
-  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
-  callback: "They phoned and the receptionist couldn't finish it.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
-};
-function reasonLabelOf(reason) {
-  return ESCALATION_REASON_LABELS[reason] ?? reason;
-}
-function reasonSummaryOf(reason) {
-  return ESCALATION_SUMMARIES[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
-}
-
 // src/people/person-row-facts.ts
 function ago(ms2, tz, nowMs) {
   return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS, date: (at3) => clockDate(at3, tz, nowMs) });
+}
+function theirTurnWords(last) {
+  if (last.who !== "they") return null;
+  return last.kind === "call" ? "they called last" : "they wrote last";
 }
 function lastContactOf(r2, tz, nowMs) {
   const m = ts(r2.last_message_at);
@@ -8263,21 +8361,6 @@ function consentOf(r2, tz, nowMs) {
   };
 }
 
-// src/conversations/standing.ts
-function standingOf(i, nowMs) {
-  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
-  const flagged = i.open_escalation || i.state === "needs_human" || paused;
-  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
-  const mine = !!i.assignee_user_id || paused && !i.open_escalation;
-  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
-  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
-}
-function replyWaitsOnYou(r2, nowMs) {
-  if (r2.held) return false;
-  if (r2.endsAtMs !== void 0 && r2.endsAtMs !== null) return r2.endsAtMs > nowMs;
-  return !!r2.queued;
-}
-
 // src/people/person-state.ts
 var PERSON_STATE_LABELS = {
   needs_you: "Needs you",
@@ -8313,17 +8396,15 @@ function personStanding(r2, nowMs, viewerId = null) {
 function attentionOf(r2, nowMs, viewerId = null) {
   const v = personStanding(r2, nowMs, viewerId);
   if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r2.queued_reply_at }, nowMs)) return "needs_you";
-  const assignee = r2.latest_assignee_user_id;
-  const owned = assignee ? !viewerId || assignee === viewerId : v.takenOver;
-  if (owned && (v.flagged || r2.last_message_direction === "inbound")) return "waiting_on_you";
-  return null;
+  return v.takenOver ? "waiting_on_you" : null;
 }
 function heardAt(r2) {
   const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
   return at3.length ? Math.max(...at3) : null;
 }
-function isOwned(r2, nowMs) {
-  return !!r2.latest_assignee_user_id || personStanding(r2, nowMs).takenOver;
+function holderOf(r2, nowMs, viewerId) {
+  const v = personStanding(r2, nowMs, viewerId);
+  return v.claimedByOther ? "theirs" : v.takenOver ? viewerId ? "yours" : "someone" : null;
 }
 function personStateFor(r2, nowMs, tz, viewerId = null) {
   const attention = attentionOf(r2, nowMs, viewerId);
@@ -8347,8 +8428,29 @@ var PERSON_MODE_WORDS = {
 function asPersonMode(s) {
   return s && PERSON_MODES.includes(s) ? s : null;
 }
-function receptionistOf(r2, tz, nowMs) {
-  if (isOwned(r2, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
+var HELD_THREAD = {
+  yours: {
+    tone: "yours",
+    label: HELD_WORDS.yours.pill,
+    title: HELD_WORDS.yours.pill,
+    detail: HELD_WORDS.yours.sentence
+  },
+  theirs: {
+    tone: "theirs",
+    label: HELD_WORDS.theirs.pill,
+    title: HELD_WORDS.theirs.pill,
+    detail: HELD_WORDS.theirs.sentence
+  },
+  someone: {
+    tone: "paused",
+    label: "Paused, a person owns the thread",
+    title: "Paused, a person owns this thread",
+    detail: "A person owns this thread; automatic replies resume when it is handed back."
+  }
+};
+function receptionistOf(r2, tz, nowMs, viewerId) {
+  const held = holderOf(r2, nowMs, viewerId);
+  if (held) return { tone: HELD_THREAD[held].tone, label: HELD_THREAD[held].label };
   if (r2.open_escalation_reason)
     return { tone: "escalated", label: `Escalated, ${reasonShort(r2.open_escalation_reason)}` };
   if (r2.needs_human) return { tone: "escalated", label: "Waiting for a person" };
@@ -9578,10 +9680,26 @@ function buildAskSuggestions(input) {
 var ABANDONED_MS = 15e3;
 function abandonedCall(dto) {
   if (dto.direction !== "inbound") return false;
-  if (dto.status === "not_connected" || dto.in_voicemail) return false;
+  if (neverConnected(dto) || reachedVoicemail(dto)) return false;
   const ms2 = dto.duration_ms;
   if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
   return dto.disconnection_reason === "user_hangup";
+}
+function neverConnected(dto) {
+  return dto.status === "not_connected";
+}
+function recordingStateOf(dto) {
+  const at3 = dto.recording?.fetch_state;
+  if (at3 === "stored") return "ready";
+  if (at3 === "failed" || at3 === "purged") return at3;
+  return dto.recording ? "pending" : "none";
+}
+function endedHowOf(dto) {
+  const why = dto.disconnection_reason;
+  return why ? DISCONNECTION_LABELS[why] ?? why.replace(/_/g, " ") : null;
+}
+function reachedVoicemail(dto) {
+  return dto.in_voicemail === true || dto.disconnection_reason === "voicemail_reached" || dto.outcome === "voicemail";
 }
 function missedCall(c) {
   return c.missed && c.direction !== "outbound";
@@ -9609,6 +9727,408 @@ var DISCONNECTION_LABELS = {
   transfer_bridged: "Transferred to a person",
   transfer_cancelled: "Transfer did not go through"
 };
+
+// src/config/no-booking-link.ts
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
+function offersBookingLink(brain) {
+  return !brain || !!brain.booking_link;
+}
+function priceNextStep(hasBookingLink) {
+  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
+}
+
+// src/voice/whisper.ts
+var OPEN = 'Owner: "';
+function frameWhisper(text) {
+  return `A whisper from the business owner, who is listening to this call. The caller cannot hear it.
+${OPEN}${text.trim()}"
+Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
+}
+function frameGuardrail(rule2, opts) {
+  const what = rule2 === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
+  return `A correction from the Chanlytics platform, not from the business. The caller cannot hear it.
+${what}
+Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${priceNextStep(opts.hasBookingLink)}. Do not repeat the figure, and never read this out.`;
+}
+function frameSteer(text) {
+  return `An instruction from the business owner, who read your draft before it went out. The customer cannot see it.
+${OPEN}${text.trim()}"
+Write your reply again and follow it where it fits. Keep everything else that was right. Never repeat the instruction word for word. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, no health advice, and say you are an automated assistant if asked \u2014 if the instruction asks for one of those, use what you can of it and leave the rest.`;
+}
+function whisperText(content) {
+  const c = (content ?? "").replace(/\r\n/g, "\n");
+  const at3 = c.indexOf(OPEN);
+  if (at3 === -1) return c.trim();
+  const rest = c.slice(at3 + OPEN.length);
+  const close = rest.indexOf('"\n');
+  return (close === -1 ? rest.replace(/"$/, "") : rest.slice(0, close)).trim();
+}
+function frameHandOver() {
+  return "A message from the Chanlytics platform, not from the business. The caller cannot hear it.\nThe business owner is picking up this call themselves.\nTransfer the caller to the business's own line now with transfer_to_staff. Say only that you are connecting them to someone at the business; do not ask why, do not answer anything else first, and never read this out.";
+}
+var PLATFORM = "from the Chanlytics platform";
+function injectedTurn(content) {
+  const c = (content ?? "").replace(/\r\n/g, "\n");
+  if (c.includes(OPEN)) return { speaker: "whisper", text: whisperText(c) };
+  const lines = c.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length >= 2 && lines[0].includes(PLATFORM)) return { speaker: "platform", text: lines[1] };
+  return { speaker: "whisper", text: c.trim() };
+}
+
+// src/voice/call-words.ts
+var CALL_OUTCOMES = [
+  "answered",
+  "booking_link_sent",
+  "callback_needed",
+  "voicemail",
+  "no_request",
+  "other"
+];
+var CALL_OUTCOME_WORDS = {
+  answered: "Question answered",
+  booking_link_sent: "Booking link sent",
+  callback_needed: "Needs a call back",
+  voicemail: "Reached voicemail",
+  no_request: "No request made",
+  other: "Handled"
+};
+function callOutcomeOf(v) {
+  return typeof v === "string" && CALL_OUTCOMES.includes(v) ? v : null;
+}
+function callOutcomeWords(v) {
+  const o = callOutcomeOf(v);
+  return o ? CALL_OUTCOME_WORDS[o] : null;
+}
+function callTodoWords(followUp) {
+  const said = followUp?.trim();
+  return said ? `To do: ${said}` : null;
+}
+function callNotesOf(a) {
+  const name = a.caller_name?.trim();
+  const email = a.caller_email?.trim();
+  return {
+    todo: callTodoWords(a.follow_up),
+    gave: [name ? `Gave their name as ${name}` : "", email ? `Gave their email as ${email}` : ""].filter(Boolean)
+  };
+}
+function callNoteLines(n) {
+  return n.todo ? [n.todo, ...n.gave] : n.gave;
+}
+function tidyCallSummary(text) {
+  const t = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  const folded = t.replace(
+    /^The (?:user|caller|customer) (?:called|phoned|contacted|reached out to) [^.,;]*? (to|and) /i,
+    (_m, joiner) => joiner.toLowerCase() === "to" ? "Called to " : "Called and "
+  );
+  return folded.charAt(0).toUpperCase() + folded.slice(1);
+}
+
+// src/workspace/retention.ts
+var RETENTION_DAYS = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
+  ask_voice_sessions: 1,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+  leads_excluded_blanked: 30,
+  /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
+  jobs_finished: 7,
+  /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
+  jobs_failed: 90,
+  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
+  page_vitals: 30,
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
+  ai_usage: 400,
+  /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00335; decision 0031). */
+  provider_events: 7
+};
+var RATE_HITS_RETENTION_HOURS = 2;
+var EVENT_EVIDENCE_KINDS = [
+  "webhook.auth",
+  "webhook.delivery",
+  "ingest.allowlist_skip",
+  "ingest.unreachable_sender",
+  "ingest.unroutable",
+  "usage.llm_tokens",
+  "usage.ask_tokens"
+];
+var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
+function retentionWords() {
+  const d = RETENTION_DAYS;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
+}
+var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
+var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
+
+// src/conversations/call-vm.ts
+function callOutcomeFor(dto, live) {
+  if (live) return "live";
+  if (neverConnected(dto)) return "missed";
+  if (dto.status === "error") return "failed";
+  if (abandonedCall(dto)) return "abandoned";
+  if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
+  return reachedVoicemail(dto) ? "voicemail" : "handled";
+}
+function spokenDuration(ms2) {
+  if (!ms2) return "Duration not recorded";
+  const total = Math.round(ms2 / 1e3);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return m ? `${m} min ${sec} sec` : `${sec} sec`;
+}
+var CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
+var RECORDING_NOTE = {
+  none: "No recording",
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
+};
+function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
+  const withheld = !dto.from_e164 && !dto.from_raw;
+  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
+  const who = callerName(dto);
+  const whoShort = name ? shortName(name) : "Caller";
+  const dur = callLength(dto.duration_ms);
+  const live = isLiveCall(dto, now);
+  const missed = neverConnected(dto);
+  const wanted = (dto.wanted || "").trim();
+  const headSummary = tidyCallSummary(dto.summary) ?? "";
+  const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
+  const bullets = [
+    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`
+  ];
+  const ending = endedHowOf(dto);
+  if (ending) bullets.push(`Ended: ${ending}`);
+  if (dto.sentiment) {
+    bullets.push(`Caller sentiment: ${dto.sentiment} \u2014 the voice provider's own read`);
+  }
+  const outcomeWords = callOutcomeWords(dto.outcome);
+  if (outcomeWords) bullets.push(outcomeWords);
+  const notes = callNotesOf(dto);
+  if (notes.todo) bullets.push(notes.todo);
+  bullets.push(...notes.gave);
+  const recState = recordingStateOf(dto);
+  if (!missed) {
+    bullets.push(
+      recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : recState === "failed" ? "Recording couldn't be saved from the voice provider" : recState === "purged" ? RECORDING_PURGED_WORDS : "No recording for this call"
+    );
+  }
+  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
+  const turns = dto.transcript_object ?? [];
+  const given = turns.map((turn) => turn.role === "injected" ? null : turn.start ?? turn.words?.[0]?.start ?? null);
+  const starts = given.map((s, i) => {
+    if (s != null || turns[i].role === "injected") return s;
+    const before = given.slice(0, i).reverse().find((x) => x != null) ?? null;
+    const after = given.slice(i + 1).find((x) => x != null) ?? null;
+    return before != null && after != null ? (before + after) / 2 : before ?? after;
+  });
+  const transcript = turns.map((turn, i) => {
+    if (turn.role === "injected") {
+      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content), start: null, end: null };
+    }
+    const own = given[i];
+    const start = starts[i];
+    const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
+    const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
+    return {
+      t: typeof own === "number" ? mmss(own * 1e3) : "\u2014",
+      speaker: turn.role === "agent" ? "agent" : "client",
+      text: turn.content ?? "",
+      start,
+      end
+    };
+  });
+  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (reachedVoicemail(dto) ? "Reached voicemail." : "No summary from this call.");
+  return {
+    id: `cv-${dto.id}`,
+    real: true,
+    callId: dto.id,
+    who,
+    whoShort,
+    initials: withheld ? "\u2013" : initialsOf(who),
+    clientId: dto.contact_id,
+    channel: "phone",
+    agent: { glyph: "P", name: "Phone Receptionist" },
+    at: shortTime(dto.started_at, tz, now),
+    ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
+    ...dur ? { duration: dur } : {},
+    outcome: callOutcomeFor(dto, live),
+    ...live ? { live: true } : {},
+    snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
+    summary: { headline: wanted || firstSentence || snippetBody, bullets },
+    transcript,
+    durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
+    recordingState: recState,
+    ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
+    ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {},
+    // The call's facts as facts, for the thread's call card: they were only inside the bullets' sentences.
+    ...dto.message_id ? { messageId: dto.message_id } : {},
+    direction: dto.direction === "outbound" ? "outbound" : "inbound",
+    missed,
+    // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
+    about: missed ? null : wanted || firstSentence || null,
+    facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? void 0 : RECORDING_NOTE[recState]].filter(
+      (f) => !!f
+    ),
+    notes
+  };
+}
+
+// src/voice/live.ts
+var LIVE_STALE_MS = 5 * MIN_MS;
+var LIVE_OVERLONG_MS = 30 * MIN_MS;
+var ANALYSIS_GRACE_MS = 10 * MIN_MS;
+var RECENT_MAX = 8;
+var MISSED_CALL_NEWS_MS = DAY_MS;
+function missedCallIsNews(c, now) {
+  return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
+}
+function fmtClock(seconds2) {
+  return mmss(Math.max(0, seconds2) * 1e3);
+}
+function liveStillUp(c, heartbeatMs, nowMs) {
+  if (!c.live) return false;
+  return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
+}
+function callsStillUp(read, nowMs) {
+  return (read?.now ?? []).filter((c) => liveStillUp(c, read?.heartbeatMs ?? 0, nowMs));
+}
+function liveBar(vm, nowMs) {
+  const up = callsStillUp(vm, nowMs);
+  if (up.length === 0) return null;
+  if (up.length > 1) {
+    return {
+      callId: null,
+      text: `${up.length} calls on your line now`,
+      sinceMs: null,
+      checking: up.some((c2) => c2.checking)
+    };
+  }
+  const c = up[0];
+  return {
+    callId: c.callId,
+    text: `On the phone now \xB7 ${c.whoShort}`,
+    // A call whose provider has gone quiet gets no running clock: the number
+    // would keep climbing for something that may already have ended.
+    sinceMs: c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs),
+    checking: c.checking
+  };
+}
+function turnsOf(dto) {
+  return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
+    const start = turn.start ?? turn.words?.[0]?.start;
+    if (turn.role === "injected") {
+      const said = injectedTurn(turn.content);
+      return { speaker: said.speaker, text: said.text, t: "\u2014" };
+    }
+    return {
+      speaker: turn.role === "agent" ? "agent" : "client",
+      text: turn.content ?? "",
+      t: typeof start === "number" ? mmss(start * 1e3) : "\u2014"
+    };
+  });
+}
+function checkingOf(live, startedAtMs, heartbeatAtMs, nowMs) {
+  if (!live) return { checking: false, checkingWhy: null };
+  const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
+  const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
+  if (sinceBeat > LIVE_STALE_MS) {
+    return {
+      checking: true,
+      checkingWhy: `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`
+    };
+  }
+  if (sinceStart > LIVE_OVERLONG_MS) {
+    return { checking: true, checkingWhy: `live for over ${Math.floor(sinceStart / MIN_MS)} minutes` };
+  }
+  return { checking: false, checkingWhy: null };
+}
+function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
+  const nowMs = now.getTime();
+  const withheld = !dto.from_e164 && !dto.from_raw;
+  const phone = formatPhoneDisplay(dto.from_e164);
+  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
+  const who = callerName(dto);
+  const whoShort = name ? shortName(name) : "the caller";
+  const live = isLiveCall(dto, now);
+  const missed = neverConnected(dto);
+  const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
+  const beat = dto.updated_at ?? dto.started_at;
+  const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
+  const { checking, checkingWhy } = checkingOf(live, startedAtMs, heartbeatAtMs, nowMs);
+  const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
+  const summary = (dto.summary ?? "").trim() || null;
+  const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
+  return {
+    callId: dto.id,
+    cvId: `cv-${dto.id}`,
+    clientId: dto.contact_id,
+    who,
+    whoShort,
+    initials: withheld ? "\u2013" : initialsOf(who),
+    // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
+    // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
+    number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : phone ?? dto.from_raw,
+    from: withheld ? null : dto.from_e164,
+    direction: dto.direction,
+    status: dto.status,
+    live,
+    missed,
+    outcome: callOutcomeFor(dto, live),
+    stale: dto.status === "ongoing" && !live,
+    checking,
+    checkingWhy,
+    startedAtMs,
+    heartbeatAtMs,
+    startedLabel: shortTime(dto.started_at, tz, now),
+    duration: live || missed ? null : callLength(dto.duration_ms) ?? null,
+    summaryState,
+    summary,
+    sentiment: dto.sentiment,
+    endedHow: endedHowOf(dto),
+    recordingState: recordingStateOf(dto),
+    // The analysis's words, as toCallVM reads them; none while the call is still on the line.
+    wanted: live ? null : dto.wanted?.trim() || null,
+    outcomeWords: live ? null : callOutcomeWords(dto.outcome),
+    notes: live ? { todo: null, gave: [] } : callNotesOf(dto),
+    lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
+    transcript: turnsOf(dto)
+  };
+}
+function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
+  const vms = calls.map((c) => toLiveCallVM(c, tz, now));
+  const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
+  const finished = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
+  const recent = finished.slice(0, RECENT_MAX);
+  const missedCalls = finished.filter((c) => missedCallIsNews(c, now.getTime()));
+  const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
+  const line = voice ? {
+    number: formatPhoneDisplay(voice.number_e164),
+    on: voice.status === "active",
+    lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, tz, now) : null
+  } : null;
+  return {
+    now: nowList,
+    recent,
+    missedCalls,
+    line,
+    lineRead: channels !== null,
+    heartbeatMs: CALL_HEARTBEAT_MS,
+    fetchedAtMs: now.getTime()
+  };
+}
 
 // src/ask/ask-fast-paths.ts
 var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
@@ -9659,7 +10179,9 @@ function callsToday(calls, now, tz) {
   const today = dayKey(now, tz);
   return {
     missed: calls.filter((c) => missedCall(c) && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
-    live: calls.filter((c) => c.live)
+    // On the line by the heartbeat, as Live and the strip count it: a read kept between refreshes still says `live` of
+    // a call the provider has gone quiet on.
+    live: calls.filter((c) => liveStillUp(c, CALL_HEARTBEAT_MS, now))
   };
 }
 
@@ -10320,7 +10842,11 @@ var USE_IN_A_BROADCAST = "Use in a broadcast";
 var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts/offers_ok", broadcast: true };
 var LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
-  waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
+  waiting_on_you: {
+    cta: "Open the Inbox",
+    to: "inbox",
+    text: "You have these threads: the receptionist stays quiet on them until you hand them back."
+  },
   new_week: {
     cta: "Get their yes",
     to: GET_YES_ROUTE,
@@ -12274,15 +12800,6 @@ function parseIcs(text, fallbackTz, opts = {}) {
   return { busy, items, events, recurringExpanded, skippedRecurring };
 }
 
-// src/config/no-booking-link.ts
-var NO_LINK_DETAILS = "their name, what they need, and where and when";
-function offersBookingLink(brain) {
-  return !brain || !!brain.booking_link;
-}
-function priceNextStep(hasBookingLink) {
-  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
-}
-
 // src/calendar/availability.ts
 var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
 function hhmm(s) {
@@ -13084,6 +13601,7 @@ function matchPerson(item, everyone, own) {
   const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
   return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p) } : null;
 }
+var NEAR_VISIT_MS = 3 * DAY_MS;
 function indexFeed(items, own) {
   const byPhone = /* @__PURE__ */ new Map();
   const byEmail = /* @__PURE__ */ new Map();
@@ -13121,9 +13639,10 @@ function allVisitsIn(index, person) {
   return out.sort((a, b) => a.start - b.start);
 }
 function visitsIn(index, person, nowMs) {
-  if (isOwn(index.own, person)) return { next: null, last: null };
+  if (isOwn(index.own, person)) return { next: null, last: null, near: [] };
   let next = null;
   let last = null;
+  const near2 = [];
   const seen = /* @__PURE__ */ new Set();
   const take = (it, via) => {
     if (seen.has(it)) return;
@@ -13139,6 +13658,7 @@ function visitsIn(index, person, nowMs) {
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
+    if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near2.push(v);
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
@@ -13146,7 +13666,7 @@ function visitsIn(index, person, nowMs) {
   if (re) {
     for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   }
-  return { next, last };
+  return { next, last, near: near2.sort((a, b) => a.start - b.start) };
 }
 function visitsOf(items, person, nowMs, own) {
   return visitsIn(indexFeed(items, own), person, nowMs);
@@ -13323,7 +13843,7 @@ function toBookingReportVM(dto) {
       present: true,
       calendar: "ok",
       headline: "Nobody asked",
-      sub: `nobody wrote or called in the last ${dto.days} days`,
+      sub: `nobody wrote or called in the last ${plural(dto.days, "day")}`,
       words: "",
       pct: null,
       asked: 0,
@@ -13332,7 +13852,7 @@ function toBookingReportVM(dto) {
       rest: ""
     };
   const pct3 = Math.round(dto.booked / dto.asked * 100);
-  const words3 = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
+  const words3 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
   const unbooked = dto.asked - dto.booked;
   return {
     present: true,
@@ -13346,7 +13866,7 @@ function toBookingReportVM(dto) {
     unbooked,
     // The other side of the same share, said once: who is still waiting to be
     // given a time. It is the half an owner can do something about.
-    rest: unbooked === 0 ? `Everyone who asked in the last ${dto.days} days has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
+    rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
   };
 }
 
@@ -13411,7 +13931,7 @@ var JOB_KINDS = [
    */
   "reply_read",
   /**
-   * One event's delivery to one subscriber (00332, decision 0030): the relay writes it beside the event_deliveries row,
+   * One event's delivery to one subscriber (00333, decision 0031): the relay writes it beside the event_deliveries row,
    * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
    * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
    * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
@@ -15769,13 +16289,29 @@ function holdBuckets(replies) {
   ];
 }
 var absoluteBuckets = (sortedReply) => spanCounts(REPLY_BUCKETS, sortedReply);
+var replyHoldDtoOf = (hold) => hold ? { label: hold.label, at_end: hold.atEnd, later: hold.later, unheld: hold.unheld } : null;
+var repliesSeen = (hold) => hold.unheld + hold.atEnd + hold.later;
+var waitedHold = (hold) => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
+var endedWithHold = (hold) => hold.atEnd >= hold.later;
+var againstHold = (hold) => endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
 function heroSpeed(replies, medianLabel, hold) {
   if (!replies) return "";
-  const held = hold ? hold.atEnd + hold.later : 0;
-  const seen = hold ? hold.unheld + held : 0;
-  if (!hold || held * 2 <= seen) return ` Half of its replies went out within ${medianLabel}.`;
-  if (hold.atEnd >= hold.later) return ` ${hold.atEnd} of ${seen} went out as your ${hold.label} hold ended.`;
-  return ` ${hold.later} of ${seen} took longer than your ${hold.label} hold.`;
+  if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
+  return ` ${endedWithHold(hold) ? hold.atEnd : hold.later} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
+}
+function replySpeedOf(median, hold) {
+  if (median === null) return null;
+  const counts = hold && {
+    label: hold.label,
+    atEnd: hold.at_end,
+    later: hold.later,
+    unheld: hold.unheld
+  };
+  if (!counts || !waitedHold(counts)) return { held: false, seconds: median };
+  return {
+    held: true,
+    words: againstHold(counts)
+  };
 }
 function holdLine(hold) {
   if (hold.laterMost !== null) {
@@ -16054,6 +16590,11 @@ function rhythmLine(week) {
   if (week.quietest === null) return null;
   return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
 }
+var rangeLabelOf = (days) => REPORT_RANGES.find((r2) => r2.days === days)?.label ?? plural(days, "day");
+var periodWords = (rangeLabel) => ({
+  now: `Last ${rangeLabel}`,
+  before: `The ${rangeLabel} before`
+});
 function periodFactsOf(dto) {
   const days = dto.days;
   const series = dto.series ?? [];
@@ -16104,9 +16645,11 @@ function periodFactsOf(dto) {
     tot,
     prev,
     noun,
-    rangeLabel: REPORT_RANGES.find((r2) => r2.days === days)?.label ?? noun,
+    rangeLabel: rangeLabelOf(days),
     // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
     priorHadAny: prev.in + prev.calls > 0,
+    /** Nobody wrote or called in the period: no customer message and no call. */
+    empty: tot.in === 0 && tot.calls === 0,
     answeredTotal,
     aiShare: answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null,
     prevAnsweredTotal,
@@ -16202,6 +16745,23 @@ function linesOf(f, week, channels) {
     rhythm: rhythmLine(week)
   };
 }
+function headlineOf(dto, period, booking) {
+  const f = periodFactsOf(dto);
+  return {
+    period,
+    days: f.days,
+    empty: f.empty,
+    messages_in: f.tot.in,
+    // Nothing to compare with where the period before had no customer message and no call at all (compareWords).
+    messages_before: f.priorHadAny ? f.prev.in : null,
+    answered_ai: f.tot.ai,
+    answered_you: f.tot.you,
+    unanswered: f.tot.none,
+    answered_share: answeredOf(f).share,
+    calls: f.tot.calls,
+    booking
+  };
+}
 function toReportVM(dto, opts) {
   const f = periodFactsOf(dto);
   const tiles = REPORT_TILES.map((tile) => tile(f));
@@ -16217,7 +16777,7 @@ function toReportVM(dto, opts) {
     since: first ? fmtDay(first) : "",
     until: last ? fmtDay(last) : "",
     timezone: dto.timezone,
-    empty: f.tot.in === 0 && f.tot.calls === 0,
+    empty: f.empty,
     tiles,
     answered: answeredOf(f),
     reasons,
@@ -16232,7 +16792,7 @@ function toReportVM(dto, opts) {
     hours: hoursOf2(dto.hours, closedOf(dto.arrivals, opts?.profile)),
     hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
     channels,
-    period: { now: `Last ${f.rangeLabel}`, before: `The ${f.rangeLabel} before` },
+    period: periodWords(f.rangeLabel),
     lines: linesOf(f, week, channels),
     table: {
       columns: [
@@ -17586,16 +18146,7 @@ function replyLeftAsOf(meta) {
 
 // src/conversations/inbox-thread.ts
 function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
-  const v = standingOf(
-    {
-      state: dto.state,
-      paused_until: dto.paused_until,
-      assignee_user_id: dto.assignee_user_id,
-      assignee_is_me: dto.assignee_is_me,
-      open_escalation: !!escalation
-    },
-    now.getTime()
-  );
+  const v = standingOfThread(dto, !!escalation, now.getTime());
   const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
@@ -17607,6 +18158,12 @@ function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date(
   const draft = heldDraftOf(dto.messages);
   return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
 }
+function threadsWaitingOnYou(conversations, escalations, now) {
+  const open = new Map(escalations.filter((e) => e.state === "open").map((e) => [e.conversation_id, e]));
+  const held = new Set(conversations.map((c) => c.id));
+  const loaded = conversations.filter((c) => conversationWaitsOnYou(c, open.get(c.id) ?? null, now)).length;
+  return loaded + [...open.keys()].filter((id) => !held.has(id)).length;
+}
 function heldDraftWaits(vm, nowMs) {
   return !!vm.heldDraft && replyWaitsOnYou({ endsAtMs: vm.heldDraft.sendsAtMs }, nowMs);
 }
@@ -17617,18 +18174,25 @@ function replyFacts(dto, primaryChannel, tz, now) {
     emailStopped: primaryChannel === "email" ? emailStoppedWords(dto.contact, tz, now) : null
   };
 }
+function snoozedThreadWords(openRequest) {
+  const hidden = "Hidden from your queue. The receptionist still answers, and a new message brings it back.";
+  return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
+}
+function previewOf(messages) {
+  const last = [...messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
+  return last ? messageWords(last).slice(0, 110) : "";
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
   const draftMsg = heldDraftOf(dto.messages);
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
-  const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
+  const chatChannel = writtenChannelOf(replyWireOf(dto.messages));
+  const win = replyWindow(chatChannel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
-  const chatChannel = writtenChannelOf(lastInbound?.channel);
   const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
   const written = [...new Set(dto.messages.filter(isChatMessage).map((m) => writtenChannelOf(m.channel)))];
   const channels = [
@@ -17743,15 +18307,14 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
-    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
-    preview: last ? messageWords(last).slice(0, 110) : "",
+    preview: previewOf(dto.messages),
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
-    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? (
+    summary: claimedByOther ? HELD_WORDS.theirs.sentence : escalation ? (
       // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
       // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
       escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : reasonSummaryOf(escalation.reason)
-    ) : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
+    ) : takenOver ? HELD_WORDS.yours.sentence : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
@@ -17769,14 +18332,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
 }
 function lastWordOf(dto) {
   const chat = dto.messages.filter(isChatMessage);
-  let at3 = chat.length - 1;
-  let failed = null;
-  for (; at3 >= 0; at3--) {
-    const m = chat[at3];
-    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
-    if (!failed && m.status === "failed") failed = m;
-  }
-  const last = at3 >= 0 ? chat[at3] : null;
+  const last = lastExchanged(chat);
+  const failed = [...chat.slice(last ? chat.indexOf(last) + 1 : 0)].reverse().find((m) => m.status === "failed") ?? null;
   const failedBy = failed ? messageAuthor(failed)?.words ?? "us" : null;
   if (!last) {
     if (failedBy)
@@ -17801,7 +18358,7 @@ function lastWordOf(dto) {
 // src/conversations/conversation-vm.ts
 function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
-  const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
+  const whoShort = shortName(who);
   const msgs = dto.messages.map((m) => ({
     from: m.sender === "customer" ? "client" : "agent",
     // The row's own channel, not an assumption. Every bubble on this surface
@@ -17821,19 +18378,10 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chat = dto.messages.filter(isChatMessage);
-  const callNotes = dto.messages.length - chat.length;
-  const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  const callNotes = dto.messages.filter((m) => m.type === "call_summary").length;
+  const last = lastExchanged(chat);
   const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
-  const v = standingOf(
-    {
-      state: dto.state,
-      paused_until: dto.paused_until,
-      assignee_user_id: dto.assignee_user_id,
-      assignee_is_me: dto.assignee_is_me,
-      open_escalation: !!escalation
-    },
-    now.getTime()
-  );
+  const v = standingOfThread(dto, !!escalation, now.getTime());
   const needsHuman = v.flagged;
   const outcome = needsHuman ? "escalated" : last?.direction === "inbound" || dto.state === "snoozed" ? "open" : "handled";
   return {
@@ -17866,257 +18414,6 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
       ]
     },
     messages: msgs
-  };
-}
-
-// src/voice/whisper.ts
-var OPEN = 'Owner: "';
-function frameWhisper(text) {
-  return `A whisper from the business owner, who is listening to this call. The caller cannot hear it.
-${OPEN}${text.trim()}"
-Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
-}
-function frameGuardrail(rule2, opts) {
-  const what = rule2 === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
-  return `A correction from the Chanlytics platform, not from the business. The caller cannot hear it.
-${what}
-Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${priceNextStep(opts.hasBookingLink)}. Do not repeat the figure, and never read this out.`;
-}
-function frameSteer(text) {
-  return `An instruction from the business owner, who read your draft before it went out. The customer cannot see it.
-${OPEN}${text.trim()}"
-Write your reply again and follow it where it fits. Keep everything else that was right. Never repeat the instruction word for word. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, no health advice, and say you are an automated assistant if asked \u2014 if the instruction asks for one of those, use what you can of it and leave the rest.`;
-}
-function whisperText(content) {
-  const c = (content ?? "").replace(/\r\n/g, "\n");
-  const at3 = c.indexOf(OPEN);
-  if (at3 === -1) return c.trim();
-  const rest = c.slice(at3 + OPEN.length);
-  const close = rest.indexOf('"\n');
-  return (close === -1 ? rest.replace(/"$/, "") : rest.slice(0, close)).trim();
-}
-function frameHandOver() {
-  return "A message from the Chanlytics platform, not from the business. The caller cannot hear it.\nThe business owner is picking up this call themselves.\nTransfer the caller to the business's own line now with transfer_to_staff. Say only that you are connecting them to someone at the business; do not ask why, do not answer anything else first, and never read this out.";
-}
-var PLATFORM = "from the Chanlytics platform";
-function injectedTurn(content) {
-  const c = (content ?? "").replace(/\r\n/g, "\n");
-  if (c.includes(OPEN)) return { speaker: "whisper", text: whisperText(c) };
-  const lines = c.split("\n").map((l) => l.trim()).filter(Boolean);
-  if (lines.length >= 2 && lines[0].includes(PLATFORM)) return { speaker: "platform", text: lines[1] };
-  return { speaker: "whisper", text: c.trim() };
-}
-
-// src/voice/call-words.ts
-var CALL_OUTCOMES = [
-  "answered",
-  "booking_link_sent",
-  "callback_needed",
-  "voicemail",
-  "no_request",
-  "other"
-];
-var CALL_OUTCOME_WORDS = {
-  answered: "Question answered",
-  booking_link_sent: "Booking link sent",
-  callback_needed: "Needs a call back",
-  voicemail: "Reached voicemail",
-  no_request: "No request made",
-  other: "Handled"
-};
-function callOutcomeOf(v) {
-  return typeof v === "string" && CALL_OUTCOMES.includes(v) ? v : null;
-}
-function callOutcomeWords(v) {
-  const o = callOutcomeOf(v);
-  return o ? CALL_OUTCOME_WORDS[o] : null;
-}
-function callTodoWords(followUp) {
-  const said = followUp?.trim();
-  return said ? `To do: ${said}` : null;
-}
-function callNotesOf(a) {
-  const name = a.caller_name?.trim();
-  return {
-    todo: callTodoWords(a.follow_up),
-    gave: [
-      name ? `Gave their name as ${name}` : "",
-      a.caller_email ? `Gave their email as ${a.caller_email}` : ""
-    ].filter(Boolean)
-  };
-}
-function callNoteLines(n) {
-  return n.todo ? [n.todo, ...n.gave] : n.gave;
-}
-function tidyCallSummary(text) {
-  const t = (text ?? "").replace(/\s+/g, " ").trim();
-  if (!t) return null;
-  const folded = t.replace(
-    /^The (?:user|caller|customer) (?:called|phoned|contacted|reached out to) [^.,;]*? (to|and) /i,
-    (_m, joiner) => joiner.toLowerCase() === "to" ? "Called to " : "Called and "
-  );
-  return folded.charAt(0).toUpperCase() + folded.slice(1);
-}
-
-// src/workspace/retention.ts
-var RETENTION_DAYS = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
-  call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
-  events_evidence: 30,
-  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
-  ask_threads: 90,
-  /** A voice conversation's row, from the day its token expired: a sealed token nobody can open, and its minutes (sweep_voice_sessions, 00288). */
-  ask_voice_sessions: 1,
-  /** The bell's rows and their marks (purge_notifications, 00057). */
-  notifications: 90,
-  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
-  leads_untouched: 90,
-  leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30,
-  /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
-  jobs_finished: 7,
-  /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
-  jobs_failed: 90,
-  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
-  page_vitals: 30,
-  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
-  ai_usage: 400,
-  /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00334; decision 0030). */
-  provider_events: 7
-};
-var RATE_HITS_RETENTION_HOURS = 2;
-var EVENT_EVIDENCE_KINDS = [
-  "webhook.auth",
-  "webhook.delivery",
-  "ingest.allowlist_skip",
-  "ingest.unreachable_sender",
-  "ingest.unroutable",
-  "usage.llm_tokens",
-  "usage.ask_tokens"
-];
-var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
-function retentionWords() {
-  const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
-}
-var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
-var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
-
-// src/conversations/call-vm.ts
-function callOutcomeFor(dto, live) {
-  if (live) return "live";
-  if (dto.status === "not_connected") return "missed";
-  if (dto.status === "error") return "failed";
-  if (abandonedCall(dto)) return "abandoned";
-  if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
-  return dto.in_voicemail ? "voicemail" : "handled";
-}
-function spokenDuration(ms2) {
-  if (!ms2) return "Duration not recorded";
-  const total = Math.round(ms2 / 1e3);
-  const m = Math.floor(total / 60);
-  const sec = total % 60;
-  return m ? `${m} min ${sec} sec` : `${sec} sec`;
-}
-var CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
-var RECORDING_NOTE = {
-  none: "No recording",
-  pending: "Recording still processing",
-  failed: "Recording couldn't be saved",
-  purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
-};
-function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
-  const withheld = !dto.from_e164 && !dto.from_raw;
-  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = callerName(dto);
-  const whoShort = name ? isIdentifierName(name) ? name : name.split(" ")[0] : "Caller";
-  const dur = callLength(dto.duration_ms);
-  const live = isLiveCall(dto, now);
-  const missed = dto.status === "not_connected";
-  const wanted = (dto.wanted || "").trim();
-  const headSummary = tidyCallSummary(dto.summary) ?? "";
-  const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
-  const bullets = [
-    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`
-  ];
-  const ending = dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null;
-  if (ending) bullets.push(`Ended: ${ending}`);
-  if (dto.sentiment) {
-    bullets.push(`Caller sentiment: ${dto.sentiment} \u2014 the voice provider's own read`);
-  }
-  const outcomeWords = callOutcomeWords(dto.outcome);
-  if (outcomeWords) bullets.push(outcomeWords);
-  const notes = callNotesOf(dto);
-  if (notes.todo) bullets.push(notes.todo);
-  bullets.push(...notes.gave);
-  const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
-  if (!missed) {
-    bullets.push(
-      recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : recState === "failed" ? "Recording couldn't be saved from the voice provider" : recState === "purged" ? RECORDING_PURGED_WORDS : "No recording for this call"
-    );
-  }
-  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
-  const turns = dto.transcript_object ?? [];
-  const given = turns.map((turn) => turn.role === "injected" ? null : turn.start ?? turn.words?.[0]?.start ?? null);
-  const starts = given.map((s, i) => {
-    if (s != null || turns[i].role === "injected") return s;
-    const before = given.slice(0, i).reverse().find((x) => x != null) ?? null;
-    const after = given.slice(i + 1).find((x) => x != null) ?? null;
-    return before != null && after != null ? (before + after) / 2 : before ?? after;
-  });
-  const transcript = turns.map((turn, i) => {
-    if (turn.role === "injected") {
-      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content), start: null, end: null };
-    }
-    const own = given[i];
-    const start = starts[i];
-    const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
-    const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
-    return {
-      t: typeof own === "number" ? mmss(own * 1e3) : "\u2014",
-      speaker: turn.role === "agent" ? "agent" : "client",
-      text: turn.content ?? "",
-      start,
-      end
-    };
-  });
-  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
-  return {
-    id: `cv-${dto.id}`,
-    real: true,
-    callId: dto.id,
-    who,
-    whoShort,
-    initials: withheld ? "\u2013" : initialsOf(who),
-    clientId: dto.contact_id,
-    channel: "phone",
-    agent: { glyph: "P", name: "Phone Receptionist" },
-    at: shortTime(dto.started_at, tz, now),
-    ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
-    ...dur ? { duration: dur } : {},
-    outcome: callOutcomeFor(dto, live),
-    ...live ? { live: true } : {},
-    snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
-    summary: { headline: wanted || firstSentence || snippetBody, bullets },
-    transcript,
-    durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
-    recordingState: recState,
-    ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
-    ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {},
-    // The call's facts as facts, for the thread's call card: they were only inside the bullets' sentences.
-    ...dto.message_id ? { messageId: dto.message_id } : {},
-    direction: dto.direction === "outbound" ? "outbound" : "inbound",
-    missed,
-    // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
-    about: missed ? null : wanted || firstSentence || null,
-    facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? void 0 : RECORDING_NOTE[recState]].filter(
-      (f) => !!f
-    ),
-    notes
   };
 }
 
@@ -18251,6 +18548,7 @@ function dealFactsOf(r2) {
     ended_at: r2.deal_ended_at ?? null,
     amount_cents: r2.deal_amount_cents ?? null,
     per: r2.deal_per ?? null,
+    currency: r2.deal_currency ?? null,
     proposal_url: r2.deal_proposal_url ?? null,
     valid_until: r2.deal_valid_until ?? null,
     lost_reason: r2.deal_lost_reason ?? null
@@ -18326,6 +18624,61 @@ function dealOf(r2, tz, nowMs) {
   const f = dealFactsOf(r2);
   return f ? toDealVM({ ...f, id: r2?.deal_id ?? null }, tz, nowMs) : null;
 }
+var strOrNull = (v) => typeof v === "string" ? v : null;
+function openDealsFromJson(j) {
+  if (j === void 0) return void 0;
+  if (!Array.isArray(j)) return null;
+  const out = [];
+  for (const x of j) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x;
+    const id = strOrNull(o.id);
+    const stage = strOrNull(o.stage);
+    if (!id || !stage) continue;
+    out.push({
+      id,
+      stage,
+      service: strOrNull(o.service),
+      proposed_at: strOrNull(o.proposed_at),
+      decided_at: strOrNull(o.decided_at),
+      ended_at: strOrNull(o.ended_at),
+      amount_cents: typeof o.amount_cents === "number" ? o.amount_cents : null,
+      per: strOrNull(o.per),
+      currency: strOrNull(o.currency),
+      proposal_url: strOrNull(o.proposal_url),
+      valid_until: strOrNull(o.valid_until),
+      lost_reason: strOrNull(o.lost_reason)
+    });
+  }
+  return out;
+}
+function openDealsOf(r2, tz, nowMs) {
+  if (!r2) return [];
+  if (r2.open_deals === void 0) {
+    const one = dealOf(r2, tz, nowMs);
+    return one && dealIsOpen(one) ? [one] : [];
+  }
+  return (r2.open_deals ?? []).map(
+    (x) => dealOf(
+      {
+        deal_id: x.id,
+        deal_stage: x.stage,
+        deal_service: x.service,
+        deal_proposed_at: x.proposed_at,
+        deal_decided_at: x.decided_at,
+        deal_ended_at: x.ended_at,
+        deal_amount_cents: x.amount_cents,
+        deal_per: x.per,
+        deal_currency: x.currency,
+        deal_proposal_url: x.proposal_url,
+        deal_valid_until: x.valid_until,
+        deal_lost_reason: x.lost_reason
+      },
+      tz,
+      nowMs
+    )
+  ).filter((d) => d !== null && dealIsOpen(d));
+}
 function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
   if (!d || !isDealStage(d.stage)) return null;
   const svc = d.service ? ` (${d.service})` : "";
@@ -18381,6 +18734,10 @@ function dealStageOf(r2, nowMs) {
   if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
   if (r2.consultAhead) return "consultation";
   return d ? d.stage : null;
+}
+function dealStagesOf(stage, open) {
+  const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
+  return [...new Set(stage ? [stage, ...theirs] : theirs)];
 }
 function consultationsWithoutProposal(rows, nowMs) {
   const endOf = (r2) => r2.consultedMs;
@@ -18505,14 +18862,18 @@ function dealPaceFrom(rows, nowMs) {
 }
 
 // src/people/person-reach.ts
-function bookingLinkAction(replyVia, win) {
-  if (replyVia === "Email")
-    return {
+var EMAIL_STOPPED_TAG = "stopped accepting mail";
+var EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
+function bookingLinkAction(reach) {
+  const { via, window: win } = reach;
+  const notReady = (title) => ({ label: "Send the booking link", title, ready: false });
+  if (via === "Email")
+    return reach.emailStopped ? notReady(EMAIL_CANT_REACH) : {
       label: "Email the booking link",
       title: "Opens the thread with the link ready to send by email",
       ready: true
     };
-  if (replyVia === "Text")
+  if (via === "Text")
     return {
       label: "Text the booking link",
       title: "Opens the thread with the link ready to send as a text",
@@ -18524,25 +18885,25 @@ function bookingLinkAction(replyVia, win) {
       title: `Opens the thread with the link ready to send \xB7 any message for ${win.hoursLeft}h more`,
       ready: true
     };
-  return {
-    label: "Send the booking link",
-    title: "Only an approved message reaches them until they write again; their thread offers the one with the link",
-    ready: false
-  };
+  return notReady(
+    "Only an approved message reaches them until they write again; their thread offers the one with the link"
+  );
 }
 function proposalMessage(url) {
   return `Here's the proposal we put together for you: ${url}`;
 }
-function proposalAction(replyVia, win, sentWords2) {
+function proposalAction(reach, sentWords2) {
+  const { via, window: win } = reach;
   const again = sentWords2 ? " again" : "";
   const sent2 = sentWords2 ? ` \xB7 sent ${sentWords2}` : "";
-  if (replyVia === "Email")
-    return {
+  const notReady = (title) => ({ label: "Send the proposal", title, ready: false });
+  if (via === "Email")
+    return reach.emailStopped ? notReady(EMAIL_CANT_REACH) : {
       label: `Email the proposal${again}`,
       title: `Opens the thread with the proposal link ready to send by email${sent2}`,
       ready: true
     };
-  if (replyVia === "Text")
+  if (via === "Text")
     return {
       label: `Text the proposal${again}`,
       title: `Opens the thread with the proposal link ready to send as a text${sent2}`,
@@ -18554,20 +18915,14 @@ function proposalAction(replyVia, win, sentWords2) {
       title: `Opens the thread with the proposal link ready to send \xB7 any message for ${win.hoursLeft}h more${sent2}`,
       ready: true
     };
-  return {
-    label: "Send the proposal",
-    title: "Only an approved message reaches them until they write again, so the proposal waits until they do",
-    ready: false
-  };
+  return notReady("Only an approved message reaches them until they write again, so the proposal waits until they do");
 }
-var EMAIL_STOPPED_TAG = "stopped accepting mail";
 function emailFactWords(email, stopped) {
   return stopped ? `${email} \xB7 ${EMAIL_STOPPED_TAG}` : email;
 }
 function repliesWords(via, window, stop) {
   if (stop.optedOut) return optOutWords(stop.who);
-  if (via === "Email")
-    return stop.emailStopped ? `Email can't reach them: their address ${EMAIL_STOPPED_TAG}` : "Any time, by email";
+  if (via === "Email") return stop.emailStopped ? EMAIL_CANT_REACH : "Any time, by email";
   if (via === "Text") return "Any time, by text";
   if (via !== "WhatsApp" || !window) return null;
   if (!window.open) return "Approved messages only, until they write again";
@@ -18575,7 +18930,7 @@ function repliesWords(via, window, stop) {
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
 }
 function mayReach(p) {
-  return !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc;
+  return !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc && !(p.replyVia === "Email" && p.emailSuppressed);
 }
 
 // src/deals/sheet/deal-acts.ts
@@ -18586,6 +18941,8 @@ function isDealSheetMode(s) {
 var DEAL_SEND_WHY = {
   window: "Their WhatsApp window has closed. Record it now, and send it from their thread when they write next.",
   stopped: "They asked not to be messaged.",
+  // The Replies row's own sentence (person-reach.ts), not a second one.
+  emailStopped: EMAIL_CANT_REACH,
   none: "There is no conversation with them yet."
 };
 function dealSendOf(p) {
@@ -18594,9 +18951,10 @@ function dealSendOf(p) {
   const reach = mayReach(p);
   if (!reach) {
     const stopped = p.consent.state === "opted_out" || p.consent.dnc;
-    return { can: false, reach, why: stopped ? DEAL_SEND_WHY.stopped : DEAL_SEND_WHY.none, label };
+    const why = stopped ? DEAL_SEND_WHY.stopped : p.openThread ? DEAL_SEND_WHY.emailStopped : DEAL_SEND_WHY.none;
+    return { can: false, reach, why, label };
   }
-  if (!proposalAction(p.replyVia, p.replyWindow, null).ready)
+  if (!proposalAction({ via: p.replyVia, window: p.replyWindow, emailStopped: p.emailSuppressed }, null).ready)
     return { can: false, reach, why: DEAL_SEND_WHY.window, label };
   return { can: true, reach, why: null, label };
 }
@@ -18964,7 +19322,17 @@ var TONE_OF = /* @__PURE__ */ (() => ({
     booked: "ok",
     decided: "ok"
   },
-  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  // A thread somebody has wears the Inbox's own tones for it (`thread` above): yours is in hand, a teammate's is theirs.
+  standing: {
+    escalated: "warn",
+    queued: "info",
+    snoozed: "info",
+    paused: "plain",
+    yours: "info",
+    theirs: "plain",
+    silent: "plain",
+    answering: "ok"
+  },
   call: {
     live: "accent",
     missed: "plain",
@@ -19031,8 +19399,8 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   thread: {
     escalated: "Needs you",
     needs_you: "Needs you",
-    yours: "You have it",
-    theirs: "A teammate has it",
+    yours: HELD_WORDS.yours.pill,
+    theirs: HELD_WORDS.theirs.pill,
     snoozed: "Snoozed",
     done: "Done",
     open: "Customer wrote last",
@@ -19045,6 +19413,9 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
     queued: "Reply queued",
     snoozed: "Snoozed",
     paused: "Paused",
+    // A thread somebody has says what the Inbox's pill says of it (standing.ts HELD_WORDS).
+    yours: HELD_WORDS.yours.pill,
+    theirs: HELD_WORDS.theirs.pill,
     silent: "Silent",
     answering: "Answering"
   },
@@ -19255,6 +19626,24 @@ function breathEndsAt(atMs) {
 function breathHolds(atMs, nowMs) {
   return nowMs < breathEndsAt(atMs);
 }
+function followUpKey(about) {
+  return about.deal ? `deal:${about.deal}` : about.link ? `link:${about.link}` : "bare";
+}
+function followUpCovers(d, had) {
+  if (!had.keys) return had.at !== void 0 && followUpIsFor({ deal: d }, had.at);
+  const since = d.sinceMs ?? Number.POSITIVE_INFINITY;
+  const at3 = [
+    d.id ? had.keys.get(followUpKey({ deal: d.id, link: null })) : void 0,
+    d.proposal?.url ? had.keys.get(followUpKey({ deal: null, link: d.proposal.url })) : void 0,
+    had.keys.get(followUpKey({ deal: null, link: null }))
+  ];
+  return at3.some((x) => x !== void 0 && x >= since);
+}
+function followUpDealOf(r2, nowMs, pace, had) {
+  const open = r2.openDeals && r2.openDeals.length ? r2.openDeals : r2.deal ? [r2.deal] : [];
+  const named = open.filter((d) => d.stage === "proposed" && followUpNames({ deal: d, askedMs: r2.askedMs }, nowMs, pace)).sort((a, b) => (a.sinceMs ?? 0) - (b.sinceMs ?? 0));
+  return named.find((d) => !followUpCovers(d, had)) ?? named[0] ?? null;
+}
 function followUpIsFor(r2, atMs) {
   return atMs >= (r2.deal?.sinceMs ?? Number.POSITIVE_INFINITY);
 }
@@ -19344,13 +19733,19 @@ function touchesAfterRun(touches, run, people) {
   const mine = new Map(byThis.get(run.playbookId));
   const byAny = new Map(touches.byAny);
   const followUps = new Map(touches.followUps);
-  for (const id of people) {
+  const followUpKeys = new Map(touches.followUpKeys);
+  for (const { id, deal, link } of people) {
     mine.set(id, Math.max(mine.get(id) ?? 0, run.at));
     byAny.set(id, Math.max(byAny.get(id) ?? 0, run.at));
-    if (run.followUp) followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+    if (!run.followUp) continue;
+    followUps.set(id, Math.max(followUps.get(id) ?? 0, run.at));
+    const m = new Map(followUpKeys.get(id));
+    const key = followUpKey({ deal, link });
+    m.set(key, Math.max(m.get(key) ?? 0, run.at));
+    followUpKeys.set(id, m);
   }
   byThis.set(run.playbookId, mine);
-  return { byThis, byAny, followUps };
+  return { byThis, byAny, followUps, followUpKeys };
 }
 function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
   return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
@@ -19363,6 +19758,20 @@ function fullNameHolders(rows) {
     if (key !== null) holders.set(key, (holders.get(key) ?? 0) + 1);
   }
   return holders;
+}
+function visitMomentDay(trigger, tz, nowMs) {
+  return dayPlusInZone(tz, nowMs, trigger === "visit_tomorrow" ? 1 : -1).key;
+}
+function visitOnDay(v, day, side, theirs) {
+  if (!v) return null;
+  const onDay = (v.near ?? [side === "next" ? v.next : v.last]).filter(
+    (x) => !!x && visitDateKey(x.start, v.timezone) === day && theirs(x.via)
+  );
+  return (side === "next" ? onDay[0] : onDay[onDay.length - 1]) ?? null;
+}
+function theirVisitTest(rows) {
+  const holders = fullNameHolders(rows);
+  return (r2, via) => visitIsTheirs(r2, via, holders);
 }
 function visitIsTheirs(r2, via, holders) {
   if (via !== "name") return true;
@@ -19392,17 +19801,25 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   if (t.kind === "reach_out") return none;
   const purpose = enrolPurpose(t.cls, p.message);
   const how = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
-  const holders = t.kind === "visit" ? fullNameHolders(rows) : /* @__PURE__ */ new Map();
+  const hadOf = (id) => ({
+    at: touches.followUps.get(id),
+    keys: touches.followUpKeys.get(id)
+  });
+  const theirs = theirVisitTest(t.kind === "visit" ? rows : []);
   const named = t.kind === "visit" ? (
     // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
     // theirs (visitIsTheirs).
     rows.filter((r2) => {
       if (!r2.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow")
-        return r2.nextVisitDate !== null && r2.nextVisitDate === localDate(r2.calendarTz, new Date(nowMs + DAY_MS)) && visitIsTheirs(r2, r2.nextVisitVia, holders);
-      return r2.lastVisitDate !== null && r2.lastVisitDate === localDate(r2.calendarTz, new Date(nowMs - DAY_MS)) && !r2.booked && visitIsTheirs(r2, r2.lastVisitVia, holders);
+      const day = visitMomentDay(p.trigger, r2.calendarTz, nowMs);
+      const onDay = r2.visitDays.some((d) => d.date === day && theirs(r2, d.via));
+      if (p.trigger === "visit_tomorrow") return onDay;
+      return onDay && !r2.booked;
     })
-  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows.filter((r2) => followUpNames(r2, nowMs, pace)) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows.flatMap((r2) => {
+    const d = followUpDealOf(r2, nowMs, pace, hadOf(r2.id));
+    return d ? [{ ...r2, deal: d }] : [];
+  }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r2) => saidYesOnAny(r2, purpose, how)).length;
   const done = (eligible2) => {
@@ -19437,10 +19854,13 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
     return done(allowed);
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
-  const heardThis = (r2, mine) => t.kind === "deal" ? followUpIsFor(r2, mine) : nowMs - mine < gapMs;
+  const heardThis = (r2) => {
+    if (t.kind === "deal") return !!r2.deal && followUpCovers(r2.deal, hadOf(r2.id));
+    const mine = touches.byThis.get(r2.id);
+    return mine !== void 0 && nowMs - mine < gapMs;
+  };
   const picked = allowed.filter((r2) => {
-    const mine = t.kind === "deal" ? touches.followUps.get(r2.id) : touches.byThis.get(r2.id);
-    if (mine !== void 0 && heardThis(r2, mine)) {
+    if (heardThis(r2)) {
       reach.heardThis += 1;
       return false;
     }
@@ -19748,7 +20168,9 @@ var LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"];
 function proposalFactsFor(trigger, row2) {
   const t = triggerOf(trigger);
   const url = row2?.deal?.proposal?.url ?? null;
-  return t && t.kind === "deal" && url ? { proposal_link: url } : null;
+  if (!(t && t.kind === "deal" && url)) return null;
+  const id = row2?.deal?.id;
+  return id ? { proposal_link: url, deal_id: id } : { proposal_link: url };
 }
 function visitFactsFor(trigger, visit, tz, names3, sendAt) {
   const t = triggerOf(trigger);
@@ -20229,9 +20651,11 @@ var upper2 = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
 var daysWords = (days) => days === null ? "" : `${days} d`;
 var zoneOf = (r2, tz) => r2.calendarTz || tz;
 function proposalChip(r2, d, tz, nowMs, pace) {
-  if (waitingOnProposal(r2, nowMs, pace))
-    return r2.followUp?.kind === "will" ? { words: followUpWords(r2.followUp, tz, nowMs), tone: "info" } : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
-  if (heardSinceProposal(r2) && r2.askedMs !== null)
+  const mine = { deal: d, askedMs: r2.askedMs };
+  const followUp = d === r2.deal || d.id !== null && d.id === r2.deal?.id ? r2.followUp : null;
+  if (waitingOnProposal(mine, nowMs, pace))
+    return followUp?.kind === "will" ? { words: followUpWords(followUp, tz, nowMs), tone: "info" } : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
+  if (heardSinceProposal(mine) && r2.askedMs !== null)
     return { words: `Heard back ${clockNear(r2.askedMs, tz, nowMs)}`, tone: "info" };
   if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
   if (!d.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "plain" };
@@ -20259,12 +20683,19 @@ function nextOf(p, tz, nowMs) {
   if (!day) return null;
   return { id: s.id, words: s.words, day: day.day, when: day.words, due: day.due, forWho: s.forWho, dealId: s.dealId };
 }
-function dealRow(r2, d, chip, nowMs, group) {
+function stepOn(x, n) {
+  if (!n) return null;
+  const ownRow = !!n.dealId && openOf(x.person).some((d) => d.id === n.dealId);
+  return (ownRow ? x.deal?.id === n.dealId : x.id === x.person.id) ? n : null;
+}
+function dealRow(x, chip, nowMs, group) {
+  const { r: r2, d, id } = x;
   return {
-    id: r2.id,
+    id,
     group,
     name: r2.name,
     person: r2,
+    deal: d,
     service: d.service,
     value: d.amount,
     // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
@@ -20280,6 +20711,7 @@ function heldRow(r2, endMs, tz, nowMs) {
     group: "consultations",
     name: r2.name,
     person: r2,
+    deal: null,
     service: null,
     value: null,
     inStage: daysWords(wholeDaysSince(heldMs, nowMs)),
@@ -20296,6 +20728,7 @@ function aheadRow(r2, c, tz, nowMs) {
     group: "consultations",
     name: r2.name,
     person: r2,
+    deal: null,
     service: null,
     value: null,
     inStage: "",
@@ -20313,40 +20746,47 @@ function inOrder(xs, at3, latest = false) {
     return latest ? y - x : x - y;
   });
 }
+function openOf(r2) {
+  if (r2.openDeals && r2.openDeals.length) return r2.openDeals;
+  return r2.deal && dealIsOpen(r2.deal) ? [r2.deal] : [];
+}
 var worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
+function bandsOf(rows, heldSet, nowMs) {
+  const out = { ahead: [], proposals: [], clients: [], closed: [] };
+  for (const r2 of rows) {
+    const held = heldSet.has(r2);
+    const stage = held ? "consultation" : dealStageOf(r2, nowMs);
+    const aheadOf = !held && stage === "consultation" ? r2.consultAhead : null;
+    if (aheadOf) out.ahead.push({ r: r2, c: aheadOf });
+    const consulting = held || !!aheadOf;
+    const open = openOf(r2);
+    const first = open.find((d) => d === r2.deal || d.id !== null && d.id === r2.deal?.id) ?? open[0] ?? null;
+    const ordered = first ? [first, ...open.filter((d) => d !== first)] : [];
+    ordered.forEach((d, i) => {
+      const id = pipelineRowId(r2.id, consulting || i > 0 ? d.id ?? String(i) : null);
+      (d.stage === "proposed" ? out.proposals : out.clients).push({ r: r2, d, id });
+    });
+    if (!open.length && !consulting && r2.deal && stage && stage !== "consultation")
+      out.closed.push({ r: r2, d: r2.deal, id: r2.id });
+  }
+  return out;
+}
 function pipelineOf(rows, nowMs, tz, pace, view = "all") {
   const held = consultationsWithoutProposal(rows, nowMs);
-  const heldSet = new Set(held);
-  const ahead = [];
-  const proposals = [];
-  const clients = [];
-  const closed = [];
-  for (const r2 of rows) {
-    if (heldSet.has(r2)) continue;
-    const stage = dealStageOf(r2, nowMs);
-    const d = r2.deal;
-    if (stage === "consultation" && r2.consultAhead) ahead.push({ r: r2, c: r2.consultAhead });
-    else if (!d || !stage || stage === "consultation") continue;
-    else if (stage === "proposed") proposals.push({ r: r2, d });
-    else if (stage === "won") clients.push({ r: r2, d });
-    else closed.push({ r: r2, d });
-  }
+  const { ahead, proposals, clients, closed } = bandsOf(rows, new Set(held), nowMs);
   const lapsed = proposals.filter((x) => !!x.d.validUntil?.lapsed);
-  const waiting = proposalsWaiting(
-    proposals.map((x) => x.r),
-    nowMs,
-    pace
-  ).length;
+  const waits = (x) => waitingOnProposal({ deal: x.d, askedMs: x.r.askedMs }, nowMs, pace);
+  const waiting = proposals.filter(waits).length;
   const svc = serviceOf(view);
   const shows = (key) => view === "all" || view === "steps" || view === key || svc !== null || (view === "waiting" || view === "lapsed") && key === "proposals";
   const bySvc = (xs) => svc === null ? xs : xs.filter((x) => x.d.service === svc);
   const shownHeld = shows("consultations") && svc === null ? held : [];
   const shownAhead = shows("consultations") && svc === null ? ahead : [];
-  const shownProposals = !shows("proposals") ? [] : view === "waiting" ? proposals.filter((x) => waitingOnProposal(x.r, nowMs, pace)) : view === "lapsed" ? lapsed : bySvc(proposals);
+  const shownProposals = !shows("proposals") ? [] : view === "waiting" ? proposals.filter(waits) : view === "lapsed" ? lapsed : bySvc(proposals);
   const shownClients = shows("clients") ? bySvc(clients) : [];
   const shownClosed = shows("closed") ? bySvc(closed) : [];
   const group = (key, body, meta) => {
-    const all = body.map((x) => ({ ...x, next: nextOf(x.person, tz, nowMs) }));
+    const all = body.map((x) => ({ ...x, next: stepOn(x, nextOf(x.person, tz, nowMs)) }));
     const rs = view === "steps" ? all.filter(stepDue) : all;
     return {
       key,
@@ -20371,19 +20811,19 @@ function pipelineOf(rows, nowMs, tz, pace, view = "all") {
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
-        (x) => dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals")
+        (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals")
       ),
       worth(shownProposals)
     ),
     group(
       "clients",
-      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, clientChip(x.d), nowMs, "clients")),
+      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients")),
       worth(shownClients)
     ),
     group(
       "closed",
       inOrder(shownClosed, (x) => x.d.sinceMs, true).map(
-        (x) => dealRow(x.r, x.d, closedChip(x.d, tz, nowMs), nowMs, "closed")
+        (x) => dealRow(x, closedChip(x.d, tz, nowMs), nowMs, "closed")
       ),
       null
     )
@@ -20394,7 +20834,8 @@ function pipelineOf(rows, nowMs, tz, pace, view = "all") {
     part(proposals.length ? worth(proposals) : null),
     part(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
-    part(clients.length ? plural(clients.length, "client", "clients") : null),
+    // Clients are people: a client of two services is one client, whose two deals are both in what they come to.
+    part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null),
     part(clients.length ? worth(clients) : null)
   ].filter((x) => !!x);
   return { summary: line.map((p) => p.words), line, groups, empty: groups.length === 0, pace };
@@ -20413,6 +20854,7 @@ function pipelinePeekOf(row2, group, deals = null) {
   if (n && !onCard) facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} \xB7 ${n.words} \xB7 ${n.when}` });
   return {
     id: row2.id,
+    dealId: row2.deal?.id ?? null,
     name: row2.name,
     initials: p.initials,
     numeric: /^[+\d(]/.test(row2.name) || row2.name.includes("@"),
@@ -20445,7 +20887,7 @@ function pipelinePeekDetail(p) {
 // src/deals/pipeline/pipeline-board.ts
 function pipelineMove(from, to, row2) {
   if (from === to) return null;
-  const deal = row2.person.deal;
+  const deal = row2.deal;
   if (from === "consultations" && to === "proposals") return { mode: "propose", dealId: null };
   if (from === "proposals" && deal?.stage === "proposed") {
     if (to === "clients") return { mode: "won", dealId: deal.id };
@@ -20478,8 +20920,8 @@ function pipelineSorted(vm, by, dir) {
         if (y2 === null) return -1;
         return sign * x2.localeCompare(y2);
       }
-      const x = a.r.value === null ? null : yearCents(a.r.person.deal);
-      const y = b.r.value === null ? null : yearCents(b.r.person.deal);
+      const x = a.r.value === null ? null : yearCents(a.r.deal);
+      const y = b.r.value === null ? null : yearCents(b.r.deal);
       if (x === y) return a.i - b.i;
       if (x === null) return 1;
       if (y === null) return -1;
@@ -20491,7 +20933,7 @@ function pipelineSorted(vm, by, dir) {
 }
 var PIPELINE_PASS_MAX = 50;
 function pipelinePassMany(rows) {
-  const out = rows.filter((r2) => r2.deal && r2.deal.stage === "proposed" && r2.deal.id).map((r2) => ({ personId: r2.id, dealId: r2.deal.id }));
+  const out = rows.filter((r2) => r2.deal && r2.deal.stage === "proposed" && r2.deal.id).map((r2) => ({ personId: r2.id, dealId: r2.deal.id, rowId: r2.rowId ?? r2.id }));
   const deals = out.slice(0, PIPELINE_PASS_MAX);
   const later = out.length - deals.length;
   const k = rows.length - out.length;
@@ -23562,12 +24004,22 @@ function visitTitleFor(title, name) {
   return title;
 }
 function visitKeysOf(v) {
+  const near2 = v ? v.near ?? [v.last, v.next].filter((x) => x !== null) : [];
   return {
+    visitDays: v ? near2.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     nextVisitVia: v?.next?.via ?? null,
     lastVisitVia: v?.last?.via ?? null,
     calendarTz: v?.timezone ?? null
+  };
+}
+function consultationKeysOf(v, nextVisitMs) {
+  return {
+    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
+    consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
+    consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
+    consultAhead: v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs) ? { startMs: nextVisitMs, allDay: !!v.next.all_day } : null
   };
 }
 function lastChannelOf(c) {
@@ -23576,6 +24028,25 @@ function lastChannelOf(c) {
 function rowReachOf(r2, consent, ready) {
   const facts = { lastChannel: lastChannelOf(r2.last_inbound_channel), emailSuppressed: isEmailStopped(r2) };
   return { ...facts, ...personReachOf({ consent, phone: r2.phone_e164, email: r2.email ?? null, ...facts }, ready) };
+}
+function rowReplyOf(r2, now, emailStopped) {
+  const via = replyChannelOfRow(r2);
+  if (!via)
+    return {
+      replyWindow: null,
+      replyVia: null,
+      bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped })
+    };
+  const w = replyWindow(via, r2.latest_wa_inbound_at, now);
+  const win = {
+    open: w.open,
+    hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS)) : 0
+  };
+  return {
+    replyWindow: win,
+    replyVia: REPLY_VIA[via],
+    bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[via], window: win, emailStopped })
+  };
 }
 function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null, ready) {
   const nowMs = now.getTime();
@@ -23596,7 +24067,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     lastVisitMs !== null && Number.isFinite(lastVisitMs) ? lastVisitMs : null,
     askedMs
   );
-  const stateDetail = state === "needs_you" ? r2.open_escalation_reason ? reasonShort(r2.open_escalation_reason) : r2.queued_reply_at && personStanding(r2, nowMs).standing !== "needs_you" ? "a reply is about to send \u2014 you can still stop it" : "waiting for a person" : state === "waiting_on_you" ? "you own the thread and they wrote last" : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? `last heard from ${ago(askedMs, tz, nowMs)}` : state === "unheard" ? last.ts === null ? "no contact recorded" : "they have not written or called" : "";
+  const stateDetail = state === "needs_you" ? r2.open_escalation_reason ? reasonShort(r2.open_escalation_reason) : r2.queued_reply_at && personStanding(r2, nowMs).standing !== "needs_you" ? "a reply is about to send \u2014 you can still stop it" : "waiting for a person" : state === "waiting_on_you" ? [HELD_WORDS.yours.pill.toLowerCase(), theirTurnWords(last)].filter(Boolean).join(", and ") : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? `last heard from ${ago(askedMs, tz, nowMs)}` : state === "unheard" ? last.ts === null ? "no contact recorded" : "they have not written or called" : "";
   const vm = {
     id: r2.id,
     real: true,
@@ -23613,7 +24084,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r2, tz, nowMs),
+    receptionist: receptionistOf(r2, tz, nowMs, viewerId),
     firstContact: first,
     cameFrom: cameFromOf(r2),
     consent,
@@ -23631,20 +24102,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.next.title, name)}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.last.title, name)}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
-    // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
-    // WhatsApp's for everybody, so a person who had only ever emailed was shown
-    // "Closed · template only" -- a template they cannot receive, on a wire
-    // they have never used.
-    ...(() => {
-      const via = replyChannelOfRow(r2);
-      if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null) };
-      const w = replyWindow(via, r2.latest_wa_inbound_at, now);
-      const win = {
-        open: w.open,
-        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0
-      };
-      return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
-    })(),
+    ...rowReplyOf(r2, now, reach.emailSuppressed),
     channelWords: channelsOf2(r2).map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 "),
     askedMs,
     askedNotBooked,
@@ -23660,16 +24118,16 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     stopped: isOptedOutContact({ consent: r2.consent, dnc: r2.dnc }),
     ...visitKeysOf(v),
     deal: dealOf(r2, tz, nowMs),
-    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
-    consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
-    consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
-    consultAhead: v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs) ? { startMs: nextVisitMs, allDay: !!v.next.all_day } : null,
+    openDeals: openDealsOf(r2, tz, nowMs),
+    ...consultationKeysOf(v, nextVisitMs),
     nextStep: nextStepOf(r2, tz, nowMs),
     stepDue: stepIsDue(nextStepOf(r2, tz, nowMs)),
     dealStage: null,
+    dealStages: [],
     followUp: null
   };
   vm.dealStage = dealStageOf(vm, nowMs);
+  vm.dealStages = dealStagesOf(vm.dealStage, vm.openDeals);
   return vm;
 }
 
@@ -23700,8 +24158,10 @@ function attentionRow(p, tz, nowMs) {
   else sentence2 = "Nothing written yet";
   const r2 = p.receptionist;
   let status;
-  if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
-  else if (r2.tone === "answering")
+  if (p.state === "waiting_on_you") {
+    const turn = theirTurnWords(p.lastContact);
+    status = turn ? [HELD_WORDS.yours.pill, turn] : [HELD_WORDS.yours.pill];
+  } else if (r2.tone === "answering")
     status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
   else status = r2.label.split(", ");
   if (p.state === "needs_you" && p.needsYouSinceMs !== null)
@@ -24356,10 +24816,8 @@ function personRowOf(d) {
     conversation_count: d.conversations.length || d.row.conversation_count,
     // A dial that never connected is not a call; people_list agrees, and the
     // profile used to count one more than the list.
-    call_count: d.calls.length ? d.calls.filter((k) => k.status !== "not_connected").length : d.row.call_count,
-    call_seconds: d.calls.length ? Math.round(
-      d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1e3
-    ) : d.row.call_seconds,
+    call_count: d.calls.length ? d.calls.filter((k) => !neverConnected(k)).length : d.row.call_count,
+    call_seconds: d.calls.length ? Math.round(d.calls.filter((k) => !neverConnected(k)).reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1e3) : d.row.call_seconds,
     escalation_count: d.escalations.length || d.row.escalation_count,
     visits: d.visits ?? d.row.visits ?? null
   };
@@ -24403,6 +24861,7 @@ function personCardContext(d, tz, now, viewerId) {
     tz,
     now,
     nowMs,
+    viewerId,
     row: row2,
     base,
     stamp: (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) }),
@@ -24441,16 +24900,13 @@ function lastExchangeOf({ profile, stamp }) {
   }
   return { customer, reply };
 }
-function rightNowOf({ profile, tz, now, nowMs, row: r2, base }) {
+function rightNowOf({ profile, tz, now, nowMs, viewerId, row: r2, base }) {
   const threadTo = r2.latest_conversation_id ? `inbox/th-${r2.latest_conversation_id}` : null;
   const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
-  if (isOwned(r2, nowMs)) {
-    return {
-      tone: "paused",
-      title: "Paused, a person owns this thread",
-      detail: "A person owns this thread; automatic replies resume when it is handed back.",
-      cta: openThread
-    };
+  const held = holderOf(r2, nowMs, viewerId);
+  if (held) {
+    const { tone, title, detail } = HELD_THREAD[held];
+    return { tone, title, detail, cta: openThread };
   }
   if (r2.open_escalation_reason) {
     const since = r2.open_escalation_since ? shortTime(r2.open_escalation_since, tz, now) : null;
@@ -24520,12 +24976,14 @@ var TONE_WORD = {
   queued: "Queued",
   snoozed: "Snoozed",
   paused: "Held for you",
+  yours: "Held for you",
+  theirs: "Paused",
   silent: "Silent"
 };
 var receptionistMeta = (label) => label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase();
 function personFactsOf({ profile, tz, nowMs, base, current, firstChannel }) {
   const lc = base.lastContact;
-  const attempts = profile.calls.filter((k) => k.status === "not_connected").length;
+  const attempts = profile.calls.filter(neverConnected).length;
   const lastMeta = lc.who === "they" ? lc.kind === "call" ? "they phoned" : "they wrote" : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
   const facts = [
     { label: "First contact", value: base.firstContact.label, meta: firstChannel },
@@ -24620,11 +25078,11 @@ function aboutOf({
 function sinceWords(base) {
   return base.firstContact.label === "\u2014" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`;
 }
-function replyFields(reply) {
+function replyFields(reply, emailStopped) {
   return {
     replyVia: REPLY_VIA[reply.via],
     replyWindow: reply.window,
-    bookingLinkAction: bookingLinkAction(REPLY_VIA[reply.via], reply.window)
+    bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[reply.via], window: reply.window, emailStopped })
   };
 }
 function receptionistModeOf(d) {
@@ -24717,7 +25175,7 @@ var reachOutOf = ({ profile, nowMs, tz }) => profile.lead?.reach_out ? reachOutP
 function messageItems(ctx) {
   const { profile, base, stamp } = ctx;
   const reach = reachOutOf(ctx);
-  const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
+  const first = shortName(base.name);
   const runOf = new Map((profile.campaigns ?? []).filter((c) => c.message_id).map((c) => [c.message_id, c]));
   const items = [];
   for (const c of profile.conversations) {
@@ -24753,9 +25211,9 @@ function callItems({ profile, stamp }) {
     const dur = callLength(k.duration_ms);
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
-    const missed = k.status === "not_connected";
+    const missed = neverConnected(k);
     const notes = callNoteLines(callNotesOf(k));
-    const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+    const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : reachedVoicemail(k) ? "Reached voicemail." : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
       ts: t,
@@ -24764,7 +25222,7 @@ function callItems({ profile, stamp }) {
       who: missed ? callAttemptWords(k.direction) : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
       text: sentence2,
       ...notes.length ? { notes } : {},
-      sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
+      sub: missed ? "Never connected" : recordingStateOf(k) === "ready" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` }
     });
   }
@@ -25006,7 +25464,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
   const { base, nowMs, dealsOn, reply } = ctx;
   const vm = {
     ...base,
-    ...reply ? replyFields(reply) : {},
+    ...reply ? replyFields(reply, base.emailSuppressed) : {},
     since: sinceWords(base),
     metaLine: `${plural(base.threads, "conversation")} \xB7 ${plural(base.calls, "call")}`,
     lastExchange: lastExchangeOf(ctx),
@@ -25034,7 +25492,10 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
   const whole = {
     ...vm,
     proposal: ctx.proposal,
-    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, ctx.sentWords)
+    proposalAction: proposalAction(
+      { via: vm.replyVia ?? null, window: vm.replyWindow ?? null, emailStopped: vm.emailSuppressed },
+      ctx.sentWords
+    )
   };
   return { ...whole, acts: personActs(whole) };
 }
@@ -25103,7 +25564,8 @@ function peopleVisitsOf(items, people, cal, nowMs) {
       source: cal.source,
       state: "ok",
       next: mark(toVisitDto(v.next)),
-      last: mark(toVisitDto(v.last))
+      last: mark(toVisitDto(v.last)),
+      near: v.near.map((x) => mark(toVisitDto(x))).filter((x) => x !== null)
     });
   }
   return out;
@@ -25123,7 +25585,7 @@ function withVisitsOf(people, visits, cal) {
 }
 function poolRowOf(person, o) {
   const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready);
-  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null };
+  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null, openDeals: [], dealStages: [] };
 }
 function poolRowsOf(people, o) {
   return people.map((p) => poolRowOf(p, o));
@@ -25262,6 +25724,7 @@ function templateFooter(t) {
   const s = starterByName(t.name);
   return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
 }
+var FILLED_PARTS = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
 var partOf = (components, type) => {
   if (!Array.isArray(components)) return null;
   for (const c of components) {
@@ -25298,6 +25761,11 @@ function templateBlocked(t) {
   if (t.blocked === null) return null;
   const components = t.components;
   if (!Array.isArray(components)) return null;
+  const unfilled = components.some((c) => {
+    const type = c && typeof c === "object" ? c.type : null;
+    return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
+  });
+  if (unfilled) return "a part Chanlytics cannot fill";
   const header = partOf(components, "HEADER");
   if (header) {
     const format = String(header.format ?? "TEXT").toUpperCase();
@@ -27074,6 +27542,7 @@ function lensAnswerOf(lens, parts2) {
 }
 
 // src/reports/report-periods.ts
+var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
 var REPORT_PERIOD_DEFAULT = "30d";
 var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
 var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
@@ -27088,6 +27557,28 @@ function reportPeriodOf(asked) {
 function reportDaysAsked(view) {
   const asked = Number(view);
   return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
+}
+
+// src/reports/report-headline.ts
+function isReportDto(answer) {
+  return typeof answer === "object" && answer !== null && "series" in answer && Array.isArray(answer.series) && "days" in answer && typeof answer.days === "number";
+}
+function toHeadlineVM(dto) {
+  const rangeLabel = rangeLabelOf(dto.days);
+  return {
+    period: dto.period,
+    days: dto.days,
+    rangeLabel,
+    lead: periodWords(rangeLabel).now,
+    empty: dto.empty,
+    messages: {
+      total: dto.messages_in,
+      compare: compareWords(dto.messages_in, dto.messages_before ?? 0, rangeLabel, dto.messages_before !== null)
+    },
+    answered: { ai: dto.answered_ai, you: dto.answered_you, none: dto.unanswered, share: dto.answered_share },
+    calls: dto.calls,
+    booking: toBookingReportVM(dto.booking)
+  };
 }
 
 // src/reports/report-facts.ts
@@ -29386,6 +29877,7 @@ var ROUTE_KEYS = [
   "GET reach-outs/reach",
   "GET reports",
   "GET reports/campaigns",
+  "GET reports/headline",
   "GET reports/reach-outs",
   "GET segments",
   "GET settings",
@@ -29979,6 +30471,9 @@ function templatePreview(t, own = {}) {
 function emailWires(email) {
   return email?.ready && email.mailbox ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }] : [];
 }
+function todayReplySpeed(m) {
+  return replySpeedOf(m.period.median_reply_seconds_ai, m.reply_hold ?? null);
+}
 
 // src/today/today-clock.ts
 function tzClock(iso, tz, now) {
@@ -30082,16 +30577,7 @@ function openEscalations(escalations, byConv, now) {
   return escalations.filter((e) => e.state === "open").filter((e) => {
     const conv = byConv.get(e.conversation_id);
     if (!conv) return true;
-    return standingOf(
-      {
-        state: conv.state,
-        paused_until: conv.paused_until,
-        assignee_user_id: conv.assignee_user_id,
-        assignee_is_me: conv.assignee_is_me,
-        open_escalation: true
-      },
-      now.getTime()
-    ).standing === "needs_you";
+    return standingOfThread(conv, true, now.getTime()).standing === "needs_you";
   }).sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 function newestCallByThread(callDtos) {
@@ -30127,7 +30613,7 @@ function escalationRecords(openEsc, byConv, callByConv, tz, now) {
 function closingConversations(conversations, escSet, now) {
   return conversations.filter((c) => {
     if (escSet.has(c.id)) return false;
-    const last = c.messages[c.messages.length - 1];
+    const last = lastExchanged(c.messages);
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);
     return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * HOUR_MS : false;
@@ -30147,10 +30633,11 @@ function todayFacts(input) {
     tz,
     period,
     live: metrics.now,
+    speed: todayReplySpeed(metrics),
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
     wires: todayWires(metrics),
-    needsYouCount: openEsc.length,
+    needsYouCount: threadsWaitingOnYou(conversations, escalations, now),
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
     closingConvs: closingConversations(conversations, escSet, now),
@@ -30171,6 +30658,8 @@ var andList = (xs) => xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join
 function secondsPhrase(s) {
   return durationWords(s);
 }
+var speedIn = (s, about = false) => s.held ? s.words : `in ${about ? "about " : ""}${secondsPhrase(s.seconds)}`;
+var speedClause = (s) => s === null ? "" : `typically ${speedIn(s)}`;
 function todayStanding(f) {
   const { metrics, wires } = f;
   const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
@@ -30243,20 +30732,20 @@ function todayQueueEmpty(f) {
   };
 }
 function todayAskFacts(f) {
-  const { period, callMinutes } = f;
+  const { period, callMinutes, speed } = f;
   return [
     { label: "Messages in", value: String(period.messages_in) },
     { label: "Answered by the receptionist", value: `${period.answered_by_ai} of ${period.messages_in}` },
-    period.median_reply_seconds_ai === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: secondsPhrase(period.median_reply_seconds_ai) },
+    speed === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: speed.held ? speed.words : secondsPhrase(speed.seconds) },
     { label: "Calls", value: period.calls ? `${period.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
   ];
 }
 function todayTrafficLine(f) {
-  const { period, callMinutes } = f;
+  const { period, callMinutes, speed } = f;
   const trafficParts = [];
   if (period.messages_in > 0) {
     trafficParts.push(
-      `${period.messages_in} message${period.messages_in === 1 ? "" : "s"} in, ${period.answered_by_ai} answered by the receptionist${period.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(period.median_reply_seconds_ai)}`}`
+      `${period.messages_in} message${period.messages_in === 1 ? "" : "s"} in, ${period.answered_by_ai} answered by the receptionist${speed === null ? "" : `, typically ${speedIn(speed)}`}`
     );
   }
   if (period.calls) {
@@ -30309,9 +30798,9 @@ function todayHeadline(f, alert, needsRows) {
       tone: "needs"
     };
   }
-  return calmHeadline(f.period);
+  return calmHeadline(f);
 }
-function calmHeadline(period) {
+function calmHeadline({ period, speed }) {
   const bits2 = [];
   if (period.messages_in) {
     bits2.push(
@@ -30321,13 +30810,11 @@ function calmHeadline(period) {
   if (period.calls) bits2.push(`${period.calls} call${period.calls === 1 ? "" : "s"}`);
   const allByReceptionist = period.unanswered_in_window === 0 && period.messages_out_you === 0;
   const headline = bits2.length ? allByReceptionist ? `The receptionist handled everything \u2014 ${bits2.join(" and ")} today. Nothing needs you.` : `${bits2.join(" and ")} today. Nothing needs you right now.` : "Nothing needs you.";
-  const detail = period.median_reply_seconds_ai !== null && period.messages_in > 0 ? `It answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically in about ${secondsPhrase(
-    period.median_reply_seconds_ai
-  )}.` : null;
+  const detail = speed !== null && period.messages_in > 0 ? `It answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.` : null;
   return { headline, detail, tone: "calm" };
 }
 function todaySentences(f, tone, alert) {
-  const { period, callMinutes, conversations, sinceMs } = f;
+  const { period, callMinutes } = f;
   const sentences = [];
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (period.answered_by_ai && !headlineCoversTraffic) {
@@ -30351,19 +30838,23 @@ function todaySentences(f, tone, alert) {
       text: `You sent ${period.messages_out_you} repl${period.messages_out_you === 1 ? "y" : "ies"} yourself.`
     });
   }
-  if (period.send_failures) {
-    const lastFailed = conversations.flatMap(
-      (c) => c.messages.filter(
-        (x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
-      ).map((x) => ({ conv: c, at: x.created_at }))
-    ).sort((a, b) => b.at.localeCompare(a.at))[0];
-    sentences.push({
-      text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} failed to deliver \u2014 the customer got no answer.`,
-      warn: true,
-      ...lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}
-    });
-  }
+  const failed = todaySendFailure(f);
+  if (failed) sentences.push(failed);
   return sentences;
+}
+function todaySendFailure(f) {
+  const { period, conversations, sinceMs } = f;
+  if (!period.send_failures) return null;
+  const lastFailed = conversations.flatMap(
+    (c) => c.messages.filter(
+      (x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
+    ).map((x) => ({ conv: c, at: x.created_at }))
+  ).sort((a, b) => b.at.localeCompare(a.at))[0];
+  return {
+    text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} failed to deliver \u2014 the customer got no answer.`,
+    warn: true,
+    ...lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}
+  };
 }
 
 // src/today/today-figures.ts
@@ -30380,24 +30871,6 @@ var COUNT_WORDS2 = {
 };
 var countWord = (n) => COUNT_WORDS2[n] ?? String(n);
 var timesWords = (n) => n === 1 ? "once" : n === 2 ? "twice" : `${countWord(n)} times`;
-var REASON_WHY = {
-  human_token: "because a customer asked for a person",
-  non_text: "for something it can't read",
-  refusal: "because it declined to answer",
-  rate_cap: "because the reply limit was reached",
-  policy_block: "because your reply setting held it",
-  policy_ask: "for a booking or a question set to Ask me first",
-  person_hold: "because it was held for you",
-  carriers: "while waiting on carriers",
-  email_review: "because they wrote by email",
-  send_failed: "because a reply failed to send",
-  deadman: "because no answer came in time",
-  brain_error: "because it hit an error",
-  manual: "because you flagged it",
-  opt_out: "because they asked to stop",
-  callback: "because they need a call back"
-};
-var reasonWhy = (r2) => REASON_WHY[r2] ?? reasonShort(r2) ?? r2;
 var wireWord = (w) => w === "WhatsApp" ? w : w.toLowerCase();
 var counted = (o) => Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(0, Math.round(Number(v) || 0))]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 var tally = (xs) => counted(xs.reduce((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {}));
@@ -30443,7 +30916,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   const reasons = tally(todays.map((e) => e.reason));
   const resolved = Math.max(0, p.escalations_new - todays.length);
   const answeredMeta = [
-    p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
+    speedClause(todayReplySpeed(m)),
     p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : ""
   ].filter(Boolean).join(", ") || (p.messages_in ? "none answered yet" : "nothing to answer yet");
   const handedOver = p.escalations_new;
@@ -30477,7 +30950,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   const moodWords = moods.length ? `The voice provider read ${andList(moods.map(moodOf))}.` : "";
   const voicemail = [
     ...new Map(
-      callsInWindow.filter((c) => c.in_voicemail).map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who])
+      callsInWindow.filter((c) => reachedVoicemail(c)).map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who])
     ).values()
   ].filter((who) => !UNNAMED_CALLER.has(who));
   const voicemailWords = voicemail.length ? `${andList(voicemail.length > 3 ? [...voicemail.slice(0, 3), `${voicemail.length - 3} more`] : voicemail)} reached voicemail.` : "";
@@ -30538,151 +31011,6 @@ function quietFigures(live, tz, now) {
   ];
 }
 
-// src/voice/live.ts
-var LIVE_STALE_MS = 5 * MIN_MS;
-var LIVE_OVERLONG_MS = 30 * MIN_MS;
-var ANALYSIS_GRACE_MS = 10 * MIN_MS;
-var RECENT_MAX = 8;
-var MISSED_CALL_NEWS_MS = DAY_MS;
-function missedCallIsNews(c, now) {
-  return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
-}
-function fmtClock(seconds2) {
-  return mmss(Math.max(0, seconds2) * 1e3);
-}
-function liveStillUp(c, heartbeatMs, nowMs) {
-  if (!c.live) return false;
-  return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
-}
-function callsStillUp(read, nowMs) {
-  return (read?.now ?? []).filter((c) => liveStillUp(c, read?.heartbeatMs ?? 0, nowMs));
-}
-function liveBar(vm, nowMs) {
-  const up = callsStillUp(vm, nowMs);
-  if (up.length === 0) return null;
-  if (up.length > 1) {
-    return {
-      callId: null,
-      text: `${up.length} calls on your line now`,
-      sinceMs: null,
-      checking: up.some((c2) => c2.checking)
-    };
-  }
-  const c = up[0];
-  return {
-    callId: c.callId,
-    text: `On the phone now \xB7 ${c.whoShort}`,
-    // A call whose provider has gone quiet gets no running clock: the number
-    // would keep climbing for something that may already have ended.
-    sinceMs: c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs),
-    checking: c.checking
-  };
-}
-function turnsOf(dto) {
-  return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
-    const start = turn.start ?? turn.words?.[0]?.start;
-    if (turn.role === "injected") {
-      const said = injectedTurn(turn.content);
-      return { speaker: said.speaker, text: said.text, t: "\u2014" };
-    }
-    return {
-      speaker: turn.role === "agent" ? "agent" : "client",
-      text: turn.content ?? "",
-      t: typeof start === "number" ? mmss(start * 1e3) : "\u2014"
-    };
-  });
-}
-function checkingOf(live, startedAtMs, heartbeatAtMs, nowMs) {
-  if (!live) return { checking: false, checkingWhy: null };
-  const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
-  const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
-  if (sinceBeat > LIVE_STALE_MS) {
-    return {
-      checking: true,
-      checkingWhy: `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`
-    };
-  }
-  if (sinceStart > LIVE_OVERLONG_MS) {
-    return { checking: true, checkingWhy: `live for over ${Math.floor(sinceStart / MIN_MS)} minutes` };
-  }
-  return { checking: false, checkingWhy: null };
-}
-function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
-  const nowMs = now.getTime();
-  const withheld = !dto.from_e164 && !dto.from_raw;
-  const phone = formatPhoneDisplay(dto.from_e164);
-  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = callerName(dto);
-  const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "the caller";
-  const live = isLiveCall(dto, now);
-  const missed = dto.status === "not_connected";
-  const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
-  const beat = dto.updated_at ?? dto.started_at;
-  const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
-  const { checking, checkingWhy } = checkingOf(live, startedAtMs, heartbeatAtMs, nowMs);
-  const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
-  const summary = (dto.summary ?? "").trim() || null;
-  const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
-  const recordingState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
-  return {
-    callId: dto.id,
-    cvId: `cv-${dto.id}`,
-    clientId: dto.contact_id,
-    who,
-    whoShort,
-    initials: withheld ? "\u2013" : initialsOf(who),
-    // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
-    // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
-    number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : phone ?? dto.from_raw,
-    from: withheld ? null : dto.from_e164,
-    direction: dto.direction,
-    status: dto.status,
-    live,
-    missed,
-    outcome: callOutcomeFor(dto, live),
-    stale: dto.status === "ongoing" && !live,
-    checking,
-    checkingWhy,
-    startedAtMs,
-    heartbeatAtMs,
-    startedLabel: shortTime(dto.started_at, tz, now),
-    duration: live || missed ? null : callLength(dto.duration_ms) ?? null,
-    summaryState,
-    summary,
-    sentiment: dto.sentiment,
-    endedHow: dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null,
-    recordingState,
-    // The analysis's words, as toCallVM reads them; none while the call is still on the line.
-    wanted: live ? null : dto.wanted?.trim() || null,
-    outcomeWords: live ? null : callOutcomeWords(dto.outcome),
-    followUp: live ? null : dto.follow_up?.trim() || null,
-    lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
-    transcript: turnsOf(dto)
-  };
-}
-function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
-  const vms = calls.map((c) => toLiveCallVM(c, tz, now));
-  const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
-  const finished = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
-  const recent = finished.slice(0, RECENT_MAX);
-  const missedCalls = finished.filter((c) => missedCallIsNews(c, now.getTime()));
-  const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
-  const line = voice ? {
-    number: formatPhoneDisplay(voice.number_e164),
-    on: voice.status === "active",
-    lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, tz, now) : null
-  } : null;
-  return {
-    now: nowList,
-    recent,
-    missedCalls,
-    line,
-    lineRead: channels !== null,
-    heartbeatMs: CALL_HEARTBEAT_MS,
-    fetchedAtMs: now.getTime()
-  };
-}
-
 // src/today/today-rows.ts
 var say = (v) => typeof v === "string" && v.trim() ? v.trim() : "";
 function todayNeedsRows(f) {
@@ -30709,7 +31037,8 @@ function todayNeedsYou(f) {
     count: f.needsYouCount,
     hint: "The receptionist stopped and asked for a human.",
     rows,
-    empty: rows.length ? null : period.unanswered_in_window === 0 && period.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
+    // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.
+    empty: f.needsYouCount ? null : period.unanswered_in_window === 0 && period.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
   };
 }
 function todayWindowClosing(f) {
@@ -30735,18 +31064,9 @@ function todayNoReply(f) {
   const closingSet = new Set(closingConvs.map((c) => c.id));
   return conversations.flatMap((c) => {
     if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
-    const { standing } = standingOf(
-      {
-        state: c.state,
-        paused_until: c.paused_until,
-        assignee_user_id: c.assignee_user_id,
-        assignee_is_me: c.assignee_is_me,
-        open_escalation: false
-      },
-      now.getTime()
-    );
+    const { standing } = standingOfThread(c, false, now.getTime());
     if (standing !== "quiet" && standing !== "needs_you") return [];
-    const last = c.messages[c.messages.length - 1];
+    const last = lastExchanged(c.messages);
     if (!last || !isTheirOwnWords(last)) return [];
     const lastMs = new Date(last.created_at).getTime();
     if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
@@ -30769,17 +31089,17 @@ function todayReceipts(f) {
 var NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
 function callNote(c, live, analysisDue) {
   if (live) return "In progress right now";
-  if (c.in_voicemail) return "Reached voicemail";
+  if (reachedVoicemail(c)) return "Reached voicemail";
   if (abandonedCall(c)) return `Hung up after ${spokenDuration(c.duration_ms)} \u2014 they left with nothing`;
   if (c.sentiment === "Negative") return "Caller sentiment: Negative \u2014 the voice provider's own read";
   if (analysisDue) return "Summary on its way from the voice provider";
   if (!c.summary) return "No summary from the voice provider";
-  return DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early";
+  return endedHowOf(c) ?? "Ended early";
 }
 function todayCallRows(f) {
   const { callsInWindow, tz, now } = f;
-  return callsInWindow.filter((c) => c.status !== "not_connected").map((c) => ({ c, vm: toCallVM(c, tz, now) })).filter(
-    ({ c, vm }) => vm.live || c.in_voicemail || c.sentiment === "Negative" || !c.summary || // Somebody rang and left with nothing. Measured before writing this:
+  return callsInWindow.filter((c) => !neverConnected(c)).map((c) => ({ c, vm: toCallVM(c, tz, now) })).filter(
+    ({ c, vm }) => vm.live || reachedVoicemail(c) || c.sentiment === "Negative" || !c.summary || // Somebody rang and left with nothing. Measured before writing this:
     // with a provider summary the row was not worth an ear at all, since
     // `user_hangup` is not in NEEDS_EAR and rightly so — every ordinary
     // call ends that way. Without one it did arrive, as "No summary from
@@ -30987,6 +31307,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const facts = todayAskFacts(f);
   const empty = todayQueueEmpty(f);
   if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
+    const failed = todaySendFailure(f);
     return {
       standing: {
         chips,
@@ -30998,7 +31319,13 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       },
       needsYou: null,
       windowClosing: null,
-      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
+      recap: {
+        label: "Today so far",
+        line: "Nothing has come in yet today.",
+        sentences: failed ? [failed] : [],
+        facts,
+        receipts: []
+      },
       figures: null,
       zero_figures: null,
       proof,
@@ -31211,21 +31538,14 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
 
 // src/today/today-period.ts
 function todayPeriodLine(r2) {
-  if (!r2 || !r2.vm) return null;
-  const v = r2.vm;
-  const lead = v.period?.now ?? `Last ${v.rangeLabel}`;
-  if (v.empty) return { text: `${lead}: nobody wrote or called.`, to: "reports" };
-  const a = v.answered;
-  if (!a) return null;
-  const messages = v.tiles.find((t) => t.id === "messages");
+  if (!r2) return null;
+  if (r2.empty) return { text: `${r2.lead}: nobody wrote or called.`, to: "reports" };
   const parts2 = [
-    `${a.totals.in} message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`
+    `${r2.messages.total} message${r2.messages.total === 1 ? "" : "s"}${r2.messages.compare ? ` (${r2.messages.compare})` : ""}`
   ];
-  if (a.share !== void 0 && a.share !== null)
-    parts2.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
-  const callCount = v.calls ? v.calls.total : 0;
-  if (callCount) parts2.push(`${callCount} call${callCount === 1 ? "" : "s"}`);
-  return { text: `${lead}: ${parts2.join(", ")}.`, to: "reports" };
+  if (r2.answered.share !== null) parts2.push(`${Math.round(r2.answered.share * 100)}% answered by the receptionist`);
+  if (r2.calls) parts2.push(`${r2.calls} call${r2.calls === 1 ? "" : "s"}`);
+  return { text: `${r2.lead}: ${parts2.join(", ")}.`, to: "reports" };
 }
 
 // src/today/today-runs.ts
@@ -31284,11 +31604,10 @@ function leakFactsOf(reports, people, noReply, nowMs) {
 }
 function neverBookedLeak({ reports, list: list2, step: step2 }) {
   const b = reports ? reports.booking : null;
-  if (!(reports && b && b.present && b.pct !== null && (b.asked ?? 0) >= 5 && b.pct <= 25)) return null;
-  const asked = b.asked ?? 0;
-  const booked = b.booked ?? 0;
+  if (!(reports && b && b.present && b.pct !== null && b.asked >= 5 && b.pct <= 25)) return null;
+  const { asked, booked } = b;
   const never = list2("asked_never_booked");
-  const text = booked === 0 ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
+  const text = booked === 0 ? `${asked} people wrote or called in the last ${reports.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.rangeLabel} got onto the calendar.`;
   const math = never ? `${b.headline} \xB7 ${never.count} on Asked, never booked` : b.headline;
   return {
     id: "never-booked",
@@ -31305,10 +31624,10 @@ function neverBookedLeak({ reports, list: list2, step: step2 }) {
   };
 }
 function unansweredLeak({ reports, noReply }) {
-  const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
+  const a = reports ? reports.answered : null;
   if (!(reports && a && a.none >= 2)) return null;
   const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
-  const math = `of ${a.in} in the last ${reports.vm.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`;
+  const math = `of ${reports.messages.total} in the last ${reports.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`;
   return {
     id: "unanswered",
     tone: "warn",
@@ -31356,14 +31675,20 @@ function proposalsWaitingWords(n, pace, po, inHand) {
   return { text, math };
 }
 function yoursToFollowUp(waiting) {
-  return waiting.filter((r2) => !isOptedOutContact({ consent: r2.consent.state, dnc: r2.consent.dnc })).slice(0, 2).flatMap(
+  return waiting.filter((r2) => !isOptedOutContact({ consent: r2.consent.state, dnc: r2.consent.dnc })).filter((r2, i, all) => all.findIndex((x) => x.id === r2.id) === i).slice(0, 2).flatMap(
     (r2) => r2.id && r2.name ? [{ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name}` }] : []
   );
 }
 function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
   const dealRows = (people?.rows ?? []).filter((r2) => "deal" in r2 && "askedMs" in r2);
   const pace = people?.dealPace ?? null;
-  const out = proposalsWaiting(dealRows, dealsAt(), pace);
+  const shownDeal = new Map(dealRows.map((r2) => [r2.id, r2.deal]));
+  const proposals = eachOpenProposal(dealRows).map((r2) => {
+    const shown = shownDeal.get(r2.id) ?? null;
+    const same2 = !!shown && !!r2.deal && (r2.deal === shown || r2.deal.id !== null && r2.deal.id === shown.id);
+    return same2 ? r2 : { ...r2, followUp: null };
+  });
+  const out = proposalsWaiting(proposals, dealsAt(), pace);
   const inHand = out.filter((r2) => r2.followUp?.kind === "will").length;
   const waiting = out.filter((r2) => r2.followUp?.kind !== "will");
   const po = list2("proposal_out");
@@ -31556,7 +31881,7 @@ function buildNotificationFeed(input) {
       key: `call:${c.callId}`,
       kind: "missed_call",
       at: c.startedAtMs,
-      title: `${callAttemptWords(c.direction ?? "inbound")} \xB7 ${c.who}`,
+      title: `${callAttemptWords(c.direction)} \xB7 ${c.who}`,
       message: c.number ? `${c.number} \u2014 the call never connected.` : "The call never connected.",
       to: `conversations/${c.cvId}`,
       icon: "phone",
@@ -31632,7 +31957,7 @@ var JOB_WORK = {
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
   reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
-  // A fact's delivery to a subscriber (00332): the subscriber's own rows are what the owner would see; the bell says it
+  // A fact's delivery to a subscriber (00333): the subscriber's own rows are what the owner would see; the bell says it
   // did not get there, and the activity log is where the fact is.
   event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" }
 };
@@ -32825,6 +33150,7 @@ var STANDING_LABELS = {
   review: "Under review",
   disqualified: "Disqualified"
 };
+var standingLabel = (standing) => STANDING_LABELS[standing] ?? standing;
 var DECIDED_BY_WORDS = {
   person: " (decided by a person)",
   sweep: " (the nightly check)",
@@ -32836,7 +33162,7 @@ var BY_ORIGIN = {
   invite: (code2) => `${code2}, asked in by its owner`
 };
 function platformPartnerStanding(w) {
-  const label = w.standing ? STANDING_LABELS[w.standing] ?? w.standing : "Not judged yet";
+  const label = w.standing ? standingLabel(w.standing) : "Not judged yet";
   const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
   const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
   return {
@@ -32869,12 +33195,6 @@ function partnerEventBits(kind, p) {
       return known(CODE_IGNORED_WHY, "why");
     case "partner.reversed":
       return known(REVERSED_WORDS, "kind");
-    case "partner.standing_set": {
-      const label = known(STANDING_LABELS, "standing")[0];
-      const by = text("by");
-      const whose = by !== null && Object.hasOwn(DECIDED_BY_WORDS, by) ? DECIDED_BY_WORDS[by] : "";
-      return label ? [`${label}${whose}`] : [];
-    }
     case "partner.handover_sent":
       return p.again === true ? ["sent again"] : [];
     case "partner.invite_accepted":
@@ -32893,7 +33213,7 @@ function partnerPayoutOutcomeWords(code2, r2) {
   return "Nothing is payable to them in that currency, so nothing was recorded.";
 }
 function partnerStandingOutcomeWords(r2) {
-  const label = (STANDING_LABELS[r2.standing] ?? r2.standing).toLowerCase();
+  const label = standingLabel(r2.standing).toLowerCase();
   if (r2.standing === "disqualified")
     return r2.voided ? `Disqualified. What it still held (${r2.voided} ${r2.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.` : "Disqualified. It earns nothing from now on; what was paid stays paid.";
   if (r2.standing === "qualified")
@@ -34201,6 +34521,7 @@ export {
   HAND_WORDS_MAX,
   HELD_ON,
   HELD_REASONS,
+  HELD_WORDS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
   HandoverCreateSchema,
@@ -34623,6 +34944,7 @@ export {
   REPORT_CHANNELS,
   REPORT_LENSES,
   REPORT_PERIOD_DEFAULT,
+  REPORT_PERIOD_IDS,
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,
@@ -35102,6 +35424,7 @@ export {
   fmtSeconds,
   foldName,
   followUpIsFor,
+  followUpKey,
   followUpNames,
   followUpRunAt,
   followUpStandOf,
@@ -35148,6 +35471,7 @@ export {
   hardLimitsWords,
   hasHours,
   hasProfile,
+  headlineOf,
   heardSinceProposal,
   heardWords,
   heldBackWords,
@@ -35160,6 +35484,7 @@ export {
   holdDoors,
   holdOf,
   holdWords,
+  holderOf,
   hoursFromGoogle,
   hoursLines2 as hoursLines,
   hoursOf2 as hoursOf,
@@ -35219,7 +35544,6 @@ export {
   isOpeningProblem,
   isOptedOut,
   isOptedOutContact,
-  isOwned,
   isPartnerCode,
   isPersonRow,
   isPersonsWords,
@@ -35234,6 +35558,7 @@ export {
   isReplyIntent,
   isReplyTo,
   isReplyUndoRefusal,
+  isReportDto,
   isReportPeriod,
   isSellsBy,
   isSidebarPref,
@@ -35465,6 +35790,8 @@ export {
   onDomain,
   oneDoor,
   openAt,
+  openDealsFromJson,
+  openDealsOf,
   openWeekWords,
   openingProblemWords,
   openingSystemPrompt,
@@ -35560,8 +35887,11 @@ export {
   pipelinePassMany,
   pipelinePeekDetail,
   pipelinePeekOf,
+  pipelinePersonOf,
   pipelineRail,
   pipelineRoute,
+  pipelineRowId,
+  pipelineRowNow,
   pipelineSorted,
   pipelineViewLabel,
   placeholdersOf,
@@ -35695,6 +36025,7 @@ export {
   reachSplit,
   reachSplitWords,
   reachedCustomer,
+  reachedVoicemail,
   readAgoLabel,
   readingPlan,
   readingSystemPrompt,
@@ -35724,6 +36055,7 @@ export {
   replyChipOf,
   replyDelayMs,
   replyFromLineOf,
+  replyHoldDtoOf,
   replyIntentQuestion,
   replyLeftAsOf,
   replyNoticeWords,
@@ -35834,6 +36166,7 @@ export {
   shiftKey,
   shiftMonth,
   shortCode,
+  shortName,
   shortTime,
   shortcutGroups,
   shouldLandOnFirstRun,
@@ -35854,6 +36187,7 @@ export {
   smsStateRow,
   smsStopLine,
   smsVersionSegments,
+  snoozedThreadWords,
   soleProprietorLimits,
   spanForView,
   spanLabel,
@@ -35924,6 +36258,7 @@ export {
   textingTermsMetadata,
   textingTermsVM,
   textingWords,
+  theirVisitTest,
   themeBootScript,
   themeButtonWords,
   themeColorOf,
@@ -35931,6 +36266,7 @@ export {
   threadChannelOf,
   threadChannelWords,
   threadStanding,
+  threadsWaitingOnYou,
   tidyCallSummary,
   timetable,
   timezoneCity,
@@ -35948,6 +36284,7 @@ export {
   toDealVM,
   toGoogleReviewVM,
   toGoogleVM,
+  toHeadlineVM,
   toInboxThreadVM,
   toLeadPeekVM,
   toLeadRowVM,
@@ -36023,6 +36360,8 @@ export {
   visitDayWord,
   visitFactsFor,
   visitLine,
+  visitMomentDay,
+  visitOnDay,
   visitStartTime,
   visitTime,
   visitTitleFor,

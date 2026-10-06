@@ -8,7 +8,15 @@
  * Times are written in the business's own zone, once, in the header, so a file read months later still says which
  * clock it used.
  */
-import { callLength, csvCell, mmss, personName, whisperText, type CsvCell } from "@chanlytics/contracts";
+import {
+  callLength,
+  csvCell,
+  mmss,
+  personName,
+  reachedVoicemail,
+  whisperText,
+  type CsvCell,
+} from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
 
 interface ExportOpts {
@@ -149,7 +157,7 @@ export function callText(call: CallDto, opts: ExportOpts): string {
     "",
   ];
   const facts: string[] = [];
-  if (call.in_voicemail) facts.push("Reached voicemail");
+  if (reachedVoicemail(call)) facts.push("Reached voicemail");
   if (call.call_successful === true) facts.push("Marked successful");
   else if (call.call_successful === false) facts.push("Marked unsuccessful");
   if (call.sentiment) facts.push(`Caller sentiment: ${call.sentiment}`);

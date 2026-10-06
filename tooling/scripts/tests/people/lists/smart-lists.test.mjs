@@ -70,7 +70,10 @@ const vm = (id, over = {}) => ({
   saidYes: { offers: true, messages: true },
   canReceive: { offers: true, messages: true },
   stopped: false,
+  openDeals: [],
   ...over,
+  // Every stage they stand at, theirs first, as the row works it out (0029): one, where they stand at one.
+  dealStages: over.dealStages ?? (over.dealStage ? [over.dealStage] : []),
 });
 const rule = (...all) => ({ all });
 /** What a workspace and a reader give a list: here, everything. */
@@ -144,6 +147,16 @@ test("a rule holds over the facts a row carries: a visit's days, when they were 
     listRuleMatches(rule({ field: "deal_stage", op: "is", value: "lost" }), vm("17", { dealStage: "lost" })),
     true,
   );
+  // A client of one service with a proposal out for another stands at both (0029): either list holds them, and a list
+  // of everyone but its clients does not.
+  const twoDeals = vm("17", { dealStage: "proposed", dealStages: ["proposed", "won"] });
+  assert.deepEqual(
+    ["won", "proposed", "lost"].map((value) =>
+      listRuleMatches(rule({ field: "deal_stage", op: "is", value }), twoDeals),
+    ),
+    [true, true, false],
+  );
+  assert.equal(listRuleMatches(rule({ field: "deal_stage", op: "is_not", value: "won" }), twoDeals), false);
   assert.equal(listRuleMatches(rule({ field: "can_receive", op: "is", to: "offers", yes: true }), vm("18")), true);
   assert.equal(listRuleMatches(rule({ field: "stopped", op: "is", yes: true }), vm("19", { stopped: true })), true);
   assert.equal(listRuleMatches(rule({ field: "step_due", op: "is", yes: true }), vm("20", { stepDue: true })), true);

@@ -9,13 +9,13 @@
  */
 import type { ReplyWhyVM } from "../config/brain";
 import { messageAt, type ConversationDto } from "./thread-dto";
-import { agentFor, writtenChannelOf, threadChannelOf } from "./thread-channel";
-import { contactName, isIdentifierName, initialsOf } from "./thread-contact";
+import { agentFor, isChatMessage, writtenChannelOf, threadChannelOf } from "./thread-channel";
+import { contactName, initialsOf, shortName } from "./thread-contact";
 import { shortTime, bubbleTime } from "./thread-clock";
 import { mediaVM, type MediaVM } from "./message-media";
-import { sentFactsOf, reachedCustomer, messageWords, isChatMessage } from "./message-words";
+import { sentFactsOf, messageWords, lastExchanged } from "./message-words";
 import { messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
-import { standingOf, type Standing } from "./standing";
+import { standingOfThread, type Standing } from "./standing";
 import type { EscalationDto } from "./escalations";
 
 /* ---- the mockup's conversation shape ---- */
@@ -88,9 +88,8 @@ export function toConversationVM(
   now = new Date(),
 ): ConversationVM {
   const who = contactName(dto);
-  // An identifier is not split: "+1" is nobody's first name. The viewer
-  // read "Latest from +1" for a person known only by number.
-  const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
+  // An identifier is not split: the viewer read "Latest from +1" for a person known only by number.
+  const whoShort = shortName(who);
   // The status travels with the bubble. It used to be dropped here, and the
   // conversations API filters nothing — so a queued draft still inside its veto
   // window, a send that failed, and a reply an operator canceled all arrived on
@@ -122,26 +121,18 @@ export function toConversationVM(
   // to "open" ("they spoke last, you owe a reply") for a customer who had
   // merely phoned and been handled.
   const chat = dto.messages.filter(isChatMessage);
-  const callNotes = dto.messages.length - chat.length;
+  // A call's own note, never a team's note: what is not a chat message is not therefore a call.
+  const callNotes = dto.messages.filter((m) => m.type === "call_summary").length;
   // The last thing that actually happened between them: a queued or cancelled
   // draft is not the thread's last word, and previewing it read "handled".
-  const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  const last = lastExchanged(chat);
   // Who had that last word, when it was ours: the receptionist, the team, or a run. The row said
   // "Answered by the receptionist" whoever answered, and when the customer had spoken last.
   const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
   // ONE rule for who has the thread (standing.ts), the Inbox's own: flagged is an open escalation, the needs_human
   // state or a live pause, whoever holds it. The row read only the state and the pause, so an open escalation on an
   // open thread was invisible here.
-  const v = standingOf(
-    {
-      state: dto.state,
-      paused_until: dto.paused_until,
-      assignee_user_id: dto.assignee_user_id,
-      assignee_is_me: dto.assignee_is_me,
-      open_escalation: !!escalation,
-    },
-    now.getTime(),
-  );
+  const v = standingOfThread(dto, !!escalation, now.getTime());
   const needsHuman = v.flagged;
   // Honest pills: escalated when a person is needed or has it; open while the last word is
   // the customer's; handled only when the thread is actually answered/closed.

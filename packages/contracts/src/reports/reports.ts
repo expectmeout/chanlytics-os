@@ -13,10 +13,13 @@
  * view model also says the one sentence under each chart (`lines`), so the
  * page composes no sentence of its own.
  */
-import { reasonShort } from "../people/person-row-facts";
+import { reasonShort } from "../conversations/escalations";
 import { absoluteBuckets, heroSpeed, holdBuckets, holdLine, holdOf, type ReportHoldVM } from "./report-speed";
 import { closedOf, hoursUnsetOf, type ReportArrivalDto, type ReportProfile } from "./report-closed";
 import { REPORT_TILES, fmtSeconds, type ReportTileVM } from "./report-tiles";
+import type { ReportHeadlineDto } from "./report-headline";
+import type { ReportPeriodId } from "./report-periods";
+import type { BookingReportDto } from "../calendar/calendar-people";
 import { sumOf } from "../shared/numbers";
 import { DATE_FMT } from "../shared/time";
 import { capitalize, plural } from "../shared/words";
@@ -425,6 +428,19 @@ function rhythmLine(week: ReportWeekVM): string | null {
 }
 
 /**
+ * The period in words, as a sentence takes it: the table's label for 7, 30 and 90 days, else the count ("5 days", Month on
+ * the 5th). The report's and the headline's, so the two never spell a range two ways.
+ */
+export const rangeLabelOf = (days: number): string =>
+  REPORT_RANGES.find((r) => r.days === days)?.label ?? plural(days, "day");
+
+/** The two periods by name, said the same way wherever they are said: "Last 30 days", "The 30 days before". */
+export const periodWords = (rangeLabel: string): { now: string; before: string } => ({
+  now: `Last ${rangeLabel}`,
+  before: `The ${rangeLabel} before`,
+});
+
+/**
  * What every part of the report is built from, counted once: the period asked for (the series' last `days`) and the
  * one before it, the current days as points, both periods' totals and the receptionist's share of the answered, the
  * range in words, and its reply times in order.
@@ -479,9 +495,11 @@ function periodFactsOf(dto: ReportDto) {
     tot,
     prev,
     noun,
-    rangeLabel: REPORT_RANGES.find((r) => r.days === days)?.label ?? noun,
+    rangeLabel: rangeLabelOf(days),
     // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
     priorHadAny: prev.in + prev.calls > 0,
+    /** Nobody wrote or called in the period: no customer message and no call. */
+    empty: tot.in === 0 && tot.calls === 0,
     answeredTotal,
     aiShare: answeredTotal ? Math.round((tot.ai / answeredTotal) * 100) : null,
     prevAnsweredTotal,
@@ -612,6 +630,33 @@ function linesOf(f: PeriodFacts, week: ReportWeekVM, channels: ReportChannelVM[]
   };
 }
 
+/**
+ * What Today reads of a period, summed where the series is: the same facts the report is built from (`periodFactsOf`,
+ * `answeredOf`), so a count is counted once and the number Today says is the number Reports prints, and none of the series'
+ * days goes over the wire. `booking` is the calendar's line over the same days, counted beside it (the server's `bookingOf`).
+ */
+export function headlineOf(
+  dto: ReportDto,
+  period: ReportPeriodId,
+  booking: BookingReportDto | null,
+): ReportHeadlineDto {
+  const f = periodFactsOf(dto);
+  return {
+    period,
+    days: f.days,
+    empty: f.empty,
+    messages_in: f.tot.in,
+    // Nothing to compare with where the period before had no customer message and no call at all (compareWords).
+    messages_before: f.priorHadAny ? f.prev.in : null,
+    answered_ai: f.tot.ai,
+    answered_you: f.tot.you,
+    unanswered: f.tot.none,
+    answered_share: answeredOf(f).share,
+    calls: f.tot.calls,
+    booking,
+  };
+}
+
 /** The Reports page's view model: a builder per part, over the facts counted once. `profile` is the workspace's hours
  *  and closures, null where they could not be read; required, so each caller says (the node tests may leave it off). */
 export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null }): ReportVM {
@@ -630,7 +675,7 @@ export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null
     since: first ? fmtDay(first) : "",
     until: last ? fmtDay(last) : "",
     timezone: dto.timezone,
-    empty: f.tot.in === 0 && f.tot.calls === 0,
+    empty: f.empty,
     tiles,
     answered: answeredOf(f),
     reasons,
@@ -647,7 +692,7 @@ export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null
     hours: hoursOf(dto.hours, closedOf(dto.arrivals, opts?.profile)),
     hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
     channels,
-    period: { now: `Last ${f.rangeLabel}`, before: `The ${f.rangeLabel} before` },
+    period: periodWords(f.rangeLabel),
     lines: linesOf(f, week, channels),
     table: {
       columns: [

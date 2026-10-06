@@ -3,11 +3,12 @@
  * workspace's), in every word the product says it, and the line a People row says about what the receptionist is
  * doing for them. The row reads the line (person-row.ts); the page's mode control reads the words (person-cards.ts).
  */
+import { HELD_WORDS } from "../conversations/standing";
 import { shortTime } from "../conversations/thread-clock";
 import { ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
-import { reasonShort } from "./person-row-facts";
-import { isOwned } from "./person-state";
+import { reasonShort } from "../conversations/escalations";
+import { holderOf, type ThreadHolder } from "./person-state";
 
 /** What an owner may set for one person: answer, ask first, or stay out. */
 export type PersonMode = "auto" | "ask" | "never";
@@ -27,17 +28,55 @@ export function asPersonMode(s: string | null | undefined): PersonMode | null {
   return s && (PERSON_MODES as readonly string[]).includes(s) ? (s as PersonMode) : null;
 }
 
-export type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
+export type ReceptionistTone =
+  "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent" | "yours" | "theirs";
 
 export interface PersonReceptionist {
   tone: ReceptionistTone;
   label: string;
 }
 
-export function receptionistOf(r: PersonRowDto, tz: string, nowMs: number): PersonReceptionist {
-  // A thread a person owns is theirs, whatever flagged it — the Inbox says
-  // "you have it" for the same row, and the two must not disagree.
-  if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
+/**
+ * The receptionist on a thread somebody has, by who has it (holderOf): the member looking's and a teammate's say what
+ * the Inbox says of it (HELD_WORDS: its pill, and its pane's sentence), and one held by a person not named, which only a
+ * page with no member looking meets, keeps this page's own words. `label` is the Receptionist fact's and the row's;
+ * `title` and `detail` are the Right now card's.
+ */
+export const HELD_THREAD: Record<
+  ThreadHolder,
+  { tone: ReceptionistTone; label: string; title: string; detail: string }
+> = {
+  yours: {
+    tone: "yours",
+    label: HELD_WORDS.yours.pill,
+    title: HELD_WORDS.yours.pill,
+    detail: HELD_WORDS.yours.sentence,
+  },
+  theirs: {
+    tone: "theirs",
+    label: HELD_WORDS.theirs.pill,
+    title: HELD_WORDS.theirs.pill,
+    detail: HELD_WORDS.theirs.sentence,
+  },
+  someone: {
+    tone: "paused",
+    label: "Paused, a person owns the thread",
+    title: "Paused, a person owns this thread",
+    detail: "A person owns this thread; automatic replies resume when it is handed back.",
+  },
+};
+
+/** `viewerId` is the member looking, or null for none (toPersonRowVM's): required, since who has a thread depends on it. */
+export function receptionistOf(
+  r: PersonRowDto,
+  tz: string,
+  nowMs: number,
+  viewerId: string | null,
+): PersonReceptionist {
+  // A thread a person has is theirs, whatever flagged it — the Inbox says "You have it" or "A teammate has it" for the
+  // same row, and the two must not disagree.
+  const held = holderOf(r, nowMs, viewerId);
+  if (held) return { tone: HELD_THREAD[held].tone, label: HELD_THREAD[held].label };
   if (r.open_escalation_reason)
     return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
   if (r.needs_human) return { tone: "escalated", label: "Waiting for a person" };

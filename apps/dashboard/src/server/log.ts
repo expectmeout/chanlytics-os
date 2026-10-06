@@ -165,6 +165,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "tenant_config_unreadable",
   "today_calls_fetch_failed",
   "today_email_line_read_failed",
+  "today_replies_read_failed",
   "today_searches_fetch_failed",
   "translation_malformed",
   "unsubscribe_bad_link",

@@ -189,7 +189,7 @@ end $$;
 -- Name: FUNCTION ask_for_tick(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ask_for_tick() IS 'Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00331, 00332). True when it asked.';
+COMMENT ON FUNCTION public.ask_for_tick() IS 'Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00332, 00333). True when it asked.';
 
 
 --
@@ -939,14 +939,14 @@ COMMENT ON COLUMN public.jobs.lease_until IS 'While in the future, a run holds t
 -- Name: COLUMN jobs.dedupe_key; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00331): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed.';
+COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00332): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed.';
 
 
 --
 -- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00332); null for a kind the case does not name, claimed last.';
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00333); null for a kind the case does not name, claimed last.';
 
 
 --
@@ -1020,7 +1020,7 @@ $$;
 -- Name: FUNCTION claim_due_jobs(p_limit integer, p_lease_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018: a reply, then someone waiting, then bulk); within a lane a workspace with nothing of that lane running goes first (00333), then the earliest due; a row naming a capacity key that is full is left for a later tick (job_capacity). Takes back a fired row whose lease ran out with attempts + 1.';
+COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018: a reply, then someone waiting, then bulk); within a lane a workspace with nothing of that lane running goes first (00334), then the earliest due; a row naming a capacity key that is full is left for a later tick (job_capacity). Takes back a fired row whose lease ran out with attempts + 1.';
 
 
 --
@@ -1482,7 +1482,7 @@ end $_$;
 -- Name: FUNCTION create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text, p_title text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text, p_title text) IS 'Owner or operator adds a person by phone — get-or-create; a name fills only an empty one; consent stays unknown; a contact.added event says where they came from. A number whose person asked to be forgotten is refused (PE001, 00329).';
+COMMENT ON FUNCTION public.create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text, p_title text) IS 'Owner or operator adds a person by phone — get-or-create; a name fills only an empty one; consent stays unknown; a contact.added event says where they came from. A number whose person asked to be forgotten is refused (PE001, 00330).';
 
 
 --
@@ -2802,7 +2802,7 @@ end $$;
 -- Name: FUNCTION event_deliveries_redrive(p_subscriber text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.event_deliveries_redrive(p_subscriber text) IS 'Every failed or paused delivery of one subscriber, scheduled again with a fresh event_deliver job (decision 0030): the re-drive, the service role''s. Answers how many.';
+COMMENT ON FUNCTION public.event_deliveries_redrive(p_subscriber text) IS 'Every failed or paused delivery of one subscriber, scheduled again with a fresh event_deliver job (decision 0031): the re-drive, the service role''s. Answers how many.';
 
 
 --
@@ -2823,7 +2823,7 @@ end $$;
 -- Name: FUNCTION event_outbox_wake(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.event_outbox_wake() IS 'After a statement writes event_outbox: the relay runs first in every tick, so an outbox row asks for one (00332).';
+COMMENT ON FUNCTION public.event_outbox_wake() IS 'After a statement writes event_outbox: the relay runs first in every tick, so an outbox row asks for one (00333).';
 
 
 --
@@ -3004,7 +3004,7 @@ end $$;
 -- Name: FUNCTION events_outbox_copy(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.events_outbox_copy() IS 'After each event: a row on event_outbox when a subscription names its kind and is not paused (decision 0030). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
+COMMENT ON FUNCTION public.events_outbox_copy() IS 'After each event: a row on event_outbox when a subscription names its kind and is not paused (decision 0031). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
 
 
 --
@@ -4201,7 +4201,7 @@ end $$;
 -- Name: FUNCTION jobs_wake(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.jobs_wake() IS 'After a statement writes jobs: a row scheduled and due within two seconds asks for the tick through request_sweep, at most once a second (sweep_status.woken_at), never waiting on another asker (00331, decision 0031).';
+COMMENT ON FUNCTION public.jobs_wake() IS 'After a statement writes jobs: a row scheduled and due within two seconds asks for the tick through request_sweep, at most once a second (sweep_status.woken_at), never waiting on another asker (00332, decision 0032).';
 
 
 --
@@ -10739,7 +10739,7 @@ COMMENT ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p
 -- Name: people_list(uuid, uuid, text, integer, integer, timestamp with time zone, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, email_suppressed_at timestamp with time zone, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, consent_channels text[], marketing_channels text[], offers_asked_at timestamp with time zone, email_marketing text, email_marketing_source text, email_marketing_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_inbound_channel text, last_wrote_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid, in_touch_at timestamp with time zone, added_at timestamp with time zone)
+CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, email_suppressed_at timestamp with time zone, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, consent_channels text[], marketing_channels text[], offers_asked_at timestamp with time zone, email_marketing text, email_marketing_source text, email_marketing_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_inbound_channel text, last_wrote_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, open_deals jsonb, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid, in_touch_at timestamp with time zone, added_at timestamp with time zone)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -10805,6 +10805,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     end,
     dl.id, dl.stage, dl.service, dl.proposed_at, dl.decided_at, dl.ended_at, dl.amount_cents, dl.per,
     dl.proposal_url, dl.valid_until, dl.lost_reason,
+    od.deals,
     st.id, st.body, st.due_on, st.for_user_id, st.deal_id,
     c.in_touch_at, c.added_at
   from page c
@@ -10934,6 +10935,19 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
      limit 1
   ) dl on true
   left join lateral (
+    -- Every open deal (0029), newest first: a person may hold one per service (deals_open_uq), and the one above hid the
+    -- rest. Null for someone with none open.
+    select jsonb_agg(jsonb_build_object(
+             'id', d.id, 'stage', d.stage, 'service', d.service, 'proposed_at', d.proposed_at,
+             'decided_at', d.decided_at, 'ended_at', d.ended_at, 'amount_cents', d.amount_cents, 'per', d.per,
+             'currency', d.currency, 'proposal_url', d.proposal_url, 'valid_until', d.valid_until,
+             'lost_reason', d.lost_reason
+           ) order by d.created_at desc) as deals
+      from deals d
+     where d.contact_id = c.id
+       and d.stage in ('proposed', 'won')
+  ) od on true
+  left join lateral (
     -- Their next step: the earliest open one, by its day, then the one written first. A step is a note with a day,
     -- for the team only, so the receptionist never reads it; the list carries it for the Pipeline and Today.
     select n.id, n.body, n.due_on, n.for_user_id, n.deal_id
@@ -10953,7 +10967,7 @@ $$;
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent themselves (their own words: not an automatic reply or a list''s mail) (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor).';
+COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008); `open_deals` carries every open deal (proposed or won, one per service), newest first, in the same fields (0029), null with none open. The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent themselves (their own words: not an automatic reply or a list''s mail) (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor).';
 
 
 --
@@ -11946,7 +11960,7 @@ $$;
 -- Name: FUNCTION platform_metrics_read(p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_metrics_read(p_days integer) IS 'The back office''s read of platform_metrics (00277): the last p_days rolled days (at most 90), each workspace''s row with its name, newest day first, the spine''s five numbers beside the rest (00330).';
+COMMENT ON FUNCTION public.platform_metrics_read(p_days integer) IS 'The back office''s read of platform_metrics (00277): the last p_days rolled days (at most 90), each workspace''s row with its name, newest day first, the spine''s five numbers beside the rest (00331).';
 
 
 --
@@ -12147,7 +12161,7 @@ begin
     raise warning 'platform_metrics_roll: the lenses'' columns were not kept for %: %', p_day, sqlerrm;
   end;
 
-  -- The third keeps the spine's numbers (00330, decision 0029's Phase 0; relay lag since 00332), and fails alone too.
+  -- The third keeps the spine's numbers (00331, decision 0030's Phase 0; relay lag since 00333), and fails alone too.
   begin
     with
     -- How long a job waited for the ledger past its due time, by lane, at the 95th percentile: a first claim only
@@ -12215,7 +12229,7 @@ begin
                group by j.tenant_id, j.kind) d
        group by d.tenant_id
     ),
-    -- How long an event waited for the relay to write its deliveries, at the 95th percentile (00332, decision 0030):
+    -- How long an event waited for the relay to write its deliveries, at the 95th percentile (00333, decision 0031):
     -- the delivery row's own clock against the event's, kept on the row so the day's read joins no partition.
     relayed as (
       select d.tenant_id,
@@ -12260,7 +12274,7 @@ end $_$;
 -- Name: FUNCTION platform_metrics_roll(p_day date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00330; relay lag since 00332): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
+COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00331; relay lag since 00333): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
 
 
 --
@@ -12566,7 +12580,7 @@ end $$;
 -- Name: FUNCTION provider_events_scrub(p_tenant_id uuid, p_needles text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.provider_events_scrub(p_tenant_id uuid, p_needles text[]) IS 'An erasure''s hand on the intake ledger (decision 0030): the kept deliveries of the workspace, or of no workspace, whose body names the person by any of the needles (six characters or more; without regard to case; an address also form-encoded; a needle''s LIKE characters literal) are deleted. Answers how many.';
+COMMENT ON FUNCTION public.provider_events_scrub(p_tenant_id uuid, p_needles text[]) IS 'An erasure''s hand on the intake ledger (decision 0031): the kept deliveries of the workspace, or of no workspace, whose body names the person by any of the needles (six characters or more; without regard to case; an address also form-encoded; a needle''s LIKE characters literal) are deleted. Answers how many.';
 
 
 --
@@ -15540,7 +15554,7 @@ begin
       from public.event_subscriptions s
      where s.kind = r.kind and not s.paused
     on conflict do nothing;
-    -- One job per delivery, keyed so a second relay of the same event writes none (00331).
+    -- One job per delivery, keyed so a second relay of the same event writes none (00332).
     for d in
       select x.subscriber, s.lane
         from public.event_deliveries x
@@ -15568,7 +15582,7 @@ end $$;
 -- Name: FUNCTION relay_events(p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.relay_events(p_limit integer) IS 'The first step of every tick (decision 0030): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per unpaused subscriber and one event_deliver job each (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
+COMMENT ON FUNCTION public.relay_events(p_limit integer) IS 'The first step of every tick (decision 0031): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per unpaused subscriber and one event_deliver job each (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
 
 
 --
@@ -15995,7 +16009,7 @@ $$;
 -- Name: FUNCTION runtime_stamp(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.runtime_stamp(p_tenant_id uuid) IS 'What the receptionist''s runtime was read from, as one string: the settings'' version, the policies'' and the workspace row''s newest change, and the channels'', listings'' and lines'' count and newest change (00328). A warm instance reads the runtime again when it differs.';
+COMMENT ON FUNCTION public.runtime_stamp(p_tenant_id uuid) IS 'What the receptionist''s runtime was read from, as one string: the settings'' version, the policies'' and the workspace row''s newest change, and the channels'', listings'' and lines'' count and newest change (00329). A warm instance reads the runtime again when it differs.';
 
 
 --
@@ -19448,7 +19462,7 @@ CREATE TABLE public.event_deliveries (
 -- Name: TABLE event_deliveries; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.event_deliveries IS 'One row per event and subscriber (decision 0030): scheduled when the relay writes it and its job, done when the subscriber ran, failed when its job gave up, paused when the subscriber was paused as it ran. event_at is the event''s own clock, so relay lag is one subtraction. RLS on with no policy: the service role alone.';
+COMMENT ON TABLE public.event_deliveries IS 'One row per event and subscriber (decision 0031): scheduled when the relay writes it and its job, done when the subscriber ran, failed when its job gave up, paused when the subscriber was paused as it ran. event_at is the event''s own clock, so relay lag is one subtraction. RLS on with no policy: the service role alone.';
 
 
 --
@@ -19468,7 +19482,7 @@ CREATE TABLE public.event_outbox (
 -- Name: TABLE event_outbox; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.event_outbox IS 'One row per event of a subscribed kind, written in the event''s own transaction by events_outbox_copy (decision 0030), and taken off by relay_events once its deliveries are written. Empty when the relay is caught up. RLS on with no policy: the service role alone.';
+COMMENT ON TABLE public.event_outbox IS 'One row per event of a subscribed kind, written in the event''s own transaction by events_outbox_copy (decision 0031), and taken off by relay_events once its deliveries are written. Empty when the relay is caught up. RLS on with no policy: the service role alone.';
 
 
 --
@@ -19489,7 +19503,7 @@ CREATE TABLE public.event_subscriptions (
 -- Name: TABLE event_subscriptions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.event_subscriptions IS 'Who reacts to an event kind (decision 0030): a subscriber''s name, the lane its deliveries run in, and whether it is paused. Platform-wide rows, written by a migration or the service role; a door never names a subscriber. RLS on with no policy: the service role alone.';
+COMMENT ON TABLE public.event_subscriptions IS 'Who reacts to an event kind (decision 0031): a subscriber''s name, the lane its deliveries run in, and whether it is paused. Platform-wide rows, written by a migration or the service role; a door never names a subscriber. RLS on with no policy: the service role alone.';
 
 
 --
@@ -19531,14 +19545,14 @@ COMMENT ON COLUMN public.events.request_id IS 'The request this row was written 
 -- Name: COLUMN events.aggregate_version; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.events.aggregate_version IS 'The version of the record this event is about, as the door left it (decision 0030): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00332.';
+COMMENT ON COLUMN public.events.aggregate_version IS 'The version of the record this event is about, as the door left it (decision 0031): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00333.';
 
 
 --
 -- Name: COLUMN events.causation_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.events.causation_id IS 'The event this one was written in answer to, where a reaction wrote it (decision 0030). Null for a fact that arrived from outside, and for every row written before 00332.';
+COMMENT ON COLUMN public.events.causation_id IS 'The event this one was written in answer to, where a reaction wrote it (decision 0031). Null for a fact that arrived from outside, and for every row written before 00333.';
 
 
 --
@@ -19739,7 +19753,7 @@ CREATE TABLE public.job_capacity (
 -- Name: TABLE job_capacity; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.job_capacity IS 'How many jobs naming a capacity key (scope:key in payload.capacity) may be fired under a live lease at once (00333, decision 0031): counted in claim_due_jobs, nowhere else. A key with no row is no limit. The service role''s alone.';
+COMMENT ON TABLE public.job_capacity IS 'How many jobs naming a capacity key (scope:key in payload.capacity) may be fired under a live lease at once (00334, decision 0032): counted in claim_due_jobs, nowhere else. A key with no row is no limit. The service role''s alone.';
 
 
 --
@@ -21106,35 +21120,35 @@ COMMENT ON COLUMN public.platform_metrics.voice_usd IS 'What the day''s calls co
 -- Name: COLUMN platform_metrics.job_lag_ms; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.platform_metrics.job_lag_ms IS 'How long a job waited for the ledger past its due time that day, by lane (jobs.lane: 0 a reply, 1 someone waiting, 2 bulk, none), at the 95th percentile in milliseconds, first claims only (00330). Null for a day with no claim.';
+COMMENT ON COLUMN public.platform_metrics.job_lag_ms IS 'How long a job waited for the ledger past its due time that day, by lane (jobs.lane: 0 a reply, 1 someone waiting, 2 bulk, none), at the 95th percentile in milliseconds, first claims only (00331). Null for a day with no claim.';
 
 
 --
 -- Name: COLUMN platform_metrics.first_answer_ms; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.platform_metrics.first_answer_ms IS 'How long a customer waited for the first answer in their thread that day, by channel, at the 95th percentile in milliseconds, whoever answered (00330). Null for a day no customer was answered in.';
+COMMENT ON COLUMN public.platform_metrics.first_answer_ms IS 'How long a customer waited for the first answer in their thread that day, by channel, at the 95th percentile in milliseconds, whoever answered (00331). Null for a day no customer was answered in.';
 
 
 --
 -- Name: COLUMN platform_metrics.duplicate_sends; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.platform_metrics.duplicate_sends IS 'Outbound rows that day with the same words to one thread within a minute of the last: the later one is the duplicate (00330). Null for a day nothing was sent in.';
+COMMENT ON COLUMN public.platform_metrics.duplicate_sends IS 'Outbound rows that day with the same words to one thread within a minute of the last: the later one is the duplicate (00331). Null for a day nothing was sent in.';
 
 
 --
 -- Name: COLUMN platform_metrics.dead_letters; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.platform_metrics.dead_letters IS 'The jobs that died that day, by kind: state failed, which jobs_guard keeps final (00330). Null for a day none died in.';
+COMMENT ON COLUMN public.platform_metrics.dead_letters IS 'The jobs that died that day, by kind: state failed, which jobs_guard keeps final (00331). Null for a day none died in.';
 
 
 --
 -- Name: COLUMN platform_metrics.relay_lag_ms; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.platform_metrics.relay_lag_ms IS 'How long an event waited for its deliveries that day, at the 95th percentile in milliseconds (decision 0030): written by the relay''s own migration, null until then (00330).';
+COMMENT ON COLUMN public.platform_metrics.relay_lag_ms IS 'How long an event waited for its deliveries that day, at the 95th percentile in milliseconds (decision 0031): written by the relay''s own migration, null until then (00331).';
 
 
 --
@@ -21294,7 +21308,7 @@ CREATE TABLE public.provider_events (
 -- Name: TABLE provider_events; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.provider_events IS 'Every verified delivery a provider made to a door, as it came, under the provider''s own id (decision 0030): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.';
+COMMENT ON TABLE public.provider_events IS 'Every verified delivery a provider made to a door, as it came, under the provider''s own id (decision 0031): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.';
 
 
 --
@@ -21663,7 +21677,7 @@ COMMENT ON COLUMN public.sweep_status.registered_at IS 'A run-judged clock that 
 -- Name: COLUMN sweep_status.woken_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sweep_status.woken_at IS 'When a row written to the ledger last asked for this sweep itself (jobs_wake, 00331): one ask a second, whatever the writers do.';
+COMMENT ON COLUMN public.sweep_status.woken_at IS 'When a row written to the ledger last asked for this sweep itself (jobs_wake, 00332): one ask a second, whatever the writers do.';
 
 
 --
@@ -23308,7 +23322,7 @@ CREATE UNIQUE INDEX jobs_dedupe_live ON public.jobs USING btree (dedupe_key) WHE
 -- Name: INDEX jobs_dedupe_live; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON INDEX public.jobs_dedupe_live IS 'One live row per dedupe key (00331): a second schedule of the same key is refused (23505) while the first is scheduled or fired; a row that is done, canceled or failed lets the key be scheduled again.';
+COMMENT ON INDEX public.jobs_dedupe_live IS 'One live row per dedupe key (00332): a second schedule of the same key is refused (23505) while the first is scheduled or fired; a row that is done, canceled or failed lets the key be scheduled again.';
 
 
 --

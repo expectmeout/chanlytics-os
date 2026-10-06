@@ -3299,9 +3299,11 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
     const asked = order.indexOf(read);
     assert.ok(asked >= 0 && asked < waited, `REGRESSION: ${read} waited for another round (${order.join(", ")})`);
   }
+  // In any order among themselves: since #1431 the decisions are read on the person and on their threads in one query, asked
+  // beside the escalations once the ids are in.
   assert.deepEqual(
-    order.slice(waited),
-    ["messages", "escalations", "decisions"],
+    order.slice(waited).sort(),
+    ["decisions", "escalations", "messages"],
     "only the threads' own reads wait, for their ids",
   );
   assert.deepEqual(
@@ -3573,7 +3575,7 @@ test("people.get says where the proposal lives (00154), so a card can carry the 
   }
 });
 
-test("propose_deal makes a card the route commits: a new proposal has no deal_id, a client's move carries the open row's id and version, a passed proposal sent again moves its own row, a named service picks its own open row or is refused, and a bad stage or an unknown person is refused", async () => {
+test("propose_deal makes a card the route commits: a new proposal has no deal_id, a client's move carries the open row's id and version, a passed proposal sent again moves its own row, a named service picks its own open row or is refused, of two open a move names which (0029), and a bad stage or an unknown person is refused", async () => {
   const MARIA = "cccccccc-cccc-4ccc-8ccc-cccccccccc21";
   const LUIS = "cccccccc-cccc-4ccc-8ccc-cccccccccc22";
   const NORA = "cccccccc-cccc-4ccc-8ccc-cccccccccc23";
@@ -3695,15 +3697,14 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
     "d3",
     "the service folds (case and accents aside)",
   );
-  const newest = await p("propose_deal", { contact_id: NORA, stage: "won" });
-  assert.deepEqual(
-    [newest.proposal.payload.deal_id, newest.proposal.summary],
-    ["d4", "Client · Ads"],
-    "no service named: the current row, the newest open one",
-  );
+  // REGRESSION (0029): of two open, a move named none and moved the newest, without anyone saying it was that one.
+  const unnamed = await p("propose_deal", { contact_id: NORA, stage: "won" });
+  assert.equal(unnamed.isError, true, "no service named of two open: refused, never the newest guessed");
+  assert.match(unnamed.result, /their open deals are for Ads and SEO; name the one this is for/);
   assert.match(
     (await p("propose_deal", { contact_id: NORA, stage: "won", service: "Web design" })).result,
-    /open deals are for Ads and SEO; name one of those or none/,
+    /their open deals are for Ads and SEO; name the one this is for/,
+    "a service neither is for: the same words, never 'or none', which is refused too",
   );
   assert.match(
     (await p("propose_deal", { contact_id: P1, stage: "won" })).result,

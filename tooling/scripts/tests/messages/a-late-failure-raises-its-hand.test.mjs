@@ -165,12 +165,26 @@ test("a flag that could not be written throws before anyone is told or anything 
   await assert.rejects(late(p), /could not be flagged/);
   assert.deepEqual(p.ops(), ["message", "escalate"], "no bell for a thread that is not flagged, no ledger row");
 
-  // Every other way a flag lands is a flag: a new hold, one that changed its reason, one said again.
-  for (const flag of ["opened", "changed", "refreshed"]) {
+  // Every other way a flag lands is a flag: a new hold, or one that changed its reason, is told.
+  for (const flag of ["opened", "changed"]) {
     const ok = ports({ flag });
     assert.equal(await late(ok), "raised", flag);
     assert.deepEqual(ok.ops(), ["message", "escalate", "alert", "noteFailed"], flag);
   }
+});
+
+test("once per hold: a thread already held for a failed send is brought up to date and rings no second bell", async () => {
+  // Meta can send one failed receipt twice in one delivery, and a run of replies to one customer can fail one after
+  // another. Each reached the owner as its own email and bell, though the thread was flagged once: the rule every other
+  // caller of the flag keeps (jobs escalate.ts) is a notice per hold.
+  const again = ports({ flag: "refreshed" });
+  assert.equal(await late(again), "raised");
+  assert.deepEqual(
+    again.ops(),
+    ["message", "escalate", "noteFailed"],
+    "REGRESSION: a second bell for a hold the owner was already told of",
+  );
+  assert.match(again.log[1][3], /did not reach them/, "the flag's details say the newest failure");
 });
 
 test("a message that cannot be read is the receipt's to say again: the read's own error reaches the door", async () => {

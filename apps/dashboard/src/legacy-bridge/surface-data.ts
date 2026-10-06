@@ -64,6 +64,16 @@ export interface SurfaceOverride {
    * starts at once, the surface dropping the answer for a view it has left.
    */
   view?: () => string;
+  /**
+   * Read only where it is drawn. The boot's second pass (every surface nobody on screen draws), a return to the tab, the network
+   * back, a rejoin of the live feed and the shell's Retry-all leave it alone unless the page on screen is drawn from it (its own
+   * surface, or one the route names in ROUTE_DRAWS); and it is read as such a page comes on screen: the first time, after a pass
+   * left it for its page, and again when `isStale` says it has aged (surface-registry.ts readWhatWasMissed). A refresh asked for
+   * by name (a write's, a pick's, one Retry) is still made.
+   */
+  onDemand?: boolean;
+  /** For an `onDemand` surface: whether what it holds has aged enough that its page, coming on screen, reads it again. */
+  isStale?: () => boolean;
 }
 
 /** A surface's read under way, and the one read asked for while it was out, which everyone asking meanwhile shares. */

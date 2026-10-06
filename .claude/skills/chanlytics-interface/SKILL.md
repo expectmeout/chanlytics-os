@@ -44,7 +44,7 @@ The plan's contract (its §2.1), with what the build holds of each today.
 | The tokens | `apps/dashboard/src/legacy/styles/tokens.css`: the scales on `:root`; each theme's colours and shadows on `[data-theme="light"]` and `[data-theme="dark"]`; the roles on `:root, [data-theme]`, which are Classic; Glass's two blocks after them |
 | The kit's rules | `apps/dashboard/src/surfaces/kit/kit.css`, reading a role where a look sets the value (a surface, a control, an action), and otherwise a scale or the theme's colour; one breakpoint, 900px. Four primitives stand in it twice until Phase 4 takes the house's out: `.avatar` and `.face`, `.rec-sheet` and `.sheet`, and the surfaces of `.rec-card-tip` and `.confirm-block` beside `.panel-pop` and `.panel-inset`. Its header says what belongs there |
 | Its registry | `apps/dashboard/src/surfaces/kit/classes.json`: the kit's class names (the house's own, no prefix) and, apart, the modifiers its rules name (`.active`, `.show`). The measures read it |
-| Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`, and those with behaviour of their own, on Base UI: `Sheet`, `Menu`, `Popover`, `DatePicker`, `Select`, `Combobox`, `Tooltip`, `useToast`, `Switch`, `Segmented`, `Field` (Behaviour: Base UI, below): a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
+| Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`, `Figure`, and those with behaviour of their own, on Base UI: `Sheet`, `Menu`, `Popover`, `DatePicker`, `Select`, `Combobox`, `Tooltip`, `useToast`, `Switch`, `Segmented`, `Field` (Behaviour: Base UI, below): a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
 | The house's components over its classes | `StatePill`, `MoreMenu` and `usePPToast` in `apps/dashboard/src/legacy/components/data-bits.jsx`, and `SurfaceTabs`: JSX, which a surface cannot import. `Confirm`, `FieldError`, `EmptyState`, `FailedRead`, the record kit (`apps/dashboard/src/surfaces/kit/record/`) and `Icon` are the kit's own TSX, which the pages that have not moved read by name (`apps/dashboard/src/surfaces/kit/kit-globals.ts`). (Draw with the kit, step 2) |
 | The gallery | `tooling/scripts/e2e-harness/kit-gallery.mjs`: `node tooling/scripts/e2e-harness/server.mjs 3210 kit`, then http://localhost:3210/ (`t` turns the theme, `l` the look), and the page that runs the Base UI components at http://localhost:3210/behaves (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`); `docs/runbook.md`, "See the kit" |
 | Its checks | `e2e/kit/kit.spec.ts` and `e2e/kit/kit-behaves.spec.ts` in a browser; `tooling/scripts/tests/styles/kit-*.test.mjs` in `corepack pnpm test` |
@@ -110,8 +110,10 @@ token it reads moves what it feeds.
 A new primitive takes the same steps under a short name in the house's style that no stylesheet uses yet, as a family
 of its own in the gallery, with its component and type test in a folder of its own beside the others (`kit/button/`),
 which the index names it from. The kit's root holds only what its families share: the index, the stylesheet, the
-registry, `variants.ts` with its type test, and `press.tsx`, so no folder of it comes near the 20 modules a folder may hold (the
-tree-shape measure).
+registry (`classes.json`), `variants.ts` with its type test, `press.tsx`, and three small things more than one family calls:
+`chosen.ts` (the one chosen state), `download.ts` (a file the browser saves) and `kit-globals.ts` (the components the shell's
+pages still draw, under the names they read), so no folder of it comes near the 20 modules a folder may hold (the tree-shape
+measure).
 
 ## Add a value
 
@@ -138,7 +140,7 @@ A new token says, in a comment beside it, what it is for.
   corepack pnpm check:style-equality -- record before-<branch>.json
   corepack pnpm check:style-equality -- record after-<branch>.json --against before-<branch>.json
   ```
-  The recorder draws the kit's gallery and the shell's table, and nothing else: a surface that has left the shell is drawn by
+  The recorder draws the kit's gallery, and nothing else: a surface that has left the shell is drawn by
   Next, so the recorder refuses it (`docs/runbook.md`, "Prove a style change"). For such a page prove a move by value (a test
   that draws the old and the new on the stub React and compares them), a kit part by the gallery's spec, and a page's own
   restyle by looking at the running app at 1440 and 390 in both themes.
@@ -188,13 +190,14 @@ and now alone. Words in a tone take its `-ink` token.
 
 The families the plan found built more than once (its Appendix A), with what a page takes instead. A legacy page draws
 each as it stands. A surface imports the kit's own components (`Button`, `LinkButton`, `Panel`, `Face`, `ListRow`,
-`Meter`, and those on Base UI); the rest are the house's JSX, which the first surface to need one moves into the kit as
+`Meter`, `Figure`, and those on Base UI); the rest are the house's JSX, which the first surface to need one moves into the kit as
 TSX (Draw with the kit, step 2).
 
 | A page's own | The kit's |
 | --- | --- |
 | close or back button | `Button` with `iconOnly` and its `aria-label` (`.btn.btn-icon`) |
 | segmented control | `Segmented` (`.rec-seg`); `RecordToggleGroup` on a legacy page |
+| a number, what it counts and the period before | `Figure`, in the `dl` the page draws (Reports' strip, Google's four) |
 | switch | `Switch` (`.rec-switch`); `RecordSwitch` on a legacy page |
 | sheet, modal | `Sheet` (`.sheet`): a record's composer, or a phone's small job (`shape="job"`); `RecordSheet` (`.rec-sheet`) on a legacy page |
 | menu, popover | `Menu` (`.more-*`), `Popover` (the panel's pop); `MoreMenu` on a legacy page |

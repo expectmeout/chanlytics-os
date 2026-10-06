@@ -27,6 +27,15 @@ export interface ReplyPosture {
   replyMode: string;
 }
 
+/**
+ * Whether a reply mode lets the receptionist speak without a person: 'auto' sends, 'veto' sends once its hold window
+ * passes. Every other mode holds for a person. THE statement of it: the gates (./reply-gates.ts), the unreadable
+ * message's acknowledgement (./unreadable.ts) and the phone agent's outbound gate (../messages/outbound-gate.ts) ask it.
+ */
+export function speaksUnattended(replyMode: string): boolean {
+  return replyMode === "auto" || replyMode === "veto";
+}
+
 export function replyPosture(f: RoutingFacts): ReplyPosture {
   // A routed tenant's own policy, or 'ask'. Never 'auto' without a runtime to
   // say so: that is how an unroutable number once inherited a voice.

@@ -19,19 +19,19 @@ export type {
 } from "./person-dto";
 export { asPersonMode, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS } from "./person-receptionist";
 export type { PersonMode, ReceptionistTone, PersonReceptionist } from "./person-receptionist";
-export { reasonShort, ago } from "./person-row-facts";
+export { ago } from "./person-row-facts";
 export type { PersonLastContact, PersonFirstContact } from "./person-row-facts";
 export {
   personStanding,
   attentionOf,
-  isOwned,
+  holderOf,
   personStateFor,
   PERSON_STATE_LABELS,
   PEOPLE_TABS,
   NEW_WINDOW_DAYS,
   QUIET_AFTER_DAYS,
 } from "./person-state";
-export type { PersonState } from "./person-state";
+export type { PersonState, ThreadHolder } from "./person-state";
 export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, mayReach } from "./person-reach";
 export type { PersonProposalVM } from "./person-reach";
 export { cameFromOf, visitTitleFor, toPersonRowVM } from "./person-row";

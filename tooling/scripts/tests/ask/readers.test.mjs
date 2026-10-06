@@ -1622,6 +1622,16 @@ test("the reports, for Ask and for the page: GET reports answers its reader's pa
   }
 });
 
+test("the Reports row Ask cites names its period as the page does: one day is '1 day', never '1 days' (Month on the 1st)", async () => {
+  for (const [days, label] of [
+    [1, "Reports, 1 day"],
+    [5, "Reports, 5 days"],
+  ]) {
+    const r = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days });
+    assert.deepEqual(r.rows, [{ kind: "page", id: "reports", route: "reports", label }], `${days}: ${label}`);
+  }
+});
+
 test("the report reader hands the workspace's hours and closures beside the report, from the config the booking line read; none said, null", async () => {
   const hours = { mon: { open: "09:30", close: "18:00" } };
   const closures = [{ date: "2026-09-18" }];
@@ -2434,8 +2444,15 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
 ];
 /**
  * The same queries in the order they reach the database since 2 Oct 2026: what is read of the workspace -- how its
@@ -2466,8 +2483,15 @@ const PEOPLE_ASKED_NOW = [
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
 ];
 /** A list of queries as a bag: the same reads, whatever their order. */
 const bagOf = (asked) => asked.map((q) => JSON.stringify(q)).sort();
@@ -3151,7 +3175,11 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
     "broadcast_recipients.select",
     "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta)",
   ],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
   ["rpc:people_list", null],
   ["policies.select", "subject_type, subject_id, mode"],
   ["tenants.select", "name, timezone"],
@@ -3159,7 +3187,10 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["deals.select", "id, contact_id, proposed_at"],
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
-  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+  ],
   ["segments.select", "id, name, rule, archived_at"],
   ["segment_members.select", "segment_id, contact_id"],
 ];

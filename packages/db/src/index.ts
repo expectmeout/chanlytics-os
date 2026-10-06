@@ -210,6 +210,7 @@ export type {
   HandItem,
 } from "./repositories/reach-out-sheet";
 export { reportSeries, campaignSeries, reachOutReport } from "./repositories/reports/report-series";
+export { firstReplies } from "./repositories/reports/first-replies";
 export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
@@ -312,6 +313,7 @@ export {
   namesOfPeople,
   personDecisions,
   peoplePage,
+  personRow,
   peopleCursorOf,
   everyoneIn,
   erasureDigests,

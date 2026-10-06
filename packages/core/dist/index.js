@@ -574,6 +574,7 @@ import {
   isOptedOutContact,
   normalizeEmail,
   OPT_OUT_REFUSAL,
+  PURPOSE_REFUSALS,
   purposeOfTemplate as purposeOfTemplate2,
   renderTemplate,
   REPLY_LIMITS,
@@ -587,12 +588,7 @@ var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 var HOLD_EXPIRY_MS = 2 * MIN_MS;
 var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
 async function shapeEmailReply(ports, conv, to, text, agreedTo) {
-  if (isEmailStopped2(conv)) {
-    throw new AppError8(
-      "conflict",
-      "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way."
-    );
-  }
+  if (isEmailStopped2(conv)) throw new AppError8("conflict", PURPOSE_REFUSALS.email_suppressed);
   const parent = await ports.email.parent(conv);
   if (!parent) throw new AppError8("conflict", "There is no email from this person on this thread to reply to.");
   if (normalizeEmail(parent.from ?? "") !== to && agreedTo !== to) {
@@ -904,6 +900,7 @@ async function raiseSendFailed(ports, f, again = false) {
   const flagged = await ports.escalate(f.conversationId, "send_failed", f.details);
   if (again && flagged === "failed")
     throw new Error(`send failed: its thread ${f.conversationId} could not be flagged`);
+  if (flagged === "refreshed") return flagged;
   await ports.alert({
     kind: "handoff",
     route: `inbox/th-${f.conversationId}`,
@@ -1020,7 +1017,6 @@ async function ingestEmail(ports, cmd) {
   if (said.unproven)
     emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
   const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
-  if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
   if (claim !== "auto_reply")
     await flagForAPerson(ports, email, {
       tenantId: mailbox.tenant_id,
@@ -1029,6 +1025,7 @@ async function ingestEmail(ports, cmd) {
       claim,
       reachOut
     });
+  if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
   await ports.markProcessed(mailbox.tenant_id, kept.message_id);
   await ports.received(mailbox.id, at);
   if (reachOut) return "kept_for_the_reading";
@@ -1968,16 +1965,31 @@ async function backOff(ports, b, cmd, how) {
 }
 
 // src/messages/outbound-gate.ts
-import { mayMessageFor as mayMessageFor2 } from "../../contracts/dist/index.js";
+import {
+  mayMessageFor as mayMessageFor2
+} from "../../contracts/dist/index.js";
+
+// src/inbound/reply-posture.ts
+function speaksUnattended(replyMode) {
+  return replyMode === "auto" || replyMode === "veto";
+}
+function replyPosture(f) {
+  return { replyMode: f.runtimeUsable ? f.policyMode ?? "ask" : "ask" };
+}
+function effectiveReplyMode(posture, personMode) {
+  return personMode || posture.replyMode;
+}
+
+// src/messages/outbound-gate.ts
 function outboundGate(f) {
   const may = mayMessageFor2(f.contact, f.purpose, { proactive: f.proactive, channel: f.channel, about: f.about });
-  if (!may.ok) return { allowed: false, refusal: may.reason ?? "opted_out" };
+  if (!may.ok) return { allowed: false, refusal: may.reason };
   if (f.paused) return { allowed: false, refusal: "paused" };
   if (f.pausedUntilMs !== null && f.nowMs < f.pausedUntilMs) {
     return { allowed: false, refusal: "human_has_it" };
   }
   if (f.bookingHeld) return { allowed: false, refusal: "booking_needs_a_person" };
-  if (f.replyMode !== "auto" && f.replyMode !== "veto") return { allowed: false, refusal: "policy_hold" };
+  if (!speaksUnattended(f.replyMode)) return { allowed: false, refusal: "policy_hold" };
   if (f.sentToday >= f.dailyCap) return { allowed: false, refusal: "daily_cap" };
   return { allowed: true, refusal: null };
 }
@@ -1991,6 +2003,9 @@ function refusalScript(refusal, phoneDisplay) {
     // somebody else.
     case "not_opted_in":
       return "I can only send WhatsApp messages to the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.";
+    // Email's own no: reachable only where the gate is asked about an email (the phone agent's link goes by WhatsApp).
+    case "unsubscribed":
+      return "They unsubscribed from this business's email, so I cannot email them. Offer to book them on the call instead.";
     case "no_marketing_consent":
       return "I cannot send that on WhatsApp, because it is a promotional message and that number has not asked for those. Offer to book them on the call instead.";
     // The texting line's own refusal: the door returns it on channel "sms" only
@@ -2075,7 +2090,10 @@ import {
   triggerOf as triggerOf2,
   triggerOffered,
   vetoRunNotice,
-  visitFactsFor
+  visitFactsFor,
+  theirVisitTest,
+  visitMomentDay,
+  visitOnDay
 } from "../../contracts/dist/index.js";
 
 // src/campaigns/message-channels.ts
@@ -2175,7 +2193,8 @@ function draw(r, message, how, listIds) {
     {
       byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(),
       byAny: ctx.touches.byAny,
-      followUps: ctx.touches.followUps
+      followUps: ctx.touches.followUps,
+      followUpKeys: ctx.touches.followUpKeys
     },
     ctx.now.getTime(),
     ctx.pace,
@@ -2213,12 +2232,16 @@ async function pastTheRoom(r, message, drawn, goesAt) {
 function recipientFacts(r, goesAt) {
   const { p, ctx } = r;
   const trig = triggerOf2(p.trigger);
+  const theirs = theirVisitTest(ctx.people);
   return (person) => {
     if (trig?.kind === "deal") return proposalFactsFor(p.trigger, person);
     const v = ctx.visits.get(person.id);
+    const day = v ? visitMomentDay(p.trigger, v.timezone, ctx.now.getTime()) : null;
+    const tomorrow = p.trigger === "visit_tomorrow";
+    const onDay = v && day ? visitOnDay(v, day, tomorrow ? "next" : "last", (via) => theirs(person, via)) : null;
     return visitFactsFor(
       p.trigger,
-      p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null,
+      onDay ?? (tomorrow ? v?.next ?? null : v?.last ?? null),
       ctx.tz,
       [person.givenName, person.waName],
       goesAt
@@ -2230,7 +2253,8 @@ function touchEnrolled(r, goesAt, eligible, held) {
   r.ctx.touches = touchesAfterRun(
     r.ctx.touches,
     { playbookId: r.p.id, at: goesAt.getTime(), followUp: triggerOf2(r.p.trigger)?.kind === "deal" },
-    eligible.filter((person) => !skipped.has(person.id)).map((person) => person.id)
+    // With the proposal's link a follow-up carries to each (their deal is the proposal it is about, 0029).
+    eligible.filter((person) => !skipped.has(person.id)).map((person) => ({ id: person.id, deal: person.deal?.id ?? null, link: person.deal?.proposal?.url ?? null }))
   );
 }
 async function sayTheRun(run, made) {
@@ -37685,14 +37709,6 @@ function resolveConsent(i) {
   return { optedOut: false, source: "none" };
 }
 
-// src/inbound/reply-posture.ts
-function replyPosture(f) {
-  return { replyMode: f.runtimeUsable ? f.policyMode ?? "ask" : "ask" };
-}
-function effectiveReplyMode(posture, personMode) {
-  return personMode || posture.replyMode;
-}
-
 // src/inbound/vision.ts
 var VISION_MAX_BYTES = 4 * 1024 * 1024;
 var VISION_MIMES = /* @__PURE__ */ new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
@@ -38031,10 +38047,10 @@ async function firstGates(at) {
 // src/inbound/unreadable.ts
 function seeingOf(at) {
   const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, raw, tell, pauseHours, L } = at;
-  const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type) && !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil;
+  const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type) && !!brainCfg && speaksUnattended(replyMode) && Date.now() > thread.pausedUntil;
   const sayUnreadable = async (pausedUntilNow) => {
     if (Date.now() <= pausedUntilNow) return { pausedUntil: 0, way: SET_ASIDE };
-    const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
+    const mayAck = !!brainCfg && speaksUnattended(replyMode);
     const acked = mayAck ? (
       // A courtesy, not an answer: marked so it does not spend the daily cap.
       (await send(fallbacks.non_text, { ack: true })).outcome === "sent"
@@ -38213,7 +38229,7 @@ async function heldForThePerson(at, bodyText) {
     ]);
     return;
   }
-  if (!brainCfg || replyMode !== "auto" && replyMode !== "veto") {
+  if (!brainCfg || !speaksUnattended(replyMode)) {
     const hold = holdCopy({
       brainCfg,
       personMode,

@@ -57,7 +57,8 @@ export function pipelineViewLabel(view: PipelineView, pace: DealPaceVM | null): 
 }
 
 /** A person's id as the address may carry it: a person's id is a uuid, and nothing with a separator in it is one. */
-const PEEK_ID = /^[A-Za-z0-9_-]{1,64}$/;
+// A row's id (pipelineRowId): a person's, or a person's and one of their deals' joined by `_` (0029), so two UUIDs.
+const PEEK_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
 /**
  * The Pipeline's address, as Leads spells its own (contracts leadsRoute): `clients/pipeline`, then the view
@@ -136,8 +137,11 @@ export function pipelineRail<T extends PipelineSource>(vm: PipelineVM<T>, nowMs:
     })),
   ];
   const proposals = vm.groups.find((g) => g.key === "proposals")?.rows ?? [];
-  const waiting = proposals.filter((r) => waitingOnProposal(r.person, nowMs, vm.pace)).length;
-  const lapsed = proposals.filter((r) => !!r.person.deal?.validUntil?.lapsed).length;
+  // Each row its own proposal (0029): a person's two proposals out are two waits.
+  const waiting = proposals.filter((r) =>
+    waitingOnProposal({ deal: r.deal, askedMs: r.person.askedMs }, nowMs, vm.pace),
+  ).length;
+  const lapsed = proposals.filter((r) => !!r.deal?.validUntil?.lapsed).length;
   const steps = vm.groups.reduce((n, g) => n + g.rows.filter(stepDue).length, 0);
   const waits: PipelineRailRow[] = [
     { view: "waiting" as PipelineView, label: waitingLabel(vm.pace), count: waiting, tone: "warn" as const },

@@ -17,6 +17,9 @@ import {
   triggerOffered,
   vetoRunNotice,
   visitFactsFor,
+  theirVisitTest,
+  visitMomentDay,
+  visitOnDay,
   type CampaignHow,
   type ConsentChannel,
   type PersonRowVM,
@@ -168,6 +171,7 @@ function draw(
       byThis: ctx.touches.byThis.get(p.id) ?? new Map(),
       byAny: ctx.touches.byAny,
       followUps: ctx.touches.followUps,
+      followUpKeys: ctx.touches.followUpKeys,
     },
     ctx.now.getTime(),
     ctx.pace,
@@ -227,13 +231,20 @@ async function pastTheRoom(
 function recipientFacts(r: Run, goesAt: Date): (person: PersonRowVM) => Record<string, string> | null {
   const { p, ctx } = r;
   const trig = triggerOf(p.trigger);
+  // Whose a visit is, as the run judged it when it named them (contracts theirVisitTest): the same rows, the same test.
+  const theirs = theirVisitTest(ctx.people);
   return (person) => {
     if (trig?.kind === "deal") return proposalFactsFor(p.trigger, person);
     const v = ctx.visits.get(person.id);
+    // The visit ON the moment's day (contracts visitOnDay), as the run named them for it (visitMomentDay): the next visit
+    // of a person with one later today is today's, and the reminder said today's time for tomorrow's visit.
+    const day = v ? visitMomentDay(p.trigger, v.timezone, ctx.now.getTime()) : null;
+    const tomorrow = p.trigger === "visit_tomorrow";
+    const onDay = v && day ? visitOnDay(v, day, tomorrow ? "next" : "last", (via) => theirs(person, via)) : null;
     // The service alone: the person's own name comes out of the event's title (visitFactsFor).
     return visitFactsFor(
       p.trigger,
-      p.trigger === "visit_tomorrow" ? (v?.next ?? null) : (v?.last ?? null),
+      onDay ?? (tomorrow ? (v?.next ?? null) : (v?.last ?? null)),
       ctx.tz,
       [person.givenName, person.waName],
       goesAt,
@@ -253,7 +264,10 @@ function touchEnrolled(r: Run, goesAt: Date, eligible: readonly PersonRowVM[], h
   r.ctx.touches = touchesAfterRun(
     r.ctx.touches,
     { playbookId: r.p.id, at: goesAt.getTime(), followUp: triggerOf(r.p.trigger)?.kind === "deal" },
-    eligible.filter((person) => !skipped.has(person.id)).map((person) => person.id),
+    // With the proposal's link a follow-up carries to each (their deal is the proposal it is about, 0029).
+    eligible
+      .filter((person) => !skipped.has(person.id))
+      .map((person) => ({ id: person.id, deal: person.deal?.id ?? null, link: person.deal?.proposal?.url ?? null })),
   );
 }
 

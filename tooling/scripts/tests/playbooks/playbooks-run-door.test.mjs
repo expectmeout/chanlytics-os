@@ -649,8 +649,8 @@ test("a proposal follow-up (0006): where deals are on, a run reaches the proposa
   assert.deepEqual([body.outcome, body.eligible], ["sent", 1]);
   assert.deepEqual(
     w.tables.broadcast_recipients.map((r) => [r.contact_id, r.facts]),
-    [["c1", { proposal_link: "https://docs.example.com/proposal/c1" }]],
-    "out twenty days with its link: reached, the link it was run for kept on the row; ten days is inside the pace; no link, not named",
+    [["c1", { proposal_link: "https://docs.example.com/proposal/c1", deal_id: "deal-c1" }]],
+    "out twenty days with its link: reached, the link it was run for and its deal kept on the row (0029); ten days is inside the pace; no link, not named",
   );
   assert.deepEqual(w.tables.broadcasts[0].params, [
     { kind: "first_name" },

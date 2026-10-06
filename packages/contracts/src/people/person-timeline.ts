@@ -11,7 +11,7 @@ import type { ConsentChange } from "../consent/consent";
 import { DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, isDealLostReason } from "../deals/deal-words";
 import { amountWords } from "../deals/deal-amount";
 import type { PersonCampaignDto } from "./person-dto";
-import { reasonShort } from "./person-row-facts";
+import { reasonShort } from "../conversations/escalations";
 import { visitTitleFor } from "./person-row";
 import {
   CARRIER_CONSENT_SOURCE,
@@ -24,8 +24,8 @@ import { addedBy, ts } from "./person-helpers";
 import { MERGE_CONSENT_SOURCE } from "./person-merge";
 import { capitalize } from "../shared/words";
 import { callLength } from "../shared/clock";
-import { isIdentifierName } from "../conversations/thread-contact";
-import { callAttemptWords } from "../conversations/call-dto";
+import { shortName } from "../conversations/thread-contact";
+import { callAttemptWords, neverConnected, reachedVoicemail, recordingStateOf } from "../conversations/call-dto";
 import { type MessageAuthor, messageAuthor } from "../conversations/message-author";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { clipAtWord, messageWords } from "../conversations/message-words";
@@ -216,9 +216,8 @@ function messageItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
   const { profile, base, stamp } = ctx;
   // A reach-out's email is named for its chain and step, and a reply it read says how it was read (Part 6, H11).
   const reach = reachOutOf(ctx);
-  // A person we know only by number or address has no first name to shorten
-  // to: "+1" as a speaker label is nobody. Keep the whole identifier.
-  const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
+  // A person we know only by number or address keeps the whole identifier: "+1" as a speaker label is nobody.
+  const first = shortName(base.name);
   const runOf = new Map((profile.campaigns ?? []).filter((c) => c.message_id).map((c) => [c.message_id!, c]));
   const items: PersonTimelineItemVM[] = [];
   for (const c of profile.conversations) {
@@ -257,7 +256,7 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
     const dur = callLength(k.duration_ms);
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
-    const missed = k.status === "not_connected";
+    const missed = neverConnected(k);
     // What the call's own row holds beyond what they wanted: the to-do the receptionist noted, what they gave about
     // themselves. A dial that never connected has no analysis, and so nothing here.
     const notes = callNoteLines(callNotesOf(k));
@@ -266,7 +265,7 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
       : wanted ||
         (summary
           ? (summary.split(/(?<=[.!?])\s/)[0] ?? summary)
-          : k.in_voicemail
+          : reachedVoicemail(k)
             ? "Reached voicemail."
             : "No summary from this call.");
     items.push({
@@ -281,7 +280,7 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
       ...(notes.length ? { notes } : {}),
       sub: missed
         ? "Never connected"
-        : k.recording?.fetch_state === "stored"
+        : recordingStateOf(k) === "ready"
           ? "Recording and transcript in Conversations"
           : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` },

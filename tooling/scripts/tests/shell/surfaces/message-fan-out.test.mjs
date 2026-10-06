@@ -69,6 +69,7 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/people/surface.ts")).peopleOverride,
   (await importSrc("apps/dashboard/src/surfaces/leads/surface.ts")).leadsOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/reports/headline.ts")).reportsHeadlineOverride,
   (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,
@@ -83,11 +84,11 @@ const REAL = [
 ];
 
 /** The real overrides' routing, each read recorded rather than made, through a runner whose live feed this holds. */
-async function running() {
+async function running({ debounceMs = 1 } = {}) {
   const asked = [];
   const overrides = REAL.map((o) => ({
     ...o,
-    debounceMs: 1,
+    debounceMs,
     apply: async () => {
       asked.push(o.key);
     },
@@ -271,7 +272,11 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     win.location.hash = "#/clients";
     win.dispatchEvent({ type: "popstate" });
     await settle();
-    assert.deepEqual(r.asked, ["people"], "read once: nothing passed it since");
+    assert.deepEqual(
+      [...r.asked].sort(),
+      ["people", "reports_headline"],
+      "People once, as nothing passed it since; and the headline Today draws, which a run that opened on People never read (it is on demand), once as Today came on screen",
+    );
   } finally {
     r.stop();
     win.location.hash = "#/today";
@@ -309,7 +314,12 @@ test("Campaigns' home owns what it draws: a message re-reads the playbooks and t
     win.location.hash = "#/today";
     win.dispatchEvent({ type: "popstate" });
     await settle();
-    assert.deepEqual(r.asked, [], "nothing was missed");
+    assert.deepEqual(
+      r.asked,
+      ["reports_headline"],
+      "nothing was missed; the headline Today draws, which a run that opened on Campaigns never read (it is on demand), is read once as Today comes on screen",
+    );
+    r.asked.length = 0;
     await r.message();
     await r.message();
     assert.deepEqual([...new Set(r.asked)].sort(), ["conversations", "inbox", "today"]);
@@ -630,4 +640,25 @@ test("every surface a page names to useSurface is a real one: a key that is no o
     [],
     "name the surface's key (an override's `key`), not its event",
   );
+});
+
+test("a steady stream of notices still repaints: a refresh waits for a pause, but never more than a few seconds", async (t) => {
+  // Every receipt of a broadcast is its own notice (00327), each a few hundred milliseconds apart. Each one re-armed the
+  // Inbox's wait from the start, so while the receipts came, a customer's new message did not reach the open Inbox.
+  win.location.hash = "#/inbox";
+  const r = await running({ debounceMs: 400 });
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const flush = async () => {
+    for (let i = 0; i < 20; i += 1) await Promise.resolve();
+  };
+  for (let ms = 0; ms < 6_000; ms += 300) {
+    r.change("messages", "UPDATE", "delivered");
+    t.mock.timers.tick(300);
+    await flush();
+  }
+  const inbox = () => r.asked.filter((k) => k === "inbox").length;
+  assert.ok(inbox() >= 1, "REGRESSION: six seconds of receipts, and the Inbox was never read again");
+  assert.ok(inbox() <= 3, `a read every few seconds, not one per receipt: ${inbox()}`);
+  t.mock.timers.reset();
+  r.stop();
 });

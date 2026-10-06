@@ -115,7 +115,8 @@ export const LIST_RULE_FIELDS: readonly {
     label: "Standing",
     kind: "standing",
     needs: [],
-    draft: "value needs_you (waiting for a person) or waiting_on_you (you have the thread and they wrote last)",
+    draft:
+      "value needs_you (waiting for a person) or waiting_on_you (a thread you have: you took it over, or your reply paused the receptionist)",
   },
   {
     id: "assigned",
@@ -403,7 +404,8 @@ function holds(f: ListFact, v: PersonRowVM, inList: InList): boolean {
     case "assigned":
       return (v.assigned === f.value) === is;
     case "deal_stage":
-      return (v.dealStage === f.value) === is;
+      // Any stage they stand at (0029): a client with a proposal out for another service is in both lists.
+      return v.dealStages.includes(f.value) === is;
     case "in_list":
       return inList(f.list, v.id) === is;
   }
