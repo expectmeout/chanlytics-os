@@ -18,26 +18,22 @@ const RATES_URL = "https://business.whatsapp.com/products/platform-pricing#rates
 export const WHATSAPP_COST_WORDS = {
   /** What the explainer is called where a page links to it. */
   title: "What WhatsApp costs",
-  billed: "WhatsApp is billed by Meta, straight to the card on your WhatsApp account — not on your Chanlytics bill.",
-  free: "Free: replies to a customer within 24 hours of their last message — the receptionist's and yours.",
-  charged:
-    "Charged by Meta for each one delivered: reminders and notices sent after those 24 hours, and every campaign or offer.",
-  prices: "Prices depend on the customer's country.",
+  /**
+   * Who bills it, what is free and what is charged, in one line an owner reads under the row: a row says one thing at a time, and
+   * the rates themselves are Meta's page (pricesLink), which says them by country and category.
+   */
+  summary:
+    "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.",
   pricesLink: "Meta's current prices",
   /** The one line Settings > Billing says, with `title` as the link to the explainer on Connections. */
   billingLine:
     "WhatsApp messages your business starts are billed by Meta to the card on your WhatsApp account, not on this bill.",
 } as const;
 
-/** The explainer as a row's notes: four lines, the last with the link to Meta's rates. */
+/** The explainer as a row's note: one line, with the link to Meta's rates after it. */
 export function whatsappCostNotes(): ConnectionNote[] {
   const w = WHATSAPP_COST_WORDS;
-  return [
-    { text: w.billed },
-    { text: w.free },
-    { text: w.charged },
-    { text: w.prices, link: { label: w.pricesLink, href: RATES_URL } },
-  ];
+  return [{ text: w.summary, link: { label: w.pricesLink, href: RATES_URL } }];
 }
 
 /**

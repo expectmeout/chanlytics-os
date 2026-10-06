@@ -43,33 +43,34 @@ const own = (over = {}) => ({
 const by = (rows) => Object.fromEntries(rows.map((r) => [r.kind, r]));
 const rowsOf = (inputs) => by(connectionRows({ ...base(), ...inputs }, NOW));
 
-/** What WhatsApp costs: who bills it, what is free, what is charged, and Meta's own page for the prices (no rate is written here). */
+/** What WhatsApp costs: who bills it, what is free, what is charged, in one line, and Meta's own page for the prices (no rate is written here). */
 const COST = [
-  { text: "WhatsApp is billed by Meta, straight to the card on your WhatsApp account — not on your Chanlytics bill." },
-  { text: "Free: replies to a customer within 24 hours of their last message — the receptionist's and yours." },
   {
-    text: "Charged by Meta for each one delivered: reminders and notices sent after those 24 hours, and every campaign or offer.",
-  },
-  {
-    text: "Prices depend on the customer's country.",
+    text: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.",
     link: { label: "Meta's current prices", href: "https://business.whatsapp.com/products/platform-pricing#rates" },
   },
 ];
-/** The notes the Connect row says before Meta's window opens: what it asks, in the order it asks, what it costs, and the one thing to do while it is open. */
-const PREFLIGHT = [
+/** Where Meta's code arrives, for a workspace with no Chanlytics line of its own, and the one thing to do while the window is open. */
+const CODE_NO_LINE = {
+  text: "Meta texts a code to the number: have its phone at hand. Keep this page open until Meta's window closes.",
+};
+/** The same, for a workspace whose own Chanlytics line is +1 (646) 555-0100: the code shows on its Texting row. */
+const CODE_OWN_LINE = {
+  text: "Meta texts a code to the number. If it is your Chanlytics number, +1 (646) 555-0100, the code shows here on the Texting row: choose Text message, not Phone call. Keep this page open until Meta's window closes.",
+};
+/** The notes the Connect row says before Meta's window opens: what it asks, in the order it asks, and what it costs; one line each. */
+const preflight = (code) => [
   { text: "Meta asks you to sign in with Facebook and choose or create your business." },
-  {
-    text: "Meta texts a code to the number. On a Chanlytics number it shows on the Texting row here, so choose Text message, not Phone call (a call would be answered by the receptionist). Without a Chanlytics line: have the phone at hand.",
-  },
+  code,
   ...COST,
   {
-    text: "Add a payment method when Meta asks for one: without it, replies still go out, and the messages your business starts, like reminders and campaigns, are not delivered.",
+    text: "Add a payment method when Meta asks for one: without it, replies still go out, but reminders and campaigns are not delivered.",
   },
   {
-    text: "A new business on Meta can start conversations with 250 people a day until it is verified with Meta; replies to customers who write first are not limited.",
+    text: "Until Meta verifies your business, it can start conversations with 250 people a day; replies to customers who write first are not limited.",
   },
-  { text: "Keep this page open until Meta's window closes." },
 ];
+const PREFLIGHT = preflight(CODE_NO_LINE);
 /** What the row says of a sign-up that was started here and did not come back. */
 const LEFT_OPEN = {
   text: "A WhatsApp sign-up was started here and did not come back to Chanlytics — if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.",
@@ -81,8 +82,26 @@ test("the WhatsApp row that offers Connect says what Meta will ask and what What
   assert.deepEqual(r.notes, PREFLIGHT);
   assert.deepEqual(
     r.notes.filter((n) => n.link).map((n) => n.link.href),
-    [COST[3].link.href],
+    [COST[0].link.href],
     "one link: Meta's rates",
+  );
+});
+
+test("where Meta's code arrives is said for the workspace's own line: on a Chanlytics number, the Texting row, by its number; otherwise the phone in hand", () => {
+  assert.deepEqual(
+    rowsOf({ lines: { rows: [own()], ready: true } }).whatsapp.notes,
+    preflight(CODE_OWN_LINE),
+    "the workspace has a Chanlytics line: the code shows on its Texting row",
+  );
+  assert.deepEqual(
+    rowsOf({ lines: { rows: [own({ e164: null })], ready: true } }).whatsapp.notes,
+    PREFLIGHT,
+    "a line that has no number yet cannot be the number Meta texts",
+  );
+  assert.deepEqual(
+    rowsOf({ lines: { rows: [own({ provider: "carrier", kind: "forwarded" })], ready: true } }).whatsapp.notes,
+    PREFLIGHT,
+    "a number the business kept at its carrier: its texts never reach Chanlytics",
   );
 });
 

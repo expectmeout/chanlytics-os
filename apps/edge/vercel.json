@@ -27,6 +27,9 @@
     "api/admin/voice-provision.ts": {
       "maxDuration": 60
     },
+    "api/admin/whatsapp/connect.ts": {
+      "maxDuration": 60
+    },
     "api/admin/whatsapp/standing.ts": {
       "maxDuration": 60
     },

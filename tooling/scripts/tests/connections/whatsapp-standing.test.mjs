@@ -25,12 +25,9 @@ const NOW = Date.parse("2026-10-06T15:00:00Z");
 const MIN = 60_000;
 const ago = (ms) => new Date(NOW - ms).toISOString();
 
-/** What WhatsApp costs, said last under every connected row: Meta bills it, to the card on the WhatsApp account. */
+/** What WhatsApp costs, said last under every connected row in one line: Meta bills it, to the card on the WhatsApp account. */
 const COST = [
-  "WhatsApp is billed by Meta, straight to the card on your WhatsApp account — not on your Chanlytics bill.",
-  "Free: replies to a customer within 24 hours of their last message — the receptionist's and yours.",
-  "Charged by Meta for each one delivered: reminders and notices sent after those 24 hours, and every campaign or offer.",
-  "Prices depend on the customer's country.",
+  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.",
 ];
 const PRICES = {
   label: "Meta's current prices",
@@ -391,7 +388,7 @@ test("every connected WhatsApp row says what WhatsApp costs, last: who bills it,
     channel(null, { quality: "RED", quality_event: "FLAGGED" }),
   ]) {
     const r = whatsappRow(ch);
-    assert.deepEqual(r.notes.slice(-COST.length), COST_NOTES, `${r.state}: the four lines, the last with its link`);
+    assert.deepEqual(r.notes.slice(-COST.length), COST_NOTES, `${r.state}: the one line, with its link`);
   }
   assert.deepEqual(whatsappRow(channel(null, { status: "disabled" })).notes, []);
   const rows = connectionRows({ ...base(), channels: [channel(null)] }, NOW);

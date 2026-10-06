@@ -11678,7 +11678,7 @@ function templateUnused(use) {
 }
 function templateSends(src) {
   const out = {};
-  const nameOf2 = new Map(src.runs.map((r2) => [r2.id, r2.template_name]));
+  const nameOf = new Map(src.runs.map((r2) => [r2.id, r2.template_name]));
   const went = (name, at3) => {
     const s = out[name] ??= { count: 0, lastAt: null };
     s.count += 1;
@@ -11686,7 +11686,7 @@ function templateSends(src) {
     if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at3;
   };
   for (const r2 of src.recipients) {
-    const name = r2.state === "sent" ? nameOf2.get(r2.broadcast_id) : void 0;
+    const name = r2.state === "sent" ? nameOf.get(r2.broadcast_id) : void 0;
     if (name) went(name, r2.sent_at);
   }
   for (const m of src.inbox) {
@@ -22579,8 +22579,8 @@ function buyingStageOf(s) {
     cta: s.questions ? showCtaOf(s, false) : null
   };
 }
-function waitingOn(sentence3, detail) {
-  return { state: "waiting_them", words: SETUP_STATE_WORDS.waiting_them, sentence: sentence3, detail };
+function waitingOn(sentence2, detail) {
+  return { state: "waiting_them", words: SETUP_STATE_WORDS.waiting_them, sentence: sentence2, detail };
 }
 function chooseStageOf(s, plan, onTrial) {
   const W = FIRST_RUN_PHONE_WORDS;
@@ -23123,22 +23123,18 @@ var RATES_URL = "https://business.whatsapp.com/products/platform-pricing#rates";
 var WHATSAPP_COST_WORDS = {
   /** What the explainer is called where a page links to it. */
   title: "What WhatsApp costs",
-  billed: "WhatsApp is billed by Meta, straight to the card on your WhatsApp account \u2014 not on your Chanlytics bill.",
-  free: "Free: replies to a customer within 24 hours of their last message \u2014 the receptionist's and yours.",
-  charged: "Charged by Meta for each one delivered: reminders and notices sent after those 24 hours, and every campaign or offer.",
-  prices: "Prices depend on the customer's country.",
+  /**
+   * Who bills it, what is free and what is charged, in one line an owner reads under the row: a row says one thing at a time, and
+   * the rates themselves are Meta's page (pricesLink), which says them by country and category.
+   */
+  summary: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.",
   pricesLink: "Meta's current prices",
   /** The one line Settings > Billing says, with `title` as the link to the explainer on Connections. */
   billingLine: "WhatsApp messages your business starts are billed by Meta to the card on your WhatsApp account, not on this bill."
 };
 function whatsappCostNotes() {
   const w = WHATSAPP_COST_WORDS;
-  return [
-    { text: w.billed },
-    { text: w.free },
-    { text: w.charged },
-    { text: w.prices, link: { label: w.pricesLink, href: RATES_URL } }
-  ];
+  return [{ text: w.summary, link: { label: w.pricesLink, href: RATES_URL } }];
 }
 function addPaymentMethodLink(ownerBusinessId, wabaId) {
   const ids = /^\d+$/;
@@ -23192,11 +23188,11 @@ function standingNeedsRead(n, nowMs) {
   const readAt = n.standingReadAt ? Date.parse(n.standingReadAt) : Number.NaN;
   return Number.isNaN(readAt) || nowMs - readAt > STANDING_STALE_MS;
 }
-var sentence2 = (text) => {
+var withStop = (text) => {
   const t = text.trim();
   return /[.!?]$/.test(t) ? t : `${t}.`;
 };
-var problemWords = (p) => p.fix ? `${sentence2(p.said)} ${sentence2(p.fix)}` : sentence2(p.said);
+var problemWords = (p) => p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
 var BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
 var NO_PAYMENT_METHOD = "No payment method on your WhatsApp account yet: replies still go out, but reminders and campaigns will not be delivered.";
 var PAYMENT_NOTE = "Without a payment method, Meta still delivers replies to customers who write first; it does not deliver the messages your business starts, like reminders and campaigns.";
@@ -23211,11 +23207,11 @@ function paymentNotes(s) {
 }
 function standingSentence(s) {
   const first = s.problems.at(0);
-  return first ? `Meta: ${sentence2(first.said)}` : BLOCKED_SENTENCE;
+  return first ? `Meta: ${withStop(first.said)}` : BLOCKED_SENTENCE;
 }
-var nameOf = (name) => name ? `the display name \u201C${name}\u201D` : "your display name";
+var displayNameWords = (name) => name ? `the display name \u201C${name}\u201D` : "your display name";
 function nameWords(status, name) {
-  const who = nameOf(name);
+  const who = displayNameWords(name);
   switch (status) {
     case "PENDING_REVIEW":
       return `Meta is reviewing ${who}; until then customers see the number.`;
@@ -23244,7 +23240,11 @@ function nameDecisionWords(decision, requestedName, reason) {
   const status = nameStatusOf(decision);
   const name = textOrNull(requestedName);
   if (status === "APPROVED")
-    return { subject: "WhatsApp display name approved", body: `Meta approved ${nameOf(name)}.`, alert: false };
+    return {
+      subject: "WhatsApp display name approved",
+      body: `Meta approved ${displayNameWords(name)}.`,
+      alert: false
+    };
   const declined = status === "DECLINED" ? nameWords(status, name) : null;
   if (!declined) return null;
   const why = textOrNull(reason);
@@ -23268,13 +23268,13 @@ function standingNotes(s) {
   const out = [];
   const first = s.problems.at(0);
   if (s.can_send === "BLOCKED") {
-    if (first?.fix) out.push({ text: sentence2(first.fix) });
+    if (first?.fix) out.push({ text: withStop(first.fix) });
     for (const p of s.problems.slice(1)) out.push({ text: problemWords(p) });
   } else {
     for (const p of s.problems) out.push({ text: problemWords(p) });
   }
   out.push(...paymentNotes(s));
-  for (const n of s.notes) out.push({ text: sentence2(n) });
+  for (const n of s.notes) out.push({ text: withStop(n) });
   const name = nameWords(s.name_status, s.name);
   if (name) out.push({ text: name });
   const verification = verificationNote(s);
@@ -24354,18 +24354,18 @@ function attentionRow(p, tz, nowMs) {
   const lc = p.lastContact;
   const channel = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
   const when = lc.ts === null ? "no contact yet" : ago(lc.ts, tz, nowMs);
-  let sentence3;
+  let sentence2;
   let quoted = false;
   if (p.quote) {
-    sentence3 = clippedLine(p.quote, 160);
+    sentence2 = clippedLine(p.quote, 160);
     quoted = true;
-  } else if (p.callSummary) sentence3 = clippedLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
-  else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence3 = p.deal.brief;
-  else if (p.nextVisit) sentence3 = `Booked \xB7 ${p.nextVisit}`;
-  else if (p.lastVisit) sentence3 = `Last visit \xB7 ${p.lastVisit}`;
+  } else if (p.callSummary) sentence2 = clippedLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence2 = p.deal.brief;
+  else if (p.nextVisit) sentence2 = `Booked \xB7 ${p.nextVisit}`;
+  else if (p.lastVisit) sentence2 = `Last visit \xB7 ${p.lastVisit}`;
   else if (p.calls > 0)
-    sentence3 = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
-  else sentence3 = "Nothing written yet";
+    sentence2 = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
+  else sentence2 = "Nothing written yet";
   const r2 = p.receptionist;
   let status;
   if (p.state === "waiting_on_you") {
@@ -24377,7 +24377,7 @@ function attentionRow(p, tz, nowMs) {
   if (p.state === "needs_you" && p.needsYouSinceMs !== null)
     status = [...status, `since ${clock(p.needsYouSinceMs, tz, nowMs)}`];
   const cta = !p.threadId ? null : p.state === "needs_you" || p.state === "waiting_on_you" ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` } : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
-  return { channel, when, sentence: sentence3, quoted, status, tone: r2.tone, cta };
+  return { channel, when, sentence: sentence2, quoted, status, tone: r2.tone, cta };
 }
 
 // src/reach-out/reach-out-sheet.ts
@@ -25423,14 +25423,14 @@ function callItems({ profile, stamp }) {
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = neverConnected(k);
     const notes = callNoteLines(callNotesOf(k));
-    const sentence3 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : reachedVoicemail(k) ? "Reached voicemail." : "No summary from this call.");
+    const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : reachedVoicemail(k) ? "Reached voicemail." : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
       ts: t,
       ...stamp(t),
       kind: "call",
       who: missed ? callAttemptWords(k.direction) : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
-      text: sentence3,
+      text: sentence2,
       ...notes.length ? { notes } : {},
       sub: missed ? "Never connected" : recordingStateOf(k) === "ready" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` }
@@ -26606,9 +26606,9 @@ function lifecycleComing(input, stages) {
   const { nowMs, tz, broadcasts } = input;
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
-  const nameOf2 = (id, fallback) => playbooks.rows.find((p) => p.id === id)?.name ?? fallback;
+  const nameOf = (id, fallback) => playbooks.rows.find((p) => p.id === id)?.name ?? fallback;
   const end = nowMs + COMING_DAYS * DAY_MS;
-  const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => runRow(r2, nameOf2(r2.playbook_id, r2.name), nowMs, tz));
+  const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => runRow(r2, nameOf(r2.playbook_id, r2.name), nowMs, tz));
   const covered = new Set(
     broadcasts.rows.filter((r2) => runs.some((x) => x.id === `run:${r2.id}`) && r2.playbook_id).map((r2) => r2.playbook_id)
   );
@@ -29009,14 +29009,14 @@ function setupSteps(i, nowMs = Date.now()) {
   const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
   const done = rows.filter((r2) => r2.state === "ready").length;
   const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
-  const sentence3 = seriousConflict ? (
+  const sentence2 = seriousConflict ? (
     // "Answering" and "answering correctly" are different claims, and the top
     // line of Setup is where an owner reads the second one.
     seriousConflict.sentence
   ) : waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
   return {
     rows,
-    readiness: { answering, sentence: sentence3 },
+    readiness: { answering, sentence: sentence2 },
     next,
     done,
     total: rows.length,
@@ -29189,22 +29189,26 @@ function connectionFactsOf(i, nowMs) {
     listing: i.google?.listing ?? null
   };
 }
-var WHATSAPP_CONNECT_NOTES = [
-  { text: "Meta asks you to sign in with Facebook and choose or create your business." },
-  {
-    text: "Meta texts a code to the number. On a Chanlytics number it shows on the Texting row here, so choose Text message, not Phone call (a call would be answered by the receptionist). Without a Chanlytics line: have the phone at hand."
-  },
-  ...whatsappCostNotes(),
-  {
-    text: "Add a payment method when Meta asks for one: without it, replies still go out, and the messages your business starts, like reminders and campaigns, are not delivered."
-  },
-  {
-    text: `A new business on Meta can start conversations with ${NEW_BUSINESS_LIMIT} people a day until it is verified with Meta; replies to customers who write first are not limited.`
-  },
-  // The one thing to do while it is open: a reload takes with it the listener Meta's window answers to, and the one-time code
-  // the window hands back has nowhere to go (6 October, 12:11 to 12:48 UTC: a sign-up Meta finished and Chanlytics never heard).
-  { text: "Keep this page open until Meta's window closes." }
-];
+var KEEP_SIGNUP_PAGE_OPEN = "Keep this page open until Meta's window closes.";
+function signupCodeNote(own) {
+  const line = own?.e164 ? formatPhoneDisplay(own.e164) : null;
+  return {
+    text: line ? `Meta texts a code to the number. If it is your Chanlytics number, ${line}, the code shows here on the Texting row: choose Text message, not Phone call. ${KEEP_SIGNUP_PAGE_OPEN}` : `Meta texts a code to the number: have its phone at hand. ${KEEP_SIGNUP_PAGE_OPEN}`
+  };
+}
+function whatsappConnectNotes(own) {
+  return [
+    { text: "Meta asks you to sign in with Facebook and choose or create your business." },
+    signupCodeNote(own),
+    ...whatsappCostNotes(),
+    {
+      text: "Add a payment method when Meta asks for one: without it, replies still go out, but reminders and campaigns are not delivered."
+    },
+    {
+      text: `Until Meta verifies your business, it can start conversations with ${NEW_BUSINESS_LIMIT} people a day; replies to customers who write first are not limited.`
+    }
+  ];
+}
 var SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
 var SIGNUP_LEFT_OPEN_NOTE = "A WhatsApp sign-up was started here and did not come back to Chanlytics \u2014 if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.";
 function signupLeftOpenNotes(startedAt, nowMs) {
@@ -29220,7 +29224,7 @@ function tryItNotes(wa) {
     }
   ];
 }
-function whatsappRow2(i, { wa, nowMs }) {
+function whatsappRow2(i, { wa, own, nowMs }) {
   const base = { kind: "whatsapp", icon: "chat", title: "WhatsApp Business" };
   if (wa) {
     const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
@@ -29263,7 +29267,7 @@ function whatsappRow2(i, { wa, nowMs }) {
       stateWords: "Not connected",
       sentence: "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
       verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
-      notes: [...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs), ...WHATSAPP_CONNECT_NOTES]
+      notes: [...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs), ...whatsappConnectNotes(own)]
     };
   }
   const why = i.whatsapp?.reason === "no_config_id" ? " \u2014 the Embedded Signup configuration is missing on the Chanlytics side" : i.whatsapp?.reason === "preview" ? " \u2014 only on the production dashboard" : "";
@@ -33192,8 +33196,8 @@ function platformQueue(q, nowMs = Date.now()) {
   }));
   const total = q.total ?? rows.length;
   const oldest = q.waiting[0];
-  const sentence3 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` \xB7 showing the first ${rows.length}` : ""}.`;
-  return { rows, sentence: sentence3, unreadable: false, note };
+  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` \xB7 showing the first ${rows.length}` : ""}.`;
+  return { rows, sentence: sentence2, unreadable: false, note };
 }
 
 // src/workspace/partner.ts
@@ -34291,12 +34295,12 @@ function maskedEmail(email) {
 var handoverUntilWords = (expiresAt) => `Open until ${dayWords2(expiresAt)}.`;
 function partnerHandoverVM(h, nowMs = Date.now()) {
   const to = maskedEmail(h.email);
-  const of = (state, sentence3) => ({
+  const of = (state, sentence2) => ({
     tenantId: h.tenantId,
     name: h.name && h.name.trim() ? h.name.trim() : HANDOVER_WORDS.unnamed,
     email: h.email,
     state,
-    sentence: sentence3,
+    sentence: sentence2,
     canResend: state !== "accepted"
   });
   if (h.acceptedAt) return of("accepted", `Its owner accepted it on ${dayWords2(h.acceptedAt)}.`);
@@ -34558,8 +34562,8 @@ function platformDaysWords(rows) {
     asks: r2.asks
   })).sort((a, b) => Number(b.silent) - Number(a.silent) || b.asks - a.asks || a.name.localeCompare(b.name)).map(({ asks: _asks, ...line }) => line);
   const silent = lines.filter((l) => l.silent).length;
-  const sentence3 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
-  return { day, sentence: sentence3, lines };
+  const sentence2 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
+  return { day, sentence: sentence2, lines };
 }
 export {
   ABANDONED_MS,

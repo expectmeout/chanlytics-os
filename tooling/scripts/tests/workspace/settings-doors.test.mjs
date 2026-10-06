@@ -815,12 +815,9 @@ const noteLinks = (tree, kind) =>
     // The kit's link and what it draws carry one test id: the link itself is the first of them.
     (n) => n.props?.["data-testid"] === "connection-note-link" && n.type?.name === "LinkButton",
   ).map((n) => [textOf(n), n.props.href, n.props.target, n.props.rel]);
-/** What WhatsApp costs, said last under a connected row and before Connect (contracts WHATSAPP_COST_WORDS). */
+/** What WhatsApp costs, said last under a connected row and before Connect (contracts WHATSAPP_COST_WORDS): one line, with Meta's prices after it. */
 const COST = [
-  "WhatsApp is billed by Meta, straight to the card on your WhatsApp account — not on your Chanlytics bill.",
-  "Free: replies to a customer within 24 hours of their last message — the receptionist's and yours.",
-  "Charged by Meta for each one delivered: reminders and notices sent after those 24 hours, and every campaign or offer.",
-  "Prices depend on the customer's country.",
+  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free, and later reminders and campaigns are charged for each one delivered.",
 ];
 const PRICES = [
   "Meta's current prices",
@@ -862,16 +859,17 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     await flush();
     let tree = settle(Connections);
     const notes = noteTexts(tree, "whatsapp");
-    assert.equal(notes.length, 10, "the one it left behind, and the nine the owner meets before and in Meta's window");
+    assert.equal(notes.length, 6, "the one it left behind, and the five the owner meets before and in Meta's window");
     assert.match(notes[0], /^A WhatsApp sign-up was started here and did not come back to Chanlytics/);
     assert.match(notes[1], /^Meta asks you to sign in with Facebook/);
+    assert.match(notes[2], /^Meta texts a code to the number.* Keep this page open until Meta's window closes\.$/);
     assert.deepEqual(
-      notes.slice(3, 7),
+      notes.slice(3, 4),
       COST,
       "what WhatsApp costs, between the code Meta texts and the payment method it asks for",
     );
-    assert.match(notes[7], /^Add a payment method when Meta asks for one: without it, replies still go out/);
-    assert.equal(notes.at(-1), "Keep this page open until Meta's window closes.");
+    assert.match(notes[4], /^Add a payment method when Meta asks for one: without it, replies still go out/);
+    assert.match(notes.at(-1), /^Until Meta verifies your business, it can start conversations with 250 people a day/);
     assert.deepEqual(noteLinks(tree, "whatsapp"), [PRICES], "one link, to Meta's own prices, which opens in a new tab");
     const box = byTestId(tree, "connection-whatsapp-notes");
     assert.match(
@@ -883,7 +881,7 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     tree = settle(Connections);
     assert.equal(
       noteTexts(tree, "whatsapp").length,
-      9,
+      5,
       "pressing Connect again forgets what the earlier page left behind",
     );
     finish({
@@ -894,7 +892,7 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     await flush();
     assert.equal(
       noteTexts(settle(Connections), "whatsapp").length,
-      9,
+      5,
       "and a sign-up that was cancelled does not bring it back",
     );
   } finally {

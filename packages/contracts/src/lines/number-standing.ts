@@ -125,15 +125,18 @@ export function standingNeedsRead(
   return Number.isNaN(readAt) || nowMs - readAt > STANDING_STALE_MS;
 }
 
-/** Meta's text as a sentence: trimmed, and ended with a stop where it has none. */
-const sentence = (text: string): string => {
+/**
+ * Meta's text as a sentence: trimmed, and ended with a stop where it has none. (Not named `sentence`: the contracts bundle
+ * already has a top-level one, and a second renames every local `sentence` in the bundle.)
+ */
+const withStop = (text: string): string => {
   const t = text.trim();
   return /[.!?]$/.test(t) ? t : `${t}.`;
 };
 
 /** A problem as a note: what Meta said, then how it said to fix it. */
 const problemWords = (p: StandingProblem): string =>
-  p.fix ? `${sentence(p.said)} ${sentence(p.fix)}` : sentence(p.said);
+  p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
 
 /** The sentence of a number Meta will not let send, where it named no problem. */
 const BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
@@ -168,18 +171,18 @@ function paymentNotes(s: NumberStanding): ConnectionNote[] {
 /** The WhatsApp row's sentence for a number Meta will not let send: Meta's first problem, in its words. */
 export function standingSentence(s: NumberStanding): string {
   const first = s.problems.at(0);
-  return first ? `Meta: ${sentence(first.said)}` : BLOCKED_SENTENCE;
+  return first ? `Meta: ${withStop(first.said)}` : BLOCKED_SENTENCE;
 }
 
 /** The display name as a phrase: “Harbor Moving”, or "your display name" while Meta has given none. */
-const nameOf = (name: string | null): string => (name ? `the display name “${name}”` : "your display name");
+const displayNameWords = (name: string | null): string => (name ? `the display name “${name}”` : "your display name");
 
 /**
  * What the display name's review says, where it says something an owner can act on: the Connections row's note for the status the
  * standing keeps (the Graph's own words), and the sentence of a decline's notice (nameDecisionWords). One set of words.
  */
 function nameWords(status: string | null, name: string | null): string | null {
-  const who = nameOf(name);
+  const who = displayNameWords(name);
   switch (status) {
     case "PENDING_REVIEW":
       return `Meta is reviewing ${who}; until then customers see the number.`;
@@ -236,7 +239,11 @@ export function nameDecisionWords(
   const status = nameStatusOf(decision);
   const name = textOrNull(requestedName);
   if (status === "APPROVED")
-    return { subject: "WhatsApp display name approved", body: `Meta approved ${nameOf(name)}.`, alert: false };
+    return {
+      subject: "WhatsApp display name approved",
+      body: `Meta approved ${displayNameWords(name)}.`,
+      alert: false,
+    };
   const declined = status === "DECLINED" ? nameWords(status, name) : null;
   if (!declined) return null;
   const why = textOrNull(reason);
@@ -276,13 +283,13 @@ export function standingNotes(s: NumberStanding | null): ConnectionNote[] {
   const out: ConnectionNote[] = [];
   const first = s.problems.at(0);
   if (s.can_send === "BLOCKED") {
-    if (first?.fix) out.push({ text: sentence(first.fix) });
+    if (first?.fix) out.push({ text: withStop(first.fix) });
     for (const p of s.problems.slice(1)) out.push({ text: problemWords(p) });
   } else {
     for (const p of s.problems) out.push({ text: problemWords(p) });
   }
   out.push(...paymentNotes(s));
-  for (const n of s.notes) out.push({ text: sentence(n) });
+  for (const n of s.notes) out.push({ text: withStop(n) });
   const name = nameWords(s.name_status, s.name);
   if (name) out.push({ text: name });
   const verification = verificationNote(s);

@@ -14,9 +14,9 @@
  * Meta's rate. A number is asked once in five hours with its own workspace's token, so no workspace sees more than a
  * read a number in that time, and at most AT_ONCE reads are in the air together (the reach-out check's own four), each
  * bound by the Graph timeout. A visit asks the rating and the standing together, so it is still one Graph timeout wide
- * (the standing is itself two reads at once, the phone's and the account's). No other sweep reads Meta across workspaces, so
- * the nearest pacing to copy is the reach-out check's batches of four; the domains sweep's floor between batches answers
- * Resend's rate per account, and here each read carries its own workspace's token.
+ * (the standing is itself four reads at once, the phone's and three of the account's). No other sweep reads Meta across
+ * workspaces, so the nearest pacing to copy is the reach-out check's batches of four; the domains sweep's floor between
+ * batches answers Resend's rate per account, and here each read carries its own workspace's token.
  *
  * What is kept. Only one of Meta's five words (mapNumberQuality), in capitals; and a standing only where Meta's answer says
  * what the number may do. Whatever else comes back, an error, a word that is not one of them, no word, no credentials, a

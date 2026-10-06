@@ -329,29 +329,45 @@ function connectionFactsOf(i: ConnectionInputs, nowMs: number): ConnectionFacts 
 }
 
 /**
- * What Meta's sign-up window asks of the owner, said before it opens, in the order the owner meets it: the sign-in, the code texted
- * to the number (the one thing the owner cannot see from here unless the number is Chanlytics's own: the Texting row shows it),
- * what WhatsApp costs and who bills it (Chanlytics is a Tech Provider: Meta bills the business, to its own card, for the messages
- * it starts), the payment method Meta asks for at the end (replies to a customer who wrote first are delivered without one, and
- * are not billed; what is not delivered is the messages the business starts), and the limit a new business starts at, and
- * the one thing to do while the window is open.
+ * The one thing to do while Meta's window is open: a reload takes with it the listener the window answers to, and the one-time code
+ * the window hands back has nowhere to go (6 October, 12:11 to 12:48 UTC: a sign-up Meta finished and Chanlytics never heard).
  */
-const WHATSAPP_CONNECT_NOTES: readonly ConnectionNote[] = [
-  { text: "Meta asks you to sign in with Facebook and choose or create your business." },
-  {
-    text: "Meta texts a code to the number. On a Chanlytics number it shows on the Texting row here, so choose Text message, not Phone call (a call would be answered by the receptionist). Without a Chanlytics line: have the phone at hand.",
-  },
-  ...whatsappCostNotes(),
-  {
-    text: "Add a payment method when Meta asks for one: without it, replies still go out, and the messages your business starts, like reminders and campaigns, are not delivered.",
-  },
-  {
-    text: `A new business on Meta can start conversations with ${NEW_BUSINESS_LIMIT} people a day until it is verified with Meta; replies to customers who write first are not limited.`,
-  },
-  // The one thing to do while it is open: a reload takes with it the listener Meta's window answers to, and the one-time code
-  // the window hands back has nowhere to go (6 October, 12:11 to 12:48 UTC: a sign-up Meta finished and Chanlytics never heard).
-  { text: "Keep this page open until Meta's window closes." },
-];
+const KEEP_SIGNUP_PAGE_OPEN = "Keep this page open until Meta's window closes.";
+
+/**
+ * Where the code Meta texts to the number arrives, said with the one thing to do while its window is open (the code is what the owner
+ * waits for there). On the workspace's own Chanlytics line the text reaches the Texting row, and a call would be answered by the
+ * receptionist, so the owner chooses a text; a number of the business's own is the phone in its hand.
+ */
+function signupCodeNote(own: ConnectionFacts["own"]): ConnectionNote {
+  const line = own?.e164 ? formatPhoneDisplay(own.e164) : null;
+  return {
+    text: line
+      ? `Meta texts a code to the number. If it is your Chanlytics number, ${line}, the code shows here on the Texting row: choose Text message, not Phone call. ${KEEP_SIGNUP_PAGE_OPEN}`
+      : `Meta texts a code to the number: have its phone at hand. ${KEEP_SIGNUP_PAGE_OPEN}`,
+  };
+}
+
+/**
+ * What Meta's sign-up window asks of the owner, said before it opens, in the order the owner meets it: the sign-in, the code texted
+ * to the number (and to keep the page open while it is awaited), what WhatsApp costs and who bills it (Chanlytics is a Tech
+ * Provider: Meta bills the business, to its own card, for the messages it starts), the payment method Meta asks for at the end
+ * (replies to a customer who wrote first are delivered without one, and are not billed; what is not delivered is the messages the
+ * business starts), and the limit a new business starts at. One line each: a row says one thing at a time.
+ */
+function whatsappConnectNotes(own: ConnectionFacts["own"]): ConnectionNote[] {
+  return [
+    { text: "Meta asks you to sign in with Facebook and choose or create your business." },
+    signupCodeNote(own),
+    ...whatsappCostNotes(),
+    {
+      text: "Add a payment method when Meta asks for one: without it, replies still go out, but reminders and campaigns are not delivered.",
+    },
+    {
+      text: `Until Meta verifies your business, it can start conversations with ${NEW_BUSINESS_LIMIT} people a day; replies to customers who write first are not limited.`,
+    },
+  ];
+}
 
 /** How long the mark a sign-up leaves is taken for a sign-up somebody is still finishing at Meta's. */
 const SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
@@ -385,7 +401,7 @@ function tryItNotes(wa: ChannelVM): ConnectionNote[] {
 }
 
 /** WhatsApp: the channel row when there is one; Meta's door when there is not. */
-function whatsappRow(i: ConnectionInputs, { wa, nowMs }: ConnectionFacts): Draft {
+function whatsappRow(i: ConnectionInputs, { wa, own, nowMs }: ConnectionFacts): Draft {
   const base = { kind: "whatsapp" as const, icon: "chat", title: "WhatsApp Business" };
   if (wa) {
     // What Meta has said about the number, in the words Sent, Campaigns
@@ -435,7 +451,7 @@ function whatsappRow(i: ConnectionInputs, { wa, nowMs }: ConnectionFacts): Draft
       sentence:
         "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
       verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
-      notes: [...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs), ...WHATSAPP_CONNECT_NOTES],
+      notes: [...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs), ...whatsappConnectNotes(own)],
     };
   }
   const why =
