@@ -79,18 +79,18 @@
       "rate": "voice",
       "spend": false
     },
-    "POST ask/warm": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "viewer",
-      "rate": "aggregate",
-      "spend": false
-    },
     "POST ask/warm/model": {
       "kind": "write",
       "scope": "workspace",
       "role": "viewer",
       "rate": "ask",
+      "spend": false
+    },
+    "POST ask/warm": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "aggregate",
       "spend": false
     },
     "POST billing/checkout": {
@@ -1222,6 +1222,13 @@
       "spend": false
     },
     "GET reports/campaigns": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "GET reports/headline": {
       "kind": "read",
       "scope": "workspace",
       "role": null,
