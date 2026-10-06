@@ -1,4 +1,4 @@
--- 00330 · What Meta holds about a number is kept, and said when it changes.
+-- 00338 · What Meta holds about a number is kept, and said when it changes.
 --
 -- Connect WhatsApp says what Meta will ask, and the number says what Meta holds (docs/superpowers/specs/2026-10-06-whatsapp-connect-says-what-meta-asks-design.md,
 -- part 3). A connected WhatsApp number's standing with Meta -- whether it may send at all (health_status.can_send_message:

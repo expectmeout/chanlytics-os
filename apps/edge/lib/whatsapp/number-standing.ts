@@ -3,7 +3,7 @@
  *
  * `readAndKeepStanding` is what every reader calls: the connection (right after the line is written), the channel-quality
  * sweep (lib/whatsapp/number-quality.ts, each due number beside its rating, with the same token) and an owner's check from
- * Connections. It reads (numberStanding), keeps whole through the database's door (channel_keep_standing, 00330), and tells the
+ * Connections. It reads (numberStanding), keeps whole through the database's door (channel_keep_standing, 00338), and tells the
  * owner ONCE when the number turns BLOCKED: the door's `first` or `changed` with a BLOCKED word, never `same`, so a number
  * that stays blocked is not said every six hours. The notice is the one the webhook's restricted-account alert is (waba-events
  * `NUM`, `notify`: the bell row and the owner's mail), in contracts' words (standingAlertWords).

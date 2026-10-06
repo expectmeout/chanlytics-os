@@ -143,7 +143,7 @@ function use(over = {}, faults = {}, { vault } = {}) {
         kept.push(args);
         return null;
       }),
-    // What Meta holds about the number, kept (00330): the door's own words are held in a-number-s-standing-is-kept-and-said-when-it-changes.db.test.mjs.
+    // What Meta holds about the number, kept (00338): the door's own words are held in a-number-s-standing-is-kept-and-said-when-it-changes.db.test.mjs.
     channel_keep_standing: (args) => {
       standings.push(args);
       return "first";

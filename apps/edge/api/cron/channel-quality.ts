@@ -8,7 +8,7 @@
  *
  * Beside each rating the same visit asks Meta what the number may do (numberStanding: can it send, what stands in the way, its
  * display name's review, the business's verification and tier) with the same token, keeps it whole through channel_keep_standing
- * (00330) and tells the owner once when a number turns BLOCKED (lib/whatsapp/number-standing.ts). The tick's answer counts them as
+ * (00338) and tells the owner once when a number turns BLOCKED (lib/whatsapp/number-standing.ts). The tick's answer counts them as
  * `standing_*`, and the sum its limit must hold grows by one notice (ops-hygiene.test.mjs).
  *
  * The work is bounded by time: up to MAX_DUE numbers are listed, the ones never read and then the longest unread, each

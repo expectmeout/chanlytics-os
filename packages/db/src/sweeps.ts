@@ -16,7 +16,7 @@
  *   keepChannelQuality     the one write that sweep makes, through channel_keep_quality (00315).
  *   whatsappNumberOf       the one active WhatsApp number of a workspace, as that sweep reads a number: what an owner's
  *                          check of its standing reads (apps/edge/lib/whatsapp/number-standing.ts).
- *   keepChannelStanding    what Meta holds about the number, kept through channel_keep_standing (00330): the sweep's second
+ *   keepChannelStanding    what Meta holds about the number, kept through channel_keep_standing (00338): the sweep's second
  *                          write, and the owner's check's and the connection's only one.
  * The functions are the service role's alone. The edge's calendar and playbooks sweeps read the pages through
  * lib/ops/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
@@ -225,7 +225,7 @@ export async function keepChannelQuality(
 }
 
 /**
- * What Meta holds about a number, kept (channel_keep_standing, 00330): first read, changed (the word of `can_send`), the
+ * What Meta holds about a number, kept (channel_keep_standing, 00338): first read, changed (the word of `can_send`), the
  * same as the last, or gone (not this workspace's WhatsApp channel any more). The whole standing is kept each time, and the
  * event is written only when the word changed. Throws on the database's refusal and on an answer it does not know, so a
  * caller counts the number as unread and tries it again.

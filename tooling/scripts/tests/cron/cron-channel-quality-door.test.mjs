@@ -68,7 +68,7 @@ function world(channels, over = {}) {
       ch.config = { ...ch.config, quality_read: p_rating, quality_read_at: new Date().toISOString() };
       return was === null ? "first" : was === p_rating ? "same" : "changed";
     },
-    // What Meta holds about the number, kept as the SQL door keeps it (00330): whole, beside the rating.
+    // What Meta holds about the number, kept as the SQL door keeps it (00338): whole, beside the rating.
     channel_keep_standing: ({ p_tenant_id, p_channel_id, p_standing }) => {
       if (over.refuseStanding?.includes(p_channel_id)) throw new Error("the database refused");
       if (over.goneStanding?.includes(p_channel_id)) return "gone";

@@ -1,5 +1,5 @@
 /**
- * What Meta holds about a number is kept and said when it changes (00330 channel_keep_standing), on a real Postgres.
+ * What Meta holds about a number is kept and said when it changes (00338 channel_keep_standing), on a real Postgres.
  *
  * The edge asks Meta what a connected WhatsApp number may do (can it send, what stands in the way, its display name, the
  * business's verification and tier) at connection, on the six-hourly clock and when an owner asks, and hands each answer

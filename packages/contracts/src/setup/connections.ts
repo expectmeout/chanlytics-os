@@ -410,7 +410,7 @@ function whatsappRow(i: ConnectionInputs, { wa, own, nowMs }: ConnectionFacts): 
     const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
     const flagged = wa.on && h.tone === "danger";
     const health = wa.on && h.tone !== "unknown" ? ` · ${h.label}` : "";
-    // What Meta holds about the number (channel.standing, 00330) outranks what its rating implies: a number Meta will not
+    // What Meta holds about the number (channel.standing, 00338) outranks what its rating implies: a number Meta will not
     // let send is joined and not working whatever its quality was, and Meta's own words say why. A word of Meta's that is
     // not BLOCKED is never taken for it; a switched-off channel says nothing of Meta's.
     const standing = wa.on ? wa.standing : null;

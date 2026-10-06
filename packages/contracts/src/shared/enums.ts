@@ -239,7 +239,7 @@ export const EVENT_KINDS = [
   "channel.connected",
   /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
   "channel.quality_rating",
-  /** What Meta holds about a WhatsApp number (may it send, and what stands in the way) changed: read at connection, on a clock or when an owner asks (00330): { from?, to }, the word of can_send only. */
+  /** What Meta holds about a WhatsApp number (may it send, and what stands in the way) changed: read at connection, on a clock or when an owner asks (00338): { from?, to }, the word of can_send only. */
   "channel.standing",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",

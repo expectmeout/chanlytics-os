@@ -5,7 +5,7 @@
  * whether the number may send at all (`can_send_message`: AVAILABLE, LIMITED or BLOCKED), what stands in the way (each
  * entity's errors, with Meta's own fix), how the display name's review fares, whether the business is verified and how many
  * people it may start a conversation with in a day. The edge keeps that answer whole on the channel's config
- * (`channel_keep_standing`, 00330) and says a change of `can_send` as a `channel.standing` event. This is the one place it
+ * (`channel_keep_standing`, 00338) and says a change of `can_send` as a `channel.standing` event. This is the one place it
  * is read back and put into words, for the Connections row, the owner's alert and the Activity log: what Meta said, and
  * nothing it did not. A word of Meta's that is not one of the three is kept as Meta said it and never turned into one that is.
  * The account's payment method (is one on file), the business that owns the account and the account itself ride with the standing,

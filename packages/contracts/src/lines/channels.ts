@@ -26,7 +26,7 @@ export interface ChannelDto {
   quality_event?: string | null;
   messaging_limit?: string | null;
   quality_at?: string | null;
-  /** What Meta holds about the number (channel_keep_standing, 00330): whether it may send, what stands in the way, its
+  /** What Meta holds about the number (channel_keep_standing, 00338): whether it may send, what stands in the way, its
    *  display name's review, the business's verification and tier; and when that was read. Null until it has been. */
   standing?: NumberStanding | null;
   standing_read_at?: string | null;

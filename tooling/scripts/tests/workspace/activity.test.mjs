@@ -704,7 +704,7 @@ test("a WhatsApp connection, a milestone and a held review reply say what they a
     "the business's verified name, and never the number or Meta's ids",
   );
   assert.equal(activityWords("channel.connected", { verified_name: null }), "A WhatsApp number was connected");
-  // What Meta holds about the number changed (00330): the word of can_send, from and to; the first read has no from.
+  // What Meta holds about the number changed (00338): the word of can_send, from and to; the first read has no from.
   assert.equal(
     activityWords("channel.standing", { from: "AVAILABLE", to: "BLOCKED" }),
     "A WhatsApp number's standing with Meta changed · from can send to blocked",

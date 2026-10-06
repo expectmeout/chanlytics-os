@@ -1,7 +1,7 @@
 /**
  * What Meta holds about a connected number (apps/edge/lib/whatsapp/meta-graph.ts numberStanding, number-standing.ts
  * readAndKeepStanding), run over a captured wire to Meta's Graph API that answers what the test writes, and a database in
- * memory whose keeping door answers as the SQL door does (00330: first, changed, same, gone).
+ * memory whose keeping door answers as the SQL door does (00338: first, changed, same, gone).
  *   - the reading: the four Graph calls it makes and the token they carry (the phone's health, and three of the account's, asked
  *     apart: its verification and tier, whether it has a payment method, and the business that owns it); Meta's answer as a
  *     standing (every entity's errors and notes, its words kept as it said them, text and lists cut); an account read that Meta

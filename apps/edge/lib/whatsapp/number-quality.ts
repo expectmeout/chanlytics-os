@@ -2,7 +2,7 @@
  * The reading behind the channel-quality sweep (the Reports lenses spec, K9): each connected WhatsApp number's quality
  * rating, asked of Meta with the token its own workspace already holds, and kept through the database's door
  * (channel_keep_quality, 00315), which says when the word changed. Beside it, in the same visit and with the same token,
- * what Meta holds about whether the number may send (numberStanding, kept through channel_keep_standing, 00330, and the
+ * what Meta holds about whether the number may send (numberStanding, kept through channel_keep_standing, 00338, and the
  * owner told once when it turns BLOCKED: lib/whatsapp/number-standing.ts).
  *
  * What is asked, and when. The numbers come from whatsappNumbersToRead, never read first and then the longest unread, and a
