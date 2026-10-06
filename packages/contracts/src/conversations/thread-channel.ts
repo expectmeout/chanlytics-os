@@ -81,13 +81,24 @@ export function isTheirOwnWords(m: ChannelRow): boolean {
  * thread they are being asked about.
  */
 export function threadChannelOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | "phone" {
+  const reply = replyWireOf(messages);
+  if (reply) return reply;
+  // Nothing from their side: the wire our own words went by.
+  const ours = [...messages].reverse().find((m) => m.type !== "call_summary");
+  return ours ? writtenChannelOf(ours.channel) : "phone";
+}
+
+/**
+ * The wire a reply to the thread goes out on, as the reply route picks it (the dashboard's replyChannelOf): where the
+ * person last wrote (lastWroteOn), else where the last thing from their side came by (a program at their address is
+ * still their address); null when nothing has come from their side. The Inbox's reply box reads it, so the box names
+ * the wire the route sends on, and threadChannelOf begins with it.
+ */
+export function replyWireOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | null {
   const wrote = lastWroteOn(messages);
   if (wrote) return wrote;
-  // Nothing of their own: the wire the last thing from their side came by (a program at their address is still their
-  // address, and where the reply route sends), then the wire our own words went by.
-  const newest = [...messages].reverse();
-  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
-  return written ? writtenChannelOf(written.channel) : "phone";
+  const theirs = [...messages].reverse().find(isFromTheirSide);
+  return theirs ? writtenChannelOf(theirs.channel) : null;
 }
 
 /** The same question, in the words a row shows. */

@@ -67,7 +67,7 @@ test("each package's built dist imports only what its package.json declares", ()
   assert.deepEqual(
     unlisted,
     [],
-    "a package declares every module its dist imports, the ones it inlines from @chanlytics/* included: the edge resolves them from its own node_modules",
+    "a package declares every module its dist imports, its @chanlytics/* siblings included: the edge resolves them from its own node_modules",
   );
 });
 

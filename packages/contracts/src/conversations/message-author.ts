@@ -84,7 +84,7 @@ export function messageAuthor(m: MessageDto): MessageAuthor | null {
 }
 
 /** A chat row's second line: that a person has the thread, or who had the last word. */
-export function lastWordLine(needsHuman: boolean, last: MessageDto | undefined, author: MessageAuthor | null): string {
+export function lastWordLine(needsHuman: boolean, last: MessageDto | null, author: MessageAuthor | null): string {
   if (needsHuman) return "Receptionist paused — a human has this thread";
   if (!last) return "No messages yet";
   if (last.direction === "inbound") return "They wrote last — no reply yet";

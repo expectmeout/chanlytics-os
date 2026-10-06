@@ -213,7 +213,6 @@ export async function ingestEmail(
   // say no (B1). The reading tells the owner, so the intake does not tell them twice. Asked before anything is marked,
   // so a failed read or a failed schedule is the job's to try again, and the next try finds the reading scheduled.
   const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
-  if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
 
   if (claim !== "auto_reply")
     await flagForAPerson(ports, email, {
@@ -223,6 +222,10 @@ export async function ingestEmail(
       claim,
       reachOut,
     });
+  // After the flag: the reading closes what the intake opened (reply-read.ts closeWhatTheIntakeOpened), so it must find
+  // the flag there. Scheduled first, a reading could run before a flag that failed and was tried again, close nothing,
+  // archive a "no", and leave the retried flag on an archived thread.
+  if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
   // Last, and only once the flag a person acts on is durable: a run that dies
   // above leaves the row unhandled, and the next try finishes it.
   await ports.markProcessed(mailbox.tenant_id, kept.message_id);

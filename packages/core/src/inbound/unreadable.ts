@@ -6,6 +6,7 @@
  */
 import { isVisionMime, toBase64, VISION_MAX_BYTES } from "./vision";
 import { GO, type Answering } from "./context";
+import { speaksUnattended } from "./reply-posture";
 import { escalationOf, handledOf, SET_ASIDE, type WayOut } from "./handled";
 
 /** Whether the receptionist will look at this photo, and how it says what it will not read. */
@@ -26,7 +27,7 @@ export function seeingOf(at: Answering) {
     !!rt?.features?.vision &&
     isVisionMime(n.media.mime_type) &&
     !!brainCfg &&
-    (replyMode === "auto" || replyMode === "veto") &&
+    speaksUnattended(replyMode) &&
     Date.now() > thread.pausedUntil;
 
   /**
@@ -55,7 +56,7 @@ export function seeingOf(at: Answering) {
     // same rule as every reply: only when the mode in force lets it speak.
     // A workspace on Ask, or a person set to Never, gets no canned text —
     // the message still escalates so a human sees it. No persona -> no ack.
-    const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
+    const mayAck = !!brainCfg && speaksUnattended(replyMode);
     // WHETHER IT LANDED decides everything after it. The outcome used to be
     // discarded, so expired credentials or a refusal at the wire still paused
     // the thread for a day and still told the owner "(auto-acknowledged, bot

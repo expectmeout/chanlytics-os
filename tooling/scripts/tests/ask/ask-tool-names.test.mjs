@@ -566,6 +566,18 @@ function withNothingHeld(frozen) {
 }
 
 /**
+ * 6 Oct 2026 (the review's fixes): a thread's held_draft is a draft that still waits, by the rule `held` asks
+ * (heldDraftWaits). This world's one draft is past its deadline, so a row and a thread read name none: the one change to
+ * their bytes.
+ */
+function withNoHeldDraft(frozen) {
+  const said = JSON.parse(frozen);
+  const none = (t) => ("held_draft" in t ? { ...t, held_draft: null } : t);
+  if (Array.isArray(said.threads)) return JSON.stringify({ ...said, threads: said.threads.map(none) });
+  return "held_draft" in said ? JSON.stringify(none(said)) : frozen;
+}
+
+/**
  * 5 Oct 2026 (Ask honesty): a call's row says which way it was dialled, since only a customer's dial that never connected
  * is "missed" (contracts missedCall). Every call of this world is inbound (`call()` above), so the frozen rows gain
  * `direction: "inbound"` after `who`: the one change to their bytes, in calls.list and calls.get.
@@ -636,6 +648,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
     if (NAMES[old] === "report") result = withHold(result);
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
+    if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.

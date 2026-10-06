@@ -219,3 +219,21 @@ test("how a call ended is one ladder: Conversations and Live read the same word 
     );
   }
 });
+
+test("a voicemail is read by any of the three signals a call row carries, by every reader: the analysis flag can be missing", () => {
+  const { toCallVM, toLiveCallVM, reachedVoicemail } = contracts;
+  // The provider's analysis sets in_voicemail; when it did not run, the row still holds the ending the provider
+  // recorded, or the outcome our own analysis gave. The ladder read the flag alone, so the pill said Handled beside
+  // "Reached voicemail".
+  const quiet = { in_voicemail: null, summary: null, wanted: null };
+  for (const [why, d] of [
+    ["the provider's ending", dto({ ...quiet, disconnection_reason: "voicemail_reached" })],
+    ["our analysis's outcome", dto({ ...quiet, outcome: "voicemail" })],
+    ["the provider's flag", dto({ ...quiet, in_voicemail: true })],
+  ]) {
+    assert.equal(reachedVoicemail(d), true, why);
+    assert.equal(toCallVM(d, ZONE, NOW).outcome, "voicemail", `REGRESSION: Conversations said handled: ${why}`);
+    assert.equal(toLiveCallVM(d, ZONE, NOW).outcome, "voicemail", `Live: ${why}`);
+  }
+  assert.equal(reachedVoicemail(dto()), false, "an answered call");
+});

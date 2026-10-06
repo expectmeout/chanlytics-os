@@ -190,9 +190,12 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: Fa
  * flagged for a person (reason send_failed, with why in `details`) and the owner told, in a hand-off that opens THAT
  * thread rather than the Inbox's front page. Said here by a send the wire could not carry (sayItFailed) and by a delivery
  * the provider reported failed after taking it (late-failure.ts), so the two cannot come to say it differently. Answers
- * what the flag came to. A send that fails at the wire tells the owner whatever the flag came to (the job completes and
- * nothing will say it again); a caller that WILL be told again (`again`: a receipt the provider redelivers) is spared a
- * bell for a thread that is not flagged: a flag that could not be written throws, and the owner is told once, when it is.
+ * what the flag came to. The owner is told once per hold, as an inbound hand-off and an email's flag are: a thread
+ * already held for a failed send (`refreshed`) has its details brought up to date and rings no second bell, so a
+ * receipt the provider sends twice, or a run of failures on one thread, is one notice. A send that fails at the wire
+ * tells the owner whatever else the flag came to (the job completes and nothing will say it again); a caller that WILL
+ * be told again (`again`: a receipt the provider redelivers) is spared a bell for a thread that is not flagged: a flag
+ * that could not be written throws, and the owner is told once, when it is.
  *
  * The flag is a conversation that needs a person: the same thing a WhatsApp handoff is, drawn the same way. The job
  * itself completes; it never was "a job did not finish". (Today drops an away-row whose conversation the queue already
@@ -202,10 +205,11 @@ export async function raiseSendFailed(
   ports: Pick<SendQueuedPorts, "escalate" | "alert">,
   f: { conversationId: string; details: string; subject: string; body: string },
   again = false,
-): Promise<unknown> {
+): Promise<"opened" | "changed" | "refreshed" | "failed"> {
   const flagged = await ports.escalate(f.conversationId, "send_failed", f.details);
   if (again && flagged === "failed")
     throw new Error(`send failed: its thread ${f.conversationId} could not be flagged`);
+  if (flagged === "refreshed") return flagged;
   await ports.alert({
     kind: "handoff",
     route: `inbox/th-${f.conversationId}`,

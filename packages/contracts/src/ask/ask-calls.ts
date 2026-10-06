@@ -11,7 +11,7 @@ import type { CallVM } from "../conversations/call-vm";
 export function callJumpSub(c: {
   live: boolean;
   missed: boolean;
-  direction?: "inbound" | "outbound" | null;
+  direction: "inbound" | "outbound" | null;
 }): string | undefined {
   if (c.live) return "live";
   if (!c.missed) return undefined;

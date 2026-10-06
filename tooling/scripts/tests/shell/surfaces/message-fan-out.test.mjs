@@ -84,11 +84,11 @@ const REAL = [
 ];
 
 /** The real overrides' routing, each read recorded rather than made, through a runner whose live feed this holds. */
-async function running() {
+async function running({ debounceMs = 1 } = {}) {
   const asked = [];
   const overrides = REAL.map((o) => ({
     ...o,
-    debounceMs: 1,
+    debounceMs,
     apply: async () => {
       asked.push(o.key);
     },
@@ -640,4 +640,25 @@ test("every surface a page names to useSurface is a real one: a key that is no o
     [],
     "name the surface's key (an override's `key`), not its event",
   );
+});
+
+test("a steady stream of notices still repaints: a refresh waits for a pause, but never more than a few seconds", async (t) => {
+  // Every receipt of a broadcast is its own notice (00327), each a few hundred milliseconds apart. Each one re-armed the
+  // Inbox's wait from the start, so while the receipts came, a customer's new message did not reach the open Inbox.
+  win.location.hash = "#/inbox";
+  const r = await running({ debounceMs: 400 });
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const flush = async () => {
+    for (let i = 0; i < 20; i += 1) await Promise.resolve();
+  };
+  for (let ms = 0; ms < 6_000; ms += 300) {
+    r.change("messages", "UPDATE", "delivered");
+    t.mock.timers.tick(300);
+    await flush();
+  }
+  const inbox = () => r.asked.filter((k) => k === "inbox").length;
+  assert.ok(inbox() >= 1, "REGRESSION: six seconds of receipts, and the Inbox was never read again");
+  assert.ok(inbox() <= 3, `a read every few seconds, not one per receipt: ${inbox()}`);
+  t.mock.timers.reset();
+  r.stop();
 });

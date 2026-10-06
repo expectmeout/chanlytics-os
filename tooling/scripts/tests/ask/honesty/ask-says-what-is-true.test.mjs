@@ -509,3 +509,18 @@ test("inbox.list held: a draft still inside its hold window, and no queued draft
   assert.match(texts.find((t) => t.startsWith("Rosa")) ?? "", /draft held/);
   assert.ok(!(texts.find((t) => t.startsWith("+1 (555) 555-0103")) ?? "").includes("draft held"));
 });
+
+test("a thread's held_draft is a draft still waiting: the recent list and the thread read carry none for a draft past its deadline", async () => {
+  // The held filter asked heldDraftWaits; the field each thread carries did not, so the recent list and a thread read
+  // offered the model a draft going out as one it could still stop.
+  const recent = await read("inbox", { action: "list", filter: "recent" });
+  const rowOf = (cid) => recent.threads.find((r) => r.conversation_id === cid);
+  assert.ok(rowOf(C_WAITS).held_draft, "Rosa's waits nine more minutes");
+  assert.equal(rowOf(C_PAST).held_draft, null, "REGRESSION: a draft past its deadline listed as held");
+  assert.ok((await read("inbox", { action: "thread", conversation_id: C_WAITS })).held_draft);
+  assert.equal(
+    (await read("inbox", { action: "thread", conversation_id: C_PAST })).held_draft,
+    null,
+    "REGRESSION: the thread read named it held",
+  );
+});

@@ -7,7 +7,7 @@
 
 import { read } from "@/legacy-bridge/api";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
-import { conversationWaitsOnYou, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
+import { threadsWaitingOnYou, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
 
@@ -73,9 +73,10 @@ export const todayOverride: SurfaceOverride = {
     } catch (e) {
       console.error("today_searches_fetch_failed", e instanceof Error ? e.message : e);
     }
+    const now = new Date();
     setSurfaceValue(
       "today",
-      toTodayVM(metricsRes.metrics, convData.conversations, escData.escalations, calls, new Date(), searches),
+      toTodayVM(metricsRes.metrics, convData.conversations, escData.escalations, calls, now, searches),
     );
 
     // The sidebar badge is seeded until the Inbox itself mounts, so a fresh
@@ -84,15 +85,12 @@ export const todayOverride: SurfaceOverride = {
     // REQUIRED: a detail-less inbox:counts zeroes the badge instead of
     // correcting it.
     //
-    // Counted with conversationWaitsOnYou, the Inbox's own rule over the wire: a thread that needs a person and nobody
-    // has, or a reply counting down that can still be stopped. This used to publish metrics.now.escalations_open
-    // (a teammate's threads included), then threadStanding alone (no drafts): each a DIFFERENT number from the
+    // Counted by threadsWaitingOnYou, the Inbox's own rule over the wire and the number the headline above says: a
+    // thread that needs a person and nobody has, a reply counting down that can still be stopped, and a flagged
+    // thread older than the newest page. This used to publish metrics.now.escalations_open (a teammate's threads
+    // included), then threadStanding alone (no drafts), then the newest page alone: each a DIFFERENT number from the
     // Inbox's chip, overwriting its badge on every Today refresh.
-    const openByConv = new Map(escData.escalations.map((e) => [e.conversation_id, e]));
-    const now = new Date();
-    const needs = convData.conversations.filter((c) =>
-      conversationWaitsOnYou(c, openByConv.get(c.id) ?? null, now),
-    ).length;
+    const needs = threadsWaitingOnYou(convData.conversations, escData.escalations, now);
     window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs } }));
   },
 };

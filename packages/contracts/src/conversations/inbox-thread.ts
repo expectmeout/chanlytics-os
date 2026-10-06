@@ -7,9 +7,9 @@ import { MIN_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
-import { replyWaitsOnYou, standingOf } from "./standing";
+import { HELD_WORDS, replyWaitsOnYou, standingOf } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
-import { agentFor, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
+import { agentFor, replyWireOf, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime, formatWaited } from "./thread-clock";
 import { mediaVM } from "./message-media";
@@ -18,6 +18,7 @@ import { replyLeftAsOf } from "../reach-out/reach-out-reply-words";
 import {
   sentFactsOf,
   reachedCustomer,
+  lastExchanged,
   isHeldDraft,
   isChatMessage,
   draftSendsAtMs,
@@ -95,6 +96,23 @@ export function conversationWaitsOnYou(
 }
 
 /**
+ * How many threads wait on you, over a page of threads and the open escalations: each thread read by
+ * conversationWaitsOnYou, and an open escalation whose thread the page did not hold counted as waiting (unknown is not
+ * handled; the Inbox reads such a thread by id and counts it the same way). THE number Today's headline says and the
+ * badge it publishes, so the two cannot differ, and neither drops a customer flagged before the newest page.
+ */
+export function threadsWaitingOnYou(
+  conversations: readonly ConversationDto[],
+  escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
+  now: Date,
+): number {
+  const open = new Map(escalations.filter((e) => e.state === "open").map((e) => [e.conversation_id, e]));
+  const held = new Set(conversations.map((c) => c.id));
+  const loaded = conversations.filter((c) => conversationWaitsOnYou(c, open.get(c.id) ?? null, now)).length;
+  return loaded + [...open.keys()].filter((id) => !held.has(id)).length;
+}
+
+/**
  * Whether a thread's held draft is still waiting, as its view model carries it: the draft is there and its deadline is
  * ahead, by the one rule the Inbox's Needs you reads (replyWaitsOnYou). A queued draft past its deadline is going out
  * in the owner's name, not waiting on them; Ask counts and names a held draft by this, as the Inbox does.
@@ -121,6 +139,17 @@ function replyFacts(
   };
 }
 
+/**
+ * The row's preview: the last thing that happened between them. A call's note counts, since a contact who has only ever
+ * phoned has nothing else; a team's note does not, nor our words that never reached them.
+ */
+function previewOf(messages: readonly MessageDto[]): string {
+  const last = [...messages]
+    .reverse()
+    .find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
+  return last ? messageWords(last).slice(0, 110) : "";
+}
+
 export function toInboxThreadVM(
   dto: ConversationDto,
   escalation: EscalationDto | null,
@@ -137,22 +166,20 @@ export function toInboxThreadVM(
     ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) }
     : null;
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
-  const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  // replyWindow(), the rule the reply route enforces, not a copy of it. This
-  // decides whether the composer tells the operator they can write freely; with
-  // two expressions those answers drift the moment either moves, and the
-  // operator is told they can send something the server refuses. A text has no
-  // window, so where the customer last wrote by SMS the composer is open.
-  const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
+  // The wire a reply goes out on, as the reply route picks it (replyWireOf): where they last wrote. A text thread said
+  // WhatsApp, its window read closed, and its composer offered only templates, which the route refuses on a text; an
+  // out-of-office from their address made a WhatsApp thread read as email.
+  const chatChannel = writtenChannelOf(replyWireOf(dto.messages));
+  // replyWindow(), the rule the reply route enforces, on the wire it sends on. This decides whether the composer tells
+  // the operator they can write freely; with two expressions those answers drift the moment either moves, and the
+  // operator is told they can send something the server refuses. A text has no window, so the composer is open.
+  const win = replyWindow(chatChannel, dto.last_wa_inbound_at, now).open;
   // The channels the thread has actually used: a call note is the phone, any
   // other row is WhatsApp. A caller with no thread on WhatsApp gets phone
   // verbs, not a notice about a reply window that never opened.
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
-  // The wire a reply goes out on, as the reply route picks it: where they last wrote. A text thread said WhatsApp,
-  // its window read closed, and its composer offered only templates, which the route refuses on a text (I5).
-  const chatChannel = writtenChannelOf(lastInbound?.channel);
   const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? chatChannel : "phone";
   // Every wire the thread's written words travelled, the one a reply goes out on first: with more than one, each
   // bubble says its own (the page names a bubble's channel only when a thread has several).
@@ -299,12 +326,11 @@ export function toInboxThreadVM(
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
-    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
-    preview: last ? messageWords(last).slice(0, 110) : "",
+    preview: previewOf(dto.messages),
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther
-      ? "A teammate is answering this. The receptionist stays quiet until they hand it back."
+      ? HELD_WORDS.theirs.sentence
       : escalation
         ? // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
           // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
@@ -312,7 +338,7 @@ export function toInboxThreadVM(
           ? escalation.details.trim()
           : reasonSummaryOf(escalation.reason)
         : takenOver
-          ? "You're answering this one. The receptionist stays quiet until you hand it back."
+          ? HELD_WORDS.yours.sentence
           : lastWord
             ? lastWord.text
             : "The receptionist answered this on its own. Nothing is owed.",
@@ -340,15 +366,10 @@ export function toInboxThreadVM(
  */
 function lastWordOf(dto: ConversationDto): NonNullable<InboxThreadVM["lastWord"]> {
   const chat = dto.messages.filter(isChatMessage);
-  // Back from the newest: our words that never left, down to the last thing that happened between them.
-  let at = chat.length - 1;
-  let failed: MessageDto | null = null;
-  for (; at >= 0; at--) {
-    const m = chat[at];
-    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
-    if (!failed && m.status === "failed") failed = m;
-  }
-  const last = at >= 0 ? chat[at] : null;
+  const last = lastExchanged(chat);
+  // Our words after it that never left: the newest that failed (a reply someone canceled is not a failure).
+  const failed =
+    [...chat.slice(last ? chat.indexOf(last) + 1 : 0)].reverse().find((m) => m.status === "failed") ?? null;
   const failedBy = failed ? (messageAuthor(failed)?.words ?? "us") : null;
   if (!last) {
     if (failedBy)

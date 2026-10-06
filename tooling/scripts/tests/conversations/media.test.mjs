@@ -191,9 +191,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
     ),
   );
   assert.ok(
-    /&&\s*!!brainCfg &&\s*\(replyMode === "auto" \|\| replyMode === "veto"\) &&\s*Date\.now\(\) > thread\.pausedUntil/.test(
-      wa,
-    ),
+    /&&\s*!!brainCfg &&\s*speaksUnattended\(replyMode\) &&\s*Date\.now\(\) > thread\.pausedUntil/.test(wa),
     "a held workspace or person gets the old path",
   );
   assert.ok(wa.includes("got.bytes.byteLength <= VISION_MAX_BYTES"));
