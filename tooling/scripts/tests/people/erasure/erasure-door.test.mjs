@@ -32,7 +32,8 @@ const LATE = `${A}/late/c9.mp3`;
 /**
  * An owner erasing P1, who has a call recording and an address, a finished job that carried their number, two
  * scheduled ones that name them, and a policy row.
- * `faults` are the fake's; `storage` answers each remove() in turn; `rpcs` overrides erase_contact or the Ask scrub.
+ * `faults` are the fake's; `storage` answers each remove() in turn; `rpcs` overrides erase_contact, the Ask scrub or
+ * the kept deliveries' scrub (provider_events_scrub, 00334).
  */
 async function erase({ erased = false, faults = {}, storage = [], rpcs = {} } = {}) {
   const tables = {
@@ -63,6 +64,7 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {} } = 
   const removed = [];
   const db = fakeDb(tables, faults, {
     scrub_ask_for_contact: () => 2,
+    provider_events_scrub: () => 1,
     erase_contact: () => ({ counts: { calls: 1 }, storage_paths: [REC], jobs_canceled: 0 }),
     ...rpcs,
   });
@@ -101,11 +103,13 @@ test("an erasure runs its legs in the design's order: the block, the copies, Sto
     "contacts.update", // the block, with the number still on the row
     "rpc:scrub_ask_for_contact", // the copies keyed on the number, before anything is destroyed
     "jobs.update", // the finished job only
+    "rpc:provider_events_scrub", // the deliveries the intake ledger keeps a week, by the same identifiers (00334)
     "rpc:erase_contact", // the rows, after Storage
     "policies.delete",
     "rpc:scrub_ask_for_contact",
     "jobs.update", // every state now, by the id and by every identifier: the scheduled ones
     "jobs.update",
+    "rpc:provider_events_scrub", // a delivery kept while the erasure ran
   ]);
   assert.deepEqual(removed, [[REC]], "Storage once, before the rows; nothing late to sweep");
   assert.deepEqual(value, {
@@ -143,6 +147,16 @@ test("every leg before the rows fails closed: a 500 that says nothing was delete
     "the jobs pre-scrub": [
       { faults: { "jobs.select": { message: "timeout" } } },
       /finished jobs .* could not be scrubbed, so nothing was deleted/,
+    ],
+    "the kept deliveries' pre-scrub": [
+      {
+        rpcs: {
+          provider_events_scrub: () => {
+            throw new Error("refused");
+          },
+        },
+      },
+      /deliveries kept for replay .* could not be scrubbed, so nothing was deleted/,
     ],
     Storage: [{ storage: [{ error: "unavailable" }] }, /Nothing has been deleted, and repeating this request/],
   };
@@ -182,6 +196,23 @@ test("past the rows every leg is best effort, and a late recording is swept and 
   assert.equal(failed.value.erased, true);
   assert.deepEqual(failed.value.counts, {});
   assert.deepEqual(failed.value.storage, { requested: 2, removed: 1, error: "x" }, "the sweep's refusal is reported");
+
+  // The kept deliveries' second pass refused: the person is erased, and the week's purge takes what it left.
+  let passes = 0;
+  const kept = await erase({
+    rpcs: {
+      provider_events_scrub: () => {
+        if (passes++) throw new Error("refused");
+        return 1;
+      },
+    },
+  });
+  assert.equal(
+    kept.value.erased,
+    true,
+    "a kept delivery that would not go on the second pass does not undo an erasure",
+  );
+  assert.equal(passes, 2, "scrubbed before the rows, and tried again after them");
 });
 
 test("a re-drive of an erased person repeats the id-keyed legs and says which of them held", async () => {

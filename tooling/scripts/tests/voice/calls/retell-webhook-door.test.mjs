@@ -1378,6 +1378,11 @@ test("REGRESSION: a channel row that could not be READ is a 503, not 'nobody's a
     assert.equal(kind(w.tables, "ingest.unroutable").length, 0, "a blip is not a dead letter");
     assert.equal(kind(w.tables, "webhook.delivery").length, 0, "no delivery row: nothing was decided");
     assert.equal(line.mail().length, 0, "nobody is mailed about a call that was not placed");
+    assert.deepEqual(
+      w.tables.provider_events.map((r) => [r.provider, r.provider_event_id, r.door, r.tenant_id]),
+      [["retell", `call_analyzed:${id}`, "/api/retell-webhook", null]],
+      "the delivery is kept, under no workspace, for the replay after a fix (00334)",
+    );
 
     // Retell's retry, with the database well: the same delivery does it all.
     const well = w.open();

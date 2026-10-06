@@ -26,6 +26,7 @@
 import type Stripe from "stripe";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
+import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { logger } from "../log.js";
 import {
   applySubscription,
@@ -71,6 +72,17 @@ export async function receiveStripeEvent(request: Request): Promise<Response> {
   }
   const db = pg();
   if (!db) return refuse(503, "no_database");
+  // Kept under Stripe's event id, before the verdict (decision 0030, 00334); its signature carries a timestamp, so a
+  // replay proves it within the window only.
+  await keepDelivery(db, {
+    provider: "stripe",
+    id: event.id,
+    door: "/api/stripe-webhook",
+    url: request.url,
+    tenantId: null,
+    headers: signatureHeaders(request, ["stripe-signature"]),
+    body: raw,
+  });
 
   const delivery = deliveryOf(event, db, s, L);
   try {

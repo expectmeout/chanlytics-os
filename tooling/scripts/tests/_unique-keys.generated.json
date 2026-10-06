@@ -1814,6 +1814,21 @@
       "where": null
     },
     {
+      "table": "provider_events",
+      "name": "provider_events_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "provider"
+        },
+        {
+          "column": "provider_event_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "push_devices",
       "name": "push_devices_activity_token_key",
       "primary": false,

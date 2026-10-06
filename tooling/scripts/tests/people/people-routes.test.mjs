@@ -382,11 +382,16 @@ test("a key that could not be READ stops the erasure, rather than erasing withou
   }
 });
 
-test("an erasure hands the Ask scrub every spelling of the number and the address, before the rows go and after; a re-drive, the id", async () => {
+test("an erasure hands the Ask scrub and the kept deliveries' scrub every spelling of the number and the address, before the rows go and after; a re-drive, the id", async () => {
   const scrubs = [];
+  const kept = [];
   const rpcs = {
     scrub_ask_for_contact: (a) => {
       scrubs.push(a);
+      return 0;
+    },
+    provider_events_scrub: (a) => {
+      kept.push(a);
       return 0;
     },
     erase_contact: () => ({ counts: {}, storage_paths: [], jobs_canceled: 0 }),
@@ -428,8 +433,23 @@ test("an erasure hands the Ask scrub every spelling of the number and the addres
     "with every spelling, before erase_contact and after it",
   );
   assert.deepEqual(
+    kept.map((a) => [a.p_tenant_id, a.p_needles]),
+    [
+      [A, needles],
+      [A, needles],
+    ],
+    "the intake ledger's copies (00334), by the same spellings, before erase_contact and after it",
+  );
+  assert.deepEqual(
     seen.filter((s) => s.rpc).map((s) => s.rpc),
-    ["erasure_digests", "scrub_ask_for_contact", "erase_contact", "scrub_ask_for_contact"],
+    [
+      "erasure_digests",
+      "scrub_ask_for_contact",
+      "provider_events_scrub",
+      "erase_contact",
+      "scrub_ask_for_contact",
+      "provider_events_scrub",
+    ],
     "the digests are the database's (00263), made before the block is written",
   );
 

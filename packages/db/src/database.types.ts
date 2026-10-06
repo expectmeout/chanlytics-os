@@ -4696,6 +4696,50 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_events: {
+        Row: {
+          body: string
+          door: string
+          headers: Json
+          provider: string
+          provider_event_id: string
+          received_at: string
+          tenant_id: string | null
+          url: string
+          verified: boolean
+        }
+        Insert: {
+          body: string
+          door: string
+          headers?: Json
+          provider: string
+          provider_event_id: string
+          received_at?: string
+          tenant_id?: string | null
+          url: string
+          verified?: boolean
+        }
+        Update: {
+          body?: string
+          door?: string
+          headers?: Json
+          provider?: string
+          provider_event_id?: string
+          received_at?: string
+          tenant_id?: string | null
+          url?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_devices: {
         Row: {
           activity_token: string | null
@@ -7130,6 +7174,10 @@ export type Database = {
         }[]
       }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
+      provider_events_scrub: {
+        Args: { p_needles: string[]; p_tenant_id: string }
+        Returns: number
+      }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
       purge_ask: { Args: { p_keep?: string }; Returns: number }
       purge_cron_history: {
@@ -7147,6 +7195,7 @@ export type Database = {
       }
       purge_leads: { Args: never; Returns: number }
       purge_notifications: { Args: { p_keep?: string }; Returns: number }
+      purge_provider_events: { Args: { p_keep?: string }; Returns: number }
       push_device_forget: { Args: { p_token: string }; Returns: Json }
       push_device_register: {
         Args: {

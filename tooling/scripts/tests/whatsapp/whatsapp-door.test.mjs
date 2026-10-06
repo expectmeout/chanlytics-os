@@ -388,9 +388,14 @@ test("the door: no app secret and a wrong signature are each a 401 that reads no
     assert.equal(db.seen.length, 0, "not one row read before the signature holds");
     assert.deepEqual([seen.ingested, seen.sent], [[], []], "and nobody's receptionist ran");
 
-    // A signed body that is not JSON carries nothing to route: acknowledged, and nothing read.
+    // A signed body that is not JSON carries nothing to route: acknowledged, kept as every proven delivery is (00334),
+    // and nothing read.
     assert.deepEqual(await answer(await knock("{ not json")), [200, { ok: true }]);
-    assert.equal(db.seen.length, 0);
+    assert.deepEqual(
+      db.seen.map((q) => [q.table, q.op]),
+      [["provider_events", "upsert"]],
+      "the delivery is kept, and nothing else is touched",
+    );
 
     // The same bytes, signed with the secret, open it: the refusals above were the signature's doing.
     assert.deepEqual(await answer(await knock(raw)), [200, { ok: true }]);
@@ -794,10 +799,14 @@ test("the account's own news is routed by its WABA and never by a number: kept a
           [{ field: "phone_number_quality_update", waba_id: w.WABA, outcome: "alerted" }],
         );
 
-        // No entry id: there is nothing to route the news by, so not one row is read.
+        // No entry id: there is nothing to route the news by, so not one row is read; the delivery is kept, as every
+        // proven one is (00334).
         const before = db.seen.length;
         assert.deepEqual(await answer(await deliver(news(null))), [200, { ok: true }]);
-        assert.equal(db.seen.length, before);
+        assert.deepEqual(
+          db.seen.slice(before).map((q) => [q.table, q.op]),
+          [["provider_events", "upsert"]],
+        );
         // A WABA no workspace holds: looked up, not found, kept nowhere.
         assert.deepEqual(await answer(await deliver(news(`${w.WABA}0`))), [200, { ok: true }]);
         assert.deepEqual(
@@ -1305,5 +1314,36 @@ test("a failure that is the person's own no to offers (131050) is recorded as th
     [holds(w).length, w.tables.notifications.length, kind(w.tables, "message.send_failed").length],
     [0, 0, 0],
     "their answer, not a send that failed",
+  );
+});
+
+test("the delivery is kept as it came under the body's digest, with no workspace, before the verdict (00334); a wrong signature keeps nothing", async () => {
+  const w = world();
+  w.open();
+  receptionist();
+  const raw = JSON.stringify(
+    w.change({ messages: [text(w.customer(), `wamid.${w.i}.kept`, "do you take walk-ins?")] }),
+  );
+  assert.deepEqual(await answer(await knock(raw, { "x-hub-signature-256": sign(raw, "another-apps-secret") })), [
+    401,
+    { ok: false, error: "bad_signature" },
+  ]);
+  assert.equal((w.tables.provider_events ?? []).length, 0, "nothing kept for bytes Meta did not sign");
+  assert.deepEqual(await answer(await knock(raw)), [200, { ok: true }]);
+  const [kept, ...more] = w.tables.provider_events;
+  assert.equal(more.length, 0);
+  assert.deepEqual(
+    [
+      kept.provider,
+      kept.provider_event_id.startsWith("sha256:"),
+      kept.door,
+      kept.url,
+      kept.tenant_id,
+      kept.verified,
+      Object.keys(kept.headers),
+      kept.body,
+    ],
+    ["meta", true, "/api/whatsapp", DOOR, null, true, ["x-hub-signature-256"], raw],
+    "Meta names no delivery and a batch may span workspaces: the body's digest is the key, and the workspace is none",
   );
 });

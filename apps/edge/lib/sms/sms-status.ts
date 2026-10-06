@@ -36,6 +36,7 @@
  */
 import { text } from "../http.js";
 import { pg } from "../pg.js";
+import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { SMS_OPTED_OUT_CODE, smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "../packages/channels.js";
 import { recordLateCarrierOptOut, recordStatusByExternalId, type LateCarrierStop } from "../packages/db.js";
 import { flagLateFailure } from "../receptionist/late-failure.js";
@@ -80,6 +81,16 @@ export async function receiveSmsStatus(request: Request): Promise<Response> {
     }
   }
 
+  // Kept under Twilio's id and the status it carried, before the verdict (decision 0030, 00334).
+  await keepDelivery(db, {
+    provider: "twilio",
+    id: `${s.messageSid}:${s.status}`,
+    door: "/api/sms-status",
+    url: request.url,
+    tenantId: line.tenant_id,
+    headers: signatureHeaders(request, ["x-twilio-signature"]),
+    body: raw,
+  });
   const rowStatus = smsStatusToRow(s.status);
   if (!rowStatus) {
     L.info("sms_status_interim");

@@ -527,6 +527,7 @@ apps/edge/lib/
   calendar/
   email/
   google/
+  intake/
   leads/
   lines/
   ops/
@@ -675,6 +676,7 @@ Every path is from the repository's root, and
 | A new job kind                         | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change                                                                                                                       |
 | A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                                                                                                   |
 | A log line, a request's name           | `packages/channels/src/log/` (the logger, its redaction and the request store), `apps/edge/lib/log.ts` (`door`, `LOG_EVENTS`), `apps/dashboard/src/server/log.ts` (`DASHBOARD_LOG_EVENTS`)                                         |
+| A webhook replayed after a fix         | `apps/edge/lib/intake/` (what each door keeps before its verdict, and the replay), `apps/edge/api/admin/intake/replay.ts`, `supabase/migrations/00334_every_verified_delivery_is_kept_seven_days_under_the_provider_s_own_id.sql`  |
 | Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                                                                                                        |
 | The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, `supabase/migrations/00140_the_lead_finder_engine.sql`                                                                              |
 | Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask,ask-answer}.ts`                                                                                                                                                |

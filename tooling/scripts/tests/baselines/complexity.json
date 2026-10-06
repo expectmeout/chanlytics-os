@@ -270,8 +270,8 @@
     "depth": 2
   },
   "apps/edge/lib/whatsapp/webhook.ts::receiveWhatsappEvent#1": {
-    "lines": 170,
-    "branches": 51,
+    "lines": 158,
+    "branches": 48,
     "depth": 8
   },
   "packages/channels/src/lines/a2p-saga.ts::runA2PSaga#1": {

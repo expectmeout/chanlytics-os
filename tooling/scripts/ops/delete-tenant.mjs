@@ -127,6 +127,8 @@ const TABLES = [
   // The spine (00332): an event's outbox row and its deliveries follow their workspace.
   "event_outbox",
   "event_deliveries",
+  // The intake ledger (00334): a provider's deliveries the door placed with the workspace.
+  "provider_events",
   "playbooks",
   "policies",
   "reach_out_check_spend",

@@ -2572,6 +2572,32 @@ async function assembleBroadcast(db, args) {
   return data;
 }
 
+// src/provider-events.ts
+async function keepProviderEvent(db, d) {
+  const { error } = await db.from("provider_events").upsert(
+    { ...d, headers: d.headers, verified: true },
+    { onConflict: "provider,provider_event_id", ignoreDuplicates: true }
+  );
+  return { error: error?.message ?? null };
+}
+async function providerEventOf(db, provider, providerEventId) {
+  const { data, error } = await db.from("provider_events").select("provider, provider_event_id, door, url, tenant_id, verified, headers, body, received_at").eq("provider", provider).eq("provider_event_id", providerEventId).maybeSingle();
+  if (error) throw new Error(`provider_events: ${error.message}`);
+  return data ? { ...data, provider, headers: headersOf(data.headers) } : null;
+}
+function headersOf(v) {
+  const out = {};
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    for (const [k, s] of Object.entries(v)) if (typeof s === "string") out[k] = s;
+  }
+  return out;
+}
+async function scrubProviderEvents(db, tenantId, needles) {
+  const { data, error } = await db.rpc("provider_events_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  if (error) throw new Error(`provider_events_scrub: ${error.message}`);
+  return data ?? 0;
+}
+
 // src/repositories/control.ts
 var CALL_CONTROL_S = 15 * 60;
 async function claimControl(db, p) {
@@ -3627,6 +3653,7 @@ export {
   keepIdempotencyReceipt,
   keepInvoiceAmount,
   keepMessageCost,
+  keepProviderEvent,
   lastInboundEmail,
   leadAddressBounced,
   leadNamesByIds,
@@ -3678,6 +3705,7 @@ export {
   platformWide,
   playbookChannels,
   playbooksOnList,
+  providerEventOf,
   purgeAiUsage,
   putTenantConfig,
   queuedOutcomes,
@@ -3745,6 +3773,7 @@ export {
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
+  scrubProviderEvents,
   searchMessages,
   searchNamesByIds,
   sendJobScheduled,

@@ -12529,6 +12529,47 @@ COMMENT ON FUNCTION public.profile_set(p_display_name text) IS 'Your own display
 
 
 --
+-- Name: provider_events_scrub(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.provider_events_scrub(p_tenant_id uuid, p_needles text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_patterns text[];
+  v_n        integer;
+begin
+  if p_tenant_id is null or p_needles is null then
+    return 0;
+  end if;
+  -- One pattern per needle of six characters or more, lower-cased, its LIKE characters escaped, and an address again
+  -- as a form-encoded body spells it; the body is lower-cased once a row and read against them all.
+  select array_agg(distinct '%' || replace(replace(replace(v.needle, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+    into v_patterns
+    from unnest(p_needles) as n(needle)
+    cross join lateral (values (lower(n.needle)), (replace(lower(n.needle), '@', '%40'))) as v(needle)
+   where length(n.needle) >= 6;
+  if v_patterns is null then
+    return 0;
+  end if;
+  -- The workspace's own rows, and the rows no door could place (a batch of several numbers), by what the body says.
+  delete from public.provider_events e
+   where (e.tenant_id = p_tenant_id or e.tenant_id is null)
+     and lower(e.body) like any (v_patterns);
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+
+
+--
+-- Name: FUNCTION provider_events_scrub(p_tenant_id uuid, p_needles text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.provider_events_scrub(p_tenant_id uuid, p_needles text[]) IS 'An erasure''s hand on the intake ledger (decision 0030): the kept deliveries of the workspace, or of no workspace, whose body names the person by any of the needles (six characters or more; without regard to case; an address also form-encoded; a needle''s LIKE characters literal) are deleted. Answers how many.';
+
+
+--
 -- Name: provision_tenant(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12779,6 +12820,40 @@ begin
   get diagnostics v_n = row_count;
   return v_n;
 end $$;
+
+
+--
+-- Name: purge_provider_events(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_provider_events(p_keep interval DEFAULT '7 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+begin
+  loop
+    delete from public.provider_events e
+     where (e.provider, e.provider_event_id) in (
+       select c.provider, c.provider_event_id from public.provider_events c
+        where c.received_at < now() - p_keep
+        limit 1000);
+    get diagnostics v_n = row_count;
+    v_total := v_total + v_n;
+    exit when v_n < 1000;
+  end loop;
+  return v_total;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_provider_events(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_provider_events(p_keep interval) IS 'Nightly. Deletes kept deliveries a week after they came (contracts RETENTION_DAYS.provider_events), a thousand at a time. Answers how many.';
 
 
 --
@@ -21197,6 +21272,32 @@ COMMENT ON TABLE public.profiles IS 'A person''s own name. Readable by the membe
 
 
 --
+-- Name: provider_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.provider_events (
+    provider text NOT NULL,
+    provider_event_id text NOT NULL,
+    door text NOT NULL,
+    url text NOT NULL,
+    tenant_id uuid,
+    verified boolean DEFAULT true NOT NULL,
+    headers jsonb DEFAULT '{}'::jsonb NOT NULL,
+    body text NOT NULL,
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT provider_events_headers_check CHECK ((jsonb_typeof(headers) = 'object'::text)),
+    CONSTRAINT provider_events_provider_check CHECK ((provider = ANY (ARRAY['meta'::text, 'twilio'::text, 'retell'::text, 'resend'::text, 'stripe'::text])))
+);
+
+
+--
+-- Name: TABLE provider_events; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.provider_events IS 'Every verified delivery a provider made to a door, as it came, under the provider''s own id (decision 0030): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.';
+
+
+--
 -- Name: push_devices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -22597,6 +22698,14 @@ ALTER TABLE ONLY public.profiles
 
 
 --
+-- Name: provider_events provider_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.provider_events
+    ADD CONSTRAINT provider_events_pkey PRIMARY KEY (provider, provider_event_id);
+
+
+--
 -- Name: push_devices push_devices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -23753,6 +23862,20 @@ CREATE INDEX playbooks_tenant_state ON public.playbooks USING btree (tenant_id, 
 --
 
 CREATE INDEX policies_person_reply_idx ON public.policies USING btree (tenant_id, subject_id) WHERE ((subject_type = 'contact'::text) AND (class = 'reply'::text));
+
+
+--
+-- Name: provider_events_received; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX provider_events_received ON public.provider_events USING btree (received_at);
+
+
+--
+-- Name: provider_events_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX provider_events_tenant ON public.provider_events USING btree (tenant_id) WHERE (tenant_id IS NOT NULL);
 
 
 --
@@ -26102,6 +26225,14 @@ ALTER TABLE ONLY public.profiles
 
 
 --
+-- Name: provider_events provider_events_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.provider_events
+    ADD CONSTRAINT provider_events_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: push_devices push_devices_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -27473,6 +27604,12 @@ CREATE POLICY profiles_member_select ON public.profiles FOR SELECT TO authentica
      JOIN public.memberships m2 ON ((m2.tenant_id = m1.tenant_id)))
   WHERE (m1.user_id = ( SELECT auth.uid() AS uid))))));
 
+
+--
+-- Name: provider_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.provider_events ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: push_devices; Type: ROW SECURITY; Schema: public; Owner: -
@@ -29853,6 +29990,14 @@ GRANT ALL ON FUNCTION public.profile_set(p_display_name text) TO service_role;
 
 
 --
+-- Name: FUNCTION provider_events_scrub(p_tenant_id uuid, p_needles text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.provider_events_scrub(p_tenant_id uuid, p_needles text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.provider_events_scrub(p_tenant_id uuid, p_needles text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION provision_tenant(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -29914,6 +30059,14 @@ GRANT ALL ON FUNCTION public.purge_leads() TO service_role;
 
 REVOKE ALL ON FUNCTION public.purge_notifications(p_keep interval) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.purge_notifications(p_keep interval) TO service_role;
+
+
+--
+-- Name: FUNCTION purge_provider_events(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_provider_events(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_provider_events(p_keep interval) TO service_role;
 
 
 --
@@ -32212,6 +32365,13 @@ GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
 
 GRANT ALL ON TABLE public.profiles TO authenticated;
 GRANT ALL ON TABLE public.profiles TO service_role;
+
+
+--
+-- Name: TABLE provider_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.provider_events TO service_role;
 
 
 --

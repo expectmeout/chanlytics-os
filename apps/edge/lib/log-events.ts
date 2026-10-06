@@ -335,6 +335,8 @@ export const LOG_EVENTS = [
   "playbooks_swept",
   "playbooks_yielded",
   "policy_block_price",
+  "provider_event_keep_failed",
+  "provider_event_replayed",
   "push_outcome_unknown",
   "push_schedule_failed",
   "reach_out_booked_failed",

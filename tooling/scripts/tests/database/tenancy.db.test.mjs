@@ -364,6 +364,19 @@ before(async () => {
     null,
   );
   await seed(
+    "provider_events",
+    {
+      provider: "twilio",
+      provider_event_id: `SM-tenancy-${Date.now()}`,
+      door: "/api/inbound-sms",
+      url: "https://edge.example.com/api/inbound-sms",
+      tenant_id: A,
+      headers: {},
+      body: "From=%2B15550100123&Body=hello",
+    },
+    null,
+  );
+  await seed(
     "event_deliveries",
     {
       event_id: crypto.randomUUID(),
@@ -744,6 +757,19 @@ const TENANT_TABLES = {
   event_outbox: [
     "none",
     () => ({ event_id: crypto.randomUUID(), tenant_id: A, kind: "message.received", event_at: "2026-10-06T00:00:00Z" }),
+  ],
+  // The intake ledger (00334): a provider's delivery as it came, the service role's alone.
+  provider_events: [
+    "none",
+    () => ({
+      provider: "twilio",
+      provider_event_id: `SM-stranger-${Date.now()}`,
+      door: "/api/inbound-sms",
+      url: "https://edge.example.com/api/inbound-sms",
+      tenant_id: A,
+      headers: {},
+      body: "From=%2B15550100123&Body=hello",
+    }),
   ],
   event_deliveries: [
     "none",

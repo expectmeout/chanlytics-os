@@ -26,6 +26,7 @@
  */
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
+import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { logger, errField } from "../log.js";
 import { coldReplyDomains, emailDomain } from "./email.js";
 import { planResendEvent } from "./email-ingress.js";
@@ -78,6 +79,17 @@ export async function receiveResendEvent(request: Request): Promise<Response> {
     L.warn(verdict.log);
     return refuse(verdict.status, verdict.status === 401 ? "unauthorized" : "bad_request");
   }
+  // Kept under svix's id, before the verdict is applied (decision 0030, 00334); its signature carries a timestamp, so a
+  // replay proves it within the window only.
+  await keepDelivery(db, {
+    provider: "resend",
+    id: request.headers.get("svix-id") ?? digestId(rawBody),
+    door: "/api/resend-webhook",
+    url: request.url,
+    tenantId: verdict.kind === "receipt" ? verdict.receipt.tenantId : null,
+    headers: signatureHeaders(request, ["svix-id", "svix-timestamp", "svix-signature"]),
+    body: rawBody,
+  });
 
   if (verdict.kind === "receipt") {
     const r = verdict.receipt;

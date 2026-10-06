@@ -1,12 +1,13 @@
 # 0030 · A fact's event reaches its subscribers after the commit
 
-**Status:** Built, steps 1 to 3 (6 October 2026, 00332 with packages/jobs and apps/edge): the envelope, subscriptions,
-outbox, deliveries, the relay first in every tick, the event_deliver kind and the audit subscriber. Decided on 6 October
-2026 (Ruben: "all approved"), with 0029, and proposed the same day; the catalogue's schema per kind arrives with each
-subscriber that reads one, and step 4, the intake ledger, is still to build. Written against commit `b9a4d5c` (main, 5
-October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6 October 2026), since which
-0028's merge door (00326) and the message-status notice (00327) are in the code. Nothing of it is built. Where this note
-and the code disagree, the code wins.
+**Status:** Built, steps 1 to 4 (6 October 2026, 00332 and 00334 with packages/jobs, packages/db and apps/edge): the
+envelope, subscriptions, outbox, deliveries, the relay first in every tick, the event_deliver kind, the audit
+subscriber, and the intake ledger seven webhook doors write before their verdict, with its purge, its scrub and its
+replay door. Decided on 6 October 2026 (Ruben: "all approved"), with 0029, and proposed the same day; the catalogue's schema
+per kind arrives with each subscriber that reads one, and step 5, the first real subscriber, is Phase 2's. Written
+against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main,
+6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Where this
+note and the code disagree, the code wins.
 
 ## Context
 
@@ -170,17 +171,23 @@ the subscription's. The intake ledger:
 
 ```sql
 create table public.provider_events (
-  provider          text not null check (provider in ('meta', 'twilio', 'retell', 'resend', 'stripe', 'apify', 'elevenlabs')),
-  provider_event_id text not null,
-  tenant_id         uuid,
+  provider          text not null check (provider in ('meta', 'twilio', 'retell', 'resend', 'stripe')),
+  provider_event_id text not null,          -- the provider's own id, or the body's digest where it gives none
+  door              text not null,          -- the door it came to, and the url, so a replay knocks on the same one
+  url               text not null,
+  tenant_id         uuid references public.tenants (id) on delete cascade,
+  verified          boolean not null default true,
+  headers           jsonb not null default '{}'::jsonb,  -- the headers its signature reads
+  body              text not null,          -- as it came, so the signature proves it again
   received_at       timestamptz not null default now(),
-  verified          boolean not null,
-  payload           jsonb not null,
   primary key (provider, provider_event_id)
 );
 ```
 
-Kept seven days by the retention rows (a note to come); scrubbed on erasure by the identities it names.
+As built in 00334. Kept seven days (contracts `RETENTION_DAYS.provider_events`); scrubbed on erasure by every spelling
+of the person's number and address. Two doors are left out: ElevenLabs' post-call webhook, whose body is the
+transcript of a conversation with Ask, which names customers, and whose door keeps nothing of what was said; and
+Apify's, whose url carries the run's token, which the database keeps only as its hash.
 
 ## Steps
 
@@ -198,8 +205,20 @@ its lane together, as the rule says. Built, 00332 (`apps/edge/lib/ops/jobs-tick.
 settles and does nothing else, and relay lag is the day's `relay_lag_ms` (00330). _Both orders:_ an older edge sees a
 kind it does not know and keeps it, as today; a delivery to a subscriber it does not know is kept the same way.
 
-**4 · The intake ledger.** Every door writes `provider_events` before its verdict; a replay door under `admin/`
-re-runs one. _Both orders:_ a table only the edge writes.
+**4 · The intake ledger.** Built, 00334: seven webhook doors (`inbound-sms`, `sms-status`, `whatsapp`,
+`retell-webhook`, `retell-inbound`, `resend-webhook`, `stripe-webhook`) keep the delivery they verified, as it came,
+under the provider's own id or the body's digest where it gave none, before their verdict, a delivery refused after its
+signature held included (a routing that could not be read, a channel switched off: Twilio never sends a text again)
+(`apps/edge/lib/intake/keep.ts`). Two are left out, and say why: `elevenlabs-webhook`, whose body is a transcript that
+names customers and whose door keeps nothing of what was said; and `apify-webhook`, whose url carries the run's token,
+which the database keeps only as its hash, and whose body is a pointer the collect reads the run back by. A delivery
+either could not take is its 503, which its provider delivers again; `purge_provider_events` drops it a week on (contracts `RETENTION_DAYS.provider_events`);
+an erasure scrubs the rows that name the person by every spelling its Ask scrub uses, in any case and through a
+form-encoded address, before the rows go (fail closed, as the finished jobs are) and again after them (best effort)
+(`provider_events_scrub`, from `apps/dashboard/src/server/people/erase-contact.ts`); the privacy page says the week; and
+`POST /api/admin/intake/replay` knocks on the delivery's own door again in-process, so its signature is proved
+again, which a provider whose signature carries a timestamp (Resend, Stripe) passes within its window only.
+_Both orders:_ a table only the edge writes.
 
 **5 · The first real subscriber:** receipts as events into the inbox projection (0029, phase 2). Each later
 subscriber is a step of its own note.

@@ -105,6 +105,8 @@ const EVERY_CLOCK = {
   // A connected WhatsApp number's rating (00315): a six-hour clock that asks the edge only when a number is connected,
   // and records that it looked otherwise.
   channel_quality: "channel-quality-sweep",
+  // The intake ledger's kept deliveries (00334): nightly, a week on, judged by its run.
+  purge_provider_events: "purge-provider-events",
 };
 const RUN_JUDGED = [
   "partitions",
@@ -117,6 +119,7 @@ const RUN_JUDGED = [
   "purge_leads",
   "purge_notifications",
   "purge_page_vitals",
+  "purge_provider_events",
   "purge_rate_hits",
   "sending_domain_days",
   "snoozes",

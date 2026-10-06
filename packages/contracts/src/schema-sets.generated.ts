@@ -150,6 +150,7 @@ export const SCHEMA_SETS = {
   ],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
+  "provider_events.provider": ["meta", "twilio", "retell", "resend", "stripe"],
   "push_devices.platform": ["ios", "android"],
   "reach_out_replies.claim": ["person", "automated", "auto_reply"],
   "reach_out_replies.draft_state": ["none", "waiting", "written", "not_written"],

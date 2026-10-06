@@ -39,6 +39,7 @@ import { notify, type NotifyMessage } from "../ops/notify.js";
 import { loadTenantNotifications, loadTenantRuntime } from "../tenant-runtime.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
+import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import {
   normalizeCall,
   parseTranscriptText,
@@ -585,11 +586,22 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
   // skipped the erasure guard below on the way, since the guard could not be
   // placed either.
   const lookup = await routeDelivery(db, n);
+  const routed = lookup.channel;
+  // Kept under the event and the call's id, before the verdict (decision 0030, 00334), a routing that could not be read
+  // included: Retell stops after three tries, and the kept delivery is the replay after a fix.
+  await keepDelivery(db, {
+    provider: "retell",
+    id: `${event}:${n.retellCallId}`,
+    door: "/api/retell-webhook",
+    url: request.url,
+    tenantId: routed?.tenantId ?? null,
+    headers: signatureHeaders(request, ["x-retell-signature"]),
+    body: raw,
+  });
   if (lookup.lookupFailed) {
     L.error("retell_routing_unreadable", { call_id: n.retellCallId, agent_id: n.agentId, retell_event: event });
     return refuse(503, "routing_unreadable");
   }
-  const routed = lookup.channel;
   const refusal = await erasureRefusal(db, n, routed, event);
   if (refusal) return refusal;
 

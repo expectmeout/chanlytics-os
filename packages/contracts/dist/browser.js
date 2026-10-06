@@ -14632,7 +14632,9 @@ var RETENTION_DAYS = {
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30,
   /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
-  ai_usage: 400
+  ai_usage: 400,
+  /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00334; decision 0030). */
+  provider_events: 7
 };
 var RATE_HITS_RETENTION_HOURS = 2;
 var EVENT_EVIDENCE_KINDS = [
@@ -14647,7 +14649,7 @@ var EVENT_EVIDENCE_KINDS = [
 var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
 function retentionWords() {
   const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
 }
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -26662,6 +26664,7 @@ var SCHEMA_SETS = {
   ],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
+  "provider_events.provider": ["meta", "twilio", "retell", "resend", "stripe"],
   "push_devices.platform": ["ios", "android"],
   "reach_out_replies.claim": ["person", "automated", "auto_reply"],
   "reach_out_replies.draft_state": ["none", "waiting", "written", "not_written"],

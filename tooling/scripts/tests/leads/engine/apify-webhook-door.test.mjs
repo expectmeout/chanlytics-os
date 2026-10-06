@@ -105,6 +105,11 @@ test("the body is a pointer: one final collect is scheduled however often it is 
   assert.equal(await post(payload("RunFixture0001", "ACTOR.RUN.FAILED")), 200);
   assert.deepEqual(jobs(), [["lead_collect", { run_id: RUN_ROW, seq: "final" }]]);
   assert.deepEqual(fetched, [], "the collect re-reads the run; the door reads nothing from the provider");
+  assert.equal(
+    w.T.provider_events,
+    undefined,
+    "the url carries the run's token, kept only as its hash: the intake ledger (00334) leaves this door out",
+  );
 });
 
 test("a run the ledger never recorded is answered and ignored; an event that is not an ending is ignored; a body that is not JSON is refused", async () => {

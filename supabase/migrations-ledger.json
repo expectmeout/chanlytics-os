@@ -335,6 +335,7 @@
     "00330_a_day_counts_how_long_the_ledger_and_the_answer_waited.sql": "47cb2e391aa586ae3a34f4b9c769ee5e2097b0300641d9087d420e2f4b177f97",
     "00331_the_ledger_wakes_when_a_due_row_is_written.sql": "9cacaa0e11557b167997b0c349ee293f582015a85f273ffcb7f2c434a076f550",
     "00332_a_fact_s_event_reaches_its_subscribers_after_the_commit.sql": "1e07bf9ce3a03a27d4b4311a946feb576aa36a412a98817b2376566c79b2cd42",
-    "00333_the_claim_counts_capacity_and_every_lane_takes_turns.sql": "b3d6ceec00382afdc50a8fdb521977945478f4418081bd93788f4a4aa86fabeb"
+    "00333_the_claim_counts_capacity_and_every_lane_takes_turns.sql": "b3d6ceec00382afdc50a8fdb521977945478f4418081bd93788f4a4aa86fabeb",
+    "00334_every_verified_delivery_is_kept_seven_days_under_the_provider_s_own_id.sql": "e2e74efb01eb4b7ae18d50b97d226c232ccee04f9d4ba0f5bf2bb4fe660b09ab"
   }
 }

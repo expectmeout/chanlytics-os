@@ -46,6 +46,7 @@ import { phoneTail, divertedNumbers } from "../packages/contracts.js";
 import { markForwardingVerified } from "./forwarding.js";
 import { json } from "../http.js";
 import { pg } from "../pg.js";
+import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { planCallStart } from "./call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../packages/db.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
@@ -85,6 +86,18 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
   const L = logger({ from_tail: phoneTail(from), agent_id: agentId, call_id: inbound.call_id });
 
   const start = await planCallStart({ agentId, from, db: pg() });
+  // Kept under the call's id, before the answer (decision 0030, 00334); a call with no id is nothing to replay.
+  const ledger = pg();
+  if (ledger && inbound.call_id)
+    await keepDelivery(ledger, {
+      provider: "retell",
+      id: `call_inbound:${inbound.call_id}`,
+      door: "/api/retell-inbound",
+      url: request.url,
+      tenantId: start.tenantId ?? null,
+      headers: signatureHeaders(request, ["x-retell-signature"]),
+      body: raw,
+    });
 
   if (start.error) L.error("inbound_ctx_failed", { facts: start.facts, memory: start.memory, error: start.error });
   else if (start.facts === "unrouted") L.warn("inbound_ctx_unrouted");

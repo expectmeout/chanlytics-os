@@ -826,6 +826,7 @@ declare const SCHEMA_SETS: {
     readonly "policies.class": readonly ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money", "follow_up", "outreach"];
     readonly "policies.mode": readonly ["auto", "veto", "ask", "never"];
     readonly "policies.subject_type": readonly ["segment", "contact"];
+    readonly "provider_events.provider": readonly ["meta", "twilio", "retell", "resend", "stripe"];
     readonly "push_devices.platform": readonly ["ios", "android"];
     readonly "reach_out_replies.claim": readonly ["person", "automated", "auto_reply"];
     readonly "reach_out_replies.draft_state": readonly ["none", "waiting", "written", "not_written"];
@@ -28203,6 +28204,8 @@ declare const RETENTION_DAYS: {
     readonly page_vitals: 30;
     /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
     readonly ai_usage: 400;
+    /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00334; decision 0030). */
+    readonly provider_events: 7;
 };
 /** Rate-limit counters (00059): two hours, in hours. */
 declare const RATE_HITS_RETENTION_HOURS = 2;

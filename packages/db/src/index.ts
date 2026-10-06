@@ -265,6 +265,8 @@ export {
 } from "./repositories/idempotency";
 export type { IdempotencyHold, IdempotencyClaim } from "./repositories/idempotency";
 export { readJobToRequeue, hasNewerCopy, assembleBroadcast } from "./jobs";
+export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
+export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
 export type { JobToRequeue } from "./jobs";
 export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
 export type { ControlHolder, ControlOutcome } from "./repositories/control";

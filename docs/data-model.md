@@ -83,6 +83,7 @@ what the script writes.
 | [`playbooks`](#playbooks) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 5 policies |
 | [`profiles`](#profiles) | none | on, 1 policy |
+| [`provider_events`](#provider_events) | `packages/db/src/provider-events.ts` | on, no policy, so only the service role reaches it |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
@@ -2197,6 +2198,30 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `profiles_member_select` | select | authenticated | `((user_id = auth.uid()) OR (user_id IN ( SELECT m2.user_id FROM (memberships m1 JOIN memberships m2 ON ((m2.tenant_id = m1.tenant_id))) WHERE (m1.user_id = aut…` |  |
+
+### provider_events
+
+Every verified delivery a provider made to a door, as it came, under the provider's own id (decision 0030): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.
+
+- Owned by: `packages/db/src/provider-events.ts`
+- Primary key: `provider`, `provider_event_id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `provider` | text | no |  |  |
+| `provider_event_id` | text | no |  |  |
+| `door` | text | no |  |  |
+| `url` | text | no |  |  |
+| `tenant_id` | uuid | yes |  |  |
+| `verified` | boolean | no | `true` |  |
+| `headers` | jsonb | no | `'{}'::jsonb` |  |
+| `body` | text | no |  |  |
+| `received_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 ### push_devices
 

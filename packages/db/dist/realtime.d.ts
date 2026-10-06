@@ -2459,6 +2459,27 @@ type Database = {
                     }
                 ];
             };
+            job_capacity: {
+                Row: {
+                    created_at: string;
+                    key: string;
+                    max_in_flight: number;
+                    scope: string;
+                };
+                Insert: {
+                    created_at?: string;
+                    key: string;
+                    max_in_flight: number;
+                    scope: string;
+                };
+                Update: {
+                    created_at?: string;
+                    key?: string;
+                    max_in_flight?: number;
+                    scope?: string;
+                };
+                Relationships: [];
+            };
             jobs: {
                 Row: {
                     attempts: number;
@@ -4671,6 +4692,50 @@ type Database = {
                     user_id?: string;
                 };
                 Relationships: [];
+            };
+            provider_events: {
+                Row: {
+                    body: string;
+                    door: string;
+                    headers: Json;
+                    provider: string;
+                    provider_event_id: string;
+                    received_at: string;
+                    tenant_id: string | null;
+                    url: string;
+                    verified: boolean;
+                };
+                Insert: {
+                    body: string;
+                    door: string;
+                    headers?: Json;
+                    provider: string;
+                    provider_event_id: string;
+                    received_at?: string;
+                    tenant_id?: string | null;
+                    url: string;
+                    verified?: boolean;
+                };
+                Update: {
+                    body?: string;
+                    door?: string;
+                    headers?: Json;
+                    provider?: string;
+                    provider_event_id?: string;
+                    received_at?: string;
+                    tenant_id?: string | null;
+                    url?: string;
+                    verified?: boolean;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "provider_events_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
             };
             push_devices: {
                 Row: {
@@ -7631,6 +7696,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            provider_events_scrub: {
+                Args: {
+                    p_needles: string[];
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
             provision_tenant: {
                 Args: {
                     p_tenant_id: string;
@@ -7669,6 +7741,12 @@ type Database = {
                 Returns: number;
             };
             purge_notifications: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
+            purge_provider_events: {
                 Args: {
                     p_keep?: string;
                 };
