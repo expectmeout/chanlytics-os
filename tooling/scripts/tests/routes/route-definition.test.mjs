@@ -379,6 +379,7 @@ test("a keyed write that fails lets its key go, so sending it again runs it", as
   await assert.rejects(POST.run(keyed("", { text: "hi" }, "k-1"), ctxFor(tables)), /the write failed/);
   assert.deepEqual(tables.idempotency_keys, [], "no claim is left holding a write that did nothing");
   assert.deepEqual(await POST.run(keyed("", { text: "hi" }, "k-1"), ctxFor(tables)), { run: 2, text: "hi" });
+  assert.equal(runs.n, 2, "the run that failed, then the one that did not");
 });
 
 test("a route that keeps its own key, a write with no workspace to keep one in, and a request with no key run every time", async () => {
