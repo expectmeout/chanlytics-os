@@ -12,6 +12,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   connectionRows,
+  nameDecisionWords,
+  standingAfterNameDecision,
   standingAlertWords,
   standingFromConfig,
   standingNeedsRead,
@@ -272,6 +274,70 @@ test("the owner's alert says which number, Meta's first problem and Meta's fix, 
   assert.equal(
     standingAlertWords(null, { ...BLOCKED, problems: [] }).body,
     "WhatsApp can't send from your number. Meta did not say why; open Connections to read what it holds.",
+  );
+});
+
+test("Meta's decision on a display name is said to the owner in the row's own words: approved is good news kept quiet, a decline says the way on and Meta's reason, and a decision that is in progress or none of Meta's four has no notice", () => {
+  // The real shape (Meta, webhooks reference: phone_number_name_update): decision, requested_verified_name, rejection_reason.
+  assert.deepEqual(nameDecisionWords("APPROVED", "Harbor Moving", null), {
+    subject: "WhatsApp display name approved",
+    body: "Meta approved the display name “Harbor Moving”.",
+    alert: false,
+  });
+  assert.deepEqual(nameDecisionWords("REJECTED", "Harbor Moving", "NAME_FORMAT_UNACCEPTABLE"), {
+    subject: "WhatsApp display name declined",
+    body: "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
+    alert: true,
+  });
+  for (const reason of [null, undefined, "UNKNOWN", "NONE", "", 7])
+    assert.equal(
+      nameDecisionWords("REJECTED", "Harbor Moving", reason).body,
+      "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager.",
+      `a reason Meta did not give is not said (${String(reason)})`,
+    );
+  assert.equal(
+    nameDecisionWords("DECLINED", null, null).body,
+    "Meta declined your display name — change it in WhatsApp Manager.",
+    "the Graph's own word for the same decision, and a name the notice did not carry",
+  );
+  for (const quiet of ["PENDING", "DEFERRED", "approved", "MAYBE", "", null, undefined, 7])
+    assert.equal(nameDecisionWords(quiet, "Harbor Moving", null), null, String(quiet));
+  // The row says the decline in the same sentence the notice does: one fact, one set of words.
+  const declined = standingAfterNameDecision({ ...LIMITED, notes: [] }, "REJECTED", "Harbor Moving & Sons");
+  assert.equal(
+    said(whatsappRow(channel(declined)))[0],
+    nameDecisionWords("REJECTED", "Harbor Moving & Sons", null).body,
+  );
+});
+
+test("a decision on the display name corrects the kept standing and nothing else of it: the name it was about and the Graph's word for its status; a decision that is none of Meta's four corrects nothing", () => {
+  const was = { ...LIMITED, name: "Harbor Nails" };
+  const after = (decision, name) => standingAfterNameDecision(was, decision, name);
+  assert.deepEqual(after("APPROVED", "Harbor Moving"), { ...was, name: "Harbor Moving", name_status: "APPROVED" });
+  assert.deepEqual(after("REJECTED", "Harbor Moving"), { ...was, name: "Harbor Moving", name_status: "DECLINED" });
+  assert.equal(after("DECLINED", "Harbor Moving").name_status, "DECLINED", "the Graph's word is taken too");
+  assert.equal(after("PENDING", "Harbor Moving").name_status, "PENDING_REVIEW");
+  assert.equal(after("DEFERRED", "Harbor Moving").name_status, "PENDING_REVIEW");
+  for (const name of [undefined, null, "", "   ", 7])
+    assert.equal(
+      after("APPROVED", name).name,
+      "Harbor Nails",
+      `no name in the notice keeps the name (${String(name)})`,
+    );
+  assert.equal(after("APPROVED", "  Harbor Moving  ").name, "Harbor Moving", "trimmed");
+  for (const decision of ["MAYBE", "approved", "", null, undefined, 7, {}])
+    assert.equal(after(decision, "Harbor Moving"), null, String(decision));
+  assert.deepEqual(was, { ...LIMITED, name: "Harbor Nails" }, "the standing it was given is not changed");
+  const kept = after("APPROVED", "Harbor Moving");
+  assert.deepEqual(
+    [kept.can_send, kept.problems, kept.notes, kept.verification, kept.limit],
+    [was.can_send, was.problems, was.notes, was.verification, was.limit],
+    "the rest is as it was",
+  );
+  assert.deepEqual(
+    said(whatsappRow(channel({ ...kept, notes: [] }))),
+    [VERIFIED_2K],
+    "an approved name leaves the row's review note: it says nothing of a name that is fine",
   );
 });
 

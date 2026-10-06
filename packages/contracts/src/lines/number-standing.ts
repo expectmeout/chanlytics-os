@@ -171,19 +171,78 @@ export function standingSentence(s: NumberStanding): string {
   return first ? `Meta: ${sentence(first.said)}` : BLOCKED_SENTENCE;
 }
 
-/** What the display name's review says, where it says something an owner can act on. */
-function nameNote(s: NumberStanding): string | null {
-  const name = s.name ? `the display name “${s.name}”` : "your display name";
-  switch (s.name_status) {
+/** The display name as a phrase: “Harbor Moving”, or "your display name" while Meta has given none. */
+const nameOf = (name: string | null): string => (name ? `the display name “${name}”` : "your display name");
+
+/**
+ * What the display name's review says, where it says something an owner can act on: the Connections row's note for the status the
+ * standing keeps (the Graph's own words), and the sentence of a decline's notice (nameDecisionWords). One set of words.
+ */
+function nameWords(status: string | null, name: string | null): string | null {
+  const who = nameOf(name);
+  switch (status) {
     case "PENDING_REVIEW":
-      return `Meta is reviewing ${name}; until then customers see the number.`;
+      return `Meta is reviewing ${who}; until then customers see the number.`;
     case "DECLINED":
-      return `Meta declined ${name} — change it in WhatsApp Manager.`;
+      return `Meta declined ${who} — change it in WhatsApp Manager.`;
     case "EXPIRED":
-      return `The request for ${name} expired — submit it again in WhatsApp Manager.`;
+      return `The request for ${who} expired — submit it again in WhatsApp Manager.`;
     default:
       return null;
   }
+}
+
+/**
+ * Meta's decision on a display name (the phone_number_name_update webhook: APPROVED, REJECTED, PENDING or DEFERRED) as the status the
+ * standing keeps it under, in the Graph's own words. DECLINED is the Graph's word for a rejection, and is taken too.
+ */
+const NAME_DECISIONS: Readonly<Record<string, string>> = {
+  APPROVED: "APPROVED",
+  REJECTED: "DECLINED",
+  DECLINED: "DECLINED",
+  PENDING: "PENDING_REVIEW",
+  DEFERRED: "PENDING_REVIEW",
+};
+
+const nameStatusOf = (decision: unknown): string | null =>
+  typeof decision === "string" && Object.hasOwn(NAME_DECISIONS, decision) ? (NAME_DECISIONS[decision] ?? null) : null;
+
+/**
+ * The standing with Meta's decision on the display name applied: the name the decision was about (the standing's own when the notice
+ * carries none) and its status, and nothing else of it. A decision that is none of Meta's words corrects nothing (null). Meta's
+ * decision is about the requested name and the Graph's `name_status` about the live one, so the next read may put the live name
+ * back; the owner's notice (nameDecisionWords) is what told them.
+ */
+export function standingAfterNameDecision(
+  s: NumberStanding,
+  decision: unknown,
+  requestedName: unknown,
+): NumberStanding | null {
+  const status = nameStatusOf(decision);
+  if (!status) return null;
+  return { ...s, name: textOrNull(requestedName) ?? s.name, name_status: status };
+}
+
+/**
+ * What an owner is told when Meta decides a display name: approved (good news, kept and not alerted) or declined, with the way on
+ * and Meta's reason when it gave one (alerted). A name still in review has no notice: the row's own note says so. Null for a decision
+ * that is in progress or none of Meta's words.
+ */
+export function nameDecisionWords(
+  decision: unknown,
+  requestedName: unknown,
+  reason: unknown,
+): { subject: string; body: string; alert: boolean } | null {
+  const status = nameStatusOf(decision);
+  const name = textOrNull(requestedName);
+  if (status === "APPROVED")
+    return { subject: "WhatsApp display name approved", body: `Meta approved ${nameOf(name)}.`, alert: false };
+  const declined = status === "DECLINED" ? nameWords(status, name) : null;
+  if (!declined) return null;
+  const why = textOrNull(reason);
+  const said =
+    why && why !== "UNKNOWN" && why !== "NONE" ? ` Meta's reason: ${why.toLowerCase().replace(/_/g, " ")}.` : "";
+  return { subject: "WhatsApp display name declined", body: `${declined}${said}`, alert: true };
 }
 
 /** How many people a day a tier is, in words: "up to 1,000 people a day". */
@@ -224,7 +283,7 @@ export function standingNotes(s: NumberStanding | null): ConnectionNote[] {
   }
   out.push(...paymentNotes(s));
   for (const n of s.notes) out.push({ text: sentence(n) });
-  const name = nameNote(s);
+  const name = nameWords(s.name_status, s.name);
   if (name) out.push({ text: name });
   const verification = verificationNote(s);
   if (verification) out.push({ text: verification });

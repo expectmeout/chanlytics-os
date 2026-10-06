@@ -235,6 +235,66 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
       "number@admin/integrations",
       `${field} ${JSON.stringify(value)} is the NUMBER's own health`,
     );
+  // A template moved to another category: to marketing it is a restriction, to anything else news kept quietly, and a notice
+  // that names nothing still says something. Held by value: these words are a function of their own (categoryWords).
+  const category = (value) => mod.describeWabaChange({ field: "template_category_update", value }, null);
+  assert.deepEqual(category({ message_template_name: "save_our_number", new_category: "MARKETING" }), {
+    kind: "template_blocked",
+    route: "messages",
+    subject: "Template “save_our_number” is now marketing",
+    body: "Meta moved the template “save_our_number” to marketing. Sends that use it now need the customer's recorded yes.",
+    alert: true,
+  });
+  assert.deepEqual(category({ message_template_name: "save_our_number", new_category: "UTILITY" }), {
+    kind: "template_ready",
+    route: "messages",
+    subject: "Template “save_our_number” is now utility",
+    body: "Meta moved the template “save_our_number” to utility.",
+    alert: false,
+  });
+  assert.deepEqual(category({}), {
+    kind: "template_ready",
+    route: "messages",
+    subject: "Template “a template” is now another category",
+    body: "Meta moved the template “a template” to another category.",
+    alert: false,
+  });
+
+  // Meta's decision on the display name (phone_number_name_update; entry.id is the WABA): approved is kept quietly, a decline is the
+  // owner's to read with the way on and Meta's reason, in the words Connections' row uses; one in progress has no notice of its own.
+  assert.ok(mod.WABA_FIELDS.has("phone_number_name_update"));
+  const named = (value) => mod.describeWabaChange({ field: "phone_number_name_update", value }, "+15551234567");
+  assert.deepEqual(
+    named({
+      display_phone_number: "15551234567",
+      decision: "APPROVED",
+      requested_verified_name: "Harbor Moving",
+      rejection_reason: null,
+    }),
+    {
+      kind: "number",
+      route: "admin/integrations",
+      subject: "WhatsApp display name approved",
+      body: "Meta approved the display name “Harbor Moving”.",
+      alert: false,
+    },
+  );
+  assert.deepEqual(
+    named({
+      decision: "REJECTED",
+      requested_verified_name: "Harbor Moving",
+      rejection_reason: "NAME_FORMAT_UNACCEPTABLE",
+    }),
+    {
+      kind: "number",
+      route: "admin/integrations",
+      subject: "WhatsApp display name declined",
+      body: "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager. Meta's reason: name format unacceptable.",
+      alert: true,
+    },
+  );
+  for (const decision of ["PENDING", "DEFERRED", "SOMETHING_ELSE", undefined])
+    assert.equal(named({ decision, requested_verified_name: "Harbor Moving" }), null, String(decision));
   // The webhook handling the account's fields by entry.id, before and instead
   // of routing by number, is run in whatsapp-door.test.mjs.
 });

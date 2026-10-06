@@ -121,6 +121,7 @@ export const WABA_FIELDS = [
   "account_review_update",
   "message_template_quality_update",
   "template_category_update",
+  "phone_number_name_update",
 ] as const;
 export type WabaEventKind = `channel.${(typeof WABA_FIELDS)[number]}`;
 

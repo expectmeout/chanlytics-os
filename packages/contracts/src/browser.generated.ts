@@ -153,7 +153,7 @@ export { channelFor, channelKindWords, toChannelVM, CHANNEL_KIND_WORDS, CHANNEL_
 export { LINE_CODES_WITHIN_MS, LINE_CODES_MAX, LINE_CODES_EVERY_MS } from "./lines/line-codes";
 export { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./lines/line-failure";
 export { lineReleaseAfterDays, billingEndedAt, lineReleaseStep, lineReleaseDay, lineReleaseWarning, lineReleasedWords, LINE_RELEASE_WARN_DAYS, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS } from "./lines/line-release";
-export { standingFromConfig, standingNeedsRead, standingAlertWords } from "./lines/number-standing";
+export { standingFromConfig, standingNeedsRead, standingAlertWords, standingAfterNameDecision, nameDecisionWords } from "./lines/number-standing";
 export { registrationPathOf, soleProprietorLimits, REGISTRATION_PATHS, SOLE_PROP_LIMITS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS } from "./lines/registration-path";
 export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
 export { APP_ROUTE_RE, PUSH_TOKEN_MAX, parsePageMessage, parseShellMessage } from "./mobile/app-bridge";

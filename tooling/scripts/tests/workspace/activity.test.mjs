@@ -721,6 +721,12 @@ test("a WhatsApp connection, a milestone and a held review reply say what they a
   );
   assert.equal(activityWords("channel.standing", {}), "A WhatsApp number's standing with Meta changed");
   assert.equal(isActivityNoise("channel.standing"), false, "an owner reads that Meta changed what a number may do");
+  // Meta's decision on a display name (phone_number_name_update) is one of the computed channel.<field> family: words, not a key.
+  assert.equal(
+    activityWords("channel.phone_number_name_update", { waba_id: "1", decision: "APPROVED" }),
+    "Channel · phone number name update",
+  );
+  assert.equal(isActivityNoise("channel.phone_number_name_update"), false, "an owner reads a decision on a name");
   assert.equal(
     activityWords("workspace.activated", { milestone: "line_live", via: "provision" }),
     "The workspace passed a milestone · its first line is answering",

@@ -12,14 +12,21 @@
  * A partner's notice (account_update: PARTNER_ADDED and its kin) is addressed
  * to the partner's business portfolio and names the customer's account in
  * value.waba_info.waba_id, so it is routed by that (accountOf).
+ *
+ * Meta's decision on a display name (phone_number_name_update, addressed to
+ * the account) is told to the owner when it declines one, and corrects the
+ * name's word in the standing the channel keeps, so Connections says it now.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "../packages/db.js";
-import { emitEvent, setTemplateQuality } from "../packages/db.js";
+import { emitEvent, keepChannelStanding, setTemplateQuality } from "../packages/db.js";
 import { notify, type NotifyTarget } from "../ops/notify.js";
 import {
+  nameDecisionWords,
   parseTenantConfig,
+  standingAfterNameDecision,
+  standingFromConfig,
   WABA_FIELDS as WABA_FIELD_LIST,
   type NotificationsConfig,
   type ServerNotificationKind,
@@ -48,12 +55,14 @@ interface Routed {
   tenantId: string;
   channelId: string;
   number: string | null;
+  /** The channel's config as read, where the standing a name decision corrects is held. */
+  config: Json;
 }
 
 async function routeByWaba(db: SupabaseClient<Database>, wabaId: string): Promise<Routed | null> {
   const { data, error } = await db
     .from("tenant_channels")
-    .select("id, tenant_id, number_e164")
+    .select("id, tenant_id, number_e164, config")
     .eq("kind", "whatsapp")
     .eq("waba_id", wabaId)
     .eq("status", "active")
@@ -63,7 +72,7 @@ async function routeByWaba(db: SupabaseClient<Database>, wabaId: string): Promis
     logger().error("waba_route_failed", { waba_id: wabaId, error: error.message });
     return null;
   }
-  return data ? { tenantId: data.tenant_id, channelId: data.id, number: data.number_e164 } : null;
+  return data ? { tenantId: data.tenant_id, channelId: data.id, number: data.number_e164, config: data.config } : null;
 }
 
 /** The account a notice is about, and whether the notice named it itself. */
@@ -127,6 +136,27 @@ export const NUM = { kind: "number" as const, route: "admin/integrations" };
 const READY = { kind: "template_ready" as const, route: "messages" };
 /** A template cannot be sent, or can no longer be sent freely. */
 const BLOCKED = { kind: "template_blocked" as const, route: "messages" };
+
+/**
+ * A template moved to another category. Moved to marketing is a restriction, not a failure: it can still be sent, but only to a
+ * recorded yes. It reads with the ones it cannot.
+ */
+function categoryWords(v: Record<string, unknown>): WabaWords {
+  const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
+  const to = typeof v.new_category === "string" ? v.new_category.toLowerCase() : "another category";
+  return {
+    ...(to === "marketing" ? BLOCKED : READY),
+    subject: `Template “${name}” is now ${to}`,
+    body: `Meta moved the template “${name}” to ${to}.${to === "marketing" ? " Sends that use it now need the customer's recorded yes." : ""}`,
+    alert: to === "marketing",
+  };
+}
+
+/** Meta's decision on the display name, as the owner's line: contracts says the words, this says where it is read. */
+function nameNotice(v: Record<string, unknown>): WabaWords | null {
+  const words = nameDecisionWords(v.decision, v.requested_verified_name, v.rejection_reason);
+  return words ? { ...NUM, ...words } : null;
+}
 
 export function describeWabaChange(c: WabaChange, number: string | null): WabaWords | null {
   const v = c.value;
@@ -209,18 +239,10 @@ export function describeWabaChange(c: WabaChange, number: string | null): WabaWo
         };
       return null;
     }
-    case "template_category_update": {
-      const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
-      const to = typeof v.new_category === "string" ? v.new_category.toLowerCase() : "another category";
-      // Moved to marketing is a restriction, not a failure: it can still be
-      // sent, but only to a recorded yes. It reads with the ones it cannot.
-      return {
-        ...(to === "marketing" ? BLOCKED : READY),
-        subject: `Template “${name}” is now ${to}`,
-        body: `Meta moved the template “${name}” to ${to}.${to === "marketing" ? " Sends that use it now need the customer's recorded yes." : ""}`,
-        alert: to === "marketing",
-      };
-    }
+    case "template_category_update":
+      return categoryWords(v);
+    case "phone_number_name_update":
+      return nameNotice(v);
     case "account_review_update": {
       const decision = String(v.decision ?? "");
       if (decision === "REJECTED")
@@ -264,6 +286,29 @@ async function applyTemplateQuality(
     await setTemplateQuality(db, { tenantId, name, language, quality });
   } catch (e) {
     L.error("template_quality_write_failed", { error: errField(e) });
+  }
+}
+
+/**
+ * Meta's decision on the display name, applied to the standing the channel keeps through the door the reading keeps it by, so
+ * Connections says it now and not at the next read. A number whose standing was never read has nothing to correct: the first read
+ * says all of it. The door stamps the moment it kept the standing; the standing's other fields are as old as they were. Best effort:
+ * a refusal is a line and costs the row its new word, never the webhook its answer.
+ */
+async function keepNameDecision(
+  db: SupabaseClient<Database>,
+  routed: Routed,
+  value: Record<string, unknown>,
+  L: Logger,
+): Promise<void> {
+  const cfg = routed.config;
+  const kept = standingFromConfig(typeof cfg === "object" && cfg !== null && !Array.isArray(cfg) ? cfg.standing : null);
+  const next = kept && standingAfterNameDecision(kept, value.decision, value.requested_verified_name);
+  if (!next) return;
+  try {
+    await keepChannelStanding(db, routed.tenantId, routed.channelId, next);
+  } catch (e) {
+    L.error("wa_standing_keep_failed", { error: errField(e) });
   }
 }
 
@@ -355,6 +400,7 @@ export async function handleWabaChange(
   }
   if (change.field === "message_template_quality_update")
     await applyTemplateQuality(db, routed.tenantId, change.value, L);
+  if (change.field === "phone_number_name_update") await keepNameDecision(db, routed, change.value, L);
   if (!described || !described.alert) return "kept";
   const target: NotifyTarget = {
     tenantId: routed.tenantId,

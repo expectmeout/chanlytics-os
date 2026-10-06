@@ -11678,7 +11678,7 @@ function templateUnused(use) {
 }
 function templateSends(src) {
   const out = {};
-  const nameOf = new Map(src.runs.map((r2) => [r2.id, r2.template_name]));
+  const nameOf2 = new Map(src.runs.map((r2) => [r2.id, r2.template_name]));
   const went = (name, at3) => {
     const s = out[name] ??= { count: 0, lastAt: null };
     s.count += 1;
@@ -11686,7 +11686,7 @@ function templateSends(src) {
     if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at3;
   };
   for (const r2 of src.recipients) {
-    const name = r2.state === "sent" ? nameOf.get(r2.broadcast_id) : void 0;
+    const name = r2.state === "sent" ? nameOf2.get(r2.broadcast_id) : void 0;
     if (name) went(name, r2.sent_at);
   }
   for (const m of src.inbox) {
@@ -13946,7 +13946,8 @@ var WABA_FIELDS = [
   "message_template_status_update",
   "account_review_update",
   "message_template_quality_update",
-  "template_category_update"
+  "template_category_update",
+  "phone_number_name_update"
 ];
 var EVENT_KINDS = [
   "message.received",
@@ -23212,18 +23213,43 @@ function standingSentence(s) {
   const first = s.problems.at(0);
   return first ? `Meta: ${sentence2(first.said)}` : BLOCKED_SENTENCE;
 }
-function nameNote(s) {
-  const name = s.name ? `the display name \u201C${s.name}\u201D` : "your display name";
-  switch (s.name_status) {
+var nameOf = (name) => name ? `the display name \u201C${name}\u201D` : "your display name";
+function nameWords(status, name) {
+  const who = nameOf(name);
+  switch (status) {
     case "PENDING_REVIEW":
-      return `Meta is reviewing ${name}; until then customers see the number.`;
+      return `Meta is reviewing ${who}; until then customers see the number.`;
     case "DECLINED":
-      return `Meta declined ${name} \u2014 change it in WhatsApp Manager.`;
+      return `Meta declined ${who} \u2014 change it in WhatsApp Manager.`;
     case "EXPIRED":
-      return `The request for ${name} expired \u2014 submit it again in WhatsApp Manager.`;
+      return `The request for ${who} expired \u2014 submit it again in WhatsApp Manager.`;
     default:
       return null;
   }
+}
+var NAME_DECISIONS = {
+  APPROVED: "APPROVED",
+  REJECTED: "DECLINED",
+  DECLINED: "DECLINED",
+  PENDING: "PENDING_REVIEW",
+  DEFERRED: "PENDING_REVIEW"
+};
+var nameStatusOf = (decision) => typeof decision === "string" && Object.hasOwn(NAME_DECISIONS, decision) ? NAME_DECISIONS[decision] ?? null : null;
+function standingAfterNameDecision(s, decision, requestedName) {
+  const status = nameStatusOf(decision);
+  if (!status) return null;
+  return { ...s, name: textOrNull(requestedName) ?? s.name, name_status: status };
+}
+function nameDecisionWords(decision, requestedName, reason) {
+  const status = nameStatusOf(decision);
+  const name = textOrNull(requestedName);
+  if (status === "APPROVED")
+    return { subject: "WhatsApp display name approved", body: `Meta approved ${nameOf(name)}.`, alert: false };
+  const declined = status === "DECLINED" ? nameWords(status, name) : null;
+  if (!declined) return null;
+  const why = textOrNull(reason);
+  const said = why && why !== "UNKNOWN" && why !== "NONE" ? ` Meta's reason: ${why.toLowerCase().replace(/_/g, " ")}.` : "";
+  return { subject: "WhatsApp display name declined", body: `${declined}${said}`, alert: true };
 }
 var peopleADay = (n) => `up to ${n.toLocaleString("en-US")} people a day`;
 function verificationNote(s) {
@@ -23249,7 +23275,7 @@ function standingNotes(s) {
   }
   out.push(...paymentNotes(s));
   for (const n of s.notes) out.push({ text: sentence2(n) });
-  const name = nameNote(s);
+  const name = nameWords(s.name_status, s.name);
   if (name) out.push({ text: name });
   const verification = verificationNote(s);
   if (verification) out.push({ text: verification });
@@ -26580,9 +26606,9 @@ function lifecycleComing(input, stages) {
   const { nowMs, tz, broadcasts } = input;
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
-  const nameOf = (id, fallback) => playbooks.rows.find((p) => p.id === id)?.name ?? fallback;
+  const nameOf2 = (id, fallback) => playbooks.rows.find((p) => p.id === id)?.name ?? fallback;
   const end = nowMs + COMING_DAYS * DAY_MS;
-  const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => runRow(r2, nameOf(r2.playbook_id, r2.name), nowMs, tz));
+  const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => runRow(r2, nameOf2(r2.playbook_id, r2.name), nowMs, tz));
   const covered = new Set(
     broadcasts.rows.filter((r2) => runs.some((x) => x.id === `run:${r2.id}`) && r2.playbook_id).map((r2) => r2.playbook_id)
   );
@@ -36005,6 +36031,7 @@ export {
   monthSentAt,
   monthSpan,
   movedAddress,
+  nameDecisionWords,
   nameKnownCustomers,
   namedProblem,
   namesMoney,
@@ -36464,6 +36491,7 @@ export {
   spokenBreachDetails,
   spokenDuration,
   stageArgs,
+  standingAfterNameDecision,
   standingAlertWords,
   standingFromConfig,
   standingNeedsRead,
