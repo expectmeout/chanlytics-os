@@ -165,11 +165,11 @@ A new token says, in a comment beside it, what it is for.
 | `tooling/scripts/tests/styles/kit-behaves.test.mjs` | the running page and the gallery's families on Base UI parting (an entry on one side alone); a switch, a segmented control or a field drawn on a server otherwise than its entry; a second React, or another Base UI, in the page's bundle |
 | `tooling/scripts/tests/styles/kit-base-ui.test.mjs` | Base UI pinned with a caret or a tag, or at a version the install did not make; a licence not MIT, a peer range without the dashboard's React, or an install script anywhere in what it brings |
 | the Base UI lint (`eslint.config.mjs`, `BASE_UI_INDEX`) | Base UI's index (`@base-ui/react`) imported, or re-exported, anywhere in the dashboard: each component imports its own part |
-| `corepack pnpm check:bundle` (CI, after the build) | the workspace route's JS or CSS past its budget, within a 1% band. A component with behaviour of its own is JS, so it is this alone that turns red when a page first draws one: the raise is the author's, in that change |
+| `corepack pnpm check:bundle` (CI, after the build) | the workspace route's JS or CSS, or a page's own JS, past its budget by more than its allowance in bytes, or a change adding more than 512 bytes without raising its budget by them (held against main's own build). A component with behaviour of its own is JS, so it is this alone that turns red when a page first draws one: the raise is the author's, in that change, by the bytes the job summary prints |
 
 A fall is banked with `UPDATE_BASELINES=1 corepack pnpm test`, which rewrites the register's numbers too, and the
 bundle's with `corepack pnpm check:bundle -- --update` after a dashboard build. A rise is raised with
-`UPDATE_BASELINES=raise corepack pnpm test` (the bundle's with `corepack pnpm check:bundle -- --raise`) in the same
+`UPDATE_BASELINES=raise corepack pnpm test` (the bundle's with `corepack pnpm check:bundle -- --raise js=<bytes> <page>=<bytes>`, no build needed) in the same
 change as its row under "Rises" in `docs/debt.md`, argued in the pull request. The one style prop the kit keeps, a
 meter part's share, is argued there.
 
@@ -283,4 +283,4 @@ The canonical one to copy is `apps/dashboard/src/surfaces/kit/menu/menu.tsx` wit
 6. **Run** the build, typecheck, lint and test, then both specs (`corepack pnpm e2e:local -- e2e/kit/kit-behaves.spec.ts
    --scenario=kit`, and the same for `e2e/kit/kit.spec.ts`), and show them in the pull request. The route's JS budget does
    not move until a page draws the component, and then it is raised in that change (`check:bundle -- --raise
-   js=<bytes>`).
+   js=<bytes> <page>=<bytes>`, by the growth CI's summary prints).

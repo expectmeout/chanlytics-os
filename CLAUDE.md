@@ -42,7 +42,7 @@ TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock tw
 UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction, and nothing else (docs/debt.md)
 UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
-corepack pnpm check:bundle                    # after a dashboard build: the workspace route's JS and CSS against its budget; -- --update banks a fall, -- --raise js=<bytes> a rise, by the growth argued
+corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against its budget and ceiling (CI holds each change to what it adds against main's own build); -- --update banks a fall, -- --raise js=<bytes> <page>=<bytes> a rise by the growth argued, both with CI's numbers and no build
 corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 node tooling/scripts/checks/smoke.mjs <host>  # after a deploy: the edge's /api/health and the dashboard's /api/version answer (docs/runbook.md, Deploy)
