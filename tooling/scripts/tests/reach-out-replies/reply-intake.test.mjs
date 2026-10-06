@@ -62,9 +62,11 @@ function world(over = {}) {
 }
 const run = (w) => ingestEmail(w.ports, { payload: { mailbox_id: "mb1", received_id: "rcv_1" } });
 
-test("a person's reply to a reach-out is kept, handed to the reading once, flagged in its own words, and not told", async () => {
+test("a person's reply to a reach-out is kept, flagged in its own words, then handed to the reading once, and not told", async () => {
   const w = world();
   assert.equal(await run(w), "kept_for_the_reading");
+  // The flag before the reading: the reading closes what the intake opened (core reply-read.ts), so a reading that ran
+  // first found nothing to close, archived a "no", and the flag landed after it on an archived thread.
   assert.deepEqual(w.ops(), [
     "mailbox",
     "fetch",
@@ -72,8 +74,8 @@ test("a person's reply to a reach-out is kept, handed to the reading once, flagg
     "erasedBefore",
     "record",
     "reachOutReply",
-    "readReply",
     "escalate",
+    "readReply",
     "markProcessed",
     "received",
   ]);
@@ -132,6 +134,12 @@ test("a failed question or a failed schedule throws before the message is marked
   const unscheduled = world({ readReply: new Error("schedule_job: the ledger is down") });
   await assert.rejects(run(unscheduled), /schedule_job/);
   assert.equal(unscheduled.call("markProcessed"), undefined);
+
+  // A flag that could not be written schedules no reading: the retry flags it, then hands it to the reading.
+  const unflagged = world({ escalate: "failed" });
+  await assert.rejects(run(unflagged), /could not be flagged/);
+  assert.equal(unflagged.call("readReply"), undefined, "REGRESSION: the reading was out before the flag it closes");
+  assert.equal(unflagged.call("markProcessed"), undefined);
 });
 
 test("a message already handled is not asked about again", async () => {

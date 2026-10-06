@@ -2,8 +2,8 @@
  * A refusal a core verb throws reaches the owner in the verb's own words and status, through the real route
  * wrapper and the packages as they are built.
  *
- * It did not. Each package's build inlines contracts, so the dashboard holds one AppError in contracts' dist and
- * another inside core's; `withRoute` asked `instanceof` of the first and every core refusal failed it, so an owner
+ * It did not. Each package's build inlined contracts (until #1382), so the dashboard held one AppError in contracts'
+ * dist and another inside core's; `withRoute` asked `instanceof` of the first and every core refusal failed it, so an owner
  * snoozing without a date, or replying to someone who had opted out, read "Something went wrong." with a 500
  * (the scorecard of 26 September 2026). Nothing caught it because no test ran a core verb through `withRoute` on
  * the built dists: the tests of the verbs import the source, where there is one class.

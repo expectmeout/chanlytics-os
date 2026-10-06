@@ -68,7 +68,6 @@
   "packages/contracts/src/config/workspace-config/fallbacks.ts": 1,
   "packages/contracts/src/config/workspace-config/prompt-hours.ts": 6,
   "packages/contracts/src/conversations/call-vm.ts": 3,
-  "packages/contracts/src/conversations/inbox-thread.ts": 4,
   "packages/contracts/src/conversations/thread-contact.ts": 2,
   "packages/contracts/src/deals/deal-report.ts": 1,
   "packages/contracts/src/deals/pipeline/pipeline.ts": 1,

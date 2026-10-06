@@ -10,7 +10,7 @@ import { callNotesOf, callOutcomeOf, callOutcomeWords, tidyCallSummary, type Cal
 import { RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS } from "../workspace/retention";
 import { isIdentifierName, initialsOf } from "./thread-contact";
 import { shortTime } from "./thread-clock";
-import { abandonedCall, DISCONNECTION_LABELS, type CallDto } from "./call-dto";
+import { abandonedCall, reachedVoicemail, DISCONNECTION_LABELS, type CallDto } from "./call-dto";
 
 /* ---- Calls (Slice 3): a call row answers "is my AI saying the right things
    on the phone", while the thread answers "am I on the hook to reply". A call
@@ -84,7 +84,7 @@ export function callOutcomeFor(
   if (dto.status === "error") return "failed";
   if (abandonedCall(dto)) return "abandoned";
   if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
-  return dto.in_voicemail ? "voicemail" : "handled";
+  return reachedVoicemail(dto) ? "voicemail" : "handled";
 }
 
 /** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
@@ -203,7 +203,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
 
   const snippetBody = missed
     ? "The call never connected."
-    : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+    : wanted || firstSentence || (reachedVoicemail(dto) ? "Reached voicemail." : "No summary from this call.");
   return {
     id: `cv-${dto.id}`,
     real: true,

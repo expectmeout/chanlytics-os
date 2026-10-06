@@ -67,7 +67,7 @@ export interface FeedCall {
   who: string;
   number?: string | null;
   /** Who dialled: a customer's dial that never connected is missed; one we placed is not (callAttemptWords). */
-  direction?: "inbound" | "outbound";
+  direction: "inbound" | "outbound";
   missed: boolean;
   live: boolean;
   startedAtMs: number | null;
@@ -159,7 +159,7 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
       key: `call:${c.callId}`,
       kind: "missed_call",
       at: c.startedAtMs,
-      title: `${callAttemptWords(c.direction ?? "inbound")} · ${c.who}`,
+      title: `${callAttemptWords(c.direction)} · ${c.who}`,
       message: c.number ? `${c.number} — the call never connected.` : "The call never connected.",
       to: `conversations/${c.cvId}`,
       icon: "phone",

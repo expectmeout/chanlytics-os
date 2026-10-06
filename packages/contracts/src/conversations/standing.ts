@@ -30,6 +30,22 @@ export interface StandingInput {
 
 export type Standing = "needs_you" | "yours" | "theirs" | "snoozed" | "quiet";
 
+/**
+ * What the Inbox says of a thread somebody has, once: the pill's words and the pane's sentence, for the thread you have
+ * and for one a teammate has. The Inbox's pills (shell/tone.ts), its pane (inbox-thread.ts) and a person's page
+ * (people/person-receptionist.ts) all read these, so a thread is not "yours" in one place and "a person's" in another.
+ */
+export const HELD_WORDS = {
+  yours: {
+    pill: "You have it",
+    sentence: "You're answering this one. The receptionist stays quiet until you hand it back.",
+  },
+  theirs: {
+    pill: "A teammate has it",
+    sentence: "A teammate is answering this. The receptionist stays quiet until they hand it back.",
+  },
+} as const satisfies Record<"yours" | "theirs", { pill: string; sentence: string }>;
+
 export interface StandingVerdict {
   standing: Standing;
   /** Something asked for a person: an open escalation, the needs_human state, or a live pause. */

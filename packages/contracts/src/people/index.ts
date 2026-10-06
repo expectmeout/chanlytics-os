@@ -24,14 +24,14 @@ export type { PersonLastContact, PersonFirstContact } from "./person-row-facts";
 export {
   personStanding,
   attentionOf,
-  isOwned,
+  holderOf,
   personStateFor,
   PERSON_STATE_LABELS,
   PEOPLE_TABS,
   NEW_WINDOW_DAYS,
   QUIET_AFTER_DAYS,
 } from "./person-state";
-export type { PersonState } from "./person-state";
+export type { PersonState, ThreadHolder } from "./person-state";
 export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, mayReach } from "./person-reach";
 export type { PersonProposalVM } from "./person-reach";
 export { cameFromOf, visitTitleFor, toPersonRowVM } from "./person-row";

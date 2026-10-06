@@ -67,8 +67,11 @@ export async function recordReceipts(
 ): Promise<number> {
   const L = logger();
   let again = 0;
+  // One receipt per message and status: Meta can repeat one in a single delivery, and the copies, read together, each
+  // found the row still sent and each raised the failure.
+  const once = [...new Map(statuses.map((s) => [`${s.id}\u0000${s.status}`, s])).values()];
   await Promise.all(
-    statuses.map(async (s) => {
+    once.map(async (s) => {
       L.info("wa_status", { id: s.id, status: s.status, to_tail: phoneTail(s.recipient_id), errors: s.errors });
       const status = receiptStatusOf(s.status);
       if (!db || !tenantId || !s.id || !status) return;

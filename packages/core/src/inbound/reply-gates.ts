@@ -26,6 +26,7 @@ import { offersAfterStart, optInConfirmation, tokenBudgetSpent, tokenCapOf } fro
 import type { SendPurpose } from "@chanlytics/contracts";
 import { ageVerdict, threadVerdict, holdCopy } from "./steps";
 import { GO, type Answering } from "./context";
+import { speaksUnattended } from "./reply-posture";
 import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
 
 /**
@@ -230,7 +231,7 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
   // 'veto' composes a reply like 'auto' and then HOLDS it for a configured
   // window before sending, so the business can redirect the bot before the
   // customer sees it. It reaches the brain; what differs is the dispatch below.
-  if (!brainCfg || (replyMode !== "auto" && replyMode !== "veto")) {
+  if (!brainCfg || !speaksUnattended(replyMode)) {
     // A hold the owner chose for THIS person is its own reason: it is not a
     // workspace setting, and the Inbox should say "you handle this person",
     // not "held by policy". It also alerts ONCE per open hold rather than

@@ -1,10 +1,11 @@
 /**
  * The request the code running now serves: its name, and the workspace once the request has said which.
  *
- * One store for the whole process, whichever copy of this module asks. Each package's build inlines channels (core,
- * jobs and the edge's own import each carry a copy), so a store made by the module itself would be one per copy: a
- * name bound by the edge's door would be unseen by a line core writes beneath it. The store lives on globalThis under
- * a registered symbol, the way AppError's brand is recognised by every copy of contracts.
+ * One store for the whole process, whichever copy of this module asks. Each package's build inlined channels until its
+ * dist imported its siblings' (#1382), and a test that loads source beside a dist still holds two copies; a store made
+ * by the module itself would be one per copy, and a name bound by the edge's door unseen by a line core writes beneath
+ * it. The store lives on globalThis under a registered symbol, the way AppError's brand is recognised by every copy of
+ * contracts.
  *
  * A request is named by `withRequestId`, which runs the work inside the name (AsyncLocalStorage.run): the name holds
  * for what that work awaits and ends when it returns. Nothing here enters a name for the rest of an execution

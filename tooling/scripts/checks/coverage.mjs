@@ -5,8 +5,9 @@
  *
  * A package's code runs mostly from its committed dist, one bundle, so its lines are read back to the module that
  * wrote them by the bundler's own markers (`// src/campaigns/run.ts`): a package's coverage is its own modules, in its
- * own bundle, or read directly from source by a test that imports the file, whichever ran more of each module. Code a
- * bundle inlines from another package counts for that package only in that package's own bundle. A tree (apps/edge/api)
+ * own bundle, or read directly from source by a test that imports the file, whichever ran more of each module. A
+ * bundle holds its own package's modules and the data it inlines: a sibling package is imported from that package's
+ * dist (#1382), and counts there. A tree (apps/edge/api)
  * is its tracked files; one no test loaded counts every line, none run.
  *
  * Line coverage, in the lines V8 reports: close to the source's, never equal to it (a transpiled file has the loader's

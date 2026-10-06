@@ -999,7 +999,8 @@ test("each provider's breaker, as the instance holds it: a send core made that f
     throw new Error(`unexpected request ${req.method} ${req.url}`);
   });
   try {
-    // Core's own copy of channels sends (packages/core's build inlines it); the door reads the edge's.
+    // Sent through channels as core's dist reaches it (by relative path, #1382); the door reads the breaker the edge's
+    // import holds, which must be the same one.
     const send = whatsappSender({ accessToken: "wa-token", phoneId: "111222333" });
     for (let i = 0; i < 5; i++) await send("+15555550100", { body: "hello" });
   } finally {

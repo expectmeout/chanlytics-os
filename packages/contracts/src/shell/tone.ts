@@ -22,6 +22,7 @@
  * The toast's tones (chrome.ts) are the four of these that a flash can be.
  */
 import { BROADCAST_STATE_LABELS } from "../broadcasts/broadcasts";
+import { HELD_WORDS } from "../conversations/standing";
 import { PERSON_MODE_WORDS } from "../people/person-receptionist";
 import { PERSON_STATE_LABELS } from "../people/person-state";
 import { ROLE_WORDS } from "./identity";
@@ -116,7 +117,17 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     booked: "ok",
     decided: "ok",
   },
-  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  // A thread somebody has wears the Inbox's own tones for it (`thread` above): yours is in hand, a teammate's is theirs.
+  standing: {
+    escalated: "warn",
+    queued: "info",
+    snoozed: "info",
+    paused: "plain",
+    yours: "info",
+    theirs: "plain",
+    silent: "plain",
+    answering: "ok",
+  },
   call: {
     live: "accent",
     missed: "plain",
@@ -185,8 +196,8 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   thread: {
     escalated: "Needs you",
     needs_you: "Needs you",
-    yours: "You have it",
-    theirs: "A teammate has it",
+    yours: HELD_WORDS.yours.pill,
+    theirs: HELD_WORDS.theirs.pill,
     snoozed: "Snoozed",
     done: "Done",
     open: "Customer wrote last",
@@ -199,6 +210,9 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
     queued: "Reply queued",
     snoozed: "Snoozed",
     paused: "Paused",
+    // A thread somebody has says what the Inbox's pill says of it (standing.ts HELD_WORDS).
+    yours: HELD_WORDS.yours.pill,
+    theirs: HELD_WORDS.theirs.pill,
     silent: "Silent",
     answering: "Answering",
   },
