@@ -101,7 +101,7 @@ export function peopleListActs({
 }: {
   activeList: SmartList | null;
   activeSaved: SavedList | null;
-  listGone: { title: string } | null;
+  listGone: { title: string; body: string } | null;
   setListId: Setter<string | null>;
   setTab: Setter<string>;
   setSavedId: Setter<string | null>;
@@ -118,8 +118,10 @@ export function peopleListActs({
   // Export follows the list that is open (decision 0009): the route counts it as a send does, every member; with no list
   // open it is everyone.
   const exportName = activeSaved ? activeSaved.name : activeList ? activeList.label : null;
-  // A list that can't be counted here, or isn't here, has no file to take: said on the button, never a refusal page.
-  const exportBlocked = activeSaved && activeSaved.unknown ? activeSaved.unknown : listGone ? listGone.title : null;
+  // A list that can't be counted here, or isn't here, has no file to take: said when the item is pressed, never a refusal
+  // page. A list that isn't here says what it is and why, as the empty page where it was does (its title, then its body).
+  const exportBlocked =
+    activeSaved && activeSaved.unknown ? activeSaved.unknown : listGone ? `${listGone.title}. ${listGone.body}` : null;
   const exportHref = exportLink(
     exportName ? (activeSaved ? `list:${activeSaved.id}` : `seg:${(activeList as SmartList).id}`) : undefined,
   );

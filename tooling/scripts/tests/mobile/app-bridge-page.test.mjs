@@ -234,7 +234,6 @@ test("Today is handed to the widget at install and on every refresh, in the snap
   const vm = {
     standing: {
       headline: "Quiet so far",
-      eyebrow: "",
       chips: [],
       lines: { text: "", down: false },
       alert: null,
@@ -259,17 +258,35 @@ test("Today is handed to the widget at install and on every refresh, in the snap
   assert.ok(!bare.posted.some((m) => m.t === "today"), "no Today yet, nothing to hand over");
 });
 
-test("the Live page's refresh tells the shell how many calls are in progress, so the phone can end the call's activity", () => {
+test("the Live page's refresh tells the shell how many calls are still up, so the phone can end the call's activity", () => {
   const { win, posted, fire } = windowOf();
   installAppBridge(win, doors());
   fire("surface:live");
   assert.ok(!posted.some((m) => m.t === "calls"), "no Live yet, nothing to say");
-  win.__LIVE = { now: [{ id: "c1" }] };
-  fire("surface:live");
-  assert.deepEqual(posted.at(-1), { t: "calls", live: 1 });
-  win.__LIVE = { now: [] };
-  fire("surface:live");
-  assert.deepEqual(posted.at(-1), { t: "calls", live: 0 });
+  // A call as Live reads it, and the heartbeat the read carries (liveStillUp's rule: the provider's last word is newer than it).
+  const at = Date.now();
+  const call = (over = {}) => ({
+    callId: "c1",
+    live: true,
+    startedAtMs: at - 60_000,
+    heartbeatAtMs: at - 5_000,
+    ...over,
+  });
+  const live = (...now) => {
+    win.__LIVE = { heartbeatMs: 90_000, now };
+    fire("surface:live");
+    return posted.at(-1);
+  };
+  assert.deepEqual(live(call()), { t: "calls", live: 1 });
+  assert.deepEqual(live(), { t: "calls", live: 0 });
+  // Marked live, and the provider has not been heard from for longer than the heartbeat: not up, and not counted. It
+  // counted `live` alone, so the Lock Screen's activity stayed lit for a call nobody had heard from.
+  assert.deepEqual(live(call({ heartbeatAtMs: at - 10 * 60_000 })), { t: "calls", live: 0 });
+  assert.deepEqual(live(call(), call({ callId: "c2", heartbeatAtMs: at - 10 * 60_000 })), { t: "calls", live: 1 });
+  // One with no word from the provider yet is judged by when it started; one not marked live is never up.
+  assert.deepEqual(live(call({ heartbeatAtMs: null })), { t: "calls", live: 1 });
+  assert.deepEqual(live(call({ heartbeatAtMs: null, startedAtMs: at - 10 * 60_000 })), { t: "calls", live: 0 });
+  assert.deepEqual(live(call({ live: false })), { t: "calls", live: 0 });
 });
 
 test("a device ask with an activity token registers both", async () => {

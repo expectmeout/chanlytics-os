@@ -298,6 +298,7 @@ export {
   PEOPLE_PAGE,
   IDS_PER_READ,
   namesOfPeople,
+  personDecisions,
   peoplePage,
   peopleCursorOf,
   everyoneIn,

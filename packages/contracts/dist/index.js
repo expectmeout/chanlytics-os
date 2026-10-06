@@ -18550,9 +18550,14 @@ function proposalAction(replyVia, win, sentWords2) {
     ready: false
   };
 }
+var EMAIL_STOPPED_TAG = "stopped accepting mail";
+function emailFactWords(email, stopped) {
+  return stopped ? `${email} \xB7 ${EMAIL_STOPPED_TAG}` : email;
+}
 function repliesWords(via, window, stop) {
   if (stop.optedOut) return optOutWords(stop.who);
-  if (via === "Email") return "Any time, by email";
+  if (via === "Email")
+    return stop.emailStopped ? `Email can't reach them: their address ${EMAIL_STOPPED_TAG}` : "Any time, by email";
   if (via === "Text") return "Any time, by text";
   if (via !== "WhatsApp" || !window) return null;
   if (!window.open) return "Approved messages only, until they write again";
@@ -20413,8 +20418,15 @@ function pipelinePeekDetail(p) {
     const dial = p.phone.replace(/[^\d+]/g, "");
     reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
   }
-  if (p.email) reach.push({ id: "email", label: W.email, words: p.email, call: null, copy: p.email });
-  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name }) : null;
+  if (p.email)
+    reach.push({
+      id: "email",
+      label: W.email,
+      words: emailFactWords(p.email, p.emailSuppressed),
+      call: null,
+      copy: p.email
+    });
+  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed }) : null;
   if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
   const history = p.timeline.filter((t) => t.kind === "deal" && !t.ahead).sort((a, b) => b.ts - a.ts).slice(0, 3).map((t) => ({ id: t.id, words: t.text, when: t.day }));
   return { reach, history };
@@ -23552,7 +23564,7 @@ function lastChannelOf(c) {
   return c === "whatsapp" || c === "sms" || c === "email" ? c : null;
 }
 function rowReachOf(r2, consent, ready) {
-  const facts = { lastChannel: lastChannelOf(r2.last_inbound_channel), emailSuppressed: !!r2.email_suppressed_at };
+  const facts = { lastChannel: lastChannelOf(r2.last_inbound_channel), emailSuppressed: isEmailStopped(r2) };
   return { ...facts, ...personReachOf({ consent, phone: r2.phone_e164, email: r2.email ?? null, ...facts }, ready) };
 }
 function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null, ready) {
@@ -24552,7 +24564,7 @@ function aboutOf({
 }) {
   const about = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
-  if (base.email) about.push({ k: "Email", v: base.email });
+  if (base.email) about.push({ k: "Email", v: emailFactWords(base.email, base.emailSuppressed) });
   if (proposal) about.push({ k: "Proposal", v: proposal.host });
   if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
   about.push({
@@ -24561,7 +24573,11 @@ function aboutOf({
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 ") || "\u2014" });
   if (base.hasChat && reply) {
-    const v = repliesWords(REPLY_VIA[reply.via], reply.window, { optedOut: base.stopped, who: base.name });
+    const v = repliesWords(REPLY_VIA[reply.via], reply.window, {
+      optedOut: base.stopped,
+      who: base.name,
+      emailStopped: base.emailSuppressed
+    });
     if (v) about.push({ k: "Replies", v });
   }
   if (profile.visits) {
@@ -30037,13 +30053,6 @@ function tzDayAndTime(iso, tz, now) {
 
 // src/today/today-facts.ts
 var QUOTE_MAX = 240;
-function todayClock(m) {
-  const localNow = new Date(m.window.now_local);
-  const valid = !Number.isNaN(localNow.getTime());
-  const clock3 = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
-  const datePart = valid ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} \xB7 ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}` : "";
-  return { clock: clock3, datePart };
-}
 function todayWires(m) {
   return m.channels.map((c) => ({
     kind: c.kind,
@@ -30125,7 +30134,6 @@ function todayFacts(input) {
     live: metrics.now,
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
-    ...todayClock(metrics),
     wires: todayWires(metrics),
     needsYouCount: openEsc.length,
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
@@ -30531,8 +30539,11 @@ function liveStillUp(c, heartbeatMs, nowMs) {
   if (!c.live) return false;
   return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
 }
+function callsStillUp(read, nowMs) {
+  return (read?.now ?? []).filter((c) => liveStillUp(c, read?.heartbeatMs ?? 0, nowMs));
+}
 function liveBar(vm, nowMs) {
-  const up = (vm?.now ?? []).filter((c2) => liveStillUp(c2, vm?.heartbeatMs ?? 0, nowMs));
+  const up = callsStillUp(vm, nowMs);
   if (up.length === 0) return null;
   if (up.length > 1) {
     return {
@@ -30630,7 +30641,6 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     wanted: live ? null : dto.wanted?.trim() || null,
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     followUp: live ? null : dto.follow_up?.trim() || null,
-    callerName: dto.caller_name?.trim() || null,
     lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
     transcript: turnsOf(dto)
   };
@@ -30957,7 +30967,6 @@ function todayQueue(f, callRows, empty) {
 function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null) {
   const f = todayFacts({ metrics: m, conversations, escalations, calls, now, searches });
   const { chips, lines, alert } = todayStanding(f);
-  const eyebrow = `${f.datePart} \xB7 ${f.clock} \xB7 ${m.workspace.name}`;
   const proof = todayProof(f.live, f.tz, now);
   const noReply = todayNoReply(f);
   const facts = todayAskFacts(f);
@@ -30965,7 +30974,6 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
     return {
       standing: {
-        eyebrow,
         chips,
         lines,
         alert: null,
@@ -30991,7 +30999,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const callRows = todayCallRows(f);
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
-    standing: { eyebrow, chips, lines, alert, headline, detail, tone },
+    standing: { chips, lines, alert, headline, detail, tone },
     needsYou,
     windowClosing: todayWindowClosing(f),
     recap: {
@@ -31512,7 +31520,7 @@ function buildNotificationFeed(input) {
         action: "Open in Inbox"
       });
     }
-    if (t.veto && t.veto.endsAtMs > now) {
+    if (t.veto && replyWaitsOnYou({ endsAtMs: t.veto.endsAtMs }, now)) {
       const held = t.veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
       items.push({
         key: `draft:${t.veto.messageId}`,
@@ -32533,6 +32541,443 @@ function platformQueue(q, nowMs = Date.now()) {
   return { rows, sentence: sentence2, unreadable: false, note };
 }
 
+// src/workspace/partner.ts
+var PARTNER_STATUSES = ["active", "paused", "closed"];
+var PARTNER_SHARE_BP_DEFAULT = 2500;
+var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
+var PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"];
+var PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"];
+var PARTNER_REVERSAL_KINDS = ["refund", "dispute", "dispute_won"];
+var PARTNER_HOLD_DAYS = 30;
+var PARTNER_CODE_MIN = 3;
+var PARTNER_CODE_MAX = 24;
+var CODE_SHAPE = /^[a-z0-9][a-z0-9-]{1,22}[a-z0-9]$/;
+var PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
+function cleanPartnerCode(raw) {
+  const code2 = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!code2) return { ok: false, reason: "Choose a code for your link." };
+  if (code2.length < PARTNER_CODE_MIN || code2.length > PARTNER_CODE_MAX)
+    return { ok: false, reason: `A code is ${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} characters.` };
+  if (!CODE_SHAPE.test(code2))
+    return { ok: false, reason: "Letters, digits and dashes only, starting and ending with a letter or digit." };
+  if (PARTNER_CODES_RESERVED.includes(code2)) return { ok: false, reason: "That code is reserved. Try another." };
+  return { ok: true, code: code2 };
+}
+var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
+var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
+var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
+var PARTNER_COOKIE = "chanlytics_partner";
+var PARTNER_COOKIE_DAYS = 30;
+function partnerCodeFromCookie(header) {
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() !== PARTNER_COOKIE) continue;
+    let value = part.slice(eq + 1).trim();
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      return null;
+    }
+    const cleaned = cleanPartnerCode(value);
+    return cleaned.ok ? cleaned.code : null;
+  }
+  return null;
+}
+var PARTNER_WORDS = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
+};
+function shareWords(shareBp) {
+  const pct3 = shareBp / 100;
+  const shown = Number.isInteger(pct3) ? String(pct3) : pct3.toFixed(1).replace(/\.0$/, "");
+  return `${shown}% of what it pays for its plan`;
+}
+function broughtWords(count2) {
+  if (count2 <= 0) return "No workspace has you as its partner yet.";
+  if (count2 === 1) return "1 workspace has you as its partner.";
+  return `${count2} workspaces have you as their partner.`;
+}
+var dayWords2 = (at3) => new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+function sumWords(rows, state) {
+  const of = rows.filter((r2) => r2.state === state && r2.earned_cents !== 0);
+  if (!of.length) return { words: moneyWords(0, rows[0]?.currency ?? "usd"), cents: 0 };
+  return {
+    words: of.map((r2) => moneyWords(r2.earned_cents, r2.currency)).join(" and "),
+    cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
+  };
+}
+function partnerEarningsWords(rows, nowMs = Date.now()) {
+  const list2 = rows ?? [];
+  const held = sumWords(list2, "held");
+  const payable = sumWords(list2, "payable");
+  const paid = sumWords(list2, "paid");
+  const next = list2.filter((r2) => r2.state === "held" && r2.next_payable_at).map((r2) => r2.next_payable_at).sort()[0];
+  return {
+    none: list2.every((r2) => r2.earned_cents === 0),
+    // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its
+    // date and not yet judged, is said as waiting rather than given a day that has gone.
+    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : next && Date.parse(next) > nowMs ? `${held.words} held, the first of it payable from ${dayWords2(next)} at the earliest.` : `${held.words} held, payable once each workspace it came from is qualified.`,
+    payable: payable.cents < 0 ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.` : `${payable.words} payable.`,
+    paid: `${paid.words} paid to date.`
+  };
+}
+function partnerVM(dto, origin, workspacesAsPartner, balance = []) {
+  return {
+    code: dto.code,
+    link: partnerLinkFor(dto.code, origin),
+    status: dto.status,
+    share: shareWords(dto.share_bp),
+    since: PARTNER_WORDS.since(dto.created_at),
+    brought: broughtWords(workspacesAsPartner),
+    standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
+    earnings: partnerEarningsWords(balance)
+  };
+}
+var PARTNER_STANDING_WORDS = {
+  pending: "Its share is judged once it has paid.",
+  qualified: null,
+  review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
+  disqualified: "Not eligible for a share."
+};
+var NEEDS_THE_PARTNER = ["broken", "stalled", "waiting_owner", "billing", "rehearsal"];
+function moneyLine(lines) {
+  if (!lines.length) return "Nothing earned from it yet.";
+  const say2 = (pick) => lines.map((l) => moneyWords(pick(l), l.currency)).join(" and ");
+  const toDate = lines.reduce((n, l) => n + l.held_cents + l.payable_cents + l.paid_cents, 0);
+  const month = lines.reduce((n, l) => n + l.month_cents, 0);
+  if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
+  return `${say2((l) => l.month_cents)} from this month's payments \xB7 ${say2((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
+}
+function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "active") {
+  const judged = platformRows(overview, nowMs);
+  const moneyOf = (id) => money2.filter((m) => m.tenant_id === id);
+  const standingOf2 = (id) => {
+    const s = moneyOf(id)[0]?.standing ?? "pending";
+    return PARTNER_STANDING_WORDS[s] ?? null;
+  };
+  const rows = judged.map((r2) => {
+    const v = PLATFORM_VERDICTS[r2.verdict];
+    return {
+      tenantId: r2.tenantId,
+      slug: r2.slug,
+      name: r2.name,
+      verdict: r2.verdict,
+      label: v.label,
+      tone: v.tone,
+      sentence: r2.sentence,
+      facts: [r2.facts.paying, r2.facts.answering, `texting ${r2.facts.texting}`, `heard ${r2.facts.heard}`].join(" \xB7 "),
+      standing: standingOf2(r2.tenantId),
+      money: moneyLine(moneyOf(r2.tenantId)),
+      onTeam: true
+    };
+  });
+  const seen = new Set(rows.map((r2) => r2.tenantId));
+  const off = [...new Map(money2.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
+  for (const m of off.sort((a, b) => a.name.localeCompare(b.name))) {
+    rows.push({
+      tenantId: m.tenant_id,
+      slug: null,
+      name: m.name,
+      verdict: null,
+      label: "Off the team",
+      tone: "plain",
+      sentence: status === "paused" ? "Your partner account is paused, so you are a viewer on its team until it is looked at." : status === "closed" ? "Your partner account is closed. Its details are its owner's." : m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
+      facts: null,
+      standing: standingOf2(m.tenant_id),
+      money: moneyLine(moneyOf(m.tenant_id)),
+      onTeam: m.on_team
+    });
+  }
+  const total = rows.length;
+  const live = rows.filter((r2) => r2.verdict === "live").length;
+  const needs2 = rows.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
+  const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
+  if (needs2) parts2.push(`${needs2} need${needs2 === 1 ? "s" : ""} you`);
+  return { rows, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
+}
+var PARTNER_STANDING_VERBS = {
+  qualified: "Qualify",
+  review: "Hold for review",
+  disqualified: "Disqualify"
+};
+function partnerStandingChoices(standing) {
+  return PARTNER_STANDINGS.filter((s) => s !== standing);
+}
+var PARTNER_STATUS_VERBS = {
+  active: "Restore",
+  paused: "Pause",
+  closed: "Close"
+};
+function partnerStatusChoices(status) {
+  return PARTNER_STATUSES.filter((s) => s !== status);
+}
+function partnerStatusOutcomeWords(code2, r2) {
+  const seats = `${r2.seats} ${r2.seats === 1 ? "workspace" : "workspaces"}`;
+  if (r2.status === "active")
+    return r2.seats ? `${code2} is restored, and a partner again on ${seats}.` : `${code2} is restored. No seat was waiting to be given back.`;
+  const what = r2.status === "closed" ? "closed" : "paused";
+  return r2.seats ? `${code2} is ${what}: a viewer on ${seats} now, and what they held there is released.` : `${code2} is ${what}. They held no partner seat to take.`;
+}
+function platformPartnerRows(rows) {
+  const seen = /* @__PURE__ */ new Set();
+  return rows.map((r2) => {
+    const first = !seen.has(r2.partner_id);
+    seen.add(r2.partner_id);
+    const cur = r2.currency ?? "usd";
+    const pct3 = r2.share_bp / 100;
+    const who = [
+      r2.email ?? "no address on file",
+      `${r2.workspaces} workspace${r2.workspaces === 1 ? "" : "s"}`,
+      r2.under_review ? `${r2.under_review} under review` : null,
+      `${Number.isInteger(pct3) ? pct3 : pct3.toFixed(1).replace(/\.0$/, "")}% of what each pays`,
+      r2.status === "active" ? null : r2.status
+    ].filter(Boolean);
+    const payable = r2.payable_cents;
+    const money2 = r2.currency === null ? "Nothing earned yet." : [
+      payable < 0 ? `${moneyWords(payable, cur)} to come off the next payout` : `${moneyWords(payable, cur)} payable`,
+      `${moneyWords(r2.held_cents, cur)} held`,
+      `${moneyWords(r2.paid_cents, cur)} paid to date`
+    ].join(" \xB7 ");
+    return {
+      partnerId: r2.partner_id,
+      code: r2.code,
+      who: who.join(" \xB7 "),
+      money: money2,
+      currency: r2.currency,
+      payableCents: payable,
+      canPay: r2.currency !== null && payable > 0,
+      payLabel: `Mark ${moneyWords(Math.max(payable, 0), cur)} as paid`,
+      tone: r2.status !== "active" ? "danger" : r2.under_review ? "warn" : payable > 0 ? "info" : "plain",
+      status: r2.status,
+      first,
+      statusChoices: partnerStatusChoices(r2.status).map((s) => ({ status: s, label: PARTNER_STATUS_VERBS[s] }))
+    };
+  });
+}
+function platformPartnerSummary(rows) {
+  const partners = new Set(rows.map((r2) => r2.partner_id)).size;
+  if (!partners) return "No partners yet.";
+  const byCur = /* @__PURE__ */ new Map();
+  for (const r2 of rows)
+    if (r2.currency && r2.payable_cents > 0) byCur.set(r2.currency, (byCur.get(r2.currency) ?? 0) + r2.payable_cents);
+  const review = [...new Map(rows.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
+  const parts2 = [`${partners} partner${partners === 1 ? "" : "s"}`];
+  parts2.push(byCur.size ? `${[...byCur].map(([c, n]) => moneyWords(n, c)).join(" and ")} payable` : "nothing payable");
+  if (review) parts2.push(`${review} workspace${review === 1 ? "" : "s"} under review`);
+  return parts2.join(" \xB7 ");
+}
+var STANDING_LABELS = {
+  qualified: "Qualified",
+  review: "Under review",
+  disqualified: "Disqualified"
+};
+var DECIDED_BY_WORDS = {
+  person: " (decided by a person)",
+  sweep: " (the nightly check)",
+  joining: " (as the partner joined)"
+};
+var BY_ORIGIN = {
+  link: (code2) => `Brought by ${code2}`,
+  handover: (code2) => `Set up and handed over by ${code2}`,
+  invite: (code2) => `${code2}, asked in by its owner`
+};
+function platformPartnerStanding(w) {
+  const label = w.standing ? STANDING_LABELS[w.standing] ?? w.standing : "Not judged yet";
+  const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
+  const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
+  return {
+    by: (BY_ORIGIN[w.origin ?? "link"] ?? BY_ORIGIN.link)(w.code),
+    standing: `${label}${whose}${why}`,
+    tone: w.standing === "review" ? "warn" : w.standing === "disqualified" ? "danger" : w.standing === "qualified" ? "ok" : "plain",
+    choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
+  };
+}
+var CODE_IGNORED_WHY = {
+  unknown: "no partner has that code",
+  paused: "that partner's account is paused",
+  closed: "that partner's account is closed",
+  self: "it was their own code"
+};
+var REVERSED_WORDS = {
+  refund: "a payment was refunded",
+  dispute: "a payment was disputed",
+  dispute_won: "a dispute was won"
+};
+function partnerEventBits(kind, p) {
+  const text = (k) => typeof p[k] === "string" && p[k] ? p[k] : null;
+  const known = (words3, k) => {
+    const said = text(k);
+    const word = said !== null && Object.hasOwn(words3, said) ? words3[said] ?? null : null;
+    return word === null ? [] : [word];
+  };
+  switch (kind) {
+    case "partner.code_ignored":
+      return known(CODE_IGNORED_WHY, "why");
+    case "partner.reversed":
+      return known(REVERSED_WORDS, "kind");
+    case "partner.standing_set": {
+      const label = known(STANDING_LABELS, "standing")[0];
+      const by = text("by");
+      const whose = by !== null && Object.hasOwn(DECIDED_BY_WORDS, by) ? DECIDED_BY_WORDS[by] : "";
+      return label ? [`${label}${whose}`] : [];
+    }
+    case "partner.handover_sent":
+      return p.again === true ? ["sent again"] : [];
+    case "partner.invite_accepted":
+      return p.earns === false ? ["it was already paying, so it earns no share"] : [];
+    default:
+      return [];
+  }
+}
+function partnerPayoutOutcomeWords(code2, r2) {
+  if (r2.changed)
+    return `Nothing was recorded: what is payable to ${code2} is now ${moneyWords(r2.total_cents, r2.currency)}, not what the card showed. Read the card again before you mark it.`;
+  if (r2.paid)
+    return `Recorded: ${moneyWords(r2.total_cents, r2.currency)} paid to ${code2}, settling ${r2.earnings ?? 0} ledger ${r2.earnings === 1 ? "line" : "lines"}.`;
+  if (r2.total_cents < 0)
+    return `Nothing to pay: refunds since the last payout take ${moneyWords(-r2.total_cents, r2.currency)}, which comes off their next share.`;
+  return "Nothing is payable to them in that currency, so nothing was recorded.";
+}
+function partnerStandingOutcomeWords(r2) {
+  const label = (STANDING_LABELS[r2.standing] ?? r2.standing).toLowerCase();
+  if (r2.standing === "disqualified")
+    return r2.voided ? `Disqualified. What it still held (${r2.voided} ${r2.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.` : "Disqualified. It earns nothing from now on; what was paid stays paid.";
+  if (r2.standing === "qualified")
+    return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
+  return `Now ${label}. What it holds waits until a person decides.`;
+}
+var partnerPaneUrl = (origin) => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
+var money = (rows) => rows.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
+var workspaceWords = (name) => name && name.trim() ? name.trim() : "A workspace you brought";
+var setUpWords = (name) => name && name.trim() ? name.trim() : "A workspace you set up";
+var whyWords = (why) => why && why.trim() ? ` Why: ${why.trim()}` : "";
+var REVERSAL_LINES = {
+  refund: (n, a) => `${n === 1 ? "A refund" : `${n} refunds`} took back ${a}.`,
+  dispute: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} took back ${a} while ${n === 1 ? "it is" : "they are"} settled.`,
+  dispute_won: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} settled in the business's favor gave back ${a}.`
+};
+function standingLine(s) {
+  const name = workspaceWords(s.workspace);
+  if (s.standing === "review")
+    return `${name} is under review: a person at Chanlytics looks at it before its share is paid.${whyWords(s.why)}`;
+  if (s.standing === "disqualified") return `${name} is not eligible for a share.${whyWords(s.why)}`;
+  return `${name} qualified: its shares are paid as each one's hold ends.${whyWords(s.why)}`;
+}
+function statusLine(s) {
+  if (s.status === "paused")
+    return `Your partner account is paused.${whyWords(s.why)} On the teams you joined you can read, not change, until it is restored.`;
+  if (s.status === "closed") return `Your partner account is closed.${whyWords(s.why)}`;
+  return "Your partner account is active again.";
+}
+function balanceRows(balance) {
+  return balance.flatMap((b) => [
+    { currency: b.currency, state: "held", earned_cents: b.held, next_payable_at: b.next_payable_at },
+    { currency: b.currency, state: "payable", earned_cents: b.payable, next_payable_at: null },
+    { currency: b.currency, state: "paid", earned_cents: b.paid, next_payable_at: null }
+  ]);
+}
+function partnerLetter(news, opts) {
+  const stand = partnerEarningsWords(balanceRows(news.balance), opts.nowMs);
+  const body = [
+    `Since ${dayWords2(opts.since)}:`,
+    "",
+    ...letterLines(news).map((l) => `- ${l}`),
+    "",
+    "Where you stand:",
+    ...stand.none ? [`- ${PARTNER_WORDS.noneYet}`] : [stand.held, stand.payable, stand.paid].map((l) => `- ${l}`),
+    "",
+    `See it all: ${partnerPaneUrl(opts.origin)}`,
+    "",
+    "You get this email when something changes, at most once a day. To stop it, turn it off in Settings \u203A Partner."
+  ].join("\n");
+  return { subject: letterSubject(news), body };
+}
+var sharesOf = (news) => news.written.filter((w) => w.kind === "share");
+var countOf2 = (rows) => rows.reduce((k, w) => k + w.count, 0);
+var nonZero = (rows) => rows.filter((r2) => r2.cents !== 0);
+function letterLines(news) {
+  const lines = [];
+  if (news.status) lines.push(statusLine(news.status));
+  for (const p of news.paid)
+    lines.push(`Paid: ${moneyWords(p.cents, p.currency)} on ${dayWords2(p.sent_at)}, reference ${p.reference}.`);
+  const shares = sharesOf(news);
+  if (shares.length) {
+    const n = countOf2(shares);
+    lines.push(
+      `You earned ${money(shares)} from ${n === 1 ? "1 payment" : `${n} payments`}, held ${PARTNER_HOLD_DAYS} days.`
+    );
+  }
+  for (const kind of PARTNER_REVERSAL_KINDS) {
+    const of = news.written.filter((w) => w.kind === kind);
+    if (of.length) lines.push(REVERSAL_LINES[kind](countOf2(of), money(of)));
+  }
+  const matured = nonZero(news.matured);
+  if (matured.length) lines.push(`${money(matured)} became payable.`);
+  const voided = nonZero(news.voided);
+  if (voided.length) lines.push(`${money(voided)} held will not be paid: its workspace is not eligible.`);
+  for (const s of news.standing) lines.push(standingLine(s));
+  for (const b of news.brought)
+    lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
+  for (const a of news.accepted ?? [])
+    lines.push(`${setUpWords(a)} has its owner now: they accepted it. Its share runs from its first payment.`);
+  for (const d of news.declined ?? [])
+    lines.push(`${setUpWords(d)} was declined by the owner you sent it to. Send it again, or to someone else.`);
+  return lines;
+}
+var LETTER_SUBJECTS = [
+  [(n) => n.status?.status === "closed", () => "Your Chanlytics partner account is closed"],
+  [(n) => n.status?.status === "paused", () => "Your Chanlytics partner account is paused"],
+  [(n) => n.paid.length > 0, (n) => `Chanlytics paid you ${money(n.paid)}`],
+  [
+    (n) => n.standing.some((s) => s.standing === "disqualified"),
+    () => "A workspace you brought is not eligible for a share"
+  ],
+  [(n) => n.standing.some((s) => s.standing === "review"), () => "A workspace you brought is under review"],
+  [(n) => (n.declined ?? []).length > 0, () => "A business declined the workspace you set up"],
+  [(n) => (n.accepted ?? []).length > 0, () => "A business took over the workspace you set up"],
+  [(n) => sharesOf(n).length > 0, (n) => `You earned ${money(sharesOf(n))}`]
+];
+function letterSubject(news) {
+  const rule2 = LETTER_SUBJECTS.find(([holds2]) => holds2(news));
+  return rule2 ? rule2[1](news) : "What changed in your partner account";
+}
+
 // src/workspace/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
 var ACTIVITY_NOISE_KINDS = [
@@ -32642,6 +33087,7 @@ var WORDS2 = {
   "google.connected": "Google Business Profile was connected",
   "google.disconnected": "Google Business Profile was disconnected",
   "google.replied": "A Google review was answered",
+  "google.reply_held": "A review reply was written and not posted",
   "mailbox.created": "The workspace's email address was set up",
   "mailbox.renamed": "The name on the workspace's email changed",
   "mailbox.offers_paused": "Offers by email were paused",
@@ -32652,6 +33098,11 @@ var WORDS2 = {
   "sending_domain.released": "A domain to send from is sending again",
   "sending_domain.resumed": "A domain to send from was resumed",
   "sending_domain.removed": "A domain to send from was removed",
+  "channel.connected": "A WhatsApp number was connected",
+  "lead.stage": "A lead moved",
+  "lead.emailed": "A lead was marked as emailed",
+  "lead.call": "A call to a lead was logged",
+  "lead.not_a_fit": "A lead was marked not a fit",
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
   "lead.converted": "A lead is Talking",
@@ -32660,6 +33111,21 @@ var WORDS2 = {
   "reach_out.replied": "A business wrote back to a reach-out",
   "reach_out.reply_undone": "A reply read as no was undone",
   "workspace.created": "The workspace was created",
+  "workspace.activated": "The workspace passed a milestone",
+  // The partner programme (0012), as the workspace's owner reads it; partnerEventBits says the rest of each.
+  "partner.attributed": "The workspace was made through a partner's link",
+  "partner.code_ignored": "A partner's code was not used",
+  "partner.earned": "A partner earned a share of a payment",
+  "partner.reversed": "A partner's share changed",
+  "partner.standing_set": "A partner's share was judged",
+  "partner.paid": "A partner was paid their share",
+  "partner.handover_sent": "A partner sent the workspace to its owner",
+  "partner.handover_accepted": "The owner accepted the workspace from its partner",
+  "partner.handover_declined": "The owner declined the workspace from its partner",
+  "partner.invited": "The workspace asked a partner to join",
+  "partner.invite_withdrawn": "The invitation to a partner was taken back",
+  "partner.invite_accepted": "A partner joined the workspace",
+  "partner.invite_declined": "A partner declined to join the workspace",
   "settings.changed": "Settings changed",
   "policy.changed": "An autonomy setting changed",
   "billing.updated": "Billing changed",
@@ -32712,6 +33178,44 @@ function offersPausedWords(p, base) {
   const why = OFFERS_PAUSED_WHY[textAt(p, "reason") ?? ""];
   return why ? `${base} \xB7 ${why}` : base;
 }
+var joinBits = (base, bits2) => {
+  const said = bits2.filter((b) => !!b);
+  return said.length ? `${base} \xB7 ${said.join(" \xB7 ")}` : base;
+};
+var wordOf = (words3, key) => key !== null && Object.hasOwn(words3, key) ? words3[key] ?? null : null;
+function leadStageWords(p, base) {
+  const n = numberAt(p, "count");
+  const head = p.bulk === true && n !== null ? `${plural(n, "lead")} moved` : base;
+  return joinBits(head, [wordOf(LEAD_STAGE_WORDS, textAt(p, "stage")), wordOf(LEAD_CLOSED_WORDS, textAt(p, "reason"))]);
+}
+function leadNotAFitWords(p, base) {
+  const n = numberAt(p, "count");
+  const head = p.bulk === true && n !== null ? `${plural(n, "lead")} ${n === 1 ? "was" : "were"} marked not a fit` : base;
+  return joinBits(head, [wordOf(LEAD_NOT_A_FIT_WORDS, textAt(p, "why"))]);
+}
+function leadEmailedWords(p, base) {
+  return textAt(p, "by") === "reach_out" ? "A reach-out email went to a lead" : base;
+}
+var ACTIVATED_WORDS = {
+  line_live: "its first line is answering",
+  first_reply: "its first reply went to a customer",
+  first_lead_search: "its first lead search was made"
+};
+var REPLY_HELD_WHY = { price: "it named a price", money: "it named money" };
+function sendBlockedWords(p, base) {
+  return joinBits(base, [wordOf(HELD_REASONS, textAt(p, "reason"))]);
+}
+var SEND_FAILED_WHY = {
+  receipt: "the provider reported it as not delivered, after taking it",
+  no_credentials: "the channel has no credentials to send with",
+  no_sender_for_channel: "nothing is set up to send on that channel"
+};
+function sendFailedWords(p, base) {
+  const reason = textAt(p, "reason");
+  const provider = numberAt(p, "http_status") === 0 ? "the provider gave no answer" : wordOf(HELD_REASONS, "send_failed");
+  const why = p.outcome === "unknown" ? "the provider didn't answer in time, so it may have gone" : wordOf(SEND_FAILED_WHY, reason) ?? (reason === "provider" ? provider : null);
+  return joinBits(base, [why]);
+}
 function runEndWords(kind, p, base) {
   const bits2 = [];
   const sent2 = numberAt(p, "sent");
@@ -32726,13 +33230,30 @@ function runEndWords(kind, p, base) {
   }
   return [base, ...bits2].join(" \xB7 ");
 }
-var WHOLE_SENTENCE = /* @__PURE__ */ new Map([
+var WHOLE_SENTENCE = new Map([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
   ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
   ["import", (p) => importWords(p)],
   ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
-  ["mailbox.offers_paused", offersPausedWords]
+  ["mailbox.offers_paused", offersPausedWords],
+  ["lead.stage", leadStageWords],
+  ["lead.not_a_fit", leadNotAFitWords],
+  ["lead.emailed", leadEmailedWords],
+  ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
+  ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
+  ["google.reply_held", (p, base) => joinBits(base, [wordOf(REPLY_HELD_WHY, textAt(p, "why"))])],
+  ["message.send_blocked", sendBlockedWords],
+  ["message.send_failed", sendFailedWords],
+  // A partner's standing is between the platform and the partner: the owner reads that it was judged, never the
+  // verdict or who gave it (the raw label said no more before these words).
+  ...EVENT_KINDS.filter((k) => k.startsWith("partner.") && k !== "partner.standing_set").map(
+    (k) => [
+      k,
+      (p, base) => joinBits(base, partnerEventBits(k, p))
+    ]
+  )
 ]);
 function activityWords(kind, payload) {
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
@@ -33041,406 +33562,6 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
-
-// src/workspace/partner.ts
-var PARTNER_STATUSES = ["active", "paused", "closed"];
-var PARTNER_SHARE_BP_DEFAULT = 2500;
-var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
-var PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"];
-var PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"];
-var PARTNER_REVERSAL_KINDS = ["refund", "dispute", "dispute_won"];
-var PARTNER_HOLD_DAYS = 30;
-var PARTNER_CODE_MIN = 3;
-var PARTNER_CODE_MAX = 24;
-var CODE_SHAPE = /^[a-z0-9][a-z0-9-]{1,22}[a-z0-9]$/;
-var PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
-function cleanPartnerCode(raw) {
-  const code2 = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  if (!code2) return { ok: false, reason: "Choose a code for your link." };
-  if (code2.length < PARTNER_CODE_MIN || code2.length > PARTNER_CODE_MAX)
-    return { ok: false, reason: `A code is ${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} characters.` };
-  if (!CODE_SHAPE.test(code2))
-    return { ok: false, reason: "Letters, digits and dashes only, starting and ending with a letter or digit." };
-  if (PARTNER_CODES_RESERVED.includes(code2)) return { ok: false, reason: "That code is reserved. Try another." };
-  return { ok: true, code: code2 };
-}
-var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
-var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
-var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
-var PARTNER_COOKIE = "chanlytics_partner";
-var PARTNER_COOKIE_DAYS = 30;
-function partnerCodeFromCookie(header) {
-  if (!header) return null;
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=");
-    if (eq < 0) continue;
-    if (part.slice(0, eq).trim() !== PARTNER_COOKIE) continue;
-    let value = part.slice(eq + 1).trim();
-    try {
-      value = decodeURIComponent(value);
-    } catch {
-      return null;
-    }
-    const cleaned = cleanPartnerCode(value);
-    return cleaned.ok ? cleaned.code : null;
-  }
-  return null;
-}
-var PARTNER_WORDS = {
-  tab: "Partner",
-  title: "Bring a business to Chanlytics",
-  /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
-  codeLabel: "Your code",
-  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
-  termsAgree: "I agree to these terms.",
-  become: "Become a partner",
-  becoming: "Setting you up\u2026",
-  linkLabel: "Your link",
-  copy: "Copy link",
-  copied: "Copied",
-  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
-  paused: "Your partner account is paused. Write to us to have it looked at.",
-  closed: "Your partner account is closed.",
-  reading: "Reading your partner account\u2026",
-  failed: "your partner account",
-  /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner",
-  earnings: "Earnings",
-  workspaces: "Your workspaces",
-  open: "Open",
-  readingWorkspaces: "Reading your workspaces\u2026",
-  failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
-  /**
-   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
-   * owner's yes. Their price does not change; the share is Chanlytics'.
-   */
-  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
-  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
-  /** The pane's switch for the daily letter (0014). */
-  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
-  lettersFailed: "your email setting"
-};
-function shareWords(shareBp) {
-  const pct3 = shareBp / 100;
-  const shown = Number.isInteger(pct3) ? String(pct3) : pct3.toFixed(1).replace(/\.0$/, "");
-  return `${shown}% of what it pays for its plan`;
-}
-function broughtWords(count2) {
-  if (count2 <= 0) return "No workspace has you as its partner yet.";
-  if (count2 === 1) return "1 workspace has you as its partner.";
-  return `${count2} workspaces have you as their partner.`;
-}
-var dayWords2 = (at3) => new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-function sumWords(rows, state) {
-  const of = rows.filter((r2) => r2.state === state && r2.earned_cents !== 0);
-  if (!of.length) return { words: moneyWords(0, rows[0]?.currency ?? "usd"), cents: 0 };
-  return {
-    words: of.map((r2) => moneyWords(r2.earned_cents, r2.currency)).join(" and "),
-    cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
-  };
-}
-function partnerEarningsWords(rows, nowMs = Date.now()) {
-  const list2 = rows ?? [];
-  const held = sumWords(list2, "held");
-  const payable = sumWords(list2, "payable");
-  const paid = sumWords(list2, "paid");
-  const next = list2.filter((r2) => r2.state === "held" && r2.next_payable_at).map((r2) => r2.next_payable_at).sort()[0];
-  return {
-    none: list2.every((r2) => r2.earned_cents === 0),
-    // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its
-    // date and not yet judged, is said as waiting rather than given a day that has gone.
-    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : next && Date.parse(next) > nowMs ? `${held.words} held, the first of it payable from ${dayWords2(next)} at the earliest.` : `${held.words} held, payable once each workspace it came from is qualified.`,
-    payable: payable.cents < 0 ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.` : `${payable.words} payable.`,
-    paid: `${paid.words} paid to date.`
-  };
-}
-function partnerVM(dto, origin, workspacesAsPartner, balance = []) {
-  return {
-    code: dto.code,
-    link: partnerLinkFor(dto.code, origin),
-    status: dto.status,
-    share: shareWords(dto.share_bp),
-    since: PARTNER_WORDS.since(dto.created_at),
-    brought: broughtWords(workspacesAsPartner),
-    standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
-    earnings: partnerEarningsWords(balance)
-  };
-}
-var PARTNER_STANDING_WORDS = {
-  pending: "Its share is judged once it has paid.",
-  qualified: null,
-  review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
-  disqualified: "Not eligible for a share."
-};
-var NEEDS_THE_PARTNER = ["broken", "stalled", "waiting_owner", "billing", "rehearsal"];
-function moneyLine(lines) {
-  if (!lines.length) return "Nothing earned from it yet.";
-  const say2 = (pick) => lines.map((l) => moneyWords(pick(l), l.currency)).join(" and ");
-  const toDate = lines.reduce((n, l) => n + l.held_cents + l.payable_cents + l.paid_cents, 0);
-  const month = lines.reduce((n, l) => n + l.month_cents, 0);
-  if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
-  return `${say2((l) => l.month_cents)} from this month's payments \xB7 ${say2((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
-}
-function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "active") {
-  const judged = platformRows(overview, nowMs);
-  const moneyOf = (id) => money2.filter((m) => m.tenant_id === id);
-  const standingOf2 = (id) => {
-    const s = moneyOf(id)[0]?.standing ?? "pending";
-    return PARTNER_STANDING_WORDS[s] ?? null;
-  };
-  const rows = judged.map((r2) => {
-    const v = PLATFORM_VERDICTS[r2.verdict];
-    return {
-      tenantId: r2.tenantId,
-      slug: r2.slug,
-      name: r2.name,
-      verdict: r2.verdict,
-      label: v.label,
-      tone: v.tone,
-      sentence: r2.sentence,
-      facts: [r2.facts.paying, r2.facts.answering, `texting ${r2.facts.texting}`, `heard ${r2.facts.heard}`].join(" \xB7 "),
-      standing: standingOf2(r2.tenantId),
-      money: moneyLine(moneyOf(r2.tenantId)),
-      onTeam: true
-    };
-  });
-  const seen = new Set(rows.map((r2) => r2.tenantId));
-  const off = [...new Map(money2.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
-  for (const m of off.sort((a, b) => a.name.localeCompare(b.name))) {
-    rows.push({
-      tenantId: m.tenant_id,
-      slug: null,
-      name: m.name,
-      verdict: null,
-      label: "Off the team",
-      tone: "plain",
-      sentence: status === "paused" ? "Your partner account is paused, so you are a viewer on its team until it is looked at." : status === "closed" ? "Your partner account is closed. Its details are its owner's." : m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
-      facts: null,
-      standing: standingOf2(m.tenant_id),
-      money: moneyLine(moneyOf(m.tenant_id)),
-      onTeam: m.on_team
-    });
-  }
-  const total = rows.length;
-  const live = rows.filter((r2) => r2.verdict === "live").length;
-  const needs2 = rows.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
-  const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
-  if (needs2) parts2.push(`${needs2} need${needs2 === 1 ? "s" : ""} you`);
-  return { rows, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
-}
-var PARTNER_STANDING_VERBS = {
-  qualified: "Qualify",
-  review: "Hold for review",
-  disqualified: "Disqualify"
-};
-function partnerStandingChoices(standing) {
-  return PARTNER_STANDINGS.filter((s) => s !== standing);
-}
-var PARTNER_STATUS_VERBS = {
-  active: "Restore",
-  paused: "Pause",
-  closed: "Close"
-};
-function partnerStatusChoices(status) {
-  return PARTNER_STATUSES.filter((s) => s !== status);
-}
-function partnerStatusOutcomeWords(code2, r2) {
-  const seats = `${r2.seats} ${r2.seats === 1 ? "workspace" : "workspaces"}`;
-  if (r2.status === "active")
-    return r2.seats ? `${code2} is restored, and a partner again on ${seats}.` : `${code2} is restored. No seat was waiting to be given back.`;
-  const what = r2.status === "closed" ? "closed" : "paused";
-  return r2.seats ? `${code2} is ${what}: a viewer on ${seats} now, and what they held there is released.` : `${code2} is ${what}. They held no partner seat to take.`;
-}
-function platformPartnerRows(rows) {
-  const seen = /* @__PURE__ */ new Set();
-  return rows.map((r2) => {
-    const first = !seen.has(r2.partner_id);
-    seen.add(r2.partner_id);
-    const cur = r2.currency ?? "usd";
-    const pct3 = r2.share_bp / 100;
-    const who = [
-      r2.email ?? "no address on file",
-      `${r2.workspaces} workspace${r2.workspaces === 1 ? "" : "s"}`,
-      r2.under_review ? `${r2.under_review} under review` : null,
-      `${Number.isInteger(pct3) ? pct3 : pct3.toFixed(1).replace(/\.0$/, "")}% of what each pays`,
-      r2.status === "active" ? null : r2.status
-    ].filter(Boolean);
-    const payable = r2.payable_cents;
-    const money2 = r2.currency === null ? "Nothing earned yet." : [
-      payable < 0 ? `${moneyWords(payable, cur)} to come off the next payout` : `${moneyWords(payable, cur)} payable`,
-      `${moneyWords(r2.held_cents, cur)} held`,
-      `${moneyWords(r2.paid_cents, cur)} paid to date`
-    ].join(" \xB7 ");
-    return {
-      partnerId: r2.partner_id,
-      code: r2.code,
-      who: who.join(" \xB7 "),
-      money: money2,
-      currency: r2.currency,
-      payableCents: payable,
-      canPay: r2.currency !== null && payable > 0,
-      payLabel: `Mark ${moneyWords(Math.max(payable, 0), cur)} as paid`,
-      tone: r2.status !== "active" ? "danger" : r2.under_review ? "warn" : payable > 0 ? "info" : "plain",
-      status: r2.status,
-      first,
-      statusChoices: partnerStatusChoices(r2.status).map((s) => ({ status: s, label: PARTNER_STATUS_VERBS[s] }))
-    };
-  });
-}
-function platformPartnerSummary(rows) {
-  const partners = new Set(rows.map((r2) => r2.partner_id)).size;
-  if (!partners) return "No partners yet.";
-  const byCur = /* @__PURE__ */ new Map();
-  for (const r2 of rows)
-    if (r2.currency && r2.payable_cents > 0) byCur.set(r2.currency, (byCur.get(r2.currency) ?? 0) + r2.payable_cents);
-  const review = [...new Map(rows.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
-  const parts2 = [`${partners} partner${partners === 1 ? "" : "s"}`];
-  parts2.push(byCur.size ? `${[...byCur].map(([c, n]) => moneyWords(n, c)).join(" and ")} payable` : "nothing payable");
-  if (review) parts2.push(`${review} workspace${review === 1 ? "" : "s"} under review`);
-  return parts2.join(" \xB7 ");
-}
-var STANDING_LABELS = {
-  qualified: "Qualified",
-  review: "Under review",
-  disqualified: "Disqualified"
-};
-var DECIDED_BY_WORDS = {
-  person: " (decided by a person)",
-  sweep: " (the nightly check)",
-  joining: " (as the partner joined)"
-};
-var BY_ORIGIN = {
-  link: (code2) => `Brought by ${code2}`,
-  handover: (code2) => `Set up and handed over by ${code2}`,
-  invite: (code2) => `${code2}, asked in by its owner`
-};
-function platformPartnerStanding(w) {
-  const label = w.standing ? STANDING_LABELS[w.standing] ?? w.standing : "Not judged yet";
-  const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
-  const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
-  return {
-    by: (BY_ORIGIN[w.origin ?? "link"] ?? BY_ORIGIN.link)(w.code),
-    standing: `${label}${whose}${why}`,
-    tone: w.standing === "review" ? "warn" : w.standing === "disqualified" ? "danger" : w.standing === "qualified" ? "ok" : "plain",
-    choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
-  };
-}
-function partnerPayoutOutcomeWords(code2, r2) {
-  if (r2.changed)
-    return `Nothing was recorded: what is payable to ${code2} is now ${moneyWords(r2.total_cents, r2.currency)}, not what the card showed. Read the card again before you mark it.`;
-  if (r2.paid)
-    return `Recorded: ${moneyWords(r2.total_cents, r2.currency)} paid to ${code2}, settling ${r2.earnings ?? 0} ledger ${r2.earnings === 1 ? "line" : "lines"}.`;
-  if (r2.total_cents < 0)
-    return `Nothing to pay: refunds since the last payout take ${moneyWords(-r2.total_cents, r2.currency)}, which comes off their next share.`;
-  return "Nothing is payable to them in that currency, so nothing was recorded.";
-}
-function partnerStandingOutcomeWords(r2) {
-  const label = (STANDING_LABELS[r2.standing] ?? r2.standing).toLowerCase();
-  if (r2.standing === "disqualified")
-    return r2.voided ? `Disqualified. What it still held (${r2.voided} ${r2.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.` : "Disqualified. It earns nothing from now on; what was paid stays paid.";
-  if (r2.standing === "qualified")
-    return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
-  return `Now ${label}. What it holds waits until a person decides.`;
-}
-var partnerPaneUrl = (origin) => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
-var money = (rows) => rows.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
-var workspaceWords = (name) => name && name.trim() ? name.trim() : "A workspace you brought";
-var setUpWords = (name) => name && name.trim() ? name.trim() : "A workspace you set up";
-var whyWords = (why) => why && why.trim() ? ` Why: ${why.trim()}` : "";
-var REVERSAL_LINES = {
-  refund: (n, a) => `${n === 1 ? "A refund" : `${n} refunds`} took back ${a}.`,
-  dispute: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} took back ${a} while ${n === 1 ? "it is" : "they are"} settled.`,
-  dispute_won: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} settled in the business's favor gave back ${a}.`
-};
-function standingLine(s) {
-  const name = workspaceWords(s.workspace);
-  if (s.standing === "review")
-    return `${name} is under review: a person at Chanlytics looks at it before its share is paid.${whyWords(s.why)}`;
-  if (s.standing === "disqualified") return `${name} is not eligible for a share.${whyWords(s.why)}`;
-  return `${name} qualified: its shares are paid as each one's hold ends.${whyWords(s.why)}`;
-}
-function statusLine(s) {
-  if (s.status === "paused")
-    return `Your partner account is paused.${whyWords(s.why)} On the teams you joined you can read, not change, until it is restored.`;
-  if (s.status === "closed") return `Your partner account is closed.${whyWords(s.why)}`;
-  return "Your partner account is active again.";
-}
-function balanceRows(balance) {
-  return balance.flatMap((b) => [
-    { currency: b.currency, state: "held", earned_cents: b.held, next_payable_at: b.next_payable_at },
-    { currency: b.currency, state: "payable", earned_cents: b.payable, next_payable_at: null },
-    { currency: b.currency, state: "paid", earned_cents: b.paid, next_payable_at: null }
-  ]);
-}
-function partnerLetter(news, opts) {
-  const stand = partnerEarningsWords(balanceRows(news.balance), opts.nowMs);
-  const body = [
-    `Since ${dayWords2(opts.since)}:`,
-    "",
-    ...letterLines(news).map((l) => `- ${l}`),
-    "",
-    "Where you stand:",
-    ...stand.none ? [`- ${PARTNER_WORDS.noneYet}`] : [stand.held, stand.payable, stand.paid].map((l) => `- ${l}`),
-    "",
-    `See it all: ${partnerPaneUrl(opts.origin)}`,
-    "",
-    "You get this email when something changes, at most once a day. To stop it, turn it off in Settings \u203A Partner."
-  ].join("\n");
-  return { subject: letterSubject(news), body };
-}
-var sharesOf = (news) => news.written.filter((w) => w.kind === "share");
-var countOf2 = (rows) => rows.reduce((k, w) => k + w.count, 0);
-var nonZero = (rows) => rows.filter((r2) => r2.cents !== 0);
-function letterLines(news) {
-  const lines = [];
-  if (news.status) lines.push(statusLine(news.status));
-  for (const p of news.paid)
-    lines.push(`Paid: ${moneyWords(p.cents, p.currency)} on ${dayWords2(p.sent_at)}, reference ${p.reference}.`);
-  const shares = sharesOf(news);
-  if (shares.length) {
-    const n = countOf2(shares);
-    lines.push(
-      `You earned ${money(shares)} from ${n === 1 ? "1 payment" : `${n} payments`}, held ${PARTNER_HOLD_DAYS} days.`
-    );
-  }
-  for (const kind of PARTNER_REVERSAL_KINDS) {
-    const of = news.written.filter((w) => w.kind === kind);
-    if (of.length) lines.push(REVERSAL_LINES[kind](countOf2(of), money(of)));
-  }
-  const matured = nonZero(news.matured);
-  if (matured.length) lines.push(`${money(matured)} became payable.`);
-  const voided = nonZero(news.voided);
-  if (voided.length) lines.push(`${money(voided)} held will not be paid: its workspace is not eligible.`);
-  for (const s of news.standing) lines.push(standingLine(s));
-  for (const b of news.brought)
-    lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
-  for (const a of news.accepted ?? [])
-    lines.push(`${setUpWords(a)} has its owner now: they accepted it. Its share runs from its first payment.`);
-  for (const d of news.declined ?? [])
-    lines.push(`${setUpWords(d)} was declined by the owner you sent it to. Send it again, or to someone else.`);
-  return lines;
-}
-var LETTER_SUBJECTS = [
-  [(n) => n.status?.status === "closed", () => "Your Chanlytics partner account is closed"],
-  [(n) => n.status?.status === "paused", () => "Your Chanlytics partner account is paused"],
-  [(n) => n.paid.length > 0, (n) => `Chanlytics paid you ${money(n.paid)}`],
-  [
-    (n) => n.standing.some((s) => s.standing === "disqualified"),
-    () => "A workspace you brought is not eligible for a share"
-  ],
-  [(n) => n.standing.some((s) => s.standing === "review"), () => "A workspace you brought is under review"],
-  [(n) => (n.declined ?? []).length > 0, () => "A business declined the workspace you set up"],
-  [(n) => (n.accepted ?? []).length > 0, () => "A business took over the workspace you set up"],
-  [(n) => sharesOf(n).length > 0, (n) => `You earned ${money(sharesOf(n))}`]
-];
-function letterSubject(news) {
-  const rule2 = LETTER_SUBJECTS.find(([holds2]) => holds2(news));
-  return rule2 ? rule2[1](news) : "What changed in your partner account";
-}
 
 // src/workspace/partner-schema.ts
 import { z as z20 } from "zod";
@@ -34707,6 +34828,7 @@ export {
   callTodoWords,
   callerName,
   callsAnswer,
+  callsStillUp,
   callsToday,
   cameFromOf,
   campaignEmailRules,

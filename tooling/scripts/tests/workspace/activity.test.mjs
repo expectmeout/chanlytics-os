@@ -634,3 +634,200 @@ test("an import says what its part of the list did, in counts", () => {
     "a part that stopped at a fault does not read as a clean import",
   );
 });
+
+/**
+ * `humanize`, the fallback for a kind with no words of its own: "lead.stage" reads "Lead · stage". It is the right answer
+ * for a kind nobody has met yet and the wrong one for a kind the product writes, which an owner then reads raw.
+ */
+const rawLabel = (kind) => {
+  const [family, rest] = kind.split(".", 2);
+  const tail = (rest ?? "").replace(/_/g, " ");
+  return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` · ${tail}` : ""}`;
+};
+
+test("B13: every kind either ledger writes has words of its own, so no owner reads 'Lead · stage' or 'Partner · earned'", () => {
+  const raw = [...DECISION_VERBS, ...EVENT_KINDS].filter((k) => activityWords(k, {}) === rawLabel(k));
+  assert.deepEqual(raw, [], "these still fall to the raw label; give each its words");
+});
+
+test("a lead's life says what happened, from the fields its writers file, in the words the Leads page uses", () => {
+  // lead_set_stage (00220): the stage it went to, and why when it was closed; the reply's undo and the bulk door write it too.
+  assert.equal(activityWords("lead.stage", { stage: "nurture", reason: null, by: "u1" }), "A lead moved · Contacted");
+  assert.equal(
+    activityWords("lead.stage", { stage: "archived", reason: "said_no", by: "u1" }),
+    "A lead moved · Closed · Said no",
+  );
+  assert.equal(
+    activityWords("lead.stage", { stage: "archived", reason: "stale", count: 12, bulk: true, by: "u1" }),
+    "12 leads moved · Closed · Went quiet",
+    "the bulk door writes one row for the act, with its count",
+  );
+  assert.equal(activityWords("lead.stage", { stage: "ready", count: 1, bulk: true }), "1 lead moved · Ready");
+  assert.equal(
+    activityWords("lead.stage", { stage: "toString", reason: "constructor" }),
+    "A lead moved",
+    "a stage or a reason the sets do not hold says nothing, and a key of Object's own is not one",
+  );
+  // lead.call carries the owner's note, which is theirs and never on this screen.
+  assert.equal(
+    activityWords("lead.call", { outcome: "voicemail", note: "SECRET", by: "u1" }),
+    "A call to a lead was logged · Left a voicemail",
+  );
+  assert.equal(activityWords("lead.call", { outcome: "mystery" }), "A call to a lead was logged");
+  // lead.emailed has two writers: the owner's word that they sent it, and a reach-out's own email.
+  assert.equal(activityWords("lead.emailed", { by: "u1" }), "A lead was marked as emailed");
+  assert.equal(
+    activityWords("lead.emailed", { by: "reach_out", send_id: "s1" }),
+    "A reach-out email went to a lead",
+    "what is recorded of the owner's is their word; a reach-out's email is the product's own act",
+  );
+  assert.equal(
+    activityWords("lead.not_a_fit", { why: "chain", by: "u1" }),
+    "A lead was marked not a fit · A chain or franchise",
+  );
+  assert.equal(activityWords("lead.not_a_fit", { why: null, by: "u1" }), "A lead was marked not a fit");
+  assert.equal(activityWords("lead.not_a_fit", { why: null, count: 3, bulk: true }), "3 leads were marked not a fit");
+  assert.equal(activityWords("lead.not_a_fit", { why: null, count: 1, bulk: true }), "1 lead was marked not a fit");
+});
+
+test("a WhatsApp connection, a milestone and a held review reply say what they are, naming the few fields their writers file", () => {
+  assert.equal(
+    activityWords("channel.connected", {
+      kind: "whatsapp",
+      phone_number_id: "1",
+      waba_id: "2",
+      number_e164: "+15550100",
+      verified_name: "Harbor Moving",
+      by: "u1",
+    }),
+    "A WhatsApp number was connected · Harbor Moving",
+    "the business's verified name, and never the number or Meta's ids",
+  );
+  assert.equal(activityWords("channel.connected", { verified_name: null }), "A WhatsApp number was connected");
+  assert.equal(
+    activityWords("workspace.activated", { milestone: "line_live", via: "provision" }),
+    "The workspace passed a milestone · its first line is answering",
+  );
+  assert.equal(
+    activityWords("workspace.activated", { milestone: "first_reply", via: "x" }),
+    "The workspace passed a milestone · its first reply went to a customer",
+  );
+  assert.equal(
+    activityWords("workspace.activated", { milestone: "first_lead_search" }),
+    "The workspace passed a milestone · its first lead search was made",
+  );
+  assert.equal(activityWords("workspace.activated", { milestone: "new_one" }), "The workspace passed a milestone");
+  assert.equal(
+    activityWords("google.reply_held", { review_id: "r1", why: "price" }),
+    "A review reply was written and not posted · it named a price",
+  );
+  assert.equal(
+    activityWords("google.reply_held", { review_id: "r1", why: "money" }),
+    "A review reply was written and not posted · it named money",
+  );
+});
+
+test("the partner programme reads in the owner's words, with what each writer files and never an amount, an invoice or an id", () => {
+  const w = (kind, data) => activityWords(kind, { partner_id: "p1", invoice: "in_1", amount_cents: 4900, ...data });
+  assert.equal(
+    w("partner.attributed", { code: "ada-co", by: "u1" }),
+    "The workspace was made through a partner's link",
+  );
+  assert.equal(
+    w("partner.code_ignored", { why: "unknown" }),
+    "A partner's code was not used · no partner has that code",
+  );
+  assert.equal(
+    w("partner.code_ignored", { why: "paused" }),
+    "A partner's code was not used · that partner's account is paused",
+  );
+  assert.equal(w("partner.code_ignored", { why: "self" }), "A partner's code was not used · it was their own code");
+  assert.equal(
+    w("partner.earned", { earned_cents: 1225, currency: "usd" }),
+    "A partner earned a share of a payment",
+    "the share is between the partner and Chanlytics: no figure here",
+  );
+  assert.equal(
+    w("partner.reversed", { kind: "refund", earned_cents: -1225 }),
+    "A partner's share changed · a payment was refunded",
+  );
+  assert.equal(w("partner.reversed", { kind: "dispute" }), "A partner's share changed · a payment was disputed");
+  assert.equal(w("partner.reversed", { kind: "dispute_won" }), "A partner's share changed · a dispute was won");
+  // A partner's standing is between the platform and the partner: the owner reads that it was judged, not the verdict.
+  for (const p of [
+    { standing: "review", by: "sweep" },
+    { standing: "disqualified", from: "review", by: "person" },
+    { standing: "disqualified", by: "joining" },
+    { standing: "qualified" },
+  ])
+    assert.equal(w("partner.standing_set", p), "A partner's share was judged", JSON.stringify(p));
+  assert.equal(w("partner.paid", { payout_id: "o1", earned_cents: 4900 }), "A partner was paid their share");
+  assert.equal(w("partner.handover_sent", {}), "A partner sent the workspace to its owner");
+  assert.equal(w("partner.handover_sent", { again: true }), "A partner sent the workspace to its owner · sent again");
+  assert.equal(w("partner.handover_accepted", {}), "The owner accepted the workspace from its partner");
+  assert.equal(w("partner.handover_declined", {}), "The owner declined the workspace from its partner");
+  assert.equal(w("partner.invited", {}), "The workspace asked a partner to join");
+  assert.equal(w("partner.invite_withdrawn", {}), "The invitation to a partner was taken back");
+  assert.equal(w("partner.invite_accepted", { earns: true }), "A partner joined the workspace");
+  assert.equal(
+    w("partner.invite_accepted", { earns: false }),
+    "A partner joined the workspace · it was already paying, so it earns no share",
+  );
+  assert.equal(w("partner.invite_declined", {}), "A partner declined to join the workspace");
+  for (const k of EVENT_KINDS.filter((x) => x.startsWith("partner."))) {
+    assert.doesNotMatch(
+      w(k, { standing: "review", kind: "refund", why: "unknown" }),
+      /4900|1225|in_1|p1/,
+      `${k}: no figure or id`,
+    );
+  }
+});
+
+test("a message held at the wire, or that failed, says why where its event carries a reason", () => {
+  // message.send_blocked (core deliver.ts): the refusal's code, which a run's held people are given words for.
+  assert.equal(
+    activityWords("message.send_blocked", {
+      reason: "email_suppressed",
+      purpose: "reply",
+      consent: "opted_in",
+      dnc: false,
+    }),
+    "A message was held at the wire · their email address stopped accepting mail",
+  );
+  assert.equal(
+    activityWords("message.send_blocked", { reason: "superseded_by_human", after: "m1" }),
+    "A message was held at the wire · a person answered first",
+  );
+  assert.equal(
+    activityWords("message.send_blocked", { reason: "a_code_nobody_named" }),
+    "A message was held at the wire",
+  );
+  assert.equal(activityWords("message.send_blocked", { reason: null }), "A message was held at the wire");
+  // message.send_failed: { http_status?, body, reason, outcome? }. The provider's own words are on the message, not here.
+  assert.equal(
+    activityWords("message.send_failed", { http_status: 400, body: '{"error":{"code":131047}}', reason: "provider" }),
+    "A message could not be sent · the provider refused it",
+  );
+  assert.equal(
+    activityWords("message.send_failed", { http_status: 0, body: "timeout", reason: "provider" }),
+    "A message could not be sent · the provider gave no answer",
+  );
+  assert.equal(
+    activityWords("message.send_failed", { http_status: 0, body: "timeout", reason: "provider", outcome: "unknown" }),
+    "A message could not be sent · the provider didn't answer in time, so it may have gone",
+  );
+  assert.equal(
+    activityWords("message.send_failed", {
+      reason: "receipt",
+      outcome: "refused",
+      body: '{"errors":[{"code":131047}]}',
+    }),
+    "A message could not be sent · the provider reported it as not delivered, after taking it",
+    "a failure the provider reported after taking the message (#1415)",
+  );
+  assert.equal(
+    activityWords("message.send_failed", { http_status: 503, body: "no_credentials", reason: "no_credentials" }),
+    "A message could not be sent · the channel has no credentials to send with",
+  );
+  assert.equal(activityWords("message.send_failed", { reason: "something_new" }), "A message could not be sent");
+});

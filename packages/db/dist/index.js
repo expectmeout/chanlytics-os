@@ -355,6 +355,12 @@ async function namesOfPeople(db, tenantId, ids) {
   }
   return out;
 }
+var PERSON_DECISIONS = 500;
+async function personDecisions(db, tenantId, contactId, conversationIds) {
+  const { data, error } = await db.from("decisions").select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload").eq("tenant_id", tenantId).in("subject_type", ["contact", "conversation"]).in("subject_id", [contactId, ...conversationIds]).order("created_at", { ascending: false }).limit(PERSON_DECISIONS);
+  if (error) throw new Error(`person decisions: ${error.message}`);
+  return (data ?? []).map((d) => ({ ...d, payload: d.payload }));
+}
 function peopleCursorOf(row) {
   return row?.in_touch_at && row.added_at ? { at: row.in_touch_at, added: row.added_at, id: row.id } : null;
 }
@@ -3640,6 +3646,7 @@ export {
   pauseEmailOffers,
   peopleCursorOf,
   peoplePage,
+  personDecisions,
   personReplyMode,
   platformHoldStands,
   platformWide,
