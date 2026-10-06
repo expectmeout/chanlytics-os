@@ -40,7 +40,7 @@ directories over 20 modules           3
 window globals                      100   names
 window publishers                   176   sites in 53 files
 copies                               73   of 21 names
-as unknown as                       141
+as unknown as                       140
 as never                             13
 non-null assertions, x!             111
 index reads the compiler lets pass  476   in 127 files
@@ -49,18 +49,20 @@ SQL functions outside packages/db   129   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
+event-shaped clocks                   9   of the registered clocks (invariant 6)
+tables with more than one writer     56   388 writers among them
 breakpoints outside the set          35   in 11 files
 literal style values                990   in 23 stylesheets
 primitives outside the kit         1872   selectors naming 771 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     298
+dead exports, types and modules     297
 source-text reads in tests          767
 lint warnings                       355   in 153 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      715   the shell included
 workspace route CSS, KB gzipped     144
 workspace pages' own JS, KB        1257   gzipped, beyond the route, summed over 14 pages
-trees the lint's limits hold         44   15 of them with max-params waiting
+trees the lint's limits hold         45   15 of them with max-params waiting
 ```
 
 <!-- measured:end -->

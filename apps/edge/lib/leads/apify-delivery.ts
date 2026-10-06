@@ -16,6 +16,10 @@
  * called for nothing but aborting a run the row does not hold.
  *
  * Cross-workspace: the delivery names a run row; its token proves it and the row supplies the workspace.
+ *
+ * The intake ledger (provider_events, decision 0032, 00336) leaves this door out: its url carries the run's token,
+ * which the database keeps only as its hash, and its body is a pointer the collect reads the run back by, so a lost
+ * delivery is the provider's to send again.
  */
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";

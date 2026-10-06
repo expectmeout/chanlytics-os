@@ -12,6 +12,8 @@ import {
   PUSH_RECEIPTS_AFTER_MS,
   BELL_WINDOW_DAYS,
   REACH_OUT_REPLY_DAYS,
+  EVENT_SUBSCRIBERS,
+  type EventSubscriber,
 } from "@chanlytics/contracts";
 import {
   classifyReceived,
@@ -32,6 +34,7 @@ import {
   sendQueued,
   templatePurpose,
   type SendQueuedCommand,
+  SUBSCRIBERS,
 } from "@chanlytics/core";
 import {
   ingestInboundEmail,
@@ -41,6 +44,10 @@ import {
   sentEmailWithMessageId,
   stampMailboxReceived,
   type Json,
+  eventOfDelivery,
+  subscriptionPaused,
+  deliveryOf,
+  settleDelivery,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
@@ -383,6 +390,54 @@ async function pushReceipts(ctx: JobContext, job: ClaimedJob): Promise<void> {
   }
 }
 
+/** What an event_deliver job names, read from its payload as the relay wrote it (00334). */
+function deliveryNamed(payload: Record<string, unknown>): { eventId: string; subscriber: string; kind: string } | null {
+  const { event_id, subscriber, kind } = payload;
+  return typeof event_id === "string" && typeof subscriber === "string" && typeof kind === "string"
+    ? { eventId: event_id, subscriber, kind }
+    : null;
+}
+
+/** Whether a name is a subscriber this build knows (contracts EVENT_SUBSCRIBERS); one it does not is kept as an unknown kind. */
+function subscriberNamed(s: unknown): s is EventSubscriber {
+  return typeof s === "string" && EVENT_SUBSCRIBERS.some((known) => known === s);
+}
+
+/**
+ * One event's delivery to one subscriber (00334, decision 0032). The relay wrote the delivery row and this job; the
+ * subscriber runs over the event as the ledger holds it, and the row takes the verdict: done, paused when the
+ * subscription was paused as it ran (a re-drive brings it back), failed with why when the subscriber threw or the
+ * ledger no longer holds the event. A throw is thrown on, so the ledger tries again (RETRY_WAITS_MS) and the last try
+ * fails the job and tells the owner; every subscriber may run twice on one delivery and leaves the same rows.
+ */
+async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  const named = deliveryNamed(job.payload);
+  if (!named) throw new Error("event_deliver: the payload names no event, subscriber and kind");
+  const row = await deliveryOf(ctx.db, job.tenant_id, named.eventId, named.subscriber);
+  if (!row) throw new Error("event_deliver: the relay wrote no delivery for this job");
+  const settle = (state: "done" | "failed" | "paused", error: string | null) =>
+    settleDelivery(ctx.db, { tenantId: job.tenant_id, ...named, state, attempts: row.attempts + 1, error });
+  if (await subscriptionPaused(ctx.db, named.kind, named.subscriber)) {
+    await settle("paused", null);
+    return;
+  }
+  const event = await eventOfDelivery(ctx.db, job.tenant_id, named.eventId);
+  if (!event) {
+    await settle("failed", "the ledger no longer holds the event");
+    return;
+  }
+  // dispatchJob let the job through only for a subscriber this build knows.
+  if (!subscriberNamed(named.subscriber)) throw new Error(`event_deliver: no subscriber named ${named.subscriber}`);
+  const subscriber = SUBSCRIBERS[named.subscriber];
+  try {
+    await subscriber(event);
+  } catch (e) {
+    await settle("failed", e instanceof Error ? e.message : String(e));
+    throw e;
+  }
+  await settle("done", null);
+}
+
 /**
  * Every declared kind, and only those. `Record<JobKind, Handler>` is the
  * compiler's promise that a kind added to JOB_KINDS without a handler does
@@ -400,6 +455,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   push_send: pushSend,
   push_receipts: pushReceipts,
   reply_read: replyRead,
+  event_deliver: eventDeliver,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {
@@ -407,6 +463,8 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"do
   // and the tick fails the job loudly rather than guessing.
   const handler = (HANDLERS as Record<string, Handler | undefined>)[job.kind];
   if (!handler) return "unknown_kind";
+  // A delivery to a subscriber this build does not know is a row a newer deploy wrote (00334): kept, as a kind is.
+  if (job.kind === "event_deliver" && !subscriberNamed(job.payload.subscriber)) return "unknown_kind";
   // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,
   // the send it queued and the send's own lines are one search in the log; a job the database scheduled (a clock)
   // has none and runs as itself, named by its row.

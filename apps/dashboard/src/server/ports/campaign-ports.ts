@@ -18,6 +18,7 @@ import {
   holdRecipients,
   ownVersionsFiled,
   workspacePaused,
+  type Json,
 } from "@chanlytics/db";
 import type {
   ApproveRunPorts,
@@ -76,7 +77,22 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
           template_name: row.template_name,
           template_language: row.template_language,
           params: row.params,
-          audience: { kind: row.audience.kind, id: row.audience.id, label: row.audience.label },
+          // The list as it was counted rides with the audience (decision 0009, "sends remember"): dropped here, a
+          // broadcast forgot the token and the rule it was counted by, while a playbook's run kept them.
+          audience: {
+            kind: row.audience.kind,
+            id: row.audience.id,
+            label: row.audience.label,
+            ...(row.audience.list
+              ? {
+                  list: {
+                    token: row.audience.list.token,
+                    rule: row.audience.list.rule as Json,
+                    counted_at: row.audience.list.counted_at,
+                  },
+                }
+              : {}),
+          },
           state: row.state,
           scheduled_for: row.scheduled_for,
           recipient_count: row.recipient_count,

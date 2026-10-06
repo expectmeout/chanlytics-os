@@ -255,9 +255,9 @@
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {
-    "lines": 176,
-    "branches": 45,
-    "depth": 3
+    "lines": 143,
+    "branches": 42,
+    "depth": 1
   },
   "apps/edge/lib/whatsapp/persist.ts::pgSink#1": {
     "lines": 185,
@@ -270,8 +270,8 @@
     "depth": 2
   },
   "apps/edge/lib/whatsapp/webhook.ts::receiveWhatsappEvent#1": {
-    "lines": 169,
-    "branches": 51,
+    "lines": 157,
+    "branches": 48,
     "depth": 8
   },
   "packages/channels/src/lines/a2p-saga.ts::runA2PSaga#1": {

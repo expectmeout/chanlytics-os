@@ -79,7 +79,7 @@ export type CallStep =
       callId: string;
     }
   | { kind: "hold"; conversationId: string; retellCallId: string; over: boolean }
-  | { kind: "callback"; conversationId: string; details: string; callId: string }
+  | { kind: "callback"; conversationId: string; details: string; callId: string; endedAtIso: string | null }
   | {
       kind: "policy_block";
       conversationId: string;
@@ -283,6 +283,8 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
       conversationId: res.conversation_id,
       details: callbackTodo(n.analysis).slice(0, 400),
       callId: res.call_id,
+      // When the call ended, so the pause is measured from the call and not from this delivery (G9).
+      endedAtIso: n.endedAtIso,
     });
     about = { type: "conversation", id: res.conversation_id };
   }

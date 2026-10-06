@@ -124,6 +124,11 @@ const TABLES = [
   "person_moments",
   "person_notes",
   "platform_metrics",
+  // The spine (00334): an event's outbox row and its deliveries follow their workspace.
+  "event_outbox",
+  "event_deliveries",
+  // The intake ledger (00336): a provider's deliveries the door placed with the workspace.
+  "provider_events",
   "playbooks",
   "policies",
   "reach_out_check_spend",

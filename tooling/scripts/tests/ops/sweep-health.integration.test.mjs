@@ -46,6 +46,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00288 added 'sweep_voice_sessions', the nightly removal of voice sessions a day past their token.
   // 00314 added 'sending_domain_days', the nightly keeping of each sending domain's counters.
   // 00315 added 'channel_quality', the six-hourly read of each WhatsApp number's rating.
+  // 00336 added 'purge_provider_events', the nightly purge of the deliveries the intake ledger keeps a week.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -72,6 +73,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "purge_leads",
       "purge_notifications",
       "purge_page_vitals",
+      "purge_provider_events",
       "purge_rate_hits",
       "reach_out",
       "reach_out_check",
@@ -146,6 +148,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "purge_leads",
     "purge_notifications",
     "purge_page_vitals",
+    "purge_provider_events",
     "purge_rate_hits",
     "reach_out",
     "reach_out_check",

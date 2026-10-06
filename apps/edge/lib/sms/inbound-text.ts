@@ -24,7 +24,8 @@
  *
  * A text that is a one-time code another service sent (planSmsIngress's `code`) takes none of it: nothing is answered, kept,
  * handed to a person or paged, and the line says which service it read and never the code (`sms_code_skipped`). Twilio keeps
- * the text; the owner reads it from there (lib/lines/line-codes.ts), so a code is neither lost nor stored here.
+ * the text; the owner reads it from there (lib/lines/line-codes.ts), so a code is neither lost nor stored here: not as a
+ * message, and not as a kept delivery either (a code's delivery is the one the intake ledger never keeps).
  *
  * An accepted text then takes the same road a WhatsApp message takes: handleInbound (lib/whatsapp/inbound.ts, onto
  * core's answerInbound) with the line as its carrier (carrierFor) -- answered by the same brain under the same Autonomy
@@ -41,7 +42,8 @@
  */
 import { text } from "../http.js";
 import { pg } from "../pg.js";
-import { smsInboundFrom, smsAsWaMessage } from "../packages/channels.js";
+import { keepDelivery, signatureHeaders } from "../intake/keep.js";
+import { oneTimeCodeOf, smsInboundFrom, smsAsWaMessage } from "../packages/channels.js";
 import { smsSenderFor } from "./sms.js";
 import { planSmsIngress, carrierFor, smsAfterThrow } from "./sms-ingress.js";
 import { handleInbound } from "../whatsapp/inbound.js";
@@ -73,6 +75,28 @@ export async function receiveInboundText(request: Request): Promise<Response> {
     signature: request.headers.get("x-twilio-signature"),
     db,
   });
+  // Kept under Twilio's id once its signature held, before any verdict is acted on (decision 0032, 00336). Twilio never
+  // sends a text again, so one refused for a routing that could not be read, or a channel switched off, is the one a
+  // fix takes in by replay. A one-time code another service texted to the line is never kept, whatever its verdict: a
+  // replay of it would answer nothing, and Twilio already keeps it for the owner (lib/lines/line-codes.ts), so a code is
+  // a secret that is not ours to hold for a week.
+  const proven = oneTimeCodeOf(inbound.body)
+    ? null
+    : verdict.kind === "accept"
+      ? { tenantId: verdict.routed.tenantId }
+      : verdict.kind === "refuse"
+        ? verdict.proven
+        : null;
+  if (proven)
+    await keepDelivery(db, {
+      provider: "twilio",
+      id: inbound.messageSid,
+      door: "/api/inbound-sms",
+      url: request.url,
+      tenantId: proven.tenantId,
+      headers: signatureHeaders(request, ["x-twilio-signature"]),
+      body: raw,
+    });
   if (verdict.kind === "refuse") {
     if (verdict.level === "error") L.error(verdict.log);
     else L.warn(verdict.log);

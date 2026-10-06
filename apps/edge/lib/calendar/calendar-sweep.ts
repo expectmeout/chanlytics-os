@@ -34,7 +34,13 @@
  * tick ends in one calendar_sweep with the counts.
  */
 import { json } from "../http.js";
-import { calendarDue, markCalendarChecked, noteBacklog, CALENDAR_PER_TICK } from "../ops/sweep-rotation.js";
+import {
+  calendarDue,
+  markCalendarChecked,
+  noteBacklog,
+  CALENDAR_PER_TICK,
+  CALENDAR_SWEEP_BUDGET_MS,
+} from "../ops/sweep-rotation.js";
 import { feedItemsFor } from "./availability.js";
 import { addPeopleFromCalendar } from "./calendar-people.js";
 import { bookedFromCalendar } from "./reach-out-booked.js";
@@ -61,7 +67,14 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
   }
 
   const out = { tenants: 0, seen: 0, added: 0, named: 0, emailed: 0, booked: 0, failed: 0, remaining: page.remaining };
-  for (const row of page.rows) {
+  const startedAt = Date.now();
+  for (const [i, row] of page.rows.entries()) {
+    // Out of time: the rest of the page is remaining, not read, and not stamped.
+    if (Date.now() - startedAt > CALENDAR_SWEEP_BUDGET_MS) {
+      out.remaining += page.rows.length - i;
+      L.warn("calendar_sweep_over_budget", { unread: page.rows.length - i });
+      break;
+    }
     // A feed that could not be read, or a configuration that does not parse, is stamped as tried: retried the next
     // hour (the page's own gap), behind the feeds that can be read. Unstamped it kept the first place every hour, and
     // forty dead feeds held the page for every workspace.
@@ -115,7 +128,7 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
       await tried();
     }
   }
-  const backlog = await noteBacklog(db, "calendar", page.remaining);
+  const backlog = await noteBacklog(db, "calendar", out.remaining);
   L.info("calendar_sweep", { ...out, backlog_ticks: backlog.ticks });
   // One tick with work left over is the cap doing its job. Three in a row is
   // the queue growing faster than this sweep drains it, which sweep_health

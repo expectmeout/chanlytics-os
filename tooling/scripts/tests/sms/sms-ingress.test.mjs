@@ -214,6 +214,7 @@ test("a channel row that is missing or switched off is answered 200: Twilio must
     log: "sms_unroutable",
     level: "error",
     alert: "the sms channel row is missing or not active",
+    proven: { tenantId: T },
   });
   const gone = freshNumber();
   const missing = await plan(gone, world(gone, { channels: [] }));
@@ -229,6 +230,7 @@ test("a channel lookup that FAILED is 503, because that one is ours to retry", a
     log: "sms_routing_lookup_failed",
     level: "error",
     alert: "the sms channel row could not be read",
+    proven: { tenantId: T },
   });
   // The two must never share a status: one asks the provider to send the text
   // again, the other tells it never to.

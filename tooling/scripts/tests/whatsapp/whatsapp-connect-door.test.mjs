@@ -787,8 +787,53 @@ test("connect, a credential that cannot be written: the row would ride the envir
   assert.equal(tables.tenant_channels.length, 1);
   assert.equal(tables.tenant_channels[0].status, "disabled");
   assert.deepEqual(writes(db, "tenant_channels").at(-1).values, { status: "disabled" });
+  assert.ok(
+    !writes(db, "tenant_channels").some((w) => w.values?.status === "active"),
+    "the row was never active: a number routes only once its token is in Vault, so a crash between the two writes cannot leave a number that takes every message and answers none",
+  );
   assert.equal(tables.events.length, 0);
   assert.ok(!printed(body).includes(TOKEN));
+});
+
+test("connect, the order of the writes: the row is made disabled, the token goes into Vault, and only then does the number route; a row from an earlier connection keeps its own status until the token is in", async () => {
+  const fresh = use();
+  const m1 = meta();
+  let status, body;
+  try {
+    [status, body] = await answer(await knock(signedUp()));
+  } finally {
+    m1.restore();
+  }
+  assert.equal(status, 200, printed(body));
+  const made = fresh.db.seen.findIndex((s) => s.table === "tenant_channels" && s.op === "insert");
+  const kept = fresh.db.seen.findIndex((s) => s.rpc === "put_channel_credentials");
+  const live = fresh.db.seen.findIndex(
+    (s) => s.table === "tenant_channels" && s.op === "update" && s.values?.status === "active",
+  );
+  assert.ok(
+    made >= 0 && kept > made && live > kept,
+    `made ${made}, kept ${kept}, live ${live}: insert, Vault, then active`,
+  );
+  assert.equal(fresh.db.seen[made].values[0].status, "disabled", "a new row is written disabled");
+  assert.equal(fresh.tables.tenant_channels[0].status, "active", "and routes once the token is in");
+
+  // An earlier connection's row, active and taking messages: it is not switched off while Meta is asked and the
+  // token rewritten, so no message in between is told unroutable; it is confirmed active at the end.
+  const again = use({ tenant_channels: [held(A)] });
+  const m2 = meta();
+  try {
+    [status, body] = await answer(await knock(signedUp()));
+  } finally {
+    m2.restore();
+  }
+  assert.equal(status, 200, printed(body));
+  const touched = writes(again.db, "tenant_channels").map((w) => w.values?.status ?? null);
+  assert.deepEqual(
+    touched.filter((v) => v === "disabled"),
+    [],
+    "never disabled on the way: the only status written is active, after the token",
+  );
+  assert.equal(again.tables.tenant_channels[0].status, "active");
 });
 
 /* ============================== signup-config ============================== */

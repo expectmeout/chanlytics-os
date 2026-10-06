@@ -500,6 +500,48 @@
       "where": null
     },
     {
+      "table": "event_deliveries",
+      "name": "event_deliveries_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "event_id"
+        },
+        {
+          "column": "subscriber"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "event_outbox",
+      "name": "event_outbox_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "event_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "event_subscriptions",
+      "name": "event_subscriptions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "kind"
+        },
+        {
+          "column": "subscriber"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "events",
       "name": "events_pkey",
       "primary": true,
@@ -648,6 +690,50 @@
         }
       ],
       "where": null
+    },
+    {
+      "table": "job_capacity",
+      "name": "job_capacity_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "scope"
+        },
+        {
+          "column": "key"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "jobs",
+      "name": "jobs_dedupe_live",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "dedupe_key"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "notNull": {
+              "column": "dedupe_key"
+            }
+          },
+          {
+            "in": {
+              "column": "state"
+            },
+            "values": [
+              "scheduled",
+              "fired"
+            ]
+          }
+        ]
+      }
     },
     {
       "table": "jobs",
@@ -1723,6 +1809,21 @@
       "keys": [
         {
           "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "provider_events",
+      "name": "provider_events_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "provider"
+        },
+        {
+          "column": "provider_event_id"
         }
       ],
       "where": null

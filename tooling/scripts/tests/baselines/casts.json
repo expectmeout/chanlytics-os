@@ -282,7 +282,7 @@
     "unknownAs": 1
   },
   "apps/edge/lib/whatsapp/connect-number.ts": {
-    "unknownAs": 2
+    "unknownAs": 1
   },
   "apps/edge/lib/whatsapp/persist.ts": {
     "unknownAs": 1,

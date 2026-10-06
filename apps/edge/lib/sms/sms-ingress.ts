@@ -69,7 +69,16 @@ type Db = SupabaseClient<Database>;
  * one. It is not answered and not kept; the owner reads it from the provider's own record (lib/lines/line-codes.ts).
  */
 type SmsVerdict =
-  | { kind: "refuse"; status: number; log: LogEvent; level: "warn" | "error"; alert: string | null; alertKey?: string }
+  | {
+      kind: "refuse";
+      status: number;
+      log: LogEvent;
+      level: "warn" | "error";
+      alert: string | null;
+      alertKey?: string;
+      /** Set when the refusal came after Twilio's signature held: the line's workspace, for the kept delivery (00336). */
+      proven?: { tenantId: string | null };
+    }
   | { kind: "code"; routed: RoutedChannel; from: string | null }
   | { kind: "accept"; line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean };
 
@@ -139,6 +148,7 @@ export async function planSmsIngress(o: {
     // A lookup that FAILED is ours to retry; a row that is missing or switched
     // off is an answer, and Twilio is told the text was received so it stops
     // asking. The two must not share a status.
+    const proven = { tenantId: line.tenant_id };
     return lookupFailed
       ? {
           kind: "refuse",
@@ -146,6 +156,7 @@ export async function planSmsIngress(o: {
           log: "sms_routing_lookup_failed",
           level: "error",
           alert: "the sms channel row could not be read",
+          proven,
         }
       : {
           kind: "refuse",
@@ -153,6 +164,7 @@ export async function planSmsIngress(o: {
           log: "sms_unroutable",
           level: "error",
           alert: "the sms channel row is missing or not active",
+          proven,
         };
   }
 

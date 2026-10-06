@@ -54,6 +54,14 @@ type Db = SupabaseClient<Database>;
  * calendar read again next hour.
  */
 export const CALENDAR_PER_TICK = 40;
+/**
+ * How long the calendar tick reads feeds for before it leaves the rest of its page to the next hour: forty feeds at
+ * up to six seconds each is four minutes against a sixty-second function, and the function was killed part way with
+ * nothing stamped and nothing counted (the wiring trace, 5 October 2026). What the budget leaves is counted as
+ * remaining, so the backlog is noted and the alarm still rings, and those feeds keep their place at the front of the
+ * next page, unstamped.
+ */
+export const CALENDAR_SWEEP_BUDGET_MS = 40_000;
 export const PLAYBOOKS_PER_TICK = 25;
 
 /** Consecutive backlogged ticks before a sweep calls itself unhealthy. */

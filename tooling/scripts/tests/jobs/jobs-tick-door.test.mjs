@@ -166,7 +166,7 @@ function claimDue(jobs, { p_limit, p_lease_seconds }) {
  * vault (true), or one the vault does not answer for ("unreadable"). `queue()`
  * adds one reply to its outbox, and the job that sends it.
  */
-function ledger({ faults = {}, claim } = {}) {
+function ledger({ faults = {}, claim, relay } = {}) {
   const tables = {
     jobs: [],
     messages: [],
@@ -183,6 +183,8 @@ function ledger({ faults = {}, claim } = {}) {
   const vault = { channels: {}, lines: {} };
   const db = fakeDb(tables, faults, {
     get_cron_sweep_key: () => KEY,
+    // The relay runs first in every tick (00334): an outbox with nothing on it, unless a test says otherwise.
+    relay_events: relay ?? (() => 0),
     claim_due_jobs: claim ?? ((args) => claimDue(tables.jobs, args)),
     // A channel whose entry is a function is one Vault does not answer for ("unreadable"): the throw becomes the
     // rpc's error envelope, as the double answers every refused function.
@@ -383,7 +385,11 @@ test("a ledger that cannot be claimed from is a 503 carrying the error, said as 
       [["log", "jobs", 0, 0, 0, 0]],
     );
   });
-  assert.deepEqual(asked(idle.db), ["get_cron_sweep_key", "claim_due_jobs"], "the key, then one look at the ledger");
+  assert.deepEqual(
+    asked(idle.db),
+    ["get_cron_sweep_key", "relay_events", "claim_due_jobs"],
+    "the key, the relay, then one look at the ledger",
+  );
 });
 
 /* ------------------------------------------------------------- the wires */
@@ -888,6 +894,37 @@ test("a reply the ledger claimed more than a minute late pages the operator once
       L.tables.operator_pages.map((p) => [p.key, p.count]),
       [["jobs_replies_late", 2]],
       "and the second firing is counted",
+    );
+  });
+});
+
+test("the relay runs first in every tick (00334): what it relayed rides on the heartbeat's line, and a relay that fails is said and costs the tick nothing else", async () => {
+  const L = ledger({ relay: () => 3 });
+  L.workspace().queue();
+  await listening(async (log) => {
+    assert.equal((await answer(await knock()))[0], 200);
+    assert.deepEqual(
+      log.said("jobs_tick").map((l) => [l.relayed, l.claimed]),
+      [[3, 1]],
+      "three events relayed, then the queued reply claimed in the same tick",
+    );
+  });
+  const broken = ledger({
+    relay: () => {
+      throw new Error("the outbox is away");
+    },
+  });
+  broken.workspace().queue();
+  await listening(async (log) => {
+    assert.equal((await answer(await knock()))[0], 200, "the tick goes on");
+    assert.deepEqual(
+      log.said("events_relay_failed").map((l) => [l.stream, l.sweep, l.error]),
+      [["error", "jobs", "Error: relay_events: the outbox is away"]],
+    );
+    assert.deepEqual(
+      log.said("jobs_tick").map((l) => [l.relayed, l.claimed]),
+      [[null, 1]],
+      "said as unread",
     );
   });
 });

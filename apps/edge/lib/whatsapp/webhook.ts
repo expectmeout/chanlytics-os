@@ -40,6 +40,7 @@ import { phoneTail, pauseMsOf } from "../packages/contracts.js";
 import { WABA_FIELDS, accountOf, handleWabaChange, notificationsFor } from "./waba-events.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
+import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
 import type { WaChangeValue } from "../packages/channels.js";
 import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
@@ -52,22 +53,42 @@ import { logger, errField } from "../log.js";
 
 const L = logger();
 
-export async function receiveWhatsappEvent(request: Request): Promise<Response> {
-  const raw = await request.text();
-
-  // fail-closed: a missing secret is a config error, never a verification skip
+/** Meta's signature over the raw body, with the app's secret. Fail-closed: a missing secret is a config error, never a verification skip. */
+function signedByMeta(request: Request, raw: string): boolean {
   const secret = env.META_APP_SECRET;
   if (!secret) {
     L.error("wa_missing_app_secret");
-    return refuse(401, "bad_signature");
+    return false;
   }
   const sig = String(request.headers.get("x-hub-signature-256") || "");
   const expected = "sha256=" + crypto.createHmac("sha256", secret).update(raw).digest("hex");
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    return refuse(401, "bad_signature");
-  }
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * Kept as it came, before the verdict (decision 0032, 00336). Meta names no delivery, and a batch may span
+ * workspaces: the key is the body's digest, and the workspace is none.
+ */
+async function keepMetaDelivery(request: Request, raw: string): Promise<void> {
+  const ledger = pg();
+  if (!ledger) return;
+  await keepDelivery(ledger, {
+    provider: "meta",
+    id: digestId(raw),
+    door: "/api/whatsapp",
+    url: request.url,
+    tenantId: null,
+    headers: signatureHeaders(request, ["x-hub-signature-256"]),
+    body: raw,
+  });
+}
+
+export async function receiveWhatsappEvent(request: Request): Promise<Response> {
+  const raw = await request.text();
+  if (!signedByMeta(request, raw)) return refuse(401, "bad_signature");
+  await keepMetaDelivery(request, raw);
 
   interface WebhookBody {
     entry?: Array<{ id?: string; changes?: Array<{ field?: string; value?: WaChangeValue }> }>;

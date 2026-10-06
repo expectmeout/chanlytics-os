@@ -22,6 +22,7 @@ export {
   SPEAKS_TO_A_PERSON,
   RUN_INTERRUPTED,
   RETRY_WAITS_MS,
+  RELAY_LIMIT,
 } from "./ledger";
 export type { Db, LedgerRow, Verdict } from "./ledger";
 export { settleJob, saySettled } from "./settle";
