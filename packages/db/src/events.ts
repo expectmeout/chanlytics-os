@@ -280,3 +280,98 @@ export async function recordActivation(
   if (w.error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind: "workspace.activated", error: w.error });
   return !w.error;
 }
+
+/* ----------------------------------------------------------- the spine: the relay and a delivery (00334, decision 0032) */
+
+/** The event a delivery is about, as the ledger holds it: what a subscriber is handed. */
+export interface DeliveredEvent {
+  id: string;
+  tenant_id: string;
+  kind: string;
+  subject_type: string | null;
+  subject_id: string | null;
+  data: Json;
+  created_at: string;
+  version: number;
+  aggregate_version: number | null;
+  causation_id: string | null;
+}
+
+/** One delivery row as the relay left it (event_deliveries). */
+export interface DeliveryRow {
+  state: "scheduled" | "done" | "failed" | "paused";
+  attempts: number;
+}
+
+/**
+ * The first step of every tick (relay_events, 00334): the outbox's events become deliveries and jobs, up to `limit` of
+ * them, oldest first and with no cursor. Answers how many events were relayed.
+ */
+export async function relayEvents(db: Db, limit: number): Promise<number> {
+  const { data, error } = await db.rpc("relay_events", { p_limit: limit });
+  if (error) throw new Error(`relay_events: ${error.message}`);
+  return data ?? 0;
+}
+
+/** The event a delivery is about; null when the ledger no longer holds it (the evidence purge, 00115). */
+export async function eventOfDelivery(db: Db, tenantId: string, eventId: string): Promise<DeliveredEvent | null> {
+  const { data, error } = await db
+    .from("events")
+    .select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version, aggregate_version, causation_id")
+    .eq("tenant_id", tenantId)
+    .eq("id", eventId)
+    .maybeSingle();
+  if (error) throw new Error(`events: ${error.message}`);
+  return data;
+}
+
+/** Whether a subscription is paused as its delivery runs; one that is gone reads as paused. */
+export async function subscriptionPaused(db: Db, kind: string, subscriber: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("event_subscriptions")
+    .select("paused")
+    .eq("kind", kind)
+    .eq("subscriber", subscriber)
+    .maybeSingle();
+  if (error) throw new Error(`event_subscriptions: ${error.message}`);
+  return data ? data.paused : true;
+}
+
+/** The delivery row as it stands; null when the relay never wrote it. */
+export async function deliveryOf(
+  db: Db,
+  tenantId: string,
+  eventId: string,
+  subscriber: string,
+): Promise<DeliveryRow | null> {
+  const { data, error } = await db
+    .from("event_deliveries")
+    .select("state, attempts")
+    .eq("tenant_id", tenantId)
+    .eq("event_id", eventId)
+    .eq("subscriber", subscriber)
+    .maybeSingle();
+  if (error) throw new Error(`event_deliveries: ${error.message}`);
+  return data as DeliveryRow | null;
+}
+
+/** The delivery's verdict after a run: done, failed with why, or paused because its subscription was. */
+export async function settleDelivery(
+  db: Db,
+  d: {
+    tenantId: string;
+    eventId: string;
+    subscriber: string;
+    state: "done" | "failed" | "paused";
+    attempts: number;
+    error: string | null;
+  },
+): Promise<void> {
+  const { error } = await db
+    .from("event_deliveries")
+    .update({ state: d.state, attempts: d.attempts, last_error: d.error })
+    .eq("tenant_id", d.tenantId)
+    .eq("event_id", d.eventId)
+    .eq("subscriber", d.subscriber);
+  if (error) throw new Error(`event_deliveries: ${error.message}`);
+}

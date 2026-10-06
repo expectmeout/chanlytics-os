@@ -54,6 +54,7 @@ const DOORS = [
   "eval",
   "hand-over",
   "handover-invite",
+  "intake/replay",
   "llm",
   "playbooks-run",
   "reach-out-preview",

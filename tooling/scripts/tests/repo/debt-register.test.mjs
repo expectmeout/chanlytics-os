@@ -109,6 +109,8 @@ function blockFrom(by, scanCounts) {
       `imports in ${keys(by["route-doors.json"])} files`,
     ],
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
+    ["event-shaped clocks", keys(by["event-shaped-clocks.json"]), "of the registered clocks (invariant 6)"],
+    ["tables with more than one writer", keys(by["writers.json"]), `${total(by["writers.json"])} writers among them`],
     ["breakpoints outside the set", total(by["breakpoints.json"]), `in ${files(by["breakpoints.json"])} files`],
     ["literal style values", fieldsTotal(by["style-values.json"]), `in ${keys(by["style-values.json"])} stylesheets`],
     [

@@ -177,6 +177,11 @@ test("the conversation over: the row is ended with its minutes (an end the brows
   assert.deepEqual(await answer(await deliver(event())), [200, { ok: true }], "delivered again");
   assert.equal(net.calls.length, 2, "the minutes written once, the erase asked for again (in case it was what failed)");
   assert.equal(row.duration_s, 48);
+  assert.deepEqual(
+    Object.keys(tables),
+    ["ask_voice_sessions"],
+    "the transcript is kept nowhere: the one webhook door the intake ledger (provider_events, 00336) leaves out",
+  );
 });
 
 test("a row never ended by the browser is ended now; an erase the vendor refuses or cannot take is a line, and the delivery is still answered", async () => {

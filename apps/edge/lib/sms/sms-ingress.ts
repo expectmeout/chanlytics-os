@@ -63,7 +63,16 @@ type Db = SupabaseClient<Database>;
  * URL. Those name a constant instead, so the whole class is capped like one.
  */
 type SmsVerdict =
-  | { kind: "refuse"; status: number; log: LogEvent; level: "warn" | "error"; alert: string | null; alertKey?: string }
+  | {
+      kind: "refuse";
+      status: number;
+      log: LogEvent;
+      level: "warn" | "error";
+      alert: string | null;
+      alertKey?: string;
+      /** Set when the refusal came after Twilio's signature held: the line's workspace, for the kept delivery (00336). */
+      proven?: { tenantId: string | null };
+    }
   | { kind: "accept"; line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean };
 
 /** One suppression key for every text to a number no line carries, whatever the caller writes in `To`. */
@@ -132,6 +141,7 @@ export async function planSmsIngress(o: {
     // A lookup that FAILED is ours to retry; a row that is missing or switched
     // off is an answer, and Twilio is told the text was received so it stops
     // asking. The two must not share a status.
+    const proven = { tenantId: line.tenant_id };
     return lookupFailed
       ? {
           kind: "refuse",
@@ -139,6 +149,7 @@ export async function planSmsIngress(o: {
           log: "sms_routing_lookup_failed",
           level: "error",
           alert: "the sms channel row could not be read",
+          proven,
         }
       : {
           kind: "refuse",
@@ -146,6 +157,7 @@ export async function planSmsIngress(o: {
           log: "sms_unroutable",
           level: "error",
           alert: "the sms channel row is missing or not active",
+          proven,
         };
   }
 

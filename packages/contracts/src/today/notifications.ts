@@ -339,6 +339,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
   reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
+  // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
+  // did not get there, and the activity log is where the fact is.
+  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
 };
 
 /** A job this runner has no words for: said as what it is, on the page that says what happened today. */

@@ -26,8 +26,9 @@ import {
   mediaWidths,
   mediaPreludes,
   stringsIn,
+  tablesWrittenIn,
 } from "../_ast.mjs";
-import { bankedSourceScan, breakpointSet, DOOR_FORBIDS } from "../_measures.mjs";
+import { bankedSourceScan, breakpointSet, DOOR_FORBIDS, tablesWrittenBy, writersByTable } from "../_measures.mjs";
 import { knipCommand } from "../../checks/dead-exports.mjs";
 import { bankWarnings } from "../../checks/lint.mjs";
 
@@ -492,4 +493,46 @@ test("knip runs from node alone, from knip's own bin", () => {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== "PATH"));
   const out = execFileSync(exe, args, { encoding: "utf8", env: { ...env, PATH: path.dirname(process.execPath) } });
   assert.match(out.trim(), /^\d+\.\d+\.\d+$/);
+});
+
+/* ---- Writers per table (decision 0031, invariant 1) ---- */
+
+test("a module writes a table when a .from() chain inserts, upserts, updates or deletes it; a read, a storage bucket or a table named by a variable is not counted", () => {
+  const sf = source(`
+    await db.from("messages").insert(row);
+    await db.from("contacts").update({ name }).eq("id", id);
+    await db.from("jobs").upsert(job, { onConflict: "id" });
+    await db.from("person_notes").delete().eq("id", id);
+    await db.from("leads").select("id");
+    await db.storage.from("media").update(path, file);
+    const t = "calls";
+    await db.from(t).insert(row);
+  `);
+  assert.deepEqual(tablesWrittenIn(sf).sort(), ["contacts", "jobs", "messages", "person_notes"]);
+});
+
+test("a SQL function writes what it inserts into, updates and deletes from; an upsert's do update, a lock's for update and a CTE's name are not tables it writes", () => {
+  const tables = new Set(["messages", "contacts", "jobs", "leads"]);
+  const body = `
+    with fresh as (select 1)
+    insert into public.messages (id) values (1) on conflict (id) do update set id = excluded.id;
+    update public.contacts set name = 'x' where id = 1;
+    perform 1 from public.leads l where l.id = 2 for update skip locked;
+    delete from jobs where id = 3;
+    update fresh set x = 1;
+  `;
+  assert.deepEqual([...tablesWrittenBy(body, tables)].sort(), ["contacts", "jobs", "messages"]);
+});
+
+test("the writers measure leaves out the tables many places write by design, and the writers that only take rows away", () => {
+  const w = writersByTable();
+  assert.ok(
+    !w.has("events") && !w.has("decisions") && !w.has("sweep_status"),
+    "every door's event, every verb's decision, every clock's row",
+  );
+  assert.deepEqual(
+    [...w.get("provider_events")],
+    ["packages/db/src/provider-events.ts"],
+    "the intake ledger's purge and scrub only take rows away: one writer",
+  );
 });

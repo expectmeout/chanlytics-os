@@ -35,6 +35,7 @@ import {
   copiesAmong,
   castsIn,
   tableNames,
+  tablesWrittenIn,
   rpcNames,
   importsMatching,
   workspacelessStatements,
@@ -49,6 +50,8 @@ import {
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
 import { bank } from "./_ratchet.mjs";
+import { CLOCKS } from "./clocks/_clocks.mjs";
+import { OUT as SCHEMA_SQL, functionChangesIn, statementsOf } from "../gen/schema-snapshot.mjs";
 
 /** A function's limits: eslint.config.mjs's FUNCTION_LIMITS, as errors where this holds nothing. */
 export const LIMIT = { lines: 150, branches: 30, depth: 5 };
@@ -155,6 +158,78 @@ const perFile = (files, count, floor = 0) =>
   Object.fromEntries(files.map((f) => [f, count(parse(f))]).filter(([, n]) => n > floor));
 
 /** One entry per baseline under tests/baselines/: what it holds, and what to do when it rises. */
+/* ---- Writers per table (decision 0031, invariant 1: one record, one door writes it) ---- */
+
+/** A token of the snapshot's SQL that is the word `v`, in any case. */
+const isSqlWord = (t, v) => t?.type === "word" && t.value.toLowerCase() === v;
+
+/** The schema's tables, by name: each `create table public.<name>` the replayed migrations' snapshot holds. */
+function schemaTables(sql) {
+  const tables = new Set();
+  for (const { tokens } of statementsOf(sql)) {
+    if (!isSqlWord(tokens[0], "create") || !isSqlWord(tokens[1], "table")) continue;
+    const at = isSqlWord(tokens[2], "if") ? 5 : 2;
+    const name = isSqlWord(tokens[at], "public") && tokens[at + 1]?.value === "." ? tokens[at + 2] : tokens[at];
+    if (name?.type === "word" || name?.type === "ident") tables.add(name.value.toLowerCase());
+  }
+  return tables;
+}
+
+/**
+ * The tables a SQL function's body writes, read from its tokens: `insert into`, `delete from`, and `update` that is not
+ * an upsert's `do update` or a lock's `for update` / `for no key update`. A name the schema has no table for (a CTE,
+ * `set`) is not one. A statement built as a string (`execute format(…)`) is not seen.
+ */
+export function tablesWrittenBy(body, tables) {
+  const out = new Set();
+  const toks = statementsOf(body).flatMap((x) => x.tokens);
+  const nameAt = (k) => (isSqlWord(toks[k], "public") && toks[k + 1]?.value === "." ? toks[k + 2] : toks[k]);
+  for (let k = 0; k < toks.length; k++) {
+    let t = null;
+    if (isSqlWord(toks[k], "insert") && isSqlWord(toks[k + 1], "into")) t = nameAt(k + 2);
+    else if (isSqlWord(toks[k], "delete") && isSqlWord(toks[k + 1], "from")) t = nameAt(k + 2);
+    else if (isSqlWord(toks[k], "update") && !["do", "for", "key"].some((w) => isSqlWord(toks[k - 1], w)))
+      t = nameAt(isSqlWord(toks[k + 1], "only") ? k + 2 : k + 1);
+    if ((t?.type === "word" || t?.type === "ident") && tables.has(t.value.toLowerCase()))
+      out.add(t.value.toLowerCase());
+  }
+  return out;
+}
+
+/**
+ * Written from many places by design, so not held to one door: `events`, which every door writes in its own fact's
+ * transaction (0031, invariant 2); `decisions`, the row every verb writes beside the change to its subject; and
+ * `sweep_status`, where each clock stamps its own row.
+ */
+const MANY_WRITERS_BY_DESIGN = new Set(["events", "decisions", "sweep_status"]);
+
+/**
+ * A writer that only removes what age or an erasure takes, which reaches its tables by design: a purge, a scrub, the
+ * erasure's own legs. 0036's registry is what holds those, not this count.
+ */
+const takesAway = (who) =>
+  /^(purge_|erase_)|scrub/.test(who) || /^apps\/dashboard\/src\/server\/people\/(erasure|erase-contact)\.ts$/.test(who);
+
+/**
+ * Each table and who writes it: every source module whose supabase-js chain writes it (_ast.mjs tablesWrittenIn), and
+ * every live SQL function whose body does, as supabase/schema.sql holds the functions the migrations leave standing.
+ * A table written from many places by design, and a writer that only takes rows away, are left out.
+ */
+export function writersByTable() {
+  const sql = readRaw(SCHEMA_SQL);
+  const tables = schemaTables(sql);
+  const writers = new Map();
+  const add = (table, who) => {
+    if (!tables.has(table) || MANY_WRITERS_BY_DESIGN.has(table) || takesAway(who)) return;
+    if (!writers.has(table)) writers.set(table, new Set());
+    writers.get(table).add(who);
+  };
+  for (const f of SRC) for (const t of tablesWrittenIn(parse(f))) add(t, f);
+  for (const c of functionChangesIn(sql))
+    if (c.kind === "create" && c.body) for (const t of tablesWrittenBy(c.body, tables)) add(t, `${c.name}()`);
+  return writers;
+}
+
 export const MEASURES = [
   {
     name: "functions over the limit",
@@ -348,6 +423,30 @@ export const MEASURES = [
     measure: () => perFile(MARKUP, inlineStyles),
     advice:
       "Style it with a class that reads tokens, not a style prop: a value in a prop is one no look can reach (the interface kit's rule 1, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md).",
+  },
+  {
+    // Each registered clock's kind is clocks/_clocks.mjs's; ops/sweep-registry.db.test.mjs holds every row to one.
+    name: "event-shaped clocks",
+    file: "event-shaped-clocks.json",
+    measure: () =>
+      Object.fromEntries(
+        Object.entries(CLOCKS)
+          .filter(([, c]) => c.kind === "event-shaped")
+          .map(([name]) => [name, 1]),
+      ),
+    advice:
+      "A clock that runs a timer or a reaction belongs on a due row or after its event (decision 0031, invariant 6): set the job's due_at where the timer starts, or subscribe to the event, and keep the clock to reconcile, judge, keep or roll.",
+  },
+  {
+    // A table's writers: the modules and the live SQL functions that write it (writersByTable); one is a door.
+    name: "tables with more than one writer",
+    file: "writers.json",
+    measure: () =>
+      Object.fromEntries(
+        [...writersByTable()].filter(([, who]) => who.size > 1).map(([table, who]) => [table, who.size]),
+      ),
+    advice:
+      "One record, one door writes it (decision 0031, invariant 1): write the table through the door that already writes it, the SQL function or the repository in packages/db, rather than adding a writer.",
   },
 ];
 

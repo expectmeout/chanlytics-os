@@ -35,6 +35,9 @@ what the script writes.
 | [`decisions`](#decisions) | `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
 | [`escalations`](#escalations) | `packages/db/src/repositories/outreach.ts` | on, 2 policies |
+| [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
+| [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
+| [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
@@ -42,6 +45,7 @@ what the script writes.
 | [`google_reviews`](#google_reviews) | none | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
 | [`invitations`](#invitations) | none | on, 1 policy |
+| [`job_capacity`](#job_capacity) | none | on, no policy, so only the service role reaches it |
 | [`jobs`](#jobs) | `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
 | [`lead_counters`](#lead_counters) | none | on, no policy, so only the service role reaches it |
 | [`lead_judgments`](#lead_judgments) | none | on, no policy, so only the service role reaches it |
@@ -79,6 +83,7 @@ what the script writes.
 | [`playbooks`](#playbooks) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 5 policies |
 | [`profiles`](#profiles) | none | on, 1 policy |
+| [`provider_events`](#provider_events) | `packages/db/src/provider-events.ts` | on, no policy, so only the service role reaches it |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
@@ -751,6 +756,68 @@ Foreign keys:
 | `escalations_acting_member_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
 | `escalations_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### event_deliveries
+
+One row per event and subscriber (decision 0032): scheduled when the relay writes it and its job, done when the subscriber ran, failed when its job gave up, paused when the subscriber was paused as it ran. event_at is the event's own clock, so relay lag is one subtraction. RLS on with no policy: the service role alone.
+
+- Owned by: `packages/db/src/events.ts`
+- Primary key: `event_id`, `subscriber`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `event_id` | uuid | no |  |  |
+| `subscriber` | text | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `kind` | text | no |  |  |
+| `event_at` | timestamp with time zone | no |  |  |
+| `state` | text | no | `'scheduled'::text` |  |
+| `job_id` | uuid | yes |  |  |
+| `attempts` | integer | no | `0` |  |
+| `last_error` | text | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+### event_outbox
+
+One row per event of a subscribed kind, written in the event's own transaction by events_outbox_copy (decision 0032), and taken off by relay_events once its deliveries are written. Empty when the relay is caught up. RLS on with no policy: the service role alone.
+
+- Owned by: none
+- Primary key: `event_id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `event_id` | uuid | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `kind` | text | no |  |  |
+| `event_at` | timestamp with time zone | no |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+### event_subscriptions
+
+Who reacts to an event kind (decision 0032): a subscriber's name, the lane its deliveries run in, and whether it is paused. Platform-wide rows, written by a migration or the service role; a door never names a subscriber. RLS on with no policy: the service role alone.
+
+- Owned by: `packages/db/src/events.ts`
+- Primary key: `kind`, `subscriber`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `kind` | text | no |  |  |
+| `subscriber` | text | no |  |  |
+| `lane` | smallint | no |  |  |
+| `paused` | boolean | no | `false` |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
 ### events
 
 - Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts`
@@ -770,6 +837,8 @@ Foreign keys:
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `version` | smallint | no | `1` | The version of this kind's data (packages/db events.ts, 00264): raised when a kind's shape changes, so a reader can tell an old row from a new one. 1 for every kind to date. |
 | `request_id` | text | yes | `public.request_id_of_caller()` | The request this row was written in (00277): the name withRoute, an edge door or a job gave it, the one its log lines carry. Null for a row written outside a request. |
+| `aggregate_version` | integer | yes |  | The version of the record this event is about, as the door left it (decision 0032): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00334. |
+| `causation_id` | uuid | yes |  | The event this one was written in answer to, where a reaction wrote it (decision 0032). Null for a fact that arrived from outside, and for every row written before 00334. |
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
@@ -953,6 +1022,21 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `invitations_member_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### job_capacity
+
+How many jobs naming a capacity key (scope:key in payload.capacity) may be fired under a live lease at once (00335, decision 0033): counted in claim_due_jobs, nowhere else. A key with no row is no limit. The service role's alone.
+
+- Owned by: none
+- Primary key: `scope`, `key`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `scope` | text | no |  |  |
+| `key` | text | no |  |  |
+| `max_in_flight` | integer | no |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
 ### jobs
 
 - Owned by: `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out.ts`
@@ -973,7 +1057,8 @@ Foreign keys:
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `lease_until` | timestamp with time zone | yes |  | While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts. |
-| `lane` | smallint | yes | `generated: CASE WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read), 2 bulk. Generated from kind and payload; null for a kind it does not name, which is claimed last. A new kind names its lane with its handler, its caller and the jobs.kind CHECK. |
+| `dedupe_key` | text | yes |  | What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00333): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed. |
+| `lane` | smallint | yes | `generated: CASE WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 WHEN (kind = 'event_deliver'::text) THEN CASE WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer ELSE 2 END ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription's lane (payload.lane, 00334); null for a kind the case does not name, claimed last. |
 
 Foreign keys:
 
@@ -1997,6 +2082,12 @@ One UTC day of one workspace, counted (00277): messages in and out by channel, c
 | `ai_tokens` | jsonb | yes |  | The model's tokens of the day by purpose (K10), all four kinds, from the ledger (ai_usage), the workspace's own calls and never a shadow's. Null where the ledger holds none. |
 | `ai_usd` | jsonb | yes |  | The same by purpose in list-price dollars (K10): the operator's, never an owner's. A purpose with no priced call is left out; null where none was priced. |
 | `voice_usd` | numeric(12,6) | yes |  | What the day's calls cost in dollars (K8): the sum of call_cost_usd over calls.cost of the calls that started that day, whatever their direction or ending. The operator's. Null where no call carried a cost. |
+| `job_lag_ms` | jsonb | yes |  | How long a job waited for the ledger past its due time that day, by lane (jobs.lane: 0 a reply, 1 someone waiting, 2 bulk, none), at the 95th percentile in milliseconds, first claims only (00332). Null for a day with no claim. |
+| `first_answer_ms` | jsonb | yes |  | How long a customer waited for the first answer in their thread that day, by channel, at the 95th percentile in milliseconds, whoever answered (00332). Null for a day no customer was answered in. |
+| `duplicate_sends` | integer | yes |  | Outbound rows that day with the same words to one thread within a minute of the last: the later one is the duplicate (00332). Null for a day nothing was sent in. |
+| `dead_letters` | jsonb | yes |  | The jobs that died that day, by kind: state failed, which jobs_guard keeps final (00332). Null for a day none died in. |
+| `relay_lag_ms` | integer | yes |  | How long an event waited for its deliveries that day, at the 95th percentile in milliseconds (decision 0032): written by the relay's own migration, null until then (00332). |
+| `intake_lag_ms` | jsonb | yes |  | How long after the provider's own clock said it happened a door kept its delivery that day, by provider (meta, retell, resend), at the 95th percentile in milliseconds, from the intake ledger (00337, decision 0032). Twilio stamps nothing, so texts are not counted. Null for a day no stamped delivery arrived in. |
 
 Foreign keys:
 
@@ -2108,6 +2199,30 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `profiles_member_select` | select | authenticated | `((user_id = auth.uid()) OR (user_id IN ( SELECT m2.user_id FROM (memberships m1 JOIN memberships m2 ON ((m2.tenant_id = m1.tenant_id))) WHERE (m1.user_id = aut…` |  |
+
+### provider_events
+
+Every verified delivery a provider made to a door, as it came, under the provider's own id (decision 0032): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.
+
+- Owned by: `packages/db/src/provider-events.ts`
+- Primary key: `provider`, `provider_event_id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `provider` | text | no |  |  |
+| `provider_event_id` | text | no |  |  |
+| `door` | text | no |  |  |
+| `url` | text | no |  |  |
+| `tenant_id` | uuid | yes |  |  |
+| `verified` | boolean | no | `true` |  |
+| `headers` | jsonb | no | `'{}'::jsonb` |  |
+| `body` | text | no |  |  |
+| `received_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 ### push_devices
 
@@ -2446,6 +2561,7 @@ One row per pg_cron -> pg_net sweep: the last request id (joins net._http_respon
 | `max_silence` | interval | yes |  | How long the clock may go without speaking (a request enqueued, or a run that succeeded) before it is unhealthy. Null: silence is not a fault; only the last answer is judged. |
 | `judged_by` | text | no | `'request'::text` | request: judged on the HTTP request it enqueued and what the edge answered. run: judged on cron.job_run_details, for the jobs that never leave the database. |
 | `registered_at` | timestamp with time zone | no | `now()` | A run-judged clock that has never run is healthy until max_silence has passed since it was registered. |
+| `woken_at` | timestamp with time zone | yes |  | When a row written to the ledger last asked for this sweep itself (jobs_wake, 00333): one ask a second, whatever the writers do. |
 
 ### templates
 
