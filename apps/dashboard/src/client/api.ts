@@ -49,6 +49,12 @@ interface Options<K extends RouteKey> {
   body?: BodyOf<K>;
   /** For the reply: the same key on a retry means the same message, never a second one. */
   idempotencyKey?: string;
+  /**
+   * One intent, however often it is sent (decision 0035): the write carries an Idempotency-Key made at its first send
+   * and kept, for the same request (its route, address and body), until it lands. A press after a timeout is then the
+   * same request, which the server answers once; a send after it lands, or of another body, is a new intent.
+   */
+  once?: boolean;
   /** The Ask palette commits through the same routes a button does; the ledger keeps that a card was tapped. */
   via?: "ask";
   /** An undo names the decision it reverses (its id, from the commit's receipt); the ledger links the two rows. */
@@ -141,6 +147,43 @@ function heard(deps: ApiDeps, code: string | undefined): void {
   if (code === "mfa_required") deps.onSecondFactor?.();
 }
 
+/**
+ * Each intent's key, from its first send until it lands (Options.once, decision 0035): `keyed` hands back the options
+ * with the key of the request they make (its method, address and body), made at its first send; `landed` lets it go, so
+ * the next send of that request is a new intent.
+ */
+function intentKeys() {
+  const held = new Map<string, string>();
+  const intentOf = new WeakMap<object, string>();
+  return {
+    keyed<O extends { once?: boolean; idempotencyKey?: string; body?: unknown }>(
+      method: string,
+      url: string,
+      opts: O,
+    ): O {
+      if (method === "GET" || !opts.once || opts.idempotencyKey) return opts;
+      const intent = `${method} ${url}\n${JSON.stringify(opts.body ?? null)}`;
+      const key = held.get(intent) ?? crypto.randomUUID();
+      held.set(intent, key);
+      const sent = { ...opts, idempotencyKey: key };
+      intentOf.set(sent, intent);
+      return sent;
+    },
+    landed(sent: object): void {
+      const intent = intentOf.get(sent);
+      if (intent) held.delete(intent);
+    },
+  };
+}
+
+/** Each client's intents, kept with its deps: one store per client a tab makes. */
+const INTENTS = new WeakMap<ApiDeps, ReturnType<typeof intentKeys>>();
+function intentsOf(deps: ApiDeps): ReturnType<typeof intentKeys> {
+  let store = INTENTS.get(deps);
+  if (!store) INTENTS.set(deps, (store = intentKeys()));
+  return store;
+}
+
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
   // `kept`: settled, answered, and held (holdAnswers) -- shared whatever its age until the hold is let go.
@@ -180,6 +223,7 @@ export function createApi(deps: ApiDeps) {
   ): Promise<ApiResult<OutputOf<Routes[K]>>> {
     const isRead = ROUTES[key].method === "GET";
     const url = urlFor(key, opts);
+    const sent = intentsOf(deps).keyed(ROUTES[key].method, url, opts);
     if (isRead) {
       const hit = inFlight.get(url);
       if (hit && (hit.kept || now() - hit.at < (hit.early ? PREFETCH_SHARE_MS : INFLIGHT_MS)))
@@ -191,8 +235,8 @@ export function createApi(deps: ApiDeps) {
       let res: Response;
       try {
         res = early
-          ? await early.catch(() => deps.fetch(url, initFor(key, opts)))
-          : await deps.fetch(url, initFor(key, opts));
+          ? await early.catch(() => deps.fetch(url, initFor(key, sent)))
+          : await deps.fetch(url, initFor(key, sent));
       } catch (e) {
         // A request that never left changed nothing; one that timed out may
         // still be doing its work on the server, and a write must not be told
@@ -225,6 +269,7 @@ export function createApi(deps: ApiDeps) {
         };
       }
       if (!isRead) {
+        intentsOf(deps).landed(sent);
         opts.onAccepted?.(j.data as OutputOf<Routes[K]>);
         // Something changed. A read still in flight was issued before that
         // change and cannot describe the world the operator is now in; sharing

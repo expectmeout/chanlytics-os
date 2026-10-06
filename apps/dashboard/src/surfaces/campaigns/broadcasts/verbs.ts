@@ -52,7 +52,8 @@ type DetailAnswer = ApiResult<Output<"GET broadcasts/[id]">>;
 const details = readCache<DetailAnswer>("broadcast", (r) => r.ok);
 
 export const broadcasts = {
-  send: (body: SendBody) => api()("POST broadcasts", { body }),
+  // One intent per broadcast (decision 0035): a send pressed again after a timeout is the same request, answered once.
+  send: (body: SendBody) => api()("POST broadcasts", { body, once: true }),
   // Each act says so the moment the server takes it (`onAccepted`, with what it answered), not once the broadcasts and
   // the playbooks are read again behind it; the page repaints from that re-read.
   cancel: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/cancel">) => void } = {}) =>

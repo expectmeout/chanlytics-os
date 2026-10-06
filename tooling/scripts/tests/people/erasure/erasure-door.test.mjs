@@ -33,9 +33,11 @@ const LATE = `${A}/late/c9.mp3`;
  * An owner erasing P1, who has a call recording and an address, a finished job that carried their number, two
  * scheduled ones that name them, and a policy row.
  * `faults` are the fake's; `storage` answers each remove() in turn; `rpcs` overrides erase_contact, the Ask scrub or
- * the kept deliveries' scrub (provider_events_scrub, 00336).
+ * the kept deliveries' scrub (provider_events_scrub, 00336), or the scrub of other people's notes (person_notes_scrub, 00341).
  */
 async function erase({ erased = false, faults = {}, storage = [], rpcs = {} } = {}) {
+  // Each erasure on a limiter of its own: the bucket allows five an hour, and a test here runs more than that.
+  setRateStore(memoryStore());
   const tables = {
     memberships: [
       { user_id: "u1", tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
@@ -65,6 +67,7 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {} } = 
   const db = fakeDb(tables, faults, {
     scrub_ask_for_contact: () => 2,
     provider_events_scrub: () => 1,
+    person_notes_scrub: () => 1,
     erase_contact: () => ({ counts: { calls: 1 }, storage_paths: [REC], jobs_canceled: 0 }),
     ...rpcs,
   });
@@ -104,12 +107,14 @@ test("an erasure runs its legs in the design's order: the block, the copies, Sto
     "rpc:scrub_ask_for_contact", // the copies keyed on the number, before anything is destroyed
     "jobs.update", // the finished job only
     "rpc:provider_events_scrub", // the deliveries the intake ledger keeps a week, by the same identifiers (00336)
+    "rpc:person_notes_scrub", // other people's notes, the needle overwritten in place (00341)
     "rpc:erase_contact", // the rows, after Storage
     "policies.delete",
     "rpc:scrub_ask_for_contact",
     "jobs.update", // every state now, by the id and by every identifier: the scheduled ones
     "jobs.update",
     "rpc:provider_events_scrub", // a delivery kept while the erasure ran
+    "rpc:person_notes_scrub", // a note written while it ran
   ]);
   assert.deepEqual(removed, [[REC]], "Storage once, before the rows; nothing late to sweep");
   assert.deepEqual(value, {
@@ -157,6 +162,16 @@ test("every leg before the rows fails closed: a 500 that says nothing was delete
         },
       },
       /deliveries kept for replay .* could not be scrubbed, so nothing was deleted/,
+    ],
+    "the notes' pre-scrub": [
+      {
+        rpcs: {
+          person_notes_scrub: () => {
+            throw new Error("refused");
+          },
+        },
+      },
+      /notes that carried this person's number or address could not be scrubbed, so nothing was deleted/,
     ],
     Storage: [{ storage: [{ error: "unavailable" }] }, /Nothing has been deleted, and repeating this request/],
   };
@@ -225,6 +240,27 @@ test("past the rows every leg is best effort, and a late recording is swept and 
     },
   });
   assert.equal(before.value.erased, true, "no ledger yet is nothing to scrub, never a refused erasure");
+
+  // The notes' second pass refused, and a database before 00341 with no notes scrub: neither undoes an erasure.
+  let notePasses = 0;
+  const notes = await erase({
+    rpcs: {
+      person_notes_scrub: () => {
+        if (notePasses++) throw new Error("refused");
+        return 1;
+      },
+    },
+  });
+  assert.equal(notes.value.erased, true, "a note that would not scrub on the second pass does not undo an erasure");
+  assert.equal(notePasses, 2, "scrubbed before the rows, and tried again after them");
+  const older = await erase({
+    rpcs: {
+      person_notes_scrub: () => {
+        throw Object.assign(new Error("Could not find the function public.person_notes_scrub"), { code: "PGRST202" });
+      },
+    },
+  });
+  assert.equal(older.value.erased, true, "no scrub yet leaves the notes as they were, never a refused erasure");
 });
 
 test("a re-drive of an erased person repeats the id-keyed legs and says which of them held", async () => {

@@ -35,6 +35,8 @@ export const RETENTION_DAYS = {
   ai_usage: 400,
   /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00336; decision 0032). */
   provider_events: 7,
+  /** What a write answered, under the key its page sent, so the same write sent twice is made once (purge_idempotency_keys, 00340; decision 0035). */
+  idempotency_keys: 1,
 } as const;
 
 /** Rate-limit counters (00059): two hours, in hours. */
@@ -63,11 +65,13 @@ export const EVENT_EVIDENCE_KINDS = [
 
 /** "the day" after for one day, "N days" after for more: the words follow the number. */
 const daysAfter = (n: number): string => (n === 1 ? "the day" : `${n} days`);
+/** "a day" for one, "N days" for more. */
+const forDays = (n: number): string => (n === 1 ? "a day" : `${n} days`);
 
 /** The retention, as the privacy page states it: one paragraph, from the numbers above. */
 export function retentionWords(): string {
   const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. What a change made in the dashboard answered is kept for ${forDays(d.idempotency_keys)}, so the same change sent twice is made once. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
 }
 
 export const RECORDING_RETENTION_DAYS: number = RETENTION_DAYS.call_recordings;

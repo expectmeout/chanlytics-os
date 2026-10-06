@@ -7498,6 +7498,14 @@ type Database = {
                 };
                 Returns: Json;
             };
+            person_notes_scrub: {
+                Args: {
+                    p_contact_id: string;
+                    p_needles: string[];
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
             person_set_first_touch: {
                 Args: {
                     p_contact_id: string;
@@ -7737,6 +7745,12 @@ type Database = {
                 Returns: number;
             };
             purge_events: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
+            purge_idempotency_keys: {
                 Args: {
                     p_keep?: string;
                 };

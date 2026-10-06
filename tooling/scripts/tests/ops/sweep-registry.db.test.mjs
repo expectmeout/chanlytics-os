@@ -108,6 +108,8 @@ const EVERY_CLOCK = {
   channel_quality: "channel-quality-sweep",
   // The intake ledger's kept deliveries (00336): nightly, a week on, judged by its run.
   purge_provider_events: "purge-provider-events",
+  // The keys writes were answered under (00340): nightly, a day on, judged by its run.
+  purge_idempotency_keys: "purge-idempotency-keys",
 };
 const RUN_JUDGED = [
   "partitions",
@@ -116,6 +118,7 @@ const RUN_JUDGED = [
   "purge_ask",
   "purge_cron_history",
   "purge_events",
+  "purge_idempotency_keys",
   "purge_jobs",
   "purge_leads",
   "purge_notifications",

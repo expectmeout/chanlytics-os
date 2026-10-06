@@ -110,6 +110,11 @@ interface Policy {
   readonly role: Role | null;
   readonly rate: RateBucket | null;
   readonly spend: boolean;
+  /**
+   * Present on a write that keeps its own idempotency key (the reply's, kept by core per member, 0004): route() leaves
+   * the Idempotency-Key header to it (decision 0035). Absent otherwise, so route-policy.json changes only where declared.
+   */
+  readonly idempotent?: "own";
 }
 
 declare const shape: unique symbol;
@@ -146,6 +151,8 @@ interface WriteSpec<S extends Scope, I, O> {
   spend?: boolean;
   /** What a refusal to spend says the money was for; the default names a number. */
   spendWords?: SpendWords;
+  /** "own": this write keeps its Idempotency-Key itself, and route() does not (Policy.idempotent). */
+  idempotent?: "own";
   input?: ZodType<I>;
   handle: (call: Call<S, I>) => Promise<O>;
 }
@@ -180,8 +187,7 @@ async function resolve(
 }
 
 /** An empty body is `{}`, so a schema whose fields are all optional still passes; an unreadable one is refused. */
-async function requestBodyOf(req: Request): Promise<unknown> {
-  const text = await req.text();
+function bodyAsJson(text: string): unknown {
   if (!text.trim()) return {};
   try {
     return JSON.parse(text);
@@ -220,6 +226,7 @@ interface Spec<S extends Scope, I, O> {
   rate?: RateBucket | null;
   spend?: boolean;
   spendWords?: SpendWords;
+  idempotent?: "own";
   input?: ZodType<I>;
   query?: ZodType<I>;
   handle: (call: Call<S, I>) => Promise<O>;
@@ -230,45 +237,72 @@ function viaJson<T>(value: unknown): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-/** The most of a card's key the ledger keeps; a longer one is not a card's (a proposal id is twenty characters). */
-const CARD_KEY_MAX = 120;
-/** How long a claim with no receipt is a press still running; past it, its request died and the next press takes over (core's reply key holds the same two minutes). */
-const CARD_HOLD_MS = 2 * MIN_MS;
+/** The most of a key the ledger keeps; a longer one is not a key (a card's proposal id is twenty characters, a uuid 36). */
+const KEY_MAX = 120;
+/** How long a claim with no receipt is a request still running; past it, its request died and the next one takes over (core's reply key holds the same two minutes). */
+const HOLD_MS = 2 * MIN_MS;
+
+/** A request as its key holds it: its method, its path and its body, hashed, so one key is never two requests. */
+async function requestHashOf(req: Request, body: string): Promise<string> {
+  const said = new TextEncoder().encode(`${req.method} ${new URL(req.url).pathname}\n${body}`);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", said));
+  return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 /**
- * An Ask card's write, once (the scorecard, 29 September: "a broadcast or playbook card approved in two tabs runs
- * twice"). A card's commit names its proposal id as its idempotency key and says it is Ask's (legacy-bridge/ask
- * commit.ts); the first press claims the key on idempotency_keys, under the prefix `card:` so a route's own use of the
- * same key (a reply's, core's) is apart, and keeps its answer there. A second press, from any tab, is given that answer
- * and changes nothing; one that arrives while the first is still running is refused in words. A write that fails lets
- * the key go, so pressing again tries again; a request that died holding it (killed mid-write, its receipt never kept)
- * is taken over by the next press once CARD_HOLD_MS has passed, as core's reply key is, so a card never sticks. Any other
- * request runs as it always has.
+ * A write, answered once per key (decision 0035). A request that carries an Idempotency-Key claims it on
+ * idempotency_keys before the write runs, under `req:` with the hash of the request, so the same request sent again
+ * (a timeout pressed twice, a tab that retried) is given the first answer and changes nothing; the same key on another
+ * request is refused, 422, since a client that reuses a key for a second intent would otherwise be told the first
+ * one's answer. An Ask card's write keeps its own prefix, `card:`, and no hash: a card approved from two tabs is one
+ * write whatever each tab sent (the scorecard, 29 September: "a broadcast or playbook card approved in two tabs runs
+ * twice"; legacy-bridge/ask commit.ts names the proposal id as the key and says it is Ask's). A request that arrives
+ * while the first still runs is refused in words; a write that fails lets the key go, so pressing again tries again; a
+ * request that died holding it (killed mid-write, its receipt never kept) is taken over by the next once HOLD_MS has
+ * passed, as core's reply key is, so a key never sticks. A route that keeps its own key (the reply, `idempotent:
+ * "own"`), a request with no key or one too long to be a key, and a write with no workspace to keep it in (an account's
+ * or the platform's) run as they always have. Every key is kept a day (purge_idempotency_keys, 00340).
  */
-async function onceForCard<O>(
+async function onceForKey<O>(
   ctx: RouteCtx,
   member: Pick<MemberContext, "tenantId"> | null,
   req: Request,
+  own: boolean,
+  bodyOf: () => Promise<string>,
   run: () => Promise<O>,
 ): Promise<O> {
   const raw = (req.headers.get("idempotency-key") ?? "").trim();
-  if (!member || req.headers.get("x-via") !== "ask" || !raw || raw.length > CARD_KEY_MAX) return run();
+  if (!member || own || !raw || raw.length > KEY_MAX) return run();
+  const card = req.headers.get("x-via") === "ask";
   const tenantId = member.tenantId;
-  const key = `card:${raw}`;
+  const key = `${card ? "card" : "req"}:${raw}`;
+  const requestHash = card ? "" : await requestHashOf(req, await bodyOf());
   const nowIso = new Date().toISOString();
   const route = `${req.method} ${new URL(req.url).pathname}`.slice(0, 200);
-  const claim = await claimIdempotencyKey(ctx.supabase, { tenantId, key, route, requestHash: "", nowIso });
+  const claim = await claimIdempotencyKey(ctx.supabase, { tenantId, key, route, requestHash, nowIso });
   if (!claim.won) {
-    if (claim.held?.response) return viaJson<O>(claim.held.response);
-    // Taken by the stamp it was read at, so of two presses that both read an abandoned claim exactly one takes it.
     const held = claim.held;
-    const abandoned = held !== null && Date.now() - Date.parse(held.created_at) >= CARD_HOLD_MS;
+    if (held && (held.request_hash ?? "") !== requestHash) {
+      throw new AppError(
+        "conflict",
+        "This request's key was used for another request. Send it again as a new one.",
+        422,
+      );
+    }
+    if (held?.response) return viaJson<O>(held.response);
+    // Taken by the stamp it was read at, so of two requests that both read an abandoned claim exactly one takes it.
+    const abandoned = held !== null && Date.now() - Date.parse(held.created_at) >= HOLD_MS;
     const taken =
       abandoned && held
-        ? await takeIdempotencyKey(ctx.supabase, { tenantId, key, requestHash: "", nowIso, from: held.created_at })
+        ? await takeIdempotencyKey(ctx.supabase, { tenantId, key, requestHash, nowIso, from: held.created_at })
         : false;
     if (!taken) {
-      throw new AppError("conflict", "This card is being approved already. Its answer arrives in a moment.");
+      throw new AppError(
+        "conflict",
+        card
+          ? "This card is being approved already. Its answer arrives in a moment."
+          : "This is being done already. Its answer arrives in a moment.",
+      );
     }
   }
   let out: O;
@@ -279,19 +313,23 @@ async function onceForCard<O>(
     throw e;
   }
   const response = viaJson<Json>(out === undefined ? { ok: true } : out);
-  // The write has happened; a receipt that cannot be kept means a second press runs it again after the hold's window, so
-  // it is said, not swallowed. A key another press took over is not the receipt's to write, and says the same.
+  // The write has happened; a receipt that cannot be kept means a second request runs it again after the hold's window,
+  // so it is said, not swallowed. A key another request took over is not the receipt's to write, and says the same.
+  const unkept = (error: unknown) =>
+    card
+      ? log.error("card_receipt_unkept", { tenant_id: tenantId, error })
+      : log.error("write_receipt_unkept", { tenant_id: tenantId, error });
   const kept = await keepIdempotencyReceipt(ctx.supabase, {
     tenantId,
     key,
-    requestHash: "",
+    requestHash,
     response,
     stamp: nowIso,
   }).catch((e: unknown) => {
-    log.error("card_receipt_unkept", { tenant_id: tenantId, error: e });
+    unkept(e);
     return true;
   });
-  if (!kept) log.error("card_receipt_unkept", { tenant_id: tenantId, error: "the key was taken over" });
+  if (!kept) unkept("the key was taken over");
   return out;
 }
 
@@ -303,6 +341,7 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
     role: spec.role ?? null,
     rate: spec.rate ?? null,
     spend: spec.spend === true,
+    ...(spec.idempotent ? { idempotent: spec.idempotent } : {}),
   });
 
   const run = async (req: Request, ctx: RouteCtx): Promise<O> => {
@@ -321,16 +360,20 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
     // A route that spends takes its count strictly: the shared count, or a
     // refusal -- never a per-instance count a burst across instances walks past.
     if (spec.rate) await takeRate(ctx.userId, spec.rate, undefined, spec.spend === true);
+    // A write's body is read once, as text: its schema parses it and its key hashes it. A write with no schema leaves
+    // the body to its handler (an upload reads its own form), so its key hashes a copy, and only when one is sent.
+    let body: string | null = null;
     const input =
       kind === "write"
         ? spec.input
-          ? parse(spec.input, await requestBodyOf(req))
+          ? parse(spec.input, bodyAsJson((body = await req.text())))
           : undefined
         : spec.query
           ? parse(spec.query, Object.fromEntries([...new URL(req.url).searchParams].filter(([k]) => k !== "workspace")))
           : undefined;
     const handle = () => spec.handle({ ctx, req, input, ...given } as unknown as Call<S, I>);
-    return kind === "write" ? onceForCard(ctx, member, req, handle) : handle();
+    const bodyOf = async () => body ?? (await req.clone().text());
+    return kind === "write" ? onceForKey(ctx, member, req, spec.idempotent === "own", bodyOf, handle) : handle();
   };
 
   // `input` is what the route declared it takes (a write's body, a read's query): the /api/v1 reference is written
