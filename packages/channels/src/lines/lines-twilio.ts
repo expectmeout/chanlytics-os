@@ -9,7 +9,7 @@
  * and parameter without a network, and the edge supplies fetch.
  */
 import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
-import type { AvailableNumber, LineProvider, ProviderAccount } from "./lines";
+import type { AvailableNumber, LineProvider, ProviderAccount, ReceivedText } from "./lines";
 
 export interface TwilioAnswer {
   /** The HTTP status, or 0 when no answer came (the body then says why, as `error`). */
@@ -398,6 +398,28 @@ async function sendSms(
   };
 }
 
+/** How many of a number's latest texts one read asks for: Twilio lists them newest first. */
+const RECENT_TEXTS_PAGE = "20";
+
+/**
+ * The texts that arrived on a number (Twilio's Messages, filtered by `To`), since a moment: the inbound ones with a sid, a
+ * sender and a time (`date_sent`, RFC 2822). The filter by date is ours: Twilio's own takes a day, and a code is wanted
+ * within minutes.
+ */
+async function recentTexts(http: TwilioHttp, acct: ProviderAccount, to: string, sinceMs: number) {
+  const url = `${twilioUrls.messages(acct.sid)}?${new URLSearchParams({ To: to, PageSize: RECENT_TEXTS_PAGE })}`;
+  const b = need(await http(acct, "GET", url), "list received texts");
+  return rowsOf(b, "messages").flatMap((m): ReceivedText[] => {
+    const sid = str(m, "sid");
+    const from = str(m, "from");
+    const body = str(m, "body");
+    const atMs = Date.parse(str(m, "date_sent") ?? "");
+    if (str(m, "direction") !== "inbound" || !sid || !from || body === null || Number.isNaN(atMs) || atMs < sinceMs)
+      return [];
+    return [{ sid, from, body, atMs }];
+  });
+}
+
 export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
   return {
     name: "twilio",
@@ -422,5 +444,6 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     createMessagingService: (acct, o) => createMessagingService(http, acct, o),
     addNumberToService: (acct, serviceSid, numberSid) => addNumberToService(http, acct, serviceSid, numberSid),
     sendSms: (acct, o) => sendSms(http, acct, o),
+    recentTexts: (acct, to, sinceMs) => recentTexts(http, acct, to, sinceMs),
   };
 }

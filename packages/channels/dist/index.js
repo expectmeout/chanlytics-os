@@ -2065,6 +2065,20 @@ async function sendSms(http2, acct, o) {
     ...a.outcome ? { outcome: ok2 ? "ok" : a.outcome === "ok" ? "unknown" : a.outcome } : {}
   };
 }
+var RECENT_TEXTS_PAGE = "20";
+async function recentTexts(http2, acct, to, sinceMs) {
+  const url = `${twilioUrls.messages(acct.sid)}?${new URLSearchParams({ To: to, PageSize: RECENT_TEXTS_PAGE })}`;
+  const b = need(await http2(acct, "GET", url), "list received texts");
+  return rowsOf(b, "messages").flatMap((m) => {
+    const sid2 = str(m, "sid");
+    const from = str(m, "from");
+    const body = str(m, "body");
+    const atMs = Date.parse(str(m, "date_sent") ?? "");
+    if (str(m, "direction") !== "inbound" || !sid2 || !from || body === null || Number.isNaN(atMs) || atMs < sinceMs)
+      return [];
+    return [{ sid: sid2, from, body, atMs }];
+  });
+}
 function twilioProvider(http2 = fetchTwilio) {
   return {
     name: "twilio",
@@ -2088,12 +2102,14 @@ function twilioProvider(http2 = fetchTwilio) {
     attachNumber: (acct, trunkSid, numberSid) => attachNumber(http2, acct, trunkSid, numberSid),
     createMessagingService: (acct, o) => createMessagingService(http2, acct, o),
     addNumberToService: (acct, serviceSid, numberSid) => addNumberToService(http2, acct, serviceSid, numberSid),
-    sendSms: (acct, o) => sendSms(http2, acct, o)
+    sendSms: (acct, o) => sendSms(http2, acct, o),
+    recentTexts: (acct, to, sinceMs) => recentTexts(http2, acct, to, sinceMs)
   };
 }
 
 // src/lines/lines-dry.ts
 var hex = (n, width = 32) => n.toString(16).padStart(width, "0");
+var DRY_TEXTS_PAGE = 20;
 function dryProvider(seed = 1) {
   let n = seed;
   const next = (prefix) => `${prefix}${hex(n++)}`;
@@ -2104,6 +2120,7 @@ function dryProvider(seed = 1) {
   const lists = /* @__PURE__ */ new Map();
   const credentials = /* @__PURE__ */ new Map();
   const originations = /* @__PURE__ */ new Map();
+  const received = /* @__PURE__ */ new Map();
   const rec = (op, ...args) => calls.push({ op, args });
   const acctOf = (a) => a.sid;
   return {
@@ -2221,6 +2238,16 @@ function dryProvider(seed = 1) {
     async sendSms(acct, o) {
       rec("sendSms", acctOf(acct), o.serviceSid, o.to);
       return { ok: true, sid: next("SM"), status: 201, code: null };
+    },
+    plantText(to, text) {
+      received.set(to, [...received.get(to) ?? [], text]);
+    },
+    // Not `async`: nothing here waits, and lint's `require-await` warnings in this file are a count that may only fall.
+    recentTexts(acct, to, sinceMs) {
+      rec("recentTexts", acctOf(acct), to, sinceMs);
+      return Promise.resolve(
+        (received.get(to) ?? []).filter((t) => t.atMs >= sinceMs).sort((a, b) => b.atMs - a.atMs).slice(0, DRY_TEXTS_PAGE)
+      );
     }
   };
 }

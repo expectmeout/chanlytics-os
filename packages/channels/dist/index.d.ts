@@ -1294,6 +1294,12 @@ interface LineProvider {
         body: string;
         statusCallback?: string;
     }): Promise<SmsSendResult>;
+    /**
+     * The texts that arrived on `to` since `sinceMs`, newest first, a page of twenty at most, from the provider's own record
+     * (the account's list of messages): nothing of ours is kept. A read that FAILS throws, so a caller never mistakes it for
+     * a number nobody wrote to.
+     */
+    recentTexts(acct: ProviderAccount, to: string, sinceMs: number): Promise<ReceivedText[]>;
 }
 /**
  * A text that arrived on one of the account's numbers, as the provider keeps it: the provider's own record, never ours.
@@ -1430,6 +1436,8 @@ interface DryProvider extends LineProvider {
     readonly calls: DryCall[];
     /** Numbers bought and not released, by SID. */
     readonly owned: Map<string, string>;
+    /** A text that "arrived" on `to`, for recentTexts to answer: the dry provider has no carrier to receive one. */
+    plantText(to: string, text: ReceivedText): void;
 }
 declare function dryProvider(seed?: number): DryProvider;
 

@@ -95,6 +95,12 @@ export interface LineProvider {
     acct: ProviderAccount,
     o: { serviceSid: string; to: string; body: string; statusCallback?: string },
   ): Promise<SmsSendResult>;
+  /**
+   * The texts that arrived on `to` since `sinceMs`, newest first, a page of twenty at most, from the provider's own record
+   * (the account's list of messages): nothing of ours is kept. A read that FAILS throws, so a caller never mistakes it for
+   * a number nobody wrote to.
+   */
+  recentTexts(acct: ProviderAccount, to: string, sinceMs: number): Promise<ReceivedText[]>;
 }
 
 /**

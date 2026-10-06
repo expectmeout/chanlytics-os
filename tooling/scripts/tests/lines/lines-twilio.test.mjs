@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { twilioProvider, TwilioError } from "@chanlytics/channels";
+import { dryProvider, twilioProvider, TwilioError } from "@chanlytics/channels";
 
 const master = { sid: "ACmaster", token: "t" };
 const acct = { sid: "ACsub", token: "s" };
@@ -46,6 +46,7 @@ const CALLS = {
     p.createMessagingService(acct, { friendlyName: "Harbor", inboundUrl: "https://edge.example.com/api/inbound-sms" }),
   addNumberToService: (p) => p.addNumberToService(acct, "MG1", "PN1"),
   sendSms: (p) => p.sendSms(acct, { serviceSid: "MG1", to: "+16465550123", body: "hi" }),
+  recentTexts: (p) => p.recentTexts(acct, "+16465550100", 0),
 };
 
 test("Twilio: the provider is every method of a line provider, each one call as the account it is handed", async () => {
@@ -204,4 +205,75 @@ test("Twilio: a text carries its status callback only when it has one, and is ok
   assert.deepEqual(await sent(300, { sid: "SM1" }), { ok: false, sid: "SM1", status: 300, code: null });
   assert.deepEqual(await sent(400, { code: "21610" }), { ok: false, sid: null, status: 400, code: null });
   assert.deepEqual(await sent(500, null), { ok: false, sid: null, status: 500, code: null });
+});
+
+test("Twilio: the texts that arrived on a number are the account's Messages to it, a page of twenty, and only the inbound ones sent since are kept, in the order Twilio lists them", async () => {
+  const body = {
+    messages: [
+      {
+        sid: "SM3",
+        direction: "inbound",
+        from: "+15555550101",
+        body: "Your WhatsApp code: 788-963",
+        date_sent: "Tue, 06 Oct 2026 14:58:00 +0000",
+      },
+      {
+        sid: "SM2",
+        direction: "outbound-api",
+        from: "+16465550100",
+        body: "We open at 9.",
+        date_sent: "Tue, 06 Oct 2026 14:57:00 +0000",
+      },
+      {
+        sid: "SM1",
+        direction: "inbound",
+        from: "+15555550102",
+        body: "G-123456 is your Google verification code.",
+        date_sent: "Tue, 06 Oct 2026 14:40:00 +0000",
+      },
+      { sid: "SM0", direction: "inbound", from: "+15555550103", body: "no date", date_sent: null },
+      {
+        sid: "",
+        direction: "inbound",
+        from: "+15555550104",
+        body: "no sid",
+        date_sent: "Tue, 06 Oct 2026 14:56:00 +0000",
+      },
+      null,
+    ],
+  };
+  const { provider, calls } = over({ status: 200, body });
+  const since = Date.parse("2026-10-06T14:45:00Z");
+  assert.deepEqual(await provider.recentTexts(acct, "+16465550100", since), [
+    { sid: "SM3", from: "+15555550101", body: "Your WhatsApp code: 788-963", atMs: Date.parse("2026-10-06T14:58:00Z") },
+  ]);
+  assert.equal(calls.length, 1);
+  const [call] = calls;
+  assert.deepEqual([call.acct, call.method, call.form], ["ACsub", "GET", undefined]);
+  const url = new URL(call.url);
+  assert.equal(url.pathname, "/2010-04-01/Accounts/ACsub/Messages.json", "the account's own Messages");
+  assert.deepEqual([url.searchParams.get("To"), url.searchParams.get("PageSize")], ["+16465550100", "20"]);
+  assert.deepEqual(await over({ status: 200, body: {} }).provider.recentTexts(acct, "+16465550100", 0), []);
+  await assert.rejects(
+    over({ status: 401, body: { code: 20003, message: "Authenticate" } }).provider.recentTexts(acct, "+16465550100", 0),
+    (e) => e instanceof TwilioError && e.status === 401 && /list received texts/.test(e.message),
+    "a read that fails is a failure, never an empty list",
+  );
+});
+
+test("the dry provider answers the texts a test planted for a number, newest first and since a moment, and records what it was asked", async () => {
+  const dry = dryProvider();
+  dry.plantText("+16465550100", { sid: "SM1", from: "+15555550101", body: "Your WhatsApp code: 788-963", atMs: 2_000 });
+  dry.plantText("+16465550100", { sid: "SM2", from: "+15555550102", body: "later", atMs: 3_000 });
+  dry.plantText("+16465550199", { sid: "SM3", from: "+15555550103", body: "another number's", atMs: 2_500 });
+  assert.deepEqual(
+    (await dry.recentTexts(acct, "+16465550100", 0)).map((t) => t.sid),
+    ["SM2", "SM1"],
+  );
+  assert.deepEqual(
+    (await dry.recentTexts(acct, "+16465550100", 2_500)).map((t) => t.sid),
+    ["SM2"],
+  );
+  assert.deepEqual(await dry.recentTexts(acct, "+16465550150", 0), []);
+  assert.deepEqual(dry.calls.at(-1), { op: "recentTexts", args: ["ACsub", "+16465550150", 0] });
 });
