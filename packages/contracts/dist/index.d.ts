@@ -17316,6 +17316,8 @@ interface DealPerson {
         open: boolean;
         hoursLeft: number;
     } | null;
+    /** Mail to their address has stopped (isEmailStopped): where a reply goes by email, it cannot be sent. */
+    emailSuppressed: boolean;
     consent: {
         state: string;
         dnc: boolean;
@@ -17352,6 +17354,7 @@ interface DealPerson {
 declare const DEAL_SEND_WHY: {
     readonly window: "Their WhatsApp window has closed. Record it now, and send it from their thread when they write next.";
     readonly stopped: "They asked not to be messaged.";
+    readonly emailStopped: "Email can't reach them: their address stopped accepting mail";
     readonly none: "There is no conversation with them yet.";
 };
 /**
@@ -17366,11 +17369,11 @@ interface DealSend {
 }
 /**
  * The one rule for sending a proposal from the sheet or the card: someone the page may reach (people.ts mayReach: a
- * conversation, no stop, no do-not-contact), and free text allowed on their wire (proposalAction's `ready`:
- * WhatsApp's window open, or email or a text). Where it cannot go the sheet still records the proposal and says why
- * here.
+ * conversation, no stop, no do-not-contact, and not an email address that stopped), and free text allowed on their wire
+ * (proposalAction's `ready`: WhatsApp's window open, or email or a text). Where it cannot go the sheet still records the
+ * proposal and says why here.
  */
-declare function dealSendOf(p: Pick<DealPerson, "consent" | "openThread" | "replyVia" | "replyWindow">): DealSend;
+declare function dealSendOf(p: Pick<DealPerson, "consent" | "openThread" | "replyVia" | "replyWindow" | "emailSuppressed">): DealSend;
 /** The words a follow-up carries into the composer, once the proposal waited with nothing back (waitingOnProposal). */
 declare function proposalFollowUp(url: string): string;
 /** What an act does, said on hover where it needs saying. Its label is DEAL_ACT_WORDS' (deals.ts). */
@@ -18074,12 +18077,6 @@ declare const PIPELINE_WORDS: {
 declare function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: number, tz: string, pace: DealPaceVM | null, view?: PipelineView): PipelineVM<T>;
 
 /**
- * Whether and how a person may be reached from their page: the booking link's and the proposal's buttons by the wire
- * a reply goes out on, what a reply may be in the owner's words, the words a proposal goes with, and the one rule
- * every send the page offers asks (mayReach). It imports nothing; the row (person-row.ts), the page and the deal
- * sheet read it.
- */
-/**
  * What the booking-link button says, by the wire a reply goes out on.
  *
  * Nothing is sent from the button: it opens the thread with the link ready in
@@ -18087,12 +18084,14 @@ declare function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs:
  * approved template. Three pages carried their own two-way copy of these words,
  * so on an email-only person they read "Text the booking link" -- and before
  * the window was channel-aware, "Send the booking-link template", a template
- * that person cannot receive. `ready` is whether the composer may be filled.
+ * that person cannot receive. `ready` is whether the composer may be filled. Where the reply goes by email and their
+ * address has stopped accepting mail (`emailStopped`, isEmailStopped: required, since a reader that forgets it offers an
+ * email the route then refuses) nothing is ready, and the title says why.
  */
 declare function bookingLinkAction(replyVia: "WhatsApp" | "Text" | "Email" | null, win: {
     open: boolean;
     hoursLeft: number;
-} | null): {
+} | null, emailStopped: boolean): {
     label: string;
     title: string;
     ready: boolean;
@@ -18115,16 +18114,24 @@ declare function proposalMessage(url: string): string;
  * thread with the address ready in the composer. There is no template for a
  * proposal, so where WhatsApp's window has shut there is no button (`ready`
  * false) -- the About rail's Replies row already says why. "again" once
- * the address has gone out, so the page says what it knows without a second line.
+ * the address has gone out, so the page says what it knows without a second line. An address that stopped accepting
+ * mail (`emailStopped`, as bookingLinkAction has it) is the same: no button, and the Replies row's own sentence.
  */
 declare function proposalAction(replyVia: "WhatsApp" | "Text" | "Email" | null, win: {
     open: boolean;
     hoursLeft: number;
-} | null, sentWords: string | null): {
+} | null, sentWords: string | null, emailStopped: boolean): {
     label: string;
     title: string;
     ready: boolean;
 };
+/**
+ * What a reply to them may be, in the owner's words: the person page's Replies and the Pipeline peek's, one sentence.
+ * WhatsApp takes any message for a day after they last wrote, and after that only a message WhatsApp approved ahead
+ * of time; a text or an email goes any time, unless their address has stopped accepting mail, which says so. It said
+ * "Reply window · Closed · template only", and before it was channel-aware it said so to a person who had only ever
+ * emailed. Null with no wire a reply goes out on.
+ */
 declare function repliesWords(via: "WhatsApp" | "Text" | "Email" | null, window: {
     open: boolean;
     hoursLeft: number;
@@ -18140,10 +18147,11 @@ stop: {
     emailStopped: boolean;
 }): string | null;
 /**
- * Whether the page may reach them at all: a conversation to write in, no stop, and no do-not-contact. It is not
- * whether free text can go now (proposalAction's and bookingLinkAction's `ready`): where WhatsApp takes only an
- * approved message, their thread offers one. Every send the page offers asks this one rule: the More menu's
- * (personActs) and the deal card's (deal-sheet.ts dealSendOf).
+ * Whether the page may reach them at all: a conversation to write in, no stop, no do-not-contact, and a wire that is
+ * not an address that stopped accepting mail (`emailSuppressed`, isEmailStopped: the reply goes by email, and the route
+ * refuses it). It is not whether free text can go now (proposalAction's and bookingLinkAction's `ready`): where
+ * WhatsApp takes only an approved message, their thread offers one. Every send the page offers asks this one rule: the
+ * More menu's (personActs) and the deal card's (deal-sheet.ts dealSendOf).
  */
 declare function mayReach(p: {
     openThread: string | null;
@@ -18151,6 +18159,8 @@ declare function mayReach(p: {
         state: string;
         dnc: boolean;
     };
+    replyVia: "WhatsApp" | "Text" | "Email" | null;
+    emailSuppressed: boolean;
 }): boolean;
 
 interface PersonRightNow {
@@ -18336,8 +18346,8 @@ interface PersonActVM {
  * A send opens their thread with the words ready; nothing is sent from the page. So it says so, in the wire it goes
  * on, and never names a template or a window: where WhatsApp takes only an approved message the thread offers it,
  * which is what its hover says. The labels are a few words each: with a sentence beside every one the menu was a
- * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, and no call reaches
- * someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
+ * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, nor by
+ * email an address that stopped accepting mail (mayReach), and no call reaches someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
  */
 declare function personActs(p: Omit<PersonVM, "acts">): PersonActVM[];
 /** One message a person wrote to the business, as the desk chooses it for an answer given in it. */

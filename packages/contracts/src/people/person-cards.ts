@@ -522,12 +522,18 @@ export function sinceWords(base: PersonRowVM): string {
       : `Since ${base.firstContact.label}`;
 }
 
-/** The row's reply fields made exact by the profile: the wire in words, its window, and the booking link's words for it. */
-export function replyFields(reply: PersonReply): Pick<PersonRowVM, "replyVia" | "replyWindow" | "bookingLinkAction"> {
+/**
+ * The row's reply fields made exact by the profile: the wire in words, its window, and the booking link's words for it
+ * (which say an address that stopped accepting mail cannot be emailed: `emailStopped`, the row's own flag).
+ */
+export function replyFields(
+  reply: PersonReply,
+  emailStopped: boolean,
+): Pick<PersonRowVM, "replyVia" | "replyWindow" | "bookingLinkAction"> {
   return {
     replyVia: REPLY_VIA[reply.via],
     replyWindow: reply.window,
-    bookingLinkAction: bookingLinkAction(REPLY_VIA[reply.via], reply.window),
+    bookingLinkAction: bookingLinkAction(REPLY_VIA[reply.via], reply.window, emailStopped),
   };
 }
 

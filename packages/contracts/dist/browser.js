@@ -18343,9 +18343,12 @@ function visitDayWord(visit, tz, sendAt, assumed) {
 }
 
 // src/people/person-reach.ts
-function bookingLinkAction(replyVia, win) {
+var EMAIL_STOPPED_TAG = "stopped accepting mail";
+var EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
+function bookingLinkAction(replyVia, win, emailStopped) {
+  const notReady = (title) => ({ label: "Send the booking link", title, ready: false });
   if (replyVia === "Email")
-    return {
+    return emailStopped ? notReady(EMAIL_CANT_REACH) : {
       label: "Email the booking link",
       title: "Opens the thread with the link ready to send by email",
       ready: true
@@ -18362,20 +18365,19 @@ function bookingLinkAction(replyVia, win) {
       title: `Opens the thread with the link ready to send \xB7 any message for ${win.hoursLeft}h more`,
       ready: true
     };
-  return {
-    label: "Send the booking link",
-    title: "Only an approved message reaches them until they write again; their thread offers the one with the link",
-    ready: false
-  };
+  return notReady(
+    "Only an approved message reaches them until they write again; their thread offers the one with the link"
+  );
 }
 function proposalMessage(url) {
   return `Here's the proposal we put together for you: ${url}`;
 }
-function proposalAction(replyVia, win, sentWords2) {
+function proposalAction(replyVia, win, sentWords2, emailStopped) {
   const again = sentWords2 ? " again" : "";
   const sent2 = sentWords2 ? ` \xB7 sent ${sentWords2}` : "";
+  const notReady = (title) => ({ label: "Send the proposal", title, ready: false });
   if (replyVia === "Email")
-    return {
+    return emailStopped ? notReady(EMAIL_CANT_REACH) : {
       label: `Email the proposal${again}`,
       title: `Opens the thread with the proposal link ready to send by email${sent2}`,
       ready: true
@@ -18392,20 +18394,14 @@ function proposalAction(replyVia, win, sentWords2) {
       title: `Opens the thread with the proposal link ready to send \xB7 any message for ${win.hoursLeft}h more${sent2}`,
       ready: true
     };
-  return {
-    label: "Send the proposal",
-    title: "Only an approved message reaches them until they write again, so the proposal waits until they do",
-    ready: false
-  };
+  return notReady("Only an approved message reaches them until they write again, so the proposal waits until they do");
 }
-var EMAIL_STOPPED_TAG = "stopped accepting mail";
 function emailFactWords(email, stopped) {
   return stopped ? `${email} \xB7 ${EMAIL_STOPPED_TAG}` : email;
 }
 function repliesWords(via, window, stop) {
   if (stop.optedOut) return optOutWords(stop.who);
-  if (via === "Email")
-    return stop.emailStopped ? `Email can't reach them: their address ${EMAIL_STOPPED_TAG}` : "Any time, by email";
+  if (via === "Email") return stop.emailStopped ? EMAIL_CANT_REACH : "Any time, by email";
   if (via === "Text") return "Any time, by text";
   if (via !== "WhatsApp" || !window) return null;
   if (!window.open) return "Approved messages only, until they write again";
@@ -18413,7 +18409,7 @@ function repliesWords(via, window, stop) {
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
 }
 function mayReach(p) {
-  return !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc;
+  return !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc && !(p.replyVia === "Email" && p.emailSuppressed);
 }
 
 // src/deals/sheet/deal-acts.ts
@@ -18424,6 +18420,8 @@ function isDealSheetMode(s) {
 var DEAL_SEND_WHY = {
   window: "Their WhatsApp window has closed. Record it now, and send it from their thread when they write next.",
   stopped: "They asked not to be messaged.",
+  // The Replies row's own sentence (person-reach.ts), not a second one.
+  emailStopped: EMAIL_CANT_REACH,
   none: "There is no conversation with them yet."
 };
 function dealSendOf(p) {
@@ -18432,9 +18430,10 @@ function dealSendOf(p) {
   const reach = mayReach(p);
   if (!reach) {
     const stopped = p.consent.state === "opted_out" || p.consent.dnc;
-    return { can: false, reach, why: stopped ? DEAL_SEND_WHY.stopped : DEAL_SEND_WHY.none, label };
+    const why = stopped ? DEAL_SEND_WHY.stopped : p.openThread ? DEAL_SEND_WHY.emailStopped : DEAL_SEND_WHY.none;
+    return { can: false, reach, why, label };
   }
-  if (!proposalAction(p.replyVia, p.replyWindow, null).ready)
+  if (!proposalAction(p.replyVia, p.replyWindow, null, p.emailSuppressed).ready)
     return { can: false, reach, why: DEAL_SEND_WHY.window, label };
   return { can: true, reach, why: null, label };
 }
@@ -22427,6 +22426,20 @@ function rowReachOf(r2, consent, ready) {
   const facts = { lastChannel: lastChannelOf(r2.last_inbound_channel), emailSuppressed: isEmailStopped(r2) };
   return { ...facts, ...personReachOf({ consent, phone: r2.phone_e164, email: r2.email ?? null, ...facts }, ready) };
 }
+function rowReplyOf(r2, now, emailStopped) {
+  const via = replyChannelOfRow(r2);
+  if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null, false) };
+  const w = replyWindow(via, r2.latest_wa_inbound_at, now);
+  const win = {
+    open: w.open,
+    hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS)) : 0
+  };
+  return {
+    replyWindow: win,
+    replyVia: REPLY_VIA[via],
+    bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win, emailStopped)
+  };
+}
 function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null, ready) {
   const nowMs = now.getTime();
   const name = personName(r2);
@@ -22481,20 +22494,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.next.title, name)}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.last.title, name)}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
-    // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
-    // WhatsApp's for everybody, so a person who had only ever emailed was shown
-    // "Closed · template only" -- a template they cannot receive, on a wire
-    // they have never used.
-    ...(() => {
-      const via = replyChannelOfRow(r2);
-      if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null) };
-      const w = replyWindow(via, r2.latest_wa_inbound_at, now);
-      const win = {
-        open: w.open,
-        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0
-      };
-      return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
-    })(),
+    ...rowReplyOf(r2, now, reach.emailSuppressed),
     channelWords: channelsOf2(r2).map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 "),
     askedMs,
     askedNotBooked,
@@ -23542,11 +23542,11 @@ function aboutOf({
 function sinceWords(base) {
   return base.firstContact.label === "\u2014" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`;
 }
-function replyFields(reply) {
+function replyFields(reply, emailStopped) {
   return {
     replyVia: REPLY_VIA[reply.via],
     replyWindow: reply.window,
-    bookingLinkAction: bookingLinkAction(REPLY_VIA[reply.via], reply.window)
+    bookingLinkAction: bookingLinkAction(REPLY_VIA[reply.via], reply.window, emailStopped)
   };
 }
 function receptionistModeOf(d) {
@@ -23928,7 +23928,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
   const { base, nowMs, dealsOn, reply } = ctx;
   const vm = {
     ...base,
-    ...reply ? replyFields(reply) : {},
+    ...reply ? replyFields(reply, base.emailSuppressed) : {},
     since: sinceWords(base),
     metaLine: `${plural(base.threads, "conversation")} \xB7 ${plural(base.calls, "call")}`,
     lastExchange: lastExchangeOf(ctx),
@@ -23956,7 +23956,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
   const whole = {
     ...vm,
     proposal: ctx.proposal,
-    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, ctx.sentWords)
+    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, ctx.sentWords, vm.emailSuppressed)
   };
   return { ...whole, acts: personActs(whole) };
 }

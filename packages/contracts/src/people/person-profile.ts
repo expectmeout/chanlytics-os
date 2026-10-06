@@ -148,8 +148,8 @@ export interface PersonActVM {
  * A send opens their thread with the words ready; nothing is sent from the page. So it says so, in the wire it goes
  * on, and never names a template or a window: where WhatsApp takes only an approved message the thread offers it,
  * which is what its hover says. The labels are a few words each: with a sentence beside every one the menu was a
- * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, and no call reaches
- * someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
+ * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, nor by
+ * email an address that stopped accepting mail (mayReach), and no call reaches someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
  */
 export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
   const acts: PersonActVM[] = [];
@@ -258,7 +258,7 @@ export function toPersonVM(
   const { base, nowMs, dealsOn, reply } = ctx;
   const vm: Omit<PersonVM, "proposal" | "proposalAction" | "acts"> = {
     ...base,
-    ...(reply ? replyFields(reply) : {}),
+    ...(reply ? replyFields(reply, base.emailSuppressed) : {}),
     since: sinceWords(base),
     metaLine: `${plural(base.threads, "conversation")} · ${plural(base.calls, "call")}`,
     lastExchange: lastExchangeOf(ctx),
@@ -287,7 +287,7 @@ export function toPersonVM(
   const whole = {
     ...vm,
     proposal: ctx.proposal,
-    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, ctx.sentWords),
+    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, ctx.sentWords, vm.emailSuppressed),
   };
   return { ...whole, acts: personActs(whole) };
 }

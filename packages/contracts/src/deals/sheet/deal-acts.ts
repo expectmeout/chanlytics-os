@@ -8,7 +8,7 @@ import { DEAL_ACT_WORDS, type DealActId, type DealStage } from "../deal-words";
 import type { DealVM } from "../deal-vm";
 import { waitingOnProposal, type DealPaceVM } from "../deal-waits";
 import { consultServiceOf, noProposalSince } from "../deal-consultations";
-import { mayReach, proposalAction, proposalMessage } from "../../people/person-reach";
+import { EMAIL_CANT_REACH, mayReach, proposalAction, proposalMessage } from "../../people/person-reach";
 import type { PersonNoteVM } from "../../notes/person-notes";
 import type { FollowUpStand } from "../../playbooks/playbooks";
 
@@ -43,6 +43,8 @@ export interface DealPerson {
   followUp?: FollowUpStand | null;
   replyVia: "WhatsApp" | "Text" | "Email" | null;
   replyWindow: { open: boolean; hoursLeft: number } | null;
+  /** Mail to their address has stopped (isEmailStopped): where a reply goes by email, it cannot be sent. */
+  emailSuppressed: boolean;
   consent: { state: string; dnc: boolean };
   /** "inbox/th-…", or null for someone with no conversation. */
   openThread: string | null;
@@ -68,6 +70,8 @@ export interface DealPerson {
 export const DEAL_SEND_WHY = {
   window: "Their WhatsApp window has closed. Record it now, and send it from their thread when they write next.",
   stopped: "They asked not to be messaged.",
+  // The Replies row's own sentence (person-reach.ts), not a second one.
+  emailStopped: EMAIL_CANT_REACH,
   none: "There is no conversation with them yet.",
 } as const;
 
@@ -84,19 +88,22 @@ export interface DealSend {
 
 /**
  * The one rule for sending a proposal from the sheet or the card: someone the page may reach (people.ts mayReach: a
- * conversation, no stop, no do-not-contact), and free text allowed on their wire (proposalAction's `ready`:
- * WhatsApp's window open, or email or a text). Where it cannot go the sheet still records the proposal and says why
- * here.
+ * conversation, no stop, no do-not-contact, and not an email address that stopped), and free text allowed on their wire
+ * (proposalAction's `ready`: WhatsApp's window open, or email or a text). Where it cannot go the sheet still records the
+ * proposal and says why here.
  */
-export function dealSendOf(p: Pick<DealPerson, "consent" | "openThread" | "replyVia" | "replyWindow">): DealSend {
+export function dealSendOf(
+  p: Pick<DealPerson, "consent" | "openThread" | "replyVia" | "replyWindow" | "emailSuppressed">,
+): DealSend {
   const on = p.replyVia === "Email" ? "by email" : p.replyVia === "Text" ? "as a text" : "on WhatsApp";
   const label = `Send it now ${on}`;
   const reach = mayReach(p);
   if (!reach) {
     const stopped = p.consent.state === "opted_out" || p.consent.dnc;
-    return { can: false, reach, why: stopped ? DEAL_SEND_WHY.stopped : DEAL_SEND_WHY.none, label };
+    const why = stopped ? DEAL_SEND_WHY.stopped : p.openThread ? DEAL_SEND_WHY.emailStopped : DEAL_SEND_WHY.none;
+    return { can: false, reach, why, label };
   }
-  if (!proposalAction(p.replyVia, p.replyWindow, null).ready)
+  if (!proposalAction(p.replyVia, p.replyWindow, null, p.emailSuppressed).ready)
     return { can: false, reach, why: DEAL_SEND_WHY.window, label };
   return { can: true, reach, why: null, label };
 }

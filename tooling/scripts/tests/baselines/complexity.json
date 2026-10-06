@@ -345,7 +345,7 @@
     "depth": 1
   },
   "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
-    "lines": 140,
+    "lines": 127,
     "branches": 78,
     "depth": 0
   },
