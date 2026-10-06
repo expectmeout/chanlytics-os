@@ -8268,7 +8268,7 @@ function audiencePreview(rows, kind, id, savedIds, purpose, how, limit = 5, touc
   };
 }
 
-// src/broadcasts/broadcast-failures.ts
+// src/broadcasts/broadcast-failure-words.ts
 var BROADCAST_FAILURES = [
   "paused",
   "template_not_approved",
@@ -8282,38 +8282,9 @@ var BROADCAST_FAILURES = [
   "campaigns_domain_unverified",
   "email_offers_paused"
 ];
-function emailRunStop(reason) {
-  if (reason === "email_offers_paused") return "email_offers_paused";
-  return reason === "email_marketing_disabled" ? "campaigns_domain_unverified" : null;
-}
-var RUN_STOP_REMEDY = {
-  paused: "Resume from Settings \u203A Billing",
-  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
-  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
-};
-var RUN_STOP_AGAIN = {
-  paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
-  email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
-  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`
-};
-var isRunStop = (code2) => code2 in RUN_STOP_REMEDY;
-function stoppedRunFix(why, run) {
-  const next = playbookRunNext(run, "tomorrow");
-  return next ? `${RUN_STOP_REMEDY[why]}. ${next}` : RUN_STOP_AGAIN[why];
-}
-function playbookRunNext(run, by) {
-  if (!run.playbook_id) return null;
-  if (triggerOf(run.trigger ?? "")?.kind === "visit")
-    return "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
-  return by === "tomorrow" ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice." : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
-}
-var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not_approved"]);
 var WIRE_FAILURES = ["wire_unavailable", "throttled", "stalled"];
 var isFailure = (code2) => BROADCAST_FAILURES.includes(code2);
 var isWireFailure = (code2) => WIRE_FAILURES.includes(code2);
-function wireFailure(code2, channel) {
-  return channel === "whatsapp" ? code2 : `${code2}:${channel}`;
-}
 function readFailure(stored) {
   const [code2, named, ...rest] = stored.split(":");
   if (code2 === void 0 || !isFailure(code2) || rest.length > 0) return null;
@@ -8347,6 +8318,42 @@ var BROADCAST_FAILURE_WORDS = {
   campaigns_domain_unverified: "the domain offers by email leave from is not verified with the mail provider",
   email_offers_paused: "the workspace's offers by email were paused while complaints and bounces settled"
 };
+function broadcastFailureWords(failure) {
+  if (!failure) return "no reason was recorded";
+  const read = readFailure(failure);
+  return read ? wordsFor(BROADCAST_FAILURE_WORDS[read.code], read.channel) : "it could not finish";
+}
+
+// src/broadcasts/broadcast-failures.ts
+function emailRunStop(reason) {
+  if (reason === "email_offers_paused") return "email_offers_paused";
+  return reason === "email_marketing_disabled" ? "campaigns_domain_unverified" : null;
+}
+var RUN_STOP_REMEDY = {
+  paused: "Resume from Settings \u203A Billing",
+  email_offers_paused: "Check your list for old or wrong addresses; offers by email come back on once it looks right",
+  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told"
+};
+var RUN_STOP_AGAIN = {
+  paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
+  email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`
+};
+var isRunStop = (code2) => code2 in RUN_STOP_REMEDY;
+function stoppedRunFix(why, run) {
+  const next = playbookRunNext(run, "tomorrow");
+  return next ? `${RUN_STOP_REMEDY[why]}. ${next}` : RUN_STOP_AGAIN[why];
+}
+function playbookRunNext(run, by) {
+  if (!run.playbook_id) return null;
+  if (triggerOf(run.trigger ?? "")?.kind === "visit")
+    return "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
+  return by === "tomorrow" ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice." : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
+}
+var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not_approved"]);
+function wireFailure(code2, channel) {
+  return channel === "whatsapp" ? code2 : `${code2}:${channel}`;
+}
 var BROADCAST_FAILURE_FIX = {
   paused: "Unpause it under Settings, then send it again.",
   template_not_approved: "Open it in the Library \u2014 it can be resubmitted.",
@@ -8419,11 +8426,6 @@ function broadcastFailureFix(failure, reached = 0, run) {
   }
   const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[read.code] : void 0;
   return after ? after(reached, read.channel) : wordsFor(BROADCAST_FAILURE_FIX[read.code], read.channel) || null;
-}
-function broadcastFailureWords(failure) {
-  if (!failure) return "no reason was recorded";
-  const read = readFailure(failure);
-  return read ? wordsFor(BROADCAST_FAILURE_WORDS[read.code], read.channel) : "it could not finish";
 }
 
 // src/broadcasts/broadcast-number.ts

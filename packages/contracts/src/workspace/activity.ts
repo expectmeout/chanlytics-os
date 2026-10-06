@@ -4,7 +4,7 @@ import type { LeadRoundEnding } from "../leads/search/sets";
 import { domainHoldWords } from "../email/sending-domains";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import type { Tone } from "../shell/tone";
-import { broadcastFailureWords } from "../broadcasts/broadcast-failures";
+import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words";
 
 /**
  * The activity log: both ledgers, in an owner's words.
