@@ -24376,9 +24376,10 @@ function templateBlocked(t) {
   if (t.blocked === null) return null;
   const components = t.components;
   if (!Array.isArray(components)) return null;
-  const unfilled = components.some(
-    (c) => !FILLED_PARTS.includes(String(c?.type ?? "").toUpperCase())
-  );
+  const unfilled = components.some((c) => {
+    const type = c && typeof c === "object" ? c.type : null;
+    return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
+  });
   if (unfilled) return "a part Chanlytics cannot fill";
   const header = partOf(components, "HEADER");
   if (header) {

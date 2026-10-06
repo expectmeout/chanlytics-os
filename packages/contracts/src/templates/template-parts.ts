@@ -138,9 +138,10 @@ export function templateBlocked(t: { blocked?: string | null; components?: unkno
   const components = t.components;
   if (!Array.isArray(components)) return null;
   // A part the send has no values for (a carousel of cards, a limited-time offer): Meta refuses it for every recipient.
-  const unfilled = components.some(
-    (c) => !FILLED_PARTS.includes(String((c as { type?: unknown } | null)?.type ?? "").toUpperCase()),
-  );
+  const unfilled = components.some((c) => {
+    const type = c && typeof c === "object" ? (c as { type?: unknown }).type : null;
+    return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
+  });
   if (unfilled) return "a part Chanlytics cannot fill";
   const header = partOf(components, "HEADER");
   if (header) {

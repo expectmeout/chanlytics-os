@@ -25,7 +25,7 @@ export const EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_S
  * (isEmailStopped): the one fact the booking link, the proposal and the Replies row each read. `emailStopped` is required,
  * since a reader that forgets it offers an email the route then refuses.
  */
-export interface ReplyReach {
+interface ReplyReach {
   via: "WhatsApp" | "Text" | "Email" | null;
   window: { open: boolean; hoursLeft: number } | null;
   emailStopped: boolean;
