@@ -616,7 +616,10 @@ test("right now: escalation → paused-for-you with a deep link; queued, owned, 
 
   const bare = (over) => toPersonVM(detail({ row: row(over), escalations: [], decisions: [] }), ZONE, NOW).rightNow;
   assert.equal(bare({ queued_reply_at: iso(5 * S) }).tone, "queued");
-  assert.equal(bare({ latest_assignee_user_id: "u1" }).tone, "paused");
+  // A thread somebody has: flagged, and they claimed it (the standing rule; no one looking, so whose is not said).
+  assert.equal(bare({ latest_assignee_user_id: "u1", needs_human: true, latest_state: "needs_human" }).tone, "paused");
+  // A name left on a thread nobody is working is not a claim: the assignee is never cleared, and the receptionist answers.
+  assert.equal(bare({ latest_assignee_user_id: "u1" }).tone, "answering");
   assert.equal(bare({ consent: "opted_out" }).tone, "silent");
   assert.equal(bare({ latest_state: "snoozed", latest_snooze_until: iso(-18 * H) }).tone, "snoozed");
   assert.equal(bare({}).tone, "answering");

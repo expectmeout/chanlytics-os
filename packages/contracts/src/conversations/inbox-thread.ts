@@ -7,7 +7,7 @@ import { MIN_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
-import { replyWaitsOnYou, standingOf } from "./standing";
+import { HELD_WORDS, replyWaitsOnYou, standingOf } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
 import { agentFor, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
@@ -304,7 +304,7 @@ export function toInboxThreadVM(
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther
-      ? "A teammate is answering this. The receptionist stays quiet until they hand it back."
+      ? HELD_WORDS.theirs.sentence
       : escalation
         ? // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
           // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
@@ -312,7 +312,7 @@ export function toInboxThreadVM(
           ? escalation.details.trim()
           : reasonSummaryOf(escalation.reason)
         : takenOver
-          ? "You're answering this one. The receptionist stays quiet until you hand it back."
+          ? HELD_WORDS.yours.sentence
           : lastWord
             ? lastWord.text
             : "The receptionist answered this on its own. Nothing is owed.",

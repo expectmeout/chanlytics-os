@@ -97,7 +97,7 @@ export { isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy 
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { messageStatusLabel, sendFailureWords, reachedCustomer, isHeldDraft, isChatMessage, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
-export { standingOf, replyWaitsOnYou } from "./conversations/standing";
+export { standingOf, replyWaitsOnYou, HELD_WORDS } from "./conversations/standing";
 export { agentFor, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
 export { contactName, isIdentifierName, contactMeta, initialsOf, isEmailStopped, emailStoppedWords } from "./conversations/thread-contact";
@@ -174,7 +174,7 @@ export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, mayRe
 export { asPersonMode, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS } from "./people/person-receptionist";
 export { cameFromOf, visitTitleFor, toPersonRowVM } from "./people/person-row";
 export { ago } from "./people/person-row-facts";
-export { personStanding, attentionOf, isOwned, personStateFor, PERSON_STATE_LABELS, PEOPLE_TABS, NEW_WINDOW_DAYS, QUIET_AFTER_DAYS } from "./people/person-state";
+export { personStanding, attentionOf, holderOf, personStateFor, PERSON_STATE_LABELS, PEOPLE_TABS, NEW_WINDOW_DAYS, QUIET_AFTER_DAYS } from "./people/person-state";
 export { consentChangeWords } from "./people/person-timeline";
 export { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./people/person-words";
 export { campaignsHomeOf, lifecycleKicker } from "./playbooks/lifecycle";

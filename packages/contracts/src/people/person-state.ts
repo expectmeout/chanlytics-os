@@ -93,9 +93,19 @@ export function heardAt(r: PersonRowDto): number | null {
   return at.length ? Math.max(...at) : null;
 }
 
-/** A person has the thread: they claimed it, or their own reply paused the receptionist. */
-export function isOwned(r: StandingRow, nowMs: number): boolean {
-  return !!r.latest_assignee_user_id || personStanding(r, nowMs).takenOver;
+/** Who has a person's latest thread, as the member looking is told it: they do, a teammate does, or a person not named. */
+export type ThreadHolder = "yours" | "theirs" | "someone";
+
+/**
+ * Who has the latest thread, by the one standing rule (standing.ts) for `viewerId`: a person has it when it is flagged
+ * and they claimed it, or their own reply paused the receptionist. It is the member looking's (`yours`) or a teammate's
+ * (`theirs`), as the Inbox says it (HELD_WORDS); null when nobody has it. A name left on a thread nobody is working is
+ * not a claim, which the standing rule keeps and the assignee column does not: it is never cleared, and the receptionist
+ * answers that thread. With no one looking it cannot be said whose: a person has it (`someone`), not named.
+ */
+export function holderOf(r: StandingRow, nowMs: number, viewerId: string | null): ThreadHolder | null {
+  const v = personStanding(r, nowMs, viewerId);
+  return v.claimedByOther ? "theirs" : v.takenOver ? (viewerId ? "yours" : "someone") : null;
 }
 
 /* ------------------------------ the rule --------------------------------- */

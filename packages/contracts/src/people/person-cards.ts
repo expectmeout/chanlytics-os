@@ -15,9 +15,15 @@ import { linkHost } from "../shared/link";
 import { listRuleWhy } from "./lists/list-rules";
 import { PEOPLE_LISTS } from "./lists/lists";
 import type { PersonDetailDto, PersonRowDto } from "./person-dto";
-import { asPersonMode, PERSON_MODE_WORDS, type PersonMode, type ReceptionistTone } from "./person-receptionist";
+import {
+  asPersonMode,
+  HELD_THREAD,
+  PERSON_MODE_WORDS,
+  type PersonMode,
+  type ReceptionistTone,
+} from "./person-receptionist";
 import { ago, reasonShort } from "./person-row-facts";
-import { isOwned } from "./person-state";
+import { holderOf } from "./person-state";
 import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
 import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
 import { addedBy, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
@@ -63,6 +69,8 @@ export interface PersonCardContext {
   tz: string;
   now: Date;
   nowMs: number;
+  /** The member looking, or null for none: whose a thread is depends on it (holderOf). */
+  viewerId: string | null;
   /** The list row, corrected by the profile's own rows (personRowOf). */
   row: PersonRowDto;
   /** The row view model the page extends, built for the member looking. */
@@ -220,6 +228,7 @@ export function personCardContext(
     tz,
     now,
     nowMs,
+    viewerId,
     row,
     base,
     stamp: (t: number) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) }),
@@ -273,22 +282,20 @@ export function lastExchangeOf({ profile, stamp }: PersonCardContext): PersonLas
  * reason and what happens next -- never the receptionist's name again, never the state a second time. Ask
  * reads `title` and `detail` together (server/ask/tools.ts), so the title keeps the state for it.
  */
-export function rightNowOf({ profile, tz, now, nowMs, row: r, base }: PersonCardContext): PersonRightNow {
+export function rightNowOf({ profile, tz, now, nowMs, viewerId, row: r, base }: PersonCardContext): PersonRightNow {
   const threadTo = r.latest_conversation_id ? `inbox/th-${r.latest_conversation_id}` : null;
   // One door, one label: the header's "Open thread" and this card's "Open in Inbox" went to the same thread.
   const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
-  // A thread a person owns is theirs, whatever flagged it: receptionistOf's
+  // A thread a person has is theirs, whatever flagged it: receptionistOf's
   // order, so this card and the Receptionist fact cannot disagree. It asked
   // needs_human first, and an owner who had just answered an email -- a reply
   // claims the thread, and its state stays needs_human until handed back --
-  // read "Needs you · Stopped, and nobody has taken the thread yet".
-  if (isOwned(r, nowMs)) {
-    return {
-      tone: "paused",
-      title: "Paused, a person owns this thread",
-      detail: "A person owns this thread; automatic replies resume when it is handed back.",
-      cta: openThread,
-    };
+  // read "Needs you · Stopped, and nobody has taken the thread yet". Whose it
+  // is, is the Inbox's own word for it (HELD_THREAD).
+  const held = holderOf(r, nowMs, viewerId);
+  if (held) {
+    const { tone, title, detail } = HELD_THREAD[held];
+    return { tone, title, detail, cta: openThread };
   }
   if (r.open_escalation_reason) {
     const since = r.open_escalation_since ? shortTime(r.open_escalation_since, tz, now) : null;
@@ -360,13 +367,18 @@ export function rightNowOf({ profile, tz, now, nowMs, row: r, base }: PersonCard
   };
 }
 
-/** "Held for you" is the word the People row puts beside the state, for a thread a person owns or a mode that holds. */
+/**
+ * "Held for you" is the word the People row puts beside the state, for a thread you have or a mode that holds. A
+ * teammate's is paused (the standing pill's own word), and the line under it says whose.
+ */
 const TONE_WORD: Record<ReceptionistTone, string> = {
   answering: "Answering",
   escalated: "Waiting",
   queued: "Queued",
   snoozed: "Snoozed",
   paused: "Held for you",
+  yours: "Held for you",
+  theirs: "Paused",
   silent: "Silent",
 };
 

@@ -2419,6 +2419,31 @@ var whisperSpec = {
   open: () => null
 };
 
+// src/conversations/standing.ts
+var HELD_WORDS = {
+  yours: {
+    pill: "You have it",
+    sentence: "You're answering this one. The receptionist stays quiet until you hand it back."
+  },
+  theirs: {
+    pill: "A teammate has it",
+    sentence: "A teammate is answering this. The receptionist stays quiet until they hand it back."
+  }
+};
+function standingOf(i, nowMs) {
+  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
+  const flagged = i.open_escalation || i.state === "needs_human" || paused;
+  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
+  const mine = !!i.assignee_user_id || paused && !i.open_escalation;
+  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
+  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
+}
+function replyWaitsOnYou(r2, nowMs) {
+  if (r2.held) return false;
+  if (r2.endsAtMs !== void 0 && r2.endsAtMs !== null) return r2.endsAtMs > nowMs;
+  return !!r2.queued;
+}
+
 // src/conversations/thread-clock.ts
 function shortTime(iso, tz, now) {
   const ms2 = iso ? Date.parse(iso) : Number.NaN;
@@ -3267,21 +3292,6 @@ function consentOf(r2, tz, nowMs) {
   };
 }
 
-// src/conversations/standing.ts
-function standingOf(i, nowMs) {
-  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
-  const flagged = i.open_escalation || i.state === "needs_human" || paused;
-  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
-  const mine = !!i.assignee_user_id || paused && !i.open_escalation;
-  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
-  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
-}
-function replyWaitsOnYou(r2, nowMs) {
-  if (r2.held) return false;
-  if (r2.endsAtMs !== void 0 && r2.endsAtMs !== null) return r2.endsAtMs > nowMs;
-  return !!r2.queued;
-}
-
 // src/people/person-state.ts
 var PERSON_STATE_LABELS = {
   needs_you: "Needs you",
@@ -3326,8 +3336,9 @@ function heardAt(r2) {
   const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
   return at3.length ? Math.max(...at3) : null;
 }
-function isOwned(r2, nowMs) {
-  return !!r2.latest_assignee_user_id || personStanding(r2, nowMs).takenOver;
+function holderOf(r2, nowMs, viewerId) {
+  const v = personStanding(r2, nowMs, viewerId);
+  return v.claimedByOther ? "theirs" : v.takenOver ? viewerId ? "yours" : "someone" : null;
 }
 function personStateFor(r2, nowMs, tz, viewerId = null) {
   const attention = attentionOf(r2, nowMs, viewerId);
@@ -3351,8 +3362,29 @@ var PERSON_MODE_WORDS = {
 function asPersonMode(s) {
   return s && PERSON_MODES.includes(s) ? s : null;
 }
-function receptionistOf(r2, tz, nowMs) {
-  if (isOwned(r2, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
+var HELD_THREAD = {
+  yours: {
+    tone: "yours",
+    label: HELD_WORDS.yours.pill,
+    title: HELD_WORDS.yours.pill,
+    detail: HELD_WORDS.yours.sentence
+  },
+  theirs: {
+    tone: "theirs",
+    label: HELD_WORDS.theirs.pill,
+    title: HELD_WORDS.theirs.pill,
+    detail: HELD_WORDS.theirs.sentence
+  },
+  someone: {
+    tone: "paused",
+    label: "Paused, a person owns the thread",
+    title: "Paused, a person owns this thread",
+    detail: "A person owns this thread; automatic replies resume when it is handed back."
+  }
+};
+function receptionistOf(r2, tz, nowMs, viewerId) {
+  const held = holderOf(r2, nowMs, viewerId);
+  if (held) return { tone: HELD_THREAD[held].tone, label: HELD_THREAD[held].label };
   if (r2.open_escalation_reason)
     return { tone: "escalated", label: `Escalated, ${reasonShort(r2.open_escalation_reason)}` };
   if (r2.needs_human) return { tone: "escalated", label: "Waiting for a person" };
@@ -16273,11 +16305,11 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     preview: last ? messageWords(last).slice(0, 110) : "",
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
-    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? (
+    summary: claimedByOther ? HELD_WORDS.theirs.sentence : escalation ? (
       // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
       // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
       escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : reasonSummaryOf(escalation.reason)
-    ) : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
+    ) : takenOver ? HELD_WORDS.yours.sentence : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
@@ -17488,7 +17520,17 @@ var TONE_OF = /* @__PURE__ */ (() => ({
     booked: "ok",
     decided: "ok"
   },
-  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  // A thread somebody has wears the Inbox's own tones for it (`thread` above): yours is in hand, a teammate's is theirs.
+  standing: {
+    escalated: "warn",
+    queued: "info",
+    snoozed: "info",
+    paused: "plain",
+    yours: "info",
+    theirs: "plain",
+    silent: "plain",
+    answering: "ok"
+  },
   call: {
     live: "accent",
     missed: "plain",
@@ -17555,8 +17597,8 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   thread: {
     escalated: "Needs you",
     needs_you: "Needs you",
-    yours: "You have it",
-    theirs: "A teammate has it",
+    yours: HELD_WORDS.yours.pill,
+    theirs: HELD_WORDS.theirs.pill,
     snoozed: "Snoozed",
     done: "Done",
     open: "Customer wrote last",
@@ -17569,6 +17611,9 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
     queued: "Reply queued",
     snoozed: "Snoozed",
     paused: "Paused",
+    // A thread somebody has says what the Inbox's pill says of it (standing.ts HELD_WORDS).
+    yours: HELD_WORDS.yours.pill,
+    theirs: HELD_WORDS.theirs.pill,
     silent: "Silent",
     answering: "Answering"
   },
@@ -22418,7 +22463,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r2, tz, nowMs),
+    receptionist: receptionistOf(r2, tz, nowMs, viewerId),
     firstContact: first,
     cameFrom: cameFromOf(r2),
     consent,
@@ -23280,6 +23325,7 @@ function personCardContext(d, tz, now, viewerId) {
     tz,
     now,
     nowMs,
+    viewerId,
     row: row2,
     base,
     stamp: (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) }),
@@ -23318,16 +23364,13 @@ function lastExchangeOf({ profile, stamp }) {
   }
   return { customer, reply };
 }
-function rightNowOf({ profile, tz, now, nowMs, row: r2, base }) {
+function rightNowOf({ profile, tz, now, nowMs, viewerId, row: r2, base }) {
   const threadTo = r2.latest_conversation_id ? `inbox/th-${r2.latest_conversation_id}` : null;
   const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
-  if (isOwned(r2, nowMs)) {
-    return {
-      tone: "paused",
-      title: "Paused, a person owns this thread",
-      detail: "A person owns this thread; automatic replies resume when it is handed back.",
-      cta: openThread
-    };
+  const held = holderOf(r2, nowMs, viewerId);
+  if (held) {
+    const { tone, title, detail } = HELD_THREAD[held];
+    return { tone, title, detail, cta: openThread };
   }
   if (r2.open_escalation_reason) {
     const since = r2.open_escalation_since ? shortTime(r2.open_escalation_since, tz, now) : null;
@@ -23397,6 +23440,8 @@ var TONE_WORD = {
   queued: "Queued",
   snoozed: "Snoozed",
   paused: "Held for you",
+  yours: "Held for you",
+  theirs: "Paused",
   silent: "Silent"
 };
 var receptionistMeta = (label) => label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase();
@@ -32736,6 +32781,7 @@ export {
   HAND_WORDS_MAX,
   HELD_ON,
   HELD_REASONS,
+  HELD_WORDS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
   INSTRUCTIONS_MAX,
@@ -33638,6 +33684,7 @@ export {
   holdDoors,
   holdOf,
   holdWords,
+  holderOf,
   hoursFromGoogle,
   hoursLines2 as hoursLines,
   hoursOf2 as hoursOf,
@@ -33697,7 +33744,6 @@ export {
   isOpeningProblem,
   isOptedOut,
   isOptedOutContact,
-  isOwned,
   isPartnerCode,
   isPersonRow,
   isPersonsWords,

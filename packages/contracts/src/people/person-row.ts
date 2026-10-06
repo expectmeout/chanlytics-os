@@ -372,7 +372,7 @@ export function toPersonRowVM(
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r, tz, nowMs),
+    receptionist: receptionistOf(r, tz, nowMs, viewerId),
     firstContact: first,
     cameFrom: cameFromOf(r),
     consent,
