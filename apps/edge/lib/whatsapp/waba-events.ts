@@ -8,6 +8,10 @@
  * until sends started failing. They are routed to the workspace by its
  * WABA, kept as events, and the ones that change what the business can do
  * ride the same alert path a failed send already uses.
+ *
+ * A partner's notice (account_update: PARTNER_ADDED and its kin) is addressed
+ * to the partner's business portfolio and names the customer's account in
+ * value.waba_info.waba_id, so it is routed by that (accountOf).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
@@ -60,6 +64,43 @@ async function routeByWaba(db: SupabaseClient<Database>, wabaId: string): Promis
     return null;
   }
   return data ? { tenantId: data.tenant_id, channelId: data.id, number: data.number_e164 } : null;
+}
+
+/** The account a notice is about, and whether the notice named it itself. */
+type Account = { waba: string; named: boolean };
+
+/**
+ * The WhatsApp account a notice is about. Most are addressed to it: entry.id is its WABA id. A partner's notice (account_update:
+ * PARTNER_ADDED and its kin) is addressed to the PARTNER's business portfolio and names the customer's account in
+ * value.waba_info.waba_id (Meta, webhooks reference: account_update), so that is the account when it is there. Null when the
+ * notice names none and was addressed to none. 6 October: twelve partner notices arrived addressed to the partner's portfolio
+ * and every one was dropped as unroutable, since this read entry.id alone.
+ */
+export function accountOf(entryId: string, value: Record<string, unknown>): Account | null {
+  const info = value.waba_info;
+  const named = typeof info === "object" && info !== null && "waba_id" in info ? info.waba_id : null;
+  if (typeof named === "string" && named.trim()) return { waba: named.trim(), named: true };
+  return entryId ? { waba: entryId, named: false } : null;
+}
+
+/**
+ * A notice about an account no workspace holds. One that named the account itself is a partner's: a sign-up finished at Meta that has
+ * not reached Chanlytics (6 October, 12:48: a reload had taken the page's listener with it) or one still on its way, since Meta's
+ * notice and Chanlytics' own connect race. That is news and not a fault: said at info, with the account, what the notice was
+ * addressed to and the event, and kept nowhere. One addressed to an account we cannot find is an account we should hold: an error.
+ */
+function unheld(about: Account, entryId: string, change: WabaChange): "unclaimed" | "unrouted" {
+  if (!about.named) {
+    logger().error("waba_unroutable", { waba_id: about.waba, field: change.field });
+    return "unrouted";
+  }
+  const event = change.value.event;
+  logger().info("wa_signup_finished_unclaimed", {
+    waba_id: about.waba,
+    entry_id: entryId || null,
+    account_event: typeof event === "string" ? event : null,
+  });
+  return "unclaimed";
 }
 
 /**
@@ -229,24 +270,24 @@ async function applyTemplateQuality(
 /**
  * Keep the change and, when it matters, tell the workspace. Returns what it
  * did, for the log; never throws — the webhook has already been acknowledged.
+ * "unclaimed" is a partner's notice for an account no workspace holds (unheld).
  */
 const TEMPLATE_STATUS_EVENTS = new Set(["APPROVED", "REJECTED", "PAUSED", "DISABLED", "PENDING_DELETION", "IN_APPEAL"]);
 
 export async function handleWabaChange(
   db: SupabaseClient<Database>,
-  wabaId: string,
+  entryId: string,
   change: WabaChange,
   loadNotifications: (tenantId: string) => Promise<NotificationsConfig | null>,
-): Promise<"unrouted" | "kept" | "alerted"> {
-  const routed = await routeByWaba(db, wabaId);
-  if (!routed) {
-    logger().error("waba_unroutable", { waba_id: wabaId, field: change.field });
-    return "unrouted";
-  }
+): Promise<"unrouted" | "unclaimed" | "kept" | "alerted"> {
+  const about = accountOf(entryId, change.value);
+  if (!about) return "unrouted";
+  const routed = await routeByWaba(db, about.waba);
+  if (!routed) return unheld(about, entryId, change);
   const L = logger({ tenant_id: routed.tenantId });
   const described = describeWabaChange(change, routed.number);
   await emitEvent(db, routed.tenantId, `channel.${change.field}` as WabaEventKind, "channel", routed.channelId, {
-    waba_id: wabaId,
+    waba_id: about.waba,
     ...change.value,
   }).catch((e: unknown) => {
     L.error("waba_event_write_failed", { error: errField(e) });

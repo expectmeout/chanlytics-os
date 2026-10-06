@@ -820,6 +820,178 @@ test("the account's own news is routed by its WABA and never by a number: kept a
   }
 });
 
+/* ------------------------------------- a partner's notice names the account it is about */
+
+/**
+ * A partner's notice as Meta delivers it (webhooks reference, account_update): addressed to the PARTNER's business portfolio
+ * (`entry.id`), with the customer's WhatsApp account in `value.waba_info`. On 6 October twelve of them arrived addressed so, and
+ * every one was dropped as unroutable. The partner's portfolio and the customer's business are made up, and each case's own.
+ */
+const PORTFOLIO = (w) => String(307650000000000 + w.i);
+const partnerNotice = (w, event, waba, entryId = PORTFOLIO(w)) => ({
+  object: "whatsapp_business_account",
+  entry: [
+    {
+      id: entryId,
+      time: Math.floor(Date.now() / 1000),
+      changes: [
+        {
+          field: "account_update",
+          value: {
+            event,
+            waba_info: {
+              waba_id: waba,
+              owner_business_id: String(407650000000000 + w.i),
+              partner_app_id: "108340000000001",
+            },
+          },
+        },
+      ],
+    },
+  ],
+});
+
+test("a partner's notice is routed by the account it names, never by the portfolio it was addressed to: kept as the workspace's event with its waba_info, a removal told to the owner, an addition told to nobody", async () => {
+  const w = world();
+  const OWNER = "owner@harbor.test";
+  w.tables.tenant_config.push({ tenant_id: w.T, config: { notifications: { escalation_emails: [OWNER] } } });
+  const db = w.open();
+  receptionist();
+  const line = wire();
+  try {
+    await withEnv(MAIL, () =>
+      listening(async (log) => {
+        const added = partnerNotice(w, "PARTNER_ADDED", w.WABA);
+        assert.deepEqual(await answer(await deliver(added)), [200, { ok: true }]);
+        const channelReads = db.seen.filter((q) => q.table === "tenant_channels" && q.op === "select");
+        assert.deepEqual(
+          channelReads[0].filters,
+          [
+            ["eq", "kind", "whatsapp"],
+            ["eq", "waba_id", w.WABA],
+            ["eq", "status", "active"],
+          ],
+          "routed by the account the notice names: the portfolio it was addressed to holds no channel",
+        );
+        assert.deepEqual(
+          kind(w.tables, "channel.account_update").map((e) => [e.tenant_id, e.subject_id, e.data]),
+          [[w.T, `ch-${w.i}`, { waba_id: w.WABA, ...added.entry[0].changes[0].value }]],
+          "kept as Meta sent it, under the account that routed it",
+        );
+        assert.deepEqual(
+          [w.tables.notifications.length, line.mail().length],
+          [0, 0],
+          "a partner added is nobody's alert",
+        );
+
+        // Removed: the notice that says the receptionist can no longer answer, which an unrouted notice could never tell anyone.
+        assert.deepEqual(await answer(await deliver(partnerNotice(w, "PARTNER_REMOVED", w.WABA))), [200, { ok: true }]);
+        assert.deepEqual(
+          w.tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title]),
+          [[w.T, "number", "admin/integrations", "WhatsApp connection removed"]],
+          "the workspace's bell",
+        );
+        const mail = line.mail();
+        assert.deepEqual([mail.length, mail[0].to, mail[0].subject], [1, [OWNER], "WhatsApp connection removed"]);
+
+        // Addressed to nobody: the account it names is enough.
+        assert.deepEqual(await answer(await deliver(partnerNotice(w, "PARTNER_ADDED", w.WABA, ""))), [
+          200,
+          { ok: true },
+        ]);
+        assert.equal(kind(w.tables, "channel.account_update").length, 3);
+
+        assert.deepEqual(
+          log.said("wa_waba_event").map((l) => l.fields),
+          [
+            { field: "account_update", waba_id: w.WABA, outcome: "kept" },
+            { field: "account_update", waba_id: w.WABA, outcome: "alerted" },
+            { field: "account_update", waba_id: w.WABA, outcome: "kept" },
+          ],
+          "the line says the account the notice was about",
+        );
+        assert.deepEqual([log.said("waba_unroutable").length, log.said("wa_signup_finished_unclaimed").length], [0, 0]);
+      }),
+    );
+  } finally {
+    line.restore();
+  }
+});
+
+test("a partner's notice for an account no workspace holds is a sign-up that has not reached Chanlytics: one line at info, kept nowhere, nobody told; a notice addressed to an account we cannot find is still a fault", async () => {
+  const w = world();
+  const db = w.open();
+  receptionist();
+  const line = wire();
+  const stranger = `${w.WABA}0`;
+  try {
+    await withEnv(MAIL, () =>
+      listening(async (log) => {
+        assert.deepEqual(await answer(await deliver(partnerNotice(w, "PARTNER_ADDED", stranger))), [200, { ok: true }]);
+        assert.deepEqual(
+          log.said("wa_signup_finished_unclaimed").map((l) => [l.stream, l.fields]),
+          [["log", { waba_id: stranger, entry_id: PORTFOLIO(w), account_event: "PARTNER_ADDED" }]],
+          "news, said at info: the account, what the notice was addressed to, and the event",
+        );
+        assert.equal(log.said("waba_unroutable").length, 0, "not the error it was on 6 October");
+        assert.deepEqual(
+          log.said("wa_waba_event").map((l) => l.fields),
+          [{ field: "account_update", waba_id: stranger, outcome: "unclaimed" }],
+        );
+        const lookups = db.seen.filter((q) => q.table === "tenant_channels" && q.op === "select");
+        assert.deepEqual(
+          lookups.map((q) => q.filters.find(([, col]) => col === "waba_id")[2]),
+          [stranger],
+          "the account it names was looked up, and nothing else",
+        );
+        assert.deepEqual(
+          [w.tables.events.length, w.tables.notifications.length, line.mail().length],
+          [0, 0, 0],
+          "kept nowhere, nobody told",
+        );
+
+        // A notice that names no account, addressed to one nobody holds, is what waba_unroutable always meant.
+        const lost = {
+          object: "whatsapp_business_account",
+          entry: [{ id: stranger, changes: [{ field: "account_update", value: { event: "PARTNER_REMOVED" } }] }],
+        };
+        assert.deepEqual(await answer(await deliver(lost)), [200, { ok: true }]);
+        assert.deepEqual(
+          log.said("waba_unroutable").map((l) => [l.stream, l.fields]),
+          [["error", { waba_id: stranger, field: "account_update" }]],
+        );
+        assert.equal(log.said("wa_signup_finished_unclaimed").length, 1, "and is not said again as a sign-up");
+        assert.equal(log.said("wa_waba_event").at(-1).fields.outcome, "unrouted");
+        assert.deepEqual([w.tables.events.length, w.tables.notifications.length], [0, 0]);
+      }),
+    );
+  } finally {
+    line.restore();
+  }
+});
+
+test("accountOf: the account a notice names itself, else the one it was addressed to; an id that is not text names nothing, and a notice with neither is about no account", async () => {
+  const { accountOf } = await import(at("apps/edge/lib/whatsapp/waba-events.ts"));
+  assert.deepEqual(accountOf("2076", { event: "FLAGGED" }), { waba: "2076", named: false });
+  assert.deepEqual(accountOf("3076", { waba_info: { waba_id: " 2076 " } }), { waba: "2076", named: true });
+  assert.deepEqual(accountOf("", { waba_info: { waba_id: "2076" } }), { waba: "2076", named: true });
+  for (const info of [
+    undefined,
+    null,
+    "2076",
+    2076,
+    [],
+    {},
+    { waba_id: "" },
+    { waba_id: "  " },
+    { waba_id: 2076 },
+    { waba_id: null },
+  ])
+    assert.deepEqual(accountOf("3076", { waba_info: info }), { waba: "3076", named: false }, JSON.stringify(info));
+  assert.equal(accountOf("", {}), null);
+  assert.equal(accountOf("", { waba_info: { waba_id: " " } }), null);
+});
+
 /* ------------------------------------------------- statuses and echoes */
 
 test("receipts land on the routed workspace's own messages by external id, a failure with what Meta said, and a status the ledger does not keep lands nowhere", async () => {

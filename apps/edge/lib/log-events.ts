@@ -559,6 +559,7 @@ export const LOG_EVENTS = [
   "wa_replied",
   "wa_reply_queued",
   "wa_routing_lookup_failed",
+  "wa_signup_finished_unclaimed",
   "wa_skip_budget",
   "wa_skip_no_request",
   "wa_skip_opt_out",
