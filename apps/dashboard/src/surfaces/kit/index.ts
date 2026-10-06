@@ -13,6 +13,8 @@ export { Combobox } from "./combobox/combobox";
 export type { ComboboxProps } from "./combobox/combobox";
 export { DatePicker } from "./datepicker/datepicker";
 export type { DatePickerProps } from "./datepicker/datepicker";
+export { MonthRange } from "./datepicker/month-range";
+export type { MonthRangeProps } from "./datepicker/month-range";
 export { Face } from "./face/face";
 export type { FaceProps } from "./face/face";
 export { Figure } from "./figure/figure";

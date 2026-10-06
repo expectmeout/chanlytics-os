@@ -26,7 +26,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FAMILIES } from "../../e2e-harness/kit-gallery.mjs";
-import { fresh, installLegacyReact } from "../_legacy-react.mjs";
+import { again, fresh, installLegacyReact, press } from "../_legacy-react.mjs";
 import { Button } from "../../../../apps/dashboard/src/surfaces/kit/button/button.tsx";
 import { EmptyState, FailedRead } from "../../../../apps/dashboard/src/surfaces/kit/empty/empty.tsx";
 import { Face } from "../../../../apps/dashboard/src/surfaces/kit/face/face.tsx";
@@ -34,6 +34,7 @@ import { Figure } from "../../../../apps/dashboard/src/surfaces/kit/figure/figur
 import { LinkButton } from "../../../../apps/dashboard/src/surfaces/kit/link-button/link-button.tsx";
 import { ListRow } from "../../../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx";
 import { Meter } from "../../../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
+import { MonthRange } from "../../../../apps/dashboard/src/surfaces/kit/datepicker/month-range.tsx";
 import { Panel } from "../../../../apps/dashboard/src/surfaces/kit/panel/panel.tsx";
 import { cx } from "../../../../apps/dashboard/src/surfaces/kit/variants.ts";
 
@@ -748,4 +749,44 @@ test("Figure draws the gallery's Figure family: a term and its definitions, the 
   const act = numberOf({ onClick }).rendered;
   assert.deepEqual([act.type, act.props.type, act.props.className], ["button", "button", "figure-door"]);
   assert.equal(drawn(h(Figure, { label: "Calls", value: "3" })).props.children[1].props.children[0], "3");
+});
+
+/** The gallery's Month range family, entry by entry: a window of thirty days on the month it ends in, and moved back to where it starts. */
+const RANGE = { from: "2026-09-07", to: "2026-10-06", today: "2026-10-06" };
+const rangeGlyphs = () => ({ previous: glyph(), next: glyph() });
+const MONTH_RANGES = {
+  "month-range": () => h(MonthRange, { ...RANGE, glyphs: rangeGlyphs() }),
+  "month-range-start": () => {
+    // Moved back a month by its own arrow, as a person moves it: the drawing after the press is September's.
+    const draw = () => h(MonthRange, { ...RANGE, glyphs: rangeGlyphs() });
+    const month = again(draw).rendered;
+    press(month.props.children[0].props.children[1].props.children[0]);
+    return again(draw);
+  },
+};
+
+test("MonthRange draws the gallery's Month range family: the window's band on the month it ends in, and on the month before by its arrow", () => {
+  assert.deepEqual(parting(FAMILIES, "Month range", MONTH_RANGES), HELD);
+  const marks = (props) => {
+    // The grid's rows, the weekdays' first: the stub hands an element its children flat.
+    const cells = drawn(h(MonthRange, { ...RANGE, glyphs: rangeGlyphs(), ...props }))
+      .props.children[1].props.children.slice(1)
+      .flatMap((row) => row.props.children);
+    const of = (n) =>
+      cells.filter((c) => c.props[`data-${n}`] === "true").map((c) => c.props.children[0].props.children[0]);
+    return { in: of("in").length, start: of("start"), end: of("end"), today: of("today") };
+  };
+  assert.deepEqual(marks({}), { in: 9, start: [], end: [6], today: [6] }, "October holds the window's last nine days");
+  assert.deepEqual(
+    marks({ from: "2026-10-01", to: "2026-10-06" }),
+    { in: 6, start: [1], end: [6], today: [6] },
+    "a window inside its month starts and ends in it",
+  );
+  const root = drawn(h(MonthRange, { ...RANGE, glyphs: rangeGlyphs(), className: "rpt-when-month" }));
+  assert.equal(root.props.className, "date-pick-month rpt-when-month", "the page's layout class comes last");
+  assert.equal(
+    root.props.children[1].props["aria-hidden"],
+    "true",
+    "the grid is the page's words' picture, not read twice",
+  );
 });

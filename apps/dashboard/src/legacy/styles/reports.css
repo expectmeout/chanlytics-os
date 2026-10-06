@@ -86,9 +86,14 @@
 .rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .rpt-dates { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .rpt-failed { font-size: 12px; color: var(--warn-ink); }
-/* The period on a desk: the page's act, at the right of the strip of lenses (reports-page.tsx periodAct), the days before the
-   control. */
-.rpt-period { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px 14px; min-width: 0; }
+/* The period: the page's act at the right of the strip of lenses (period-picker.tsx), a round button that opens it, with the
+   days it covers before it on a desk. */
+.rpt-period { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; }
+/* What it opens: the days in words, the four periods, then the month, at the width seven days need. */
+.rpt-when { display: grid; gap: 14px; width: 312px; max-width: calc(100vw - 24px); }
+.rpt-when-head { display: grid; gap: 2px; padding: 2px 4px 0; }
+.rpt-when-range { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
+.rpt-when-said { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 
 .rpt-body { display: flex; flex-direction: column; padding-top: 12px; transition: opacity var(--duration-base) var(--ease-out); }
 /* A period on its way: the one rule (components.css [data-loading] [data-dims]). */
