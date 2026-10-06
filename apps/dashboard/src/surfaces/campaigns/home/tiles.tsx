@@ -223,7 +223,7 @@ export function ComingBlock({
 function Funnel({ tile }: { tile: LifecycleResultsTile }) {
   if (!tile.funnel) return null;
   return (
-    <ul className="cmh-funnel" aria-label={LIFECYCLE_WORDS.results.funnelLabel}>
+    <ul className="cmh-funnel" aria-label={tile.funnelLabel ?? LIFECYCLE_WORDS.results.funnelLabel}>
       {tile.funnel.map((f) => (
         <li key={f.id} className="cmh-fstep" data-step={f.id}>
           <span className="cmh-fk">{f.label}</span>
@@ -264,6 +264,11 @@ export function ResultsBlock({ tile, failed, onOpen }: ResultsProps) {
         <HomeFailed failed={failed.report} testid="cmh-report-failed" />
       ) : null}
       <Funnel tile={tile} />
+      {tile.readNote ? (
+        <p className="cmh-yes-line" data-testid="cmh-read-note">
+          {tile.readNote}
+        </p>
+      ) : null}
       {tile.yes ? (
         <p className="cmh-yes-line" data-testid="cmh-yes-line">
           {tile.yes}

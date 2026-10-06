@@ -9069,7 +9069,7 @@ interface DeliveryRow {
     attempts: number;
 }
 /**
- * The first step of every tick (relay_events, 00333): the outbox's events become deliveries and jobs, up to `limit` of
+ * The first step of every tick (relay_events, 00334): the outbox's events become deliveries and jobs, up to `limit` of
  * them, oldest first and with no cursor. Answers how many events were relayed.
  */
 declare function relayEvents(db: Db$y, limit: number): Promise<number>;
@@ -36430,7 +36430,7 @@ declare function assembleBroadcast(db: Db$b, args: {
 }): Promise<string>;
 
 /**
- * The intake ledger (provider_events, 00335; decision 0031): every verified delivery a provider made to a door, kept a
+ * The intake ledger (provider_events, 00336; decision 0032): every verified delivery a provider made to a door, kept a
  * week under the provider's own id, as it came. The one place the table is typed. Written by the edge's doors before
  * their verdict (apps/edge/lib/intake/keep.ts), read by the replay door, scrubbed by an erasure.
  */

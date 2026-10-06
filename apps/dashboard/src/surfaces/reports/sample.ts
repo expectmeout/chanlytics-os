@@ -184,6 +184,23 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
   };
 }
 
+/**
+ * A count shared over parts in proportion to their caps, each part held under its cap; what rounding leaves goes to the
+ * first part with room. The parts add up to the count wherever it is no more than the caps' sum.
+ */
+function sharedUnder(count: number, caps: readonly number[]): number[] {
+  const whole = Math.max(1, sumOf(caps));
+  const parts = caps.map((cap) => Math.min(cap, Math.floor((count * cap) / whole)));
+  let left = count - sumOf(parts);
+  for (let i = 0; i < parts.length && left > 0; i++) {
+    const room = (caps[i] ?? 0) - (parts[i] ?? 0);
+    const add = Math.min(room, left);
+    parts[i] = (parts[i] ?? 0) + add;
+    left -= add;
+  }
+  return parts;
+}
+
 function campaignDto(all: readonly SampleDay[], n: number, today: string): CampaignReportDto {
   const span = all.slice(-2 * n);
   const cur = span.slice(-n);
@@ -238,7 +255,23 @@ function campaignDto(all: readonly SampleDay[], n: number, today: string): Campa
         },
       ]
     : [];
-  return { timezone: ZONE, days: n, span_days: 2 * n, today, series: span.map((d) => d.campaign), sources };
+  // The same sends by channel (0030): three quarters by WhatsApp, the rest by text and email. Each count is shared by
+  // the sends' split and held under each channel's own sends, so the parts add up to the whole and no channel delivered
+  // or heard back from more than it sent; a read is WhatsApp's alone.
+  const textSent = Math.floor(t.sent * 0.15);
+  const emailSent = Math.floor(t.sent * 0.1);
+  const waSent = t.sent - textSent - emailSent;
+  const sentParts = [waSent, textSent, emailSent];
+  const [waD = 0, txD = 0, emD = 0] = sharedUnder(t.delivered, sentParts);
+  const [waR = 0, txR = 0, emR = 0] = sharedUnder(t.replied, sentParts);
+  const by_channel: CampaignReportDto["by_channel"] = t.sent
+    ? [
+        { channel: "whatsapp", sent: waSent, delivered: waD, read: Math.min(t.read, waD), replied: waR },
+        { channel: "sms", sent: textSent, delivered: txD, read: 0, replied: txR },
+        { channel: "email", sent: emailSent, delivered: emD, read: 0, replied: emR },
+      ]
+    : [];
+  return { timezone: ZONE, days: n, span_days: 2 * n, today, series: span.map((d) => d.campaign), sources, by_channel };
 }
 
 function bookingDto(all: readonly SampleDay[], n: number): BookingReportDto {

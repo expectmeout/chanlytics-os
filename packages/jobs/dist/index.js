@@ -49,7 +49,7 @@ var RETRY_WAITS_MS = {
   // (its claim goes stale with the lease, before either wait ends). A thrown read or write, or a notice whose mail
   // failed, lands here: two minutes, then ten, each outlasting the lease.
   reply_read: [2 * MIN_MS, 10 * MIN_MS],
-  // One event's delivery to one subscriber (00333): the delivery row takes each verdict, and every subscriber may run
+  // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
   // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
   event_deliver: [2 * MIN_MS, 10 * MIN_MS]
 };

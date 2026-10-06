@@ -94,7 +94,7 @@ declare const MAX_ATTEMPTS = 3;
  */
 declare const MAX_RESUMES = 5;
 /**
- * How many outbox events one tick relays before it claims (relay_events, 00333): bounded so a flood of events never
+ * How many outbox events one tick relays before it claims (relay_events, 00334): bounded so a flood of events never
  * holds the tick from the replies behind it; what is left is the next tick's, and the poll knocks while the outbox
  * is not empty.
  */

@@ -119,6 +119,11 @@ export const LIFECYCLE_WORDS = {
     quiet: "Nothing went out, and nobody said yes or asked to stop.",
     funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
     funnelLabel: "Sent, delivered, read and replied",
+    funnelLabelNoRead: "Sent, delivered and replied",
+    /** Under the funnel where a text or an email went too (0030): a read is WhatsApp's own receipt. */
+    readOf: (whatsappSent: number): string =>
+      `Read is of WhatsApp's ${whatsappSent}: a text or an email keeps no read receipt.`,
+    noRead: "These went by text or email, which keep no read receipt.",
   },
 } as const;
 

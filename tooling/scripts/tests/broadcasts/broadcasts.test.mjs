@@ -32,6 +32,7 @@ import {
   renderTemplate,
   saidYesTo,
   toBroadcastVM,
+  sentByWords,
   whenLabel,
   whyNotReceive,
   offersNote,
@@ -302,6 +303,14 @@ test("the view model: delivered and read over sent, open while scheduled or send
   const vm = toBroadcastVM(base, ZONE, new Date("2026-09-06T10:00:00Z"));
   assert.equal(vm.deliveredPct, 75);
   assert.equal(vm.readPct, 50);
+  // A read is WhatsApp's own receipt (0030): over what went by WhatsApp where the counts say, nothing where none did.
+  const split = (sent_by) =>
+    toBroadcastVM({ ...base, counts: { ...base.counts, sent_by } }, ZONE, new Date("2026-09-06T10:00:00Z"));
+  assert.equal(split({ whatsapp: 5, sms: 2, email: 1 }).readPct, 80, "4 read of WhatsApp's 5");
+  assert.equal(split({ whatsapp: 0, sms: 6, email: 2 }).readPct, null);
+  assert.equal(sentByWords({ whatsapp: 5, sms: 2, email: 1 }), "5 on WhatsApp, 2 by text, 1 by email");
+  assert.equal(sentByWords({ whatsapp: 8, sms: 0, email: 0 }), null, "one channel: nothing to split");
+  assert.equal(sentByWords(undefined), null, "counts that did not split them");
   assert.equal(vm.open, false);
   assert.equal(vm.progress, 1);
   assert.equal(vm.stateLabel, "Sent");

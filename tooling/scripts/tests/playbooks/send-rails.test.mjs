@@ -174,6 +174,7 @@ test("a recipient's line carries the times the receipts gave, and the first repl
     delivered: 2,
     read: 1,
     replied: 1,
+    sent_by: { whatsapp: 2, sms: 0, email: 0 },
   });
   assert.equal(B.statusAt({ status_at: { delivered: "x" } }, "read"), null);
   assert.equal(B.statusAt(null, "read"), null);
