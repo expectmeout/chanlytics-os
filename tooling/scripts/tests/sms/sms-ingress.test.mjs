@@ -276,3 +276,63 @@ test("after the handler throws, only an unrecorded text is worth redelivering", 
   // send the same text again would only duplicate it.
   assert.deepEqual(smsAfterThrow(false), { status: 200, alert: null });
 });
+
+/** The two texts Meta sent the Chanlytics workspace's own line on 6 October 2026, from numbers that are no test's. */
+const META = { From: "+18335550101", Body: "Your WhatsApp code: 788-963\n\nDon't share this code with others" };
+
+test("a one-time code some service texted to the line is a verdict of its own, after the line, the signature and the routing are proven: the workspace it was for, and the name it read", async () => {
+  const to = freshNumber();
+  const v = await plan(to, world(to), { form: form(to, META) });
+  assert.equal(v.kind, "code");
+  assert.equal(v.from, "WhatsApp");
+  assert.deepEqual([v.routed.tenantId, v.routed.channelId], [T, "c1"], "routed to the workspace whose line it came to");
+  assert.deepEqual(
+    Object.keys(v).sort(),
+    ["from", "kind", "routed"],
+    "no person, no line, no account: nothing to answer with",
+  );
+  const unnamed = freshNumber();
+  const other = await plan(unnamed, world(unnamed), {
+    form: form(unnamed, { ...META, Body: "<#> 482913 is your code" }),
+  });
+  assert.deepEqual([other.kind, other.from], ["code", null], "a code whose sender said no name");
+});
+
+test("a line the carriers have not approved skips a code too: a customer's text is held for a person, and a code is nobody's to hold", async () => {
+  const to = freshNumber();
+  for (const state of ["registering", "pending", "failed", null]) {
+    const v = await plan(to, world(to, { lines: [lineRow(to, { sms_state: state })] }), { form: form(to, META) });
+    assert.equal(v.kind, "code", String(state));
+  }
+});
+
+test("a code body buys nothing before the line and the signature are proven: a forged signature is 403, an unknown number 404, a switched-off channel 200 and told, whatever the text says", async () => {
+  const forged = freshNumber();
+  const f = form(forged, META);
+  const bad = await plan(forged, world(forged, { lines: [lineRow(forged, { provider: "twilio" })] }), {
+    form: f,
+    signature: "not-a-signature",
+  });
+  assert.deepEqual([bad.kind, bad.status, bad.alert], ["refuse", 403, null]);
+  const unknown = freshNumber();
+  const none = await plan(unknown, world(unknown, { lines: [] }), { form: form(unknown, META) });
+  assert.deepEqual([none.kind, none.status, none.log], ["refuse", 404, "sms_unknown_line"]);
+  const off = freshNumber();
+  const dead = await plan(off, world(off, { channels: [channelRow(off, { status: "disabled" })] }), {
+    form: form(off, META),
+  });
+  assert.deepEqual([dead.kind, dead.status, dead.log], ["refuse", 200, "sms_unroutable"]);
+});
+
+test("a customer's text is accepted as it was, whatever it says about a code: the door never takes a person for a machine", async () => {
+  for (const body of [
+    "my door code is 4512",
+    "Can you send me the code?",
+    "Booking for 2 at 4512 Main St, code word blue",
+    "your code didn't work, I paid 1234 dollars",
+  ]) {
+    const to = freshNumber();
+    const v = await plan(to, world(to), { form: form(to, { Body: body }) });
+    assert.equal(v.kind, "accept", body);
+  }
+});

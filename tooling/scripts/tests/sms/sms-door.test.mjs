@@ -889,3 +889,50 @@ test("after the receptionist throws, only a text the database did not keep is re
     );
   });
 });
+
+test("a one-time code texted to the line is skipped: an empty TwiML, no person, no conversation, no reply, no handoff and no page, a line that names the service and never the code or the number -- and the next customer's text is answered as ever", async () => {
+  const w = world();
+  w.line.sms_state = "registering"; // a line holding customers' texts for a person holds none of these
+  w.open();
+  const seen = receptionist();
+  const meta = "+18335550101";
+  const fields = w.form(meta, { Body: "Your WhatsApp code: 788-963\n\nDon't share this code with others" });
+  await listening(async (log) => {
+    assert.deepEqual(
+      await heard(await text(fields, w.TOKEN)),
+      twiml(200),
+      "acknowledged: Twilio keeps the text in its own record",
+    );
+    assert.deepEqual(
+      [seen.runtimes, seen.ingested, seen.sent, seen.escalations, seen.alerts, seen.processed],
+      [[], [], [], [], [], 0],
+      "nothing reached the receptionist: no workspace runtime, no message kept, nothing said, nobody handed anything or told",
+    );
+    assert.deepEqual(
+      [w.left().texts, w.left().mail],
+      [[], []],
+      "nothing left the process: no reply to Meta, no page to the platform",
+    );
+    assert.deepEqual(
+      log.said("sms_code_skipped").map((l) => [l.stream, l.service, l.sid]),
+      [["log", "WhatsApp", fields.MessageSid]],
+    );
+    assert.deepEqual(log.said("sms_inbound"), [], "and it is not an inbound text");
+    const said = JSON.stringify(log.lines);
+    for (const planted of ["788-963", "788963", meta, meta.slice(1), meta.slice(-7), w.TOKEN])
+      assert.ok(!said.includes(planted), `${planted} is in a log line`);
+  });
+  // The same line, the next minute: a customer writes, and is answered or held as ever.
+  const later = receptionist();
+  await listening(async () => {
+    assert.deepEqual(
+      await heard(await text(w.form(w.customer(), { Body: "my door code is 4512" }), w.TOKEN)),
+      twiml(200),
+    );
+  });
+  assert.deepEqual(
+    later.ingested.map((i) => i.body),
+    ["my door code is 4512"],
+    "a customer who writes of a code is a customer",
+  );
+});

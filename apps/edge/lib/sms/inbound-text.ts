@@ -22,6 +22,10 @@
  * carries the number, because that number is whatever the caller wrote, and never for a bad signature, which is what an
  * unsigned probe looks like.
  *
+ * A text that is a one-time code another service sent (planSmsIngress's `code`) takes none of it: nothing is answered, kept,
+ * handed to a person or paged, and the line says which service it read and never the code (`sms_code_skipped`). Twilio keeps
+ * the text; the owner reads it from there (lib/lines/line-codes.ts), so a code is neither lost nor stored here.
+ *
  * An accepted text then takes the same road a WhatsApp message takes: handleInbound (lib/whatsapp/inbound.ts, onto
  * core's answerInbound) with the line as its carrier (carrierFor) -- answered by the same brain under the same Autonomy
  * rules, with the two things a text does differently: the first reply carries SMS_FOOTER, and a line the carriers have
@@ -80,6 +84,11 @@ export async function receiveInboundText(request: Request): Promise<Response> {
     // rather than sending it.
     if (verdict.alert) await alertUnroutable("sms", inbound.to, 1, verdict.alert, verdict.alertKey);
     return twiml(verdict.status);
+  }
+
+  if (verdict.kind === "code") {
+    L.info("sms_code_skipped", { service: verdict.from });
+    return twiml(200);
   }
 
   const { line, acct, routed, held } = verdict;
