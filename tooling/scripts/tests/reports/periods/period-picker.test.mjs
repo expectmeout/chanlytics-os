@@ -3,14 +3,14 @@
  * the round button alone, and what it opens (period-popover.tsx: Base UI's popover, the four periods, the month) loads on
  * demand, as a pointer or focus reaches the button, so it stays off the page's first load. A press before it has loaded
  * opens it as it lands; once loaded, the button is the popover's own and opens it, closed until pressed. The page's own
- * tests (reports-page.test.mjs) read it loaded.
+ * tests (../reports-page.test.mjs) read it loaded.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, byTestId, find, press, settle } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, byTestId, find, press, settle } from "../../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false });
-const S = "../../../../apps/dashboard/src";
+const S = "../../../../../apps/dashboard/src";
 const { PeriodPicker, loadPeriodPopover } = await import(`${S}/surfaces/reports/period-picker.tsx`);
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
 

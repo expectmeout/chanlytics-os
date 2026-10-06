@@ -168,7 +168,7 @@ const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
 const { MonthRange } = await import(`${S}/surfaces/kit/datepicker/month-range.tsx`);
-// What the period's button opens loads on demand in the app (period-picker.tsx, held by period-picker.test.mjs); the page's
+// What the period's button opens loads on demand in the app (period-picker.tsx, held by periods/period-picker.test.mjs); the page's
 // tests read and press it open, so it is loaded first, as a pointer on the button loads it.
 const { loadPeriodPopover } = await import(`${S}/surfaces/reports/period-picker.tsx`);
 await loadPeriodPopover();
