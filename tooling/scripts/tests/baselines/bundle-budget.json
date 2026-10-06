@@ -1,5 +1,25 @@
 {
-  "js": 724783,
-  "css": 147499,
-  "pages": 572145
+  "js": 731838,
+  "css": 147504,
+  "page": {
+    "broadcasts": 158085,
+    "calendar": 106418,
+    "campaigns": 206616,
+    "conversations": 101831,
+    "inbox": 114062,
+    "lists": 615,
+    "live": 13517,
+    "people": 247734,
+    "playbooks": 408,
+    "reports": 85996,
+    "settings": 59001,
+    "start": 29179,
+    "templates": 163586,
+    "today": 207
+  },
+  "ceiling": {
+    "js": 768000,
+    "css": 163840,
+    "page": 262144
+  }
 }
