@@ -299,7 +299,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
       let pane = await openRobin(page, "Handled");
       // Snooze is in the thread's menu: the header had it as a button too, beside the menu that held it.
       await pane.getByRole("button", { name: "Actions", exact: true }).click();
-      await pane.getByRole("menuitem", { name: "Snooze" }).click();
+      // The menu is the kit's (Base UI), drawn on the page's body, not inside the pane.
+      await page.getByRole("menuitem", { name: "Snooze" }).click();
       await expect(page.getByText(/snoozed until/)).toBeVisible();
       pane = await openRobin(page, "Snoozed");
       await expect(pane.getByText(/still waiting for you/)).toBeVisible();
