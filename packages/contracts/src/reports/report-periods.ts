@@ -5,7 +5,8 @@
  * release longer so a tab opened before the deploy still reads (either deploy order works), and the day it ends is held by
  * tests/reports/periods/report-periods.test.mjs.
  */
-import { REPORT_RANGES } from "./reports";
+import { shiftKey } from "../calendar/day-keys";
+import { REPORT_RANGES, fmtDay } from "./reports";
 
 /** What a period is called in a request, the tab's storage and the control. */
 export type ReportPeriodId = (typeof REPORT_RANGES)[number]["id"];
@@ -46,4 +47,34 @@ export function reportPeriodOf(asked: {
 export function reportDaysAsked(view: string | null | undefined): number | null {
   const asked = Number(view);
   return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
+}
+
+/** The days a period covers at a business day, and how the period's picker says them. */
+export interface ReportWindowVM {
+  period: ReportPeriodId;
+  /** The first day and the last, "YYYY-MM-DD", today the last. */
+  from: string;
+  to: string;
+  /** "Sep 7 – Oct 6". */
+  range: string;
+  /** "Last 30 days", or "This month so far". */
+  said: string;
+}
+
+/**
+ * The days a period covers at a business day ("2026-10-06", the workspace's own today): a count of days ends today, today
+ * included, as the report reads them; Month is the 1st to today. Said for the picker before its read lands, so the window
+ * picked shows at once, by the same arithmetic the route reads with (fixedDaysOf, monthDaysAt).
+ */
+export function reportWindowOf(period: ReportPeriodId, today: string): ReportWindowVM {
+  const fixed = fixedDaysOf(period);
+  const from = shiftKey(today, -((fixed ?? monthDaysAt(today)) - 1));
+  const label = REPORT_RANGES.find((r) => r.id === period)?.label ?? "";
+  return {
+    period,
+    from,
+    to: today,
+    range: from === today ? fmtDay(today) : `${fmtDay(from)} – ${fmtDay(today)}`,
+    said: fixed === null ? "This month so far" : `Last ${label}`,
+  };
 }

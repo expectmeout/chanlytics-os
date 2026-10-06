@@ -17540,6 +17540,7 @@ function toReportVM(dto, opts) {
     since: first ? fmtDay(first) : "",
     until: last ? fmtDay(last) : "",
     timezone: dto.timezone,
+    today: dto.today,
     empty: f.empty,
     tiles,
     answered: answeredOf(f),
@@ -26921,6 +26922,18 @@ function reportDaysAsked(view) {
   const asked = Number(view);
   return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
 }
+function reportWindowOf(period, today) {
+  const fixed = fixedDaysOf(period);
+  const from = shiftKey(today, -((fixed ?? monthDaysAt(today)) - 1));
+  const label = REPORT_RANGES.find((r2) => r2.id === period)?.label ?? "";
+  return {
+    period,
+    from,
+    to: today,
+    range: from === today ? fmtDay(today) : `${fmtDay(from)} \u2013 ${fmtDay(today)}`,
+    said: fixed === null ? "This month so far" : `Last ${label}`
+  };
+}
 
 // src/route-keys.generated.ts
 var ROUTE_KEYS = [
@@ -34927,6 +34940,7 @@ export {
   reportFacts,
   reportHourWords,
   reportPeriodOf,
+  reportWindowOf,
   reputationHoldOf,
   requestCodeWords,
   rereadAt,

@@ -86,9 +86,14 @@
 .rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .rpt-dates { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .rpt-failed { font-size: 12px; color: var(--warn-ink); }
-/* The period on a desk: the page's act, at the right of the strip of lenses (reports-page.tsx periodAct), the days before the
-   control. */
-.rpt-period { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px 14px; min-width: 0; }
+/* The period: the page's act at the right of the strip of lenses (period-picker.tsx), a round button that opens it, with the
+   days it covers before it on a desk. */
+.rpt-period { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; }
+/* What it opens: the days in words, the four periods, then the month, at the width seven days need. */
+.rpt-when { display: grid; gap: 14px; width: 312px; max-width: calc(100vw - 24px); }
+.rpt-when-head { display: grid; gap: 2px; padding: 2px 4px 0; }
+.rpt-when-range { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
+.rpt-when-said { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 
 .rpt-body { display: flex; flex-direction: column; padding-top: 12px; transition: opacity var(--duration-base) var(--ease-out); }
 /* A period on its way: the one rule (components.css [data-loading] [data-dims]). */
@@ -180,6 +185,10 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-hero, .rpt-facts { grid-column: 1 / -1; }
   .rpt-grid > .rpt-span-4 { grid-column: span 6; }
   .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
+  /* A half card the row leaves alone takes the row: the one after a wide card (How fast it answers), and the last of an odd
+     run of thirds (Asked, then booked). Each stood at half width beside nothing (6 Oct 2026). */
+  .rpt-grid > :is(.rpt-span-5, .rpt-span-7, .rpt-span-8) + .rpt-span-4:last-child,
+  .rpt-grid > .rpt-span-4:nth-child(odd):not(:has(+ .rpt-span-4)) { grid-column: 1 / -1; }
   .rpt-grid > .rpt-deals-lines { padding-left: 0; }
   .rpt-figures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rpt-cell:nth-child(4) { border-left: none; }

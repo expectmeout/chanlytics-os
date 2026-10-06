@@ -2223,6 +2223,50 @@ textarea.rec-input {
   padding-top: 6px;
 }
 
+/* ---------- A month of a range: the days a period covers, on a month ---------- */
+/* The date picker's head and weekdays over the same six weeks, with nothing to press but the arrows. The days of the range
+   are one band of the inset's fill across each week, round where the range or the week begins and ends; its first day and
+   its last are the lozenge a picked tab wears. A day of the month before or after is the dim ink, in the band or out of it,
+   and today the accent's ink. */
+.date-pick-month {
+  display: flex;
+  flex-direction: column;
+}
+.date-pick-cell {
+  justify-self: stretch;
+  display: grid;
+  place-items: center;
+  height: 36px;
+}
+.date-pick-cell[data-in] {
+  background: var(--surface-inset-fill);
+}
+.date-pick-cell[data-in]:first-child,
+.date-pick-cell[data-start] {
+  border-start-start-radius: var(--radius-full);
+  border-end-start-radius: var(--radius-full);
+}
+.date-pick-cell[data-in]:last-child,
+.date-pick-cell[data-end] {
+  border-start-end-radius: var(--radius-full);
+  border-end-end-radius: var(--radius-full);
+}
+.date-pick-cell[data-outside] .date-pick-num {
+  color: var(--ink-dim);
+}
+.date-pick-cell[data-today] .date-pick-num {
+  color: var(--accent-ink);
+  font-weight: var(--weight-semibold);
+}
+.date-pick-cell:is([data-start], [data-end]) .date-pick-num {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+  font-weight: var(--weight-semibold);
+}
+.date-pick-cell:is([data-start], [data-end]):not([data-today]) .date-pick-num {
+  color: var(--ink);
+}
+
 /* ---------- A combobox: a box over a list that narrows as you type ---------- */
 /* The list is part of the box and pushes what is under it, as a fold pushes the rows under it: nothing is covered,
    and no fold's own clip cuts it off. */

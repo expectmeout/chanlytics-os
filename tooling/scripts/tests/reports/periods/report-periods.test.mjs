@@ -14,8 +14,11 @@ import {
   monthDaysAt,
   reportDaysAsked,
   reportPeriodOf,
+  reportWindowOf,
+  toReportVM,
   zoneDayKey,
 } from "@chanlytics/contracts";
+import { reportDto } from "../_report-world.mjs";
 
 test("the periods are the table's: three counts of days and Month, thirty days by default", () => {
   assert.deepEqual(
@@ -79,4 +82,32 @@ test("the days parameter ends on 19 October 2026: the change that removes it del
     today <= lastDay,
     `the days parameter's day (${REMOVE_AFTER}) passed more than ${GRACE_DAYS} days ago: remove it (report-periods.ts reportPeriodOf, the three routes' query), this test, and what still sends it: ${SENDERS_OF_DAYS.join("; ")}`,
   );
+});
+
+test("the period's window ends today, today included, as the report reads it: a count of days back, and Month from the 1st", () => {
+  const at = (period, today) => {
+    const w = reportWindowOf(period, today);
+    return [w.from, w.to, w.range, w.said];
+  };
+  assert.deepEqual(at("7d", "2026-10-06"), ["2026-09-30", "2026-10-06", "Sep 30 – Oct 6", "Last 7 days"]);
+  assert.deepEqual(at("30d", "2026-10-06"), ["2026-09-07", "2026-10-06", "Sep 7 – Oct 6", "Last 30 days"]);
+  assert.deepEqual(at("90d", "2026-10-06"), ["2026-07-09", "2026-10-06", "Jul 9 – Oct 6", "Last 90 days"]);
+  assert.deepEqual(at("month", "2026-10-06"), ["2026-10-01", "2026-10-06", "Oct 1 – Oct 6", "This month so far"]);
+  assert.deepEqual(
+    at("month", "2026-10-01"),
+    ["2026-10-01", "2026-10-01", "Oct 1", "This month so far"],
+    "the 1st: one day",
+  );
+  assert.deepEqual(at("7d", "2026-03-03").slice(0, 2), ["2026-02-25", "2026-03-03"], "across a month's end");
+  assert.deepEqual(at("90d", "2027-01-15").slice(0, 2), ["2026-10-18", "2027-01-15"], "and a year's");
+  // The same arithmetic as the route's: a window's days are the days the route reads for it.
+  for (const period of ["7d", "30d", "90d", "month"]) {
+    const w = reportWindowOf(period, "2026-10-06");
+    const days = Math.round((Date.parse(w.to) - Date.parse(w.from)) / DAY_MS) + 1;
+    assert.equal(days, fixedDaysOf(period) ?? monthDaysAt("2026-10-06"), period);
+  }
+});
+
+test("the report's view model says the business's today, the window's last day, from the read's own today", () => {
+  assert.equal(toReportVM(reportDto(), { profile: null }).today, reportDto().today);
 });

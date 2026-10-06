@@ -828,6 +828,13 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 8) => {
   for (let i = 0; i < n; i += 1) await tick();
 };
+/**
+ * Until a flash is said, for an act whose answer comes through the wire's Response (its body is read in turns of the
+ * event loop that a busy machine spends more of than eight): at most two hundred turns, then the test says what it saw.
+ */
+const flashSaid = async (before) => {
+  for (let i = 0; i < 200 && flashes.length <= before; i += 1) await tick();
+};
 const press = (key, target = null, { focus = target, ...mods } = {}) => {
   globalThis.document.activeElement = focus;
   let taken = false;
@@ -1274,8 +1281,9 @@ test("Needs review is a workbench: the pile in the order to work it, the group's
     /About 1¢. Their answer lands here/,
     "the act, and what it costs, side by side",
   );
+  const flashedBefore = flashes.length;
   byTestId(tree, "bench-act-check_again").props.onClick();
-  await settle();
+  await flashSaid(flashedBefore);
   assert.deepEqual(
     lastWrite(),
     { key: "POST /api/v1/leads/check-again", body: { ids: ["l3"] } },
@@ -1298,7 +1306,7 @@ test("Needs review is a workbench: the pile in the order to work it, the group's
   await fresh();
   tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
   byTestId(tree, "bench-act-keep").props.onClick();
-  await settle();
+  await flashSaid(0);
   assert.deepEqual(
     lastWrite(),
     { key: "POST /api/v1/leads/bulk", body: { by: "ids", action: "keep", ids: ["l3"], search_id: SEARCH_A } },

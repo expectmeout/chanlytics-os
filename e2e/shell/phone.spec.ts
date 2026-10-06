@@ -761,15 +761,15 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
-   * Reports' period stands over what scrolls (25 Sep). The head was sticky inside the page's one scroller, so a pull
-   * down took it with the charts; now only the body scrolls, edge to edge, and the head holds its place.
+   * Reports' period stands over what scrolls (25 Sep): it is the head's act now, a round button beside the strip of lenses
+   * (6 Oct), outside the page's one scroller, and only the charts scroll, edge to edge.
    */
   test("Reports' period stands over the charts, and only they scroll", async ({ page }) => {
     await page.goto("/#/reports");
     await page.waitForLoadState("networkidle");
-    const head = page.locator(".rpt-head");
-    test.skip((await head.count()) === 0, "no Reports on this workspace");
-    const shape = await head.evaluate(async (el) => {
+    const open = page.getByTestId("reports-period-open");
+    test.skip((await open.count()) === 0, "no Reports on this workspace");
+    const shape = await open.evaluate(async (el) => {
       let scrolls = false;
       for (let n = el.parentElement; n; n = n.parentElement) {
         const oy = getComputedStyle(n).overflowY;
@@ -781,15 +781,19 @@ test.describe("Phone shell on a real workspace", () => {
       await new Promise((r) => setTimeout(r, 50));
       const after = el.getBoundingClientRect().top;
       const b = body.getBoundingClientRect();
+      const strip = document.querySelector('[data-testid="reports-lenses"]')?.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
       return {
         scrolls,
         still: Math.round(after - before),
         edge: [Math.round(b.left), Math.round(innerWidth - b.right)],
+        beside: !!strip && r.left >= strip.right && Math.abs(r.top + r.height / 2 - (strip.top + strip.height / 2)) < 4,
       };
     });
-    expect(shape.scrolls, "the head stands over what scrolls").toBe(false);
+    expect(shape.scrolls, "the period stands over what scrolls").toBe(false);
     expect(shape.still, "and holds its place as the charts scroll").toBe(0);
     expect(shape.edge, "the charts scroll edge to edge").toEqual([0, 0]);
+    expect(shape.beside, "a round button beside the strip of lenses, on its line").toBe(true);
   });
 
   /**

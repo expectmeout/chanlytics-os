@@ -216,7 +216,7 @@ export { toReachOutReportVM, reachOutDayWords } from "./reports/reach-out-report
 export { closedOf } from "./reports/report-closed";
 export { reportFacts } from "./reports/report-facts";
 export { toHeadlineVM, isReportDto } from "./reports/report-headline";
-export { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, isReportPeriod, fixedDaysOf, monthDaysAt, reportPeriodOf, reportDaysAsked } from "./reports/report-periods";
+export { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, isReportPeriod, fixedDaysOf, monthDaysAt, reportPeriodOf, reportDaysAsked, reportWindowOf } from "./reports/report-periods";
 export { holdOf, replyHoldDtoOf } from "./reports/report-speed";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./reports/report-tiles";
 export { dayDate, fmtDay, quantile, priorOf, weekOf, reportHourWords, hoursOf, channelsOf, runningTotal, speedOf, callMoodTone, toReportVM, headlineOf, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_SHORT, REPORT_WEEK_LONG } from "./reports/reports";
