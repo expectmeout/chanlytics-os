@@ -9,13 +9,22 @@ import { ixAnswerer } from "../answerer";
 import { CONF } from "../constants";
 import type { ListCtx } from "./inbox-list";
 import { ReplyChip } from "../thread/reply-strip";
+import { channelIconOf } from "../thread/timeline";
+import { inboxData } from "../store";
 import type { Thread } from "../types";
 
-// Keyed on what the view model says (writtenChannelOf): "email". It carried
-// only the seed's "mail", so a real email thread fell through to the chat
-// bubble and wore WhatsApp's glyph in the list. inbox-thread.jsx accepts both.
-const channelIcon = (c: string) =>
-  c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "email" || c === "mail" ? "mail" : "chat";
+/**
+ * The words a row says and the wire they came on: what they asked where a person is needed (their last words, or what
+ * the call left behind), anywhere else the last thing that happened. One glyph, the wire of those words: the row drew one
+ * for every wire the thread had used, and WhatsApp and a text are both the chat bubble, so a person on both with a call
+ * read bubble, bubble, phone beside the words of the call. Every wire is said once, in words, in the thread's header.
+ * A seeded thread has no such fact, and wears its first wire.
+ */
+function rowSaidOn(t: Thread): { text: string; wire: string } {
+  if (!t.real) return { text: t.preview, wire: t.primaryChannel };
+  if (t.ask && t.ask.text) return { text: t.ask.text, wire: t.ask.channel };
+  return { text: t.preview, wire: t.previewChannel ?? t.primaryChannel };
+}
 
 /**
  * One time on a row: how long they have waited, in the one family (8d, 3h, 40m) and amber only
@@ -139,7 +148,7 @@ function rowLine1(L: ListCtx, t: Thread) {
 function rowBody(L: ListCtx, t: Thread) {
   // What they asked, where a person is needed: their last words, or what the call left behind. The row showed
   // the last message there, often the receptionist's holding reply. Anywhere else, the last thing that happened.
-  const words = t.real && t.ask && t.ask.text ? t.ask.text : t.preview;
+  const words = rowSaidOn(t);
   return (
     <div className="ix-thread-body">
       {rowLine1(L, t)}
@@ -150,14 +159,12 @@ function rowBody(L: ListCtx, t: Thread) {
           You: {t.resolution.action} · {t.resolution.at}
         </div>
       )}
-      {words && (
+      {words.text && (
         <div className="ix-thread-line3">
-          <div className="ix-thread-channels">
-            {t.channels.map((c) => (
-              <Icon key={c} name={channelIcon(c)} size={11} />
-            ))}
-          </div>
-          <span className="ix-thread-preview">{words}</span>
+          <span className="ix-thread-wire" role="img" aria-label={inboxData().CHANNEL_LABELS[words.wire] || words.wire}>
+            <Icon name={channelIconOf(words.wire)} size={11} />
+          </span>
+          <span className="ix-thread-preview">{words.text}</span>
         </div>
       )}
       {rowFoot(L, t)}

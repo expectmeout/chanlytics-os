@@ -110,6 +110,7 @@ test("the customer's own words ride with the decision: what they last wrote, quo
     label: "They wrote",
     text: "Can I move my appointment to Friday?",
     quoted: true,
+    channel: "whatsapp",
   });
   const later = conv({
     messages: [
@@ -129,6 +130,7 @@ test("the customer's own words ride with the decision: what they last wrote, quo
     label: "From the call",
     text: "Call Rosa back to confirm the bridal trial on Oct 3",
     quoted: false,
+    channel: "phone",
   });
   assert.equal(toInboxThreadVM(conv(), null, ZONE, NOW).ask, null, "no decision, nothing to put beside one");
 });

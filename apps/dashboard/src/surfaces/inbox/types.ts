@@ -227,6 +227,7 @@ export interface SeededThread extends ThreadBase {
   claimedByOther?: undefined;
   assigneeUserId?: undefined;
   ask?: undefined;
+  previewChannel?: undefined;
   archived?: undefined;
   lastWord?: undefined;
   needsYou?: undefined;
@@ -352,6 +353,8 @@ export interface ConversationRow {
   facts?: string[];
   /** What the call's analysis left: the to-do the receptionist noted, what the caller gave (contracts callNotesOf). */
   notes?: CallNotes;
+  /** On a person's one row (cv-rules.ts cvOnePerPerson): every row it stands for, newest first, itself the first. */
+  parts?: ConversationRow[];
 }
 
 /** A tab of the Conversations strip. */

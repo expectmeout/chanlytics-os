@@ -14,7 +14,7 @@ import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
 import { useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
-import { CV_ICON, cvAddress, inChannel } from "../cv-rules";
+import { CV_ICON, cvAddress, cvCallsWords, cvFind, cvLeadOf, cvOnePerPerson, inChannel } from "../cv-rules";
 import { appNavigate, canNavigate, currentRoute, demoSession, liveCallEnded, navigate, tabMemory } from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
@@ -118,12 +118,16 @@ const cvEnded = (c: ConversationRow | null | undefined): boolean =>
   !!(c && c.outcome === "live" && liveCallEnded(c.id));
 
 // ---------- List row ----------
+// A person's one row (cv-rules.ts cvOnePerPerson): their newest says the time, the words and the wire, and the pill is
+// its lead's (cvLeadOf), so a thread that needs you still says so under the call that came after it.
 const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; onSelect: (id: string) => void }) => {
-  const dec = cvDecision(c);
-  const endedLive = cvEnded(c);
+  const lead = cvLeadOf(c);
+  const dec = cvDecision(lead);
+  const endedLive = cvEnded(lead);
+  const calls = cvCallsWords(c);
   return (
     <button
-      className={`cv-row ${active ? "active" : ""} ${c.live && !endedLive ? "is-live" : ""}`}
+      className={`cv-row ${active ? "active" : ""} ${c.live && !cvEnded(c) ? "is-live" : ""}`}
       onClick={() => onSelect(c.id)}
     >
       <span className="cv-row-avatar">{c.initials.slice(0, 2)}</span>
@@ -135,16 +139,19 @@ const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; o
           <Icon name={CV_ICON[c.channel]} size={11} />
           <span className="cv-row-who">{c.who}</span>
           <OutcomePill
-            outcome={endedLive ? "handled" : c.outcome}
-            standing={c.standing ?? null}
+            outcome={endedLive ? "handled" : lead.outcome}
+            standing={lead.standing ?? null}
             decidedAction={dec ? dec.action : null}
-            channel={c.channel}
-            answeredBy={c.answeredBy}
+            channel={lead.channel}
+            answeredBy={lead.answeredBy}
           />
         </span>
         <span className="cv-row-snippet">{c.snippet}</span>
         <span className="cv-row-foot">
-          <span className="cv-row-agent">{c.agent.name}</span>
+          <span className="cv-row-agent">
+            {c.agent.name}
+            {calls && ` · ${calls}`}
+          </span>
           {c.duration && <span className="cv-row-dur mono tabular">{c.duration}</span>}
           <span className="cv-row-at tabular">{c.at}</span>
         </span>
@@ -315,12 +322,13 @@ function listPane(p: {
   setQuery: (v: string) => void;
   channel: string;
   counts: Record<string, number>;
-  selected: ConversationRow | undefined;
+  /** The person's row open, which the part open is one of. */
+  selectedRow: ConversationRow | undefined;
   openRow: (id: string) => void;
   /** The rows' ref: they swap in with a rise as the channel changes (kit/motion). */
   swap: ReturnType<typeof useSwapMotion<HTMLDivElement>>;
 }) {
-  const { data, rows, query, setQuery, channel, counts, selected, openRow, swap } = p;
+  const { data, rows, query, setQuery, channel, counts, selectedRow, openRow, swap } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;
   return (
     <aside className="cv-list">
@@ -359,7 +367,7 @@ function listPane(p: {
       </div>
       <div className="cv-rows" ref={swap}>
         {rows.map((c) => (
-          <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={openRow} />
+          <CvRow key={c.id} c={c} active={selectedRow?.id === c.id} onSelect={openRow} />
         ))}
         {rows.length === 0 &&
           (CONVERSATIONS.length === 0 ? (
@@ -517,6 +525,7 @@ export const ConversationsPage = ({
 
   // Kept on the rows themselves: each read publishes new ones. Kept on a counter only a decision moved, the list and the
   // tabs' counts were the first read's for as long as the page was open (5 Oct 2026), and so was a call open beside them.
+  // One row per person (cvOnePerPerson), folded from what the tab and the search kept.
   const visible = useMemo(() => {
     let list = CONVERSATIONS.filter((c) => inChannel(c, channel));
     if (query.trim()) {
@@ -530,14 +539,17 @@ export const ConversationsPage = ({
           (c.messages || []).some((m) => m.text.toLowerCase().includes(q)),
       );
     }
-    return list;
+    return cvOnePerPerson(list);
   }, [CONVERSATIONS, channel, query]);
 
   // The conversation asked for stays open while the box's words hide its row (the Inbox keeps a moved thread the same
   // way): the pane fell to the first match, another customer's thread with its reply box, the moment a search stopped
   // matching the one open. Nothing asked for, or a tab's new list: its first row.
+  // The id asked for may be any row a person's row stands for (a link to one call): it opens there, in its person's row.
   const asked = selectedId ? CONVERSATIONS.find((c) => c.id === selectedId && matchesChannel(c)) || null : null;
-  const selected = visible.find((c) => c.id === selectedId) || asked || visible[0];
+  const found = cvFind(visible, selectedId);
+  const selected = found ? found.part : asked || visible[0];
+  const selectedRow = found ? found.row : asked ? undefined : visible[0];
   // A deep link to a conversation that is not here must not open someone
   // else's transcript in silence: the first row still shows, with a notice.
   const requestedMissing = !!initialId && selectedId === initialId && visible.length > 0 && !asked;
@@ -553,13 +565,16 @@ export const ConversationsPage = ({
   // Counted from the tabs THIS workspace has, by the same rule that filters
   // them: a tab that is drawn always carries the number of rows it will show.
   const counts = useMemo(
-    () => Object.fromEntries(CV_CHANNELS.map((t) => [t.id, CONVERSATIONS.filter((c) => inChannel(c, t.id)).length])),
+    () =>
+      Object.fromEntries(
+        CV_CHANNELS.map((t) => [t.id, cvOnePerPerson(CONVERSATIONS.filter((c) => inChannel(c, t.id))).length]),
+      ),
     [CONVERSATIONS, CV_CHANNELS],
   );
 
   return (
     <div className="conversations" data-takeover={phoneOpen || undefined}>
-      {listPane({ data, rows: visible, query, setQuery, channel, counts, selected, openRow, swap })}
+      {listPane({ data, rows: visible, query, setQuery, channel, counts, selectedRow, openRow, swap })}
       {readingPane({ data, requestedMissing, selected, closeRow, query })}
     </div>
   );

@@ -302,9 +302,8 @@
 }
 /* A row ends at its last line: a real row has no foot, and a row with no reason has no subject line. */
 .ix-thread-subject:last-child, .ix-thread-line3:last-child { margin-bottom: 0; }
-.ix-thread-channels {
-  display: flex;
-  gap: 2px;
+.ix-thread-wire {
+  display: inline-flex;
   color: var(--ink-faint);
   flex-shrink: 0;
 }

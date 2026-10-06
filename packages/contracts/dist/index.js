@@ -18195,9 +18195,26 @@ function snoozedThreadWords(openRequest) {
   const hidden = "Hidden from your queue. The receptionist still answers, and a new message brings it back.";
   return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
+var wireOf = (m) => m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
 function previewOf(messages) {
   const last = [...messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
-  return last ? messageWords(last).slice(0, 110) : "";
+  return last ? { text: messageWords(last).slice(0, 110), channel: wireOf(last) } : { text: "", channel: null };
+}
+function askOf(escalation, lastInbound) {
+  if (!escalation) return null;
+  if (escalation.reason === "callback") {
+    const text = escalation.details?.trim();
+    return text ? { kind: "call", label: "From the call", text, quoted: false, channel: "phone" } : null;
+  }
+  if (!lastInbound) return null;
+  const wrote = lastInbound.type === "text";
+  return {
+    kind: wrote ? "wrote" : "sent",
+    label: wrote ? "They wrote" : "They sent",
+    text: messageWords(lastInbound),
+    quoted: wrote,
+    channel: wireOf(lastInbound)
+  };
 }
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
@@ -18279,8 +18296,9 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     else timeline.splice(idx, 0, entry);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
-  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { kind: "call", label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? lastInbound.type === "text" ? { kind: "wrote", label: "They wrote", text: messageWords(lastInbound), quoted: true } : { kind: "sent", label: "They sent", text: messageWords(lastInbound), quoted: false } : null;
+  const ask = askOf(escalation, lastInbound);
   const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
+  const preview = previewOf(dto.messages);
   return {
     id: `th-${dto.id}`,
     real: true,
@@ -18324,7 +18342,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
-    preview: previewOf(dto.messages),
+    preview: preview.text,
+    previewChannel: preview.channel,
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther ? HELD_WORDS.theirs.sentence : escalation ? (

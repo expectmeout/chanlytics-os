@@ -56,7 +56,8 @@ Object.assign(globalThis, {
 const S = "../../../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
 const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
-const { cvRoute: route, cvAddress: address } = await import(`${S}/surfaces/inbox/cv-rules.ts`);
+const cvRules = await import(`${S}/surfaces/inbox/cv-rules.ts`);
+const { cvRoute: route, cvAddress: address } = cvRules;
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { installTabMemory, clearTabMemory } = await import(`${S}/legacy-bridge/tab-memory.ts`);
 installTabMemory(globalThis.window);
@@ -365,4 +366,59 @@ test("the box's words are kept per tab, in the tab's storage: back after a trip 
   // Signed out, gone.
   clearTabMemory();
   assert.equal(TM.place("conversations", "all"), null);
+});
+
+/* ---------------------------------- one row per person ---------------------------------- */
+
+test("REGRESSION: a person who called three times is one row, their newest, saying how many -- not three rows of their name", () => {
+  const { cvOnePerPerson, cvLeadOf } = cvRules;
+  const tabs = (tree) => find(tree, (n) => n.type === SubTabs).props.tabs;
+  const theirs = (id, at, summary) =>
+    call(id, "Emily Chen", {
+      contact_id: "k-emily",
+      conversation_id: "cv-emily",
+      started_at: at,
+      ended_at: at,
+      summary,
+    });
+  // Newest first, as the surface sorts them.
+  const emilys = [
+    theirs("k3", "2026-09-14T13:40:00Z", "She asked about parking."),
+    theirs("k2", "2026-09-14T13:20:00Z", "She booked the trial for Friday."),
+    theirs("k1", "2026-09-14T13:00:00Z", "She hung up."),
+  ];
+  withRows([emilys[0], rosa, emilys[1], emilys[2]]);
+  let tree = ConversationsPage({ channel: "all", initialId: null });
+  assert.equal(rows(tree).length, 2, "REGRESSION: a row for every call");
+  const emily = textOf(rows(tree)[0]);
+  assert.ok(emily.includes("Emily Chen") && emily.includes("3 calls"), emily);
+  assert.equal(tabs(tree).find((t) => t.id === "phone").count, 1, "the tab counts the people it shows");
+
+  // A link to one of the calls (Ask's, Today's) opens it, on its person's row.
+  fresh();
+  tree = ConversationsPage({ channel: "all", initialId: "cv-k2" });
+  assert.equal(rows(tree).length, 2);
+  assert.ok(String(rows(tree)[0].props.className).includes("active"), "their row is the one open");
+  assert.ok(
+    textOf(byTestId(tree, "cv-call-pane")).includes("She booked the trial for Friday."),
+    "at the call asked for",
+  );
+  assert.equal(byTestId(tree, "cv-missing-thread"), null, "never 'not among the newest'");
+
+  // A search keeps what it matched, and the row leads with it.
+  searchBox(tree).props.onChange({ target: { value: "parking" } });
+  tree = redraw({ channel: "all", initialId: null });
+  assert.equal(rows(tree).length, 1);
+  assert.ok(!textOf(rows(tree)[0]).includes("calls"), "one call matched: no count");
+
+  // A thread that needs you says so under the call that came after it; a call going on now says that.
+  const needs = { ...rosa, standing: "needs_you" };
+  const after = { ...call("k9", "Rosa Díaz", { contact_id: rosa.clientId }), outcome: "abandoned" };
+  const [one] = cvOnePerPerson([after, needs]);
+  assert.equal(one.id, after.id, "the newest leads the row");
+  assert.equal(cvLeadOf(one).standing, "needs_you", "REGRESSION: 'Hung up early' over a thread that needs you");
+  assert.equal(cvLeadOf({ ...one, live: true }).id, after.id);
+  // A caller who withheld their number is nobody's: each of their calls stands alone.
+  const anon = (id) => ({ ...call(id, "Unknown"), clientId: null, threadId: undefined });
+  assert.equal(cvOnePerPerson([anon("a1"), anon("a2")]).length, 2);
 });
