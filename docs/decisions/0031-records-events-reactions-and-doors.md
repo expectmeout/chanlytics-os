@@ -1,8 +1,9 @@
 # 0031 · Records, events, reactions and doors
 
 **Status:** Decided on 6 October 2026 (Ruben: "all approved"); of Phase 0, the fixes (00330, 00331) and the five numbers
-(00332) are built; of Phase 1, the spine (00333 to 00336, through 0032 and 0033) and the event-shaped clocks ratchet that
-holds invariant 6 (`tooling/scripts/tests/clocks/_clocks.mjs`); the rest is not yet built: this note is the frame, and
+(00332) are built; of Phase 1, the spine (00333 to 00336, through 0032 and 0033), intake lag (00337), the event-shaped
+clocks ratchet that holds invariant 6 (`tooling/scripts/tests/clocks/_clocks.mjs`) and the writers-per-table ratchet that
+shows invariant 1 (`tooling/scripts/tests/baselines/writers.json`); the rest is not yet built: this note is the frame, and
 each step below is a note of its own, three of them decided with it (0032, 0033, 0034). Proposed the same day from the wiring map of 5 October (the trace of
 how the Inbox, Campaigns, People, the Calendar and Setup reach each other, and a second review of it answered point by
 point). Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at

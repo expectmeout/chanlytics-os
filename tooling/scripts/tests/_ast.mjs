@@ -496,6 +496,38 @@ export function tablesNamedIn(sf) {
   return names;
 }
 
+/** The supabase-js calls that write rows, as a chain's next link after `.from("<table>")`. */
+const ROW_WRITES = new Set(["insert", "upsert", "update", "delete"]);
+
+/**
+ * The tables this module writes through supabase-js: each `.from("<table>")` whose next link inserts, upserts, updates
+ * or deletes. Storage's `.from("<bucket>")` is not a table, and neither is a name the schema does not have; the writers
+ * ratchet (_measures.mjs) keeps only the schema's tables.
+ */
+export function tablesWrittenIn(sf) {
+  const names = new Set();
+  const visit = (m) => {
+    if (
+      ts.isCallExpression(m) &&
+      ts.isPropertyAccessExpression(m.expression) &&
+      m.expression.name.text === "from" &&
+      m.arguments.length >= 1 &&
+      ts.isStringLiteralLike(m.arguments[0]) &&
+      /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text) &&
+      !(ts.isPropertyAccessExpression(m.expression.expression) && m.expression.expression.name.text === "storage") &&
+      !(ts.isIdentifier(m.expression.expression) && NOT_A_TABLE.has(m.expression.expression.text)) &&
+      ts.isPropertyAccessExpression(m.parent) &&
+      ROW_WRITES.has(m.parent.name.text) &&
+      ts.isCallExpression(m.parent.parent)
+    ) {
+      names.add(m.arguments[0].text);
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return [...names];
+}
+
 /**
  * `.rpc("<function>", …)`: a SQL function called by its string, in this file. The tables ratchet counts it beside
  * `.from("<table>")`: a door or a reader that calls a function is reading or writing a table all the same.
