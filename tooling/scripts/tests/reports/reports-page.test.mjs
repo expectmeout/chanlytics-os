@@ -617,7 +617,6 @@ test("the period control is the kit's Segmented over the table's periods, each o
     ],
   );
   assert.equal(c.props.label, "Period");
-  assert.equal(c.props.readOnly, false, "nothing on its way");
   const ask = byTestId(tree, "reports-ask");
   assert.equal(ask.props.size, "sm");
   assert.equal(ask.props["aria-label"], "Ask about this period");
@@ -658,8 +657,7 @@ test("a period that fails to load says so, keeps the one showing, and lets the t
     for (let i = 0; i < 12; i++) await settle();
     tree = redraw();
     assert.equal(textOf(cls(tree, "rpt-failed")), "Couldn't load 30 days. Still showing 7 days.");
-    assert.equal(control(tree).props.readOnly, false, "the control holds only while a period loads");
-    assert.equal(chosen(tree), "7 days");
+    assert.equal(chosen(tree), "7 days", "the pick that failed is taken back: the control says what the page shows");
   });
 });
 
@@ -849,15 +847,28 @@ test("REGRESSION (C26): a chart is one keyboard stop whose arrows read each day 
     assert.match(live(), /^Sep 4:/);
   }));
 
-test("REGRESSION (C27): the period tabs hold while a period loads -- a second press started a second load", async () => {
+test("REGRESSION: the period control never holds -- arrowing on to Month is a choice per key, each pick is read and the latest one wins", async () => {
   await inPeriodTest("hold", async () => {
     let tree = page();
     choose(tree, "30 days");
     tree = redraw();
-    assert.equal(control(tree).props.readOnly, true, "REGRESSION: pressable while a period loaded");
+    assert.equal(
+      control(tree).props.readOnly,
+      undefined,
+      "REGRESSION: the control was read-only while a period loaded",
+    );
+    assert.equal(chosen(tree), "30 days", "the control shows the pick as it is made, so the next key goes on from it");
     choose(tree, "90 days");
-    assert.deepEqual(period.asked, ["30d"], "REGRESSION: a second load began");
+    assert.deepEqual(period.asked, ["30d", "90d"], "each pick is read; none waits behind another");
     await land();
+    redraw();
+    tree = redraw();
+    assert.equal(
+      chosen(tree),
+      "90 days",
+      "the latest pick is the one shown: the surface dropped the answer for 30 days",
+    );
+    assert.equal(cls(tree, "rpt-failed"), null, "and the pick that was left says nothing of its own");
   });
 });
 

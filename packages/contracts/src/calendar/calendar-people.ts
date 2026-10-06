@@ -21,6 +21,7 @@ import type { FeedItem } from "./feed";
 import { normalizeEmail } from "../shared/email-address";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { dateFormat, DAY_MS } from "../shared/time";
+import { plural } from "../shared/words";
 
 export interface EventContacts {
   /** E.164. */
@@ -751,7 +752,7 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
       present: true,
       calendar: "ok",
       headline: "Nobody asked",
-      sub: `nobody wrote or called in the last ${dto.days} days`,
+      sub: `nobody wrote or called in the last ${plural(dto.days, "day")}`,
       words: "",
       pct: null,
       asked: 0,
@@ -760,7 +761,7 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
       rest: "",
     };
   const pct = Math.round((dto.booked / dto.asked) * 100);
-  const words = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
+  const words = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
   const unbooked = dto.asked - dto.booked;
   return {
     present: true,
@@ -776,7 +777,7 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
     // given a time. It is the half an owner can do something about.
     rest:
       unbooked === 0
-        ? `Everyone who asked in the last ${dto.days} days has an appointment.`
+        ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.`
         : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`,
   };
 }

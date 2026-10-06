@@ -12,13 +12,11 @@ import { useEffect, useState } from "react";
 import {
   REPORT_PERIOD_DEFAULT,
   REPORT_RANGES,
-  lensIsShown,
   lensOfRoute,
   routeOfPath,
   type LensId,
   type ReportPeriodId,
 } from "@chanlytics/contracts";
-import { workspaceOverride } from "@/legacy-bridge/surface-data";
 import { askAbout, demoSession } from "../legacy-verbs";
 import { Button } from "../kit/button/button";
 import { EmptyState } from "../kit/empty/empty";
@@ -26,6 +24,7 @@ import { Icon } from "../kit/icon/icon";
 import { Segmented } from "../kit/segmented/segmented";
 import { useSurface } from "../use-surface";
 import { useRptPhone } from "./blocks";
+import { lensShownHere } from "./chrome";
 import { useReportsStanding } from "./head";
 import { CampaignsLens } from "./lenses/campaigns";
 import { OverviewLens } from "./lenses/overview";
@@ -57,21 +56,22 @@ function readsAWorkspace() {
 /** One row above everything: the period, the days it covers, and a door to ask about them. */
 function periodRow(p: {
   R: ReportsSurface;
-  busy: boolean;
+  /** The period the control shows: the pick as it is made, until the page's own catches up with it. */
+  chosen: ReportPeriodId;
   failed: ReportPeriodId | null;
   pick: (period: ReportPeriodId) => Promise<void>;
 }) {
-  const { R, busy, failed, pick } = p;
+  const { R, chosen, failed, pick } = p;
   const vm = R.vm;
   return (
     <div className="rpt-head">
-      {/* While a period loads the control keeps its choice and says so (readOnly), rather than start a second load over the first. */}
+      {/* The control never holds while a period loads: an arrow key chooses and choosing reads, so a key held on 30 days must be
+          able to go on to Month. Each pick is read, the surface drops the answer for a period left, and the latest pick wins. */}
       <Segmented
         label="Period"
-        value={R.period}
+        value={chosen}
         onValueChange={(next) => void pick(next)}
         options={REPORT_RANGES.map((r) => ({ value: r.id, label: r.label, testid: `period-${r.id}` }))}
-        readOnly={busy}
       />
       <span className="rpt-dates" title={`Days follow ${vm.timezone}`}>
         {vm.since} to {vm.until}
@@ -95,8 +95,9 @@ function periodRow(p: {
   );
 }
 
-/** The lens's body, or what it says where this workspace has no use for it. */
-function lensBody(lens: LensId, props: LensProps, shown: boolean) {
+/** The lens's body: nothing where it is not yet known to be shown, what it says where it is not shown, else its cards. */
+function lensBody(lens: LensId, props: LensProps, shown: boolean | null) {
+  if (shown === null) return null;
   if (!shown) return <LensEmpty lens={lens} vm={props.R.vm} />;
   switch (lens) {
     case "overview":
@@ -122,34 +123,34 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const live = useSurface("reports");
   // A demo's own period: the sample answers at once, so the tabs switch it here.
   const [samplePeriod, setSamplePeriod] = useState<ReportPeriodId>(REPORT_PERIOD_DEFAULT);
-  const [busy, setBusy] = useState(false);
+  // The period picked and not yet shown: what the control says, and what dims the body until its answer lands.
+  const [pending, setPending] = useState<ReportPeriodId | null>(null);
   // The period that failed to load, if any: the page keeps the old one and says so, instead of dimming forever and
   // switching later on its own.
   const [failed, setFailed] = useState<ReportPeriodId | null>(null);
   const fetchedAt = live ? live.fetchedAt : 0;
   useEffect(() => {
-    setBusy(false);
+    setPending(null);
   }, [fetchedAt]);
   const R = live || (demoSession() ? reportsSample(samplePeriod) : null);
   useReportsStanding(lens, R);
   if (!R) return readsAWorkspace();
   const pick = async (period: ReportPeriodId) => {
-    // One period at a time: while one loads the tabs hold, rather than start a second load over the first.
-    if (busy || period === R.period) return;
+    // The one shown, or the one on its way: nothing to read. Any other pick is read, whatever else is out.
+    if (period === (pending ?? R.period)) return;
     if (!live) {
       setSamplePeriod(period);
       return;
     }
-    setBusy(true);
+    setPending(period);
     setFailed(null);
     const ok = await setReportRange(period);
     if (!ok) {
-      setBusy(false);
+      setPending(null);
       setFailed(period);
     }
   };
-  const ws = workspaceOverride.current();
-  const shown = lensIsShown(lens, { sellsBy: ws?.sells_by, role: ws?.role });
+  const busy = pending !== null;
   return (
     // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
     <div
@@ -161,9 +162,9 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
       <div className="rpt-inner">
         {/* One row above everything: the period, the days it covers, and a door to ask about them. The frame's head says
             Reports and the lens's answer; the page does not title itself. */}
-        {periodRow({ R, busy, failed, pick })}
+        {periodRow({ R, chosen: pending ?? R.period, failed, pick })}
         <div className="rpt-body" data-dims aria-busy={busy ? "true" : "false"}>
-          {lensBody(lens, { R, pick, phone }, shown)}
+          {lensBody(lens, { R, pick, phone }, lensShownHere(lens))}
         </div>
       </div>
     </div>

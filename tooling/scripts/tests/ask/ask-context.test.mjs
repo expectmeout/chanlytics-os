@@ -881,6 +881,13 @@ test("Reports: the period the page shows, its tiles and lines, as the report too
     page("reports", [], { view: "5" }),
   );
   assert.match(textOf(month.blocks[0]), /^Reports, 5 days · /);
+  // Month on the 1st: one day, said as one.
+  clearContextCache();
+  const first = await buildContext(
+    rcIn(ctxFor(tables(), { ...RPCS, report_series: series })),
+    page("reports", [], { view: "1" }),
+  );
+  assert.match(textOf(first.blocks[0]), /^Reports, 1 day · /);
 });
 
 test("Reports: the reply time's line names the hold it includes where replies waited one, and says what it said before where none did", async () => {

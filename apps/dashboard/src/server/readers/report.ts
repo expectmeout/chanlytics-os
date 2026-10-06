@@ -6,6 +6,7 @@ import {
   fixedDaysOf,
   monthDaysAt,
   parseTenantConfigResult,
+  plural,
   reportPeriodOf,
   zoneDayKey,
   type BookingReportDto,
@@ -87,7 +88,7 @@ export const report: Reader<
       .catch(() => null);
     return {
       data: { report, booking, deals, profile },
-      rows: [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${days} days` }],
+      rows: [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${plural(days, "day")}` }],
       stamp: stamp(),
     };
   },

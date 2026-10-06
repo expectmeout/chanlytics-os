@@ -20,6 +20,7 @@ globalThis.window.fetch = async (url) => {
 const S = "../../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { standingSaid, forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { lensAnswerOf } = await import("@chanlytics/contracts");
 after(() => forgetStanding());
@@ -48,6 +49,11 @@ const GOOGLE_NONE = {
     days: [],
     reply_mode: "ask",
   },
+  fetchedAt: 1,
+};
+/** Google answered, and nothing is linked: this deployment cannot look a listing up and none is kept. */
+const GOOGLE_UNLINKED = {
+  dto: { ...GOOGLE_NONE.dto, ready: { places: false, profile: false } },
   fetchedAt: 1,
 };
 /** The lens drawn over a surface: the page for its address. */
@@ -124,7 +130,7 @@ test("a lens the workspace has no use for says so at its address, in the registr
   assert.ok(byTestId(none, "lens-empty"), "deals on and none ever recorded: the same words, never a blank");
 });
 
-test("a period with nothing in it says so on each lens that draws sections, and Reviews says what it needs where Google cannot be read", () => {
+test("a period with nothing in it says so on each lens that draws sections, and Reviews says what it needs where Google answered that nothing is linked", () => {
   workspace("booking");
   const R = surface({ report: quiet(), deals: NO_DEALS });
   for (const lens of ["overview", "receptionist", "people"]) {
@@ -134,6 +140,51 @@ test("a period with nothing in it says so on each lens that draws sections, and 
       lens,
     );
   }
-  const reviews = draw("reviews", { google: undefined });
+  const reviews = draw("reviews", { google: GOOGLE_UNLINKED });
   assert.ok(textOf(byTestId(reviews, "lens-empty")).includes("Find your business on Google once."));
+});
+
+test("Reviews draws nothing while Google is unread: a read still out is not 'nothing is linked'", () => {
+  workspace("booking");
+  const unread = draw("reviews", { google: undefined });
+  assert.equal(
+    byTestId(unread, "lens-empty"),
+    null,
+    "REGRESSION: the empty that says nothing is linked, drawn before Google's first read",
+  );
+  assert.equal(byTestId(unread, "reviews-failed"), null, "and no failure: nothing has failed");
+  assert.ok(byTestId(unread, "reports-real"), "the page itself stands");
+});
+
+test("a lens that waits on how the workspace sells draws nothing until the workspace list is held, and the Overview stands without it", () => {
+  delete globalThis.__WORKSPACES;
+  delete globalThis.__ACTIVE_WORKSPACE;
+  const pipeline = draw("pipeline", { R: surface({ deals: NO_DEALS }) });
+  assert.equal(
+    byTestId(pipeline, "lens-empty"),
+    null,
+    "REGRESSION: 'you book directly' said to a workspace nobody had asked",
+  );
+  assert.equal(byTestId(pipeline, "rpt-deals"), null);
+  assert.ok(
+    byTestId(draw("overview", { R: surface({ deals: DEALS }) }), "reports-hero"),
+    "open to everyone: no list needed",
+  );
+  workspace("proposal");
+  assert.ok(byTestId(draw("pipeline", { R: surface({ deals: DEALS }) }), "rpt-deals"), "the list held: the lens draws");
+});
+
+// LAST in the file: a surface's failure cannot be taken back (surface-status.ts has no reset), and every test above draws Google.
+test("Reviews says the read failed, with its Retry, where Google could not be read, and never the empty that says nothing is linked", () => {
+  workspace("booking");
+  setStatus("google", "seeded");
+  const failed = draw("reviews", { google: undefined });
+  const words = byTestId(failed, "reviews-failed");
+  assert.ok(words, "the house's failed read, as Today draws one");
+  assert.ok(textOf(words).includes("Couldn't read your Google reviews"), textOf(words));
+  assert.equal(
+    byTestId(failed, "lens-empty"),
+    null,
+    "REGRESSION: a failed read said 'find your business on Google once'",
+  );
 });

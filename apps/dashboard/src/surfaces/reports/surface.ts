@@ -44,6 +44,9 @@ try {
   /* storage unavailable: the default period stands */
 }
 
+/** The period the page is on now, or on its way to: the one kept in this browser. */
+export const shownReportPeriod = (): ReportPeriodId => reportPeriod;
+
 /** The one period every chart on Reports is scoped to, kept in this browser. */
 export function keepReportPeriod(period: ReportPeriodId): void {
   if (!isReportPeriod(period)) return;
