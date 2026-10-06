@@ -1,22 +1,19 @@
 /**
  * Reports' period (Ruben, 6 Oct 2026): a round button at the right of the strip of lenses, as the Calendar's options are,
- * which opens the period over the page: the days it covers in words, the four periods to pick from, and the days on a month
- * (the kit's MonthRange). A pick is read at once and the popover stays open on the window picked, so the month shows what
- * was chosen; Escape or a press outside closes it, and focus goes back to the button. The window is contracts'
- * (`reportWindowOf`), counted from the business's today by the route's own arithmetic, so the period picked shows before its
- * read lands. On a desk the days stand beside the button too; a phone has room for the button alone, beside the strip.
+ * which opens the period over the page (period-popover.tsx): the days it covers in words, the four periods to pick from,
+ * and the days on a month. On a desk the days stand beside the button too; a phone has room for the button alone, beside
+ * the strip. The window is contracts' (`reportWindowOf`), counted from the business's today by the route's own arithmetic.
  *
- * The periods are the four the report reads (contracts REPORT_RANGES): a window of any days would need the report to read
- * one, which it does not.
+ * What the button opens is loaded on demand, as a pointer or focus reaches the button, and a press before it has loaded
+ * opens it as it lands: Base UI's popover and the month stay off the page's first load, which the bundle budget holds to
+ * what a person waits for (tooling/scripts/checks/bundle-budget.mjs).
  */
-import { REPORT_RANGES, reportWindowOf, timezoneCity, type ReportPeriodId } from "@chanlytics/contracts";
+import { useState } from "react";
+import { reportWindowOf, type ReportPeriodId, type ReportWindowVM } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
-import { MonthRange } from "../kit/datepicker/month-range";
 import { Icon } from "../kit/icon/icon";
-import { Popover } from "../kit/popover/popover";
-import { Segmented } from "../kit/segmented/segmented";
 
-interface PeriodPickerProps {
+export interface PeriodPickerProps {
   /** The period the control shows: the pick as it is made, until the page's own catches up with it. */
   chosen: ReportPeriodId;
   /** The business's today, "YYYY-MM-DD", and its zone, as the report says them. */
@@ -27,47 +24,55 @@ interface PeriodPickerProps {
   desk: boolean;
 }
 
-export function PeriodPicker({ chosen, today, timezone, pick, desk }: PeriodPickerProps) {
-  const win = reportWindowOf(chosen, today);
-  const chevron = <Icon name="chevron" size={14} />;
+/** The round button: drawn by the page before what it opens has loaded, and by what it opens after; one look and one name. */
+export function periodButton(win: ReportWindowVM, on: { onClick?: () => void; onWarm?: () => void } = {}) {
+  return (
+    <Button
+      iconOnly
+      size="lg"
+      className="rpt-when-open"
+      aria-label={`Period: ${win.said}, ${win.range}`}
+      data-testid="reports-period-open"
+      onClick={on.onClick}
+      onPointerEnter={on.onWarm}
+      onFocus={on.onWarm}
+    >
+      <Icon name="calendar" size={16} />
+    </Button>
+  );
+}
+
+type PopoverModule = typeof import("./period-popover");
+let popoverModule: PopoverModule | null = null;
+let popoverLoading: Promise<PopoverModule> | null = null;
+
+/** What the button opens, loaded once for the tab; a test loads it before drawing the page. */
+export function loadPeriodPopover(): Promise<PopoverModule> {
+  popoverLoading ??= import("./period-popover").then((loaded) => (popoverModule = loaded));
+  return popoverLoading;
+}
+
+export function PeriodPicker(p: PeriodPickerProps) {
+  // A press before what it opens has loaded: drawn open as it lands.
+  const [pressed, setPressed] = useState(false);
+  const [, landed] = useState(0);
+  const win = reportWindowOf(p.chosen, p.today);
+  const Opened = popoverModule?.PeriodPopover;
+  const warm = () => void loadPeriodPopover();
   return (
     <div className="rpt-period" data-testid="reports-period">
-      {desk ? <span className="rpt-dates">{win.range}</span> : null}
-      <Popover
-        label="Period"
-        align="end"
-        className="rpt-when"
-        trigger={
-          <Button
-            iconOnly
-            size="lg"
-            className="rpt-when-open"
-            aria-label={`Period: ${win.said}, ${win.range}`}
-            data-testid="reports-period-open"
-          >
-            <Icon name="calendar" size={16} />
-          </Button>
-        }
-      >
-        <div className="rpt-when-head">
-          <p className="rpt-when-range" data-testid="reports-period-range">
-            {win.range}
-          </p>
-          <p className="rpt-when-said">
-            {win.said} · {timezoneCity(timezone)} time
-          </p>
-        </div>
-        {/* The control never holds while a period loads: an arrow key chooses and choosing reads, so a key held on 30 days
-            must be able to go on to Month. Each pick is read, the surface drops the answer for a period left, and the latest
-            pick wins. */}
-        <Segmented
-          label="Period"
-          value={chosen}
-          onValueChange={(next) => void pick(next)}
-          options={REPORT_RANGES.map((r) => ({ value: r.id, label: r.label, testid: `period-${r.id}` }))}
-        />
-        <MonthRange from={win.from} to={win.to} today={today} glyphs={{ previous: chevron, next: chevron }} />
-      </Popover>
+      {p.desk ? <span className="rpt-dates">{win.range}</span> : null}
+      {Opened ? (
+        <Opened {...p} win={win} openFirst={pressed} />
+      ) : (
+        periodButton(win, {
+          onWarm: warm,
+          onClick: () => {
+            setPressed(true);
+            void loadPeriodPopover().then(() => landed((n) => n + 1));
+          },
+        })
+      )}
     </div>
   );
 }

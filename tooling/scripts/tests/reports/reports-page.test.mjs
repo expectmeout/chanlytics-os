@@ -168,6 +168,10 @@ const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
 const { MonthRange } = await import(`${S}/surfaces/kit/datepicker/month-range.tsx`);
+// What the period's button opens loads on demand in the app (period-picker.tsx, held by period-picker.test.mjs); the page's
+// tests read and press it open, so it is loaded first, as a pointer on the button loads it.
+const { loadPeriodPopover } = await import(`${S}/surfaces/reports/period-picker.tsx`);
+await loadPeriodPopover();
 /**
  * What a person sees of the page: its tree, and on a desk what it said to the frame's head as its act (the period, at the right of
  * the strip of lenses), which the frame draws beside it. The stub's window is a desk's: it matches no width query.
@@ -1189,7 +1193,10 @@ test("on a desk the period is the head's act on every lens, its days then its bu
     assert.ok(classes(group).includes("rpt-period"), `${path}: the period, said to the head as its act`);
     const kids = group.props.children.filter(Boolean);
     assert.equal(textOf(kids[0]), "Aug 29 – Sep 4", `${path}: the days it covers first`);
-    assert.equal(kids.at(-1).type, Popover, `${path}: then the button that opens it, at the row's end`);
+    assert.ok(
+      find(kids.at(-1), (n) => n.type === Popover),
+      `${path}: then the button that opens it, at the row's end`,
+    );
     assert.equal(all(tree, (n) => classes(n).includes("rpt-head")).length, 0, `${path}: no period row in the page`);
     assert.equal(byTestId(tree, "reports-period"), null, `${path}: the period once, in the head`);
   }
