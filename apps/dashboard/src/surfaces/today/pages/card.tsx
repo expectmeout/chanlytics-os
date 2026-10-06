@@ -14,7 +14,6 @@ import type { CSSProperties } from "react";
 import {
   toGoogleVM,
   type BroadcastVM,
-  type ReportsLike,
   type TodayFigureId,
   type TodayFigureVM,
   type TodayVM,
@@ -24,9 +23,9 @@ import type { PageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
-import { useSurface } from "../../use-surface";
+import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, doorGlyph, borrowed, workspaceClock, surfaceFailed, useMoved } from "../shell";
+import { appNavigate, doorGlyph, borrowed, workspaceClock, useMoved } from "../shell";
 import { Button } from "../../kit/button/button";
 
 /** A door to a route: the frame's move. */
@@ -289,7 +288,12 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
 }
 
 export const TodayCard = () => {
-  useMoved(["today", "reports"]);
+  useMoved(["today"]);
+  // The period in one small read (the headline), through the seam, and whether its read failed, by the seam's own hook: both hooks, so
+  // they stand before the early return below. (`surfaceFailed("reports_headline")` is false for ever: the shell's door maps its
+  // argument through the routes' surfaces, which name no headline.)
+  const R = useSurface("reports_headline");
+  const headlineFailed = useSurfaceFailed("reports_headline");
   const [open, setOpen] = useState<TodayFigureId | null>(null);
   // An open receipt closes on Escape wherever the focus is, as every other dialog does: the phone app's Back hands the
   // page an Escape (legacy-bridge/app-bridge.ts watchOverlays), and a figure's own key reached it only from the figure.
@@ -308,10 +312,9 @@ export const TodayCard = () => {
   // quietFigures), and so is a day with people waiting but nothing counted (vm.zero_figures).
   const figures = vm.figures ?? quiet?.figures ?? vm.zero_figures ?? null;
   const nav: Nav = (to) => appNavigate(to);
-  const R = borrowed<ReportsLike>("__REPORTS");
   const period = R ? TODAY_HELPERS.periodLine(R) : null;
   // Not read yet is not failed: the foot is silent while Reports loads and says so when its read failed.
-  const reportsFailed = !R && surfaceFailed("reports");
+  const reportsFailed = !R && headlineFailed;
   return (
     <section className="today-card" data-testid="today-card" aria-labelledby="today-card-title">
       <div className="tc-head">
@@ -346,7 +349,7 @@ export const TodayCard = () => {
               kind="line"
               what="Reports"
               body="The day's own numbers above are current."
-              surface="reports"
+              surface="reports_headline"
               testid="today-period-failed"
             />
           )}

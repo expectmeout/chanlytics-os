@@ -4,7 +4,7 @@
  * landed, its status changed: the same signal a legacy page's `useSurface` hears). Before the first read it answers
  * nothing, which a surface says as its own empty state; the cache may already have given it a value from the last visit.
  *
- * The typed door onto the seam, where the shell's pages read `window.__REPORTS`. A surface reads nothing off `window`.
+ * The typed door onto the seam, where the shell's pages read `window.__PEOPLE`. A surface reads nothing off `window`.
  */
 import { useCallback, useSyncExternalStore } from "react";
 import { surfaceValue } from "./surface-values";

@@ -7,6 +7,7 @@ import { PageContextSchema } from "@chanlytics/contracts";
 
 const { pageContext, focusFromWords } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/context.ts");
 const { surfaceFor } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const U = (n) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`;
 const route = (hash) => {
@@ -144,7 +145,11 @@ test("Leads: its rows in the page's order, its list and class as the view, the p
 });
 
 test("Reports: the period; Campaigns: the tab's own rows; Settings: the pane; Start: the step", () => {
-  assert.deepEqual(ctx({ __REPORTS: { days: 90 } }, "reports").view, "90");
+  // Reports' view is the days its surface shows, read through the seam: nothing read yet is the route alone.
+  assert.equal(ctx({}, "reports").view, null);
+  setSurfaceValue("reports", { days: 90 });
+  assert.deepEqual(ctx({}, "reports").view, "90");
+  setSurfaceValue("reports", undefined);
   const g = {
     __PLAYBOOKS: { rows: [{ id: U(1), name: "Win back" }] },
     __BROADCASTS: { rows: [{ id: U(2), name: "Monday" }] },

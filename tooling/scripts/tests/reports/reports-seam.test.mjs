@@ -1,8 +1,9 @@
 /**
  * What a surface that has left the shell reads from the seam, typed (decision 0015, step 3): the value the override
- * publishes under its key, the name it is mirrored under for the pages that have not moved, the tab's cache keeping it
- * beside the window's globals, and `useSurface` handing it to a component and drawing that component again when the
- * surface moves.
+ * publishes under its key, the name it is mirrored under for the pages that have not moved (Today's own day is still read as
+ * `TODAY_DATA`; Reports has none since its last readers, Today and Ask, moved to the seam on 6 October 2026), the tab's cache
+ * keeping it beside the window's globals, and `useSurface` handing it to a component and drawing that component again when
+ * the surface moves.
  *
  * The real store, the real cache and the real hook, over a window with sessionStorage and the page tests' stub React.
  */
@@ -28,22 +29,32 @@ globalThis.__ACTIVE_WORKSPACE = "t-salon";
 const S = "../../../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
 const cache = await import(`${S}/legacy-bridge/surface-cache.ts`);
-// Importing the override declares the mirror, as the app's boot does. Google's declares none: its pages have all moved.
+// Importing an override declares its mirror, as the app's boot does: Today's names one, Reports' and Google's none.
+await import(`${S}/surfaces/today/surface.ts`);
 await import(`${S}/surfaces/reports/surface.ts`);
 // The surface's signal, from the module the surface reads it through (the stub's own copy is the shell pages').
 const { surfaceMoved: surfaceLanded } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { useSurface } = await import(`${S}/surfaces/use-surface.ts`);
 
 const REPORTS = { vm: { days: 30 }, days: 30, fetchedAt: 1 };
+const TODAY = { standing: { headline: "Nothing needs you." } };
 
 test("a value is held under its key and mirrored under the name the pages that have not moved read; nothing held is nothing on both", () => {
-  assert.equal(values.surfaceValue("reports"), undefined, "before the first read there is nothing");
+  assert.equal(values.surfaceValue("today"), undefined, "before the first read there is nothing");
+  values.setSurfaceValue("today", TODAY);
+  assert.equal(values.surfaceValue("today"), TODAY, "held as it was published, by identity");
+  assert.equal(globalThis.TODAY_DATA, TODAY, "and mirrored under its old name, the one object");
+  values.setSurfaceValue("today", undefined);
+  assert.equal(values.surfaceValue("today"), undefined);
+  assert.equal(globalThis.TODAY_DATA, undefined, "the mirror goes with the value");
   values.setSurfaceValue("reports", REPORTS);
-  assert.equal(values.surfaceValue("reports"), REPORTS, "held as it was published, by identity");
-  assert.equal(globalThis.__REPORTS, REPORTS, "and mirrored under its old name, the one object");
+  assert.equal(values.surfaceValue("reports"), REPORTS, "Reports' is held under its key");
+  assert.equal(
+    globalThis.__REPORTS,
+    undefined,
+    "and under no other name: Today and Ask, its last readers, read the seam",
+  );
   values.setSurfaceValue("reports", undefined);
-  assert.equal(values.surfaceValue("reports"), undefined);
-  assert.equal(globalThis.__REPORTS, undefined, "the mirror goes with the value");
   values.setSurfaceValue("google", { dto: { ready: {} }, fetchedAt: 2 });
   assert.equal(
     values.surfaceValue("google").fetchedAt,
@@ -65,7 +76,6 @@ test("the tab's cache keeps the value beside the globals a surface owns, and giv
   const restored = cache.hydrateSurfaceCache();
   assert.ok(restored.has("reports"), "the surface has its real data before it draws: no loading state");
   assert.deepEqual(values.surfaceValue("reports"), REPORTS);
-  assert.deepEqual(globalThis.__REPORTS, REPORTS, "and the mirror is back for the pages that read it");
   values.setSurfaceValue("reports", undefined);
 });
 

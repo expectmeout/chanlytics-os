@@ -17,7 +17,8 @@ import { formatPhoneDisplay } from "../shared/phone";
 import type { LeadSearchDto } from "../leads/leads";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock, tzSince } from "./today-clock";
-import type { MetricsSummaryDto } from "./today-metrics";
+import type { ReplySpeed } from "../reports/report-speed";
+import { todayReplySpeed, type MetricsSummaryDto } from "./today-metrics";
 
 /**
  * How much of a customer's own words a queue row carries.
@@ -79,6 +80,8 @@ export interface TodayFacts extends TodayInput {
   tz: string;
   period: MetricsSummaryDto["period"];
   live: MetricsSummaryDto["now"];
+  /** How fast the receptionist replied: the median, or where most replies waited the owner's hold, against it (todayReplySpeed). */
+  speed: ReplySpeed | null;
   /** Whether the calls read succeeded; false means the rows omit the phone, and the card says so. */
   callsRead: boolean;
   wires: TodayWire[];
@@ -217,6 +220,7 @@ export function todayFacts(input: TodayInput): TodayFacts {
     tz,
     period,
     live: metrics.now,
+    speed: todayReplySpeed(metrics),
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
     wires: todayWires(metrics),

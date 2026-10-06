@@ -509,6 +509,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "people",
     "leads",
     "reports",
+    "reports_headline",
     "live",
     "broadcasts",
     "playbooks",
@@ -520,7 +521,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "reach_out_replies",
   ];
   const draws = ROUTE_DRAWS.today;
-  for (const k of ["calendar", "broadcasts", "reports"])
+  for (const k of ["calendar", "broadcasts", "reports_headline"])
     assert.ok(draws.includes(k), `Today names ${k} among what it draws`);
   // Each name is an override that exists, read from the modules that export them: a renamed surface would otherwise
   // leave its entry inert and this test green.
@@ -540,6 +541,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "../surfaces/campaigns/playbooks/surface",
         "../surfaces/calendar/surface",
         "../surfaces/reports/surface",
+        "../surfaces/reports/headline",
         "surfaces/notifications",
         "../surfaces/live/surface",
         "../surfaces/setup/surface",

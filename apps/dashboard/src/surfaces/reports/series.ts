@@ -55,6 +55,3 @@ export const rptMood = (rows: ReportBarVM[]): ChartConfig =>
       },
     ]),
   );
-
-/** "1 message", "2 messages": a count with its noun, as Reports says every one. */
-export const rptPlural = (n: number, one: string, many?: string): string => `${n} ${n === 1 ? one : many || `${one}s`}`;

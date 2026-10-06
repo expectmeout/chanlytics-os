@@ -1,6 +1,6 @@
 /**
- * The Pipeline lens: the proposals of the period and what became of them, and the clients now (moved from sections.tsx; the
- * Deals section's own comment stays with it).
+ * The Pipeline lens: the proposals of the period and what became of them, and the clients now (the Deals section's own comment
+ * stays with it).
  */
 import type { DealReportVM } from "@chanlytics/contracts";
 import { BarList } from "../../kit/charts/bar";

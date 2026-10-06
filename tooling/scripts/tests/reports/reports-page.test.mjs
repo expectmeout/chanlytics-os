@@ -5,8 +5,8 @@
  * model's own sentence, the empty, failed, unreadable-calendar and no-calendar states, a v2 payload, the Ask door, a
  * period that fails to load, Google's section, and the demo. The page's regressions live here too, moved from
  * reports-honest and rewritten for this page (C13, C25 to C28): every row a door, the period before drawn where it
- * reads, one keyboard stop per chart, tabs that hold while a period loads, and a table that leaves the page. The
- * period's own door (period.ts) runs for real, over a fetch this test holds, answers or refuses.
+ * reads, one keyboard stop per chart, a period control that never holds (the latest pick wins), and a table that
+ * leaves the page. The period's own door (period.ts) runs for real, over a fetch this test holds, answers or refuses.
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -167,6 +167,8 @@ const plot = (tree, id) => find(card(tree, id), (n) => classes(n).includes("ck-p
 const cls = (tree, c) => find(tree, (n) => classes(n).includes(c));
 const { Segmented } = await import(`${S}/surfaces/kit/segmented/segmented.tsx`);
 const { Field } = await import(`${S}/surfaces/kit/field/field.tsx`);
+const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
+const { Tooltip } = await import(`${S}/surfaces/kit/tooltip/tooltip.tsx`);
 /** The period control: the kit's segmented control, and the option a person presses, by its words. */
 const control = (tree) => find(tree, (n) => n.type === Segmented);
 const choose = (tree, label) => {
@@ -197,7 +199,7 @@ test("the headline: the receptionist's part of the answered as a meter, the peri
   assert.equal(cls(none, "rpt-hero-compare"), null, "and nothing to compare with");
 });
 
-test("Worth knowing: the bridge's facts in their order, one line each, a row with a door is one button", () => {
+test("Worth knowing: the bridge's facts in their order, one line each, a row with a door is one link", () => {
   const facts = all(card(page(), "reports-facts"), (n) => n.type === "li");
   assert.deepEqual(
     facts.map((f) => f.props["data-fact"]),
@@ -207,15 +209,20 @@ test("Worth knowing: the bridge's facts in their order, one line each, a row wit
   assert.ok(classes(facts[0]).includes("is-warn"), "in amber, with its icon");
   assert.equal(textOf(facts[1]), "Top reason it handed over: asked for a person2 timesSee them");
   assert.equal(textOf(facts[2]), "Tuesday was your busiest daypeak 10am to 12pm");
-  const row = find(facts[0], (n) => n.type === "button");
-  assert.ok(classes(row).includes("rpt-fact-row"), "the whole row is the door");
-  assert.equal(row.props.title, "1 message has no reply yet", "the sentence rides in the title, for a line cut short");
+  const row = find(facts[0], (n) => n.type === "a");
+  assert.ok(classes(row).includes("rpt-fact-row"), "the whole row is the door, and a door is a link");
+  assert.match(row.props.href, /inbox$/, "REGRESSION: a button that went nowhere a link could: no address in it");
+  assert.equal(
+    row.props.title,
+    undefined,
+    "no native title: the sentence is the row's words, wrapped, never cut short",
+  );
   press(row);
   assert.deepEqual(went, ["inbox"]);
   assert.equal(
-    find(facts[2], (n) => n.type === "button"),
+    find(facts[2], (n) => n.type === "a" || n.type === "button"),
     null,
-    "a fact with no door is no button",
+    "a fact with no door is no link and no button",
   );
 });
 
@@ -458,7 +465,7 @@ test("a workspace with no hours is asked for them through the page, with the doo
     !textOf(factOf(tree, "busiest")).includes("closed"),
     "and no count of what a guess would have called closed",
   );
-  press(find(hours, (n) => n.type === "button"));
+  press(find(hours, (n) => n.type === "a"));
   assert.deepEqual(went, ["admin/workspace"], "the door opens Settings, where the hours are kept");
   const unread = page({ report: calm, campaigns: null, profile: null });
   assert.equal(factOf(unread, "hours"), null, "a profile that could not be read says nothing of the hours");
@@ -617,7 +624,10 @@ test("the period control is the kit's Segmented over the table's periods, each o
     ],
   );
   assert.equal(c.props.label, "Period");
-  assert.equal(c.props.readOnly, false, "nothing on its way");
+  // The zone the days follow is the kit's tooltip over the dates (a native title reaches nobody on a keyboard); the dates are on screen.
+  const dates = find(tree, (n) => n.type === Tooltip);
+  assert.match(dates.props.tip, /^Days follow /);
+  assert.ok(textOf(dates.props.children).includes(" to "), "the days themselves are words on the page");
   const ask = byTestId(tree, "reports-ask");
   assert.equal(ask.props.size, "sm");
   assert.equal(ask.props["aria-label"], "Ask about this period");
@@ -658,8 +668,7 @@ test("a period that fails to load says so, keeps the one showing, and lets the t
     for (let i = 0; i < 12; i++) await settle();
     tree = redraw();
     assert.equal(textOf(cls(tree, "rpt-failed")), "Couldn't load 30 days. Still showing 7 days.");
-    assert.equal(control(tree).props.readOnly, false, "the control holds only while a period loads");
-    assert.equal(chosen(tree), "7 days");
+    assert.equal(chosen(tree), "7 days", "the pick that failed is taken back: the control says what the page shows");
   });
 });
 
@@ -720,11 +729,12 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
     const tree = page();
     const section = find(tree, (n) => n.type === "section" && n.props["aria-label"] === "Google reviews");
     assert.ok(section, "a section of its own");
-    assert.equal(
-      all(byTestId(tree, "google-tiles"), (n) => classes(n).includes("rp2-tile")).length,
-      4,
-      "the shared tile, as Today draws its week",
+    assert.deepEqual(
+      all(byTestId(tree, "google-tiles"), (n) => n.type === Figure).map((n) => n.props.id),
+      ["rating", "reviews", "ratings_gained", "newest_review"],
+      "the kit's Figure, in the strip's pattern, each named by its metric",
     );
+    assert.ok(classes(byTestId(tree, "google-tiles")).includes("rpt-figures"), "the strip's own frame");
     assert.ok(plot(tree, "chart-google-gained"), "the ratings gained, day by day, on the kit");
     assert.equal(takeaway(tree, "chart-google-gained"), "", "the count gained is the tiles'");
     assert.equal(all(tree, (n) => n.props?.["data-testid"] === "google-review").length, 1);
@@ -806,6 +816,11 @@ test("REGRESSION (C13): each source row opens its playbook or its broadcast -- t
   assert.equal(rows.length, 2);
   for (const r of rows) press(byTestId(r, "source-open"));
   assert.deepEqual(went, ["outbound/p1", "broadcasts/run:b1"], "REGRESSION: no door on either row");
+  assert.deepEqual(
+    rows.map((r) => byTestId(r, "source-open").props.href),
+    ["#/outbound/p1", "#/broadcasts/run:b1"],
+    "and each is a link with its address",
+  );
 });
 
 test("REGRESSION (C25): the period before is drawn where it reads -- beside the running total and round the week, never zigzagging over daily columns", () => {
@@ -849,16 +864,65 @@ test("REGRESSION (C26): a chart is one keyboard stop whose arrows read each day 
     assert.match(live(), /^Sep 4:/);
   }));
 
-test("REGRESSION (C27): the period tabs hold while a period loads -- a second press started a second load", async () => {
+test("REGRESSION: the period control never holds -- arrowing on to Month is a choice per key, each pick is read and the latest one wins", async () => {
   await inPeriodTest("hold", async () => {
     let tree = page();
     choose(tree, "30 days");
     tree = redraw();
-    assert.equal(control(tree).props.readOnly, true, "REGRESSION: pressable while a period loaded");
+    assert.equal(
+      control(tree).props.readOnly,
+      undefined,
+      "REGRESSION: the control was read-only while a period loaded",
+    );
+    assert.equal(chosen(tree), "30 days", "the control shows the pick as it is made, so the next key goes on from it");
     choose(tree, "90 days");
-    assert.deepEqual(period.asked, ["30d"], "REGRESSION: a second load began");
+    assert.deepEqual(period.asked, ["30d", "90d"], "each pick is read; none waits behind another");
     await land();
+    redraw();
+    tree = redraw();
+    assert.equal(
+      chosen(tree),
+      "90 days",
+      "the latest pick is the one shown: the surface dropped the answer for 30 days",
+    );
+    assert.equal(cls(tree, "rpt-failed"), null, "and the pick that was left says nothing of its own");
   });
+});
+
+test("REGRESSION: a pick back to the period on screen, made while another loads, is shown at once and dims nothing -- the page waited on a read it did not need", async () => {
+  // A workspace of its own, where no period is held yet, so the pick in between stays out until it lands.
+  const was = globalThis.location.pathname;
+  globalThis.location.pathname = "/w/pick-back";
+  try {
+    await inPeriodTest("hold", async () => {
+      let tree = page();
+      choose(tree, "30 days");
+      await land();
+      redraw();
+      tree = redraw();
+      assert.equal(chosen(tree), "30 days", "30 days is read, and held");
+      choose(tree, "Month");
+      tree = redraw();
+      assert.equal(byTestId(tree, "reports-real").props["data-loading"], "", "Month is on its way");
+      choose(tree, "30 days");
+      redraw();
+      tree = redraw();
+      assert.equal(chosen(tree), "30 days", "the pick back is shown at once, from the 30 days held");
+      assert.equal(
+        byTestId(tree, "reports-real").props["data-loading"],
+        undefined,
+        "REGRESSION: the page dimmed, over the period it already showed, until a read behind it landed",
+      );
+      await land();
+      redraw();
+      tree = redraw();
+      assert.deepEqual(period.asked, ["30d", "month", "30d"], "Month's read, and the read behind the held 30 days");
+      assert.equal(chosen(tree), "30 days", "Month's answer, for a period left, is dropped");
+      assert.equal(cls(tree, "rpt-failed"), null, "and nothing failed");
+    });
+  } finally {
+    globalThis.location.pathname = was;
+  }
 });
 
 test("Month is a period of its own: its tab, its read by that name, and the page says the days it holds", async () => {
@@ -936,7 +1000,7 @@ test("REGRESSION: a tile is a number, what it is and one line under it; the head
     head &&
       find(head, (n) => n.type === Segmented) &&
       chosen(head) === "7 days" &&
-      textOf(head).includes("Aug 29 to Sep 4"),
+      textOf(find(head, (n) => n.type === Tooltip)?.props.children).includes("Aug 29 to Sep 4"),
     `the period and its days: ${textOf(head)}`,
   );
   const said = textOf(tree);

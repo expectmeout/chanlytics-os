@@ -5,12 +5,13 @@
  * here is the same number on the page it links to. The period card and the journey that stood here are gone: the
  * period is one line at the foot of the day's card, and the reach list's one fact is a row below.
  */
-import type { PeopleListsLike, ReportsLike, TodayLeakVM } from "@chanlytics/contracts";
+import type { PeopleListsLike, TodayLeakVM } from "@chanlytics/contracts";
 import { useState } from "react";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { surfaceValue } from "../../surface-values";
+import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, doorGlyph, askAbout, borrowed, surfaceFailed, useMoved } from "../shell";
 
@@ -41,14 +42,17 @@ const PHONE_QUERY = "(max-width: 720px)";
 const twPhone = () => !!(window.matchMedia && window.matchMedia(PHONE_QUERY).matches);
 
 export const TodayLeaks = () => {
-  useMoved(["reports", "people", "today"]);
+  useMoved(["people", "today"]);
   const [open, setOpen] = useState<string | null>(null);
-  const R = borrowed<ReportsLike>("__REPORTS");
+  // Reports' period in one small read (the headline), through the seam, and whether its read failed, by the seam's own hook (the
+  // shell's `surfaceFailed` knows only the routes' surfaces: it is false for ever for the headline).
+  const R = useSurface("reports_headline");
+  const headlineFailed = useSurfaceFailed("reports_headline");
   const P = borrowed<PeopleListsLike>("__PEOPLE");
   const T = surfaceValue("today");
   const broke: [string, string] | null =
-    !R && surfaceFailed("reports")
-      ? ["Reports", "reports"]
+    !R && headlineFailed
+      ? ["Reports", "reports_headline"]
       : !P && surfaceFailed("people")
         ? ["People", "people"]
         : null;

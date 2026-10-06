@@ -13,8 +13,7 @@
  * of it.
  *
  * `record` starts the e2e harness (tooling/scripts/e2e-harness/server.mjs) for each of its records at one fixed
- * moment, and opens each route of PAGES and each scene of SCENES (a route and a press or two, for what is drawn only
- * after one; none today) at a desk width and at a phone's with a coarse pointer,
+ * moment, and opens each route of PAGES at a desk width and at a phone's with a coarse pointer,
  * in the dark theme and the light one. Every animation and transition is stopped before the page draws, and the
  * page's clock stands still: it moves only when the recorder steps it, the same simulated seconds on every route, so
  * what a timer draws is in every recording or in none. Then it writes every element's edges and every computed
@@ -59,14 +58,6 @@ export const FIXED_NOW = Date.UTC(2026, 8, 28, 20, 2, 0);
 export const PAGES = {
   kit: ["kit"],
 };
-
-/**
- * What is drawn only after a press, each recorded as a page of its own: the record and route it opens, its presses (`click`,
- * `hover` or `focus` on the first element a selector finds, or `key`, the key named third pressed there), and what must then be
- * on screen. None now: the scenes pressed the pages that left (a person's menu, a confirm, a toast, a fold, a danger item, a
- * focused button, the tooltip on Today's bell), and the kit's states are held in a browser by e2e/kit/kit-behaves.spec.ts.
- */
-export const SCENES = {};
 
 /** A desk and a phone. The phone is a touch screen, so the shell's 44px floor under a coarse pointer is drawn. */
 export const VIEWPORTS = {
@@ -120,8 +111,8 @@ const POLL_MS = 50;
 const CLOCK_LEAD_MS = 10 * 60_000;
 /** The theme's switch, in simulated time: a React state and the effect that writes `data-theme`. */
 const THEME_MS = 500;
-/** How long a scene's press may wait for its element, in real time. */
-const PRESS_TIMEOUT_MS = 10_000;
+/** How long a wait on the page (a locator, a function) may take, in real time. */
+const WAIT_TIMEOUT_MS = 10_000;
 /**
  * How long a record's first page may take to load, in real time: it fetches React and Babel and compiles the shell,
  * which took eight seconds on a machine busy with other work. Waiting longer changes nothing recorded.
@@ -332,12 +323,12 @@ function watchNetwork(page) {
 }
 
 /**
- * Steps the page's clock `seconds` simulated seconds, one at a time, letting the network go quiet after each. A step
+ * Steps the page's clock SETTLE_SECONDS simulated seconds, one at a time, letting the network go quiet after each. A step
  * fires each timer that fell due in it once (fastForward), not each frame of the second: the three's canvas asks for
  * sixty a second, and walking them all cost more than the rest of a recording.
  */
-async function settle(page, quiet, what, seconds = SETTLE_SECONDS) {
-  for (let i = 0; i < seconds; i++) {
+async function settle(page, quiet, what) {
+  for (let i = 0; i < SETTLE_SECONDS; i++) {
     await page.clock.fastForward(SECOND_MS);
     await quiet(what);
   }
@@ -364,51 +355,17 @@ async function refuseUndrawn(page, what, theme, errors) {
 /** Opens a route in the page that is already open: the shell follows its hash. */
 const go = (page, route) => page.evaluate((r) => (location.hash = `#/${r}`), route);
 
-/** One press of a scene, on the first element its selector finds: a `key` press names its key third. */
-async function press(page, [act, selector, key], what) {
-  const target = page.locator(selector).first();
-  const acts = {
-    click: () => target.click(),
-    hover: () => target.hover(),
-    focus: () => target.focus(),
-    key: () => target.press(key),
-  };
-  if (!acts[act] || (act === "key") !== (key !== undefined)) {
-    throw new Error(`${what}: a scene presses by click, hover, focus or key (with its key), not ${act} ${key ?? ""}`);
-  }
-  try {
-    await acts[act]();
-  } catch (e) {
-    throw new Error(`${what}: could not ${act} ${selector}: ${e.message.split("\n")[0]}`, { cause: e });
-  }
-}
-
-/** One scene: from a page of nothing (so the route is drawn afresh), its route, its presses, and what they drew. */
-async function playScene(page, quiet, { key, scene, theme, errors }) {
-  await go(page, "_");
-  await settle(page, quiet, key, 1);
-  await go(page, scene.route);
-  await settle(page, quiet, key);
-  await refuseUndrawn(page, key, theme, errors);
-  for (const step of scene.steps) await press(page, step, key);
-  await settle(page, quiet, key, 1);
-  if (!(await page.locator(scene.sees).first().isVisible())) throw new Error(`${key}: nothing matches ${scene.sees}`);
-  await refuseUndrawn(page, key, theme, errors);
-}
-
-/** Every route and scene of one record, at one width, in one theme, in a context of its own. */
+/** Every route of one record, at one width, in one theme, in a context of its own. */
 async function recordContext(browser, job) {
-  const { harness, slug, name, device, theme, routes, scenes, plant, take, fold, walkArgs } = job;
+  const { harness, slug, name, device, theme, routes, plant, take, fold, walkArgs } = job;
   const context = await browser.newContext({
     ...VIEWPORTS[device],
     deviceScaleFactor: 1,
     reducedMotion: "no-preference",
-    // A toast's scene copies a number; a browser that refused the clipboard would throw in the page.
-    permissions: ["clipboard-read", "clipboard-write"],
   });
   try {
     const page = await context.newPage();
-    page.setDefaultTimeout(PRESS_TIMEOUT_MS);
+    page.setDefaultTimeout(WAIT_TIMEOUT_MS);
     const errors = [];
     page.on("pageerror", (e) => errors.push(`the page threw: ${e.message}`));
     watchLoads(page, errors);
@@ -418,7 +375,7 @@ async function recordContext(browser, job) {
     await page.addInitScript(holdStill, STILL + (plant ?? ""));
     await page.coverage.startCSSCoverage({ resetOnNavigation: false });
     const where = `${name} ${device} ${theme}`;
-    await page.goto(`${harness.url}/w/${slug}/#/${routes[0] ?? scenes[0][1].route}`, {
+    await page.goto(`${harness.url}/w/${slug}/#/${routes[0]}`, {
       waitUntil: "load",
       timeout: LOAD_TIMEOUT_MS,
     });
@@ -437,11 +394,6 @@ async function recordContext(browser, job) {
       await refuseUndrawn(page, key, theme, errors);
       take(key, await page.evaluate(walk, walkArgs));
     }
-    for (const [scene, s] of scenes) {
-      const key = `${where} scene: ${scene}`;
-      await playScene(page, quiet, { key, scene: s, theme, errors });
-      take(key, await page.evaluate(walk, walkArgs));
-    }
     fold(await page.coverage.stopCSSCoverage());
   } finally {
     await context.close();
@@ -449,13 +401,12 @@ async function recordContext(browser, job) {
 }
 
 /** What must be the same of two recordings for them to be compared at all. */
-const SETUP = ["format", "pages", "scenes", "viewports", "themes", "edgeStep", "laidOut", "properties", "browser"];
+const SETUP = ["format", "pages", "viewports", "themes", "edgeStep", "laidOut", "properties", "browser"];
 
-/** The setup a recording of `pages` and `scenes` is made with, all but what only the browser knows. */
-const setupOf = (pages, scenes) => ({
+/** The setup a recording of `pages` is made with, all but what only the browser knows. */
+const setupOf = (pages) => ({
   format: FORMAT,
   pages,
-  scenes,
   viewports: VIEWPORTS,
   themes: THEMES,
   edgeStep: EDGE_STEP,
@@ -463,12 +414,12 @@ const setupOf = (pages, scenes) => ({
 });
 
 /**
- * Record every page of every record at both widths and in both themes, and every scene: `{ meta, styles, pages,
+ * Record every page of every record at both widths and in both themes: `{ meta, styles, pages,
  * rules }`, where each page lists `[path, edges, style]` (edges null for a pseudo-element, style an index into
  * `styles`) and `rules` lists each stylesheet's rules with whether any page drew it. `plant` is CSS added to every
  * page.
  */
-export async function record({ pages = PAGES, scenes = SCENES, plant = null, log = () => {} } = {}) {
+export async function record({ pages = PAGES, plant = null, log = () => {} } = {}) {
   const { startHarness } = await import(pathToFileURL(path.join(ROOT, "tooling/scripts/e2e-harness/server.mjs")).href);
   const { WORKSPACE } = await import(pathToFileURL(path.join(ROOT, "tooling/scripts/e2e-harness/scenarios.mjs")).href);
   const { chromium } = await import("@playwright/test");
@@ -478,7 +429,7 @@ export async function record({ pages = PAGES, scenes = SCENES, plant = null, log
     const names = await probe.evaluate(longhands);
     await probe.close();
     const out = {
-      meta: { ...setupOf(pages, scenes), properties: names, browser: browser.version(), at: FIXED_NOW, planted: plant },
+      meta: { ...setupOf(pages), properties: names, browser: browser.version(), at: FIXED_NOW, planted: plant },
       styles: [],
       pages: {},
       rules: {},
@@ -505,15 +456,14 @@ export async function record({ pages = PAGES, scenes = SCENES, plant = null, log
         for (const r of sheet.rules) r.used = r.used || ranges.some((x) => x.start <= r.open && r.open < x.end);
       }
     };
-    const records = [...new Set([...Object.keys(pages), ...Object.values(scenes).map((s) => s.record)])];
+    const records = Object.keys(pages);
     for (const name of records) {
       const harness = await startHarness({ name, now: FIXED_NOW });
       try {
         const routes = pages[name] ?? [];
-        const own = Object.entries(scenes).filter(([, s]) => s.record === name);
         for (const device of Object.keys(VIEWPORTS)) {
           for (const theme of THEMES) {
-            const job = { harness, slug: WORKSPACE.slug, name, device, theme, routes, scenes: own, plant };
+            const job = { harness, slug: WORKSPACE.slug, name, device, theme, routes, plant };
             await recordContext(browser, { ...job, take, fold, walkArgs });
           }
         }
@@ -723,7 +673,7 @@ async function recordTo(file, against, limit) {
     throw new Error(`${out} would be written over the recording it is compared with`);
   const before = against ? readRecording(against) : null;
   // What of this run's setup is known before the browser starts; the browser's own part is compared after.
-  const apart = before ? setupMismatch(before.meta, { ...before.meta, ...setupOf(PAGES, SCENES) }) : [];
+  const apart = before ? setupMismatch(before.meta, { ...before.meta, ...setupOf(PAGES) }) : [];
   if (apart.length) {
     console.log(`not recorded: ${against} differs from this tool in ${apart.join(", ")}; record it again first.`);
     return 2;
@@ -741,9 +691,9 @@ async function selfTest() {
   const pages = { salon: ["today", "clients"] };
   const log = (line) => console.log(`  ${line}`);
   console.log("two recordings of one tree, then a third with --radius-md moved one step");
-  const first = await record({ pages, scenes: {}, log });
-  const second = await record({ pages, scenes: {}, log });
-  const planted = await record({ pages, scenes: {}, plant: PLANT, log });
+  const first = await record({ pages, log });
+  const second = await record({ pages, log });
+  const planted = await record({ pages, plant: PLANT, log });
   const same = compareRecordings(first, second);
   const moved = compareRecordings(first, planted);
   console.log(`two recordings of one tree: ${same.equal ? "equal" : `${same.count} differences`}`);

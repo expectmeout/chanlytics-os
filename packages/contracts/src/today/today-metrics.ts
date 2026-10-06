@@ -1,9 +1,10 @@
 /**
  * What Today's brief reads from the metrics summary (server/metrics.ts): the workspace, its wires and the day's
- * counts, with the email wire the database cannot see. What the brief says is today-vm.ts; the brief that reads
- * this is today-brief.ts.
+ * counts, with the email wire the database cannot see and the summary of the hold the day's replies waited. What the brief says is
+ * today-vm.ts; the brief that reads this is today-brief.ts.
  */
 import type { EmailSetupDto } from "../email/mailbox";
+import { replySpeedOf, type ReplyHoldDto, type ReplySpeed } from "../reports/report-speed";
 
 /**
  * One wire a workspace can be reached on.
@@ -50,6 +51,14 @@ export interface MetricsSummaryDto {
    * true, as every payload the database answers is.
    */
   linesRead?: boolean;
+  /**
+   * How the day's replies sat against the hold the owner set: the hold most replies waited, in words, and how many went out as it
+   * ended, later than it, and with none (`holdOf`, the one rule both reports read; four numbers, however long the day). What
+   * `metrics_summary` does not carry (it answers the median, and the median of a held reply is the hold): added beside the
+   * function's answer by the server (server/metrics/metrics.ts) from `first_replies`. Absent from an older server's answer, from a
+   * longer window, from a read that failed and from a day on which no reply waited a hold, and the sentences then say the median.
+   */
+  reply_hold?: ReplyHoldDto;
   window: { days: number; since: string; since_local: string; now_local: string };
   now: {
     escalations_open: number;
@@ -78,4 +87,13 @@ export interface MetricsSummaryDto {
     calls_voicemail: number;
     new_contacts: number;
   };
+}
+
+/**
+ * How fast the receptionist replied over the window: its median, or, where most replies waited the owner's hold, against it
+ * ("as your 1-minute hold ended", spec D14). One reading of one rule (reports/report-speed.ts) for every sentence Today says about
+ * speed, so the figure's clause, the recap's line, Ask's fact and the headline's detail never disagree. Null with no reply to speak of.
+ */
+export function todayReplySpeed(m: MetricsSummaryDto): ReplySpeed | null {
+  return replySpeedOf(m.period.median_reply_seconds_ai, m.reply_hold ?? null);
 }

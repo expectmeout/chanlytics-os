@@ -116,6 +116,7 @@ const SURFACE_EVENTS = [
   ["setup", "surface:setup"],
   ["google", "surface:google"],
   ["reports", "surface:reports"],
+  ["reports_headline", "surface:reports_headline"],
   ["people", "surface:clients"],
   ["calendar", "surface:calendar"],
   ["playbooks", "surface:playbooks"],
@@ -129,6 +130,27 @@ const hearTheSurfaces = () => {
 };
 const frames = hookFrames();
 const cells = { list: {}, ids: 0, wanted: false };
+/**
+ * useMemo as React keeps it: the value stays where its component sits until one of its inputs changes. It was worked out
+ * again on every draw here, so a memo keyed on the wrong inputs could never fail a test: Conversations held its rows on
+ * a counter that no read moved, and showed the first read for as long as it was open (5 Oct 2026).
+ */
+const keptMemo = (fn, deps) => {
+  const k = frames.key();
+  const prev = cells.list[k];
+  if (
+    prev &&
+    prev.memo &&
+    deps &&
+    prev.deps &&
+    deps.length === prev.deps.length &&
+    deps.every((d, i) => Object.is(d, prev.deps[i]))
+  )
+    return prev.value;
+  const value = fn();
+  cells.list[k] = { memo: true, deps, value };
+  return value;
+};
 const moved = (was, now) => {
   if (!Object.is(was, now)) cells.wanted = true;
 };
@@ -250,7 +272,7 @@ export function installLegacyReact(extra = {}) {
       if (!(k in cells.list)) cells.list[k] = { current: init };
       return cells.list[k];
     },
-    useMemo: (fn) => fn(),
+    useMemo: keptMemo,
     useCallback: (fn) => fn,
     // React 18 and 19 both have it: an id that stays with its component across draws and is no other's.
     useId: () => {
@@ -302,34 +324,6 @@ export function fresh() {
 export function again(draw) {
   frames.begin();
   return draw();
-}
-
-/**
- * useMemo as React keeps it, for a test proving a page draws what its surface last published: the value stays where its
- * component sits until one of its inputs changes. The stub's own useMemo works the value out on every draw, so a memo
- * keyed on the wrong inputs never shows here: Conversations held its rows on a counter that no read moved, and showed
- * the first read for as long as it was open (5 Oct 2026). Called once by such a test file, after installLegacyReact;
- * the other page tests have not been run on it yet.
- */
-export function memoAsReact() {
-  const kept = (fn, deps) => {
-    const k = frames.key();
-    const prev = cells.list[k];
-    if (
-      prev &&
-      prev.memo &&
-      deps &&
-      prev.deps &&
-      deps.length === prev.deps.length &&
-      deps.every((d, i) => Object.is(d, prev.deps[i]))
-    )
-      return prev.value;
-    const value = fn();
-    cells.list[k] = { memo: true, deps, value };
-    return value;
-  };
-  globalThis.React.useMemo = kept;
-  reactModule.useMemo = kept;
 }
 
 /**
