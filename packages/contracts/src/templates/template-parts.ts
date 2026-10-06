@@ -69,6 +69,9 @@ export interface TemplateParts {
   buttons: TemplateButton[];
 }
 
+/** The parts of a template the send fills or leaves as they are: a heading, the body, a footer, buttons. */
+const FILLED_PARTS: readonly string[] = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
+
 const partOf = (components: unknown, type: string): Record<string, unknown> | null => {
   if (!Array.isArray(components)) return null;
   for (const c of components) {
@@ -134,6 +137,11 @@ export function templateBlocked(t: { blocked?: string | null; components?: unkno
   if (t.blocked === null) return null;
   const components = t.components;
   if (!Array.isArray(components)) return null;
+  // A part the send has no values for (a carousel of cards, a limited-time offer): Meta refuses it for every recipient.
+  const unfilled = components.some(
+    (c) => !FILLED_PARTS.includes(String((c as { type?: unknown } | null)?.type ?? "").toUpperCase()),
+  );
+  if (unfilled) return "a part Chanlytics cannot fill";
   const header = partOf(components, "HEADER");
   if (header) {
     const format = String(header.format ?? "TEXT").toUpperCase();

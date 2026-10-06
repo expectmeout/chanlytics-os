@@ -45,10 +45,10 @@ import {
   consentOf,
   firstContactOf,
   lastContactOf,
-  reasonShort,
   type PersonFirstContact,
   type PersonLastContact,
 } from "./person-row-facts";
+import { reasonShort } from "../conversations/escalations";
 import { heardAt, PERSON_STATE_LABELS, personStanding, personStateFor, type PersonState } from "./person-state";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { personReachOf, type PersonReach } from "../broadcasts/reach-any";
@@ -317,7 +317,12 @@ function rowReplyOf(
   emailStopped: boolean,
 ): Pick<PersonRowVM, "replyWindow" | "replyVia" | "bookingLinkAction"> {
   const via = replyChannelOfRow(r);
-  if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null, false) };
+  if (!via)
+    return {
+      replyWindow: null,
+      replyVia: null,
+      bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped }),
+    };
   const w = replyWindow(via, r.latest_wa_inbound_at, now);
   const win = {
     open: w.open,
@@ -328,7 +333,7 @@ function rowReplyOf(
   return {
     replyWindow: win,
     replyVia: REPLY_VIA[via],
-    bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win, emailStopped),
+    bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[via], window: win, emailStopped }),
   };
 }
 

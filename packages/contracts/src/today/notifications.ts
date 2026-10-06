@@ -1,7 +1,7 @@
 import { agoShort as spanAgo, MIN_MS } from "../shared/time";
 import { callAttemptWords } from "../conversations/call-dto";
 import { replyWaitsOnYou } from "../conversations/standing";
-import { missedCallIsNews } from "../voice/live";
+import { missedCallIsNews, type LiveCallVM } from "../voice/live";
 import { FINISH_SETTING_UP } from "../setup/first-run";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
@@ -60,18 +60,14 @@ export interface FeedThread {
   };
 }
 
-/** The slice of the Live call view-model the feed reads. */
-export interface FeedCall {
-  callId: string;
-  cvId: string;
-  who: string;
-  number?: string | null;
-  /** Who dialled: a customer's dial that never connected is missed; one we placed is not (callAttemptWords). */
-  direction: "inbound" | "outbound";
-  missed: boolean;
-  live: boolean;
-  startedAtMs: number | null;
-}
+/**
+ * The slice of the Live call view-model the feed reads: who dialled (a customer's dial that never connected is missed,
+ * one we placed is not: callAttemptWords), and the heartbeat a count of calls in progress asks (liveStillUp).
+ */
+export type FeedCall = Pick<
+  LiveCallVM,
+  "callId" | "cvId" | "who" | "number" | "direction" | "missed" | "live" | "startedAtMs" | "heartbeatAtMs"
+>;
 
 /**
  * The slice of Live's value the bell reads (LiveVM): the calls on the line, the page's recent list, and every missed

@@ -19,11 +19,17 @@ import { CALL_HEARTBEAT_MS, isLiveCall } from "../config/policy";
 import { formatPhoneDisplay } from "../shared/phone";
 import { callLength, mmss } from "../shared/clock";
 import { callerName } from "../people/person-name";
-import { DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
+import {
+  endedHowOf,
+  neverConnected,
+  recordingStateOf,
+  type CallDto,
+  type RecordingState,
+} from "../conversations/call-dto";
 import { callOutcomeFor, spokenDuration, type CallVM } from "../conversations/call-vm";
-import { initialsOf } from "../conversations/thread-contact";
+import { initialsOf, shortName } from "../conversations/thread-contact";
 import { shortTime } from "../conversations/thread-clock";
-import { callOutcomeWords } from "./call-words";
+import { callNotesOf, callOutcomeWords, type CallNotes } from "./call-words";
 import type { ChannelDto } from "../lines/channels";
 import { DAY_MS, MIN_MS } from "../shared/time";
 
@@ -101,13 +107,14 @@ export interface LiveCallVM {
   sentiment: string | null;
   /** Why the call ended, in the owner's words. */
   endedHow: string | null;
-  recordingState: "ready" | "pending" | "failed" | "purged" | "none";
+  recordingState: RecordingState;
   /** What the caller wanted, in the post-call analysis's plain words; null while live or without an analysis. */
   wanted: string | null;
   /** How it ended, in the owner's words (callOutcomeWords); null without an analysis outcome. */
   outcomeWords: string | null;
-  /** What to do next, from the analysis. */
-  followUp: string | null;
+  /** What the analysis left beyond what they wanted, as the call row says it (callNotesOf): the to-do the receptionist
+   *  noted, and the name and address the caller gave. None while the call is on the line. */
+  notes: CallNotes;
   /** "3 min 10 sec" once the call has ended: a length in words, so it never reads as a time beside a date. */
   lengthWords: string | null;
   transcript: LiveTurnVM[];
@@ -265,11 +272,10 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
   const who = callerName(dto);
-  // A phone-like name is not split: "+1" is nobody's first name.
-  const whoShort = name ? (/^[+\d(]/.test(name) ? name : name.split(" ")[0]) : "the caller";
+  const whoShort = name ? shortName(name) : "the caller";
 
   const live = isLiveCall(dto, now);
-  const missed = dto.status === "not_connected";
+  const missed = neverConnected(dto);
   const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
   const beat = dto.updated_at ?? dto.started_at;
   const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
@@ -285,17 +291,6 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
       : live || (endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS)
         ? "pending"
         : "none";
-
-  const recordingState: LiveCallVM["recordingState"] =
-    dto.recording?.fetch_state === "stored"
-      ? "ready"
-      : dto.recording?.fetch_state === "failed"
-        ? "failed"
-        : dto.recording?.fetch_state === "purged"
-          ? "purged"
-          : dto.recording
-            ? "pending"
-            : "none";
 
   return {
     callId: dto.id,
@@ -323,14 +318,12 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     summaryState,
     summary,
     sentiment: dto.sentiment,
-    endedHow: dto.disconnection_reason
-      ? (DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " "))
-      : null,
-    recordingState,
+    endedHow: endedHowOf(dto),
+    recordingState: recordingStateOf(dto),
     // The analysis's words, as toCallVM reads them; none while the call is still on the line.
     wanted: live ? null : dto.wanted?.trim() || null,
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
-    followUp: live ? null : dto.follow_up?.trim() || null,
+    notes: live ? { todo: null, gave: [] } : callNotesOf(dto),
     lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
     transcript: turnsOf(dto),
   };

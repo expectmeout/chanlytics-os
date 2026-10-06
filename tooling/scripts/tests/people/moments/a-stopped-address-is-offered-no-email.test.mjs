@@ -188,8 +188,11 @@ test("by email to a stopped address, the booking link and the proposal say why t
   assert.doesNotMatch(p.proposalAction.label, /Email/);
 
   // The same words from the functions the row and the page call, and the Replies row beside them.
-  assert.deepEqual(bookingLinkAction("Email", { open: false, hoursLeft: 0 }, true).title, STOPPED);
-  assert.equal(proposalAction("Email", null, null, true).title, STOPPED);
+  assert.deepEqual(
+    bookingLinkAction({ via: "Email", window: { open: false, hoursLeft: 0 }, emailStopped: true }).title,
+    STOPPED,
+  );
+  assert.equal(proposalAction({ via: "Email", window: null, emailStopped: true }, null).title, STOPPED);
   assert.equal(p.about.find((a) => a.k === "Replies").v, STOPPED);
 });
 

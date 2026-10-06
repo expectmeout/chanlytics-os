@@ -12,10 +12,6 @@ import { consentSourceLabel, STOP_ENDED_OFFERS_SOURCE, type PersonConsent } from
 import { fmtDate, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
 
-// The reason's clause, "Escalated, …", is the one vocabulary in conversations/escalations.ts; every reader here
-// kept this import path, so the map's move left no caller to change.
-export { reasonShort } from "../conversations/escalations";
-
 /** "just now" · "5m ago" · "3h ago" · "2d ago", the business's date past a week — the one family (time.ts, clock.ts). */
 export function ago(ms: number, tz: string, nowMs: number): string {
   return agoWords(ms, nowMs, { dateAfterMs: WEEK_MS, date: (at) => clockDate(at, tz, nowMs) });

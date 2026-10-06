@@ -342,6 +342,21 @@ test("did anyone call: today's missed calls by the business's clock as doors, or
   const quiet = callsAnswer([], live, "en");
   assert.equal(quiet.say.headline, "No missed calls today; one call is on the line now.");
   assert.deepEqual(quiet.do.open, { to: "live", label: "See the calls", now: false });
+  // On the line by the heartbeat (liveStillUp), as Live and the strip count it: the read the palette keeps between
+  // refreshes still says `live` of a call the provider went quiet on ten minutes ago, and Ask counted it.
+  const quietLine = {
+    callId: "k4",
+    who: "Gone",
+    missed: false,
+    live: true,
+    startedAtMs: NOW - 900_000,
+    heartbeatAtMs: NOW - 600_000,
+  };
+  assert.deepEqual(
+    callsToday([...calls, quietLine], NOW, "America/New_York").live.map((c) => c.callId),
+    ["k3"],
+    "REGRESSION: a call nobody had heard from in ten minutes was on the line now",
+  );
 });
 
 test("what is open: the days with open times as items, each a door to its day, said from the days (never the receptionist's instruction); no calendar points at where to connect one", () => {

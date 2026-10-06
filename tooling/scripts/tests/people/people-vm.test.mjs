@@ -818,7 +818,8 @@ test("where a person came from, in the words People says it: one per stored valu
 });
 
 test("proposalAction: the send-the-proposal button's words by the wire, 'again' once it went out, and no button where a closed window would make it a lie", () => {
-  const f = contracts.proposalAction;
+  // The reach as every reach sentence reads it (ReplyReach): the wire, its window, whether mail to them has stopped.
+  const f = (via, window, sent) => contracts.proposalAction({ via, window, emailStopped: false }, sent);
   assert.deepEqual(f("Email", { open: true, hoursLeft: 0 }, null), {
     label: "Email the proposal",
     title: "Opens the thread with the proposal link ready to send by email",

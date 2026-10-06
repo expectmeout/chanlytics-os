@@ -21,6 +21,17 @@ const EMAIL_STOPPED_TAG = "stopped accepting mail";
 export const EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
 
 /**
+ * Where a reply to a person goes, its window when the wire has one, and whether mail to their address has stopped
+ * (isEmailStopped): the one fact the booking link, the proposal and the Replies row each read. `emailStopped` is required,
+ * since a reader that forgets it offers an email the route then refuses.
+ */
+export interface ReplyReach {
+  via: "WhatsApp" | "Text" | "Email" | null;
+  window: { open: boolean; hoursLeft: number } | null;
+  emailStopped: boolean;
+}
+
+/**
  * What the booking-link button says, by the wire a reply goes out on.
  *
  * Nothing is sent from the button: it opens the thread with the link ready in
@@ -29,24 +40,20 @@ export const EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_S
  * so on an email-only person they read "Text the booking link" -- and before
  * the window was channel-aware, "Send the booking-link template", a template
  * that person cannot receive. `ready` is whether the composer may be filled. Where the reply goes by email and their
- * address has stopped accepting mail (`emailStopped`, isEmailStopped: required, since a reader that forgets it offers an
- * email the route then refuses) nothing is ready, and the title says why.
+ * address has stopped accepting mail nothing is ready, and the title says why.
  */
-export function bookingLinkAction(
-  replyVia: "WhatsApp" | "Text" | "Email" | null,
-  win: { open: boolean; hoursLeft: number } | null,
-  emailStopped: boolean,
-): { label: string; title: string; ready: boolean } {
+export function bookingLinkAction(reach: ReplyReach): { label: string; title: string; ready: boolean } {
+  const { via, window: win } = reach;
   const notReady = (title: string) => ({ label: "Send the booking link", title, ready: false });
-  if (replyVia === "Email")
-    return emailStopped
+  if (via === "Email")
+    return reach.emailStopped
       ? notReady(EMAIL_CANT_REACH)
       : {
           label: "Email the booking link",
           title: "Opens the thread with the link ready to send by email",
           ready: true,
         };
-  if (replyVia === "Text")
+  if (via === "Text")
     return {
       label: "Text the booking link",
       title: "Opens the thread with the link ready to send as a text",
@@ -83,26 +90,25 @@ export function proposalMessage(url: string): string {
  * proposal, so where WhatsApp's window has shut there is no button (`ready`
  * false) -- the About rail's Replies row already says why. "again" once
  * the address has gone out, so the page says what it knows without a second line. An address that stopped accepting
- * mail (`emailStopped`, as bookingLinkAction has it) is the same: no button, and the Replies row's own sentence.
+ * mail is the same: no button, and the Replies row's own sentence.
  */
 export function proposalAction(
-  replyVia: "WhatsApp" | "Text" | "Email" | null,
-  win: { open: boolean; hoursLeft: number } | null,
+  reach: ReplyReach,
   sentWords: string | null,
-  emailStopped: boolean,
 ): { label: string; title: string; ready: boolean } {
+  const { via, window: win } = reach;
   const again = sentWords ? " again" : "";
   const sent = sentWords ? ` · sent ${sentWords}` : "";
   const notReady = (title: string) => ({ label: "Send the proposal", title, ready: false });
-  if (replyVia === "Email")
-    return emailStopped
+  if (via === "Email")
+    return reach.emailStopped
       ? notReady(EMAIL_CANT_REACH)
       : {
           label: `Email the proposal${again}`,
           title: `Opens the thread with the proposal link ready to send by email${sent}`,
           ready: true,
         };
-  if (replyVia === "Text")
+  if (via === "Text")
     return {
       label: `Text the proposal${again}`,
       title: `Opens the thread with the proposal link ready to send as a text${sent}`,

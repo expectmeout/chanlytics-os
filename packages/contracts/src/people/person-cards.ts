@@ -22,7 +22,7 @@ import {
   type PersonMode,
   type ReceptionistTone,
 } from "./person-receptionist";
-import { ago, reasonShort } from "./person-row-facts";
+import { ago } from "./person-row-facts";
 import { holderOf } from "./person-state";
 import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
 import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
@@ -31,7 +31,8 @@ import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
 import { replyWindow } from "../config/policy";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { messageText, messageWords } from "../conversations/message-words";
-import { reasonSummaryOf } from "../conversations/escalations";
+import { reasonShort, reasonSummaryOf } from "../conversations/escalations";
+import { neverConnected } from "../conversations/call-dto";
 import { shortTime } from "../conversations/thread-clock";
 import { writtenChannelOf } from "../conversations/thread-channel";
 import { HOUR_MS } from "../shared/time";
@@ -111,11 +112,9 @@ function personRowOf(d: PersonDetailDto): PersonRowDto {
     conversation_count: d.conversations.length || d.row.conversation_count,
     // A dial that never connected is not a call; people_list agrees, and the
     // profile used to count one more than the list.
-    call_count: d.calls.length ? d.calls.filter((k) => k.status !== "not_connected").length : d.row.call_count,
+    call_count: d.calls.length ? d.calls.filter((k) => !neverConnected(k)).length : d.row.call_count,
     call_seconds: d.calls.length
-      ? Math.round(
-          d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1000,
-        )
+      ? Math.round(d.calls.filter((k) => !neverConnected(k)).reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1000)
       : d.row.call_seconds,
     escalation_count: d.escalations.length || d.row.escalation_count,
     visits: d.visits ?? d.row.visits ?? null,
@@ -389,7 +388,7 @@ const receptionistMeta = (label: string) =>
 /** Facts strip: first and last contact, conversations, calls, the receptionist's standing, the deal, the next visit. */
 export function personFactsOf({ profile, tz, nowMs, base, current, firstChannel }: PersonCardContext): PersonFact[] {
   const lc = base.lastContact;
-  const attempts = profile.calls.filter((k) => k.status === "not_connected").length;
+  const attempts = profile.calls.filter(neverConnected).length;
   const lastMeta =
     lc.who === "they"
       ? lc.kind === "call"
@@ -533,7 +532,7 @@ export function replyFields(
   return {
     replyVia: REPLY_VIA[reply.via],
     replyWindow: reply.window,
-    bookingLinkAction: bookingLinkAction(REPLY_VIA[reply.via], reply.window, emailStopped),
+    bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[reply.via], window: reply.window, emailStopped }),
   };
 }
 

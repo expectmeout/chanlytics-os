@@ -57,7 +57,8 @@ test("what the analysis left is said once, from the call's own row: the receptio
   const all = callNotesOf({
     follow_up: "Call back to confirm the bridal trial",
     caller_name: " Priya Shah ",
-    caller_email: "priya@example.com",
+    // Trimmed as the name is: the address said with the analysis's stray spaces read "as  priya@…".
+    caller_email: " priya@example.com ",
   });
   assert.deepEqual(all, {
     todo: "To do: Call back to confirm the bridal trial",

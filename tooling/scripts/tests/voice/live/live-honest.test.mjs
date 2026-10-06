@@ -106,12 +106,17 @@ test("REGRESSION (A20, L8): an ended call carries what the caller wanted, how it
   );
   assert.equal(typeof vm.outcomeWords, "string");
   assert.ok(vm.outcomeWords.length > 0, "how it ended, in the owner's words");
-  assert.equal(vm.followUp, "Call Emily back to confirm the bridal trial");
+  // The call's notes, as the call row and a person's history carry them (callNotesOf): the to-do, then what the caller
+  // gave about themselves. Live carried the to-do alone, so its card never said the name the caller gave.
+  assert.deepEqual(vm.notes, {
+    todo: "To do: Call Emily back to confirm the bridal trial",
+    gave: ["Gave their name as Emily"],
+  });
   assert.equal(vm.lengthWords, "3 min 10 sec");
   const live = toLiveCallVM(call(), ZONE, new Date(NOW));
   assert.deepEqual(
-    [live.wanted, live.followUp, live.lengthWords],
-    [null, null, null],
+    [live.wanted, live.notes, live.lengthWords],
+    [null, { todo: null, gave: [] }, null],
     "a call in progress has none of these yet",
   );
 });

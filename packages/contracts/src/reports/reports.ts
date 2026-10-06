@@ -13,7 +13,7 @@
  * view model also says the one sentence under each chart (`lines`), so the
  * page composes no sentence of its own.
  */
-import { reasonShort } from "../people/person-row-facts";
+import { reasonShort } from "../conversations/escalations";
 import { absoluteBuckets, heroSpeed, holdBuckets, holdLine, holdOf, type ReportHoldVM } from "./report-speed";
 import { closedOf, hoursUnsetOf, type ReportArrivalDto, type ReportProfile } from "./report-closed";
 import { REPORT_TILES, fmtSeconds, type ReportTileVM } from "./report-tiles";

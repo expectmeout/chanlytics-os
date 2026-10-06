@@ -3,7 +3,7 @@
  * each read once, the closing windows and the day's calls. today-bands.ts, today-rows.ts and today-queue.ts
  * build the bands from them; today-brief.ts composes the view model.
  */
-import { standingOf } from "../conversations/standing";
+import { standingOfThread } from "../conversations/standing";
 import type { CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import type { EscalationDto } from "../conversations/escalations";
@@ -128,18 +128,7 @@ function openEscalations(
     .filter((e) => {
       const conv = byConv.get(e.conversation_id);
       if (!conv) return true;
-      return (
-        standingOf(
-          {
-            state: conv.state,
-            paused_until: conv.paused_until,
-            assignee_user_id: conv.assignee_user_id,
-            assignee_is_me: conv.assignee_is_me,
-            open_escalation: true,
-          },
-          now.getTime(),
-        ).standing === "needs_you"
-      );
+      return standingOfThread(conv, true, now.getTime()).standing === "needs_you";
     })
     .sort((a, b) => a.created_at.localeCompare(b.created_at)); // oldest waiting first
 }

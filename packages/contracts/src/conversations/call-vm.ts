@@ -8,9 +8,17 @@ import { callerName } from "../people/person-name";
 import { isLiveCall } from "../config/policy";
 import { callNotesOf, callOutcomeOf, callOutcomeWords, tidyCallSummary, type CallNotes } from "../voice/call-words";
 import { RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS } from "../workspace/retention";
-import { isIdentifierName, initialsOf } from "./thread-contact";
+import { initialsOf, shortName } from "./thread-contact";
 import { shortTime } from "./thread-clock";
-import { abandonedCall, reachedVoicemail, DISCONNECTION_LABELS, type CallDto } from "./call-dto";
+import {
+  abandonedCall,
+  endedHowOf,
+  neverConnected,
+  reachedVoicemail,
+  recordingStateOf,
+  type CallDto,
+  type RecordingState,
+} from "./call-dto";
 
 /* ---- Calls (Slice 3): a call row answers "is my AI saying the right things
    on the phone", while the thread answers "am I on the hook to reply". A call
@@ -49,7 +57,7 @@ export interface CallVM {
   }>;
   /** The call's length in seconds: the player's track before the audio says its own. */
   durationSec: number | null;
-  recordingState: "ready" | "pending" | "failed" | "purged" | "none";
+  recordingState: RecordingState;
   recordingUrl?: string;
   threadId?: string;
   /** The note this call left on its thread (a call_summary message): the thread draws the call there. */
@@ -80,7 +88,7 @@ export function callOutcomeFor(
   live: boolean,
 ): CallVM["outcome"] {
   if (live) return "live";
-  if (dto.status === "not_connected") return "missed";
+  if (neverConnected(dto)) return "missed";
   if (dto.status === "error") return "failed";
   if (abandonedCall(dto)) return "abandoned";
   if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
@@ -111,13 +119,12 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
   const who = callerName(dto);
-  const whoShort = name ? (isIdentifierName(name) ? name : name.split(" ")[0]) : "Caller";
+  const whoShort = name ? shortName(name) : "Caller";
   const dur = callLength(dto.duration_ms);
   // Not `status === "ongoing"`. A lost call_ended leaves that flag set forever,
   // and this viewmodel is what the Live surface would render from.
   const live = isLiveCall(dto, now);
-  // Retell's not_connected: the dial never connected. An attempt, not a call.
-  const missed = dto.status === "not_connected";
+  const missed = neverConnected(dto);
   // What the caller wanted, in the analysis's plain words, leads; the
   // provider's own summary is the fallback, its opening folded.
   const wanted = (dto.wanted || "").trim();
@@ -127,9 +134,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const bullets: string[] = [
     `${dto.direction === "inbound" ? "Inbound" : "Outbound"} · ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`,
   ];
-  const ending = dto.disconnection_reason
-    ? (DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " "))
-    : null;
+  const ending = endedHowOf(dto);
   if (ending) bullets.push(`Ended: ${ending}`);
   if (dto.sentiment) {
     bullets.push(`Caller sentiment: ${dto.sentiment} — the voice provider's own read`);
@@ -142,16 +147,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   // "purged": the audio was removed on the schedule the privacy page states
   // (retention.ts); the row keeps the transcript. Said so, rather than left to
   // read as "still processing" for ever.
-  const recState: CallVM["recordingState"] =
-    dto.recording?.fetch_state === "stored"
-      ? "ready"
-      : dto.recording?.fetch_state === "failed"
-        ? "failed"
-        : dto.recording?.fetch_state === "purged"
-          ? "purged"
-          : dto.recording
-            ? "pending"
-            : "none";
+  const recState = recordingStateOf(dto);
   if (!missed) {
     bullets.push(
       recState === "ready"

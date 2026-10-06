@@ -5,11 +5,10 @@
  */
 import { reachedVoicemail, type CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
-import type { EscalationDto } from "../conversations/escalations";
+import { reasonWhy, type EscalationDto } from "../conversations/escalations";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { contactName } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
-import { reasonShort } from "../people/person-row-facts";
 import { capitalize, plural } from "../shared/words";
 import { andList, secondsPhrase, speedClause } from "./today-bands";
 import { tzClock, tzDayAndTime } from "./today-clock";
@@ -31,30 +30,6 @@ const COUNT_WORDS: Record<number, string> = {
 };
 const countWord = (n: number): string => COUNT_WORDS[n] ?? String(n);
 const timesWords = (n: number): string => (n === 1 ? "once" : n === 2 ? "twice" : `${countWord(n)} times`);
-
-/**
- * Why the receptionist handed a thread over, as the tail of "Handed over once, ...": each reason with the word that
- * joins it. Never more than the data knows: non_text is "something it can't read", not a photo, because it may have
- * been audio, a sticker or a document. A reason with no words here falls back to People's short form.
- */
-const REASON_WHY: Record<string, string> = {
-  human_token: "because a customer asked for a person",
-  non_text: "for something it can't read",
-  refusal: "because it declined to answer",
-  rate_cap: "because the reply limit was reached",
-  policy_block: "because your reply setting held it",
-  policy_ask: "for a booking or a question set to Ask me first",
-  person_hold: "because it was held for you",
-  carriers: "while waiting on carriers",
-  email_review: "because they wrote by email",
-  send_failed: "because a reply failed to send",
-  deadman: "because no answer came in time",
-  brain_error: "because it hit an error",
-  manual: "because you flagged it",
-  opt_out: "because they asked to stop",
-  callback: "because they need a call back",
-};
-const reasonWhy = (r: string): string => REASON_WHY[r] ?? reasonShort(r) ?? r;
 
 /** A wire's word inside a sentence: "by WhatsApp", "by email", "by text". */
 const wireWord = (w: string): string => (w === "WhatsApp" ? w : w.toLowerCase());

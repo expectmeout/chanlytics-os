@@ -3,6 +3,7 @@ export { messageAt, isOptedOut, memberMetaOf } from "./thread-dto";
 export type { MessageDto, ConversationDto } from "./thread-dto";
 export {
   agentFor,
+  isChatMessage,
   isFromTheirSide,
   isTheirOwnWords,
   lastWroteOn,
@@ -14,6 +15,7 @@ export {
 export {
   contactName,
   isIdentifierName,
+  shortName,
   contactMeta,
   initialsOf,
   isEmailStopped,
@@ -29,7 +31,6 @@ export {
   sendFailureWords,
   reachedCustomer,
   isHeldDraft,
-  isChatMessage,
   draftSendsAtMs,
   messageWords,
   messageText,
@@ -54,6 +55,7 @@ export {
   threadStanding,
   conversationWaitsOnYou,
   threadsWaitingOnYou,
+  snoozedThreadWords,
   heldDraftWaits,
   toInboxThreadVM,
 } from "./inbox-thread";

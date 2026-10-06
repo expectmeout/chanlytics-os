@@ -76,6 +76,39 @@ export function reasonShort(reason: string | null | undefined): string {
 }
 
 /**
+ * The same reason as why the receptionist handed a conversation over, after "Handed over once, ...": Today's receipt.
+ * Every reason has its words, in the label's vocabulary ("flagged by hand", "you handle this person"), and never more
+ * than the data knows: non_text is "something it can't read", not a photo, since it may have been audio, a sticker or a
+ * document. Four reasons had no words and the receipt read "Handed over once, the day's model budget is used up."
+ */
+const ESCALATION_REASON_WHY: Record<EscalationReason, string> = {
+  human_token: "because a customer asked for a person",
+  refusal: "because it declined to answer",
+  brain_error: "because it hit an error",
+  non_text: "for something it can't read",
+  send_failed: "because a reply failed to send",
+  policy_block: "because your reply setting held it",
+  policy_ask: "for a booking or a question set to Ask me first",
+  person_hold: "because you handle this person",
+  rate_cap: "because the reply limit was reached",
+  deadman: "because no answer came in time",
+  manual: "because it was flagged by hand",
+  opt_out: "because they asked to stop",
+  state_unavailable: "because it could not read the thread",
+  stale: "because a message arrived too late to answer",
+  budget: "because the day's model budget ran out",
+  callback: "because they need a call back",
+  paused: "because the workspace is paused",
+  carriers: "while waiting on carriers",
+  email_review: "because they wrote by email",
+};
+
+/** Why a reason handed a conversation over; a reason the set does not know is said by its clause. */
+export function reasonWhy(reason: string): string {
+  return (ESCALATION_REASON_WHY as Record<string, string>)[reason] ?? `because ${reasonShort(reason)}`;
+}
+
+/**
  * What the operator is walking into, per reason.
  *
  * This used to be ONE sentence for every escalation: "The customer already got a
