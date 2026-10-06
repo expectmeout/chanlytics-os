@@ -134,6 +134,14 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     bring: (p) => p.getByTestId("picker-find-open").click(),
     ready: ".rec-combo-pop .rec-combo-input",
   },
+  {
+    entry: "picker-kit-none",
+    bring: async (p) => {
+      await p.getByTestId("picker-none-open").click();
+      await p.keyboard.type("Birthday");
+    },
+    ready: ".rec-combo-pop .rec-combo-empty:not(:empty)",
+  },
   { entry: "tooltip-kit", bring: (p) => p.getByTestId("tooltip-trigger").hover(), ready: ".ui-tip.show" },
   { entry: "figure-defined", bring: (p) => p.getByTestId("figure-kit-term").hover(), ready: ".ui-tip.show" },
   {
@@ -159,6 +167,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "field-kit", bring: async () => undefined, ready: ".rec-input-group" },
   { entry: "field-kit-wrong", bring: async () => undefined, ready: ".field-error" },
   { entry: "field-kit-title", bring: async () => undefined, ready: ".rec-input-title" },
+  { entry: "picker-kit-readonly", bring: async () => undefined, ready: ".token[data-readonly]" },
 ];
 
 /** The entry's static HTML, from the gallery's families. */

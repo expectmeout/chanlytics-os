@@ -625,6 +625,31 @@ const kitPickerFind = () =>
   ]) +
   `</div></div></div>`;
 
+/**
+ * The kit's Picker on a list to search, with words that match nothing: what none matching says, in the dim ink under
+ * the search (`.rec-combo-empty:not(:empty)`), over a list with nothing in it.
+ */
+const kitPickerNone = () =>
+  `<span class="gx-pop-words">Send it to <button type="button" tabindex="0" role="combobox" aria-expanded="true" ` +
+  `aria-haspopup="dialog" aria-label="The moment it runs on: Win-back" class="token" data-popup-open="" ` +
+  `data-pressed=""><span class="token-face">Win-back</span><span aria-hidden="true" class="token-caret">` +
+  `${icon("chevron-down", 11)}</span></button></span>` +
+  `<div class="pop-place" role="presentation" data-open="" ${placed("top: 60px; left: 16px;")}>` +
+  `<div class="panel panel-pop panel-flush rec-combo-pop" role="dialog" aria-label="The moment it runs on" ` +
+  `tabindex="-1" data-open=""><span class="rec-combo-field"><span class="rec-combo-glass" aria-hidden="true">` +
+  `${icon("search", 12)}</span><input class="rec-combo-input" role="combobox" aria-expanded="true" ` +
+  `aria-haspopup="listbox" aria-autocomplete="list" autocomplete="off" spellcheck="false" ` +
+  `placeholder="Find a moment" aria-label="The moment it runs on" value="Birthday"></span>` +
+  `<div role="status" aria-live="polite" aria-atomic="true" class="rec-combo-empty">No moment has those words.</div>` +
+  `<div role="listbox" tabindex="-1" class="rec-combo-list"></div></div></div>`;
+
+/** The kit's Picker read-only: its token in its sentence says what was chosen and opens nothing, so it is no press. */
+const kitPickerReadOnly = () =>
+  `<span class="gx-pop-words">Every day at <button type="button" tabindex="0" role="combobox" aria-expanded="false" ` +
+  `aria-haspopup="listbox" aria-readonly="true" aria-label="The hour it runs: 10:00" class="token" data-readonly="">` +
+  `<span class="token-face">10:00</span><span aria-hidden="true" class="token-caret">` +
+  `${icon("chevron-down", 11)}</span></button></span>`;
+
 /** The kit's toast, raised: Base UI's region wearing the house's stack, a confirmation with its Undo and its ×. */
 const kitToast = () =>
   `<div class="pp-toast-stack" role="region" tabindex="-1" aria-live="polite" aria-label="Notifications">` +
@@ -1748,10 +1773,12 @@ export const FAMILIES = [
       "The kit's Picker (surfaces/kit/picker/picker.tsx): a choice inside a sentence. Its token, pressed, opens the " +
       "options over the page on the panel's pop (.rec-combo-pop): in groups under their headings, each with its glyph, " +
       "the line under its words and a word at its end, the note under them; a short list is Base UI's Select, a list to " +
-      "search its Combobox with the search at the list's top.",
+      "search its Combobox with the search at the list's top, and what none matching says. Read-only, it opens nothing.",
     entries: [
       { id: "picker-kit", stage: "pop", html: kitPicker() },
       { id: "picker-kit-find", stage: "pop", html: kitPickerFind() },
+      { id: "picker-kit-none", stage: "pop", html: kitPickerNone() },
+      { id: "picker-kit-readonly", html: kitPickerReadOnly() },
     ],
   },
   {
