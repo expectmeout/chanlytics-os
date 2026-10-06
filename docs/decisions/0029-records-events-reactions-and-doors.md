@@ -1,11 +1,12 @@
 # 0029 · Records, events, reactions and doors
 
-**Status:** Decided on 6 October 2026 (Ruben: "all approved"), not yet built: this note is the frame, and each step
-below is a note of its own, three of them decided with it (0030, 0031, 0032). Proposed the same day from the wiring map
-of 5 October (the trace of how the Inbox, Campaigns, People, the Calendar and Setup reach each other, and a second
-review of it answered point by point). Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the
-code at it, and read again at `6a8e85f` (main, 6 October 2026), since which 0028's merge door (00326) and the
-message-status notice (00327) are in the code. Where this note and the code disagree, the code wins.
+**Status:** Decided on 6 October 2026 (Ruben: "all approved"); of Phase 0, the fixes (00328, 00329) and the five numbers
+(00330) are built, and the rest is not yet built: this note is the frame, and each step below is a note of its own,
+three of them decided with it (0030, 0031, 0032). Proposed the same day from the wiring map of 5 October (the trace of
+how the Inbox, Campaigns, People, the Calendar and Setup reach each other, and a second review of it answered point by
+point). Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at
+`6a8e85f` (main, 6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the
+code. Where this note and the code disagree, the code wins.
 
 ## Context
 
@@ -118,8 +119,10 @@ number (00329, with 0032); the runtime stamp covering channels, listings and lin
 only once its token is in Vault (`apps/edge/lib/whatsapp/connect-number.ts`); the booking door handed the newest
 appointments first (`packages/contracts/src/reach-out/reach-out-booked.ts`); the calendar sweep under a time budget;
 the dashboard's assemble port keeping the counted list; the merge-conflict remnant in `apps/edge/lib/sms/inbound-text.ts`.
-Then five numbers in SQL before anything moves (lag per lane from `jobs.fired_at - due_at`, time to first answer per
-channel from `messages`, duplicate sends, dead letters by kind, relay lag), and three settings that are Ruben's: the
+Then five numbers in SQL before anything moves, built as 00330 (columns of `platform_metrics`, rolled nightly and read
+on the back office: lag per lane from `jobs.fired_at - due_at` at the 95th percentile, time to first answer per channel
+from `messages`, duplicate sends, dead letters by kind, and relay lag, which the relay's migration writes), and three
+settings that are Ruben's: the
 log drain, the outside pinger on `/api/health`, and a second alarm path that does not depend on the mail provider it
 watches; and a staging project with the migrations replayed, so no later phase is proved on production. _Both orders:_
 fixes and reads.

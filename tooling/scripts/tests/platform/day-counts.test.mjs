@@ -47,6 +47,11 @@ const stored = (tenant_id, name, day, over = {}) => ({
   brain_p95_ms: 2140,
   provider_failures: {},
   tokens: "48213",
+  job_lag_ms: { 0: 1200, 2: 40000 },
+  first_answer_ms: { whatsapp: 38000, sms: 9000 },
+  duplicate_sends: 1,
+  dead_letters: { email_ingest: 2 },
+  relay_lag_ms: null,
   ...over,
 });
 const office = (rpc) => ({ db: fakeDb({}, {}, { platform_metrics_read: rpc }), session: null });
@@ -61,7 +66,17 @@ test("the back office's read asks for the bounded window and answers the wire's 
           messages_in: { whatsapp: 9, sms: "x", email: null, voice: 3 },
           provider_failures: { retryable: 2, refused: 1 },
         }),
-        stored(B, "Bayside Dental", "2026-09-28", { brain_p95_ms: null, messages_in: null, tokens: 0 }),
+        stored(B, "Bayside Dental", "2026-09-28", {
+          brain_p95_ms: null,
+          messages_in: null,
+          tokens: 0,
+          // A day rolled before 00330: the five read as none, never as zero.
+          job_lag_ms: null,
+          first_answer_ms: null,
+          duplicate_sends: null,
+          dead_letters: null,
+          relay_lag_ms: "soon",
+        }),
       ];
     }),
   );
@@ -80,8 +95,18 @@ test("the back office's read asks for the bounded window and answers the wire's 
     brain_p95_ms: 2140,
     provider_failures: { retryable: 2, refused: 1 },
     tokens: 48213,
+    job_lag_ms: { 0: 1200, 2: 40000 },
+    first_answer_ms: { whatsapp: 38000, sms: 9000 },
+    duplicate_sends: 1,
+    dead_letters: { email_ingest: 2 },
+    relay_lag_ms: null,
   });
   assert.deepEqual([read[1].messages_in, read[1].brain_p95_ms, read[1].tokens], [{}, null, 0]);
+  assert.deepEqual(
+    [read[1].job_lag_ms, read[1].first_answer_ms, read[1].duplicate_sends, read[1].dead_letters, read[1].relay_lag_ms],
+    [{}, {}, null, {}, null],
+    "a day before the spine's numbers reads as none",
+  );
 });
 
 test("a read that fails is unread (null), and a database the migration has not reached has no days (none)", async () => {
@@ -155,4 +180,32 @@ test("the card's words: the newest day only, the workspaces that answered nobody
   );
   assert.deepEqual(platformDaysWords(null), { day: null, sentence: "Could not be read just now.", lines: [] });
   assert.deepEqual(platformDaysWords([]), { day: null, sentence: "No day has been counted yet.", lines: [] });
+});
+
+test("the spine's numbers in words (decision 0029, Phase 0): each part only where the day has it, and nothing for a day rolled before them", () => {
+  const full = platformDaysWords([stored(A, "Harbor Moving", "2026-09-28")]).lines[0];
+  assert.equal(
+    full.spine,
+    "replies claimed within 1.2 s, bulk within 40.0 s; first answer within 38.0 s (sms, whatsapp); 1 duplicate send; 2 jobs died (email_ingest 2)",
+  );
+  const some = platformDaysWords([
+    stored(A, "Harbor Moving", "2026-09-28", {
+      job_lag_ms: { 1: 400 },
+      first_answer_ms: {},
+      duplicate_sends: 0,
+      dead_letters: {},
+      relay_lag_ms: 250,
+    }),
+  ]).lines[0];
+  assert.equal(some.spine, "the waiting claimed within 0.4 s; 0 duplicate sends; events relayed within 0.3 s");
+  const before = platformDaysWords([
+    stored(A, "Harbor Moving", "2026-09-28", {
+      job_lag_ms: {},
+      first_answer_ms: {},
+      duplicate_sends: null,
+      dead_letters: {},
+      relay_lag_ms: null,
+    }),
+  ]).lines[0];
+  assert.equal(before.spine, "", "a day rolled before 00330 says nothing of them");
 });

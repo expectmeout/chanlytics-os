@@ -1997,6 +1997,11 @@ One UTC day of one workspace, counted (00277): messages in and out by channel, c
 | `ai_tokens` | jsonb | yes |  | The model's tokens of the day by purpose (K10), all four kinds, from the ledger (ai_usage), the workspace's own calls and never a shadow's. Null where the ledger holds none. |
 | `ai_usd` | jsonb | yes |  | The same by purpose in list-price dollars (K10): the operator's, never an owner's. A purpose with no priced call is left out; null where none was priced. |
 | `voice_usd` | numeric(12,6) | yes |  | What the day's calls cost in dollars (K8): the sum of call_cost_usd over calls.cost of the calls that started that day, whatever their direction or ending. The operator's. Null where no call carried a cost. |
+| `job_lag_ms` | jsonb | yes |  | How long a job waited for the ledger past its due time that day, by lane (jobs.lane: 0 a reply, 1 someone waiting, 2 bulk, none), at the 95th percentile in milliseconds, first claims only (00330). Null for a day with no claim. |
+| `first_answer_ms` | jsonb | yes |  | How long a customer waited for the first answer in their thread that day, by channel, at the 95th percentile in milliseconds, whoever answered (00330). Null for a day no customer was answered in. |
+| `duplicate_sends` | integer | yes |  | Outbound rows that day with the same words to one thread within a minute of the last: the later one is the duplicate (00330). Null for a day nothing was sent in. |
+| `dead_letters` | jsonb | yes |  | The jobs that died that day, by kind: state failed, which jobs_guard keeps final (00330). Null for a day none died in. |
+| `relay_lag_ms` | integer | yes |  | How long an event waited for its deliveries that day, at the 95th percentile in milliseconds (decision 0030): written by the relay's own migration, null until then (00330). |
 
 Foreign keys:
 

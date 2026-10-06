@@ -4188,10 +4188,15 @@ export type Database = {
           asks: number
           brain_p95_ms: number | null
           day: string
+          dead_letters: Json | null
+          duplicate_sends: number | null
+          first_answer_ms: Json | null
           handled: Json | null
+          job_lag_ms: Json | null
           messages_in: Json
           messages_out: Json
           provider_failures: Json
+          relay_lag_ms: number | null
           replies_answered: number
           replies_handed_off: number
           replies_held: number
@@ -4208,10 +4213,15 @@ export type Database = {
           asks?: number
           brain_p95_ms?: number | null
           day: string
+          dead_letters?: Json | null
+          duplicate_sends?: number | null
+          first_answer_ms?: Json | null
           handled?: Json | null
+          job_lag_ms?: Json | null
           messages_in?: Json
           messages_out?: Json
           provider_failures?: Json
+          relay_lag_ms?: number | null
           replies_answered?: number
           replies_handed_off?: number
           replies_held?: number
@@ -4228,10 +4238,15 @@ export type Database = {
           asks?: number
           brain_p95_ms?: number | null
           day?: string
+          dead_letters?: Json | null
+          duplicate_sends?: number | null
+          first_answer_ms?: Json | null
           handled?: Json | null
+          job_lag_ms?: Json | null
           messages_in?: Json
           messages_out?: Json
           provider_failures?: Json
+          relay_lag_ms?: number | null
           replies_answered?: number
           replies_handed_off?: number
           replies_held?: number
@@ -6728,10 +6743,15 @@ export type Database = {
           asks: number
           brain_p95_ms: number
           day: string
+          dead_letters: Json
+          duplicate_sends: number
+          first_answer_ms: Json
+          job_lag_ms: Json
           messages_in: Json
           messages_out: Json
           name: string
           provider_failures: Json
+          relay_lag_ms: number
           replies_answered: number
           replies_handed_off: number
           replies_held: number

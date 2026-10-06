@@ -30,7 +30,18 @@ export async function platformDays(office: BackOffice): Promise<PlatformDayRowDt
     brain_p95_ms: row.brain_p95_ms,
     provider_failures: counts(row.provider_failures),
     tokens: Number(row.tokens),
+    // The spine's five (00330): a day rolled before them reads as none, never as zero.
+    job_lag_ms: counts(row.job_lag_ms),
+    first_answer_ms: counts(row.first_answer_ms),
+    duplicate_sends: whole(row.duplicate_sends),
+    dead_letters: counts(row.dead_letters),
+    relay_lag_ms: whole(row.relay_lag_ms),
   }));
+}
+
+/** A stored count as a number, or null for anything that is not one. */
+function whole(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
 /** A stored {name: count} object as numbers; anything else in it is dropped. */

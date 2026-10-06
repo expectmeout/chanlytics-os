@@ -29,6 +29,16 @@ export interface PlatformDayRowDto {
   brain_p95_ms: number | null;
   provider_failures: Record<string, number>;
   tokens: number;
+  /** How long jobs waited for the ledger past their due time, by lane, 95th percentile (00330); {} for a day before it. */
+  job_lag_ms: Record<string, number>;
+  /** How long customers waited for a first answer, by channel, 95th percentile (00330); {} when nobody was answered. */
+  first_answer_ms: Record<string, number>;
+  /** Sends of the same words to one thread within a minute (00330); null for a day nothing was sent in, or before it. */
+  duplicate_sends: number | null;
+  /** The jobs that died that day, by kind (00330); {} when none did. */
+  dead_letters: Record<string, number>;
+  /** How long an event waited for its deliveries, 95th percentile (decision 0030); null until the relay writes it. */
+  relay_lag_ms: number | null;
 }
 
 /** One line of the card: a workspace's latest day, in words. */
@@ -42,6 +52,12 @@ export interface PlatformDayLineVM {
   receptionist: string;
   /** "3 sends failed (2 not taken, 1 may have gone)", or "" when none failed. */
   failures: string;
+  /**
+   * The spine's numbers (decision 0029, Phase 0): "replies claimed within 1.2 s, bulk within 40.0 s; first answer within
+   * 38.0 s (whatsapp); 1 duplicate send; 2 jobs died (email_ingest 2)", each part only where the day has it, or "" for
+   * a day rolled before they were counted.
+   */
+  spine: string;
   /** Customers wrote and nobody answered: the alarm's condition. */
   silent: boolean;
   /** The line's colour: danger for a silent day. */
@@ -76,6 +92,41 @@ function failuresOf(m: Record<string, number>): string {
   return `${plural(n, "send", "sends")} failed (${parts.join(", ")})`;
 }
 
+/** The lanes' words (decision 0018): what a claim takes first. */
+const LANE_WORDS: Record<string, string> = { "0": "replies", "1": "the waiting", "2": "bulk", none: "the rest" };
+
+const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)} s`;
+
+/** The spine's numbers in words, each only where the day has it; "" for a day rolled before they were counted. */
+function spineLine(r: PlatformDayRowDto): string {
+  const parts: string[] = [];
+  const lanes = Object.entries(r.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));
+  if (lanes.length) {
+    const [[lane0, ms0], ...rest] = lanes;
+    parts.push(
+      [`${LANE_WORDS[lane0] ?? `lane ${lane0}`} claimed within ${seconds(ms0)}`]
+        .concat(rest.map(([lane, ms]) => `${LANE_WORDS[lane] ?? `lane ${lane}`} within ${seconds(ms)}`))
+        .join(", "),
+    );
+  }
+  const channels = Object.keys(r.first_answer_ms).sort();
+  if (channels.length) {
+    const worst = Math.max(...Object.values(r.first_answer_ms));
+    parts.push(`first answer within ${seconds(worst)} (${channels.join(", ")})`);
+  }
+  if (r.duplicate_sends !== null) parts.push(plural(r.duplicate_sends, "duplicate send", "duplicate sends"));
+  const died = sum(r.dead_letters);
+  if (died > 0) {
+    const kinds = Object.entries(r.dead_letters)
+      .filter(([, n]) => n > 0)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([kind, n]) => `${kind} ${n}`);
+    parts.push(`${plural(died, "job", "jobs")} died (${kinds.join(", ")})`);
+  }
+  if (r.relay_lag_ms !== null) parts.push(`events relayed within ${seconds(r.relay_lag_ms)}`);
+  return parts.join("; ");
+}
+
 function receptionistLine(r: PlatformDayRowDto): string {
   const replies = r.replies_answered + r.replies_held + r.replies_handed_off;
   if (replies === 0) return "the receptionist did not reply";
@@ -102,6 +153,7 @@ export function platformDaysWords(rows: readonly PlatformDayRowDto[] | null): Pl
       answers: `${r.asks} asked, ${r.answered} answered`,
       receptionist: receptionistLine(r),
       failures: failuresOf(r.provider_failures),
+      spine: spineLine(r),
       silent: r.asks > 0 && r.answered === 0,
       tone: r.asks > 0 && r.answered === 0 ? "danger" : "plain",
       asks: r.asks,

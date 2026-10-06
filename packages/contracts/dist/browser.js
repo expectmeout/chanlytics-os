@@ -898,8 +898,8 @@ function mmss(ms2) {
 function callLength(ms2) {
   return ms2 != null && Number.isFinite(ms2) && ms2 > 0 ? mmss(ms2) : void 0;
 }
-function durationWords(seconds) {
-  const v = Math.max(0, Math.round(seconds));
+function durationWords(seconds2) {
+  const v = Math.max(0, Math.round(seconds2));
   if (v < 60) return `${v}s`;
   if (v < 600) {
     const m2 = Math.floor(v / 60);
@@ -16677,19 +16677,19 @@ function holdOf(replies) {
   if (!all) return null;
   const counts = /* @__PURE__ */ new Map();
   for (const x of all) if (x.c.kind !== "unheld") counts.set(x.hold, (counts.get(x.hold) ?? 0) + 1);
-  const [seconds] = [...counts].reduce((a, b) => b[1] > a[1] || b[1] === a[1] && b[0] < a[0] ? b : a);
+  const [seconds2] = [...counts].reduce((a, b) => b[1] > a[1] || b[1] === a[1] && b[0] < a[0] ? b : a);
   const past = pastOf(all);
   return {
-    seconds,
-    label: holdWords2(seconds),
+    seconds: seconds2,
+    label: holdWords2(seconds2),
     atEnd: countOf(all, "atEnd"),
     unheld: countOf(all, "unheld"),
     later: past.length,
     laterMost: past.length ? Math.max(...past) : null
   };
 }
-function spanCounts(spans, seconds) {
-  const rounded = seconds.map(Math.round);
+function spanCounts(spans, seconds2) {
+  const rounded = seconds2.map(Math.round);
   const rows = [];
   let lo = -Infinity;
   for (const { id, label, max } of spans) {
@@ -22087,15 +22087,15 @@ var CALL_ACTIVITY_NAME = "CallActivity";
 var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
 var CALL_ACTIVITY_ROLES = ["owner", "operator"];
 function callActivityStart(props, now) {
-  const seconds = Math.floor(now.getTime() / 1e3);
+  const seconds2 = Math.floor(now.getTime() / 1e3);
   return {
     aps: {
-      timestamp: seconds,
+      timestamp: seconds2,
       event: "start",
       "attributes-type": "LiveActivityAttributes",
       attributes: {},
       "content-state": { name: CALL_ACTIVITY_NAME, props: JSON.stringify(props) },
-      "stale-date": seconds + Math.floor(CALL_ACTIVITY_STALE_MS / 1e3),
+      "stale-date": seconds2 + Math.floor(CALL_ACTIVITY_STALE_MS / 1e3),
       alert: { title: "Call in progress", body: `${props.who} is on the line.` }
     }
   };
@@ -28356,9 +28356,9 @@ var NO_ANSWER_WRITE = "Chanlytics didn't answer properly, so this may or may not
 var UNCONFIRMED_WRITE = "Chanlytics hit a problem and couldn't confirm this \u2014 check whether it went through before trying again.";
 var READ_AGAIN = "Chanlytics couldn't read this just now \u2014 try again in a moment.";
 var OUT_OF_DATE = "This page is out of date \u2014 reload it and try again.";
-function waitWords(seconds) {
-  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
-  const m = Math.ceil(seconds / 60);
+function waitWords(seconds2) {
+  if (seconds2 < 60) return `${seconds2} second${seconds2 === 1 ? "" : "s"}`;
+  const m = Math.ceil(seconds2 / 60);
   return `${m} minute${m === 1 ? "" : "s"}`;
 }
 function retryAfterOf(details, header, nowMs) {
@@ -28709,8 +28709,8 @@ var MISSED_CALL_NEWS_MS = DAY_MS;
 function missedCallIsNews(c, now) {
   return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
 }
-function fmtClock(seconds) {
-  return mmss(Math.max(0, seconds) * 1e3);
+function fmtClock(seconds2) {
+  return mmss(Math.max(0, seconds2) * 1e3);
 }
 function liveStillUp(c, heartbeatMs, nowMs) {
   if (!c.live) return false;
@@ -32191,6 +32191,31 @@ function failuresOf(m) {
   const parts2 = Object.entries(m).filter(([, c]) => c > 0).sort(([a], [b]) => a.localeCompare(b)).map(([outcome, c]) => `${c} ${FAILURE_WORDS[outcome] ?? outcome}`);
   return `${plural2(n, "send", "sends")} failed (${parts2.join(", ")})`;
 }
+var LANE_WORDS = { "0": "replies", "1": "the waiting", "2": "bulk", none: "the rest" };
+var seconds = (ms2) => `${(ms2 / 1e3).toFixed(1)} s`;
+function spineLine(r2) {
+  const parts2 = [];
+  const lanes = Object.entries(r2.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));
+  if (lanes.length) {
+    const [[lane0, ms0], ...rest] = lanes;
+    parts2.push(
+      [`${LANE_WORDS[lane0] ?? `lane ${lane0}`} claimed within ${seconds(ms0)}`].concat(rest.map(([lane, ms2]) => `${LANE_WORDS[lane] ?? `lane ${lane}`} within ${seconds(ms2)}`)).join(", ")
+    );
+  }
+  const channels = Object.keys(r2.first_answer_ms).sort();
+  if (channels.length) {
+    const worst = Math.max(...Object.values(r2.first_answer_ms));
+    parts2.push(`first answer within ${seconds(worst)} (${channels.join(", ")})`);
+  }
+  if (r2.duplicate_sends !== null) parts2.push(plural2(r2.duplicate_sends, "duplicate send", "duplicate sends"));
+  const died = sum(r2.dead_letters);
+  if (died > 0) {
+    const kinds = Object.entries(r2.dead_letters).filter(([, n]) => n > 0).sort(([a], [b]) => a.localeCompare(b)).map(([kind, n]) => `${kind} ${n}`);
+    parts2.push(`${plural2(died, "job", "jobs")} died (${kinds.join(", ")})`);
+  }
+  if (r2.relay_lag_ms !== null) parts2.push(`events relayed within ${seconds(r2.relay_lag_ms)}`);
+  return parts2.join("; ");
+}
 function receptionistLine(r2) {
   const replies = r2.replies_answered + r2.replies_held + r2.replies_handed_off;
   if (replies === 0) return "the receptionist did not reply";
@@ -32213,6 +32238,7 @@ function platformDaysWords(rows) {
     answers: `${r2.asks} asked, ${r2.answered} answered`,
     receptionist: receptionistLine(r2),
     failures: failuresOf(r2.provider_failures),
+    spine: spineLine(r2),
     silent: r2.asks > 0 && r2.answered === 0,
     tone: r2.asks > 0 && r2.answered === 0 ? "danger" : "plain",
     asks: r2.asks
@@ -32413,9 +32439,9 @@ function googleCallbackUrl(origin, next) {
   return `${origin}/auth/callback?next=${encodeURIComponent(next || "/")}`;
 }
 var SIGNIN_RESEND_COOLDOWN_S = 60;
-function resendLeft(sentAtMs, nowMs, seconds = SIGNIN_RESEND_COOLDOWN_S) {
+function resendLeft(sentAtMs, nowMs, seconds2 = SIGNIN_RESEND_COOLDOWN_S) {
   if (sentAtMs == null) return 0;
-  return Math.max(0, Math.ceil((sentAtMs + seconds * 1e3 - nowMs) / 1e3));
+  return Math.max(0, Math.ceil((sentAtMs + seconds2 * 1e3 - nowMs) / 1e3));
 }
 function requestCodeWords(e) {
   const message = e?.message ?? "";

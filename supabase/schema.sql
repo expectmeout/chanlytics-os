@@ -11743,12 +11743,13 @@ COMMENT ON FUNCTION public.platform_answer_silence(p_day date) IS 'The active wo
 -- Name: platform_metrics_read(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.platform_metrics_read(p_days integer DEFAULT 7) RETURNS TABLE(tenant_id uuid, name text, day date, messages_in jsonb, messages_out jsonb, asks integer, answered integer, replies_answered integer, replies_held integer, replies_handed_off integer, brain_p95_ms integer, provider_failures jsonb, tokens bigint)
+CREATE FUNCTION public.platform_metrics_read(p_days integer DEFAULT 7) RETURNS TABLE(tenant_id uuid, name text, day date, messages_in jsonb, messages_out jsonb, asks integer, answered integer, replies_answered integer, replies_held integer, replies_handed_off integer, brain_p95_ms integer, provider_failures jsonb, tokens bigint, job_lag_ms jsonb, first_answer_ms jsonb, duplicate_sends integer, dead_letters jsonb, relay_lag_ms integer)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
   select pm.tenant_id, t.name, pm.day, pm.messages_in, pm.messages_out, pm.asks, pm.answered, pm.replies_answered,
-         pm.replies_held, pm.replies_handed_off, pm.brain_p95_ms, pm.provider_failures, pm.tokens
+         pm.replies_held, pm.replies_handed_off, pm.brain_p95_ms, pm.provider_failures, pm.tokens,
+         pm.job_lag_ms, pm.first_answer_ms, pm.duplicate_sends, pm.dead_letters, pm.relay_lag_ms
     from public.platform_metrics pm
     join public.tenants t on t.id = pm.tenant_id
    where pm.day > (now() at time zone 'utc')::date - greatest(least(coalesce(p_days, 7), 90), 1) - 1
@@ -11760,7 +11761,7 @@ $$;
 -- Name: FUNCTION platform_metrics_read(p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_metrics_read(p_days integer) IS 'The back office''s read of platform_metrics (00277): the last p_days rolled days (at most 90), each workspace''s row with its name, newest day first.';
+COMMENT ON FUNCTION public.platform_metrics_read(p_days integer) IS 'The back office''s read of platform_metrics (00277): the last p_days rolled days (at most 90), each workspace''s row with its name, newest day first, the spine''s five numbers beside the rest (00330).';
 
 
 --
@@ -11960,6 +11961,100 @@ begin
   exception when others then
     raise warning 'platform_metrics_roll: the lenses'' columns were not kept for %: %', p_day, sqlerrm;
   end;
+
+  -- The third keeps the spine's numbers (00330, decision 0029's Phase 0), and fails alone too.
+  begin
+    with
+    -- How long a job waited for the ledger past its due time, by lane, at the 95th percentile: a first claim only
+    -- (attempts = 1), since a later claim is a retry or a lease that ran out, not a wait in the queue, and the row keeps
+    -- only its newest claim's time (jobs.fired_at). A kind with no lane is 'none'.
+    waited as (
+      select j.tenant_id, coalesce(j.lane::text, 'none') as lane,
+             percentile_cont(0.95) within group (order by extract(epoch from (j.fired_at - j.due_at)) * 1000) as p95
+        from public.jobs j
+       where j.fired_at >= v_t0 and j.fired_at < v_t1 and j.attempts = 1
+       group by j.tenant_id, j.lane
+    ),
+    waits as (
+      select w.tenant_id, jsonb_object_agg(w.lane, greatest(round(w.p95)::integer, 0)) as counts
+        from waited w
+       group by w.tenant_id
+    ),
+    -- How long a customer waited for the first answer in their thread, by channel, at the 95th percentile: the next
+    -- outbound row after each of their messages, whoever wrote it. An ask nobody ever answered is asks less answered,
+    -- not a wait here.
+    answered_in as (
+      select t.id as tenant_id, m.channel,
+             percentile_cont(0.95) within group (order by extract(epoch from (a.created_at - m.created_at)) * 1000) as p95
+        from public.tenants t
+        join public.messages m on m.tenant_id = t.id and m.created_at >= v_t0 and m.created_at < v_t1
+        join lateral (
+          select o.created_at
+            from public.messages o
+           where o.conversation_id = m.conversation_id and o.direction = 'outbound' and o.created_at > m.created_at
+           order by o.created_at
+           limit 1
+        ) a on true
+       where m.direction = 'inbound' and m.sender = 'customer'
+         and coalesce(m.meta ->> 'backfill', 'false') <> 'true'
+       group by t.id, m.channel
+    ),
+    first_answer as (
+      select a.tenant_id, jsonb_object_agg(a.channel, greatest(round(a.p95)::integer, 0)) as counts
+        from answered_in a
+       group by a.tenant_id
+    ),
+    -- The same words sent to one thread within a minute of the last time: the later send is the duplicate. The minute
+    -- before the day is read too, so a pair across midnight is counted once, in the day of its second.
+    sent as (
+      select t.id as tenant_id, m.created_at,
+             lag(m.created_at) over (partition by m.conversation_id, m.body order by m.created_at) as prev_at
+        from public.tenants t
+        join public.messages m
+          on m.tenant_id = t.id and m.created_at >= v_t0 - interval '1 minute' and m.created_at < v_t1
+       where m.direction = 'outbound' and coalesce(m.body, '') <> ''
+    ),
+    doubled as (
+      select s.tenant_id,
+             count(*) filter (where s.prev_at is not null and s.created_at - s.prev_at < interval '1 minute')::integer as n
+        from sent s
+       where s.created_at >= v_t0
+       group by s.tenant_id
+    ),
+    -- The jobs that died that day, by kind: failed is final (jobs_guard), so a failed row's newest change is its death.
+    died as (
+      select d.tenant_id, jsonb_object_agg(d.kind, d.n) as counts
+        from (select j.tenant_id, j.kind, count(*)::integer as n
+                from public.jobs j
+               where j.state = 'failed' and j.updated_at >= v_t0 and j.updated_at < v_t1
+               group by j.tenant_id, j.kind) d
+       group by d.tenant_id
+    ),
+    spine as (
+      select tenant_id from waits union select tenant_id from first_answer
+      union select tenant_id from doubled union select tenant_id from died
+    ),
+    kept as (
+      insert into public.platform_metrics as pm
+        (tenant_id, day, job_lag_ms, first_answer_ms, duplicate_sends, dead_letters, rolled_at)
+      select s.tenant_id, p_day, w.counts, f.counts, d.n, x.counts, now()
+        from spine s
+        left join waits w on w.tenant_id = s.tenant_id
+        left join first_answer f on f.tenant_id = s.tenant_id
+        left join doubled d on d.tenant_id = s.tenant_id
+        left join died x on x.tenant_id = s.tenant_id
+       where exists (select 1 from public.tenants y where y.id = s.tenant_id)
+      on conflict (tenant_id, day) do update
+         set job_lag_ms = excluded.job_lag_ms, first_answer_ms = excluded.first_answer_ms,
+             duplicate_sends = excluded.duplicate_sends, dead_letters = excluded.dead_letters,
+             rolled_at = excluded.rolled_at
+      returning (xmax = 0) as inserted
+    )
+    select count(*) filter (where inserted)::integer into v_new from kept;
+    v_n := v_n + coalesce(v_new, 0);
+  exception when others then
+    raise warning 'platform_metrics_roll: the spine''s numbers were not kept for %: %', p_day, sqlerrm;
+  end;
   return v_n;
 end $_$;
 
@@ -11968,7 +12063,7 @@ end $_$;
 -- Name: FUNCTION platform_metrics_roll(p_day date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read: how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
+COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00330): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
 
 
 --
@@ -20503,12 +20598,22 @@ CREATE TABLE public.platform_metrics (
     ai_tokens jsonb,
     ai_usd jsonb,
     voice_usd numeric(12,6),
+    job_lag_ms jsonb,
+    first_answer_ms jsonb,
+    duplicate_sends integer,
+    dead_letters jsonb,
+    relay_lag_ms integer,
     CONSTRAINT platform_metrics_ai_tokens_check CHECK (((ai_tokens IS NULL) OR (jsonb_typeof(ai_tokens) = 'object'::text))),
     CONSTRAINT platform_metrics_ai_usd_check CHECK (((ai_usd IS NULL) OR (jsonb_typeof(ai_usd) = 'object'::text))),
     CONSTRAINT platform_metrics_answered_check CHECK ((answered >= 0)),
     CONSTRAINT platform_metrics_asks_check CHECK ((asks >= 0)),
     CONSTRAINT platform_metrics_brain_p95_ms_check CHECK ((brain_p95_ms >= 0)),
+    CONSTRAINT platform_metrics_dead_letters_check CHECK (((dead_letters IS NULL) OR (jsonb_typeof(dead_letters) = 'object'::text))),
+    CONSTRAINT platform_metrics_duplicate_sends_check CHECK (((duplicate_sends IS NULL) OR (duplicate_sends >= 0))),
+    CONSTRAINT platform_metrics_first_answer_ms_check CHECK (((first_answer_ms IS NULL) OR (jsonb_typeof(first_answer_ms) = 'object'::text))),
     CONSTRAINT platform_metrics_handled_check CHECK (((handled IS NULL) OR (jsonb_typeof(handled) = 'object'::text))),
+    CONSTRAINT platform_metrics_job_lag_ms_check CHECK (((job_lag_ms IS NULL) OR (jsonb_typeof(job_lag_ms) = 'object'::text))),
+    CONSTRAINT platform_metrics_relay_lag_ms_check CHECK (((relay_lag_ms IS NULL) OR (relay_lag_ms >= 0))),
     CONSTRAINT platform_metrics_replies_answered_check CHECK ((replies_answered >= 0)),
     CONSTRAINT platform_metrics_replies_handed_off_check CHECK ((replies_handed_off >= 0)),
     CONSTRAINT platform_metrics_replies_held_check CHECK ((replies_held >= 0)),
@@ -20558,6 +20663,41 @@ COMMENT ON COLUMN public.platform_metrics.ai_usd IS 'The same by purpose in list
 --
 
 COMMENT ON COLUMN public.platform_metrics.voice_usd IS 'What the day''s calls cost in dollars (K8): the sum of call_cost_usd over calls.cost of the calls that started that day, whatever their direction or ending. The operator''s. Null where no call carried a cost.';
+
+
+--
+-- Name: COLUMN platform_metrics.job_lag_ms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.job_lag_ms IS 'How long a job waited for the ledger past its due time that day, by lane (jobs.lane: 0 a reply, 1 someone waiting, 2 bulk, none), at the 95th percentile in milliseconds, first claims only (00330). Null for a day with no claim.';
+
+
+--
+-- Name: COLUMN platform_metrics.first_answer_ms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.first_answer_ms IS 'How long a customer waited for the first answer in their thread that day, by channel, at the 95th percentile in milliseconds, whoever answered (00330). Null for a day no customer was answered in.';
+
+
+--
+-- Name: COLUMN platform_metrics.duplicate_sends; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.duplicate_sends IS 'Outbound rows that day with the same words to one thread within a minute of the last: the later one is the duplicate (00330). Null for a day nothing was sent in.';
+
+
+--
+-- Name: COLUMN platform_metrics.dead_letters; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.dead_letters IS 'The jobs that died that day, by kind: state failed, which jobs_guard keeps final (00330). Null for a day none died in.';
+
+
+--
+-- Name: COLUMN platform_metrics.relay_lag_ms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_metrics.relay_lag_ms IS 'How long an event waited for its deliveries that day, at the 95th percentile in milliseconds (decision 0030): written by the relay''s own migration, null until then (00330).';
 
 
 --
