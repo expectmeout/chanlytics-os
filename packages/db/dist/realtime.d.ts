@@ -5893,6 +5893,14 @@ type Database = {
                 };
                 Returns: string;
             };
+            channel_keep_standing: {
+                Args: {
+                    p_channel_id: string;
+                    p_standing: Json;
+                    p_tenant_id: string;
+                };
+                Returns: string;
+            };
             claim_conversation_control: {
                 Args: {
                     p_by: string;

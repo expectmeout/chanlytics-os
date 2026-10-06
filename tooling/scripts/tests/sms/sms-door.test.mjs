@@ -904,6 +904,58 @@ test("after the receptionist throws, only a text the database did not keep is re
   });
 });
 
+test("a one-time code texted to the line is skipped: an empty TwiML, no person, no conversation, no reply, no handoff and no page, a line that names the service and never the code or the number -- and the next customer's text is answered as ever", async () => {
+  const w = world();
+  w.line.sms_state = "registering"; // a line holding customers' texts for a person holds none of these
+  w.open();
+  const seen = receptionist();
+  const meta = "+18335550101";
+  const fields = w.form(meta, { Body: "Your WhatsApp code: 788-963\n\nDon't share this code with others" });
+  await listening(async (log) => {
+    assert.deepEqual(
+      await heard(await text(fields, w.TOKEN)),
+      twiml(200),
+      "acknowledged: Twilio keeps the text in its own record",
+    );
+    assert.deepEqual(
+      [seen.runtimes, seen.ingested, seen.sent, seen.escalations, seen.alerts, seen.processed],
+      [[], [], [], [], [], 0],
+      "nothing reached the receptionist: no workspace runtime, no message kept, nothing said, nobody handed anything or told",
+    );
+    assert.deepEqual(
+      [w.left().texts, w.left().mail],
+      [[], []],
+      "nothing left the process: no reply to Meta, no page to the platform",
+    );
+    assert.deepEqual(
+      log.said("sms_code_skipped").map((l) => [l.stream, l.service, l.sid]),
+      [["log", "WhatsApp", fields.MessageSid]],
+    );
+    assert.deepEqual(log.said("sms_inbound"), [], "and it is not an inbound text");
+    assert.deepEqual(
+      w.tables.provider_events ?? [],
+      [],
+      "and nothing of it is kept: a code's delivery is the one the intake ledger never keeps (Twilio keeps it for the owner)",
+    );
+    const said = JSON.stringify(log.lines);
+    for (const planted of ["788-963", "788963", meta, meta.slice(1), meta.slice(-7), w.TOKEN])
+      assert.ok(!said.includes(planted), `${planted} is in a log line`);
+  });
+  // The same line, the next minute: a customer writes, and is answered or held as ever.
+  const later = receptionist();
+  await listening(async () => {
+    assert.deepEqual(
+      await heard(await text(w.form(w.customer(), { Body: "my door code is 4512" }), w.TOKEN)),
+      twiml(200),
+    );
+  });
+  assert.deepEqual(
+    later.ingested.map((i) => i.body),
+    ["my door code is 4512"],
+    "a customer who writes of a code is a customer",
+  );
+});
+
 test("the delivery is kept under Twilio's id, as it came, before the verdict (00336); a text that is not proven keeps nothing; a redelivery keeps the first", async () => {
   const w = world();
   w.open();
@@ -941,4 +993,25 @@ test("the delivery is kept under Twilio's id, as it came, before the verdict (00
   assert.deepEqual(await heard(await text({ ...fields, Body: "the same sid, delivered again" }, w.TOKEN)), twiml(200));
   assert.equal(w.tables.provider_events.length, 1, "a redelivery under the same id keeps the first");
   assert.equal(w.tables.provider_events[0].body, new URLSearchParams(fields).toString());
+});
+
+test("a one-time code is never kept, whatever its verdict: one that comes to a line whose texting channel is switched off is refused as ever, and nothing of it is kept for a replay", async () => {
+  const w = world();
+  w.channel.status = "disabled";
+  w.open();
+  const seen = receptionist();
+  const fields = w.form("+18335550101", { Body: "Your WhatsApp code: 788-963\n\nDon't share this code with others" });
+  await listening(async (log) => {
+    assert.deepEqual(await heard(await text(fields, w.TOKEN)), twiml(200), "refused as a switched-off channel is");
+    assert.deepEqual(
+      log.said("sms_unroutable").map((l) => l.stream),
+      ["error"],
+    );
+    assert.deepEqual([seen.runtimes, seen.ingested, w.left().texts], [[], [], []], "nothing answered");
+    assert.deepEqual(
+      w.tables.provider_events ?? [],
+      [],
+      "a customer's text refused here is kept for the replay after a fix; a code is not: a replay of it would answer nothing",
+    );
+  });
 });

@@ -210,6 +210,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Connections repaints, and so does the Setup row that said "Connect".
   // The number connected is the one a broadcast goes out on: the composers' WhatsApp tick and who it reaches follow.
   "POST channels/whatsapp/connect": () => [settingsOverride, setupOverride, ...readiness()],
+  // What Meta holds about the number is kept on the channel's config, which the settings read carries: Connections' row repaints.
+  "POST channels/whatsapp/standing": () => [settingsOverride],
   "PUT notifications": () => [notificationsOverride],
   // Setup, lines, billing, Google.
   "POST capabilities/[kind]": setup,

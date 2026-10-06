@@ -3,6 +3,17 @@ export { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./line-failure
 export { channelFor, channelKindWords, toChannelVM, CHANNEL_KIND_WORDS, CHANNEL_ANSWERED } from "./channels";
 export type { ChannelDto, ChannelPickable, ChannelHealth, ChannelVM } from "./channels";
 export {
+  standingFromConfig,
+  standingNeedsRead,
+  standingAlertWords,
+  standingAfterNameDecision,
+  nameDecisionWords,
+} from "./number-standing";
+export type { NumberStanding } from "./number-standing";
+export { LINE_CODES_WITHIN_MS, LINE_CODES_MAX, LINE_CODES_EVERY_MS } from "./line-codes";
+export type { LineCodeDto } from "./line-codes";
+export { WHATSAPP_COST_WORDS } from "./whatsapp-cost";
+export {
   dataSentences,
   smsConsentSentence,
   businessPageVM,

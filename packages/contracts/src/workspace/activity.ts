@@ -8,6 +8,7 @@ import {
   LEAD_STAGE_WORDS,
 } from "../leads/lead-words";
 import { domainHoldWords } from "../email/sending-domains";
+import { standingChangeWords } from "../lines/number-standing";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import { plural } from "../shared/words";
@@ -169,6 +170,7 @@ const WORDS: Record<string, string> = {
   "broadcast.stopped": "A broadcast stopped",
   "playbook.run": "A playbook ran",
   "channel.quality_rating": "A WhatsApp number's quality rating changed",
+  "channel.standing": "A WhatsApp number's standing with Meta changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
   "line.answering": "A line started answering",
@@ -406,6 +408,7 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
   ["lead.emailed", leadEmailedWords],
   ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
   ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  ["channel.standing", (p, base) => joinBits(base, [standingChangeWords(p)])],
   ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
   ["google.reply_held", (p, base) => joinBits(base, [wordOf(REPLY_HELD_WHY, textAt(p, "why"))])],
   ["message.send_blocked", sendBlockedWords],

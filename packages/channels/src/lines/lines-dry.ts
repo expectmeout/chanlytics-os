@@ -5,7 +5,7 @@
  * (chooseLineProvider). It keeps a ledger of calls so a test can prove a
  * resumed saga repeats nothing.
  */
-import type { AvailableNumber, LineProvider, ProviderAccount } from "./lines";
+import type { AvailableNumber, LineProvider, ProviderAccount, ReceivedText } from "./lines";
 
 export interface DryCall {
   op: string;
@@ -16,9 +16,14 @@ export interface DryProvider extends LineProvider {
   readonly calls: DryCall[];
   /** Numbers bought and not released, by SID. */
   readonly owned: Map<string, string>;
+  /** A text that "arrived" on `to`, for recentTexts to answer: the dry provider has no carrier to receive one. */
+  plantText(to: string, text: ReceivedText): void;
 }
 
 const hex = (n: number, width = 32) => n.toString(16).padStart(width, "0");
+
+/** The page a read of a number's texts is: twenty, as the real provider's. */
+const DRY_TEXTS_PAGE = 20;
 
 export function dryProvider(seed = 1): DryProvider {
   let n = seed;
@@ -31,6 +36,7 @@ export function dryProvider(seed = 1): DryProvider {
   const lists = new Map<string, string>();
   const credentials = new Map<string, string>();
   const originations = new Map<string, string>();
+  const received = new Map<string, ReceivedText[]>();
   const rec = (op: string, ...args: unknown[]) => calls.push({ op, args });
   const acctOf = (a: ProviderAccount) => a.sid;
   return {
@@ -151,6 +157,19 @@ export function dryProvider(seed = 1): DryProvider {
       // Recorded, never delivered: the dry provider is for previews and tests.
       rec("sendSms", acctOf(acct), o.serviceSid, o.to);
       return { ok: true, sid: next("SM"), status: 201, code: null };
+    },
+    plantText(to, text) {
+      received.set(to, [...(received.get(to) ?? []), text]);
+    },
+    // Not `async`: nothing here waits, and lint's `require-await` warnings in this file are a count that may only fall.
+    recentTexts(acct, to, sinceMs) {
+      rec("recentTexts", acctOf(acct), to, sinceMs);
+      return Promise.resolve(
+        (received.get(to) ?? [])
+          .filter((t) => t.atMs >= sinceMs)
+          .sort((a, b) => b.atMs - a.atMs)
+          .slice(0, DRY_TEXTS_PAGE),
+      );
     },
   };
 }

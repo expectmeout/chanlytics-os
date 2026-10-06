@@ -13,10 +13,15 @@
 import type { Tone } from "../shell/tone";
 import { numberHealth } from "../broadcasts/broadcasts";
 import { channelFor, type ChannelVM } from "../lines/channels";
+import type { ConnectionNote } from "../lines/connection-note";
+import { codeNotes, type LineCodeDto } from "../lines/line-codes";
+import { NEW_BUSINESS_LIMIT, standingNotes, standingSentence } from "../lines/number-standing";
+import { whatsappCostNotes } from "../lines/whatsapp-cost";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "../google/google";
 import type { LineDto } from "./setup";
 import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
-import { agoWords } from "../shared/time";
+import { waMeDigits } from "../shared/enums";
+import { agoWords, HOUR_MS } from "../shared/time";
 import { checkedWords, connectionWords, listingLine } from "../google/google";
 import { formatPhoneDisplay } from "../shared/phone";
 import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
@@ -68,6 +73,12 @@ export interface ConnectionRow {
   verb: ConnectionVerb | null;
   /** The page's own hook for the parts a row cannot say in one line: a choice of locations, a form. */
   body: "google_choose" | "business_record" | "email_setup" | null;
+  /**
+   * What the row says beside its sentence, each its own short line, with a link after it where there is somewhere to go: what Meta
+   * will ask and what WhatsApp costs before Connect, what Meta holds about a connected number, how to try it, and what it costs,
+   * the codes sent to the line. Empty for a row with none, which is nearly every row.
+   */
+  notes: ConnectionNote[];
 }
 
 export interface ConnectionInputs {
@@ -86,6 +97,14 @@ export interface ConnectionInputs {
   calendar: { state: "ok" | "unavailable" | "none" } | null;
   /** Email as Setup is told it (mailbox.ts); null or absent while Setup has not been read, or on a deployment without it. */
   email?: EmailSetupDto | null;
+  /** The one-time codes sent to the workspace's own line lately (`GET lines/codes`); absent where none were read. */
+  codes?: LineCodeDto[];
+  /**
+   * When a WhatsApp sign-up was started on this page and never came back to it (the instant the page's mark in
+   * sessionStorage holds: Meta's window outlives a reload, and a reload takes with it the listener the window answers to);
+   * null or absent where there is none. Said by the WhatsApp row for an hour, while the workspace has no number.
+   */
+  signupLeftOpenAt?: string | null;
 }
 
 const TONE: Record<ConnectionState, ConnectionTone> = {
@@ -120,10 +139,13 @@ const ORDER: Record<ConnectionKind, number> = {
   deposits: 8,
 };
 
-type Draft = Omit<ConnectionRow, "group" | "tone" | "body"> & { body?: ConnectionRow["body"] };
+type Draft = Omit<ConnectionRow, "group" | "tone" | "body" | "notes"> & {
+  body?: ConnectionRow["body"];
+  notes?: ConnectionNote[];
+};
 
 function row(d: Draft): ConnectionRow {
-  return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null };
+  return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
 }
 
 /** What Google's audience means for the person about to press Connect. */
@@ -306,23 +328,111 @@ function connectionFactsOf(i: ConnectionInputs, nowMs: number): ConnectionFacts 
   };
 }
 
+/**
+ * The one thing to do while Meta's window is open: a reload takes with it the listener the window answers to, and the one-time code
+ * the window hands back has nowhere to go (6 October, 12:11 to 12:48 UTC: a sign-up Meta finished and Chanlytics never heard).
+ */
+const KEEP_SIGNUP_PAGE_OPEN = "Keep this page open until Meta's window closes.";
+
+/**
+ * Where the code Meta texts to the number arrives, said with the one thing to do while its window is open (the code is what the owner
+ * waits for there). On the workspace's own Chanlytics line the text reaches the Texting row, and a call would be answered by the
+ * receptionist, so the owner chooses a text; a number of the business's own is the phone in its hand.
+ */
+function signupCodeNote(own: ConnectionFacts["own"]): ConnectionNote {
+  const line = own?.e164 ? formatPhoneDisplay(own.e164) : null;
+  return {
+    text: line
+      ? `Meta texts a code to the number. If it is your Chanlytics number, ${line}, the code shows here on the Texting row: choose Text message, not Phone call. ${KEEP_SIGNUP_PAGE_OPEN}`
+      : `Meta texts a code to the number: have its phone at hand. ${KEEP_SIGNUP_PAGE_OPEN}`,
+  };
+}
+
+/**
+ * What Meta's sign-up window asks of the owner, said before it opens, in the order the owner meets it: the sign-in, the code texted
+ * to the number (and to keep the page open while it is awaited), what WhatsApp costs and who bills it (Chanlytics is a Tech
+ * Provider: Meta bills the business, to its own card, for the messages it starts), the payment method Meta asks for at the end
+ * (replies to a customer who wrote first are delivered without one, and are not billed; what is not delivered is the messages the
+ * business starts), and the limit a new business starts at. One line each: a row says one thing at a time.
+ */
+function whatsappConnectNotes(own: ConnectionFacts["own"]): ConnectionNote[] {
+  return [
+    { text: "Meta asks you to sign in with Facebook and choose or create your business." },
+    signupCodeNote(own),
+    ...whatsappCostNotes(),
+    {
+      text: "Add a payment method when Meta asks for one: without it, replies still go out, but reminders and campaigns are not delivered.",
+    },
+    {
+      text: `Until Meta verifies your business, it can start conversations with ${NEW_BUSINESS_LIMIT} people a day; replies to customers who write first are not limited.`,
+    },
+  ];
+}
+
+/** How long the mark a sign-up leaves is taken for a sign-up somebody is still finishing at Meta's. */
+const SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
+
+/**
+ * What the Connect row says of a sign-up that was started on this page and did not come back to it. A reload cannot get the
+ * code back (it rides the SDK's own callback), so the way on is to press Connect again and choose the account Meta already made.
+ */
+const SIGNUP_LEFT_OPEN_NOTE =
+  "A WhatsApp sign-up was started here and did not come back to Chanlytics — if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.";
+
+/** The left-open note, while the mark is under an hour old (a mark in the future, or one that is no time, is no sign-up anyone is waiting on). */
+function signupLeftOpenNotes(startedAt: string | null | undefined, nowMs: number): ConnectionNote[] {
+  const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
+  return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE }] : [];
+}
+
+/**
+ * What a connected number says until a customer has written to it: how to try it from a phone. WhatsApp keeps its own record of which
+ * numbers are on WhatsApp, and a number registered a moment ago can read "isn't on WhatsApp" for an hour (6 October); opening its
+ * wa.me link forces a fresh lookup, and the chat opens. The link's digits are waMeDigits's, the one place that says them.
+ */
+function tryItNotes(wa: ChannelVM): ConnectionNote[] {
+  const digits = waMeDigits(wa.number);
+  if (!digits || wa.lastInboundMs !== null) return [];
+  return [
+    {
+      text: `Try it from your phone: wa.me/${digits} — if WhatsApp says the number isn't on WhatsApp yet, open this link instead of searching your contacts.`,
+    },
+  ];
+}
+
 /** WhatsApp: the channel row when there is one; Meta's door when there is not. */
-function whatsappRow(i: ConnectionInputs, { wa }: ConnectionFacts): Draft {
+function whatsappRow(i: ConnectionInputs, { wa, own, nowMs }: ConnectionFacts): Draft {
   const base = { kind: "whatsapp" as const, icon: "chat", title: "WhatsApp Business" };
   if (wa) {
+    // What Meta holds about the number (channel.standing, 00338) outranks what its rating implies: a number Meta will not
+    // let send is joined and not working whatever its quality was, and Meta's own words say why. A word of Meta's that is
+    // not BLOCKED is never taken for it; a switched-off channel says nothing of Meta's.
+    const standing = wa.on ? wa.standing : null;
+    // One daily limit for the sentence and the notes: the quality webhook's word once Meta has sent one (it is sent when the
+    // tier moves), else the tier the standing read. Two would say "not reported yet" beside "up to 250 people a day".
+    const limit = wa.messagingLimit ?? standing?.limit ?? null;
     // What Meta has said about the number, in the words Sent, Campaigns
     // and the assistant already use: a flagged number is exactly the "joined
     // but not working" the attention state exists for.
-    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
+    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
     const flagged = wa.on && h.tone === "danger";
     const health = wa.on && h.tone !== "unknown" ? ` · ${h.label}` : "";
+    const blocked = standing?.can_send === "BLOCKED";
+    const attention = flagged || blocked;
     return {
       ...base,
       detail: wa.number,
-      state: !wa.on ? "off" : flagged ? "attention" : "connected",
-      stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On",
-      sentence: `${wa.healthLabel}${health}`,
+      state: !wa.on ? "off" : attention ? "attention" : "connected",
+      stateWords: !wa.on ? "Off" : attention ? "Needs attention" : "On",
+      sentence: standing && blocked ? standingSentence(standing) : `${wa.healthLabel}${health}`,
       verb: { label: "Library", to: "messages", who: "operator" },
+      // How to try it from a phone, first, on a connected row nobody has written to yet; then what Meta holds; and last what
+      // WhatsApp costs, on every row that is on.
+      notes: [
+        ...(wa.on && !attention ? tryItNotes(wa) : []),
+        ...standingNotes(standing && { ...standing, limit }),
+        ...(wa.on ? whatsappCostNotes() : []),
+      ],
     };
   }
   if (i.whatsapp === undefined) {
@@ -344,6 +454,7 @@ function whatsappRow(i: ConnectionInputs, { wa }: ConnectionFacts): Draft {
       sentence:
         "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
       verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
+      notes: [...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs), ...whatsappConnectNotes(own)],
     };
   }
   const why =
@@ -425,9 +536,13 @@ function phoneRow(i: ConnectionInputs, { voice, own, nowMs }: ConnectionFacts): 
   };
 }
 
-/** Texting: where the workspace's own line stands with the carriers. */
-function smsRow(_i: ConnectionInputs, { own, nowMs }: ConnectionFacts): Draft {
-  return smsStateRow(own, nowMs);
+/**
+ * Texting: where the workspace's own line stands with the carriers, and the one-time codes sent to it lately (Meta's, when
+ * the owner connects that number to WhatsApp), which no one else will ever see: a line the business kept at its carrier
+ * has no texts of ours, so it has no notes.
+ */
+function smsRow(i: ConnectionInputs, { own, nowMs }: ConnectionFacts): Draft {
+  return { ...smsStateRow(own, nowMs), notes: own ? codeNotes(i.codes ?? [], nowMs) : [] };
 }
 
 /** Google: the owner's Business Profile, then the public listing (googleListingRow). */

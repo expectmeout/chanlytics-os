@@ -5,12 +5,22 @@
  * Stripe's own pages: Checkout for the card and the trial, the portal for the card, the invoices and cancel. A workspace
  * on a direct arrangement sees that, and no button that charges. Settings' page (settings.jsx) still draws it by its old
  * name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
+ *
+ * One row at the foot of the plan card says where the WhatsApp bill is: Meta bills the messages a business starts, to the card on its
+ * own WhatsApp account, and not here (contracts WHATSAPP_COST_WORDS), linked to what WhatsApp costs on Settings > Connections.
  */
 import { useState, type ReactNode } from "react";
-import { IN_APP_CLASS, type BillingDto, type BillingInvoiceDto, type BillingVM } from "@chanlytics/contracts";
+import {
+  IN_APP_CLASS,
+  WHATSAPP_COST_WORDS,
+  type BillingDto,
+  type BillingInvoiceDto,
+  type BillingVM,
+} from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
-import { canDo, gate, gateTitle, type LegacyFlash } from "../../legacy-verbs";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { canDo, gate, gateTitle, routeDoor, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { billingVerbs as api } from "./surface";
 
@@ -209,6 +219,17 @@ function planCard(o: {
           </div>
         </div>
       )}
+      {/* Meta bills the WhatsApp messages the business starts, to the card on its own WhatsApp account: said where a bill is read. */}
+      <div className="set-row" data-testid="billing-whatsapp">
+        <div className="set-row-info">
+          <span className="set-row-hint">
+            <span data-testid="billing-whatsapp-line">{WHATSAPP_COST_WORDS.billingLine}</span>{" "}
+            <LinkButton {...routeDoor("admin/integrations")} data-testid="billing-whatsapp-link">
+              {WHATSAPP_COST_WORDS.title}
+            </LinkButton>
+          </span>
+        </div>
+      </div>
     </section>
   );
 }

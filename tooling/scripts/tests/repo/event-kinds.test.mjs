@@ -114,6 +114,7 @@ test("the computed family is the contracts' list, and nothing else is computed",
     "account_update",
     "message_template_quality_update",
     "message_template_status_update",
+    "phone_number_name_update",
     "phone_number_quality_update",
     "template_category_update",
   ]);

@@ -265,12 +265,12 @@
     "depth": 0
   },
   "apps/edge/lib/whatsapp/waba-events.ts::describeWabaChange#1": {
-    "lines": 115,
-    "branches": 35,
+    "lines": 107,
+    "branches": 32,
     "depth": 2
   },
   "apps/edge/lib/whatsapp/webhook.ts::receiveWhatsappEvent#1": {
-    "lines": 158,
+    "lines": 157,
     "branches": 48,
     "depth": 8
   },

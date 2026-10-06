@@ -8,6 +8,7 @@ import { agoWords, DATE_FMT, DAY_MS } from "../shared/time";
  * is switched on, and when a customer last used it.
  */
 import { formatPhoneDisplay } from "../shared/phone";
+import type { NumberStanding } from "./number-standing";
 
 export interface ChannelDto {
   id: string;
@@ -25,6 +26,10 @@ export interface ChannelDto {
   quality_event?: string | null;
   messaging_limit?: string | null;
   quality_at?: string | null;
+  /** What Meta holds about the number (channel_keep_standing, 00338): whether it may send, what stands in the way, its
+   *  display name's review, the business's verification and tier; and when that was read. Null until it has been. */
+  standing?: NumberStanding | null;
+  standing_read_at?: string | null;
 }
 
 /**
@@ -87,6 +92,9 @@ export interface ChannelVM {
   quality: string | null;
   qualityEvent: string | null;
   messagingLimit: string | null;
+  /** What Meta holds about the number, and when it was read (the row's config): null until it has been read. */
+  standing: NumberStanding | null;
+  standingReadAt: string | null;
   /** When the row was made. Carried so `channelFor` can break a tie the same way on
    *  either shape; the DTO has always had it. */
   created_at: string;
@@ -196,6 +204,8 @@ export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
     quality: dto.quality ?? null,
     qualityEvent: dto.quality_event ?? null,
     messagingLimit: dto.messaging_limit ?? null,
+    standing: dto.standing ?? null,
+    standingReadAt: dto.standing_read_at ?? null,
     created_at: dto.created_at,
   };
 }

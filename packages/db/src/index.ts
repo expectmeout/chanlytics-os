@@ -392,11 +392,20 @@ export type {
   PartnerInviteMail,
 } from "./repositories/partner";
 export { readLeadOne } from "./repositories/leads";
+export { ownLineOf } from "./lines";
 export type { LeadOneLead, LeadOneMember } from "./repositories/leads";
 export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realtime";
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
 export type { Page } from "./paged";
-export { duePlaybooks, dueCalendars, stampPlaybooksTried, whatsappNumbersToRead, keepChannelQuality } from "./sweeps";
+export {
+  duePlaybooks,
+  dueCalendars,
+  stampPlaybooksTried,
+  whatsappNumbersToRead,
+  whatsappNumberOf,
+  keepChannelQuality,
+  keepChannelStanding,
+} from "./sweeps";
 export type { DuePage, DuePlaybook, DueCalendar, WhatsappNumber } from "./sweeps";
 export type { Database, Json } from "./database.types";

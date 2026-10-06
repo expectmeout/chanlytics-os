@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-214 handlers in 46 domains.
+216 handlers in 46 domains.
 
 ## activity
 
@@ -315,6 +315,12 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts`).
+
+### `POST /api/v1/channels/whatsapp/standing`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `whatsapp_standing` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/channels/whatsapp/standing/route.ts`).
 
 ## client-errors
 
@@ -950,6 +956,12 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `number` | string | yes | matches `^\+[1-9]\d{6,14}$` |
 | `area_code` | integer or string | no |  |
+
+### `GET /api/v1/lines/codes`
+
+Reads; for a member of the workspace the request names, partner or above; counts against the `lines_codes` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/lines/codes/route.ts`).
 
 ### `POST /api/v1/lines/forwarding`
 

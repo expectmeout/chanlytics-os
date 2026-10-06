@@ -53,6 +53,7 @@ export const ROUTES = {
   "GET leads": { method: "GET", path: "/api/v1/leads" },
   "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
   "GET leads/export": { method: "GET", path: "/api/v1/leads/export" },
+  "GET lines/codes": { method: "GET", path: "/api/v1/lines/codes" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
   "GET notifications": { method: "GET", path: "/api/v1/notifications" },
@@ -109,6 +110,7 @@ export const ROUTES = {
   "POST calls/[id]/whisper": { method: "POST", path: "/api/v1/calls/[id]/whisper" },
   "POST capabilities/[kind]": { method: "POST", path: "/api/v1/capabilities/[kind]" },
   "POST channels/whatsapp/connect": { method: "POST", path: "/api/v1/channels/whatsapp/connect" },
+  "POST channels/whatsapp/standing": { method: "POST", path: "/api/v1/channels/whatsapp/standing" },
   "POST client-errors": { method: "POST", path: "/api/v1/client-errors" },
   "POST contacts": { method: "POST", path: "/api/v1/contacts" },
   "POST contacts/[id]/deal": { method: "POST", path: "/api/v1/contacts/[id]/deal" },
@@ -271,6 +273,7 @@ export type Routes = {
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
   "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
   "GET leads/export": typeof import("../../app/api/v1/leads/export/route").GET;
+  "GET lines/codes": typeof import("../../app/api/v1/lines/codes/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
   "GET notifications": typeof import("../../app/api/v1/notifications/route").GET;
@@ -327,6 +330,7 @@ export type Routes = {
   "POST calls/[id]/whisper": typeof import("../../app/api/v1/calls/[id]/whisper/route").POST;
   "POST capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").POST;
   "POST channels/whatsapp/connect": typeof import("../../app/api/v1/channels/whatsapp/connect/route").POST;
+  "POST channels/whatsapp/standing": typeof import("../../app/api/v1/channels/whatsapp/standing/route").POST;
   "POST client-errors": typeof import("../../app/api/v1/client-errors/route").POST;
   "POST contacts": typeof import("../../app/api/v1/contacts/route").POST;
   "POST contacts/[id]/deal": typeof import("../../app/api/v1/contacts/[id]/deal/route").POST;

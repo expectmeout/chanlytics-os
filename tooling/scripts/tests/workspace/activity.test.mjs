@@ -704,6 +704,29 @@ test("a WhatsApp connection, a milestone and a held review reply say what they a
     "the business's verified name, and never the number or Meta's ids",
   );
   assert.equal(activityWords("channel.connected", { verified_name: null }), "A WhatsApp number was connected");
+  // What Meta holds about the number changed (00338): the word of can_send, from and to; the first read has no from.
+  assert.equal(
+    activityWords("channel.standing", { from: "AVAILABLE", to: "BLOCKED" }),
+    "A WhatsApp number's standing with Meta changed · from can send to blocked",
+  );
+  assert.equal(
+    activityWords("channel.standing", { to: "LIMITED" }),
+    "A WhatsApp number's standing with Meta changed · limited",
+    "the first read: no from",
+  );
+  assert.equal(
+    activityWords("channel.standing", { from: "BLOCKED", to: "RESTRICTED_FOR_NOW" }),
+    "A WhatsApp number's standing with Meta changed · from blocked to restricted for now",
+    "a word of Meta's that is not one of three is said as Meta said it, plain",
+  );
+  assert.equal(activityWords("channel.standing", {}), "A WhatsApp number's standing with Meta changed");
+  assert.equal(isActivityNoise("channel.standing"), false, "an owner reads that Meta changed what a number may do");
+  // Meta's decision on a display name (phone_number_name_update) is one of the computed channel.<field> family: words, not a key.
+  assert.equal(
+    activityWords("channel.phone_number_name_update", { waba_id: "1", decision: "APPROVED" }),
+    "Channel · phone number name update",
+  );
+  assert.equal(isActivityNoise("channel.phone_number_name_update"), false, "an owner reads a decision on a name");
   assert.equal(
     activityWords("workspace.activated", { milestone: "line_live", via: "provision" }),
     "The workspace passed a milestone · its first line is answering",

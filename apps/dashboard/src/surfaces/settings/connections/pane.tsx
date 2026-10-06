@@ -2,7 +2,9 @@
  * Settings › Connections, one row per connection (moved from legacy/pages/integrations-real.jsx, decision 0015 step 11).
  *
  * Every connection is the same row (contracts/connections.ts) computed from the surfaces already read -- channels (the
- * settings read), Setup's facts, Google -- so this pane fetches nothing of its own and cannot disagree with Setup. Three
+ * settings read), Setup's facts, Google -- so its rows cannot disagree with Setup. What it asks for itself (live.ts) is what
+ * only an open page wants: the one-time codes sent to the workspace's own line, and what Meta holds about the number when the
+ * kept answer is missing or stale. Three
  * groups: Connected, Available, Later. "Later" is a row's state, not a list at the bottom. Settings' page (settings.jsx)
  * still draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
  */
@@ -12,6 +14,7 @@ import {
   connectionRows,
   type ConnectionGroup,
   type ConnectionRow as Row,
+  type LineCodeDto,
   type SetupDto,
 } from "@chanlytics/contracts";
 import type { GoogleSurface } from "@/legacy-bridge/google";
@@ -23,9 +26,10 @@ import type { SetupSurface } from "../../setup/surface";
 import { SendingDomains } from "./domains-block";
 import { EmailSetupForm } from "./email-setup";
 import { GoogleChoose } from "./google-choose";
+import { useLineCodes, useStandingCheck } from "./live";
 import { BusinessRecordForm } from "./record-form";
 import { ConnectionRow, type Arm } from "./row";
-import { waConnect } from "./whatsapp";
+import { signupLeftOpenAt, waConnect } from "./whatsapp";
 
 type WaConfig = { ready: boolean; reason: string | null } | null | undefined;
 
@@ -59,22 +63,31 @@ function useWhatsAppConfig(): WaConfig {
   return waCfg;
 }
 
+/** What the open page asked beside the reads it holds: Meta's door, the codes sent to the line, and a sign-up an earlier page left behind. */
+interface Asked {
+  whatsapp: WaConfig;
+  codes: LineCodeDto[];
+  signupLeftOpenAt: string | null;
+}
+
 /** The rows, as contracts compute them from the reads the page already holds. */
 function rowsOf(
   channels: Parameters<typeof connectionRows>[0]["channels"] | undefined,
-  waCfg: WaConfig,
+  asked: Asked,
   S: SetupSurface | null | undefined,
   G: GoogleSurface | undefined,
 ): Row[] {
   return connectionRows(
     {
       channels: channels || [],
-      whatsapp: waCfg,
+      whatsapp: asked.whatsapp,
       lines: { rows: (S && S.dto.lines && S.dto.lines.rows) || [], ready: !!(S && S.dto.lines && S.dto.lines.ready) },
       lineRequestedAt: S ? S.dto.requests.line : null,
       google: G ? { ready: G.dto.ready, listing: G.dto.listing, connection: G.dto.connection } : null,
       calendar: S ? S.dto.calendar : null,
       email: S ? (S.dto.email ?? null) : null,
+      codes: asked.codes,
+      signupLeftOpenAt: asked.signupLeftOpenAt,
     },
     Date.now(),
   );
@@ -88,6 +101,8 @@ async function runVerb(
     setBusy: (b: boolean) => void;
     setArm: (a: Arm | null) => void;
     toggleEmail: () => void;
+    setSignup: (open: boolean) => void;
+    forgetLeftOpen: () => void;
   },
 ): Promise<void> {
   const verb = r.verb;
@@ -95,7 +110,12 @@ async function runVerb(
   switch (verb.to) {
     case "verb:whatsapp-connect": {
       k.setBusy(true);
+      // Meta's window is open from here to the end of the sign-up: the page asks for the codes sent to the line while it is, and a
+      // sign-up an earlier page left behind is no longer what this row has to say.
+      k.forgetLeftOpen();
+      k.setSignup(true);
       const res = await waConnect.start();
+      k.setSignup(false);
       k.setBusy(false);
       k.flash({
         tone: res.ok ? "ok" : "danger",
@@ -207,8 +227,18 @@ export const PaneIntegrationsReal = () => {
   // The email row's form, open only once its verb is pressed.
   const [emailOpen, setEmailOpen] = useState(false);
   const [note, setNote] = useState<string | null>(googleNote);
+  // Meta's sign-up window is open (this page began it and it has not ended), and the sign-up an earlier page began on this tab and
+  // never finished, read once as this page opens: nothing a later press of Connect should bring back.
+  const [signup, setSignup] = useState(false);
+  const [leftOpenAt, setLeftOpenAt] = useState<string | null>(() => signupLeftOpenAt());
   const [toastNode, flash] = useLegacyToast();
   const channels = read ? read.channels : undefined;
+  // The workspace's own line: what a registration is filed for, and where a code Meta texts arrives.
+  const ownLine = ((S && S.dto.lines && S.dto.lines.rows) || []).find((l) => l.provider !== "carrier") || null;
+  // What an owner reads about the number Meta is connecting: the codes sent to the line (once as this opens, every three seconds
+  // while Meta's window is open), and what Meta holds when the kept answer is missing or has gone stale.
+  const codes = useLineCodes(!!ownLine, signup);
+  useStandingCheck(channels);
 
   if (channels === null) {
     return (
@@ -222,12 +252,17 @@ export const PaneIntegrationsReal = () => {
     );
   }
 
-  // The workspace's own line: what a registration is filed for.
-  const ownLine = ((S && S.dto.lines && S.dto.lines.rows) || []).find((l) => l.provider !== "carrier") || null;
-  const rows = rowsOf(channels, waCfg, S, G);
+  const rows = rowsOf(channels, { whatsapp: waCfg, codes, signupLeftOpenAt: leftOpenAt }, S, G);
   const run = (r: Row) => {
     if (busy) return;
-    void runVerb(r, { flash, setBusy, setArm, toggleEmail: () => setEmailOpen((o) => !o) });
+    void runVerb(r, {
+      flash,
+      setBusy,
+      setArm,
+      toggleEmail: () => setEmailOpen((o) => !o),
+      setSignup,
+      forgetLeftOpen: () => setLeftOpenAt(null),
+    });
   };
   const confirm = async (what: "remove" | "disconnect") => {
     if (busy) return;

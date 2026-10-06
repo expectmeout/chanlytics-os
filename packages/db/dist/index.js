@@ -3412,6 +3412,13 @@ async function readLeadOne(db, tenantId, leadId, searchId) {
   return { lead, member, places: places.count ?? 1 };
 }
 
+// src/lines.ts
+async function ownLineOf(db, tenantId) {
+  const { data, error } = await db.from("lines").select("id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state").eq("tenant_id", tenantId).neq("provider", "carrier").neq("voice_state", "failed").order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's own line: ${error.message}`);
+  return data;
+}
+
 // src/realtime.ts
 var EVERY = ["INSERT", "UPDATE", "DELETE"];
 var INSERTS = ["INSERT"];
@@ -3592,14 +3599,29 @@ function readAtOf(config) {
   return typeof at === "string" ? at : null;
 }
 async function whatsappNumbersToRead(db, limit) {
-  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, external_id, config").eq("kind", "whatsapp").eq("status", "active").order("config->>quality_read_at", { ascending: true, nullsFirst: true }).limit(limit);
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, external_id, waba_id, number_e164, config").eq("kind", "whatsapp").eq("status", "active").order("config->>quality_read_at", { ascending: true, nullsFirst: true }).limit(limit);
   if (error) throw new Error(`cannot read the WhatsApp numbers: ${error.message}`);
   return (data ?? []).map((r) => ({
     channel_id: r.id,
     tenant_id: r.tenant_id,
     phone_number_id: r.external_id,
+    waba_id: r.waba_id,
+    number_e164: r.number_e164,
     read_at: readAtOf(r.config)
   }));
+}
+async function whatsappNumberOf(db, tenantId) {
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, external_id, waba_id, number_e164, config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's WhatsApp number: ${error.message}`);
+  if (!data) return null;
+  return {
+    channel_id: data.id,
+    tenant_id: data.tenant_id,
+    phone_number_id: data.external_id,
+    waba_id: data.waba_id,
+    number_e164: data.number_e164,
+    read_at: readAtOf(data.config)
+  };
 }
 var KEPT_ANSWERS = ["first", "changed", "same", "gone"];
 async function keepChannelQuality(db, tenantId, channelId, rating) {
@@ -3611,6 +3633,17 @@ async function keepChannelQuality(db, tenantId, channelId, rating) {
   if (error) throw new Error(`channel_keep_quality: ${error.message}`);
   const kept = KEPT_ANSWERS.find((a) => a === data);
   if (kept === void 0) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
+  return kept;
+}
+async function keepChannelStanding(db, tenantId, channelId, standing) {
+  const { data, error } = await db.rpc("channel_keep_standing", {
+    p_tenant_id: tenantId,
+    p_channel_id: channelId,
+    p_standing: standing
+  });
+  if (error) throw new Error(`channel_keep_standing: ${error.message}`);
+  const kept = KEPT_ANSWERS.find((a) => a === data);
+  if (kept === void 0) throw new Error(`channel_keep_standing: answered ${JSON.stringify(data)}`);
   return kept;
 }
 export {
@@ -3717,6 +3750,7 @@ export {
   inviteUserByEmail,
   isWorkspaceCall,
   keepChannelQuality,
+  keepChannelStanding,
   keepIdempotencyReceipt,
   keepInvoiceAmount,
   keepMessageCost,
@@ -3760,6 +3794,7 @@ export {
   offersEmailReach,
   outreachFactsOf,
   outreachModeOf,
+  ownLineOf,
   ownVersionsFiled,
   parentEmailOf,
   pauseConversation,
@@ -3905,6 +3940,7 @@ export {
   watchedEvents,
   watchedTables,
   whatsappChannelConfig,
+  whatsappNumberOf,
   whatsappNumbersToRead,
   wireRowOf,
   withdrawEmail,

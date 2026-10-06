@@ -9163,6 +9163,7 @@ var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
   TIER_1K: 1e3,
+  TIER_2K: 2e3,
   TIER_10K: 1e4,
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
@@ -13029,7 +13030,8 @@ var WABA_FIELDS = [
   "message_template_status_update",
   "account_review_update",
   "message_template_quality_update",
-  "template_category_update"
+  "template_category_update",
+  "phone_number_name_update"
 ];
 var EVENT_KINDS = [
   "message.received",
@@ -13137,6 +13139,8 @@ var EVENT_KINDS = [
   "channel.connected",
   /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
   "channel.quality_rating",
+  /** What Meta holds about a WhatsApp number (may it send, and what stands in the way) changed: read at connection, on a clock or when an owner asks (00338): { from?, to }, the word of can_send only. */
+  "channel.standing",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
@@ -13216,9 +13220,13 @@ function optInPurposeOf(text) {
   return null;
 }
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
+function waMeDigits(number2) {
+  const digits2 = String(number2 ?? "").replace(/\D/g, "");
+  return digits2.length < 8 ? null : digits2;
+}
 function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
-  const digits2 = String(numberE164 ?? "").replace(/\D/g, "");
-  if (digits2.length < 8) return null;
+  const digits2 = waMeDigits(numberE164);
+  if (!digits2) return null;
   return `https://wa.me/${digits2}?text=${encodeURIComponent(phrase)}`;
 }
 var ESCALATION_REASONS = [
@@ -22360,8 +22368,26 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     quality: dto.quality ?? null,
     qualityEvent: dto.quality_event ?? null,
     messagingLimit: dto.messaging_limit ?? null,
+    standing: dto.standing ?? null,
+    standingReadAt: dto.standing_read_at ?? null,
     created_at: dto.created_at
   };
+}
+
+// src/lines/line-codes.ts
+var LINE_CODES_WITHIN_MS = 15 * MIN_MS;
+var LINE_CODES_MAX = 3;
+var LINE_CODES_EVERY_MS = 3e3;
+var FOOT = "Codes sent to this line are never answered and never become people.";
+function codeNotes(codes, nowMs) {
+  const said = codes.filter((c) => !Number.isNaN(Date.parse(c.at)));
+  if (said.length === 0) return [];
+  return [
+    ...said.map((c) => ({
+      text: `${c.from ? `Code from ${c.from}` : "A code"}: ${c.code} \xB7 ${agoWords(Date.parse(c.at), nowMs)}`
+    })),
+    { text: FOOT }
+  ];
 }
 
 // src/lines/line-release.ts
@@ -22427,6 +22453,194 @@ function lineReleasedWords(i) {
   ].filter((x) => !!x);
   return { subject: `Your number ${number2} was released`, body: `${lines.join("\n\n")}
 ` };
+}
+
+// src/lines/whatsapp-cost.ts
+var RATES_URL = "https://business.whatsapp.com/products/platform-pricing#rates";
+var WHATSAPP_COST_WORDS = {
+  /** What the explainer is called where a page links to it. */
+  title: "What WhatsApp costs",
+  /**
+   * Who bills it, what is free and what is charged, in one line an owner reads under the row: a row says one thing at a time, and
+   * the rates themselves are Meta's page (pricesLink), which says them by country and category.
+   */
+  summary: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.",
+  pricesLink: "Meta's current prices",
+  /** The one line Settings > Billing says, with `title` as the link to the explainer on Connections. */
+  billingLine: "WhatsApp messages your business starts are billed by Meta to the card on your WhatsApp account, not on this bill."
+};
+function whatsappCostNotes() {
+  const w = WHATSAPP_COST_WORDS;
+  return [{ text: w.summary, link: { label: w.pricesLink, href: RATES_URL } }];
+}
+function addPaymentMethodLink(ownerBusinessId, wabaId) {
+  const ids = /^\d+$/;
+  if (!ownerBusinessId || !wabaId || !ids.test(ownerBusinessId) || !ids.test(wabaId)) return null;
+  return `https://business.facebook.com/billing_hub/accounts/details/?business_id=${ownerBusinessId}&asset_id=${wabaId}&wizard_name=ADD_PM&account_type=whatsapp-business-account`;
+}
+
+// src/lines/number-standing.ts
+var NEW_BUSINESS_LIMIT = 250;
+var STANDING_STALE_MS = 10 * MIN_MS;
+var heldObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v) ? v : null;
+var listOf = (v) => Array.isArray(v) ? v : [];
+var textOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+function standingFromConfig(value) {
+  const s = heldObject(value);
+  const canSend = textOrNull(s?.can_send);
+  if (!s || !canSend) return null;
+  const problems = listOf(s.problems).flatMap((p) => {
+    const r2 = heldObject(p);
+    const said = textOrNull(r2?.said);
+    if (!r2 || !said) return [];
+    return [
+      {
+        entity: textOrNull(r2.entity) ?? "UNKNOWN",
+        code: typeof r2.code === "number" ? r2.code : null,
+        said,
+        fix: textOrNull(r2.fix)
+      }
+    ];
+  });
+  const notes = listOf(s.notes).flatMap((n) => {
+    const text = textOrNull(n);
+    return text ? [text] : [];
+  });
+  return {
+    can_send: canSend,
+    problems,
+    notes,
+    name: textOrNull(s.name),
+    name_status: textOrNull(s.name_status),
+    verification: textOrNull(s.verification),
+    limit: textOrNull(s.limit),
+    has_payment_method: typeof s.has_payment_method === "boolean" ? s.has_payment_method : null,
+    owner_business_id: textOrNull(s.owner_business_id),
+    waba_id: textOrNull(s.waba_id)
+  };
+}
+function standingNeedsRead(n, nowMs) {
+  if (!n.standing) return true;
+  if (n.standing.can_send === "AVAILABLE" && n.standing.has_payment_method !== false) return false;
+  const readAt = n.standingReadAt ? Date.parse(n.standingReadAt) : Number.NaN;
+  return Number.isNaN(readAt) || nowMs - readAt > STANDING_STALE_MS;
+}
+var withStop = (text) => {
+  const t = text.trim();
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+};
+var problemWords = (p) => p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
+var BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
+var NO_PAYMENT_METHOD = "No payment method on your WhatsApp account yet: replies still go out, but reminders and campaigns will not be delivered.";
+var NO_PAYMENT_METHOD_BLOCKED = "No payment method on your WhatsApp account yet.";
+var PAYMENT_NOTE = "Without a payment method, Meta still delivers replies to customers who write first; it does not deliver the messages your business starts, like reminders and campaigns.";
+var PAYMENT_PROBLEM = /\bpayment\b/i;
+function paymentNotes(s) {
+  const blocked = s.can_send === "BLOCKED";
+  if (s.has_payment_method === false) {
+    const text = blocked ? NO_PAYMENT_METHOD_BLOCKED : NO_PAYMENT_METHOD;
+    const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
+    return href ? [{ text, link: { label: "Add one in Meta", href } }] : [{ text: `${text} Add one in Meta Business Suite \u203A Billing.` }];
+  }
+  const named = !blocked && s.has_payment_method === null && s.problems.some((p) => PAYMENT_PROBLEM.test(p.said));
+  return named ? [{ text: PAYMENT_NOTE }] : [];
+}
+function standingSentence(s) {
+  const first = s.problems.at(0);
+  return first ? `Meta: ${withStop(first.said)}` : BLOCKED_SENTENCE;
+}
+var displayNameWords = (name) => name ? `the display name \u201C${name}\u201D` : "your display name";
+function nameWords(status, name) {
+  const who = displayNameWords(name);
+  switch (status) {
+    case "PENDING_REVIEW":
+      return `Meta is reviewing ${who}; until then customers see the number.`;
+    case "DECLINED":
+      return `Meta declined ${who} \u2014 change it in WhatsApp Manager.`;
+    case "EXPIRED":
+      return `The request for ${who} expired \u2014 submit it again in WhatsApp Manager.`;
+    default:
+      return null;
+  }
+}
+var NAME_DECISIONS = {
+  APPROVED: "APPROVED",
+  REJECTED: "DECLINED",
+  DECLINED: "DECLINED",
+  PENDING: "PENDING_REVIEW",
+  DEFERRED: "PENDING_REVIEW"
+};
+var nameStatusOf = (decision) => typeof decision === "string" && Object.hasOwn(NAME_DECISIONS, decision) ? NAME_DECISIONS[decision] ?? null : null;
+function standingAfterNameDecision(s, decision, requestedName) {
+  const status = nameStatusOf(decision);
+  if (!status) return null;
+  return { ...s, name: textOrNull(requestedName) ?? s.name, name_status: status };
+}
+function nameDecisionWords(decision, requestedName, reason) {
+  const status = nameStatusOf(decision);
+  const name = textOrNull(requestedName);
+  if (status === "APPROVED")
+    return {
+      subject: "WhatsApp display name approved",
+      body: `Meta approved ${displayNameWords(name)}.`,
+      alert: false
+    };
+  const declined = status === "DECLINED" ? nameWords(status, name) : null;
+  if (!declined) return null;
+  const why = textOrNull(reason);
+  const said = why && why !== "UNKNOWN" && why !== "NONE" ? ` Meta's reason: ${why.toLowerCase().replace(/_/g, " ")}.` : "";
+  return { subject: "WhatsApp display name declined", body: `${declined}${said}`, alert: true };
+}
+var peopleADay = (n) => `up to ${n.toLocaleString("en-US")} people a day`;
+function verificationNote(s) {
+  if (s.verification === null) return null;
+  const tier = dailyLimit(s.limit);
+  if (s.verification.toLowerCase() === "verified") {
+    if (tier === Number.POSITIVE_INFINITY)
+      return "Your business is verified with Meta and has no daily limit on starting conversations.";
+    return tier === null ? "Your business is verified with Meta." : `Your business is verified with Meta: you can start conversations with ${peopleADay(tier)}.`;
+  }
+  const cap = tier === null || tier === Number.POSITIVE_INFINITY ? NEW_BUSINESS_LIMIT : tier;
+  return `Your business isn't verified with Meta: you can start conversations with ${peopleADay(cap)}. Replies to customers who write first are not limited.`;
+}
+function standingNotes(s) {
+  if (!s) return [];
+  const out = [];
+  const first = s.problems.at(0);
+  if (s.can_send === "BLOCKED") {
+    if (first?.fix) out.push({ text: withStop(first.fix) });
+    for (const p of s.problems.slice(1)) out.push({ text: problemWords(p) });
+  } else {
+    for (const p of s.problems) out.push({ text: problemWords(p) });
+  }
+  out.push(...paymentNotes(s));
+  for (const n of s.notes) out.push({ text: withStop(n) });
+  const name = nameWords(s.name_status, s.name);
+  if (name) out.push({ text: name });
+  const verification = verificationNote(s);
+  if (verification) out.push({ text: verification });
+  return out.filter((n, at3) => out.findIndex((m) => m.text === n.text) === at3);
+}
+function standingAlertWords(number2, s) {
+  const which = formatPhoneDisplay(number2) ?? "your number";
+  const first = s.problems.at(0);
+  const body = first ? `WhatsApp can't send from ${which}: ${problemWords(first)}` : `WhatsApp can't send from ${which}. Meta did not say why; open Connections to read what it holds.`;
+  return { subject: "WhatsApp can't send from your number", body };
+}
+var CAN_SEND_WORDS = {
+  AVAILABLE: "can send",
+  LIMITED: "limited",
+  BLOCKED: "blocked"
+};
+var sendWords = (w) => {
+  if (typeof w !== "string" || !w) return null;
+  return Object.hasOwn(CAN_SEND_WORDS, w) ? CAN_SEND_WORDS[w] ?? null : w.toLowerCase().replace(/_/g, " ");
+};
+function standingChangeWords(p) {
+  const to = sendWords(p.to);
+  const from = sendWords(p.from);
+  if (!to) return null;
+  return from ? `from ${from} to ${to}` : to;
 }
 
 // src/shared/identity.ts
@@ -26761,6 +26975,7 @@ var ROUTE_KEYS = [
   "GET leads",
   "GET leads/[id]",
   "GET leads/export",
+  "GET lines/codes",
   "GET messages/[id]/media",
   "GET metrics",
   "GET notifications",
@@ -26817,6 +27032,7 @@ var ROUTE_KEYS = [
   "POST calls/[id]/whisper",
   "POST capabilities/[kind]",
   "POST channels/whatsapp/connect",
+  "POST channels/whatsapp/standing",
   "POST client-errors",
   "POST contacts",
   "POST contacts/[id]/deal",
@@ -27363,7 +27579,7 @@ var ORDER2 = {
   deposits: 8
 };
 function row(d) {
-  return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null };
+  return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
 }
 function googleAudienceWords(a) {
   if (a === "testing")
@@ -27472,19 +27688,65 @@ function connectionFactsOf(i, nowMs) {
     listing: i.google?.listing ?? null
   };
 }
-function whatsappRow(i, { wa }) {
+var KEEP_SIGNUP_PAGE_OPEN = "Keep this page open until Meta's window closes.";
+function signupCodeNote(own) {
+  const line = own?.e164 ? formatPhoneDisplay(own.e164) : null;
+  return {
+    text: line ? `Meta texts a code to the number. If it is your Chanlytics number, ${line}, the code shows here on the Texting row: choose Text message, not Phone call. ${KEEP_SIGNUP_PAGE_OPEN}` : `Meta texts a code to the number: have its phone at hand. ${KEEP_SIGNUP_PAGE_OPEN}`
+  };
+}
+function whatsappConnectNotes(own) {
+  return [
+    { text: "Meta asks you to sign in with Facebook and choose or create your business." },
+    signupCodeNote(own),
+    ...whatsappCostNotes(),
+    {
+      text: "Add a payment method when Meta asks for one: without it, replies still go out, but reminders and campaigns are not delivered."
+    },
+    {
+      text: `Until Meta verifies your business, it can start conversations with ${NEW_BUSINESS_LIMIT} people a day; replies to customers who write first are not limited.`
+    }
+  ];
+}
+var SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
+var SIGNUP_LEFT_OPEN_NOTE = "A WhatsApp sign-up was started here and did not come back to Chanlytics \u2014 if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.";
+function signupLeftOpenNotes(startedAt, nowMs) {
+  const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
+  return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE }] : [];
+}
+function tryItNotes(wa) {
+  const digits2 = waMeDigits(wa.number);
+  if (!digits2 || wa.lastInboundMs !== null) return [];
+  return [
+    {
+      text: `Try it from your phone: wa.me/${digits2} \u2014 if WhatsApp says the number isn't on WhatsApp yet, open this link instead of searching your contacts.`
+    }
+  ];
+}
+function whatsappRow(i, { wa, own, nowMs }) {
   const base = { kind: "whatsapp", icon: "chat", title: "WhatsApp Business" };
   if (wa) {
-    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
+    const standing = wa.on ? wa.standing : null;
+    const limit = wa.messagingLimit ?? standing?.limit ?? null;
+    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
     const flagged = wa.on && h.tone === "danger";
     const health = wa.on && h.tone !== "unknown" ? ` \xB7 ${h.label}` : "";
+    const blocked = standing?.can_send === "BLOCKED";
+    const attention = flagged || blocked;
     return {
       ...base,
       detail: wa.number,
-      state: !wa.on ? "off" : flagged ? "attention" : "connected",
-      stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On",
-      sentence: `${wa.healthLabel}${health}`,
-      verb: { label: "Library", to: "messages", who: "operator" }
+      state: !wa.on ? "off" : attention ? "attention" : "connected",
+      stateWords: !wa.on ? "Off" : attention ? "Needs attention" : "On",
+      sentence: standing && blocked ? standingSentence(standing) : `${wa.healthLabel}${health}`,
+      verb: { label: "Library", to: "messages", who: "operator" },
+      // How to try it from a phone, first, on a connected row nobody has written to yet; then what Meta holds; and last what
+      // WhatsApp costs, on every row that is on.
+      notes: [
+        ...wa.on && !attention ? tryItNotes(wa) : [],
+        ...standingNotes(standing && { ...standing, limit }),
+        ...wa.on ? whatsappCostNotes() : []
+      ]
     };
   }
   if (i.whatsapp === void 0) {
@@ -27504,7 +27766,8 @@ function whatsappRow(i, { wa }) {
       state: "none",
       stateWords: "Not connected",
       sentence: "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
-      verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" }
+      verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
+      notes: [...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs), ...whatsappConnectNotes(own)]
     };
   }
   const why = i.whatsapp?.reason === "no_config_id" ? " \u2014 the Embedded Signup configuration is missing on the Chanlytics side" : i.whatsapp?.reason === "preview" ? " \u2014 only on the production dashboard" : "";
@@ -27578,8 +27841,8 @@ function phoneRow(i, { voice, own, nowMs }) {
     verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" }
   };
 }
-function smsRow(_i, { own, nowMs }) {
-  return smsStateRow(own, nowMs);
+function smsRow(i, { own, nowMs }) {
+  return { ...smsStateRow(own, nowMs), notes: own ? codeNotes(i.codes ?? [], nowMs) : [] };
 }
 function googleProfileRow(i, { connection: c, nowMs }) {
   const g = i.google;
@@ -32016,6 +32279,7 @@ var WORDS2 = {
   "broadcast.stopped": "A broadcast stopped",
   "playbook.run": "A playbook ran",
   "channel.quality_rating": "A WhatsApp number's quality rating changed",
+  "channel.standing": "A WhatsApp number's standing with Meta changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
   "line.answering": "A line started answering",
@@ -32188,6 +32452,7 @@ var WHOLE_SENTENCE = new Map([
   ["lead.emailed", leadEmailedWords],
   ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
   ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  ["channel.standing", (p, base) => joinBits(base, [standingChangeWords(p)])],
   ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
   ["google.reply_held", (p, base) => joinBits(base, [wordOf(REPLY_HELD_WHY, textAt(p, "why"))])],
   ["message.send_blocked", sendBlockedWords],
@@ -33305,6 +33570,9 @@ export {
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
   LIMIT_TIERS,
+  LINE_CODES_EVERY_MS,
+  LINE_CODES_MAX,
+  LINE_CODES_WITHIN_MS,
   LINE_CREDENTIALS_SENTENCE,
   LINE_RELEASE_MIN_DAYS,
   LINE_RELEASE_REPORT_DAYS,
@@ -33692,6 +33960,7 @@ export {
   WEEKDAY_KEYS,
   WEEK_MS,
   WHATSAPP_CONSENT_SOURCE,
+  WHATSAPP_COST_WORDS,
   WHATSAPP_LANGUAGES,
   WHY_FROM_MAPS,
   WIN_BACK_WORDS,
@@ -34336,6 +34605,7 @@ export {
   monthSentAt,
   monthSpan,
   movedAddress,
+  nameDecisionWords,
   nameKnownCustomers,
   namedProblem,
   namesMoney,
@@ -34777,6 +35047,10 @@ export {
   spokenBreachDetails,
   spokenDuration,
   stageArgs,
+  standingAfterNameDecision,
+  standingAlertWords,
+  standingFromConfig,
+  standingNeedsRead,
   standingOf,
   starsOf,
   startWords,
@@ -34947,6 +35221,7 @@ export {
   vitalValueWords,
   vitalVerdict,
   vitalsPageOf,
+  waMeDigits,
   waWindow,
   waitAfterDays,
   waitWords,
