@@ -17,6 +17,7 @@ var LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - DEADLINE_MARGIN_MS;
 var REPLY_LATE_PAGE_MS = MIN_MS;
 var MAX_ATTEMPTS = 3;
 var MAX_RESUMES = 5;
+var RELAY_LIMIT = 500;
 var SPEAKS_TO_A_PERSON = /* @__PURE__ */ new Set(["outbound_send", "broadcast_send"]);
 var RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 function verdictFor(job) {
@@ -47,7 +48,10 @@ var RETRY_WAITS_MS = {
   // once per message and a re-read by compare-and-set, the notice is claimed before it is told and marked only after
   // (its claim goes stale with the lease, before either wait ends). A thrown read or write, or a notice whose mail
   // failed, lands here: two minutes, then ten, each outlasting the lease.
-  reply_read: [2 * MIN_MS, 10 * MIN_MS]
+  reply_read: [2 * MIN_MS, 10 * MIN_MS],
+  // One event's delivery to one subscriber (00332): the delivery row takes each verdict, and every subscriber may run
+  // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
+  event_deliver: [2 * MIN_MS, 10 * MIN_MS]
 };
 function retryWait(job, random = Math.random) {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
@@ -155,7 +159,8 @@ import {
   unreadFor,
   PUSH_RECEIPTS_AFTER_MS,
   BELL_WINDOW_DAYS,
-  REACH_OUT_REPLY_DAYS as REACH_OUT_REPLY_DAYS2
+  REACH_OUT_REPLY_DAYS as REACH_OUT_REPLY_DAYS2,
+  EVENT_SUBSCRIBERS
 } from "../../contracts/dist/index.js";
 import {
   classifyReceived,
@@ -172,7 +177,8 @@ import {
   ingestEmail,
   provisionLine,
   sendQueued,
-  templatePurpose
+  templatePurpose,
+  SUBSCRIBERS
 } from "../../core/dist/index.js";
 import {
   ingestInboundEmail,
@@ -180,7 +186,11 @@ import {
   markProcessed,
   reachOutReplyOf as reachOutReplyOf2,
   sentEmailWithMessageId,
-  stampMailboxReceived
+  stampMailboxReceived,
+  eventOfDelivery,
+  subscriptionPaused,
+  deliveryOf,
+  settleDelivery
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -902,6 +912,38 @@ async function pushReceipts(ctx, job) {
     );
   }
 }
+function deliveryNamed(payload) {
+  const { event_id, subscriber, kind } = payload;
+  return typeof event_id === "string" && typeof subscriber === "string" && typeof kind === "string" ? { eventId: event_id, subscriber, kind } : null;
+}
+function subscriberNamed(s) {
+  return typeof s === "string" && EVENT_SUBSCRIBERS.some((known) => known === s);
+}
+async function eventDeliver(ctx, job) {
+  const named2 = deliveryNamed(job.payload);
+  if (!named2) throw new Error("event_deliver: the payload names no event, subscriber and kind");
+  const row = await deliveryOf(ctx.db, job.tenant_id, named2.eventId, named2.subscriber);
+  if (!row) throw new Error("event_deliver: the relay wrote no delivery for this job");
+  const settle = (state, error) => settleDelivery(ctx.db, { tenantId: job.tenant_id, ...named2, state, attempts: row.attempts + 1, error });
+  if (await subscriptionPaused(ctx.db, named2.kind, named2.subscriber)) {
+    await settle("paused", null);
+    return;
+  }
+  const event = await eventOfDelivery(ctx.db, job.tenant_id, named2.eventId);
+  if (!event) {
+    await settle("failed", "the ledger no longer holds the event");
+    return;
+  }
+  if (!subscriberNamed(named2.subscriber)) throw new Error(`event_deliver: no subscriber named ${named2.subscriber}`);
+  const subscriber = SUBSCRIBERS[named2.subscriber];
+  try {
+    await subscriber(event);
+  } catch (e) {
+    await settle("failed", e instanceof Error ? e.message : String(e));
+    throw e;
+  }
+  await settle("done", null);
+}
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -912,11 +954,13 @@ var HANDLERS = {
   lead_check: leadCheck,
   push_send: pushSend,
   push_receipts: pushReceipts,
-  reply_read: replyRead
+  reply_read: replyRead,
+  event_deliver: eventDeliver
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];
   if (!handler) return "unknown_kind";
+  if (job.kind === "event_deliver" && !subscriberNamed(job.payload.subscriber)) return "unknown_kind";
   await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () => handler(ctx, job));
   return "done";
 }
@@ -1230,6 +1274,7 @@ export {
   LEASE_SECONDS,
   MAX_ATTEMPTS,
   MAX_RESUMES,
+  RELAY_LIMIT,
   REPLY_LATE_PAGE_MS,
   RETRY_WAITS_MS,
   RUN_INTERRUPTED,

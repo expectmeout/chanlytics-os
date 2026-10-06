@@ -1,9 +1,12 @@
 # 0030 · A fact's event reaches its subscribers after the commit
 
-**Status:** Decided on 6 October 2026 (Ruben: "all approved"), with 0029; not yet built. Proposed the same day. Written
-against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main,
-6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Nothing of
-it is built. Where this note and the code disagree, the code wins.
+**Status:** Built, steps 1 to 3 (6 October 2026, 00332 with packages/jobs and apps/edge): the envelope, subscriptions,
+outbox, deliveries, the relay first in every tick, the event_deliver kind and the audit subscriber. Decided on 6 October
+2026 (Ruben: "all approved"), with 0029, and proposed the same day; the catalogue's schema per kind arrives with each
+subscriber that reads one, and step 4, the intake ledger, is still to build. Written against commit `b9a4d5c` (main, 5
+October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6 October 2026), since which
+0028's merge door (00326) and the message-status notice (00327) are in the code. Nothing of it is built. Where this note
+and the code disagree, the code wins.
 
 ## Context
 
@@ -77,6 +80,11 @@ know how many readers there are.
    (`apps/edge/lib/sms/inbound-text.ts`), and intake lag is a number.
 
 ## Shape
+
+Built as 00332 with three differences from the sketch below: a delivery carries its `kind` and the event's own clock
+(`event_at`), so relay lag is one subtraction and no partition is joined; the wake is 0031's `ask_for_tick`, shared by
+`jobs_wake` and `event_outbox_wake`, and the poll knocks while the outbox is not empty; and a re-drive is a SQL door,
+`event_deliveries_redrive(p_subscriber)`, the service role's, with its edge door still to come.
 
 ```sql
 alter table public.events
@@ -176,15 +184,19 @@ Kept seven days by the retention rows (a note to come); scrubbed on erasure by t
 
 ## Steps
 
-**1 · The envelope and the catalogue.** The two columns; the catalogue in `packages/contracts/src/shared/` with a
-schema per kind; a test that every kind a door writes is in it. _Both orders:_ nullable columns and a list nobody reads.
+**1 · The envelope and the catalogue.** Built in part, 00332: the two columns, nullable and written by nothing yet.
+The catalogue of kinds is `EVENT_KINDS` (contracts, held to the emitters by `repo/event-kinds.test.mjs`) and their
+versions `packages/db/src/events.ts`; a schema per kind arrives with the first subscriber that reads it, since a schema
+nobody reads is a promise nobody checks. _Both orders:_ nullable columns and a list nobody reads.
 
-**2 · Subscriptions, outbox, deliveries, the trigger.** Zero rows in `event_subscriptions`, so the trigger copies
-nothing. _Both orders:_ tables neither app reads.
+**2 · Subscriptions, outbox, deliveries, the trigger.** Built, 00332, with one row: the audit subscriber on
+`message.received`, so the copy runs on real traffic from the first day. _Both orders:_ tables neither app reads.
 
 **3 · The relay in the tick, and the `event_deliver` kind** with its handler, its caller, the `jobs.kind` CHECK and
-its lane together, as the rule says. One subscriber: an audit subscriber that records relay lag and nothing else.
-_Both orders:_ an older edge sees a kind it does not know and keeps it, as today.
+its lane together, as the rule says. Built, 00332 (`apps/edge/lib/ops/jobs-tick.ts`, `packages/jobs/src/handlers.ts`,
+`packages/core/src/subscribers.ts`): the relay runs first in every tick, bounded by `RELAY_LIMIT`; the audit subscriber
+settles and does nothing else, and relay lag is the day's `relay_lag_ms` (00330). _Both orders:_ an older edge sees a
+kind it does not know and keeps it, as today; a delivery to a subscriber it does not know is kept the same way.
 
 **4 · The intake ledger.** Every door writes `provider_events` before its verdict; a replay door under `admin/`
 re-runs one. _Both orders:_ a table only the edge writes.

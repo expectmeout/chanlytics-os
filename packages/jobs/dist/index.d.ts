@@ -93,6 +93,12 @@ declare const MAX_ATTEMPTS = 3;
  * number of batches a long broadcast takes.
  */
 declare const MAX_RESUMES = 5;
+/**
+ * How many outbox events one tick relays before it claims (relay_events, 00332): bounded so a flood of events never
+ * holds the tick from the replies behind it; what is left is the next tick's, and the poll knocks while the outbox
+ * is not empty.
+ */
+declare const RELAY_LIMIT = 500;
 /** Kinds whose second run could reach a real person a second time. */
 declare const SPEAKS_TO_A_PERSON: ReadonlySet<string>;
 declare const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
@@ -584,4 +590,4 @@ interface TickCounts {
 declare function lateFields(lateMs: Record<string, number>): Record<string, number>;
 declare function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts>;
 
-export { CLAIM_FOR_MS, CLAIM_SLOTS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, type PushPort, type PushReceipt, REPLY_LATE_PAGE_MS, RETRY_WAITS_MS, RUN_INTERRUPTED, type Requeued, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, lateFields, requeueFailedJob, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };
+export { CLAIM_FOR_MS, CLAIM_SLOTS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, type PushPort, type PushReceipt, RELAY_LIMIT, REPLY_LATE_PAGE_MS, RETRY_WAITS_MS, RUN_INTERRUPTED, type Requeued, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, lateFields, requeueFailedJob, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };

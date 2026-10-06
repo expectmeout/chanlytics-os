@@ -110,6 +110,12 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
       insert into public.jobs (tenant_id, kind, due_at, payload)
         values (a, 'outbound_send', now() + interval '1 day', '{"purpose": "outreach"}') returning lane into l;
       lanes := lanes || jsonb_build_object('outreach', l);
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+        values (a, 'event_deliver', now() + interval '1 day', '{"lane": "0"}') returning lane into l;
+      lanes := lanes || jsonb_build_object('delivery_lane_0', l);
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+        values (a, 'event_deliver', now() + interval '1 day', '{"lane": "nine"}') returning lane into l;
+      lanes := lanes || jsonb_build_object('delivery_lane_bad', l);
       seen := jsonb_build_object('lanes', lanes, 'kinds', kinds);`);
   assert.deepEqual([...kinds].sort(), [...SCHEMA_SETS["jobs.kind"]].sort(), "the kinds read are the CHECK's own");
   assert.deepEqual(
@@ -129,6 +135,9 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
     lead_check: 2,
     push_receipts: 2,
     outreach: 2, // an outbound_send whose purpose is outreach: a cold email is bulk
+    event_deliver: 2, // a delivery with no lane in its payload: bulk, the safe default (00332)
+    delivery_lane_0: 0, // a delivery in its subscription's lane, read from the payload
+    delivery_lane_bad: 2, // a lane the payload spells wrong is bulk, never an error
   };
   assert.deepEqual(
     Object.fromEntries(Object.keys(expected).map((k) => [k, lanes[k]])),

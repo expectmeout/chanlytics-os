@@ -164,6 +164,35 @@ COMMENT ON FUNCTION public.ai_usage_purge(p_keep interval) IS 'Drops ledger rows
 
 
 --
+-- Name: ask_for_tick(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ask_for_tick() RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform 1
+     from public.sweep_status s
+    where s.sweep = 'jobs' and (s.woken_at is null or s.woken_at < now() - interval '1 second')
+      for update skip locked;
+  if not found then
+    return false;
+  end if;
+  update public.sweep_status set woken_at = now() where sweep = 'jobs';
+  perform public.request_sweep('jobs', '/api/jobs/tick');
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION ask_for_tick(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ask_for_tick() IS 'Asks the edge for one tick through request_sweep, at most once a second (sweep_status.woken_at) and never waiting on another asker (00331, 00332). True when it asked.';
+
+
+--
 -- Name: ask_tokens_day(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -881,15 +910,20 @@ CREATE TABLE public.jobs (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     lease_until timestamp with time zone,
+    dedupe_key text,
     lane smallint GENERATED ALWAYS AS (
 CASE
     WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0
     WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1
     WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2
+    WHEN (kind = 'event_deliver'::text) THEN
+    CASE
+        WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer
+        ELSE 2
+    END
     ELSE NULL::integer
 END) STORED,
-    dedupe_key text,
-    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text]))),
+    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
 
@@ -902,17 +936,17 @@ COMMENT ON COLUMN public.jobs.lease_until IS 'While in the future, a run holds t
 
 
 --
--- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; null for a kind it does not name, which is claimed last. A new kind names its lane with its handler, its caller and the jobs.kind CHECK.';
-
-
---
 -- Name: COLUMN jobs.dedupe_key; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00331): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed.';
+
+
+--
+-- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00332); null for a kind the case does not name, claimed last.';
 
 
 --
@@ -2698,6 +2732,71 @@ COMMENT ON FUNCTION public.escalations_stamp_resolved() IS 'Stamps resolved_at o
 
 
 --
+-- Name: event_deliveries_redrive(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.event_deliveries_redrive(p_subscriber text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_n integer := 0;
+  d record;
+  v_job uuid;
+begin
+  for d in
+    select x.event_id, x.subscriber, x.tenant_id, x.kind, s.lane
+      from public.event_deliveries x
+      join public.event_subscriptions s on s.kind = x.kind and s.subscriber = x.subscriber
+     where x.subscriber = p_subscriber and x.state in ('failed', 'paused')
+       for update of x skip locked
+  loop
+    insert into public.jobs (tenant_id, kind, due_at, payload, dedupe_key)
+    values (d.tenant_id, 'event_deliver', now(),
+            jsonb_build_object('event_id', d.event_id, 'subscriber', d.subscriber, 'kind', d.kind, 'lane', d.lane::text),
+            'deliver:' || d.event_id::text || ':' || d.subscriber)
+    on conflict do nothing
+    returning id into v_job;
+    if v_job is not null then
+      update public.event_deliveries
+         set state = 'scheduled', job_id = v_job, last_error = null
+       where event_id = d.event_id and subscriber = d.subscriber;
+      v_n := v_n + 1;
+    end if;
+  end loop;
+  return v_n;
+end $$;
+
+
+--
+-- Name: FUNCTION event_deliveries_redrive(p_subscriber text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.event_deliveries_redrive(p_subscriber text) IS 'Every failed or paused delivery of one subscriber, scheduled again with a fresh event_deliver job (decision 0030): the re-drive, the service role''s. Answers how many.';
+
+
+--
+-- Name: event_outbox_wake(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.event_outbox_wake() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform public.ask_for_tick();
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION event_outbox_wake(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.event_outbox_wake() IS 'After a statement writes event_outbox: the relay runs first in every tick, so an outbox row asks for one (00332).';
+
+
+--
 -- Name: events_complete_deal(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2851,6 +2950,31 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.events_note_first_touch() IS 'The first touch of a person added at a door (K3): the source of the contact.added event beside them (calendar, lead, import, any other word or none is manual), through person_set_first_touch, with the lead''s id as the ref where the event names one. The mapping is people_list''s came_from for a door, written once. Never fails the event''s writer: a failure is a warning.';
+
+
+--
+-- Name: events_outbox_copy(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.events_outbox_copy() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if exists (select 1 from public.event_subscriptions s where s.kind = new.kind and not s.paused) then
+    insert into public.event_outbox (event_id, tenant_id, kind, event_at)
+         values (new.id, new.tenant_id, new.kind, new.created_at)
+    on conflict (event_id) do nothing;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION events_outbox_copy(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.events_outbox_copy() IS 'After each event: a row on event_outbox when a subscription names its kind and is not paused (decision 0030). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
 
 
 --
@@ -4036,22 +4160,9 @@ CREATE FUNCTION public.jobs_wake() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 begin
-  -- Only a row the tick could claim when the knock arrives: scheduled, and due within the two seconds the knock takes.
-  if not exists (
-    select 1 from new_rows r where r.state = 'scheduled' and r.due_at <= now() + interval '2 seconds'
-  ) then
-    return null;
+  if exists (select 1 from new_rows r where r.state = 'scheduled' and r.due_at <= now() + interval '2 seconds') then
+    perform public.ask_for_tick();
   end if;
-  -- One ask a second, and never a wait: the row is taken with skip locked, so a writer that finds it held asks nothing.
-  perform 1
-     from public.sweep_status s
-    where s.sweep = 'jobs' and (s.woken_at is null or s.woken_at < now() - interval '1 second')
-      for update skip locked;
-  if not found then
-    return null;
-  end if;
-  update public.sweep_status set woken_at = now() where sweep = 'jobs';
-  perform public.request_sweep('jobs', '/api/jobs/tick');
   return null;
 end $$;
 
@@ -12006,7 +12117,7 @@ begin
     raise warning 'platform_metrics_roll: the lenses'' columns were not kept for %: %', p_day, sqlerrm;
   end;
 
-  -- The third keeps the spine's numbers (00330, decision 0029's Phase 0), and fails alone too.
+  -- The third keeps the spine's numbers (00330, decision 0029's Phase 0; relay lag since 00332), and fails alone too.
   begin
     with
     -- How long a job waited for the ledger past its due time, by lane, at the 95th percentile: a first claim only
@@ -12074,24 +12185,36 @@ begin
                group by j.tenant_id, j.kind) d
        group by d.tenant_id
     ),
+    -- How long an event waited for the relay to write its deliveries, at the 95th percentile (00332, decision 0030):
+    -- the delivery row's own clock against the event's, kept on the row so the day's read joins no partition.
+    relayed as (
+      select d.tenant_id,
+             percentile_cont(0.95) within group (order by extract(epoch from (d.created_at - d.event_at)) * 1000) as p95
+        from public.event_deliveries d
+       where d.created_at >= v_t0 and d.created_at < v_t1
+       group by d.tenant_id
+    ),
     spine as (
       select tenant_id from waits union select tenant_id from first_answer
       union select tenant_id from doubled union select tenant_id from died
+      union select tenant_id from relayed
     ),
     kept as (
       insert into public.platform_metrics as pm
-        (tenant_id, day, job_lag_ms, first_answer_ms, duplicate_sends, dead_letters, rolled_at)
-      select s.tenant_id, p_day, w.counts, f.counts, d.n, x.counts, now()
+        (tenant_id, day, job_lag_ms, first_answer_ms, duplicate_sends, dead_letters, relay_lag_ms, rolled_at)
+      select s.tenant_id, p_day, w.counts, f.counts, d.n, x.counts,
+             case when rl.p95 is null then null else greatest(round(rl.p95)::integer, 0) end, now()
         from spine s
         left join waits w on w.tenant_id = s.tenant_id
         left join first_answer f on f.tenant_id = s.tenant_id
         left join doubled d on d.tenant_id = s.tenant_id
         left join died x on x.tenant_id = s.tenant_id
+        left join relayed rl on rl.tenant_id = s.tenant_id
        where exists (select 1 from public.tenants y where y.id = s.tenant_id)
       on conflict (tenant_id, day) do update
          set job_lag_ms = excluded.job_lag_ms, first_answer_ms = excluded.first_answer_ms,
              duplicate_sends = excluded.duplicate_sends, dead_letters = excluded.dead_letters,
-             rolled_at = excluded.rolled_at
+             relay_lag_ms = excluded.relay_lag_ms, rolled_at = excluded.rolled_at
       returning (xmax = 0) as inserted
     )
     select count(*) filter (where inserted)::integer into v_new from kept;
@@ -12107,7 +12230,7 @@ end $_$;
 -- Name: FUNCTION platform_metrics_roll(p_day date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00330): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
+COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277), then keeps what the lenses read (00316), then the spine''s five numbers (00330; relay lag since 00332): how each customer message ended, what they asked about, the model''s tokens and dollars by purpose and what the calls cost (00316), in a block that fails alone. Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day: not a day older than the events'' thirty, whose event-derived columns it would empty.';
 
 
 --
@@ -15287,6 +15410,63 @@ COMMENT ON FUNCTION public.recording_opened(p_call_id uuid) IS 'A member opened 
 
 
 --
+-- Name: relay_events(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.relay_events(p_limit integer DEFAULT 500) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_n integer := 0;
+  r record;
+  d record;
+  v_job uuid;
+begin
+  for r in
+    select o.event_id, o.tenant_id, o.kind, o.event_at
+      from public.event_outbox o
+     order by o.created_at
+     limit greatest(coalesce(p_limit, 500), 1)
+       for update skip locked
+  loop
+    insert into public.event_deliveries (event_id, subscriber, tenant_id, kind, event_at)
+    select r.event_id, s.subscriber, r.tenant_id, r.kind, r.event_at
+      from public.event_subscriptions s
+     where s.kind = r.kind and not s.paused
+    on conflict do nothing;
+    -- One job per delivery, keyed so a second relay of the same event writes none (00331).
+    for d in
+      select x.subscriber, s.lane
+        from public.event_deliveries x
+        join public.event_subscriptions s on s.kind = r.kind and s.subscriber = x.subscriber
+       where x.event_id = r.event_id and x.state = 'scheduled' and x.job_id is null
+    loop
+      insert into public.jobs (tenant_id, kind, due_at, payload, dedupe_key)
+      values (r.tenant_id, 'event_deliver', now(),
+              jsonb_build_object('event_id', r.event_id, 'subscriber', d.subscriber, 'kind', r.kind, 'lane', d.lane::text),
+              'deliver:' || r.event_id::text || ':' || d.subscriber)
+      on conflict do nothing
+      returning id into v_job;
+      if v_job is not null then
+        update public.event_deliveries set job_id = v_job where event_id = r.event_id and subscriber = d.subscriber;
+      end if;
+    end loop;
+    delete from public.event_outbox where event_id = r.event_id;
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
+
+--
+-- Name: FUNCTION relay_events(p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.relay_events(p_limit integer) IS 'The first step of every tick (decision 0030): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per unpaused subscriber and one event_deliver job each (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
+
+
+--
 -- Name: release_conversation_control(uuid, uuid, text, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -17948,7 +18128,7 @@ begin
     select 1 from public.jobs
      where (state = 'scheduled' and due_at <= now())
         or (state = 'fired' and lease_until < now())
-  ) then
+  ) or exists (select 1 from public.event_outbox) then
     return public.request_sweep('jobs', '/api/jobs/tick');
   end if;
   -- Nothing due: the look itself is the evidence. requested_at moves;
@@ -19139,6 +19319,75 @@ COMMENT ON COLUMN public.escalations.resolved_at IS 'When the escalation was res
 
 
 --
+-- Name: event_deliveries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_deliveries (
+    event_id uuid NOT NULL,
+    subscriber text NOT NULL,
+    tenant_id uuid NOT NULL,
+    kind text NOT NULL,
+    event_at timestamp with time zone NOT NULL,
+    state text DEFAULT 'scheduled'::text NOT NULL,
+    job_id uuid,
+    attempts integer DEFAULT 0 NOT NULL,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT event_deliveries_attempts_check CHECK ((attempts >= 0)),
+    CONSTRAINT event_deliveries_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'done'::text, 'failed'::text, 'paused'::text])))
+);
+
+
+--
+-- Name: TABLE event_deliveries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.event_deliveries IS 'One row per event and subscriber (decision 0030): scheduled when the relay writes it and its job, done when the subscriber ran, failed when its job gave up, paused when the subscriber was paused as it ran. event_at is the event''s own clock, so relay lag is one subtraction. RLS on with no policy: the service role alone.';
+
+
+--
+-- Name: event_outbox; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_outbox (
+    event_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    kind text NOT NULL,
+    event_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE event_outbox; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.event_outbox IS 'One row per event of a subscribed kind, written in the event''s own transaction by events_outbox_copy (decision 0030), and taken off by relay_events once its deliveries are written. Empty when the relay is caught up. RLS on with no policy: the service role alone.';
+
+
+--
+-- Name: event_subscriptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_subscriptions (
+    kind text NOT NULL,
+    subscriber text NOT NULL,
+    lane smallint NOT NULL,
+    paused boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT event_subscriptions_lane_check CHECK ((lane = ANY (ARRAY[0, 1, 2])))
+);
+
+
+--
+-- Name: TABLE event_subscriptions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.event_subscriptions IS 'Who reacts to an event kind (decision 0030): a subscriber''s name, the lane its deliveries run in, and whether it is paused. Platform-wide rows, written by a migration or the service role; a door never names a subscriber. RLS on with no policy: the service role alone.';
+
+
+--
 -- Name: events; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -19152,7 +19401,9 @@ CREATE TABLE public.events (
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     version smallint DEFAULT 1 NOT NULL,
-    request_id text DEFAULT public.request_id_of_caller()
+    request_id text DEFAULT public.request_id_of_caller(),
+    aggregate_version integer,
+    causation_id uuid
 )
 PARTITION BY RANGE (created_at);
 
@@ -19172,6 +19423,20 @@ COMMENT ON COLUMN public.events.request_id IS 'The request this row was written 
 
 
 --
+-- Name: COLUMN events.aggregate_version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.aggregate_version IS 'The version of the record this event is about, as the door left it (decision 0030): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00332.';
+
+
+--
+-- Name: COLUMN events.causation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.causation_id IS 'The event this one was written in answer to, where a reaction wrote it (decision 0030). Null for a fact that arrived from outside, and for every row written before 00332.';
+
+
+--
 -- Name: events_default; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -19185,7 +19450,9 @@ CREATE TABLE public.events_default (
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     version smallint DEFAULT 1 NOT NULL,
-    request_id text DEFAULT public.request_id_of_caller()
+    request_id text DEFAULT public.request_id_of_caller(),
+    aggregate_version integer,
+    causation_id uuid
 );
 
 
@@ -21735,6 +22002,30 @@ ALTER TABLE ONLY public.escalations
 
 
 --
+-- Name: event_deliveries event_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_deliveries
+    ADD CONSTRAINT event_deliveries_pkey PRIMARY KEY (event_id, subscriber);
+
+
+--
+-- Name: event_outbox event_outbox_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_outbox
+    ADD CONSTRAINT event_outbox_pkey PRIMARY KEY (event_id);
+
+
+--
+-- Name: event_subscriptions event_subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_subscriptions
+    ADD CONSTRAINT event_subscriptions_pkey PRIMARY KEY (kind, subscriber);
+
+
+--
 -- Name: events events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -22752,6 +23043,27 @@ CREATE UNIQUE INDEX escalations_one_open ON public.escalations USING btree (conv
 --
 
 CREATE INDEX escalations_tenant_open ON public.escalations USING btree (tenant_id, created_at) WHERE (state = 'open'::text);
+
+
+--
+-- Name: event_deliveries_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX event_deliveries_open ON public.event_deliveries USING btree (subscriber, state) WHERE (state <> 'done'::text);
+
+
+--
+-- Name: event_deliveries_tenant_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX event_deliveries_tenant_created ON public.event_deliveries USING btree (tenant_id, created_at);
+
+
+--
+-- Name: event_outbox_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX event_outbox_created ON public.event_outbox USING btree (created_at);
 
 
 --
@@ -23847,6 +24159,20 @@ CREATE TRIGGER escalations_stamp_resolved BEFORE UPDATE OF state ON public.escal
 
 
 --
+-- Name: event_deliveries event_deliveries_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER event_deliveries_set_updated_at BEFORE UPDATE ON public.event_deliveries FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: event_outbox event_outbox_wake; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER event_outbox_wake AFTER INSERT ON public.event_outbox REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.event_outbox_wake();
+
+
+--
 -- Name: events events_complete_deal; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -23872,6 +24198,13 @@ CREATE TRIGGER events_keep_consent_channels AFTER INSERT ON public.events FOR EA
 --
 
 CREATE TRIGGER events_note_first_touch AFTER INSERT ON public.events FOR EACH ROW WHEN (((new.kind = 'contact.added'::text) AND (new.subject_type = 'contact'::text) AND (new.subject_id IS NOT NULL))) EXECUTE FUNCTION public.events_note_first_touch();
+
+
+--
+-- Name: events events_outbox_copy; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER events_outbox_copy AFTER INSERT ON public.events FOR EACH ROW EXECUTE FUNCTION public.events_outbox_copy();
 
 
 --
@@ -25059,6 +25392,22 @@ ALTER TABLE ONLY public.escalations
 
 ALTER TABLE ONLY public.escalations
     ADD CONSTRAINT escalations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: event_deliveries event_deliveries_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_deliveries
+    ADD CONSTRAINT event_deliveries_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: event_outbox event_outbox_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_outbox
+    ADD CONSTRAINT event_outbox_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -26368,6 +26717,24 @@ CREATE POLICY escalations_member_select ON public.escalations FOR SELECT TO auth
 
 
 --
+-- Name: event_deliveries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.event_deliveries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: event_outbox; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.event_outbox ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: event_subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.event_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: events; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -27332,6 +27699,15 @@ GRANT ALL ON FUNCTION public.ai_usage_purge(p_keep interval) TO service_role;
 
 
 --
+-- Name: FUNCTION ask_for_tick(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ask_for_tick() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ask_for_tick() TO authenticated;
+GRANT ALL ON FUNCTION public.ask_for_tick() TO service_role;
+
+
+--
 -- Name: FUNCTION ask_tokens_day(p_tenant uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -27861,6 +28237,23 @@ GRANT ALL ON FUNCTION public.escalations_stamp_resolved() TO service_role;
 
 
 --
+-- Name: FUNCTION event_deliveries_redrive(p_subscriber text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.event_deliveries_redrive(p_subscriber text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.event_deliveries_redrive(p_subscriber text) TO service_role;
+
+
+--
+-- Name: FUNCTION event_outbox_wake(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.event_outbox_wake() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.event_outbox_wake() TO authenticated;
+GRANT ALL ON FUNCTION public.event_outbox_wake() TO service_role;
+
+
+--
 -- Name: FUNCTION events_complete_deal(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -27890,6 +28283,15 @@ GRANT ALL ON FUNCTION public.events_keep_consent_channels() TO service_role;
 
 REVOKE ALL ON FUNCTION public.events_note_first_touch() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.events_note_first_touch() TO service_role;
+
+
+--
+-- Name: FUNCTION events_outbox_copy(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.events_outbox_copy() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.events_outbox_copy() TO authenticated;
+GRANT ALL ON FUNCTION public.events_outbox_copy() TO service_role;
 
 
 --
@@ -29862,6 +30264,14 @@ GRANT ALL ON FUNCTION public.recording_opened(p_call_id uuid) TO service_role;
 
 
 --
+-- Name: FUNCTION relay_events(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.relay_events(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.relay_events(p_limit integer) TO service_role;
+
+
+--
 -- Name: FUNCTION release_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -31055,6 +31465,27 @@ GRANT UPDATE(resolved_by_user_id) ON TABLE public.escalations TO authenticated;
 --
 
 GRANT UPDATE(decision_id) ON TABLE public.escalations TO authenticated;
+
+
+--
+-- Name: TABLE event_deliveries; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.event_deliveries TO service_role;
+
+
+--
+-- Name: TABLE event_outbox; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.event_outbox TO service_role;
+
+
+--
+-- Name: TABLE event_subscriptions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.event_subscriptions TO service_role;
 
 
 --

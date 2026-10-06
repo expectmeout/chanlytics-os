@@ -75,6 +75,7 @@ create table public.job_capacity (
 );
 
 -- The wake, as 00331 built it: a row due within two seconds asks for a tick, at most once a second, never waiting.
+-- (00332 moved the ask into ask_for_tick(), which the outbox's wake shares; jobs_wake keeps the two-second test.)
 create or replace function public.jobs_wake() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin

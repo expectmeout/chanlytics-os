@@ -181,6 +181,7 @@ export const LOG_EVENTS = [
   "escalation_change_failed",
   "escalation_refresh_failed",
   "escalation_upsert_failed",
+  "events_relay_failed",
   "forwarding_evidence",
   "forwarding_verified",
   "forwarding_verify_failed",

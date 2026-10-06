@@ -3,8 +3,18 @@
  *
  * Workspace scope: the package's barrel names each export and holds no statement; each repository keeps its own scope.
  */
-export { emitEvent, recordEvent, subjectsWith, recordActivation } from "./events";
-export type { EmittedKind, EventData } from "./events";
+export {
+  emitEvent,
+  recordEvent,
+  subjectsWith,
+  recordActivation,
+  relayEvents,
+  eventOfDelivery,
+  subscriptionPaused,
+  deliveryOf,
+  settleDelivery,
+} from "./events";
+export type { EmittedKind, EventData, DeliveredEvent, DeliveryRow } from "./events";
 export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
 export type { AiFailures, UsageMonthRow } from "./ai-usage";
 export { keepInvoiceAmount } from "./billing-events";

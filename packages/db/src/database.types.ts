@@ -1333,9 +1333,117 @@ export type Database = {
           },
         ]
       }
+      event_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          event_at: string
+          event_id: string
+          job_id: string | null
+          kind: string
+          last_error: string | null
+          state: string
+          subscriber: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          event_at: string
+          event_id: string
+          job_id?: string | null
+          kind: string
+          last_error?: string | null
+          state?: string
+          subscriber: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          event_at?: string
+          event_id?: string
+          job_id?: string | null
+          kind?: string
+          last_error?: string | null
+          state?: string
+          subscriber?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_deliveries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_outbox: {
+        Row: {
+          created_at: string
+          event_at: string
+          event_id: string
+          kind: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_at: string
+          event_id: string
+          kind: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          event_at?: string
+          event_id?: string
+          kind?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_outbox_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_subscriptions: {
+        Row: {
+          created_at: string
+          kind: string
+          lane: number
+          paused: boolean
+          subscriber: string
+        }
+        Insert: {
+          created_at?: string
+          kind: string
+          lane: number
+          paused?: boolean
+          subscriber: string
+        }
+        Update: {
+          created_at?: string
+          kind?: string
+          lane?: number
+          paused?: boolean
+          subscriber?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1347,7 +1455,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1359,7 +1469,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1374,7 +1486,9 @@ export type Database = {
       }
       events_default: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1386,7 +1500,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1398,7 +1514,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1413,7 +1531,9 @@ export type Database = {
       }
       events_y2026m10: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1425,7 +1545,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1437,7 +1559,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1452,7 +1576,9 @@ export type Database = {
       }
       events_y2026m11: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1464,7 +1590,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1476,7 +1604,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1491,7 +1621,9 @@ export type Database = {
       }
       events_y2026m12: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1503,7 +1635,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1515,7 +1649,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1530,7 +1666,9 @@ export type Database = {
       }
       events_y2027m01: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1542,7 +1680,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1554,7 +1694,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1569,7 +1711,9 @@ export type Database = {
       }
       events_y2027m02: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1581,7 +1725,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1593,7 +1739,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1608,7 +1756,9 @@ export type Database = {
       }
       events_y2027m03: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1620,7 +1770,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1632,7 +1784,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1647,7 +1801,9 @@ export type Database = {
       }
       events_y2027m04: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1659,7 +1815,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1671,7 +1829,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1686,7 +1846,9 @@ export type Database = {
       }
       events_y2027m05: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1698,7 +1860,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1710,7 +1874,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1725,7 +1891,9 @@ export type Database = {
       }
       events_y2027m06: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1737,7 +1905,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1749,7 +1919,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1764,7 +1936,9 @@ export type Database = {
       }
       events_y2027m07: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1776,7 +1950,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1788,7 +1964,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1803,7 +1981,9 @@ export type Database = {
       }
       events_y2027m08: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1815,7 +1995,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1827,7 +2009,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1842,7 +2026,9 @@ export type Database = {
       }
       events_y2027m09: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1854,7 +2040,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1866,7 +2054,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1881,7 +2071,9 @@ export type Database = {
       }
       events_y2027m10: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1893,7 +2085,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1905,7 +2099,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1920,7 +2116,9 @@ export type Database = {
       }
       events_y2027m11: {
         Row: {
+          aggregate_version: number | null
           category: string
+          causation_id: string | null
           created_at: string
           data: Json
           id: string
@@ -1932,7 +2130,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -1944,7 +2144,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          aggregate_version?: number | null
           category?: string
+          causation_id?: string | null
           created_at?: string
           data?: Json
           id?: string
@@ -5506,6 +5708,7 @@ export type Database = {
         }[]
       }
       ai_usage_purge: { Args: { p_keep?: string }; Returns: number }
+      ask_for_tick: { Args: never; Returns: boolean }
       ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
       assemble_broadcast: {
         Args: {
@@ -5754,6 +5957,10 @@ export type Database = {
         Returns: Json
       }
       erasure_rekey_hashes: { Args: { p_list: Json }; Returns: Json }
+      event_deliveries_redrive: {
+        Args: { p_subscriber: string }
+        Returns: number
+      }
       expire_stale_pauses: { Args: never; Returns: number }
       first_replies: {
         Args: { p_start: string; p_tenant_id: string }
@@ -7339,6 +7546,7 @@ export type Database = {
         }[]
       }
       recording_opened: { Args: { p_call_id: string }; Returns: boolean }
+      relay_events: { Args: { p_limit?: number }; Returns: number }
       release_conversation_control: {
         Args: {
           p_by: string

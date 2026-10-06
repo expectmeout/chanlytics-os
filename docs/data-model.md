@@ -35,6 +35,9 @@ what the script writes.
 | [`decisions`](#decisions) | `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
 | [`escalations`](#escalations) | `packages/db/src/repositories/outreach.ts` | on, 2 policies |
+| [`event_deliveries`](#event_deliveries) | none | on, no policy, so only the service role reaches it |
+| [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
+| [`event_subscriptions`](#event_subscriptions) | none | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
@@ -751,6 +754,68 @@ Foreign keys:
 | `escalations_acting_member_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
 | `escalations_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### event_deliveries
+
+One row per event and subscriber (decision 0030): scheduled when the relay writes it and its job, done when the subscriber ran, failed when its job gave up, paused when the subscriber was paused as it ran. event_at is the event's own clock, so relay lag is one subtraction. RLS on with no policy: the service role alone.
+
+- Owned by: none
+- Primary key: `event_id`, `subscriber`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `event_id` | uuid | no |  |  |
+| `subscriber` | text | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `kind` | text | no |  |  |
+| `event_at` | timestamp with time zone | no |  |  |
+| `state` | text | no | `'scheduled'::text` |  |
+| `job_id` | uuid | yes |  |  |
+| `attempts` | integer | no | `0` |  |
+| `last_error` | text | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+### event_outbox
+
+One row per event of a subscribed kind, written in the event's own transaction by events_outbox_copy (decision 0030), and taken off by relay_events once its deliveries are written. Empty when the relay is caught up. RLS on with no policy: the service role alone.
+
+- Owned by: none
+- Primary key: `event_id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `event_id` | uuid | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `kind` | text | no |  |  |
+| `event_at` | timestamp with time zone | no |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+### event_subscriptions
+
+Who reacts to an event kind (decision 0030): a subscriber's name, the lane its deliveries run in, and whether it is paused. Platform-wide rows, written by a migration or the service role; a door never names a subscriber. RLS on with no policy: the service role alone.
+
+- Owned by: none
+- Primary key: `kind`, `subscriber`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `kind` | text | no |  |  |
+| `subscriber` | text | no |  |  |
+| `lane` | smallint | no |  |  |
+| `paused` | boolean | no | `false` |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
 ### events
 
 - Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts`
@@ -770,6 +835,8 @@ Foreign keys:
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `version` | smallint | no | `1` | The version of this kind's data (packages/db events.ts, 00264): raised when a kind's shape changes, so a reader can tell an old row from a new one. 1 for every kind to date. |
 | `request_id` | text | yes | `public.request_id_of_caller()` | The request this row was written in (00277): the name withRoute, an edge door or a job gave it, the one its log lines carry. Null for a row written outside a request. |
+| `aggregate_version` | integer | yes |  | The version of the record this event is about, as the door left it (decision 0030): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00332. |
+| `causation_id` | uuid | yes |  | The event this one was written in answer to, where a reaction wrote it (decision 0030). Null for a fact that arrived from outside, and for every row written before 00332. |
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
@@ -973,8 +1040,8 @@ Foreign keys:
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `lease_until` | timestamp with time zone | yes |  | While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts. |
-| `lane` | smallint | yes | `generated: CASE WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read), 2 bulk. Generated from kind and payload; null for a kind it does not name, which is claimed last. A new kind names its lane with its handler, its caller and the jobs.kind CHECK. |
 | `dedupe_key` | text | yes |  | What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00331): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed. |
+| `lane` | smallint | yes | `generated: CASE WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 WHEN (kind = 'event_deliver'::text) THEN CASE WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer ELSE 2 END ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription's lane (payload.lane, 00332); null for a kind the case does not name, claimed last. |
 
 Foreign keys:
 

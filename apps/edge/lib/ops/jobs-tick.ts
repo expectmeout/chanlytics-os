@@ -45,7 +45,9 @@ import {
   YIELD_AT_MS,
   LEAD_YIELD_AT_MS,
   LEASE_SECONDS,
+  RELAY_LIMIT,
 } from "../packages/jobs.js";
+import { relayEvents } from "../packages/db.js";
 import type { SweepTick } from "./sweep-door.js";
 
 /** This many failures in one heartbeat are the platform's, not any owner's. */
@@ -77,6 +79,14 @@ function replyLateBody(worstMs: number): string {
 
 export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
   try {
+    // The relay first (decision 0030, 00332): the outbox's events become deliveries and jobs, which this same tick then
+    // claims. A relay that fails is said and costs the tick nothing else: the next knock, or the poll, drains it.
+    let relayed: number | null = null;
+    try {
+      relayed = await relayEvents(db, RELAY_LIMIT);
+    } catch (e) {
+      L.error("events_relay_failed", { error: errField(e) });
+    }
     const counts = await runTick(
       {
         claim: (lease) => claimNext(db, lease),
@@ -167,7 +177,7 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
     // How late each kind's first claim came rides on the heartbeat's line (0018,
     // step 1), and the reply lane's worst beside them; the answer to pg_net keeps its counts alone.
     const { lateMs, replyLateMs, ...tally } = counts;
-    L.info("jobs_tick", { ...tally, ...lateFields(lateMs), reply_late_ms: replyLateMs });
+    L.info("jobs_tick", { ...tally, relayed, ...lateFields(lateMs), reply_late_ms: replyLateMs });
     // A reply that waited more than a minute for the ledger is the platform's condition: replies are claimed before
     // anything else, so every runner was busy with replies or the heartbeat was slow. Paged once per window.
     if (replyLateMs > REPLY_LATE_PAGE_MS) {

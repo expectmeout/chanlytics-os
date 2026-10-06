@@ -138,6 +138,30 @@ async function recordActivation(db, tenantId, milestone, via) {
   if (w.error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind: "workspace.activated", error: w.error });
   return !w.error;
 }
+async function relayEvents(db, limit) {
+  const { data, error } = await db.rpc("relay_events", { p_limit: limit });
+  if (error) throw new Error(`relay_events: ${error.message}`);
+  return data ?? 0;
+}
+async function eventOfDelivery(db, tenantId, eventId) {
+  const { data, error } = await db.from("events").select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version, aggregate_version, causation_id").eq("tenant_id", tenantId).eq("id", eventId).maybeSingle();
+  if (error) throw new Error(`events: ${error.message}`);
+  return data;
+}
+async function subscriptionPaused(db, kind, subscriber) {
+  const { data, error } = await db.from("event_subscriptions").select("paused").eq("kind", kind).eq("subscriber", subscriber).maybeSingle();
+  if (error) throw new Error(`event_subscriptions: ${error.message}`);
+  return data ? data.paused : true;
+}
+async function deliveryOf(db, tenantId, eventId, subscriber) {
+  const { data, error } = await db.from("event_deliveries").select("state, attempts").eq("tenant_id", tenantId).eq("event_id", eventId).eq("subscriber", subscriber).maybeSingle();
+  if (error) throw new Error(`event_deliveries: ${error.message}`);
+  return data;
+}
+async function settleDelivery(db, d) {
+  const { error } = await db.from("event_deliveries").update({ state: d.state, attempts: d.attempts, last_error: d.error }).eq("tenant_id", d.tenantId).eq("event_id", d.eventId).eq("subscriber", d.subscriber);
+  if (error) throw new Error(`event_deliveries: ${error.message}`);
+}
 
 // src/ai-usage.ts
 import { mayUseModels, RETENTION_DAYS } from "../../contracts/dist/index.js";
@@ -3547,6 +3571,7 @@ export {
   deleteSecondFactor,
   deleteSendingDomain,
   deleteSendingDomainAsRead,
+  deliveryOf,
   describeLead,
   domainCapacityOf,
   domainHeldSince,
@@ -3563,6 +3588,7 @@ export {
   emitEvent,
   endVoiceSession,
   erasureDigests,
+  eventOfDelivery,
   everyoneIn,
   failStrandedRun,
   failedMessageErrors,
@@ -3693,6 +3719,7 @@ export {
   recordStatusByExternalId,
   recordWhatsAppOffersStop,
   refreshWaitlistRow,
+  relayEvents,
   releaseControl,
   releaseIdempotencyKey,
   releaseUnavailableHolds,
@@ -3741,6 +3768,7 @@ export {
   setPlaybookState,
   setPolicyMode,
   setTemplateQuality,
+  settleDelivery,
   signUpOnPublicKey,
   staleSends,
   stampEmailComplaint,
@@ -3755,6 +3783,7 @@ export {
   stuckClaims,
   subjectsWith,
   subscribeWorkspaceChanges,
+  subscriptionPaused,
   suppressEmailOf,
   takeCheckAttempt,
   takeIdempotencyKey,

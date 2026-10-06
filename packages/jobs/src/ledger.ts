@@ -117,6 +117,13 @@ export const MAX_ATTEMPTS = 3;
  */
 export const MAX_RESUMES = 5;
 
+/**
+ * How many outbox events one tick relays before it claims (relay_events, 00332): bounded so a flood of events never
+ * holds the tick from the replies behind it; what is left is the next tick's, and the poll knocks while the outbox
+ * is not empty.
+ */
+export const RELAY_LIMIT = 500;
+
 /** Kinds whose second run could reach a real person a second time. */
 export const SPEAKS_TO_A_PERSON: ReadonlySet<string> = new Set(["outbound_send", "broadcast_send"]);
 
@@ -198,6 +205,9 @@ export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   // (its claim goes stale with the lease, before either wait ends). A thrown read or write, or a notice whose mail
   // failed, lands here: two minutes, then ten, each outlasting the lease.
   reply_read: [2 * MIN_MS, 10 * MIN_MS],
+  // One event's delivery to one subscriber (00332): the delivery row takes each verdict, and every subscriber may run
+  // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
+  event_deliver: [2 * MIN_MS, 10 * MIN_MS],
 };
 
 /**

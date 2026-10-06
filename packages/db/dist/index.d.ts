@@ -1333,9 +1333,117 @@ type Database = {
                     }
                 ];
             };
+            event_deliveries: {
+                Row: {
+                    attempts: number;
+                    created_at: string;
+                    event_at: string;
+                    event_id: string;
+                    job_id: string | null;
+                    kind: string;
+                    last_error: string | null;
+                    state: string;
+                    subscriber: string;
+                    tenant_id: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    attempts?: number;
+                    created_at?: string;
+                    event_at: string;
+                    event_id: string;
+                    job_id?: string | null;
+                    kind: string;
+                    last_error?: string | null;
+                    state?: string;
+                    subscriber: string;
+                    tenant_id: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    attempts?: number;
+                    created_at?: string;
+                    event_at?: string;
+                    event_id?: string;
+                    job_id?: string | null;
+                    kind?: string;
+                    last_error?: string | null;
+                    state?: string;
+                    subscriber?: string;
+                    tenant_id?: string;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "event_deliveries_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            event_outbox: {
+                Row: {
+                    created_at: string;
+                    event_at: string;
+                    event_id: string;
+                    kind: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    created_at?: string;
+                    event_at: string;
+                    event_id: string;
+                    kind: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    created_at?: string;
+                    event_at?: string;
+                    event_id?: string;
+                    kind?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "event_outbox_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            event_subscriptions: {
+                Row: {
+                    created_at: string;
+                    kind: string;
+                    lane: number;
+                    paused: boolean;
+                    subscriber: string;
+                };
+                Insert: {
+                    created_at?: string;
+                    kind: string;
+                    lane: number;
+                    paused?: boolean;
+                    subscriber: string;
+                };
+                Update: {
+                    created_at?: string;
+                    kind?: string;
+                    lane?: number;
+                    paused?: boolean;
+                    subscriber?: string;
+                };
+                Relationships: [];
+            };
             events: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1347,7 +1455,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1359,7 +1469,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1374,7 +1486,9 @@ type Database = {
             };
             events_default: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1386,7 +1500,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1398,7 +1514,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1413,7 +1531,9 @@ type Database = {
             };
             events_y2026m10: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1425,7 +1545,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1437,7 +1559,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1452,7 +1576,9 @@ type Database = {
             };
             events_y2026m11: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1464,7 +1590,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1476,7 +1604,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1491,7 +1621,9 @@ type Database = {
             };
             events_y2026m12: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1503,7 +1635,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1515,7 +1649,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1530,7 +1666,9 @@ type Database = {
             };
             events_y2027m01: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1542,7 +1680,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1554,7 +1694,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1569,7 +1711,9 @@ type Database = {
             };
             events_y2027m02: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1581,7 +1725,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1593,7 +1739,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1608,7 +1756,9 @@ type Database = {
             };
             events_y2027m03: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1620,7 +1770,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1632,7 +1784,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1647,7 +1801,9 @@ type Database = {
             };
             events_y2027m04: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1659,7 +1815,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1671,7 +1829,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1686,7 +1846,9 @@ type Database = {
             };
             events_y2027m05: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1698,7 +1860,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1710,7 +1874,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1725,7 +1891,9 @@ type Database = {
             };
             events_y2027m06: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1737,7 +1905,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1749,7 +1919,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1764,7 +1936,9 @@ type Database = {
             };
             events_y2027m07: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1776,7 +1950,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1788,7 +1964,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1803,7 +1981,9 @@ type Database = {
             };
             events_y2027m08: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1815,7 +1995,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1827,7 +2009,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1842,7 +2026,9 @@ type Database = {
             };
             events_y2027m09: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1854,7 +2040,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1866,7 +2054,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1881,7 +2071,9 @@ type Database = {
             };
             events_y2027m10: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1893,7 +2085,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1905,7 +2099,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1920,7 +2116,9 @@ type Database = {
             };
             events_y2027m11: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1932,7 +2130,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1944,7 +2144,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -5518,6 +5720,10 @@ type Database = {
                 };
                 Returns: number;
             };
+            ask_for_tick: {
+                Args: never;
+                Returns: boolean;
+            };
             ask_tokens_day: {
                 Args: {
                     p_tenant: string;
@@ -5904,6 +6110,12 @@ type Database = {
                     p_list: Json;
                 };
                 Returns: Json;
+            };
+            event_deliveries_redrive: {
+                Args: {
+                    p_subscriber: string;
+                };
+                Returns: number;
             };
             expire_stale_pauses: {
                 Args: never;
@@ -8001,6 +8213,12 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            relay_events: {
+                Args: {
+                    p_limit?: number;
+                };
+                Returns: number;
+            };
             release_conversation_control: {
                 Args: {
                     p_by: string;
@@ -8753,6 +8971,44 @@ declare function subjectsWith(db: Db$w, tenantId: string, kind: EmittedKind, sub
  * racing may both write, and a funnel counts workspaces, not rows. True when this call wrote it.
  */
 declare function recordActivation(db: Db$w, tenantId: string, milestone: ActivationMilestone, via: string): Promise<boolean>;
+/** The event a delivery is about, as the ledger holds it: what a subscriber is handed. */
+interface DeliveredEvent {
+    id: string;
+    tenant_id: string;
+    kind: string;
+    subject_type: string | null;
+    subject_id: string | null;
+    data: Json;
+    created_at: string;
+    version: number;
+    aggregate_version: number | null;
+    causation_id: string | null;
+}
+/** One delivery row as the relay left it (event_deliveries). */
+interface DeliveryRow {
+    state: "scheduled" | "done" | "failed" | "paused";
+    attempts: number;
+}
+/**
+ * The first step of every tick (relay_events, 00332): the outbox's events become deliveries and jobs, up to `limit` of
+ * them, oldest first and with no cursor. Answers how many events were relayed.
+ */
+declare function relayEvents(db: Db$w, limit: number): Promise<number>;
+/** The event a delivery is about; null when the ledger no longer holds it (the evidence purge, 00115). */
+declare function eventOfDelivery(db: Db$w, tenantId: string, eventId: string): Promise<DeliveredEvent | null>;
+/** Whether a subscription is paused as its delivery runs; one that is gone reads as paused. */
+declare function subscriptionPaused(db: Db$w, kind: string, subscriber: string): Promise<boolean>;
+/** The delivery row as it stands; null when the relay never wrote it. */
+declare function deliveryOf(db: Db$w, tenantId: string, eventId: string, subscriber: string): Promise<DeliveryRow | null>;
+/** The delivery's verdict after a run: done, failed with why, or paused because its subscription was. */
+declare function settleDelivery(db: Db$w, d: {
+    tenantId: string;
+    eventId: string;
+    subscriber: string;
+    state: "done" | "failed" | "paused";
+    attempts: number;
+    error: string | null;
+}): Promise<void>;
 
 /**
  * The usage ledger (00273 ai_usage): the one writer every model call goes through, the reads that gate and alarm on it,
@@ -10205,9 +10461,113 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 referencedColumns: ["id"];
             }];
         };
+        event_deliveries: {
+            Row: {
+                attempts: number;
+                created_at: string;
+                event_at: string;
+                event_id: string;
+                job_id: string | null;
+                kind: string;
+                last_error: string | null;
+                state: string;
+                subscriber: string;
+                tenant_id: string;
+                updated_at: string;
+            };
+            Insert: {
+                attempts?: number;
+                created_at?: string;
+                event_at: string;
+                event_id: string;
+                job_id?: string | null;
+                kind: string;
+                last_error?: string | null;
+                state?: string;
+                subscriber: string;
+                tenant_id: string;
+                updated_at?: string;
+            };
+            Update: {
+                attempts?: number;
+                created_at?: string;
+                event_at?: string;
+                event_id?: string;
+                job_id?: string | null;
+                kind?: string;
+                last_error?: string | null;
+                state?: string;
+                subscriber?: string;
+                tenant_id?: string;
+                updated_at?: string;
+            };
+            Relationships: [{
+                foreignKeyName: "event_deliveries_tenant_id_fkey";
+                columns: ["tenant_id"];
+                isOneToOne: false;
+                referencedRelation: "tenants";
+                referencedColumns: ["id"];
+            }];
+        };
+        event_outbox: {
+            Row: {
+                created_at: string;
+                event_at: string;
+                event_id: string;
+                kind: string;
+                tenant_id: string;
+            };
+            Insert: {
+                created_at?: string;
+                event_at: string;
+                event_id: string;
+                kind: string;
+                tenant_id: string;
+            };
+            Update: {
+                created_at?: string;
+                event_at?: string;
+                event_id?: string;
+                kind?: string;
+                tenant_id?: string;
+            };
+            Relationships: [{
+                foreignKeyName: "event_outbox_tenant_id_fkey";
+                columns: ["tenant_id"];
+                isOneToOne: false;
+                referencedRelation: "tenants";
+                referencedColumns: ["id"];
+            }];
+        };
+        event_subscriptions: {
+            Row: {
+                created_at: string;
+                kind: string;
+                lane: number;
+                paused: boolean;
+                subscriber: string;
+            };
+            Insert: {
+                created_at?: string;
+                kind: string;
+                lane: number;
+                paused?: boolean;
+                subscriber: string;
+            };
+            Update: {
+                created_at?: string;
+                kind?: string;
+                lane?: number;
+                paused?: boolean;
+                subscriber?: string;
+            };
+            Relationships: [];
+        };
         events: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10219,7 +10579,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10231,7 +10593,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10246,7 +10610,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_default: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10258,7 +10624,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10270,7 +10638,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10285,7 +10655,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2026m10: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10297,7 +10669,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10309,7 +10683,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10324,7 +10700,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2026m11: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10336,7 +10714,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10348,7 +10728,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10363,7 +10745,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2026m12: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10375,7 +10759,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10387,7 +10773,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10402,7 +10790,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m01: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10414,7 +10804,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10426,7 +10818,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10441,7 +10835,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m02: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10453,7 +10849,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10465,7 +10863,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10480,7 +10880,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m03: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10492,7 +10894,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10504,7 +10908,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10519,7 +10925,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m04: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10531,7 +10939,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10543,7 +10953,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10558,7 +10970,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m05: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10570,7 +10984,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10582,7 +10998,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10597,7 +11015,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m06: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10609,7 +11029,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10621,7 +11043,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10636,7 +11060,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m07: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10648,7 +11074,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10660,7 +11088,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10675,7 +11105,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m08: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10687,7 +11119,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10699,7 +11133,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10714,7 +11150,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m09: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10726,7 +11164,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10738,7 +11178,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10753,7 +11195,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m10: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10765,7 +11209,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10777,7 +11223,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10792,7 +11240,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
         };
         events_y2027m11: {
             Row: {
+                aggregate_version: number | null;
                 category: string;
+                causation_id: string | null;
                 created_at: string;
                 data: Json;
                 id: string;
@@ -10804,7 +11254,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version: number;
             };
             Insert: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -10816,7 +11268,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 version?: number;
             };
             Update: {
+                aggregate_version?: number | null;
                 category?: string;
+                causation_id?: string | null;
                 created_at?: string;
                 data?: Json;
                 id?: string;
@@ -14250,6 +14704,10 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             };
             Returns: number;
         };
+        ask_for_tick: {
+            Args: never;
+            Returns: boolean;
+        };
         ask_tokens_day: {
             Args: {
                 p_tenant: string;
@@ -14636,6 +15094,12 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
                 p_list: Json;
             };
             Returns: Json;
+        };
+        event_deliveries_redrive: {
+            Args: {
+                p_subscriber: string;
+            };
+            Returns: number;
         };
         expire_stale_pauses: {
             Args: never;
@@ -16733,6 +17197,12 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             };
             Returns: boolean;
         };
+        relay_events: {
+            Args: {
+                p_limit?: number;
+            };
+            Returns: number;
+        };
         release_conversation_control: {
             Args: {
                 p_by: string;
@@ -18483,9 +18953,113 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
+    event_deliveries: {
+        Row: {
+            attempts: number;
+            created_at: string;
+            event_at: string;
+            event_id: string;
+            job_id: string | null;
+            kind: string;
+            last_error: string | null;
+            state: string;
+            subscriber: string;
+            tenant_id: string;
+            updated_at: string;
+        };
+        Insert: {
+            attempts?: number;
+            created_at?: string;
+            event_at: string;
+            event_id: string;
+            job_id?: string | null;
+            kind: string;
+            last_error?: string | null;
+            state?: string;
+            subscriber: string;
+            tenant_id: string;
+            updated_at?: string;
+        };
+        Update: {
+            attempts?: number;
+            created_at?: string;
+            event_at?: string;
+            event_id?: string;
+            job_id?: string | null;
+            kind?: string;
+            last_error?: string | null;
+            state?: string;
+            subscriber?: string;
+            tenant_id?: string;
+            updated_at?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "event_deliveries_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    event_outbox: {
+        Row: {
+            created_at: string;
+            event_at: string;
+            event_id: string;
+            kind: string;
+            tenant_id: string;
+        };
+        Insert: {
+            created_at?: string;
+            event_at: string;
+            event_id: string;
+            kind: string;
+            tenant_id: string;
+        };
+        Update: {
+            created_at?: string;
+            event_at?: string;
+            event_id?: string;
+            kind?: string;
+            tenant_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "event_outbox_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    event_subscriptions: {
+        Row: {
+            created_at: string;
+            kind: string;
+            lane: number;
+            paused: boolean;
+            subscriber: string;
+        };
+        Insert: {
+            created_at?: string;
+            kind: string;
+            lane: number;
+            paused?: boolean;
+            subscriber: string;
+        };
+        Update: {
+            created_at?: string;
+            kind?: string;
+            lane?: number;
+            paused?: boolean;
+            subscriber?: string;
+        };
+        Relationships: [];
+    };
     events: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18497,7 +19071,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18509,7 +19085,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18524,7 +19102,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_default: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18536,7 +19116,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18548,7 +19130,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18563,7 +19147,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2026m10: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18575,7 +19161,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18587,7 +19175,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18602,7 +19192,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2026m11: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18614,7 +19206,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18626,7 +19220,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18641,7 +19237,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2026m12: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18653,7 +19251,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18665,7 +19265,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18680,7 +19282,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m01: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18692,7 +19296,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18704,7 +19310,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18719,7 +19327,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m02: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18731,7 +19341,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18743,7 +19355,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18758,7 +19372,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m03: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18770,7 +19386,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18782,7 +19400,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18797,7 +19417,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m04: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18809,7 +19431,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18821,7 +19445,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18836,7 +19462,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m05: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18848,7 +19476,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18860,7 +19490,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18875,7 +19507,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m06: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18887,7 +19521,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18899,7 +19535,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18914,7 +19552,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m07: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18926,7 +19566,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18938,7 +19580,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18953,7 +19597,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m08: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -18965,7 +19611,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18977,7 +19625,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -18992,7 +19642,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m09: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -19004,7 +19656,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -19016,7 +19670,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -19031,7 +19687,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m10: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -19043,7 +19701,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -19055,7 +19715,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -19070,7 +19732,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m11: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -19082,7 +19746,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -19094,7 +19760,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23647,9 +24315,113 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
+    event_deliveries: {
+        Row: {
+            attempts: number;
+            created_at: string;
+            event_at: string;
+            event_id: string;
+            job_id: string | null;
+            kind: string;
+            last_error: string | null;
+            state: string;
+            subscriber: string;
+            tenant_id: string;
+            updated_at: string;
+        };
+        Insert: {
+            attempts?: number;
+            created_at?: string;
+            event_at: string;
+            event_id: string;
+            job_id?: string | null;
+            kind: string;
+            last_error?: string | null;
+            state?: string;
+            subscriber: string;
+            tenant_id: string;
+            updated_at?: string;
+        };
+        Update: {
+            attempts?: number;
+            created_at?: string;
+            event_at?: string;
+            event_id?: string;
+            job_id?: string | null;
+            kind?: string;
+            last_error?: string | null;
+            state?: string;
+            subscriber?: string;
+            tenant_id?: string;
+            updated_at?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "event_deliveries_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    event_outbox: {
+        Row: {
+            created_at: string;
+            event_at: string;
+            event_id: string;
+            kind: string;
+            tenant_id: string;
+        };
+        Insert: {
+            created_at?: string;
+            event_at: string;
+            event_id: string;
+            kind: string;
+            tenant_id: string;
+        };
+        Update: {
+            created_at?: string;
+            event_at?: string;
+            event_id?: string;
+            kind?: string;
+            tenant_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "event_outbox_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    event_subscriptions: {
+        Row: {
+            created_at: string;
+            kind: string;
+            lane: number;
+            paused: boolean;
+            subscriber: string;
+        };
+        Insert: {
+            created_at?: string;
+            kind: string;
+            lane: number;
+            paused?: boolean;
+            subscriber: string;
+        };
+        Update: {
+            created_at?: string;
+            kind?: string;
+            lane?: number;
+            paused?: boolean;
+            subscriber?: string;
+        };
+        Relationships: [];
+    };
     events: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -23661,7 +24433,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23673,7 +24447,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23688,7 +24464,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_default: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -23700,7 +24478,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23712,7 +24492,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23727,7 +24509,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2026m10: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -23739,7 +24523,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23751,7 +24537,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23766,7 +24554,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2026m11: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -23778,7 +24568,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23790,7 +24582,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23805,7 +24599,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2026m12: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -23817,7 +24613,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23829,7 +24627,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23844,7 +24644,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m01: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -23856,7 +24658,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23868,7 +24672,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23883,7 +24689,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m02: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -23895,7 +24703,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23907,7 +24717,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23922,7 +24734,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m03: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -23934,7 +24748,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23946,7 +24762,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23961,7 +24779,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m04: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -23973,7 +24793,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -23985,7 +24807,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24000,7 +24824,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m05: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -24012,7 +24838,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24024,7 +24852,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24039,7 +24869,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m06: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -24051,7 +24883,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24063,7 +24897,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24078,7 +24914,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m07: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -24090,7 +24928,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24102,7 +24942,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24117,7 +24959,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m08: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -24129,7 +24973,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24141,7 +24987,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24156,7 +25004,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m09: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -24168,7 +25018,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24180,7 +25032,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24195,7 +25049,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m10: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -24207,7 +25063,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24219,7 +25077,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24234,7 +25094,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m11: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -24246,7 +25108,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -24258,7 +25122,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28811,9 +29677,113 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
+    event_deliveries: {
+        Row: {
+            attempts: number;
+            created_at: string;
+            event_at: string;
+            event_id: string;
+            job_id: string | null;
+            kind: string;
+            last_error: string | null;
+            state: string;
+            subscriber: string;
+            tenant_id: string;
+            updated_at: string;
+        };
+        Insert: {
+            attempts?: number;
+            created_at?: string;
+            event_at: string;
+            event_id: string;
+            job_id?: string | null;
+            kind: string;
+            last_error?: string | null;
+            state?: string;
+            subscriber: string;
+            tenant_id: string;
+            updated_at?: string;
+        };
+        Update: {
+            attempts?: number;
+            created_at?: string;
+            event_at?: string;
+            event_id?: string;
+            job_id?: string | null;
+            kind?: string;
+            last_error?: string | null;
+            state?: string;
+            subscriber?: string;
+            tenant_id?: string;
+            updated_at?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "event_deliveries_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    event_outbox: {
+        Row: {
+            created_at: string;
+            event_at: string;
+            event_id: string;
+            kind: string;
+            tenant_id: string;
+        };
+        Insert: {
+            created_at?: string;
+            event_at: string;
+            event_id: string;
+            kind: string;
+            tenant_id: string;
+        };
+        Update: {
+            created_at?: string;
+            event_at?: string;
+            event_id?: string;
+            kind?: string;
+            tenant_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "event_outbox_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    event_subscriptions: {
+        Row: {
+            created_at: string;
+            kind: string;
+            lane: number;
+            paused: boolean;
+            subscriber: string;
+        };
+        Insert: {
+            created_at?: string;
+            kind: string;
+            lane: number;
+            paused?: boolean;
+            subscriber: string;
+        };
+        Update: {
+            created_at?: string;
+            kind?: string;
+            lane?: number;
+            paused?: boolean;
+            subscriber?: string;
+        };
+        Relationships: [];
+    };
     events: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -28825,7 +29795,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28837,7 +29809,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28852,7 +29826,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_default: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -28864,7 +29840,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28876,7 +29854,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28891,7 +29871,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2026m10: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -28903,7 +29885,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28915,7 +29899,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28930,7 +29916,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2026m11: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -28942,7 +29930,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28954,7 +29944,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28969,7 +29961,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2026m12: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -28981,7 +29975,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -28993,7 +29989,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29008,7 +30006,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m01: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29020,7 +30020,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29032,7 +30034,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29047,7 +30051,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m02: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29059,7 +30065,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29071,7 +30079,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29086,7 +30096,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m03: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29098,7 +30110,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29110,7 +30124,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29125,7 +30141,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m04: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29137,7 +30155,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29149,7 +30169,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29164,7 +30186,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m05: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29176,7 +30200,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29188,7 +30214,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29203,7 +30231,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m06: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29215,7 +30245,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29227,7 +30259,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29242,7 +30276,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m07: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29254,7 +30290,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29266,7 +30304,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29281,7 +30321,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m08: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29293,7 +30335,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29305,7 +30349,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29320,7 +30366,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m09: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29332,7 +30380,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29344,7 +30394,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29359,7 +30411,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m10: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29371,7 +30425,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29383,7 +30439,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29398,7 +30456,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
     };
     events_y2027m11: {
         Row: {
+            aggregate_version: number | null;
             category: string;
+            causation_id: string | null;
             created_at: string;
             data: Json;
             id: string;
@@ -29410,7 +30470,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version: number;
         };
         Insert: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -29422,7 +30484,9 @@ declare function builderOf<T extends TenantTable>(db: Db$s, table: T): _supabase
             version?: number;
         };
         Update: {
+            aggregate_version?: number | null;
             category?: string;
+            causation_id?: string | null;
             created_at?: string;
             data?: Json;
             id?: string;
@@ -36057,4 +37121,4 @@ type ChannelQualityKept = (typeof KEPT_ANSWERS)[number];
  */
 declare function keepChannelQuality(db: Db, tenantId: string, channelId: string, rating: string): Promise<ChannelQualityKept>;
 
-export { type AiFailures, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type EmittedKind, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MigrationHead, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type StrandedRun, type SubscribeOptions, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WhatsappNumber, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, campaignSeries, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, everyoneIn, failStrandedRun, failedMessageErrors, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isWorkspaceCall, keepChannelQuality, keepIdempotencyReceipt, keepInvoiceAmount, keepMessageCost, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, outreachFactsOf, outreachModeOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personDecisions, personReplyMode, platformHoldStands, platformWide, playbookChannels, playbooksOnList, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, recordWhatsAppOffersStop, refreshWaitlistRow, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reportSeries, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, setTemplateQuality, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelConfig, whatsappNumbersToRead, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspacePaused, writtenEmail, writtenEmails, yesesSince };
+export { type AiFailures, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DeliveredEvent, type DeliveryRow, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type EmittedKind, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MigrationHead, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type StrandedRun, type SubscribeOptions, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WhatsappNumber, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, campaignSeries, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, deliveryOf, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, eventOfDelivery, everyoneIn, failStrandedRun, failedMessageErrors, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isWorkspaceCall, keepChannelQuality, keepIdempotencyReceipt, keepInvoiceAmount, keepMessageCost, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, outreachFactsOf, outreachModeOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personDecisions, personReplyMode, platformHoldStands, platformWide, playbookChannels, playbooksOnList, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reportSeries, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, setTemplateQuality, settleDelivery, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelConfig, whatsappNumbersToRead, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspacePaused, writtenEmail, writtenEmails, yesesSince };

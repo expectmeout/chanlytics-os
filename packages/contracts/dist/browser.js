@@ -12483,7 +12483,14 @@ var JOB_KINDS = [
    * (jobs_reply_read_once, scheduleJobOnce), and by itself for a re-read of a reply it could not read ({ stage:
    * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
    */
-  "reply_read"
+  "reply_read",
+  /**
+   * One event's delivery to one subscriber (00332, decision 0030): the relay writes it beside the event_deliveries row,
+   * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
+   * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
+   * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
+   */
+  "event_deliver"
 ];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
@@ -26490,6 +26497,8 @@ var SCHEMA_SETS = {
     "email_review"
   ],
   "escalations.state": ["open", "resolved"],
+  "event_deliveries.state": ["scheduled", "done", "failed", "paused"],
+  "event_subscriptions.lane": [],
   "google_reviews.origin": ["places", "profile"],
   "invitations.role": ["operator", "viewer"],
   "jobs.kind": [
@@ -26502,7 +26511,8 @@ var SCHEMA_SETS = {
     "lead_check",
     "push_send",
     "push_receipts",
-    "reply_read"
+    "reply_read",
+    "event_deliver"
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -29033,7 +29043,10 @@ var JOB_WORK = {
   push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
-  reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" }
+  reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
+  // A fact's delivery to a subscriber (00332): the subscriber's own rows are what the owner would see; the bell says it
+  // did not get there, and the activity log is where the fact is.
+  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" }
 };
 var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
 function jobNewsWords(jobKind, end, how) {

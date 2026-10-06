@@ -97,8 +97,23 @@ export const JOB_KINDS = [
    * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
    */
   "reply_read",
+  /**
+   * One event's delivery to one subscriber (00332, decision 0030): the relay writes it beside the event_deliveries row,
+   * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
+   * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
+   * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
+   */
+  "event_deliver",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
+
+/**
+ * Every subscriber a delivery can name (event_subscriptions.subscriber, 00332, decision 0030): each is a verb in core's
+ * SUBSCRIBERS that may run twice on one delivery and leave the same rows. `audit` does nothing but settle, so the
+ * relay's lag is measured on real traffic before any subscriber that acts arrives.
+ */
+export const EVENT_SUBSCRIBERS = ["audit"] as const;
+export type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 
 /**
  * `fired` means CLAIMED, not finished: claim_due_jobs() sets it with a lease,

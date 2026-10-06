@@ -354,6 +354,23 @@ before(async () => {
   await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
   await seed("lead_suggestions", { tenant_id: A, business_line: "a hair salon in Miami" }, null);
   await seed("platform_metrics", { tenant_id: A, day: "2026-09-26" }, null);
+  // The spine (00332): an outbox row and a delivery of the workspace's, as the copy and the relay would write them.
+  await seed(
+    "event_outbox",
+    { event_id: crypto.randomUUID(), tenant_id: A, kind: "message.received", event_at: "2026-10-06T00:00:00Z" },
+    null,
+  );
+  await seed(
+    "event_deliveries",
+    {
+      event_id: crypto.randomUUID(),
+      subscriber: "audit",
+      tenant_id: A,
+      kind: "message.received",
+      event_at: "2026-10-06T00:00:00Z",
+    },
+    null,
+  );
 
   // The service role's own tables, seeded so "a member reads nothing" is not
   // proved on an empty table. A platform admin is a user who is nobody's
@@ -718,6 +735,22 @@ const TENANT_TABLES = {
   partner_earnings: ["partner", () => earning(`evt_stranger_${Date.now()}`)],
   partner_invitations: ["brought", invitation],
   billing_card_marks: ["none", () => ({ tenant_id: A, card_fingerprint: "fp_stranger" })],
+  // The spine (00332, decision 0030): an event's outbox row and its deliveries follow their workspace; the service role
+  // alone writes and reads them.
+  event_outbox: [
+    "none",
+    () => ({ event_id: crypto.randomUUID(), tenant_id: A, kind: "message.received", event_at: "2026-10-06T00:00:00Z" }),
+  ],
+  event_deliveries: [
+    "none",
+    () => ({
+      event_id: crypto.randomUUID(),
+      subscriber: "audit",
+      tenant_id: A,
+      kind: "message.received",
+      event_at: "2026-10-06T00:00:00Z",
+    }),
+  ],
   lead_searches_view: [
     "member",
     () => ({ tenant_id: A, via: "people", card: "local_businesses", name: "stranger", asked: "stranger", plan: {} }),
@@ -734,6 +767,7 @@ const OTHER_TABLES = {
   platform_admins: "none",
   rate_hits: "none",
   sweep_status: "none",
+  event_subscriptions: "none", // who reacts to an event kind (00332): platform-wide rows, the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()
