@@ -239,6 +239,10 @@ async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
   }
 }
 
+/** The kit's one-line controls, whose shape and surface are the look's (kit.css), not a sheet's own paint. */
+const KIT_CONTROLS =
+  ".rec-sheet-close, .btn, .rec-seg, .rec-input, .rec-input-group, .rec-combo, .rec-select, .rec-switch, .token";
+
 /**
  * A sheet, quiet, by what the browser paints inside it (the plan's Phase 5, under Task 4.0's rule): no bordered pill,
  * no gradient, one typeface, no colour but the house's neutrals and its accent (and `also`, the tokens a sheet's own
@@ -253,7 +257,7 @@ async function expectSheetQuiet(
   counts = false,
 ): Promise<void> {
   const loud = await page.evaluate(
-    ({ selector, also }) => {
+    ({ selector, also, kit }) => {
       const sheet = document.querySelector(selector);
       if (!sheet) return null;
       const root = getComputedStyle(document.documentElement);
@@ -274,6 +278,13 @@ async function expectSheetQuiet(
         "--line",
         "--line-strong",
         "--accent",
+        // Glass's surfaces, the house's too: a sheet's foot is a capsule of the control layer (kit.css, the sheet).
+        "--surface-page-fill",
+        "--surface-pane-fill",
+        "--surface-inset-fill",
+        "--surface-control-fill",
+        "--surface-pop-fill",
+        "--surface-island-fill",
         ...also,
       ]) {
         probe.style.color = root.getPropertyValue(t).trim();
@@ -288,10 +299,10 @@ async function expectSheetQuiet(
         const cs = getComputedStyle(el);
         const name = `${el.tagName.toLowerCase()}.${String(el.className || "").split(" ")[0]}`;
         if (cs.display === "none") continue;
-        // The kit's own controls (a button, a segmented control, the sheet's Close) are the look's: Glass draws each
-        // as a capsule of its control layer, rim and sheen. The kit's gallery holds them (e2e/kit/kit.spec.ts: tokens,
-        // contrast, rings); this holds what the sheet paints of its own.
-        if (el.closest(".rec-sheet-close, .btn, .rec-seg")) continue;
+        // The kit's own controls are the look's: Glass draws each one-line control as a capsule, a button or the sheet's
+        // Close of the control layer (rim and sheen), a field, a select or a picker as an inset. The kit's gallery holds
+        // them (e2e/kit/kit.spec.ts: tokens, contrast, rings); this holds what the sheet paints of its own.
+        if (el.closest(kit)) continue;
         if (cs.backgroundImage.includes("gradient")) gradients.push(name);
         const r = el.getBoundingClientRect();
         if (r.height > 0 && parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderTopLeftRadius) >= r.height / 2)
@@ -315,7 +326,7 @@ async function expectSheetQuiet(
         counts: seen.join(" ").match(/\d[\d,]*\s*characters?/g) ?? [],
       };
     },
-    { selector, also },
+    { selector, also, kit: KIT_CONTROLS },
   );
   expect(loud, `${where}: the sheet is open`).not.toBeNull();
   expect(loud!.gradients, `${where}: a gradient in the sheet`).toEqual([]);
