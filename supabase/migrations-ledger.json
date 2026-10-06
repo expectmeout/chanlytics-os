@@ -331,6 +331,14 @@
     "00326_two_records_of_one_person_become_one.sql": "6b57611e26d1b1fe6671d40b02ece6ca3b48b8c2ba9b01a1b559df5b458db89b",
     "00327_a_message_s_status_is_told_to_its_workspace.sql": "9caefa7bc9ddf706be5cab3acbebd77c066f73b6c90d60cbf4f4fb117840f97b",
     "00328_a_person_s_every_open_deal.sql": "816bd45a3827f5217d111b2d08785d7f404848851b01ffc0a94f71247e51160b",
-    "00329_a_campaign_is_counted_by_its_channel.sql": "6f85139338ee724ff227a6a8df42f985961755816deac7376130b20581efc0fa"
+    "00329_a_campaign_is_counted_by_its_channel.sql": "6f85139338ee724ff227a6a8df42f985961755816deac7376130b20581efc0fa",
+    "00330_the_runtime_stamp_covers_channels_listings_and_lines.sql": "693e7760495a39a5ace5d9a2f08d87cd3a9df2bf64cb604b632dc57250ea95e8",
+    "00331_a_person_who_asked_to_be_forgotten_is_not_added_by_hand.sql": "3f1c23a4e4d139e309d94711f9070cb0c78703aab3bb28a2d31284512c372944",
+    "00332_a_day_counts_how_long_the_ledger_and_the_answer_waited.sql": "f1abd49fc8eddcb8c67855d249a1549528a4e5e78714420717a358816a53836b",
+    "00333_the_ledger_wakes_when_a_due_row_is_written.sql": "cc5d9229c5ee121c3317f635933bc7c38851c2db93c0033c41be98b19aed391f",
+    "00334_a_fact_s_event_reaches_its_subscribers_after_the_commit.sql": "6ad09ac0cdd400d21b6b98f41a78df176690594a8d2c9bac654a884a3c7bed1c",
+    "00335_the_claim_counts_capacity_and_every_lane_takes_turns.sql": "c2db84d86d4443434ba40cd2b05e0d5b01e258e2ab1168278cc1e5e56c7daefd",
+    "00336_every_verified_delivery_is_kept_seven_days_under_the_provider_s_own_id.sql": "d6792e80f4be9f7c2db56c94f34ccaa5ba9f25018fd392d0462445335fea14aa",
+    "00337_a_day_counts_how_long_a_provider_s_delivery_waited_to_be_taken_in.sql": "def3a864676048baf3fb85333e7a224cef8b8f726ba7ba7efe25cf122255c9ea"
   }
 }

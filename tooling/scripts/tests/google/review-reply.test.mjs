@@ -288,5 +288,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     reports.includes("const d = await draftReply(r.id);") && reports.includes('data-testid="google-reply-drafted"'),
   );
   assert.ok(reports.includes("<ReviewReply r={r} mode={vm.reply.mode} />") && reports.includes("vm.reply.words"));
-  assert.ok(readRaw("e2e/settings/settings-autonomy.spec.ts").includes("toHaveCount(7)"));
+  // The pane draws one row per class the workspace is offered: eight since Reach out's cold email joined (the spec
+  // says why, #1440).
+  assert.ok(readRaw("e2e/settings/settings-autonomy.spec.ts").includes("toHaveCount(8)"));
 });

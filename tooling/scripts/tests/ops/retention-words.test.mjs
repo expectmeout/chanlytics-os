@@ -31,6 +31,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     jobs_failed: 90,
     page_vitals: 30,
     ai_usage: 400,
+    provider_events: 7,
   });
   assert.equal(RATE_HITS_RETENTION_HOURS, 2);
   assert.equal(RECORDING_RETENTION_DAYS, 90);
@@ -46,6 +47,10 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   assert.match(
     words,
     /Background jobs, which carry a message while it is sent, are removed 7 days after they finish, or 90 days after they fail\./,
+  );
+  assert.match(
+    words,
+    /Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for 7 days so they can be replayed after a fault\./,
   );
   assert.match(
     words,

@@ -138,6 +138,30 @@ async function recordActivation(db, tenantId, milestone, via) {
   if (w.error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind: "workspace.activated", error: w.error });
   return !w.error;
 }
+async function relayEvents(db, limit) {
+  const { data, error } = await db.rpc("relay_events", { p_limit: limit });
+  if (error) throw new Error(`relay_events: ${error.message}`);
+  return data ?? 0;
+}
+async function eventOfDelivery(db, tenantId, eventId) {
+  const { data, error } = await db.from("events").select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version, aggregate_version, causation_id").eq("tenant_id", tenantId).eq("id", eventId).maybeSingle();
+  if (error) throw new Error(`events: ${error.message}`);
+  return data;
+}
+async function subscriptionPaused(db, kind, subscriber) {
+  const { data, error } = await db.from("event_subscriptions").select("paused").eq("kind", kind).eq("subscriber", subscriber).maybeSingle();
+  if (error) throw new Error(`event_subscriptions: ${error.message}`);
+  return data ? data.paused : true;
+}
+async function deliveryOf(db, tenantId, eventId, subscriber) {
+  const { data, error } = await db.from("event_deliveries").select("state, attempts").eq("tenant_id", tenantId).eq("event_id", eventId).eq("subscriber", subscriber).maybeSingle();
+  if (error) throw new Error(`event_deliveries: ${error.message}`);
+  return data;
+}
+async function settleDelivery(db, d) {
+  const { error } = await db.from("event_deliveries").update({ state: d.state, attempts: d.attempts, last_error: d.error }).eq("tenant_id", d.tenantId).eq("event_id", d.eventId).eq("subscriber", d.subscriber);
+  if (error) throw new Error(`event_deliveries: ${error.message}`);
+}
 
 // src/ai-usage.ts
 import { mayUseModels, RETENTION_DAYS } from "../../contracts/dist/index.js";
@@ -2600,6 +2624,33 @@ async function assembleBroadcast(db, args) {
   return data;
 }
 
+// src/provider-events.ts
+async function keepProviderEvent(db, d) {
+  const { error } = await db.from("provider_events").upsert(
+    { ...d, headers: d.headers, verified: true },
+    { onConflict: "provider,provider_event_id", ignoreDuplicates: true }
+  );
+  return { error: error?.message ?? null };
+}
+async function providerEventOf(db, provider, providerEventId) {
+  const { data, error } = await db.from("provider_events").select("provider, provider_event_id, door, url, tenant_id, verified, headers, body, received_at").eq("provider", provider).eq("provider_event_id", providerEventId).maybeSingle();
+  if (error) throw new Error(`provider_events: ${error.message}`);
+  return data ? { ...data, provider, headers: headersOf(data.headers) } : null;
+}
+function headersOf(v) {
+  const out = {};
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    for (const [k, s] of Object.entries(v)) if (typeof s === "string") out[k] = s;
+  }
+  return out;
+}
+async function scrubProviderEvents(db, tenantId, needles) {
+  const { data, error } = await db.rpc("provider_events_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`provider_events_scrub: ${error.message}`);
+  return data ?? 0;
+}
+
 // src/repositories/control.ts
 var CALL_CONTROL_S = 15 * 60;
 async function claimControl(db, p) {
@@ -3612,6 +3663,7 @@ export {
   deleteSecondFactor,
   deleteSendingDomain,
   deleteSendingDomainAsRead,
+  deliveryOf,
   describeLead,
   domainCapacityOf,
   domainHeldSince,
@@ -3628,6 +3680,7 @@ export {
   emitEvent,
   endVoiceSession,
   erasureDigests,
+  eventOfDelivery,
   everyoneIn,
   failStrandedRun,
   failedMessageErrors,
@@ -3667,6 +3720,7 @@ export {
   keepIdempotencyReceipt,
   keepInvoiceAmount,
   keepMessageCost,
+  keepProviderEvent,
   lastInboundEmail,
   leadAddressBounced,
   leadNamesByIds,
@@ -3719,6 +3773,7 @@ export {
   platformWide,
   playbookChannels,
   playbooksOnList,
+  providerEventOf,
   purgeAiUsage,
   putTenantConfig,
   queuedOutcomes,
@@ -3760,6 +3815,7 @@ export {
   recordStatusByExternalId,
   recordWhatsAppOffersStop,
   refreshWaitlistRow,
+  relayEvents,
   releaseControl,
   releaseIdempotencyKey,
   releaseUnavailableHolds,
@@ -3785,6 +3841,7 @@ export {
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
+  scrubProviderEvents,
   searchMessages,
   searchNamesByIds,
   sendJobScheduled,
@@ -3808,6 +3865,7 @@ export {
   setPlaybookState,
   setPolicyMode,
   setTemplateQuality,
+  settleDelivery,
   signUpOnPublicKey,
   staleSends,
   stampEmailComplaint,
@@ -3822,6 +3880,7 @@ export {
   stuckClaims,
   subjectsWith,
   subscribeWorkspaceChanges,
+  subscriptionPaused,
   suppressEmailOf,
   takeCheckAttempt,
   takeIdempotencyKey,

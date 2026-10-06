@@ -1330,9 +1330,117 @@ type Database = {
                     }
                 ];
             };
+            event_deliveries: {
+                Row: {
+                    attempts: number;
+                    created_at: string;
+                    event_at: string;
+                    event_id: string;
+                    job_id: string | null;
+                    kind: string;
+                    last_error: string | null;
+                    state: string;
+                    subscriber: string;
+                    tenant_id: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    attempts?: number;
+                    created_at?: string;
+                    event_at: string;
+                    event_id: string;
+                    job_id?: string | null;
+                    kind: string;
+                    last_error?: string | null;
+                    state?: string;
+                    subscriber: string;
+                    tenant_id: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    attempts?: number;
+                    created_at?: string;
+                    event_at?: string;
+                    event_id?: string;
+                    job_id?: string | null;
+                    kind?: string;
+                    last_error?: string | null;
+                    state?: string;
+                    subscriber?: string;
+                    tenant_id?: string;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "event_deliveries_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            event_outbox: {
+                Row: {
+                    created_at: string;
+                    event_at: string;
+                    event_id: string;
+                    kind: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    created_at?: string;
+                    event_at: string;
+                    event_id: string;
+                    kind: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    created_at?: string;
+                    event_at?: string;
+                    event_id?: string;
+                    kind?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "event_outbox_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            event_subscriptions: {
+                Row: {
+                    created_at: string;
+                    kind: string;
+                    lane: number;
+                    paused: boolean;
+                    subscriber: string;
+                };
+                Insert: {
+                    created_at?: string;
+                    kind: string;
+                    lane: number;
+                    paused?: boolean;
+                    subscriber: string;
+                };
+                Update: {
+                    created_at?: string;
+                    kind?: string;
+                    lane?: number;
+                    paused?: boolean;
+                    subscriber?: string;
+                };
+                Relationships: [];
+            };
             events: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1344,7 +1452,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1356,7 +1466,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1371,7 +1483,9 @@ type Database = {
             };
             events_default: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1383,7 +1497,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1395,7 +1511,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1410,7 +1528,9 @@ type Database = {
             };
             events_y2026m10: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1422,7 +1542,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1434,7 +1556,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1449,7 +1573,9 @@ type Database = {
             };
             events_y2026m11: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1461,7 +1587,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1473,7 +1601,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1488,7 +1618,9 @@ type Database = {
             };
             events_y2026m12: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1500,7 +1632,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1512,7 +1646,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1527,7 +1663,9 @@ type Database = {
             };
             events_y2027m01: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1539,7 +1677,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1551,7 +1691,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1566,7 +1708,9 @@ type Database = {
             };
             events_y2027m02: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1578,7 +1722,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1590,7 +1736,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1605,7 +1753,9 @@ type Database = {
             };
             events_y2027m03: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1617,7 +1767,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1629,7 +1781,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1644,7 +1798,9 @@ type Database = {
             };
             events_y2027m04: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1656,7 +1812,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1668,7 +1826,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1683,7 +1843,9 @@ type Database = {
             };
             events_y2027m05: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1695,7 +1857,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1707,7 +1871,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1722,7 +1888,9 @@ type Database = {
             };
             events_y2027m06: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1734,7 +1902,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1746,7 +1916,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1761,7 +1933,9 @@ type Database = {
             };
             events_y2027m07: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1773,7 +1947,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1785,7 +1961,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1800,7 +1978,9 @@ type Database = {
             };
             events_y2027m08: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1812,7 +1992,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1824,7 +2006,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1839,7 +2023,9 @@ type Database = {
             };
             events_y2027m09: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1851,7 +2037,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1863,7 +2051,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1878,7 +2068,9 @@ type Database = {
             };
             events_y2027m10: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1890,7 +2082,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1902,7 +2096,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1917,7 +2113,9 @@ type Database = {
             };
             events_y2027m11: {
                 Row: {
+                    aggregate_version: number | null;
                     category: string;
+                    causation_id: string | null;
                     created_at: string;
                     data: Json;
                     id: string;
@@ -1929,7 +2127,9 @@ type Database = {
                     version: number;
                 };
                 Insert: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -1941,7 +2141,9 @@ type Database = {
                     version?: number;
                 };
                 Update: {
+                    aggregate_version?: number | null;
                     category?: string;
+                    causation_id?: string | null;
                     created_at?: string;
                     data?: Json;
                     id?: string;
@@ -2257,10 +2459,32 @@ type Database = {
                     }
                 ];
             };
+            job_capacity: {
+                Row: {
+                    created_at: string;
+                    key: string;
+                    max_in_flight: number;
+                    scope: string;
+                };
+                Insert: {
+                    created_at?: string;
+                    key: string;
+                    max_in_flight: number;
+                    scope: string;
+                };
+                Update: {
+                    created_at?: string;
+                    key?: string;
+                    max_in_flight?: number;
+                    scope?: string;
+                };
+                Relationships: [];
+            };
             jobs: {
                 Row: {
                     attempts: number;
                     created_at: string;
+                    dedupe_key: string | null;
                     due_at: string;
                     fired_at: string | null;
                     id: string;
@@ -2276,6 +2500,7 @@ type Database = {
                 Insert: {
                     attempts?: number;
                     created_at?: string;
+                    dedupe_key?: string | null;
                     due_at: string;
                     fired_at?: string | null;
                     id?: string;
@@ -2291,6 +2516,7 @@ type Database = {
                 Update: {
                     attempts?: number;
                     created_at?: string;
+                    dedupe_key?: string | null;
                     due_at?: string;
                     fired_at?: string | null;
                     id?: string;
@@ -4185,10 +4411,16 @@ type Database = {
                     asks: number;
                     brain_p95_ms: number | null;
                     day: string;
+                    dead_letters: Json | null;
+                    duplicate_sends: number | null;
+                    first_answer_ms: Json | null;
                     handled: Json | null;
+                    intake_lag_ms: Json | null;
+                    job_lag_ms: Json | null;
                     messages_in: Json;
                     messages_out: Json;
                     provider_failures: Json;
+                    relay_lag_ms: number | null;
                     replies_answered: number;
                     replies_handed_off: number;
                     replies_held: number;
@@ -4205,10 +4437,16 @@ type Database = {
                     asks?: number;
                     brain_p95_ms?: number | null;
                     day: string;
+                    dead_letters?: Json | null;
+                    duplicate_sends?: number | null;
+                    first_answer_ms?: Json | null;
                     handled?: Json | null;
+                    intake_lag_ms?: Json | null;
+                    job_lag_ms?: Json | null;
                     messages_in?: Json;
                     messages_out?: Json;
                     provider_failures?: Json;
+                    relay_lag_ms?: number | null;
                     replies_answered?: number;
                     replies_handed_off?: number;
                     replies_held?: number;
@@ -4225,10 +4463,16 @@ type Database = {
                     asks?: number;
                     brain_p95_ms?: number | null;
                     day?: string;
+                    dead_letters?: Json | null;
+                    duplicate_sends?: number | null;
+                    first_answer_ms?: Json | null;
                     handled?: Json | null;
+                    intake_lag_ms?: Json | null;
+                    job_lag_ms?: Json | null;
                     messages_in?: Json;
                     messages_out?: Json;
                     provider_failures?: Json;
+                    relay_lag_ms?: number | null;
                     replies_answered?: number;
                     replies_handed_off?: number;
                     replies_held?: number;
@@ -4451,6 +4695,50 @@ type Database = {
                     user_id?: string;
                 };
                 Relationships: [];
+            };
+            provider_events: {
+                Row: {
+                    body: string;
+                    door: string;
+                    headers: Json;
+                    provider: string;
+                    provider_event_id: string;
+                    received_at: string;
+                    tenant_id: string | null;
+                    url: string;
+                    verified: boolean;
+                };
+                Insert: {
+                    body: string;
+                    door: string;
+                    headers?: Json;
+                    provider: string;
+                    provider_event_id: string;
+                    received_at?: string;
+                    tenant_id?: string | null;
+                    url: string;
+                    verified?: boolean;
+                };
+                Update: {
+                    body?: string;
+                    door?: string;
+                    headers?: Json;
+                    provider?: string;
+                    provider_event_id?: string;
+                    received_at?: string;
+                    tenant_id?: string | null;
+                    url?: string;
+                    verified?: boolean;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "provider_events_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
             };
             push_devices: {
                 Row: {
@@ -5106,6 +5394,7 @@ type Database = {
                     request_id: number | null;
                     requested_at: string | null;
                     sweep: string;
+                    woken_at: string | null;
                 };
                 Insert: {
                     alerted_at?: string | null;
@@ -5118,6 +5407,7 @@ type Database = {
                     request_id?: number | null;
                     requested_at?: string | null;
                     sweep: string;
+                    woken_at?: string | null;
                 };
                 Update: {
                     alerted_at?: string | null;
@@ -5130,6 +5420,7 @@ type Database = {
                     request_id?: number | null;
                     requested_at?: string | null;
                     sweep?: string;
+                    woken_at?: string | null;
                 };
                 Relationships: [];
             };
@@ -5494,6 +5785,10 @@ type Database = {
                 };
                 Returns: number;
             };
+            ask_for_tick: {
+                Args: never;
+                Returns: boolean;
+            };
             ask_tokens_day: {
                 Args: {
                     p_tenant: string;
@@ -5617,6 +5912,7 @@ type Database = {
                 Returns: {
                     attempts: number;
                     created_at: string;
+                    dedupe_key: string | null;
                     due_at: string;
                     fired_at: string | null;
                     id: string;
@@ -5879,6 +6175,12 @@ type Database = {
                     p_list: Json;
                 };
                 Returns: Json;
+            };
+            event_deliveries_redrive: {
+                Args: {
+                    p_subscriber: string;
+                };
+                Returns: number;
             };
             expire_stale_pauses: {
                 Args: never;
@@ -7234,10 +7536,16 @@ type Database = {
                     asks: number;
                     brain_p95_ms: number;
                     day: string;
+                    dead_letters: Json;
+                    duplicate_sends: number;
+                    first_answer_ms: Json;
+                    intake_lag_ms: Json;
+                    job_lag_ms: Json;
                     messages_in: Json;
                     messages_out: Json;
                     name: string;
                     provider_failures: Json;
+                    relay_lag_ms: number;
                     replies_answered: number;
                     replies_handed_off: number;
                     replies_held: number;
@@ -7393,6 +7701,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            provider_events_scrub: {
+                Args: {
+                    p_needles: string[];
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
             provision_tenant: {
                 Args: {
                     p_tenant_id: string;
@@ -7431,6 +7746,12 @@ type Database = {
                 Returns: number;
             };
             purge_notifications: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
+            purge_provider_events: {
                 Args: {
                     p_keep?: string;
                 };
@@ -7971,6 +8292,12 @@ type Database = {
                     p_call_id: string;
                 };
                 Returns: boolean;
+            };
+            relay_events: {
+                Args: {
+                    p_limit?: number;
+                };
+                Returns: number;
             };
             release_conversation_control: {
                 Args: {

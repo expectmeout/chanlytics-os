@@ -112,7 +112,6 @@
   "packages/contracts/src/people/person-receptionist.ts": 1,
   "packages/contracts/src/people/person-state.ts": 3,
   "packages/contracts/src/playbooks/playbooks.ts": 1,
-  "packages/contracts/src/reach-out/reach-out-booked.ts": 1,
   "packages/contracts/src/reach-out/reach-out-draft.ts": 4,
   "packages/contracts/src/reach-out/reach-out-replies.ts": 6,
   "packages/contracts/src/reach-out/reach-out-reply-draft.ts": 2,

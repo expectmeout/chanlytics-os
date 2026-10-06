@@ -475,6 +475,7 @@ test("every other refusal is heard as its own status in an empty TwiML, said at 
     },
     {
       why: "an sms channel row switched off: an answer, so Twilio stops asking",
+      kept: true,
       status: 200,
       level: "error",
       log: "sms_unroutable",
@@ -485,6 +486,7 @@ test("every other refusal is heard as its own status in an empty TwiML, said at 
     },
     {
       why: "an sms channel row that could not be read: ours to retry",
+      kept: true,
       status: 503,
       level: "error",
       log: "sms_routing_lookup_failed",
@@ -527,6 +529,18 @@ test("every other refusal is heard as its own status in an empty TwiML, said at 
         [[], [], []],
         "no receptionist ran, and nothing was answered",
       );
+      // Two texts were knocked: each kept once Twilio's signature held (00336), or neither when it could not be checked.
+      assert.deepEqual(
+        (w.tables.provider_events ?? []).map((r) => [r.provider, r.door]),
+        c.kept
+          ? [
+              ["twilio", "/api/inbound-sms"],
+              ["twilio", "/api/inbound-sms"],
+            ]
+          : [],
+        c.kept ? `${c.why}: kept, the replay after a fix` : `${c.why}: refused before a signature, nothing kept`,
+      );
+      if (c.kept) assert.equal(w.tables.provider_events[0].provider_event_id, fields.MessageSid);
     });
   }
 });
@@ -888,4 +902,43 @@ test("after the receptionist throws, only a text the database did not keep is re
       "but it is said",
     );
   });
+});
+
+test("the delivery is kept under Twilio's id, as it came, before the verdict (00336); a text that is not proven keeps nothing; a redelivery keeps the first", async () => {
+  const w = world();
+  w.open();
+  const seen = receptionist();
+  const fields = w.form(w.customer());
+  assert.deepEqual(await heard(await text(fields, "another-subaccounts-token")), twiml(403));
+  assert.equal((w.tables.provider_events ?? []).length, 0, "nothing kept for a text that is not proven");
+  assert.deepEqual(await heard(await text(fields, w.TOKEN)), twiml(200));
+  assert.equal(seen.ingested.length, 1);
+  const [kept, ...more] = w.tables.provider_events;
+  assert.equal(more.length, 0);
+  assert.deepEqual(
+    [
+      kept.provider,
+      kept.provider_event_id,
+      kept.door,
+      kept.url,
+      kept.tenant_id,
+      kept.verified,
+      Object.keys(kept.headers),
+      kept.body,
+    ],
+    [
+      "twilio",
+      fields.MessageSid,
+      "/api/inbound-sms",
+      DOOR,
+      w.T,
+      true,
+      ["x-twilio-signature"],
+      new URLSearchParams(fields).toString(),
+    ],
+    "the provider's id, the door and url it came to, the header its signature reads, the body as it came, and the workspace",
+  );
+  assert.deepEqual(await heard(await text({ ...fields, Body: "the same sid, delivered again" }, w.TOKEN)), twiml(200));
+  assert.equal(w.tables.provider_events.length, 1, "a redelivery under the same id keeps the first");
+  assert.equal(w.tables.provider_events[0].body, new URLSearchParams(fields).toString());
 });

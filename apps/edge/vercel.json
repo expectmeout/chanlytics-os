@@ -6,6 +6,9 @@
     "api/admin/google.ts": {
       "maxDuration": 60
     },
+    "api/admin/intake/replay.ts": {
+      "maxDuration": 60
+    },
     "api/admin/lines.ts": {
       "maxDuration": 60
     },

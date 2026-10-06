@@ -110,6 +110,12 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
       insert into public.jobs (tenant_id, kind, due_at, payload)
         values (a, 'outbound_send', now() + interval '1 day', '{"purpose": "outreach"}') returning lane into l;
       lanes := lanes || jsonb_build_object('outreach', l);
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+        values (a, 'event_deliver', now() + interval '1 day', '{"lane": "0"}') returning lane into l;
+      lanes := lanes || jsonb_build_object('delivery_lane_0', l);
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+        values (a, 'event_deliver', now() + interval '1 day', '{"lane": "nine"}') returning lane into l;
+      lanes := lanes || jsonb_build_object('delivery_lane_bad', l);
       seen := jsonb_build_object('lanes', lanes, 'kinds', kinds);`);
   assert.deepEqual([...kinds].sort(), [...SCHEMA_SETS["jobs.kind"]].sort(), "the kinds read are the CHECK's own");
   assert.deepEqual(
@@ -129,6 +135,9 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
     lead_check: 2,
     push_receipts: 2,
     outreach: 2, // an outbound_send whose purpose is outreach: a cold email is bulk
+    event_deliver: 2, // a delivery with no lane in its payload: bulk, the safe default (00334)
+    delivery_lane_0: 0, // a delivery in its subscription's lane, read from the payload
+    delivery_lane_bad: 2, // a lane the payload spells wrong is bulk, never an error
   };
   assert.deepEqual(
     Object.fromEntries(Object.keys(expected).map((k) => [k, lanes[k]])),
@@ -182,6 +191,56 @@ test(
       claimed,
       ["a's reply", "a's first batch", "b's batch", "a's second batch", "a's lead job"],
       "a reply runs first and holds no bulk place; a's first batch running puts b's before a's second; then a's own, in turn",
+    );
+  },
+);
+
+test(
+  "capacity (00335): a key at its cap leaves the next row of that key for a later tick and takes the next of another; a key with no row is no limit",
+  { skip },
+  () => {
+    const claimed = claimOrder(
+      `insert into public.job_capacity (scope, key, max_in_flight) values ('provider', 'meta', 1);`,
+      job("meta, running", {
+        kind: "broadcast_send",
+        due: 200,
+        payload: { capacity: ["provider:meta"] },
+        fired: 10,
+        lease: 80,
+      }),
+      job("meta, waiting its turn", { kind: "broadcast_send", due: 100, payload: { capacity: ["provider:meta"] } }),
+      job("twilio, no row so no limit", {
+        kind: "broadcast_send",
+        due: 50,
+        payload: { capacity: ["provider:twilio"] },
+      }),
+      job("no key", { kind: "broadcast_send", due: 10 }),
+      job("meta and twilio: one full key is enough to wait", {
+        kind: "lead_collect",
+        due: 5,
+        payload: { capacity: ["provider:twilio", "provider:meta"] },
+      }),
+    );
+    assert.deepEqual(claimed, ["twilio, no row so no limit", "no key"]);
+  },
+);
+
+test(
+  "turns in every lane (00335): two workspaces' replies alternate when one has a burst, and a reply still goes before bulk",
+  { skip },
+  () => {
+    const claimed = claimOrder(
+      job("a's running reply", { kind: "outbound_send", due: 60, fired: 5, lease: 85 }),
+      job("a's reply 1", { kind: "outbound_send", due: 100 }),
+      job("a's reply 2", { kind: "outbound_send", due: 90 }),
+      job("b's reply", { ws: "b", kind: "outbound_send", due: 10 }),
+      job("b's batch", { ws: "b", kind: "broadcast_send", due: 500 }),
+      job("a's line", { kind: "line_provision", due: 30 }),
+    );
+    assert.deepEqual(
+      claimed,
+      ["b's reply", "a's reply 1", "a's reply 2", "a's line", "b's batch"],
+      "a's running reply puts b's reply first; then a's own, oldest first; a reply running holds no lane-1 or bulk place",
     );
   },
 );

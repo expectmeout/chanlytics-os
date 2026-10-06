@@ -450,10 +450,18 @@ test(
         "asks",
         "brain_p95_ms",
         "day",
+        // the spine's five (00332)
+        "dead_letters",
+        "duplicate_sends",
+        "first_answer_ms",
+        // intake lag by provider (00337)
+        "intake_lag_ms",
+        "job_lag_ms",
         "messages_in",
         "messages_out",
         "name",
         "provider_failures",
+        "relay_lag_ms",
         "replies_answered",
         "replies_handed_off",
         "replies_held",

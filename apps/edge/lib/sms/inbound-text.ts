@@ -37,6 +37,7 @@
  */
 import { text } from "../http.js";
 import { pg } from "../pg.js";
+import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { smsInboundFrom, smsAsWaMessage } from "../packages/channels.js";
 import { smsSenderFor } from "./sms.js";
 import { planSmsIngress, carrierFor, smsAfterThrow } from "./sms-ingress.js";
@@ -69,6 +70,20 @@ export async function receiveInboundText(request: Request): Promise<Response> {
     signature: request.headers.get("x-twilio-signature"),
     db,
   });
+  // Kept under Twilio's id once its signature held, before any verdict is acted on (decision 0032, 00336). Twilio never
+  // sends a text again, so one refused for a routing that could not be read, or a channel switched off, is the one a
+  // fix takes in by replay.
+  const proven = verdict.kind === "accept" ? { tenantId: verdict.routed.tenantId } : verdict.proven;
+  if (proven)
+    await keepDelivery(db, {
+      provider: "twilio",
+      id: inbound.messageSid,
+      door: "/api/inbound-sms",
+      url: request.url,
+      tenantId: proven.tenantId,
+      headers: signatureHeaders(request, ["x-twilio-signature"]),
+      body: raw,
+    });
   if (verdict.kind === "refuse") {
     if (verdict.level === "error") L.error(verdict.log);
     else L.warn(verdict.log);

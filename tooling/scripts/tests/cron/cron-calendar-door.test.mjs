@@ -31,7 +31,7 @@ for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/calendar.ts"));
 const { forgetFeeds } = await import(at("apps/edge/lib/calendar/availability.ts"));
-const { CALENDAR_PER_TICK } = await import(at("apps/edge/lib/ops/sweep-rotation.ts"));
+const { CALENDAR_PER_TICK, CALENDAR_SWEEP_BUDGET_MS } = await import(at("apps/edge/lib/ops/sweep-rotation.ts"));
 after(() => setPg(null));
 
 const D = 86_400_000;
@@ -353,6 +353,62 @@ test("a feed that cannot be read fails that workspace only and moves it to the b
     assert.deepEqual(bell(w, K), [["calendar_people", "clients", "1 person added from your calendar"]]);
     assert.deepEqual(line.mail(), []);
   } finally {
+    line.restore();
+  }
+});
+
+/* ------------------------------------------------------------- the budget */
+
+test("the budget: once the tick has spent its forty seconds, the rest of the page is left for the next hour -- unread, unstamped, counted as remaining and noted as backlog -- instead of the function being killed part way with nothing counted", async () => {
+  const w = world();
+  const S = "slow-first",
+    R2 = "read-three-hours-ago",
+    R1 = "read-two-hours-ago";
+  const urlS = connected(w.tables, S, null, [{ uid: "s1", title: "Trim", phone: "+1 212 555 0100" }]);
+  const twoHoursAgo = ago(2 * H);
+  const threeHoursAgo = ago(3 * H);
+  connected(w.tables, R1, twoHoursAgo, [{ uid: "r1", title: "Must not be read", phone: "+1 917 555 0199" }]);
+  connected(w.tables, R2, threeHoursAgo, [{ uid: "r2", title: "Nor this", phone: "+1 917 555 0198" }]);
+
+  // The clock the budget is kept on: reading the first feed takes the whole of it.
+  const realNow = Date.now;
+  let skew = 0;
+  Date.now = () => realNow() + skew;
+  const line = wire((u) => {
+    const r = reply(u);
+    if (u.endsWith(`/${S}.ics`)) skew = CALENDAR_SWEEP_BUDGET_MS + 1_000;
+    return r;
+  });
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.deepEqual(body, {
+      ok: true,
+      tenants: 1,
+      seen: 1,
+      added: 1,
+      named: 0,
+      emailed: 0,
+      booked: 0,
+      failed: 0,
+      remaining: 2,
+    });
+    assert.deepEqual(read(line), [urlS], "the never-read feed was read; the two behind it were not fetched");
+    assert.deepEqual(people(w, S), [["+12125550100", null]]);
+    assert.deepEqual([people(w, R1), people(w, R2)], [[], []]);
+    assert.ok(fresh(checkedAt(w, S)), "what was read is stamped");
+    assert.deepEqual(
+      [checkedAt(w, R1), checkedAt(w, R2)],
+      [twoHoursAgo, threeHoursAgo],
+      "what was not read is not stamped: it keeps its place at the front of the next page",
+    );
+    assert.deepEqual(
+      w.backlog,
+      [{ p_sweep: "calendar", p_remaining: 2 }],
+      "noted as backlog, so three such ticks alarm",
+    );
+  } finally {
+    Date.now = realNow;
     line.restore();
   }
 });

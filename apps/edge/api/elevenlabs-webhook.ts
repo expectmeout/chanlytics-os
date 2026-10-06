@@ -12,6 +12,10 @@
  * failed is a log line, never a retry of the delivery. A conversation this database does not know (another agent's,
  * a row already swept) is 200 and a line, never a retry storm; a database that is down, or one that could not be
  * read or written, is 503, so the delivery comes back. A deployment without the webhook's secret has no such door: 404.
+ *
+ * The one webhook door the intake ledger leaves out (provider_events, decision 0032, 00336): its body is the
+ * transcript, which names customers, and this door keeps nothing of what was said. A delivery it could not take is
+ * its 503, which the vendor delivers again.
  */
 import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";

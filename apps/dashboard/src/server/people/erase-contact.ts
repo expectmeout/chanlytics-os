@@ -15,7 +15,8 @@
  * order they run in, on the session's client for the rest.
  */
 import { AppError } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import { scrubProviderEvents, type Json } from "@chanlytics/db";
+import { serviceDb } from "@/server/service-db";
 import { type erasureScope, recordDecision } from "@/server/verbs";
 import {
   removeMediaObjects,
@@ -190,6 +191,18 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
       500,
     );
   }
+  // The deliveries the intake ledger keeps a week (00336) hold the number and the words as a provider sent them: found
+  // by every spelling the Ask scrub uses, while they are in hand, and fail closed for the same reason as the jobs.
+  try {
+    await scrubProviderEvents(serviceDb(), contact.tenant_id, keys.needles);
+  } catch (e) {
+    log.error("erase_deliveries_prescrub_failed", { contact: contact.id, error: e });
+    throw new AppError(
+      "internal",
+      "The deliveries kept for replay that carried this person's number could not be scrubbed, so nothing was deleted. Try again.",
+      500,
+    );
+  }
 }
 
 /* ---- 3. Storage, before the rows that name it ---- */
@@ -241,6 +254,7 @@ async function forgetAfterRows(ctx: RouteContext, contact: ErasedContact, keys: 
   // `body` in their payload forever.
   const jobsScrubbed = await scrubJobsBestEffort(contact, keys.identifiers);
   log.info("erase_jobs_scrubbed", { contact: contact.id, jobs: jobsScrubbed });
+  await scrubKeptDeliveriesBestEffort(contact, keys.needles);
 }
 
 /* ---- 5. anything that landed during the window ----
@@ -319,4 +333,16 @@ function scrubJobsBestEffort(contact: ErasedContact, identifiers: readonly strin
     log.error("erase_jobs_scrub_failed", { contact: contact.id, error: e });
     return 0;
   });
+}
+
+/**
+ * The kept deliveries that name them, again: one that came while the erasure ran is caught here, as a job in flight is.
+ * A failure is logged and carries on, and the ledger's week-long purge takes whatever it left.
+ */
+async function scrubKeptDeliveriesBestEffort(contact: ErasedContact, needles: readonly string[]): Promise<void> {
+  try {
+    await scrubProviderEvents(serviceDb(), contact.tenant_id, needles);
+  } catch (e) {
+    log.error("erase_deliveries_scrub_failed", { contact: contact.id, error: e });
+  }
 }

@@ -898,8 +898,8 @@ function mmss(ms2) {
 function callLength(ms2) {
   return ms2 != null && Number.isFinite(ms2) && ms2 > 0 ? mmss(ms2) : void 0;
 }
-function durationWords(seconds) {
-  const v = Math.max(0, Math.round(seconds));
+function durationWords(seconds2) {
+  const v = Math.max(0, Math.round(seconds2));
   if (v < 60) return `${v}s`;
   if (v < 600) {
     const m2 = Math.floor(v / 60);
@@ -7617,7 +7617,9 @@ var RETENTION_DAYS = {
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30,
   /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
-  ai_usage: 400
+  ai_usage: 400,
+  /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00336; decision 0032). */
+  provider_events: 7
 };
 var RATE_HITS_RETENTION_HOURS = 2;
 var EVENT_EVIDENCE_KINDS = [
@@ -7632,7 +7634,7 @@ var EVENT_EVIDENCE_KINDS = [
 var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
 function retentionWords() {
   const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
 }
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -7760,8 +7762,8 @@ var MISSED_CALL_NEWS_MS = DAY_MS;
 function missedCallIsNews(c, now) {
   return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
 }
-function fmtClock(seconds) {
-  return mmss(Math.max(0, seconds) * 1e3);
+function fmtClock(seconds2) {
+  return mmss(Math.max(0, seconds2) * 1e3);
 }
 function liveStillUp(c, heartbeatMs, nowMs) {
   if (!c.live) return false;
@@ -11778,7 +11780,7 @@ function peopleFromItems(items, services, nowMs, window = {}) {
   return [...byPhone.values()].map((r2) => r2.email && (ridersOf.get(r2.email)?.size ?? 0) > 1 ? { ...r2, email: null } : r2).sort((a, b) => a.start - b.start);
 }
 function afterPersonRefused(code2) {
-  return code2 === "22023" ? "skip" : "stop";
+  return code2 === "22023" || code2 === "PE001" ? "skip" : "stop";
 }
 function bookedAfterAsk(visits, askedMs) {
   if (!visits) return false;
@@ -13010,8 +13012,16 @@ var JOB_KINDS = [
    * (jobs_reply_read_once, scheduleJobOnce), and by itself for a re-read of a reply it could not read ({ stage:
    * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
    */
-  "reply_read"
+  "reply_read",
+  /**
+   * One event's delivery to one subscriber (00334, decision 0032): the relay writes it beside the event_deliveries row,
+   * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
+   * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
+   * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
+   */
+  "event_deliver"
 ];
+var EVENT_SUBSCRIBERS = ["audit"];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
   "phone_number_quality_update",
@@ -17003,19 +17013,19 @@ function holdOf(replies) {
   if (!all) return null;
   const counts = /* @__PURE__ */ new Map();
   for (const x of all) if (x.c.kind !== "unheld") counts.set(x.hold, (counts.get(x.hold) ?? 0) + 1);
-  const [seconds] = [...counts].reduce((a, b) => b[1] > a[1] || b[1] === a[1] && b[0] < a[0] ? b : a);
+  const [seconds2] = [...counts].reduce((a, b) => b[1] > a[1] || b[1] === a[1] && b[0] < a[0] ? b : a);
   const past = pastOf(all);
   return {
-    seconds,
-    label: holdWords2(seconds),
+    seconds: seconds2,
+    label: holdWords2(seconds2),
     atEnd: countOf(all, "atEnd"),
     unheld: countOf(all, "unheld"),
     later: past.length,
     laterMost: past.length ? Math.max(...past) : null
   };
 }
-function spanCounts(spans, seconds) {
-  const rounded = seconds.map(Math.round);
+function spanCounts(spans, seconds2) {
+  const rounded = seconds2.map(Math.round);
   const rows = [];
   let lo = -Infinity;
   for (const { id, label, max } of spans) {
@@ -22538,15 +22548,15 @@ var CALL_ACTIVITY_NAME = "CallActivity";
 var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
 var CALL_ACTIVITY_ROLES = ["owner", "operator"];
 function callActivityStart(props, now) {
-  const seconds = Math.floor(now.getTime() / 1e3);
+  const seconds2 = Math.floor(now.getTime() / 1e3);
   return {
     aps: {
-      timestamp: seconds,
+      timestamp: seconds2,
       event: "start",
       "attributes-type": "LiveActivityAttributes",
       attributes: {},
       "content-state": { name: CALL_ACTIVITY_NAME, props: JSON.stringify(props) },
-      "stale-date": seconds + Math.floor(CALL_ACTIVITY_STALE_MS / 1e3),
+      "stale-date": seconds2 + Math.floor(CALL_ACTIVITY_STALE_MS / 1e3),
       alert: { title: "Call in progress", body: `${props.who} is on the line.` }
     }
   };
@@ -25734,7 +25744,7 @@ function unsubscribePageWords(v) {
 var BOOKED_SEEN_CAP = 500;
 function bookedSeenOf(items, own) {
   const out = [];
-  const byStart = [...items].sort((a, b) => a.start - b.start);
+  const byStart = [...items].sort((a, b) => b.start - a.start);
   for (const it of byStart) {
     const c = extractContacts(it, own);
     const start = new Date(it.start).toISOString();
@@ -27057,8 +27067,11 @@ var SCHEMA_SETS = {
     "email_review"
   ],
   "escalations.state": ["open", "resolved"],
+  "event_deliveries.state": ["scheduled", "done", "failed", "paused"],
+  "event_subscriptions.lane": [],
   "google_reviews.origin": ["places", "profile"],
   "invitations.role": ["operator", "viewer"],
+  "job_capacity.scope": ["workspace", "provider", "domain"],
   "jobs.kind": [
     "outbound_send",
     "broadcast_send",
@@ -27069,7 +27082,8 @@ var SCHEMA_SETS = {
     "lead_check",
     "push_send",
     "push_receipts",
-    "reply_read"
+    "reply_read",
+    "event_deliver"
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -27218,6 +27232,7 @@ var SCHEMA_SETS = {
   ],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
+  "provider_events.provider": ["meta", "twilio", "retell", "resend", "stripe"],
   "push_devices.platform": ["ios", "android"],
   "reach_out_replies.claim": ["person", "automated", "auto_reply"],
   "reach_out_replies.draft_state": ["none", "waiting", "written", "not_written"],
@@ -28923,9 +28938,9 @@ var NO_ANSWER_WRITE = "Chanlytics didn't answer properly, so this may or may not
 var UNCONFIRMED_WRITE = "Chanlytics hit a problem and couldn't confirm this \u2014 check whether it went through before trying again.";
 var READ_AGAIN = "Chanlytics couldn't read this just now \u2014 try again in a moment.";
 var OUT_OF_DATE = "This page is out of date \u2014 reload it and try again.";
-function waitWords(seconds) {
-  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
-  const m = Math.ceil(seconds / 60);
+function waitWords(seconds2) {
+  if (seconds2 < 60) return `${seconds2} second${seconds2 === 1 ? "" : "s"}`;
+  const m = Math.ceil(seconds2 / 60);
   return `${m} minute${m === 1 ? "" : "s"}`;
 }
 function retryAfterOf(details, header, nowMs) {
@@ -29455,7 +29470,10 @@ var JOB_WORK = {
   push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
-  reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" }
+  reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
+  // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
+  // did not get there, and the activity log is where the fact is.
+  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" }
 };
 var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
 function jobNewsWords(jobKind, end, how) {
@@ -32586,6 +32604,36 @@ function failuresOf(m) {
   const parts2 = Object.entries(m).filter(([, c]) => c > 0).sort(([a], [b]) => a.localeCompare(b)).map(([outcome, c]) => `${c} ${FAILURE_WORDS[outcome] ?? outcome}`);
   return `${plural2(n, "send", "sends")} failed (${parts2.join(", ")})`;
 }
+var LANE_WORDS = { "0": "replies", "1": "the waiting", "2": "bulk", none: "the rest" };
+var seconds = (ms2) => `${(ms2 / 1e3).toFixed(1)} s`;
+function spineLine(r2) {
+  const parts2 = [];
+  const lanes = Object.entries(r2.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));
+  if (lanes.length) {
+    const [[lane0, ms0], ...rest] = lanes;
+    parts2.push(
+      [`${LANE_WORDS[lane0] ?? `lane ${lane0}`} claimed within ${seconds(ms0)}`].concat(rest.map(([lane, ms2]) => `${LANE_WORDS[lane] ?? `lane ${lane}`} within ${seconds(ms2)}`)).join(", ")
+    );
+  }
+  const channels = Object.keys(r2.first_answer_ms).sort();
+  if (channels.length) {
+    const worst = Math.max(...Object.values(r2.first_answer_ms));
+    parts2.push(`first answer within ${seconds(worst)} (${channels.join(", ")})`);
+  }
+  if (r2.duplicate_sends !== null) parts2.push(plural2(r2.duplicate_sends, "duplicate send", "duplicate sends"));
+  const died = sum(r2.dead_letters);
+  if (died > 0) {
+    const kinds = Object.entries(r2.dead_letters).filter(([, n]) => n > 0).sort(([a], [b]) => a.localeCompare(b)).map(([kind, n]) => `${kind} ${n}`);
+    parts2.push(`${plural2(died, "job", "jobs")} died (${kinds.join(", ")})`);
+  }
+  if (r2.relay_lag_ms !== null) parts2.push(`events relayed within ${seconds(r2.relay_lag_ms)}`);
+  const providers = Object.keys(r2.intake_lag_ms).sort();
+  if (providers.length) {
+    const worst = Math.max(...Object.values(r2.intake_lag_ms));
+    parts2.push(`deliveries taken in within ${seconds(worst)} (${providers.join(", ")})`);
+  }
+  return parts2.join("; ");
+}
 function receptionistLine(r2) {
   const replies = r2.replies_answered + r2.replies_held + r2.replies_handed_off;
   if (replies === 0) return "the receptionist did not reply";
@@ -32608,6 +32656,7 @@ function platformDaysWords(rows) {
     answers: `${r2.asks} asked, ${r2.answered} answered`,
     receptionist: receptionistLine(r2),
     failures: failuresOf(r2.provider_failures),
+    spine: spineLine(r2),
     silent: r2.asks > 0 && r2.answered === 0,
     tone: r2.asks > 0 && r2.answered === 0 ? "danger" : "plain",
     asks: r2.asks
@@ -32808,9 +32857,9 @@ function googleCallbackUrl(origin, next) {
   return `${origin}/auth/callback?next=${encodeURIComponent(next || "/")}`;
 }
 var SIGNIN_RESEND_COOLDOWN_S = 60;
-function resendLeft(sentAtMs, nowMs, seconds = SIGNIN_RESEND_COOLDOWN_S) {
+function resendLeft(sentAtMs, nowMs, seconds2 = SIGNIN_RESEND_COOLDOWN_S) {
   if (sentAtMs == null) return 0;
-  return Math.max(0, Math.ceil((sentAtMs + seconds * 1e3 - nowMs) / 1e3));
+  return Math.max(0, Math.ceil((sentAtMs + seconds2 * 1e3 - nowMs) / 1e3));
 }
 function requestCodeWords(e) {
   const message = e?.message ?? "";
@@ -33090,6 +33139,7 @@ export {
   ESCALATION_SUMMARIES,
   EVENT_EVIDENCE_KINDS,
   EVENT_KINDS,
+  EVENT_SUBSCRIBERS,
   EVERYONE_HINT,
   EVERYONE_LABEL,
   FALLBACK_DEFAULTS,

@@ -354,6 +354,39 @@ before(async () => {
   await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
   await seed("lead_suggestions", { tenant_id: A, business_line: "a hair salon in Miami" }, null);
   await seed("platform_metrics", { tenant_id: A, day: "2026-09-26" }, null);
+  // A capacity row of this suite's own (00335), so "a member reads nothing" is not proved on an empty table.
+  const cap = await db.from("job_capacity").upsert({ scope: "provider", key: "tenancy-suite", max_in_flight: 1 });
+  assert.equal(cap.error, null, `capacity: ${cap.error?.message}`);
+  // The spine (00334): an outbox row and a delivery of the workspace's, as the copy and the relay would write them.
+  await seed(
+    "event_outbox",
+    { event_id: crypto.randomUUID(), tenant_id: A, kind: "message.received", event_at: "2026-10-06T00:00:00Z" },
+    null,
+  );
+  await seed(
+    "provider_events",
+    {
+      provider: "twilio",
+      provider_event_id: `SM-tenancy-${Date.now()}`,
+      door: "/api/inbound-sms",
+      url: "https://edge.example.com/api/inbound-sms",
+      tenant_id: A,
+      headers: {},
+      body: "From=%2B15550100123&Body=hello",
+    },
+    null,
+  );
+  await seed(
+    "event_deliveries",
+    {
+      event_id: crypto.randomUUID(),
+      subscriber: "audit",
+      tenant_id: A,
+      kind: "message.received",
+      event_at: "2026-10-06T00:00:00Z",
+    },
+    null,
+  );
 
   // The service role's own tables, seeded so "a member reads nothing" is not
   // proved on an empty table. A platform admin is a user who is nobody's
@@ -432,6 +465,7 @@ function earning(eventId) {
 }
 
 after(async () => {
+  if (!skip) await db.from("job_capacity").delete().eq("key", "tenancy-suite");
   if (skip) return;
   for (const [table, col, val] of probes) await db.from(table).delete().eq(col, val);
   if (A) await db.from("tenants").delete().eq("id", A);
@@ -718,6 +752,35 @@ const TENANT_TABLES = {
   partner_earnings: ["partner", () => earning(`evt_stranger_${Date.now()}`)],
   partner_invitations: ["brought", invitation],
   billing_card_marks: ["none", () => ({ tenant_id: A, card_fingerprint: "fp_stranger" })],
+  // The spine (00334, decision 0032): an event's outbox row and its deliveries follow their workspace; the service role
+  // alone writes and reads them.
+  event_outbox: [
+    "none",
+    () => ({ event_id: crypto.randomUUID(), tenant_id: A, kind: "message.received", event_at: "2026-10-06T00:00:00Z" }),
+  ],
+  // The intake ledger (00336): a provider's delivery as it came, the service role's alone.
+  provider_events: [
+    "none",
+    () => ({
+      provider: "twilio",
+      provider_event_id: `SM-stranger-${Date.now()}`,
+      door: "/api/inbound-sms",
+      url: "https://edge.example.com/api/inbound-sms",
+      tenant_id: A,
+      headers: {},
+      body: "From=%2B15550100123&Body=hello",
+    }),
+  ],
+  event_deliveries: [
+    "none",
+    () => ({
+      event_id: crypto.randomUUID(),
+      subscriber: "audit",
+      tenant_id: A,
+      kind: "message.received",
+      event_at: "2026-10-06T00:00:00Z",
+    }),
+  ],
   lead_searches_view: [
     "member",
     () => ({ tenant_id: A, via: "people", card: "local_businesses", name: "stranger", asked: "stranger", plan: {} }),
@@ -734,6 +797,8 @@ const OTHER_TABLES = {
   platform_admins: "none",
   rate_hits: "none",
   sweep_status: "none",
+  event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
+  job_capacity: "none", // how many jobs naming a key may run at once (00335): platform-wide rows, the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()

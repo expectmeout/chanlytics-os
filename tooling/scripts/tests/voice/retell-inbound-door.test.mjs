@@ -427,9 +427,12 @@ test("an agent nobody routes is answered 200 with the shell's own defaults, said
       "what the shell says on its own: no facts, no memory, no line to dial, a greeting that names nobody",
     );
     assert.deepEqual(
-      db.seen.map((q) => q.table),
-      ["tenant_channels"],
-      "the routing answer, and nothing of anyone's facts or memory",
+      db.seen.map((q) => [q.table, q.op]),
+      [
+        ["tenant_channels", "select"],
+        ["provider_events", "upsert"],
+      ],
+      "the routing answer and the delivery kept under no workspace (00336), and nothing of anyone's facts or memory",
     );
     assert.deepEqual(log.said("inbound_ctx_unrouted"), [
       { stream: "warn", level: "warn", event: "inbound_ctx_unrouted", ...w.tail },
@@ -466,7 +469,11 @@ test("an agent nobody routes is answered 200 with the shell's own defaults, said
   const vdb = v.open();
   await listening(async (log) => {
     assert.deepEqual(await heard(await knock(v.call({ agent_id: undefined }))), [200, "application/json", SHELL]);
-    assert.equal(vdb.seen.length, 0, "no agent, no routing key: not one row read");
+    assert.deepEqual(
+      vdb.seen.map((q) => [q.table, q.op]),
+      [["provider_events", "upsert"]],
+      "no agent, no routing key: not one row read, and the proven delivery kept under no workspace (00336)",
+    );
     const { agent_id: _none, ...tail } = v.tail;
     assert.deepEqual(
       log.said("inbound_ctx_unrouted"),

@@ -221,7 +221,7 @@ function PlatformDaysCard({ P, problem }: { P: PlatformApi; problem: string | nu
               <div className="set-row-info">
                 <span className="set-row-label">{l.name}</span>
                 <span className="set-row-hint" data-tone={l.tone}>
-                  {[l.answers, l.receptionist, l.failures].filter(Boolean).join(" · ")}
+                  {[l.answers, l.receptionist, l.failures, l.spine].filter(Boolean).join(" · ")}
                 </span>
               </div>
             </div>

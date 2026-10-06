@@ -18,6 +18,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { CLOCKS } from "../clocks/_clocks.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const CLI = process.env.SUPABASE_CLI || "supabase";
@@ -105,6 +106,8 @@ const EVERY_CLOCK = {
   // A connected WhatsApp number's rating (00315): a six-hour clock that asks the edge only when a number is connected,
   // and records that it looked otherwise.
   channel_quality: "channel-quality-sweep",
+  // The intake ledger's kept deliveries (00336): nightly, a week on, judged by its run.
+  purge_provider_events: "purge-provider-events",
 };
 const RUN_JUDGED = [
   "partitions",
@@ -117,6 +120,7 @@ const RUN_JUDGED = [
   "purge_leads",
   "purge_notifications",
   "purge_page_vitals",
+  "purge_provider_events",
   "purge_rate_hits",
   "sending_domain_days",
   "snoozes",
@@ -136,6 +140,11 @@ test("the register names every cron job, and every one of them is scheduled", { 
     Object.fromEntries(data.map((r) => [r.sweep, r.jobname])),
     EVERY_CLOCK,
     "one row per clock, each naming its job",
+  );
+  assert.deepEqual(
+    Object.keys(CLOCKS).sort(),
+    data.map((r) => r.sweep).sort(),
+    "every clock has a kind, and why (clocks/_clocks.mjs; decision 0031, invariant 6)",
   );
   for (const r of data)
     assert.equal(r.judged_by, RUN_JUDGED.includes(r.sweep) ? "run" : "request", `${r.sweep} is judged the right way`);
