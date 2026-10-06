@@ -107,7 +107,7 @@ milliseconds at 30,000 due rows on the replayed stack.
 alone; an edge that is not deployed answers the knock as it answers pg_cron's.
 
 **2 · The dedupe key.** Built, 00333: the column and the index; `scheduleJobOnce` writes the key beside its payload
-for the three kinds, and writes none to a database that has no column yet; the three indexes stay one release. _Both
+for the three kinds, and writes none to a database that has no column yet; the three indexes stay (step 3). _Both
 orders:_ an older edge writes no key and trips the old index as today.
 
 **3 · The three indexes retire.** Not yet: each holds its subject once in every state but `failed`, so an email
