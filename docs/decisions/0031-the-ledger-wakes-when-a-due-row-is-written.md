@@ -1,10 +1,10 @@
 # 0031 · The ledger wakes when a due row is written, and the claim counts capacity
 
-**Status:** Proposed, 6 October 2026, with 0029; Ruben's acceptance owed. Written against commit `b9a4d5c` (main, 5
-October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6 October 2026), since which
-0028's merge door (00326) and the message-status notice (00327) are in the code. Nothing of it is built; the two changes
-the trace proposed in the ledger's neighbourhood that this note declines are recorded under Decision. Where this note
-and the code disagree, the code wins.
+**Status:** Decided on 6 October 2026 (Ruben: "all approved"), with 0029; not yet built. Proposed the same day. Written
+against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main,
+6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Nothing of
+it is built; the two changes the trace proposed in the ledger's neighbourhood that this note declines are recorded under
+Decision. Where this note and the code disagree, the code wins.
 
 ## Context
 

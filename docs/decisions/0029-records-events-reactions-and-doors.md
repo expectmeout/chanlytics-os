@@ -1,11 +1,11 @@
 # 0029 · Records, events, reactions and doors
 
-**Status:** Proposed, 6 October 2026, from the wiring map of 5 October (the trace of how the Inbox, Campaigns, People,
-the Calendar and Setup reach each other, and a second review of it answered point by point); Ruben's acceptance owed.
-Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f`
-(main, 6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code.
-Nothing of it is built: this note is the frame, and each step below is a note of its own, three of them proposed with it
-(0030, 0031, 0032). Where this note and the code disagree, the code wins.
+**Status:** Decided on 6 October 2026 (Ruben: "all approved"), not yet built: this note is the frame, and each step
+below is a note of its own, three of them decided with it (0030, 0031, 0032). Proposed the same day from the wiring map
+of 5 October (the trace of how the Inbox, Campaigns, People, the Calendar and Setup reach each other, and a second
+review of it answered point by point). Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the
+code at it, and read again at `6a8e85f` (main, 6 October 2026), since which 0028's merge door (00326) and the
+message-status notice (00327) are in the code. Where this note and the code disagree, the code wins.
 
 ## Context
 
