@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { ASK_CAPS, abandonedCall, noteRows, toCallVM } from "@chanlytics/contracts";
+import { ASK_CAPS, abandonedCall, askCallOutcome, noteRows, toCallVM } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { call } from "../../../readers/call";
 import { calls as callsReader } from "../../../readers/calls";
@@ -31,7 +31,8 @@ async function listCalls(t: ToolContext, input: { filter: string }): Promise<unk
       const c = calls[i];
       switch (filter) {
         case "missed":
-          return v.outcome === "missed" && dayKey(c.started_at, timezone) === todayKey;
+          // The outcome the rows below say: a dial the receptionist placed that nobody answered is not_connected, not missed.
+          return askCallOutcome(v) === "missed" && dayKey(c.started_at, timezone) === todayKey;
         case "abandoned":
           return abandoned.has(c.id) && dayKey(c.started_at, timezone) === todayKey;
         case "today":
@@ -50,9 +51,10 @@ async function listCalls(t: ToolContext, input: { filter: string }): Promise<unk
       call_id: v.callId,
       route: `conversations/cv-${v.callId}`,
       who: v.who,
+      direction: v.direction,
       at: v.at,
       duration: v.duration ?? null,
-      outcome: v.outcome,
+      outcome: askCallOutcome(v),
       ...(abandoned.has(v.callId) ? { abandoned: true } : {}),
       summary: v.summary.headline,
       conversation_id: v.threadId ? v.threadId.replace(/^th-/, "") : null,
@@ -75,9 +77,10 @@ async function getCall(t: ToolContext, input: { call_id: string }): Promise<unkn
     call_id: id,
     route: `conversations/cv-${id}`,
     who: v.who,
+    direction: v.direction,
     at: v.at,
     duration: v.duration ?? null,
-    outcome: v.outcome,
+    outcome: askCallOutcome(v),
     summary: v.summary,
     recording: v.recordingState,
     contact_id: v.clientId,

@@ -53,7 +53,8 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   "token budget":
     "A daily cap on the receptionist's model usage. When spent, the receptionist holds replies for a person instead of answering.",
   "veto window": "The reply policy mode where every draft waits a short while before sending, so a person can stop it.",
-  "missed call": "A phone call the receptionist did not answer, or that ended before anyone spoke.",
+  "missed call":
+    "A call a customer made that never connected: the receptionist did not answer, so nobody spoke. A call the receptionist placed that nobody answered is not missed: it did not connect (its outcome is not_connected, its direction outbound). A caller who reached the receptionist and hung up within seconds is abandoned, never missed.",
   "median reply time":
     "The middle value of how long a customer waited for the receptionist's answer over the period; half the replies were faster. Where the reply policy holds each reply (the hold window the owner set), that wait is part of it: the hold is the owner's setting, not the receptionist's speed, so say it, and use the report's reply_time.hold for how many went out as the hold ended and how many took longer.",
   "said yes":

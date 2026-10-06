@@ -141,7 +141,7 @@
   },
   "apps/dashboard/src/server/ask/tools/act/deal.ts::proposeDeal#1": {
     "lines": 115,
-    "branches": 72,
+    "branches": 68,
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
