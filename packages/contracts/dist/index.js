@@ -1162,11 +1162,16 @@ function isTheirOwnWords(m) {
   return isFromTheirSide(m) && isPersonsWords(m.meta);
 }
 function threadChannelOf(messages) {
+  const reply = replyWireOf(messages);
+  if (reply) return reply;
+  const ours = [...messages].reverse().find((m) => m.type !== "call_summary");
+  return ours ? writtenChannelOf(ours.channel) : "phone";
+}
+function replyWireOf(messages) {
   const wrote = lastWroteOn(messages);
   if (wrote) return wrote;
-  const newest = [...messages].reverse();
-  const written = newest.find(isFromTheirSide) ?? newest.find((m) => m.type !== "call_summary");
-  return written ? writtenChannelOf(written.channel) : "phone";
+  const theirs = [...messages].reverse().find(isFromTheirSide);
+  return theirs ? writtenChannelOf(theirs.channel) : null;
 }
 function threadChannelWords(messages) {
   return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
@@ -1293,6 +1298,13 @@ function isChatMessage(m) {
 }
 function reachedCustomer(status) {
   return status !== "queued" && status !== "failed" && status !== "canceled";
+}
+function lastExchanged(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (isChatMessage(m) && (m.direction === "inbound" || reachedCustomer(m.status))) return m;
+  }
+  return null;
 }
 var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/;
 function isHeldDraft(m) {
@@ -8323,10 +8335,7 @@ function personStanding(r2, nowMs, viewerId = null) {
 function attentionOf(r2, nowMs, viewerId = null) {
   const v = personStanding(r2, nowMs, viewerId);
   if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r2.queued_reply_at }, nowMs)) return "needs_you";
-  const assignee = r2.latest_assignee_user_id;
-  const owned = assignee ? !viewerId || assignee === viewerId : v.takenOver;
-  if (owned && (v.flagged || r2.last_message_direction === "inbound")) return "waiting_on_you";
-  return null;
+  return v.takenOver ? "waiting_on_you" : null;
 }
 function heardAt(r2) {
   const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
@@ -9610,10 +9619,13 @@ function buildAskSuggestions(input) {
 var ABANDONED_MS = 15e3;
 function abandonedCall(dto) {
   if (dto.direction !== "inbound") return false;
-  if (dto.status === "not_connected" || dto.in_voicemail) return false;
+  if (dto.status === "not_connected" || reachedVoicemail(dto)) return false;
   const ms2 = dto.duration_ms;
   if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
   return dto.disconnection_reason === "user_hangup";
+}
+function reachedVoicemail(dto) {
+  return dto.in_voicemail === true || dto.disconnection_reason === "voicemail_reached" || dto.outcome === "voicemail";
 }
 function missedCall(c) {
   return c.missed && c.direction !== "outbound";
@@ -17631,6 +17643,12 @@ function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date(
   const draft = heldDraftOf(dto.messages);
   return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
 }
+function threadsWaitingOnYou(conversations, escalations, now) {
+  const open = new Map(escalations.filter((e) => e.state === "open").map((e) => [e.conversation_id, e]));
+  const held = new Set(conversations.map((c) => c.id));
+  const loaded = conversations.filter((c) => conversationWaitsOnYou(c, open.get(c.id) ?? null, now)).length;
+  return loaded + [...open.keys()].filter((id) => !held.has(id)).length;
+}
 function heldDraftWaits(vm, nowMs) {
   return !!vm.heldDraft && replyWaitsOnYou({ endsAtMs: vm.heldDraft.sendsAtMs }, nowMs);
 }
@@ -17647,12 +17665,12 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   const draftMsg = heldDraftOf(dto.messages);
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
-  const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  const last = [...dto.messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
+  const chatChannel = writtenChannelOf(replyWireOf(dto.messages));
+  const win = replyWindow(chatChannel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
-  const chatChannel = writtenChannelOf(lastInbound?.channel);
   const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
   const written = [...new Set(dto.messages.filter(isChatMessage).map((m) => writtenChannelOf(m.channel)))];
   const channels = [
@@ -17793,14 +17811,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
 }
 function lastWordOf(dto) {
   const chat = dto.messages.filter(isChatMessage);
-  let at3 = chat.length - 1;
-  let failed = null;
-  for (; at3 >= 0; at3--) {
-    const m = chat[at3];
-    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
-    if (!failed && m.status === "failed") failed = m;
-  }
-  const last = at3 >= 0 ? chat[at3] : null;
+  const last = lastExchanged(chat);
+  const failed = [...chat.slice(last ? chat.indexOf(last) + 1 : 0)].reverse().find((m) => m.status === "failed") ?? null;
   const failedBy = failed ? messageAuthor(failed)?.words ?? "us" : null;
   if (!last) {
     if (failedBy)
@@ -17845,8 +17857,8 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chat = dto.messages.filter(isChatMessage);
-  const callNotes = dto.messages.length - chat.length;
-  const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  const callNotes = dto.messages.filter((m) => m.type === "call_summary").length;
+  const last = lastExchanged(chat);
   const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
   const v = standingOf(
     {
@@ -18035,7 +18047,7 @@ function callOutcomeFor(dto, live) {
   if (dto.status === "error") return "failed";
   if (abandonedCall(dto)) return "abandoned";
   if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
-  return dto.in_voicemail ? "voicemail" : "handled";
+  return reachedVoicemail(dto) ? "voicemail" : "handled";
 }
 function spokenDuration(ms2) {
   if (!ms2) return "Duration not recorded";
@@ -18106,7 +18118,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
       end
     };
   });
-  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (reachedVoicemail(dto) ? "Reached voicemail." : "No summary from this call.");
   return {
     id: `cv-${dto.id}`,
     real: true,
@@ -24790,7 +24802,7 @@ function callItems({ profile, stamp }) {
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
     const notes = callNoteLines(callNotesOf(k));
-    const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+    const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : reachedVoicemail(k) ? "Reached voicemail." : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
       ts: t,
@@ -30157,7 +30169,7 @@ function escalationRecords(openEsc, byConv, callByConv, tz, now) {
 function closingConversations(conversations, escSet, now) {
   return conversations.filter((c) => {
     if (escSet.has(c.id)) return false;
-    const last = c.messages[c.messages.length - 1];
+    const last = lastExchanged(c.messages);
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);
     return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * HOUR_MS : false;
@@ -30180,7 +30192,7 @@ function todayFacts(input) {
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
     wires: todayWires(metrics),
-    needsYouCount: openEsc.length,
+    needsYouCount: threadsWaitingOnYou(conversations, escalations, now),
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
     closingConvs: closingConversations(conversations, escSet, now),
@@ -30507,7 +30519,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   const moodWords = moods.length ? `The voice provider read ${andList(moods.map(moodOf))}.` : "";
   const voicemail = [
     ...new Map(
-      callsInWindow.filter((c) => c.in_voicemail).map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who])
+      callsInWindow.filter((c) => reachedVoicemail(c)).map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who])
     ).values()
   ].filter((who) => !UNNAMED_CALLER.has(who));
   const voicemailWords = voicemail.length ? `${andList(voicemail.length > 3 ? [...voicemail.slice(0, 3), `${voicemail.length - 3} more`] : voicemail)} reached voicemail.` : "";
@@ -30739,7 +30751,8 @@ function todayNeedsYou(f) {
     count: f.needsYouCount,
     hint: "The receptionist stopped and asked for a human.",
     rows,
-    empty: rows.length ? null : period.unanswered_in_window === 0 && period.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
+    // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.
+    empty: f.needsYouCount ? null : period.unanswered_in_window === 0 && period.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
   };
 }
 function todayWindowClosing(f) {
@@ -30776,7 +30789,7 @@ function todayNoReply(f) {
       now.getTime()
     );
     if (standing !== "quiet" && standing !== "needs_you") return [];
-    const last = c.messages[c.messages.length - 1];
+    const last = lastExchanged(c.messages);
     if (!last || !isTheirOwnWords(last)) return [];
     const lastMs = new Date(last.created_at).getTime();
     if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
@@ -30799,7 +30812,7 @@ function todayReceipts(f) {
 var NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
 function callNote(c, live, analysisDue) {
   if (live) return "In progress right now";
-  if (c.in_voicemail) return "Reached voicemail";
+  if (reachedVoicemail(c)) return "Reached voicemail";
   if (abandonedCall(c)) return `Hung up after ${spokenDuration(c.duration_ms)} \u2014 they left with nothing`;
   if (c.sentiment === "Negative") return "Caller sentiment: Negative \u2014 the voice provider's own read";
   if (analysisDue) return "Summary on its way from the voice provider";
@@ -30809,7 +30822,7 @@ function callNote(c, live, analysisDue) {
 function todayCallRows(f) {
   const { callsInWindow, tz, now } = f;
   return callsInWindow.filter((c) => c.status !== "not_connected").map((c) => ({ c, vm: toCallVM(c, tz, now) })).filter(
-    ({ c, vm }) => vm.live || c.in_voicemail || c.sentiment === "Negative" || !c.summary || // Somebody rang and left with nothing. Measured before writing this:
+    ({ c, vm }) => vm.live || reachedVoicemail(c) || c.sentiment === "Negative" || !c.summary || // Somebody rang and left with nothing. Measured before writing this:
     // with a provider summary the row was not worth an ear at all, since
     // `user_hangup` is not in NEEDS_EAR and rightly so — every ordinary
     // call ends that way. Without one it did arrive, as "No summary from
@@ -31586,7 +31599,7 @@ function buildNotificationFeed(input) {
       key: `call:${c.callId}`,
       kind: "missed_call",
       at: c.startedAtMs,
-      title: `${callAttemptWords(c.direction ?? "inbound")} \xB7 ${c.who}`,
+      title: `${callAttemptWords(c.direction)} \xB7 ${c.who}`,
       message: c.number ? `${c.number} \u2014 the call never connected.` : "The call never connected.",
       to: `conversations/${c.cvId}`,
       icon: "phone",
@@ -35696,6 +35709,7 @@ export {
   reachSplit,
   reachSplitWords,
   reachedCustomer,
+  reachedVoicemail,
   readAgoLabel,
   readingPlan,
   readingSystemPrompt,
@@ -35932,6 +35946,7 @@ export {
   threadChannelOf,
   threadChannelWords,
   threadStanding,
+  threadsWaitingOnYou,
   tidyCallSummary,
   timetable,
   timezoneCity,
