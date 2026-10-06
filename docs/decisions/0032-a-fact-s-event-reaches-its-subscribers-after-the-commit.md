@@ -203,7 +203,15 @@ nobody reads is a promise nobody checks. _Both orders:_ nullable columns and a l
 its lane together, as the rule says. Built, 00334 (`apps/edge/lib/ops/jobs-tick.ts`, `packages/jobs/src/handlers.ts`,
 `packages/core/src/subscribers.ts`): the relay runs first in every tick, bounded by `RELAY_LIMIT`; the audit subscriber
 settles and does nothing else, and relay lag is the day's `relay_lag_ms` (00332). _Both orders:_ an older edge sees a
-kind it does not know and keeps it, as today; a delivery to a subscriber it does not know is kept the same way.
+kind it does not know and keeps it, as today; a delivery to a subscriber it does not know is kept the same way. Database
+first, the window costs requests and nothing else: an older edge never drains the outbox, so while it holds rows the
+heartbeat asks for a tick every ten seconds and each copied event wakes one, the older edge claims what is due and
+answers, and nothing is lost or sent twice; the edge that relays empties it. Main's database suites, unchanged, ran
+against a database replayed from this branch on 6 October 2026: every test of what main's code does passed, and the
+eleven that failed were main's lists of what the database holds (its snapshot, keys, head, tables, kinds, clocks and
+the read's columns) and the heartbeat asking while the outbox waits, which a database with no edge, as a local one is,
+cannot record as a look. Edge first: `relay_events` is not there yet, which the tick logs (`events_relay_failed`) and
+passes.
 
 **4 · The intake ledger.** Built, 00336: seven webhook doors (`inbound-sms`, `sms-status`, `whatsapp`,
 `retell-webhook`, `retell-inbound`, `resend-webhook`, `stripe-webhook`) keep the delivery they verified, as it came,
