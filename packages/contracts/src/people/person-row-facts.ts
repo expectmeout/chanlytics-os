@@ -28,6 +28,16 @@ export interface PersonLastContact {
   label: string;
 }
 
+/**
+ * Whose turn it is, when it is theirs: "they wrote last" after their message, "they called last" after their call; null
+ * when the last word was ours. What Waiting on you adds to "You have it", where it is true: a thread you took over and
+ * answered still waits on you, and it said they wrote last.
+ */
+export function theirTurnWords(last: Pick<PersonLastContact, "who" | "kind">): string | null {
+  if (last.who !== "they") return null;
+  return last.kind === "call" ? "they called last" : "they wrote last";
+}
+
 export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonLastContact {
   const m = ts(r.last_message_at);
   const k = ts(r.last_call_at);

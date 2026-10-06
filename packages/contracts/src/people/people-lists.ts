@@ -54,7 +54,11 @@ const LIST_STEPS: Record<
   { cta: string; to: string; broadcast?: boolean; text?: string; answered?: { cta: string; to: string } }
 > = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
-  waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
+  waiting_on_you: {
+    cta: "Open the Inbox",
+    to: "inbox",
+    text: "You have these threads: the receptionist stays quiet on them until you hand them back.",
+  },
   new_week: {
     cta: "Get their yes",
     to: GET_YES_ROUTE,

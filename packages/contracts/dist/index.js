@@ -7164,7 +7164,7 @@ var LIST_RULE_FIELDS = [
     label: "Standing",
     kind: "standing",
     needs: [],
-    draft: "value needs_you (waiting for a person) or waiting_on_you (you have the thread and they wrote last)"
+    draft: "value needs_you (waiting for a person) or waiting_on_you (a thread you have: you took it over, or your reply paused the receptionist)"
   },
   {
     id: "assigned",
@@ -7546,11 +7546,11 @@ var BUILTIN_LISTS = [
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "needs_you" })
   },
-  // Yours, or nobody's: a teammate's thread waits on them (standing.ts).
+  // Yours by the one standing rule (standing.ts): you took it over, or your reply paused the receptionist.
   {
     id: "waiting_on_you",
     label: "Waiting on you",
-    tip: "You have the thread, or nobody does, and they wrote last \u2014 a teammate's waits on them",
+    tip: "Threads you have: you took them over, or your reply paused the receptionist. A teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "waiting_on_you" })
@@ -8232,6 +8232,10 @@ function saidYesTo(r2, purpose, channel, about) {
 // src/people/person-row-facts.ts
 function ago(ms2, tz, nowMs) {
   return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS, date: (at3) => clockDate(at3, tz, nowMs) });
+}
+function theirTurnWords(last) {
+  if (last.who !== "they") return null;
+  return last.kind === "call" ? "they called last" : "they wrote last";
 }
 function lastContactOf(r2, tz, nowMs) {
   const m = ts(r2.last_message_at);
@@ -10813,7 +10817,11 @@ var USE_IN_A_BROADCAST = "Use in a broadcast";
 var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts/offers_ok", broadcast: true };
 var LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
-  waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
+  waiting_on_you: {
+    cta: "Open the Inbox",
+    to: "inbox",
+    text: "You have these threads: the receptionist stays quiet on them until you hand them back."
+  },
   new_week: {
     cta: "Get their yes",
     to: GET_YES_ROUTE,
@@ -23902,7 +23910,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     lastVisitMs !== null && Number.isFinite(lastVisitMs) ? lastVisitMs : null,
     askedMs
   );
-  const stateDetail = state === "needs_you" ? r2.open_escalation_reason ? reasonShort(r2.open_escalation_reason) : r2.queued_reply_at && personStanding(r2, nowMs).standing !== "needs_you" ? "a reply is about to send \u2014 you can still stop it" : "waiting for a person" : state === "waiting_on_you" ? "you own the thread and they wrote last" : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? `last heard from ${ago(askedMs, tz, nowMs)}` : state === "unheard" ? last.ts === null ? "no contact recorded" : "they have not written or called" : "";
+  const stateDetail = state === "needs_you" ? r2.open_escalation_reason ? reasonShort(r2.open_escalation_reason) : r2.queued_reply_at && personStanding(r2, nowMs).standing !== "needs_you" ? "a reply is about to send \u2014 you can still stop it" : "waiting for a person" : state === "waiting_on_you" ? [HELD_WORDS.yours.pill.toLowerCase(), theirTurnWords(last)].filter(Boolean).join(", and ") : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? `last heard from ${ago(askedMs, tz, nowMs)}` : state === "unheard" ? last.ts === null ? "no contact recorded" : "they have not written or called" : "";
   const vm = {
     id: r2.id,
     real: true,
@@ -23993,8 +24001,10 @@ function attentionRow(p, tz, nowMs) {
   else sentence2 = "Nothing written yet";
   const r2 = p.receptionist;
   let status;
-  if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
-  else if (r2.tone === "answering")
+  if (p.state === "waiting_on_you") {
+    const turn = theirTurnWords(p.lastContact);
+    status = turn ? [HELD_WORDS.yours.pill, turn] : [HELD_WORDS.yours.pill];
+  } else if (r2.tone === "answering")
     status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
   else status = r2.label.split(", ");
   if (p.state === "needs_you" && p.needsYouSinceMs !== null)
