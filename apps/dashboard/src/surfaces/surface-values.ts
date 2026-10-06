@@ -1,15 +1,16 @@
 /**
  * What a surface that has left the shell reads from the seam, typed (decision 0015, step 3).
  *
- * A legacy page reads its rows off `window` (`window.__REPORTS`), which is the only place a script the frame loads can
+ * A legacy page reads its rows off `window` (`window.__PEOPLE`), which is the only place a script the frame loads can
  * find them. A TSX surface imports: it asks for its surface by key (`useSurface("reports")`, src/surfaces/use-surface.ts)
  * and is handed the value the override published, of the type the key says. This is the store behind that: one value
  * for each key, written by the override that owns the surface (`setSurfaceValue`), and the surface cache's (it keeps
  * the value beside the window's globals, and gives it back before React draws, `restoreSurfaceValue`).
  *
- * A key may also name a **mirror**, the window global the pages that have not moved still read (Today and Ask read
- * `__REPORTS`). The mirror is written whenever the value is, so the two never say different things, and it is a line
- * to delete on the day its last reader moves: `declareSurfaceValue("reports", "__REPORTS")` is the whole of it.
+ * A key may also name a **mirror**, the window global the pages that have not moved still read (Today's own day is read as
+ * `TODAY_DATA`). The mirror is written whenever the value is, so the two never say different things, and it is a line
+ * to delete on the day its last reader moves: `declareSurfaceValue("calendar", "__CALENDAR")` is the whole of it. Reports'
+ * went on 6 October 2026, when Today and Ask, its last readers, moved to the seam.
  *
  * A value is a surface's whole answer, an object the override replaces and never changes in place, so a component that
  * holds it sees it change by identity (React's `useSyncExternalStore` asks for exactly that).
@@ -21,7 +22,7 @@ import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
 import type { ReachOutsSurface } from "./campaigns/reach-out/surface";
 import type { SettingsSurface } from "../legacy-bridge/surfaces/settings";
 import type { ConversationsSurface, InboxSurface } from "./inbox/types";
-import type { TodayVM } from "@chanlytics/contracts";
+import type { ReportHeadlineVM, TodayVM } from "@chanlytics/contracts";
 import type { LiveSurface } from "./live/surface";
 import type { PeopleSurface } from "./people/surface";
 import type { CalendarSurface } from "./calendar/surface";
@@ -33,6 +34,8 @@ import type { PartnerSurface } from "./settings/partner/surface";
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
   reports: ReportsSurface;
+  /** Today's one small read of the period (contracts ReportHeadlineVM): the card's period line and Worth a look read it. */
+  reports_headline: ReportHeadlineVM;
   google: GoogleSurface;
   inbox: InboxSurface;
   conversations: ConversationsSurface;
@@ -139,6 +142,7 @@ function isSurfaceKey(key: string): key is SurfaceKey {
 // `SurfaceValues` without a line here is a type error.
 const SURFACE_KEYS: Record<SurfaceKey, true> = {
   reports: true,
+  reports_headline: true,
   google: true,
   inbox: true,
   conversations: true,

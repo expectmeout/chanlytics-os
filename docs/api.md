@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-213 handlers in 46 domains.
+214 handlers in 46 domains.
 
 ## activity
 
@@ -1396,7 +1396,7 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `period` | string | no |  |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
 | `days` | string | no |  |
 
 ### `GET /api/v1/reports/campaigns`
@@ -1405,8 +1405,16 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `period` | string | no |  |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
 | `days` | string | no |  |
+
+### `GET /api/v1/reports/headline`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
 
 ### `GET /api/v1/reports/reach-outs`
 
@@ -1414,7 +1422,7 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `period` | string | no |  |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
 | `days` | string | no |  |
 
 ## segments

@@ -10,6 +10,9 @@ import { REPORT_RANGES } from "./reports";
 /** What a period is called in a request, the tab's storage and the control. */
 export type ReportPeriodId = (typeof REPORT_RANGES)[number]["id"];
 
+/** The ids of the periods, in the control's order: the closed set a request's `period` is (the typed client and docs/api.md say them). */
+export const REPORT_PERIOD_IDS = REPORT_RANGES.map((r) => r.id);
+
 /** The period a report is read over when none is named. */
 export const REPORT_PERIOD_DEFAULT: ReportPeriodId = "30d";
 

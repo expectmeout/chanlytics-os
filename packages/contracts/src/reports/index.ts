@@ -22,6 +22,7 @@ export {
   speedOf,
   callMoodTone,
   toReportVM,
+  headlineOf,
   REPORT_CHANNELS,
   REPORT_RANGES,
   REPORT_WEEK_SHORT,
@@ -58,6 +59,7 @@ export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
 export {
   REPORT_PERIOD_DEFAULT,
+  REPORT_PERIOD_IDS,
   isReportPeriod,
   fixedDaysOf,
   monthDaysAt,
@@ -65,8 +67,10 @@ export {
   reportDaysAsked,
 } from "./report-periods";
 export type { ReportPeriodId } from "./report-periods";
-export { holdOf } from "./report-speed";
-export type { ReportHoldVM } from "./report-speed";
+export { toHeadlineVM, isReportDto } from "./report-headline";
+export type { ReportHeadlineDto, ReportHeadlineVM } from "./report-headline";
+export { holdOf, replyHoldDtoOf } from "./report-speed";
+export type { ReportHoldVM, ReplyHoldDto } from "./report-speed";
 export { closedOf } from "./report-closed";
 export type { ReportArrivalDto, ReportProfile } from "./report-closed";
 export { reportFacts } from "./report-facts";

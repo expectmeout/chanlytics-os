@@ -12,6 +12,7 @@
  */
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import { CHANNEL_ANSWERED } from "../lines/channels";
+import type { ReplySpeed } from "../reports/report-speed";
 import { durationWords } from "../shared/clock";
 import type { TodayFacts } from "./today-facts";
 import type { TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, TodayVM } from "./today-vm";
@@ -25,6 +26,16 @@ export const andList = (xs: readonly string[]): string =>
 export function secondsPhrase(s: number): string {
   return durationWords(s);
 }
+
+/**
+ * How a sentence about speed finishes ("typically ..."): "in 34s", "in about 34s", or, where most replies waited the owner's hold,
+ * against it ("as your 1-minute hold ended"). The one place Today's speed is said, over contracts' `replySpeedOf`.
+ */
+const speedIn = (s: ReplySpeed, about = false): string =>
+  s.held ? s.words : `in ${about ? "about " : ""}${secondsPhrase(s.seconds)}`;
+
+/** The clause the answered figure ends on ("typically in 34s", or against the hold); "" with no reply to speak of. */
+export const speedClause = (s: ReplySpeed | null): string => (s === null ? "" : `typically ${speedIn(s)}`);
 
 /**
  * The wires as the standing line draws them: a chip each, the count above the work, and the alert.
@@ -139,25 +150,25 @@ export function todayQueueEmpty(f: TodayFacts): TodayQueueEmptyVM {
  * percentage or a sparkline: a jump from 1 message to 3 is not "+200%".
  */
 export function todayAskFacts(f: TodayFacts): TodayFactVM[] {
-  const { period, callMinutes } = f;
+  const { period, callMinutes, speed } = f;
   return [
     { label: "Messages in", value: String(period.messages_in) },
     { label: "Answered by the receptionist", value: `${period.answered_by_ai} of ${period.messages_in}` },
-    period.median_reply_seconds_ai === null
+    speed === null
       ? { label: "Typical reply time", value: "—", hint: "Not enough replies yet" }
-      : { label: "Typical reply time", value: secondsPhrase(period.median_reply_seconds_ai) },
+      : { label: "Typical reply time", value: speed.held ? speed.words : secondsPhrase(speed.seconds) },
     { label: "Calls", value: period.calls ? `${period.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
   ];
 }
 
 /** The day's traffic as one sentence, for Ask; the page draws the figures instead. */
 export function todayTrafficLine(f: TodayFacts): string {
-  const { period, callMinutes } = f;
+  const { period, callMinutes, speed } = f;
   const trafficParts: string[] = [];
   if (period.messages_in > 0) {
     trafficParts.push(
       `${period.messages_in} message${period.messages_in === 1 ? "" : "s"} in, ${period.answered_by_ai} answered by the receptionist${
-        period.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(period.median_reply_seconds_ai)}`
+        speed === null ? "" : `, typically ${speedIn(speed)}`
       }`,
     );
   }
@@ -228,11 +239,11 @@ export function todayHeadline(f: TodayFacts, alert: string | null, needsRows: To
       tone: "needs",
     };
   }
-  return calmHeadline(f.period);
+  return calmHeadline(f);
 }
 
 /** The last rung of the ladder: nothing needs you, so the day's traffic, and whether the receptionist handled all of it. */
-function calmHeadline(period: TodayFacts["period"]): TodayHeadline {
+function calmHeadline({ period, speed }: TodayFacts): TodayHeadline {
   const bits: string[] = [];
   if (period.messages_in) {
     bits.push(
@@ -253,10 +264,8 @@ function calmHeadline(period: TodayFacts["period"]): TodayHeadline {
       : `${bits.join(" and ")} today. Nothing needs you right now.`
     : "Nothing needs you.";
   const detail =
-    period.median_reply_seconds_ai !== null && period.messages_in > 0
-      ? `It answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically in about ${secondsPhrase(
-          period.median_reply_seconds_ai,
-        )}.`
+    speed !== null && period.messages_in > 0
+      ? `It answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.`
       : null;
   return { headline, detail, tone: "calm" };
 }

@@ -1,4 +1,4 @@
-/** The Campaigns lens: what the broadcasts and playbooks sent, and what the reach-outs wrote (moved from sections.tsx). */
+/** The Campaigns lens: what the broadcasts and playbooks sent, and what the reach-outs wrote. */
 import type { CampaignReportVM, ReportVM } from "@chanlytics/contracts";
 import { BarChart, BarList } from "../../kit/charts/bar";
 import { ChartCard } from "../../kit/charts/card";

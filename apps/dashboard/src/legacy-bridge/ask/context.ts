@@ -21,6 +21,7 @@ import {
   type AskSurface,
   type PageContext,
 } from "@chanlytics/contracts";
+import { surfaceValue } from "@/surfaces/surface-values";
 import { surfaceFor } from "./palette";
 
 type Route = { page: string; param: string | null };
@@ -52,7 +53,6 @@ interface ContextGlobals {
     rows?: Array<{ id: string; name?: string }>;
     view?: { list?: string; cls?: string | null } | null;
   } | null;
-  __REPORTS?: { days?: number } | null;
   __PLAYBOOKS?: { rows?: Array<{ id: string; name?: string }> } | null;
   __BROADCASTS?: { rows?: Array<{ id: string; name?: string | null }> } | null;
   __TEMPLATES_ALL?: Array<{ id: string; name?: string; title?: string | null }> | null;
@@ -132,10 +132,11 @@ const pipeline: Provider = (w, route) => {
 
 const calendar: Provider = (w) => drawn(w, "calendar", "person");
 
-const reports: Provider = (w) => ({
-  view: typeof w.__REPORTS?.days === "number" ? String(w.__REPORTS.days) : null,
-  rows: [],
-});
+/** Reports' view is the days it shows, read through the seam (the surface's value), as the server's context provider describes them. */
+const reports: Provider = () => {
+  const days = surfaceValue("reports")?.days;
+  return { view: typeof days === "number" ? String(days) : null, rows: [] };
+};
 
 /** Campaigns is its home, whose rows are the playbooks, and two rooms, Sent and the Library: the page is the view, and its rows are that page's. */
 const campaigns: Provider = (w, route) => {
