@@ -16985,6 +16985,11 @@ function rhythmLine(week) {
   if (week.quietest === null) return null;
   return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
 }
+var rangeLabelOf = (days) => REPORT_RANGES.find((r2) => r2.days === days)?.label ?? plural(days, "day");
+var periodWords = (rangeLabel) => ({
+  now: `Last ${rangeLabel}`,
+  before: `The ${rangeLabel} before`
+});
 function periodFactsOf(dto) {
   const days = dto.days;
   const series = dto.series ?? [];
@@ -17035,9 +17040,11 @@ function periodFactsOf(dto) {
     tot,
     prev,
     noun,
-    rangeLabel: REPORT_RANGES.find((r2) => r2.days === days)?.label ?? noun,
+    rangeLabel: rangeLabelOf(days),
     // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
     priorHadAny: prev.in + prev.calls > 0,
+    /** Nobody wrote or called in the period: no customer message and no call. */
+    empty: tot.in === 0 && tot.calls === 0,
     answeredTotal,
     aiShare: answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null,
     prevAnsweredTotal,
@@ -17133,6 +17140,23 @@ function linesOf(f, week, channels) {
     rhythm: rhythmLine(week)
   };
 }
+function headlineOf(dto, period, booking) {
+  const f = periodFactsOf(dto);
+  return {
+    period,
+    days: f.days,
+    empty: f.empty,
+    messages_in: f.tot.in,
+    // Nothing to compare with where the period before had no customer message and no call at all (compareWords).
+    messages_before: f.priorHadAny ? f.prev.in : null,
+    answered_ai: f.tot.ai,
+    answered_you: f.tot.you,
+    unanswered: f.tot.none,
+    answered_share: answeredOf(f).share,
+    calls: f.tot.calls,
+    booking
+  };
+}
 function toReportVM(dto, opts) {
   const f = periodFactsOf(dto);
   const tiles = REPORT_TILES.map((tile) => tile(f));
@@ -17148,7 +17172,7 @@ function toReportVM(dto, opts) {
     since: first ? fmtDay(first) : "",
     until: last ? fmtDay(last) : "",
     timezone: dto.timezone,
-    empty: f.tot.in === 0 && f.tot.calls === 0,
+    empty: f.empty,
     tiles,
     answered: answeredOf(f),
     reasons,
@@ -17163,7 +17187,7 @@ function toReportVM(dto, opts) {
     hours: hoursOf2(dto.hours, closedOf(dto.arrivals, opts?.profile)),
     hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
     channels,
-    period: { now: `Last ${f.rangeLabel}`, before: `The ${f.rangeLabel} before` },
+    period: periodWords(f.rangeLabel),
     lines: linesOf(f, week, channels),
     table: {
       columns: [
@@ -26091,6 +26115,28 @@ function reportFacts(vm, campaigns) {
   return out.slice(0, 3);
 }
 
+// src/reports/report-headline.ts
+function isReportDto(answer) {
+  return typeof answer === "object" && answer !== null && "series" in answer && Array.isArray(answer.series) && "days" in answer && typeof answer.days === "number";
+}
+function toHeadlineVM(dto) {
+  const rangeLabel = rangeLabelOf(dto.days);
+  return {
+    period: dto.period,
+    days: dto.days,
+    rangeLabel,
+    lead: periodWords(rangeLabel).now,
+    empty: dto.empty,
+    messages: {
+      total: dto.messages_in,
+      compare: compareWords(dto.messages_in, dto.messages_before ?? 0, rangeLabel, dto.messages_before !== null)
+    },
+    answered: { ai: dto.answered_ai, you: dto.answered_you, none: dto.unanswered, share: dto.answered_share },
+    calls: dto.calls,
+    booking: toBookingReportVM(dto.booking)
+  };
+}
+
 // src/reports/report-periods.ts
 var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
 var REPORT_PERIOD_DEFAULT = "30d";
@@ -33487,6 +33533,7 @@ export {
   hardLimitsWords,
   hasHours,
   hasProfile,
+  headlineOf,
   heardSinceProposal,
   heardWords,
   heldBackWords,
@@ -33573,6 +33620,7 @@ export {
   isReplyIntent,
   isReplyTo,
   isReplyUndoRefusal,
+  isReportDto,
   isReportPeriod,
   isSellsBy,
   isSidebarPref,
@@ -34260,6 +34308,7 @@ export {
   toDealVM,
   toGoogleReviewVM,
   toGoogleVM,
+  toHeadlineVM,
   toInboxThreadVM,
   toLeadPeekVM,
   toLeadRowVM,

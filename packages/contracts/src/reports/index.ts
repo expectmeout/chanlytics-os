@@ -22,6 +22,7 @@ export {
   speedOf,
   callMoodTone,
   toReportVM,
+  headlineOf,
   REPORT_CHANNELS,
   REPORT_RANGES,
   REPORT_WEEK_SHORT,
@@ -66,6 +67,8 @@ export {
   reportDaysAsked,
 } from "./report-periods";
 export type { ReportPeriodId } from "./report-periods";
+export { toHeadlineVM, isReportDto } from "./report-headline";
+export type { ReportHeadlineDto, ReportHeadlineVM } from "./report-headline";
 export { holdOf } from "./report-speed";
 export type { ReportHoldVM } from "./report-speed";
 export { closedOf } from "./report-closed";
