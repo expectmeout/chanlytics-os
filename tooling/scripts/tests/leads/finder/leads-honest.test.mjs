@@ -523,6 +523,12 @@ const { MoreMenu } = await importSrc("apps/dashboard/src/surfaces/kit/more-menu/
 const { Confirm } = await importSrc("apps/dashboard/src/surfaces/kit/confirm/confirm.tsx");
 const { Icon } = await importSrc("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
 const { LeadPeek } = await importSrc("apps/dashboard/src/surfaces/leads/peek/peek.tsx");
+const { standingSaid } = await importSrc("apps/dashboard/src/surfaces/kit/head/standing.ts");
+/**
+ * What a person sees of the page on a desk: its tree, and what it said to the frame's head as its acts (an open search's
+ * reach-out door, then Find leads), which the frame draws at the right of the strip over the list.
+ */
+const seen = (tree) => ({ type: "Fragment", props: { children: [tree, standingSaid()?.act ?? null] } });
 const { LeadPlanPanel } = await importSrc("apps/dashboard/src/surfaces/leads/finder/plan-panel.tsx");
 const { LeadStrip } = await importSrc("apps/dashboard/src/surfaces/leads/finder/strip-view.tsx");
 const { LeadsPhoneBar, LeadPlanSheet } = await importSrc("apps/dashboard/src/surfaces/leads/scope/phone-bar.tsx");
@@ -1844,7 +1850,7 @@ test("the keys: J and K move, Enter peeks, x selects, C calls, F opens Ask; one 
   assert.equal(asks.at(-1), "open", "F opens Ask as ⌘K does, the finder on this page (spec F7)");
   assert.equal(panels.length, 0, "and no panel of the page's own: nothing on it composes");
   // The button is the same door, wearing the three's mark; its click event is not words.
-  const door = byTestId(draw(), "leads-find");
+  const door = byTestId(seen(draw()), "leads-find");
   assert.ok(
     find(door, (n) => n.type === Icon && n.props?.name === "three"),
     "the mark",
@@ -1853,11 +1859,37 @@ test("the keys: J and K move, Enter peeks, x selects, C calls, F opens Ask; one 
   assert.equal(asks.at(-1), "open", "a click event is not words: the plain open, nothing seeded");
 });
 
+test("on a desk Find leads is the page's act, at the right of the strip over the list, and not in the controls row", async () => {
+  await fresh();
+  const tree = draw();
+  assert.ok(byTestId(standingSaid()?.act, "leads-find"), "said to the frame's head, which draws it beside the strip");
+  assert.equal(
+    byTestId(tree, "leads-find"),
+    null,
+    "REGRESSION: Find leads stood in the controls row, inside the list's pane",
+  );
+  assert.match(
+    String(byTestId(standingSaid().act, "leads-find").props.className),
+    /\bbtn-primary\b/,
+    "the page's accent",
+  );
+});
+
+test("the first day's Find leads is a button of its own, never the setup's find step (fr-find, a grid)", async () => {
+  await fresh({ leads: { searches: [], rows: [], suggestions: SUGGESTIONS } });
+  const door = byTestId(byTestId(draw(), "leads-first-day"), "leads-first-find");
+  assert.ok(door, "the first day's door");
+  assert.ok(
+    !String(door.props.className).split(/\s+/).includes("fr-find"),
+    "REGRESSION: the setup's grid stood the glyph over the words, outside the button",
+  );
+});
+
 test("REGRESSION: Leads draws no key -- its search box drew a / and Find leads an F, beside the ? sheet that lists them", async () => {
   await fresh();
   const tree = draw();
-  assert.equal(textOf(byTestId(tree, "leads-find")).trim(), "Find leads");
-  assert.deepEqual(keysDrawn(tree), []);
+  assert.equal(textOf(byTestId(seen(tree), "leads-find")).trim(), "Find leads");
+  assert.deepEqual(keysDrawn(seen(tree)), []);
   assert.equal(press("f"), true, "F still finds");
   assert.equal(asks.at(-1), "open");
 });
@@ -2825,7 +2857,7 @@ test("an operator sees Find leads, Keep, Exclude and Put back refusing in the ga
   await fresh({ role: "operator" });
   const tree = draw();
   const gated = (n) => [n.props["aria-disabled"], n.props["aria-description"]];
-  assert.deepEqual(gated(byTestId(tree, "leads-find")), [true, "Only an owner can find leads."]);
+  assert.deepEqual(gated(byTestId(seen(tree), "leads-find")), [true, "Only an owner can find leads."]);
   assert.deepEqual(gated(byTestId(rowOf(tree, "l3"), "lead-keep")), [true, "Only an owner can keep this lead."]);
   assert.deepEqual(gated(byTestId(rowOf(tree, "l3"), "lead-exclude")), [true, "Only an owner can exclude this lead."]);
   assert.deepEqual(gated(byTestId(rowOf(tree, "l4"), "lead-put-back")), [
