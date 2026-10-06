@@ -135,6 +135,7 @@ const held = (tenant_id, over = {}) => ({
 function use(over = {}, faults = {}, { vault } = {}) {
   const tables = { tenant_channels: [], events: [], ...over };
   const kept = [];
+  const standings = [];
   const db = fakeDb(tables, faults, {
     put_channel_credentials:
       vault ??
@@ -142,9 +143,14 @@ function use(over = {}, faults = {}, { vault } = {}) {
         kept.push(args);
         return null;
       }),
+    // What Meta holds about the number, kept (00330): the door's own words are held in a-number-s-standing-is-kept-and-said-when-it-changes.db.test.mjs.
+    channel_keep_standing: (args) => {
+      standings.push(args);
+      return "first";
+    },
   });
   setPg(db);
-  return { tables, db, kept };
+  return { tables, db, kept, standings };
 }
 const writes = (db, table) =>
   db.seen.filter((s) => s.table === table && ["insert", "update", "upsert", "delete"].includes(s.op));
@@ -154,7 +160,19 @@ const writes = (db, table) =>
  * script keyed by path, each request kept. A case overrides one answer to
  * refuse; anything unexpected throws.
  */
-function meta({ number = {}, numberRefused, register, exchange, waba, subscribe, onRegister } = {}) {
+function meta({
+  number = {},
+  numberRefused,
+  register,
+  exchange,
+  waba,
+  subscribe,
+  onRegister,
+  health,
+  wabaStanding,
+  funding,
+  owner,
+} = {}) {
   const seen = [];
   const real = globalThis.fetch;
   const strip = (u) => u.replace(GRAPH, "");
@@ -162,6 +180,33 @@ function meta({ number = {}, numberRefused, register, exchange, waba, subscribe,
     const p = strip(req.url);
     if (p.startsWith("/oauth/access_token?"))
       return exchange ?? { body: { access_token: TOKEN, token_type: "bearer" } };
+    // What Meta holds about the number, read once the line is written: a number that may send, in a verified business.
+    if (p.startsWith(`/${PHONE}?fields=health_status`))
+      return (
+        health ?? {
+          body: {
+            id: PHONE,
+            verified_name: "Harbor Moving",
+            name_status: "APPROVED",
+            health_status: { can_send_message: "AVAILABLE", entities: [] },
+          },
+        }
+      );
+    if (p.startsWith(`/${WABA}?fields=business_verification_status`))
+      return (
+        wabaStanding ?? {
+          body: {
+            id: WABA,
+            business_verification_status: "verified",
+            whatsapp_business_manager_messaging_limit: "TIER_250",
+          },
+        }
+      );
+    // ...and whether the account has a payment method, and the business that owns it: a funded account, by default.
+    if (p.startsWith(`/${WABA}?fields=primary_funding_id`))
+      return funding ?? { body: { id: WABA, primary_funding_id: "100200300400500" } };
+    if (p.startsWith(`/${WABA}?fields=owner_business_info`))
+      return owner ?? { body: { id: WABA, owner_business_info: { id: "410540000000001" } } };
     if (p.startsWith(`/${PHONE}?fields=`))
       return (
         numberRefused ?? {
@@ -380,8 +425,12 @@ test("connect, the whole way: the code becomes the business's token as the app t
       `GET /${WABA}`,
       `POST /${WABA}/subscribed_apps`,
       `POST /${PHONE}/register`,
+      `GET /${PHONE}`,
+      `GET /${WABA}`,
+      `GET /${WABA}`,
+      `GET /${WABA}`,
     ],
-    "the four Graph calls, in order",
+    "the four Graph calls, in order, and then the four that read what Meta holds about the number",
   );
   const exchange = new URL(m.seen[0].url);
   assert.deepEqual(
@@ -479,6 +528,106 @@ test("connect, the whole way: the code becomes the business's token as the app t
     log.lines.some((l) => l.includes('"event":"wa_connected"') && l.includes(row.id)),
     "the log says which channel connected",
   );
+});
+
+test("connect, what Meta holds about the number: read once the line and its token are written, kept whole through the door, and told to the owner when Meta says the number cannot send -- the payment method Meta asks for at the end of its window is the problem its fixture names; a read that fails never fails the connection", async () => {
+  const blocked = {
+    body: {
+      id: PHONE,
+      verified_name: "Harbor Moving",
+      name_status: "APPROVED",
+      health_status: {
+        can_send_message: "BLOCKED",
+        entities: [
+          {
+            entity_type: "WABA",
+            id: WABA,
+            can_send_message: "BLOCKED",
+            errors: [
+              {
+                error_code: 141006,
+                error_description: "A payment method is required to send messages",
+                possible_solution: "Add a payment method in WhatsApp Manager",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+  const { tables, standings } = use({
+    notifications: [],
+    tenant_config: [{ tenant_id: A, config: { notifications: { escalation_emails: ["owner@harbor.test"] } } }],
+  });
+  // The account has no payment method on file (its funding read answers without a funding id), and says who owns it.
+  const m = meta({ health: blocked, funding: { body: { id: WABA } } });
+  const log = quiet();
+  let status, body;
+  try {
+    [status, body] = await answer(await knock(signedUp()));
+  } finally {
+    log.restore();
+    m.restore();
+  }
+  assert.equal(status, 200, printed(body));
+  const [phoneRead, wabaRead, fundingRead, ownerRead] = m.seen.slice(-4);
+  assert.equal(phoneRead.url, `${GRAPH}/${PHONE}?fields=health_status,name_status,verified_name`);
+  assert.equal(
+    wabaRead.url,
+    `${GRAPH}/${WABA}?fields=business_verification_status,whatsapp_business_manager_messaging_limit`,
+  );
+  assert.equal(fundingRead.url, `${GRAPH}/${WABA}?fields=primary_funding_id`);
+  assert.equal(ownerRead.url, `${GRAPH}/${WABA}?fields=owner_business_info{id}`);
+  for (const r of [phoneRead, wabaRead, fundingRead, ownerRead])
+    assert.equal(r.headers.authorization, `Bearer ${TOKEN}`, r.url);
+  const row = tables.tenant_channels[0];
+  assert.deepEqual(standings, [
+    {
+      p_tenant_id: A,
+      p_channel_id: row.id,
+      p_standing: {
+        can_send: "BLOCKED",
+        problems: [
+          {
+            entity: "WABA",
+            code: 141006,
+            said: "A payment method is required to send messages",
+            fix: "Add a payment method in WhatsApp Manager",
+          },
+        ],
+        notes: [],
+        name: "Harbor Moving",
+        name_status: "APPROVED",
+        verification: "verified",
+        limit: "TIER_250",
+        has_payment_method: false,
+        owner_business_id: "410540000000001",
+        waba_id: WABA,
+      },
+    },
+  ]);
+  assert.deepEqual(
+    tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title]),
+    [[A, "number", "admin/integrations", "WhatsApp can't send from your number"]],
+    "the owner's bell says it now, not at the next six-hourly read",
+  );
+  assert.ok(tables.notifications[0].body.includes("+1 (555) 123-4567: A payment method is required"));
+  assert.ok(!printed(body).includes("BLOCKED"), "and the connection's answer is the connection's, unchanged");
+
+  // Meta cannot be asked, or refuses: the connection stands.
+  const down = use();
+  const m2 = meta({ health: { status: 500, body: { error: { message: "Service unavailable", code: 2 } } } });
+  const log2 = quiet();
+  try {
+    [status, body] = await answer(await knock(signedUp()));
+  } finally {
+    log2.restore();
+    m2.restore();
+  }
+  assert.equal(status, 200, "a standing that could not be read does not undo a connection");
+  assert.equal(down.tables.tenant_channels.length, 1);
+  assert.deepEqual(down.standings, [], "nothing was kept");
+  assert.ok(log2.lines.some((l) => l.includes('"event":"wa_standing_read_failed"')));
 });
 
 test("connect, the app this deployment speaks for: with no META_APP_ID set the code is exchanged as the one live app -- the same default signup-config hands the browser, so the sign-up and the exchange can never be two different apps", async () => {

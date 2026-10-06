@@ -80,8 +80,8 @@ interface WabaWords {
   route: string;
 }
 
-/** The number's own health: Connections, under a shield. */
-const NUM = { kind: "number" as const, route: "admin/integrations" };
+/** The number's own health: Connections, under a shield. Read by what tells an owner of a number's standing too (number-standing.ts). */
+export const NUM = { kind: "number" as const, route: "admin/integrations" };
 /** A template can be sent now. */
 const READY = { kind: "template_ready" as const, route: "messages" };
 /** A template cannot be sent, or can no longer be sent freely. */

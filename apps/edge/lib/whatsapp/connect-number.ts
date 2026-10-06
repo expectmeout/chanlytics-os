@@ -34,6 +34,7 @@ import {
   toE164,
   wabaInfo,
 } from "./meta-graph.js";
+import { readAndKeepStanding } from "./number-standing.js";
 import { env } from "../env.js";
 import { logger } from "../log.js";
 import { UUID } from "../packages/contracts.js";
@@ -48,13 +49,17 @@ interface ConnectBody {
 
 /**
  * The connection told to the platform's own record: the event that a number was connected, and the workspace's first line
- * that answers, the funnel's first milestone (a phone line is the other door). Best effort: the connection stands either way.
+ * that answers, the funnel's first milestone (a phone line is the other door); then what Meta holds about the number now, kept
+ * and told if Meta says it cannot send. The payment method Meta asks for at the end of its sign-up window is what a business that
+ * skipped it finds out here, in the Connections row and a notice, instead of from the messages it starts that never go. Best
+ * effort: the connection stands either way (readAndKeepStanding never throws, and says what it could not do), so a read that
+ * fails costs the row its notes and never the connection.
  */
 async function connected(
   db: NonNullable<ReturnType<typeof pg>>,
   tenantId: string,
   channelId: string,
-  n: { phoneNumberId: string; wabaId: string; e164: string | null; name: string | null; by: string },
+  n: { phoneNumberId: string; wabaId: string; e164: string | null; name: string | null; by: string; token: string },
 ): Promise<void> {
   await emitEvent(db, tenantId, "channel.connected", "channel", channelId, {
     kind: "whatsapp",
@@ -65,6 +70,14 @@ async function connected(
     by: n.by,
   }).catch(() => {});
   await recordActivation(db, tenantId, "line_live", "whatsapp").catch(() => false);
+  const log = logger({ tenant_id: tenantId, phone_number_id: n.phoneNumberId, waba_id: n.wabaId });
+  await readAndKeepStanding({ db, log }, n.token, {
+    tenant_id: tenantId,
+    channel_id: channelId,
+    phone_number_id: n.phoneNumberId,
+    waba_id: n.wabaId,
+    number_e164: n.e164,
+  });
 }
 
 const ID = /^\d{6,32}$/;
@@ -234,7 +247,7 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
     return refuse(500, "credentials_failed");
   }
 
-  await connected(db, tenantId, row.id, { phoneNumberId, wabaId, e164, name: config.verified_name, by: userId });
+  await connected(db, tenantId, row.id, { phoneNumberId, wabaId, e164, name: config.verified_name, by: userId, token });
   L.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration });
   return json(200, {
     ok: true,
