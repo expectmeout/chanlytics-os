@@ -1,5 +1,5 @@
-/** The People lens: where they reach you, and when, and how many are new (moved from sections.tsx). */
-import type { ReportVM } from "@chanlytics/contracts";
+/** The People lens: where they reach you, and when, and how many are new. */
+import { plural, type ReportVM } from "@chanlytics/contracts";
 import { ChartCard, SegmentBar } from "../../kit/charts/card";
 import { HeatStrip } from "../../kit/charts/heat";
 import { LineChart } from "../../kit/charts/line";
@@ -7,7 +7,7 @@ import { PieChart } from "../../kit/charts/pie";
 import { RadarChart } from "../../kit/charts/radar";
 import { EmptyState } from "../../kit/empty/empty";
 import { RptSection } from "../blocks";
-import { RPT_CHANNELS, rptPeriods, rptPlural } from "../series";
+import { RPT_CHANNELS, rptPeriods } from "../series";
 import { nothingCameIn, type LensProps } from "./shared";
 
 /** Where they reach you: the split by channel, and the same split the period before, in the same colours. */
@@ -144,7 +144,7 @@ function peopleCard(vm: ReportVM, days: number) {
               { key: "total", label: "so far", value: d.total },
               ...(ctx.prior != null ? [{ key: "prior", label: `by this day, ${before}`, value: ctx.prior }] : []),
             ],
-            note: d.newPeople ? `${rptPlural(d.newPeople, "new person", "new people")} that day` : null,
+            note: d.newPeople ? `${plural(d.newPeople, "new person", "new people")} that day` : null,
           })}
           describe={(d, _i, ctx) =>
             `${d.label}: ${d.total} so far${ctx.prior != null ? `, ${ctx.prior} by this day ${before}` : ""}`

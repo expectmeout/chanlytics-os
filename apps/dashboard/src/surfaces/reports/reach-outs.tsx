@@ -170,8 +170,8 @@ function reachOutCards(ro: ReachOutReportVM) {
   );
 }
 
-export function RptReachOuts({ R }: { R: ReportsSurface | null }) {
-  const ro = R ? R.reachOuts : undefined;
+export function RptReachOuts({ R }: { R: ReportsSurface }) {
+  const ro = R.reachOuts;
   // Nothing reads it here (the demo): nothing of it is drawn.
   if (ro === undefined) return null;
   if (ro === null) {

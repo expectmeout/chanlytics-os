@@ -4,14 +4,12 @@ import { apiGet } from "./workspace";
 import { routeOf } from "./address";
 
 /**
- * Reports, on a real workspace (the redesign of September 2026).
+ * Reports, on a real workspace: one App Router page of lenses (`/w/<slug>/reports`, the Overview, and
+ * `/w/<slug>/reports/<lens>`), with the frame's chrome around it (decision 0015, and the lenses spec).
  *
- * The receptionist's share of the answered as a meter beside Worth knowing, five tiles compared with the period before
- * in counts, then the cards, each with a table twin, and nothing in dollars. Read-only: the range control only issues a
- * GET, and Ask is not pressed.
- *
- * Reports is the first page to leave the shell (decision 0015, step 3): it is an App Router page at
- * `/w/<slug>/reports`, and the frame draws its chrome around it.
+ * The Overview: the receptionist's share of the answered as a meter beside Worth knowing, and a strip of five figures compared
+ * with the period before in counts; then each lens's cards, each with a table twin, and nothing in dollars. Read-only: the
+ * period control only issues a GET, and Ask is not pressed.
  */
 const INVENTED = [
   "Revenue",

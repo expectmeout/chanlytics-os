@@ -1,7 +1,6 @@
 /**
- * The pieces of the Reports page (moved from legacy/pages/reports.jsx and reports-sections.jsx, decision 0015): a
- * section under its title, a number with what it is and one line of what it holds, the headline meter, Worth knowing,
- * the strip of counts, Asked-then-booked, and the table of sources.
+ * The pieces of the Reports page: a section under its title, the headline meter, Worth knowing, the strip of counts,
+ * Asked-then-booked, and the table of sources.
  *
  * Every sentence beside a number is the view model's (vm.lines, cm.lines, the booking's words, the facts): these
  * say each number once and compose no claim about the numbers of their own.

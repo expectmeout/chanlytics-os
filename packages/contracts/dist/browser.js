@@ -26092,6 +26092,7 @@ function reportFacts(vm, campaigns) {
 }
 
 // src/reports/report-periods.ts
+var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
 var REPORT_PERIOD_DEFAULT = "30d";
 var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
 var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
@@ -32982,6 +32983,7 @@ export {
   REPORT_CHANNELS,
   REPORT_LENSES,
   REPORT_PERIOD_DEFAULT,
+  REPORT_PERIOD_IDS,
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,

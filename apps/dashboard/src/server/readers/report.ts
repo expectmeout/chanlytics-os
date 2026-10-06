@@ -7,6 +7,7 @@ import {
   monthDaysAt,
   parseTenantConfigResult,
   plural,
+  REPORT_PERIOD_IDS,
   reportPeriodOf,
   zoneDayKey,
   type BookingReportDto,
@@ -100,7 +101,7 @@ export const report: Reader<
  */
 export const ReportQuery = z.object({
   /** `7d`, `30d`, `90d` or `month`; thirty days when none is named. */
-  period: z.string().optional(),
+  period: z.literal(REPORT_PERIOD_IDS).optional(),
   /** What the pages sent before `period` existed: read until 19 October 2026 (contracts report-periods.ts, and the day is held by tests/reports/periods/report-periods.test.mjs). */
   days: z.string().optional(),
 });

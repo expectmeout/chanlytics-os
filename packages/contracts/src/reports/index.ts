@@ -58,6 +58,7 @@ export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
 export {
   REPORT_PERIOD_DEFAULT,
+  REPORT_PERIOD_IDS,
   isReportPeriod,
   fixedDaysOf,
   monthDaysAt,

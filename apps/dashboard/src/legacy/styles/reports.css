@@ -69,8 +69,8 @@
 .rp2-review-drafted.dim { color: var(--ink-dim); }
 
 /* ====================================================================
-   The Reports page: pages/reports.jsx (the shell and Google) and
-   pages/reports-sections.jsx. One radius scale: cards 12px (the kit's),
+   The Reports page (surfaces/reports/): the page, its lenses and Google's
+   section. One radius scale: cards 12px (the kit's),
    controls 6 to 9px. Ink blue is the one data hue and the coral accent
    never marks data here. The page owns its scroll, as a pane route does:
    the scroller is full width so its bar sits at the window edge, and the

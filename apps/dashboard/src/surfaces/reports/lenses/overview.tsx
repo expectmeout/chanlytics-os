@@ -1,6 +1,6 @@
 /**
- * The Overview lens: the receptionist's share of the answered beside Worth knowing, and the strip of counts (moved from
- * sections.tsx, decision 0015). A period nobody wrote or called in says so under the strip.
+ * The Overview lens: the receptionist's share of the answered beside Worth knowing, and the strip of counts. A period nobody
+ * wrote or called in says so under the strip.
  */
 import { RptFacts, RptHero, RptTiles } from "../blocks";
 import { nothingCameIn, type LensProps } from "./shared";

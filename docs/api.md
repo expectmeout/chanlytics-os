@@ -1396,7 +1396,7 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `period` | string | no |  |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
 | `days` | string | no |  |
 
 ### `GET /api/v1/reports/campaigns`
@@ -1405,7 +1405,7 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `period` | string | no |  |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
 | `days` | string | no |  |
 
 ### `GET /api/v1/reports/reach-outs`
@@ -1414,7 +1414,7 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `period` | string | no |  |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
 | `days` | string | no |  |
 
 ## segments

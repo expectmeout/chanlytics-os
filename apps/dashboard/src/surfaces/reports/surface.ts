@@ -80,14 +80,6 @@ export interface ReportsSurface {
   fetchedAt: number;
 }
 
-/**
- * Reports — the receptionist's own numbers over a period.
- *
- * The mockup drew revenue, bookings and eight agents. This publishes the
- * report view model built from one SQL function that already applies the
- * Today metrics' rules (tenant time zone, no undated imports, answered-by =
- * first reply). Realtime message inserts re-apply so today's column moves.
- */
 /** The periods this tab has read (held views): going back to one paints at once, and the read behind it keeps it current. */
 const reportsHeld = heldViews<ReportsSurface>(4);
 /** Paint a period this tab holds for the period now asked for; whether it did. The read behind it is the caller's. */
@@ -99,6 +91,11 @@ export function paintHeldReports(): boolean {
   return true;
 }
 
+/**
+ * Reports: the receptionist's own numbers over the period the page shows, built from one SQL function that already applies the
+ * Today metrics' rules (the tenant's time zone, no undated imports, answered-by = first reply), with the campaigns' and the
+ * reach-outs' reads beside it. Realtime message inserts re-apply it while its page is on screen, so today's column moves.
+ */
 export const reportsOverride: SurfaceOverride = {
   key: "reports",
   value: "reports",
