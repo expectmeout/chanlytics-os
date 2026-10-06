@@ -455,6 +455,47 @@ function PickerKitFind() {
   );
 }
 
+/** A picker in its sentence, on a list to search, for words that match nothing. */
+function PickerKitNone() {
+  const [moment, setMoment] = useState<"quiet_30" | "phoned_only" | "new_week">("quiet_30");
+  return (
+    <Figure id="picker-kit-none" about={`the kit's Picker on a list to search, none matching; chosen: ${moment}`}>
+      <span className="gx-pop-words">
+        Send it to{" "}
+        <Picker
+          label="The moment it runs on"
+          value={moment}
+          onValueChange={setMoment}
+          groups={MOMENTS}
+          chevron={glyph("chevron-down", 11)}
+          search={{ glass: glyph("search", 12), placeholder: "Find a moment", empty: "No moment has those words." }}
+          data-testid="picker-none-open"
+        />
+      </span>
+    </Figure>
+  );
+}
+
+/** A picker in its sentence, read-only: it says what was chosen and opens nothing. */
+function PickerKitReadOnly() {
+  return (
+    <Figure id="picker-kit-readonly" about="the kit's Picker, read-only">
+      <span className="gx-pop-words">
+        Every day at{" "}
+        <Picker
+          label="The hour it runs"
+          value="10"
+          onValueChange={() => undefined}
+          groups={HOURS}
+          chevron={glyph("chevron-down", 11)}
+          readOnly
+          data-testid="picker-readonly"
+        />
+      </span>
+    </Figure>
+  );
+}
+
 /** A tooltip on a control. */
 function TooltipKit() {
   return (
@@ -722,4 +763,6 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "datepicker-kit", Draw: DatePickerKit, closed: false },
   { id: "picker-kit", Draw: PickerKit, closed: false },
   { id: "picker-kit-find", Draw: PickerKitFind, closed: false },
+  { id: "picker-kit-none", Draw: PickerKitNone, closed: false },
+  { id: "picker-kit-readonly", Draw: PickerKitReadOnly, closed: true },
 ];

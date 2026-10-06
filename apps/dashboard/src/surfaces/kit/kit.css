@@ -2329,8 +2329,16 @@ textarea.rec-input {
 .rec-combo-pop > .rec-combo-field {
   height: var(--control-h-md);
 }
-.rec-combo-pop > .rec-combo-field + .rec-combo-empty + .rec-combo-list,
-.rec-combo-pop > .rec-combo-field + .rec-combo-list {
+/* Its search takes a key with the accent's line round the row, drawn inside it: the record kit's box draws the ring
+   (.rec-combo:focus-within), and here there is no box, and the pop's flush panel clips anything drawn outside it. */
+.rec-combo-pop > .rec-combo-field:focus-within {
+  border-radius: inherit;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* What none matching says always stands between the search and the list (Base UI's Empty stays in the page, to be
+   heard), so the hairline is the list's under it. */
+.rec-combo-pop > .rec-combo-field + .rec-combo-empty + .rec-combo-list {
   border-top: 1px solid var(--line);
 }
 .rec-combo-pop > .rec-combo-list {

@@ -200,16 +200,9 @@ const tokensQ = (width: Width, pressed: boolean, reduced = false): KitAsk => ({
  * longhand a planted token does not move, and a failure one of these explains, in the runs it names, is expected. An
  * entry no run meets any more fails the test and comes out of the list, so the check stays strict for everything else.
  */
+// settings.css's `:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm` held the fold sheet's foot at the
+// medium height until Classic retired (#1367): kit.css's own `footer.rec-sheet-foot .btn` outranks it there now.
 const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegExp }[] = [
-  {
-    by:
-      "settings.css:1388, `:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm { height: var(--control-h-md) }`: " +
-      "the Business tab's sheets hold a small button at the medium height",
-    until: "Phase 4's Settings step (0015 step 11), where the Business tab's sheets take the kit's sizes",
-    runs: /./,
-    failure:
-      /^rec-fold-sheet(?:-leaving)?: .* > button\.btn\.btn-sm\.btn-(?:primary|ghost) height: planting --control-h-sm changed nothing/,
-  },
   {
     by: "legacy.css, `@media (pointer: coarse) { html.legacy-on .chip { min-height: 0 } }`: the shell's touch floor, undone for a chip",
     until:
@@ -249,9 +242,11 @@ function tally(seen: SeenSelector[][]) {
 /**
  * Conditions only another engine meets: the gallery runs in Chromium, which never draws what they hold, so a rule inside
  * one is held on a device, not here. Each names the rule that waits on it. iOS WebKit's `-webkit-touch-callout`: kit.css
- * gives the page's title and date the soft ink alone there, because iOS draws no fixed background through a clip.
+ * gives the page's title and date the soft ink alone there, because iOS draws no fixed background through a clip. An
+ * engine without `field-sizing`: a title said in place (.rec-input-title) takes its row's width, as it cannot take its
+ * words' (Chromium sizes it to its words).
  */
-const ENGINE_ONLY = ["@supports (-webkit-touch-callout: none)"];
+const ENGINE_ONLY = ["@supports (-webkit-touch-callout: none)", "@supports not (field-sizing: content)"];
 const named = (s: SeenSelector) =>
   `${s.selector}${s.media ? ` in ${s.media}` : ""}${s.rule !== s.selector ? ` (of ${s.rule})` : ""}: no entry draws it`;
 
@@ -595,9 +590,11 @@ test("check 4 names a longhand its twin's source computes differently, on any el
         ".gx-probe-more-source { padding: 14px; box-shadow: rgb(200, 0, 0) 0px 0px 0px 3px; } " +
         ".gx-probe-more-source b { font-size: 30px; color: rgb(200, 0, 0); }",
     });
+    // The twin's words are in the ink the page gives them, whatever the theme's ink is today.
+    const ink = await page.locator(".gx-probe-more > b").evaluate((b) => getComputedStyle(b).color);
     expect(theirs(await ask(page, await twinsQ("desk")), "probe-more")).toEqual([
       "probe-more: div.gx-probe-more box-shadow: none against rgb(200, 0, 0) 0px 0px 0px 3px in probe-more-source",
-      "probe-more: div.gx-probe-more > b color: oklch(0.96 0.004 80) against rgb(200, 0, 0) in probe-more-source",
+      `probe-more: div.gx-probe-more > b color: ${ink} against rgb(200, 0, 0) in probe-more-source`,
       "probe-more: div.gx-probe-more > b font-size: 13.5px against 30px in probe-more-source",
     ]);
 
