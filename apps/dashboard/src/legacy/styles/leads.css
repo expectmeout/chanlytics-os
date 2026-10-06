@@ -1368,16 +1368,15 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 :is(.ld-row-name > .tint-6, .pk-band.tint-6) { --tint: var(--tile-tint-6); --tint-ink: var(--tile-tint-ink); }
 
 @media (width > 900px) {
+  /* The first day's Find leads is a button's width on a desk, under its sentence; a phone's spans the column, under a
+     thumb. It wore the setup's own class (fr-find, a grid), which stood its glyph over its words outside it (6 Oct 2026). */
+  .ld-first-find {
+    align-self: flex-start;
+  }
   /* The list's name sits where People's does (P1): close under the controls, the pane's 18px at its sides. */
   .main-scroll .ld-list-head {
     margin: 0;
     padding: 4px 18px 12px;
-  }
-  /* Find leads, the one accent on the page (L1): a 32px capsule at the base step, the kit's primary depth under it. */
-  .main-scroll .cl-controls-right > [data-testid="leads-find"] {
-    height: var(--control-h-md);
-    padding: 0 14px;
-    font-size: var(--text-base);
   }
   /* The tile (L1): 40px with the inset's corners in the kind's tint (People's face rule, clients.css, would lay the
      face's fill over it), its initials at the small step; the size is the column's inline style, so the look says it
