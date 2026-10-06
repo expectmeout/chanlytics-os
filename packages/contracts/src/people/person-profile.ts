@@ -287,7 +287,10 @@ export function toPersonVM(
   const whole = {
     ...vm,
     proposal: ctx.proposal,
-    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, ctx.sentWords, vm.emailSuppressed),
+    proposalAction: proposalAction(
+      { via: vm.replyVia ?? null, window: vm.replyWindow ?? null, emailStopped: vm.emailSuppressed },
+      ctx.sentWords,
+    ),
   };
   return { ...whole, acts: personActs(whole) };
 }

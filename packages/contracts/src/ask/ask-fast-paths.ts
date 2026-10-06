@@ -5,20 +5,17 @@
  */
 import { dayPlusInZone } from "../calendar/zone-math";
 import { missedCall } from "../conversations/call-dto";
+import { CALL_HEARTBEAT_MS } from "../config/policy";
+import { liveStillUp, type LiveCallVM } from "../voice/live";
 import { dateFormat } from "../shared/time";
 
 /* -------------------------------------------------------------- fast paths */
 
-export interface FastCall {
-  callId: string;
-  who: string;
-  /** The dial never connected (the view models' `missed`): missed to the owner only where the customer dialled. */
-  missed: boolean;
-  /** Who dialled (missedCall). */
-  direction: "inbound" | "outbound";
-  live: boolean;
-  startedAtMs: number | null;
-}
+/** A call as the fast paths read it: the Live view model's slice (missed to the owner only where the customer dialled, missedCall; on the line by the heartbeat, liveStillUp). */
+export type FastCall = Pick<
+  LiveCallVM,
+  "callId" | "who" | "missed" | "direction" | "live" | "startedAtMs" | "heartbeatAtMs"
+>;
 
 const NEEDS_RE =
   /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
@@ -100,6 +97,8 @@ export function callsToday(
   const today = dayKey(now, tz);
   return {
     missed: calls.filter((c) => missedCall(c) && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
-    live: calls.filter((c) => c.live),
+    // On the line by the heartbeat, as Live and the strip count it: a read kept between refreshes still says `live` of
+    // a call the provider has gone quiet on.
+    live: calls.filter((c) => liveStillUp(c, CALL_HEARTBEAT_MS, now)),
   };
 }

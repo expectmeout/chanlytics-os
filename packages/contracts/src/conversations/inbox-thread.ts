@@ -7,9 +7,9 @@ import { MIN_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
-import { HELD_WORDS, replyWaitsOnYou, standingOf } from "./standing";
+import { HELD_WORDS, replyWaitsOnYou, standingOfThread } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
-import { agentFor, replyWireOf, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
+import { agentFor, isChatMessage, replyWireOf, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime, formatWaited } from "./thread-clock";
 import { mediaVM } from "./message-media";
@@ -20,7 +20,6 @@ import {
   reachedCustomer,
   lastExchanged,
   isHeldDraft,
-  isChatMessage,
   draftSendsAtMs,
   messageWords,
   messageText,
@@ -53,16 +52,7 @@ export function threadStanding(
   // for you", while the person who had asked for a human was still waiting.
   // Snooze now leaves the escalation open and hides the thread by STATE, so
   // "come back to this later" means the request comes back too.
-  const v = standingOf(
-    {
-      state: dto.state,
-      paused_until: dto.paused_until,
-      assignee_user_id: dto.assignee_user_id,
-      assignee_is_me: dto.assignee_is_me,
-      open_escalation: !!escalation,
-    },
-    now.getTime(),
-  );
+  const v = standingOfThread(dto, !!escalation, now.getTime());
   const state: InboxThreadVM["state"] = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
@@ -137,6 +127,17 @@ function replyFacts(
     offersOk: dto.contact.marketing_consent === "opted_in",
     emailStopped: primaryChannel === "email" ? emailStoppedWords(dto.contact, tz, now) : null,
   };
+}
+
+/**
+ * What a snoozed thread's band says: what a snooze is on a real thread (hidden, not paused: the receptionist keeps
+ * answering, and a new message brings it back), then the request still open on it, in its reason's label (the row's
+ * subject), which is still waiting. The page built this sentence, and joined a label that says two things to it under a
+ * second dash.
+ */
+export function snoozedThreadWords(openRequest: string | null): string {
+  const hidden = "Hidden from your queue. The receptionist still answers, and a new message brings it back.";
+  return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
 
 /**

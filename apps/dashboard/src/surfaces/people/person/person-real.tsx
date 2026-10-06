@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { NOTE_WORDS } from "@chanlytics/contracts";
+import { NOTE_WORDS, shortName } from "@chanlytics/contracts";
 import type { PersonRowVM, PersonVM } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
@@ -189,7 +189,7 @@ function ClientProfileReal({ id }: { id: string }) {
   const peopleRow = people && people.rows ? people.rows.find((r) => r.id === id) : null;
   const dealP = peopleRow && peopleRow.followUp ? { ...vm, followUp: peopleRow.followUp } : vm;
   const phoneOnly = /^[+\d(]/.test(vm.name);
-  const first = phoneOnly ? "them" : (vm.name.split(" ")[0] ?? vm.name);
+  const first = phoneOnly ? "them" : shortName(vm.name);
   const c: PageCtx = {
     p: vm,
     dealP,

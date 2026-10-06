@@ -73,7 +73,9 @@ export async function personDecisions(
     .eq("tenant_id", tenantId)
     .in("subject_type", ["contact", "conversation"])
     .in("subject_id", [contactId, ...conversationIds])
+    // Newest first, and the same order every read: two decisions one transaction wrote share their moment.
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(PERSON_DECISIONS);
   if (error) throw new Error(`person decisions: ${error.message}`);
   return (data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null }));

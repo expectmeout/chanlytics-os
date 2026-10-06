@@ -3,8 +3,8 @@
  * waiting with nothing back, the receipts, and the calls worth an ear. The queue that draws them in one grammar is
  * today-queue.ts.
  */
-import { standingOf } from "../conversations/standing";
-import { abandonedCall, reachedVoicemail, DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
+import { standingOfThread } from "../conversations/standing";
+import { abandonedCall, endedHowOf, neverConnected, reachedVoicemail, type CallDto } from "../conversations/call-dto";
 import { toCallVM, spokenDuration } from "../conversations/call-vm";
 import { reasonLabelOf } from "../conversations/escalations";
 import { messageAuthor } from "../conversations/message-author";
@@ -106,16 +106,8 @@ export function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
     .flatMap((c) => {
       // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody.
       if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
-      const { standing } = standingOf(
-        {
-          state: c.state,
-          paused_until: c.paused_until,
-          assignee_user_id: c.assignee_user_id,
-          assignee_is_me: c.assignee_is_me,
-          open_escalation: false,
-        },
-        now.getTime(),
-      );
+      // No escalation open on it: the queue above holds the escalated threads (escSet).
+      const { standing } = standingOfThread(c, false, now.getTime());
       if (standing !== "quiet" && standing !== "needs_you") return [];
       const last = lastExchanged(c.messages);
       if (!last || !isTheirOwnWords(last)) return [];
@@ -181,7 +173,7 @@ function callNote(c: CallDto, live: boolean | undefined, analysisDue: boolean): 
   if (c.sentiment === "Negative") return "Caller sentiment: Negative — the voice provider's own read";
   if (analysisDue) return "Summary on its way from the voice provider";
   if (!c.summary) return "No summary from the voice provider";
-  return DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early";
+  return endedHowOf(c) ?? "Ended early";
 }
 
 export function todayCallRows(f: TodayFacts): TodayCallRowVM[] {
@@ -189,7 +181,7 @@ export function todayCallRows(f: TodayFacts): TodayCallRowVM[] {
   return (
     callsInWindow
       // A dial that never connected is not a call, so it is not a call worth an ear.
-      .filter((c) => c.status !== "not_connected")
+      .filter((c) => !neverConnected(c))
       .map((c) => ({ c, vm: toCallVM(c, tz, now) }))
       .filter(
         ({ c, vm }) =>

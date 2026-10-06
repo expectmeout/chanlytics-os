@@ -537,11 +537,14 @@ export interface PlatformPartnerStandingVM {
   choices: { standing: (typeof PARTNER_STANDINGS)[number]; label: string }[];
 }
 
-const STANDING_LABELS: Record<string, string> = {
+const STANDING_LABELS: Record<(typeof PARTNER_STANDINGS)[number], string> = {
   qualified: "Qualified",
   review: "Under review",
   disqualified: "Disqualified",
 };
+
+/** A standing as the back office says it; a standing the set does not know, as stored. */
+const standingLabel = (standing: string): string => (STANDING_LABELS as Record<string, string>)[standing] ?? standing;
 
 /** Who decided a standing, after its label: nothing for one that has not been. */
 const DECIDED_BY_WORDS: Record<string, string> = {
@@ -559,7 +562,7 @@ const BY_ORIGIN: Record<string, (code: string) => string> = {
 
 /** A workspace's partner, for its row in the back office. */
 export function platformPartnerStanding(w: PlatformPartnerWorkspaceDto): PlatformPartnerStandingVM {
-  const label = w.standing ? (STANDING_LABELS[w.standing] ?? w.standing) : "Not judged yet";
+  const label = w.standing ? standingLabel(w.standing) : "Not judged yet";
   const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
   const why = w.standing ? (w.standing_why ? `: ${w.standing_why}` : "") : ": judged once it has paid";
   return {
@@ -581,7 +584,7 @@ export function platformPartnerStanding(w: PlatformPartnerWorkspaceDto): Platfor
  * Why a code a workspace was made with credited nobody (00202 `partner.code_ignored`'s `why`): the code names no partner,
  * or the partner it names is not active (their status), or it was the code of the person making the workspace.
  */
-const CODE_IGNORED_WHY: Record<string, string> = {
+const CODE_IGNORED_WHY: Record<"unknown" | Exclude<(typeof PARTNER_STATUSES)[number], "active"> | "self", string> = {
   unknown: "no partner has that code",
   paused: "that partner's account is paused",
   closed: "that partner's account is closed",
@@ -589,7 +592,7 @@ const CODE_IGNORED_WHY: Record<string, string> = {
 };
 
 /** What came off a share, or came back (00203, 00207 `partner.reversed`'s `kind`), without an amount. */
-const REVERSED_WORDS: Record<string, string> = {
+const REVERSED_WORDS: Record<Exclude<(typeof PARTNER_EARNING_KINDS)[number], "share">, string> = {
   refund: "a payment was refunded",
   dispute: "a payment was disputed",
   dispute_won: "a dispute was won",
@@ -598,9 +601,9 @@ const REVERSED_WORDS: Record<string, string> = {
 /**
  * What an event of the partner programme says beyond its kind's words in the workspace's own activity log: the one or two
  * fields a sentence names, and never an amount, an invoice or a partner's id. Read from what each writer files (migrations
- * 00202, 00203, 00207, 00214, 00218, 00225): why a code was not used, what came off a share, the standing a share was judged
- * at and who judged it, a handover sent again, a partner who joined a workspace already paying. A field it does not know
- * says nothing.
+ * 00202, 00203, 00207, 00214, 00218, 00225): why a code was not used, what came off a share, a handover sent again, a
+ * partner who joined a workspace already paying. A field it does not know says nothing. A share's standing is not here:
+ * it is between the platform and the partner, and the owner's log says only that it was judged (activity.ts).
  */
 export function partnerEventBits(kind: string, p: Record<string, unknown>): string[] {
   const text = (k: string): string | null => (typeof p[k] === "string" && p[k] ? p[k] : null);
@@ -614,12 +617,6 @@ export function partnerEventBits(kind: string, p: Record<string, unknown>): stri
       return known(CODE_IGNORED_WHY, "why");
     case "partner.reversed":
       return known(REVERSED_WORDS, "kind");
-    case "partner.standing_set": {
-      const label = known(STANDING_LABELS, "standing")[0];
-      const by = text("by");
-      const whose = by !== null && Object.hasOwn(DECIDED_BY_WORDS, by) ? DECIDED_BY_WORDS[by] : "";
-      return label ? [`${label}${whose}`] : [];
-    }
     case "partner.handover_sent":
       return p.again === true ? ["sent again"] : [];
     case "partner.invite_accepted":
@@ -645,7 +642,7 @@ export function partnerPayoutOutcomeWords(
 
 /** What partner_standing_set answered, as the toast says it. */
 export function partnerStandingOutcomeWords(r: { standing: string; voided: number; matured: number }): string {
-  const label = (STANDING_LABELS[r.standing] ?? r.standing).toLowerCase();
+  const label = standingLabel(r.standing).toLowerCase();
   if (r.standing === "disqualified")
     return r.voided
       ? `Disqualified. What it still held (${r.voided} ${r.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.`

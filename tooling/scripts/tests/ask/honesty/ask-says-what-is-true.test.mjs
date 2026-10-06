@@ -315,7 +315,8 @@ test("did anyone call: today's missed calls are the customers' dials that never 
     row("placed", { direction: "outbound" }),
     row("unsaid"),
     row("old", { direction: "inbound", startedAtMs: NOW_MS - 3 * 86_400_000 }),
-    row("on-the-line", { missed: false, live: true, direction: "outbound" }),
+    // Live's own shape: a call on the line carries when the provider last spoke of it (liveStillUp reads it).
+    row("on-the-line", { missed: false, live: true, direction: "outbound", heartbeatAtMs: NOW_MS - 30_000 }),
   ];
   const { missed, live } = callsToday(calls, NOW_MS, "America/New_York");
   assert.deepEqual([missed.map((c) => c.callId), live.map((c) => c.callId)], [["in", "unsaid"], ["on-the-line"]]);

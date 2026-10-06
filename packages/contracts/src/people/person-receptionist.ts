@@ -7,7 +7,7 @@ import { HELD_WORDS } from "../conversations/standing";
 import { shortTime } from "../conversations/thread-clock";
 import { ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
-import { reasonShort } from "./person-row-facts";
+import { reasonShort } from "../conversations/escalations";
 import { holderOf, type ThreadHolder } from "./person-state";
 
 /** What an owner may set for one person: answer, ask first, or stay out. */

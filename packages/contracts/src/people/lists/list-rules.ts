@@ -115,7 +115,8 @@ export const LIST_RULE_FIELDS: readonly {
     label: "Standing",
     kind: "standing",
     needs: [],
-    draft: "value needs_you (waiting for a person) or waiting_on_you (you have the thread and they wrote last)",
+    draft:
+      "value needs_you (waiting for a person) or waiting_on_you (a thread you have: you took it over, or your reply paused the receptionist)",
   },
   {
     id: "assigned",
