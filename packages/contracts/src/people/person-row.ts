@@ -214,6 +214,12 @@ export interface PersonRowVM {
    */
   nextVisitVia: MatchVia | null;
   lastVisitVia: MatchVia | null;
+  /**
+   * The calendar days of their visits near today, each with how it was found to be theirs, by start: what a day-keyed
+   * playbook asks ("a visit tomorrow", playbook-reach.ts), which the next visit alone could not answer for a person with
+   * one later today. A read made before the calendar kept them gives the next and the last. Empty without a calendar.
+   */
+  visitDays: { date: string; via: MatchVia }[];
   /** The calendar's zone; null without a calendar. */
   calendarTz: string | null;
   /** Their deal, as the page says it (0004); null where none was recorded. */
@@ -268,8 +274,10 @@ export function visitTitleFor(title: string, name: string): string {
  */
 function visitKeysOf(
   v: PersonRowDto["visits"],
-): Pick<PersonRowVM, "nextVisitDate" | "lastVisitDate" | "nextVisitVia" | "lastVisitVia" | "calendarTz"> {
+): Pick<PersonRowVM, "nextVisitDate" | "lastVisitDate" | "nextVisitVia" | "lastVisitVia" | "visitDays" | "calendarTz"> {
+  const near = v ? (v.near ?? [v.last, v.next].filter((x) => x !== null)) : [];
   return {
+    visitDays: v ? near.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     nextVisitVia: v?.next?.via ?? null,

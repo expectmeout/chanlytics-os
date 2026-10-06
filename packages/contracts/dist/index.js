@@ -13084,6 +13084,7 @@ function matchPerson(item, everyone, own) {
   const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
   return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p) } : null;
 }
+var NEAR_VISIT_MS = 3 * DAY_MS;
 function indexFeed(items, own) {
   const byPhone = /* @__PURE__ */ new Map();
   const byEmail = /* @__PURE__ */ new Map();
@@ -13121,9 +13122,10 @@ function allVisitsIn(index, person) {
   return out.sort((a, b) => a.start - b.start);
 }
 function visitsIn(index, person, nowMs) {
-  if (isOwn(index.own, person)) return { next: null, last: null };
+  if (isOwn(index.own, person)) return { next: null, last: null, near: [] };
   let next = null;
   let last = null;
+  const near2 = [];
   const seen = /* @__PURE__ */ new Set();
   const take = (it, via) => {
     if (seen.has(it)) return;
@@ -13139,6 +13141,7 @@ function visitsIn(index, person, nowMs) {
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
+    if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near2.push(v);
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
@@ -13146,7 +13149,7 @@ function visitsIn(index, person, nowMs) {
   if (re) {
     for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   }
-  return { next, last };
+  return { next, last, near: near2.sort((a, b) => a.start - b.start) };
 }
 function visitsOf(items, person, nowMs, own) {
   return visitsIn(indexFeed(items, own), person, nowMs);
@@ -19349,6 +19352,20 @@ function fullNameHolders(rows) {
   }
   return holders;
 }
+function visitMomentDay(trigger, tz, nowMs) {
+  return dayPlusInZone(tz, nowMs, trigger === "visit_tomorrow" ? 1 : -1).key;
+}
+function visitOnDay(v, day, side, theirs) {
+  if (!v) return null;
+  const onDay = (v.near ?? [side === "next" ? v.next : v.last]).filter(
+    (x) => !!x && visitDateKey(x.start, v.timezone) === day && theirs(x.via)
+  );
+  return (side === "next" ? onDay[0] : onDay[onDay.length - 1]) ?? null;
+}
+function theirVisitTest(rows) {
+  const holders = fullNameHolders(rows);
+  return (r2, via) => visitIsTheirs(r2, via, holders);
+}
 function visitIsTheirs(r2, via, holders) {
   if (via !== "name") return true;
   const key = fullNameKey(savedNameOf(r2));
@@ -19377,15 +19394,16 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   if (t.kind === "reach_out") return none;
   const purpose = enrolPurpose(t.cls, p.message);
   const how = { channels: p.channels, ready: p.ready, about: messageAboutOfTrigger(p.trigger) };
-  const holders = t.kind === "visit" ? fullNameHolders(rows) : /* @__PURE__ */ new Map();
+  const theirs = theirVisitTest(t.kind === "visit" ? rows : []);
   const named = t.kind === "visit" ? (
     // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
     // theirs (visitIsTheirs).
     rows.filter((r2) => {
       if (!r2.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow")
-        return r2.nextVisitDate !== null && r2.nextVisitDate === localDate(r2.calendarTz, new Date(nowMs + DAY_MS)) && visitIsTheirs(r2, r2.nextVisitVia, holders);
-      return r2.lastVisitDate !== null && r2.lastVisitDate === localDate(r2.calendarTz, new Date(nowMs - DAY_MS)) && !r2.booked && visitIsTheirs(r2, r2.lastVisitVia, holders);
+      const day = visitMomentDay(p.trigger, r2.calendarTz, nowMs);
+      const onDay = r2.visitDays.some((d) => d.date === day && theirs(r2, d.via));
+      if (p.trigger === "visit_tomorrow") return onDay;
+      return onDay && !r2.booked;
     })
   ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows.filter((r2) => followUpNames(r2, nowMs, pace)) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
@@ -23540,7 +23558,9 @@ function visitTitleFor(title, name) {
   return title;
 }
 function visitKeysOf(v) {
+  const near2 = v ? v.near ?? [v.last, v.next].filter((x) => x !== null) : [];
   return {
+    visitDays: v ? near2.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     nextVisitVia: v?.next?.via ?? null,
@@ -25077,7 +25097,8 @@ function peopleVisitsOf(items, people, cal, nowMs) {
       source: cal.source,
       state: "ok",
       next: mark(toVisitDto(v.next)),
-      last: mark(toVisitDto(v.last))
+      last: mark(toVisitDto(v.last)),
+      near: v.near.map((x) => mark(toVisitDto(x))).filter((x) => x !== null)
     });
   }
   return out;
@@ -35757,6 +35778,7 @@ export {
   textingTermsMetadata,
   textingTermsVM,
   textingWords,
+  theirVisitTest,
   themeBootScript,
   themeButtonWords,
   themeColorOf,
@@ -35856,6 +35878,8 @@ export {
   visitDayWord,
   visitFactsFor,
   visitLine,
+  visitMomentDay,
+  visitOnDay,
   visitStartTime,
   visitTime,
   visitTitleFor,
