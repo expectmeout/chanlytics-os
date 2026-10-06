@@ -1523,6 +1523,21 @@ test("the cross-page reads: what a question names plainly of another page is rea
   assert.deepEqual(names("any new messages?"), ['inbox {"action":"list","filter":"recent"}']);
   assert.deepEqual(names("any new messages?", "inbox"), []);
   assert.deepEqual(names("any new messages or drafts held?"), ['inbox {"action":"list","filter":"held"}']);
+  // Who canceled or moved a booking: no record keeps it (decision 0002 is not built) and the calendar holds only what is
+  // still booked, so what was said is searched, every form of the word at once, over the window the question names.
+  // Asked by voice on 5 Oct 2026, it took two more rounds and four searches to find: 14 s to the first word.
+  const [cancel] = mod.crossPagePlan("Yeah check last week and see if anybody canceled an appointment", "leads");
+  const canceled = (days) => `inbox ${JSON.stringify({ action: "search", words: cancel.input.words, days })}`;
+  assert.deepEqual(names("Yeah check last week and see if anybody canceled an appointment", "leads"), [canceled(14)]);
+  assert.deepEqual(names("did anyone cancel today?", "today"), [canceled(1)]);
+  assert.deepEqual(names("who cancelled yesterday?"), [canceled(2)]);
+  assert.deepEqual(names("any cancellations this month?", "calendar"), [canceled(30)]);
+  assert.deepEqual(names("did anyone reschedule?"), [canceled(7)]);
+  assert.deepEqual(names("¿alguien canceló su cita la semana pasada?", "inbox"), [canceled(14)]);
+  for (const word of ["cancel", "canceled", "cancelled", "cancellation", "reschedule", "canceló", "cancelación"])
+    assert.ok(cancel.input.words.split(" or ").includes(word), word);
+  // The search takes 200 characters of words (readers/messages.ts): every form fits.
+  assert.ok(Array.from(cancel.input.words).length <= 200);
   // On Reports a report is read only for a period other than the one on screen.
   assert.deepEqual(names("how did the last 30 days go?", "reports", "30"), []);
   assert.deepEqual(names("how did the last 7 days go?", "reports", "30"), ['report {"days":7}']);

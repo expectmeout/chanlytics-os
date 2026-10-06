@@ -245,6 +245,86 @@ test("a read that began outside a press (an answer read aloud by itself) does no
   assert.equal(silences(), 2, "unlocked once it has played from a press");
 });
 
+test("a hold readies the element inside its press, reading nothing and stopping nothing, so the answer read once it lands (after the fetch, outside any gesture) plays on a phone; a readying the browser refused is tried again in the next press", async () => {
+  const w = world();
+  const a = api();
+  const s = askSpeech(w.win, { api: a });
+  const silences = () => w.elements[0].log.filter((l) => l.includes("audio/wav")).length;
+  s.readySpeech();
+  assert.equal(w.elements.length, 1, "the element made in the press");
+  assert.equal(silences(), 1, "and started on silence there");
+  assert.equal(s.state(), "idle", "nothing read");
+  assert.deepEqual(a.calls, [], "no clip asked for");
+  // A press iOS does not count as a gesture (a pointer going down): refused, and the lift readies it again.
+  w.refuses();
+  await tick();
+  s.readySpeech();
+  assert.equal(silences(), 2, "tried again inside the next press");
+  w.plays();
+  await tick();
+  s.readySpeech();
+  assert.equal(silences(), 2, "readied once it has played");
+  // The answer lands later, outside any press: it plays on the readied element.
+  const read = s.speak("Two people need you.", "answer");
+  assert.equal(silences(), 2, "no silence of its own");
+  a.land();
+  await tick();
+  w.plays();
+  await read;
+  assert.equal(s.state(), "speaking");
+  s.readySpeech();
+  assert.equal(s.state(), "speaking", "a readying stops nothing");
+  assert.doesNotThrow(() => askSpeech({}, { api: a }).readySpeech(), "a device with no Audio readies nothing");
+});
+
+test("the device is told what the page's audio is (WebKit's Audio Session API): a hold's readying says it listens, play-and-record; every read says playback before it plays, so the answer comes out of the loudspeaker and not the earpiece a phone gives a call; a device without the API is left alone", async () => {
+  const w = world();
+  const a = api();
+  const said = [];
+  w.win.navigator = {
+    audioSession: {
+      get type() {
+        return said.at(-1) ?? "auto";
+      },
+      set type(t) {
+        said.push(t);
+      },
+    },
+  };
+  const s = askSpeech(w.win, { api: a });
+  s.readySpeech();
+  assert.deepEqual(said, ["play-and-record"], "a hold: the page listens");
+  const read = s.speak("Two people need you.", "answer");
+  assert.deepEqual(said, ["play-and-record", "playback"], "a read: playback, said before anything plays");
+  a.land();
+  await tick();
+  assert.equal(said.at(-1), "playback", "still playback as the clip starts");
+  w.plays();
+  await read;
+  // Read aloud or Listen with no hold before them: playback too.
+  s.stopSpeaking();
+  void s.speak("The brief.", "brief");
+  assert.equal(said.at(-1), "playback");
+  // A device whose session refuses the word plays as it would have.
+  const w2 = world();
+  w2.win.navigator = {
+    audioSession: {
+      set type(_) {
+        throw new Error("NotSupportedError");
+      },
+    },
+  };
+  const s2 = askSpeech(w2.win, { api: api() });
+  assert.doesNotThrow(() => s2.readySpeech());
+  assert.equal(s2.state(), "idle");
+  // No Audio Session API at all (every browser but WebKit's): nothing is told and nothing breaks.
+  const w3 = world();
+  const s3 = askSpeech(w3.win, { api: api() });
+  assert.doesNotThrow(() => s3.readySpeech());
+  void s3.speak("Hello.", "answer");
+  assert.equal(s3.state(), "loading");
+});
+
 test("words longer than a clip may be are read up to the last whole sentence that fits, never refused: the route takes ASK_SPEECH_MAX_CHARS, and an answer over it could not be read aloud at all", async () => {
   const { ASK_SPEECH_MAX_CHARS } = await import("@chanlytics/contracts");
   const w = world();

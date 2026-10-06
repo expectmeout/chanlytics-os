@@ -306,6 +306,34 @@ export function again(draw) {
 }
 
 /**
+ * useMemo as React keeps it, for a test proving a page draws what its surface last published: the value stays where its
+ * component sits until one of its inputs changes. The stub's own useMemo works the value out on every draw, so a memo
+ * keyed on the wrong inputs never shows here: Conversations held its rows on a counter that no read moved, and showed
+ * the first read for as long as it was open (5 Oct 2026). Called once by such a test file, after installLegacyReact;
+ * the other page tests have not been run on it yet.
+ */
+export function memoAsReact() {
+  const kept = (fn, deps) => {
+    const k = frames.key();
+    const prev = cells.list[k];
+    if (
+      prev &&
+      prev.memo &&
+      deps &&
+      prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, i) => Object.is(d, prev.deps[i]))
+    )
+      return prev.value;
+    const value = fn();
+    cells.list[k] = { memo: true, deps, value };
+    return value;
+  };
+  globalThis.React.useMemo = kept;
+  reactModule.useMemo = kept;
+}
+
+/**
  * The tree goes away, as React unmounts it: each effect's cleanup runs, then its hook cells are forgotten. Window
  * listeners are left to the cleanups that added them, as in a browser: one a registry keeps for itself stays.
  */

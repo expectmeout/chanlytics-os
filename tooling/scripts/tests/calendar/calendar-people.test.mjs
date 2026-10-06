@@ -2431,7 +2431,7 @@ test("REGRESSION: the owner invited to meetings on their own calendar is not a c
 
   const index = indexFeed(f.items, own);
   assert.deepEqual(allVisitsIn(index, owner), [], "none of the meetings on their own calendar is a visit");
-  assert.deepEqual(visitsIn(index, owner, NOW), { next: null, last: null });
+  assert.deepEqual(visitsIn(index, owner, NOW), { next: null, last: null, near: [] });
   assert.equal(index.byEmail.get(OWNER_ADDR), undefined, "and the address is not indexed at all");
   // A customer on an event the owner is copied on is still that customer's.
   assert.deepEqual(

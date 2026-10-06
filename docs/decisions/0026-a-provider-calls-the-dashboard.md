@@ -6,6 +6,14 @@ anything is pushed (his rule of 2 October), and a microphone run owed to the spi
 `8f49c1269` (`ask-voice/1-ground`, 3 October 2026, the spike's answers recorded) and verified against the code at
 it; where this note and the code disagree, the code wins. The fifth door of `docs/architecture.md`.
 
+**Amended 5 October 2026, evening: no hold calls the door.** Ruben chose to answer a held question the typed way and
+read the answer aloud in Ask's one voice (the spec's §3.5, as amended that evening): spoken through the agent, every
+read's label was said (item 4 below) and the vendor held a line that ended no sentence until the answer's first one, so
+a filler was heard at the start of the answer, as often as there were reads, and the vendor has no silent text for a
+voice conversation to draw the reads with. The door, the voice session and the webhook stay deployed and unused; what
+this note decides holds for any provider that calls the dashboard, and the agent comes back through it if a
+hands-free conversation is ever built.
+
 ## Context
 
 - **Ask, spoken, runs on ElevenLabs Agents with Ask itself as the agent's model.** The vendor's agent does the

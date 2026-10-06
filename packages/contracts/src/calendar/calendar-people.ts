@@ -286,7 +286,12 @@ export interface Visits {
   next: Visit | null;
   /** The latest one that has. */
   last: Visit | null;
+  /** Every appointment starting within NEAR_VISIT_MS of now, by start: what a day-keyed moment reads (playbook-reach visitOnDay). */
+  near: Visit[];
 }
+
+/** How far from now a visit is kept in `near`: past the day before and the day after, whatever the zone. */
+const NEAR_VISIT_MS = 3 * DAY_MS;
 
 /** A feed indexed once — every item's phones, addresses and words found up front — so many people can be matched against it. */
 export interface FeedIndex {
@@ -344,9 +349,10 @@ export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
 
 /** One person's next and last appointment against an indexed feed: their number first, their address second, their whole name third. */
 export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): Visits {
-  if (isOwn(index.own, person)) return { next: null, last: null };
+  if (isOwn(index.own, person)) return { next: null, last: null, near: [] };
   let next: Visit | null = null;
   let last: Visit | null = null;
+  const near: Visit[] = [];
   const seen = new Set<FeedItem>();
   const take = (it: FeedItem, via: MatchVia) => {
     if (seen.has(it)) return;
@@ -362,12 +368,13 @@ export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): V
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
+    if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near.push(v);
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
   const re = nameMatcher(person.name);
   if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
-  return { next, last };
+  return { next, last, near: near.sort((a, b) => a.start - b.start) };
 }
 
 /** One person's next and last appointment in a parsed feed. */
@@ -513,6 +520,8 @@ export interface PersonVisitsDto {
   last: VisitDto | null;
   /** Every visit the feed holds for them, oldest first — the profile's timeline. Absent on the list. */
   all?: VisitDto[];
+  /** The visits within a few days of the read, by start (Visits.near): what a day-keyed moment reads. Absent on an older read. */
+  near?: VisitDto[];
 }
 
 export function toVisitDto(v: Visit | null): VisitDto | null {
@@ -705,7 +714,7 @@ export interface BookingReportVM {
  * upcoming, or one held since they got in touch. The conversion Chanlytics
  * counts is the booking, not a stage somebody moved a card into.
  */
-export function bookedAfterAsk(visits: Visits | null | undefined, askedMs: number): boolean {
+export function bookedAfterAsk(visits: Pick<Visits, "next" | "last"> | null | undefined, askedMs: number): boolean {
   if (!visits) return false;
   return visitAnswersAsk(visits.next ? visits.next.start : null, visits.last ? visits.last.start : null, askedMs);
 }

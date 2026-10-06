@@ -59,6 +59,7 @@ const DAY = 86_400_000;
 const NOW = Date.parse("2026-09-06T15:00:00Z");
 const person = (id, over = {}) => ({
   id,
+  visitDays: [],
   state: "active",
   hasChat: true,
   calls: 0,
@@ -183,7 +184,13 @@ test("a reminder is owed to everyone with a visit tomorrow: the cap is a fatigue
   const TZ = "America/New_York";
   const tomorrow = tzDate(TZ, new Date(NOW + DAY));
   const rows = ["a", "b", "c", "d"].map((id, i) =>
-    person(id, { calendarTz: TZ, nextVisitDate: tomorrow, nextVisitMs: NOW + DAY + (4 - i) * 3_600_000, booked: true }),
+    person(id, {
+      calendarTz: TZ,
+      nextVisitDate: tomorrow,
+      nextVisitMs: NOW + DAY + (4 - i) * 3_600_000,
+      visitDays: [{ date: tomorrow, via: "phone" }],
+      booked: true,
+    }),
   );
   const visit = { trigger: "visit_tomorrow", cap_per_run: 1, gap_days: 90, cadence_days: 30, ...HOW };
   assert.deepEqual(
