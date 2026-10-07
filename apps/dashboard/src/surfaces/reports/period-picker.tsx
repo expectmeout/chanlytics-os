@@ -42,13 +42,13 @@ export function periodButton(win: ReportWindowVM, on: { onClick?: () => void; on
   );
 }
 
-type PopoverModule = typeof import("./period-popover");
-let popoverModule: PopoverModule | null = null;
-let popoverLoading: Promise<PopoverModule> | null = null;
+type Popover = typeof import("./period-popover").PeriodPopover;
+let popover: Popover | null = null;
+let popoverLoading: Promise<Popover> | null = null;
 
 /** What the button opens, loaded once for the tab; a test loads it before drawing the page. */
-export function loadPeriodPopover(): Promise<PopoverModule> {
-  popoverLoading ??= import("./period-popover").then((loaded) => (popoverModule = loaded));
+export function loadPeriodPopover(): Promise<Popover> {
+  popoverLoading ??= import("./period-popover").then(({ PeriodPopover }) => (popover = PeriodPopover));
   return popoverLoading;
 }
 
@@ -57,7 +57,7 @@ export function PeriodPicker(p: PeriodPickerProps) {
   const [pressed, setPressed] = useState(false);
   const [, landed] = useState(0);
   const win = reportWindowOf(p.chosen, p.today);
-  const Opened = popoverModule?.PeriodPopover;
+  const Opened = popover;
   const warm = () => void loadPeriodPopover();
   return (
     <div className="rpt-period" data-testid="reports-period">
