@@ -1,5 +1,5 @@
 import { SupabaseClient, AuthMFAAdminDeleteFactorResponse, UserResponse, AuthMFAAdminListFactorsResponse, AuthResponse, PostgrestError } from '@supabase/supabase-js';
-import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, AiUsageBody, RETENTION_DAYS, PurposeBearing, Handled, BrainIntent, OfferCounts, OfferPause, OfferPauseReason, SchemaSet, ConsentChannel, DealFacts, LeadChannel, VoiceEndReason, SCHEMA_SETS, OwnVersionChannel, PersonRowDto, NameableContact, PersonDecisionDto, NumberStanding } from '@chanlytics/contracts';
+import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, AiUsageBody, RETENTION_DAYS, PurposeBearing, Handled, BrainIntent, OfferCounts, OfferPause, OfferPauseReason, SchemaSet, ConsentChannel, DealFacts, LeadChannel, VoiceEndReason, SCHEMA_SETS, OwnVersionChannel, DoubtSeen, PersonRowDto, NameableContact, PersonDoubtDto, PersonDecisionDto, NumberStanding } from '@chanlytics/contracts';
 export { VoiceEndReason } from '@chanlytics/contracts';
 import * as _supabase_postgrest_js from '@supabase/postgrest-js';
 
@@ -4246,6 +4246,64 @@ type Database = {
                 };
                 Relationships: [];
             };
+            person_doubts: {
+                Row: {
+                    contact_id: string;
+                    created_at: string;
+                    id: string;
+                    other_id: string;
+                    seen: string;
+                    settled_as: string | null;
+                    settled_at: string | null;
+                    settled_by: string | null;
+                    tenant_id: string;
+                };
+                Insert: {
+                    contact_id: string;
+                    created_at?: string;
+                    id?: string;
+                    other_id: string;
+                    seen: string;
+                    settled_as?: string | null;
+                    settled_at?: string | null;
+                    settled_by?: string | null;
+                    tenant_id: string;
+                };
+                Update: {
+                    contact_id?: string;
+                    created_at?: string;
+                    id?: string;
+                    other_id?: string;
+                    seen?: string;
+                    settled_as?: string | null;
+                    settled_at?: string | null;
+                    settled_by?: string | null;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "person_doubts_contact_id_same_workspace";
+                        columns: ["tenant_id", "contact_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "person_doubts_other_id_same_workspace";
+                        columns: ["tenant_id", "other_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "person_doubts_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             person_moments: {
                 Row: {
                     added_at: string;
@@ -7417,6 +7475,12 @@ type Database = {
                     wa_profile_name: string;
                 }[];
             };
+            person_doubt_dismiss: {
+                Args: {
+                    p_doubt_id: string;
+                };
+                Returns: Json;
+            };
             person_moments_check: {
                 Args: {
                     p_after?: string;
@@ -8386,14 +8450,15 @@ type Database = {
             };
             resolve_person: {
                 Args: {
-                    p_assurance: string;
-                    p_channel: string;
+                    p_assurance?: string;
+                    p_channel?: string;
                     p_detail?: Json;
-                    p_email: string;
-                    p_external: string;
-                    p_name: string;
-                    p_phone: string;
-                    p_source: string;
+                    p_email?: string;
+                    p_external?: string;
+                    p_name?: string;
+                    p_phone?: string;
+                    p_seen_at?: string;
+                    p_source?: string;
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -13485,6 +13550,60 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             };
             Relationships: [];
         };
+        person_doubts: {
+            Row: {
+                contact_id: string;
+                created_at: string;
+                id: string;
+                other_id: string;
+                seen: string;
+                settled_as: string | null;
+                settled_at: string | null;
+                settled_by: string | null;
+                tenant_id: string;
+            };
+            Insert: {
+                contact_id: string;
+                created_at?: string;
+                id?: string;
+                other_id: string;
+                seen: string;
+                settled_as?: string | null;
+                settled_at?: string | null;
+                settled_by?: string | null;
+                tenant_id: string;
+            };
+            Update: {
+                contact_id?: string;
+                created_at?: string;
+                id?: string;
+                other_id?: string;
+                seen?: string;
+                settled_as?: string | null;
+                settled_at?: string | null;
+                settled_by?: string | null;
+                tenant_id?: string;
+            };
+            Relationships: [{
+                foreignKeyName: "person_doubts_contact_id_same_workspace";
+                columns: ["tenant_id", "contact_id"];
+                isOneToOne: false;
+                referencedRelation: "contacts";
+                referencedColumns: ["tenant_id", "id"];
+            }, {
+                foreignKeyName: "person_doubts_other_id_same_workspace";
+                columns: ["tenant_id", "other_id"];
+                isOneToOne: false;
+                referencedRelation: "contacts";
+                referencedColumns: ["tenant_id", "id"];
+            }, {
+                foreignKeyName: "person_doubts_tenant_id_fkey";
+                columns: ["tenant_id"];
+                isOneToOne: false;
+                referencedRelation: "tenants";
+                referencedColumns: ["id"];
+            }];
+        };
         person_moments: {
             Row: {
                 added_at: string;
@@ -16594,6 +16713,12 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
                 wa_profile_name: string;
             }[];
         };
+        person_doubt_dismiss: {
+            Args: {
+                p_doubt_id: string;
+            };
+            Returns: Json;
+        };
         person_moments_check: {
             Args: {
                 p_after?: string;
@@ -17563,14 +17688,15 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
         };
         resolve_person: {
             Args: {
-                p_assurance: string;
-                p_channel: string;
+                p_assurance?: string;
+                p_channel?: string;
                 p_detail?: Json;
-                p_email: string;
-                p_external: string;
-                p_name: string;
-                p_phone: string;
-                p_source: string;
+                p_email?: string;
+                p_external?: string;
+                p_name?: string;
+                p_phone?: string;
+                p_seen_at?: string;
+                p_source?: string;
                 p_tenant_id: string;
             };
             Returns: Json;
@@ -22111,6 +22237,60 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             written_through?: string;
         };
         Relationships: [];
+    };
+    person_doubts: {
+        Row: {
+            contact_id: string;
+            created_at: string;
+            id: string;
+            other_id: string;
+            seen: string;
+            settled_as: string | null;
+            settled_at: string | null;
+            settled_by: string | null;
+            tenant_id: string;
+        };
+        Insert: {
+            contact_id: string;
+            created_at?: string;
+            id?: string;
+            other_id: string;
+            seen: string;
+            settled_as?: string | null;
+            settled_at?: string | null;
+            settled_by?: string | null;
+            tenant_id: string;
+        };
+        Update: {
+            contact_id?: string;
+            created_at?: string;
+            id?: string;
+            other_id?: string;
+            seen?: string;
+            settled_as?: string | null;
+            settled_at?: string | null;
+            settled_by?: string | null;
+            tenant_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "person_doubts_contact_id_same_workspace";
+            columns: ["tenant_id", "contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["tenant_id", "id"];
+        }, {
+            foreignKeyName: "person_doubts_other_id_same_workspace";
+            columns: ["tenant_id", "other_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["tenant_id", "id"];
+        }, {
+            foreignKeyName: "person_doubts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
     };
     person_moments: {
         Row: {
@@ -27543,6 +27723,60 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
         };
         Relationships: [];
     };
+    person_doubts: {
+        Row: {
+            contact_id: string;
+            created_at: string;
+            id: string;
+            other_id: string;
+            seen: string;
+            settled_as: string | null;
+            settled_at: string | null;
+            settled_by: string | null;
+            tenant_id: string;
+        };
+        Insert: {
+            contact_id: string;
+            created_at?: string;
+            id?: string;
+            other_id: string;
+            seen: string;
+            settled_as?: string | null;
+            settled_at?: string | null;
+            settled_by?: string | null;
+            tenant_id: string;
+        };
+        Update: {
+            contact_id?: string;
+            created_at?: string;
+            id?: string;
+            other_id?: string;
+            seen?: string;
+            settled_as?: string | null;
+            settled_at?: string | null;
+            settled_by?: string | null;
+            tenant_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "person_doubts_contact_id_same_workspace";
+            columns: ["tenant_id", "contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["tenant_id", "id"];
+        }, {
+            foreignKeyName: "person_doubts_other_id_same_workspace";
+            columns: ["tenant_id", "other_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["tenant_id", "id"];
+        }, {
+            foreignKeyName: "person_doubts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
     person_moments: {
         Row: {
             added_at: string;
@@ -32974,6 +33208,60 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
         };
         Relationships: [];
     };
+    person_doubts: {
+        Row: {
+            contact_id: string;
+            created_at: string;
+            id: string;
+            other_id: string;
+            seen: string;
+            settled_as: string | null;
+            settled_at: string | null;
+            settled_by: string | null;
+            tenant_id: string;
+        };
+        Insert: {
+            contact_id: string;
+            created_at?: string;
+            id?: string;
+            other_id: string;
+            seen: string;
+            settled_as?: string | null;
+            settled_at?: string | null;
+            settled_by?: string | null;
+            tenant_id: string;
+        };
+        Update: {
+            contact_id?: string;
+            created_at?: string;
+            id?: string;
+            other_id?: string;
+            seen?: string;
+            settled_as?: string | null;
+            settled_at?: string | null;
+            settled_by?: string | null;
+            tenant_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "person_doubts_contact_id_same_workspace";
+            columns: ["tenant_id", "contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["tenant_id", "id"];
+        }, {
+            foreignKeyName: "person_doubts_other_id_same_workspace";
+            columns: ["tenant_id", "other_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["tenant_id", "id"];
+        }, {
+            foreignKeyName: "person_doubts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
     person_moments: {
         Row: {
             added_at: string;
@@ -35422,9 +35710,12 @@ type PersonForSend = {
     made: boolean;
 } | {
     ok: false;
-    refused: "lead_gone" | "lead_closed" | "no_address" | "already_yours";
+    refused: "lead_gone" | "lead_closed" | "no_address" | "already_yours" | "erased";
 };
-/** The person a first send needs, made once (00184 reach_out_person): never a lead converted by it. */
+/**
+ * The person a first send needs, made once (00184 reach_out_person, through resolve_person since 00344): never a lead
+ * converted by it, and never a person who asked to be forgotten (`erased`: the door's PE001, said in the door's answer).
+ */
 declare function reachOutPerson(db: Db$m, tenantId: string, leadId: string): Promise<PersonForSend>;
 /** Up to `limit` due sends of a running chain on one domain, claimed under its lock within `cap` (00184, C7). */
 declare function claimSends(db: Db$m, p: {
@@ -37131,6 +37422,63 @@ interface MergedPeople {
  * into its own status (dbRefusal). Everything the door moves, it moves in one transaction.
  */
 declare function mergePeople(db: Db$6, keep: string, merge: string): Promise<MergedPeople>;
+/** What a door hands resolve_person (00342, 00344): the identity as it saw it, and how sure it is of it. */
+interface ResolvePersonInput {
+    tenantId: string;
+    /** The provider's identity: its channel and id, both or neither. */
+    channel?: "whatsapp" | "voice" | "sms" | "email" | "instagram" | null;
+    external?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    name?: string | null;
+    /** observed: they wrote to us on that wire; asserted: a member typed it; found: the finder or a feed named it. */
+    assurance: "observed" | "asserted" | "found";
+    /** Where they came from, on contact.added when the door makes them: calendar, lead, import, manual, call, inbound. */
+    source: string;
+    /** The caller's own words for contact.added: a calendar guest's title, uid and start; a lead's id. */
+    detail?: Json;
+}
+/** What the door answers. */
+interface ResolvedPerson {
+    contact_id: string;
+    outcome: "new" | "matched" | "filled";
+    existed: boolean;
+    matched_by: "identity" | "phone" | "email" | "race" | null;
+    email: "set" | "kept" | "taken" | null;
+    filled: string[];
+    identity: "added" | "raised" | "kept" | null;
+    /** The other record one of the identities names, when the pair could be one person; written on person_doubts. */
+    doubt: string | null;
+    doubt_seen: DoubtSeen | null;
+}
+/**
+ * A person, resolved by the one door (decision 0034): the erasure digests first on the passive paths, then the identity,
+ * the number and the address; fills what is empty and never overwrites; never merges, and writes a doubt instead. The
+ * service role calls it (the edge's sweeps and doors, the dashboard's server); a session is refused, so a member's
+ * door is create_person or import_person. A person who asked to be forgotten refuses with the door's own code, PE001,
+ * which a caller counts as one person refused, never everyone: the error's code is kept on the thrown error.
+ */
+declare function resolvePerson(db: Db$6, p: ResolvePersonInput): Promise<ResolvedPerson>;
+/** A person's code at the door: this person asked to be forgotten (00263, 00331). */
+declare const PERSON_FORGOTTEN = "PE001";
+/**
+ * The open doubts naming a person (00344 person_doubts, decision 0034 step 4), oldest first, each with the other
+ * record as People names a row. Read under the caller's row security. A database before the table answers none, so
+ * either deploy order shows a page.
+ */
+declare function openDoubtsOf(db: Db$6, tenantId: string, contactId: string): Promise<PersonDoubtDto[]>;
+/** A doubt by id, when it names this person on either side (read under the caller's row security); null when it does not. */
+declare function doubtOn(db: Db$6, tenantId: string, contactId: string, doubtId: string): Promise<{
+    id: string;
+    contact_id: string;
+    other_id: string;
+    settled_as: string | null;
+} | null>;
+/** Not the same (person_doubt_dismiss, 00344): the member settles the pair, as themselves. The door's refusals are thrown as they came. */
+declare function dismissPersonDoubt(db: Db$6, doubtId: string): Promise<{
+    doubt_id: string;
+    settled_as: string | null;
+}>;
 
 /**
  * Saved lists: a list's name, its rule and the people on it (segments and segment_members, 00044), read and written
@@ -37861,4 +38209,4 @@ declare function keepChannelQuality(db: Db, tenantId: string, channelId: string,
  */
 declare function keepChannelStanding(db: Db, tenantId: string, channelId: string, standing: NumberStanding): Promise<(typeof KEPT_ANSWERS)[number]>;
 
-export { type AiFailures, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, ERASURE_LEGS, ERASURE_STRATEGIES, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type StrandedRun, type SubscribeOptions, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WhatsappNumber, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, campaignSeries, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, deliveryOf, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, eventOfDelivery, everyoneIn, failStrandedRun, failedMessageErrors, finishableRuns, firstReplies, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, keepChannelQuality, keepChannelStanding, keepIdempotencyReceipt, keepInvoiceAmount, keepMessageCost, keepProviderEvent, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, outreachFactsOf, outreachModeOf, ownLineOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personDecisions, personReplyMode, personRow, platformHoldStands, platformWide, playbookChannels, playbooksOnList, providerEventOf, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reportSeries, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, scrubPersonNotes, scrubProviderEvents, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, setTemplateQuality, settleDelivery, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspacePaused, writtenEmail, writtenEmails, yesesSince };
+export { type AiFailures, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, ERASURE_LEGS, ERASURE_STRATEGIES, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, PERSON_FORGOTTEN, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type ResolvePersonInput, type ResolvedPerson, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type StrandedRun, type SubscribeOptions, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WhatsappNumber, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, campaignSeries, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, deliveryOf, describeLead, dismissPersonDoubt, domainCapacityOf, domainHeldSince, doubtOn, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, eventOfDelivery, everyoneIn, failStrandedRun, failedMessageErrors, finishableRuns, firstReplies, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, keepChannelQuality, keepChannelStanding, keepIdempotencyReceipt, keepInvoiceAmount, keepMessageCost, keepProviderEvent, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, openDoubtsOf, outreachFactsOf, outreachModeOf, ownLineOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personDecisions, personReplyMode, personRow, platformHoldStands, platformWide, playbookChannels, playbooksOnList, providerEventOf, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reportSeries, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, resolvePerson, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, scrubPersonNotes, scrubProviderEvents, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, setTemplateQuality, settleDelivery, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspacePaused, writtenEmail, writtenEmails, yesesSince };

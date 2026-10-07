@@ -44,13 +44,13 @@ as unknown as                       140
 as never                             13
 non-null assertions, x!             111
 index reads the compiler lets pass  476   in 127 files
-table names outside packages/db     477
+table names outside packages/db     473
 SQL functions outside packages/db   129   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 event-shaped clocks                   9   of the registered clocks (invariant 6)
-tables with more than one writer     56   389 writers among them
+tables with more than one writer     57   385 writers among them
 personal columns with no erasure strategy  195   in 44 tables
 breakpoints outside the set          35   in 11 files
 literal style values                985   in 23 stylesheets
@@ -58,7 +58,7 @@ primitives outside the kit         1872   selectors naming 771 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     295
-source-text reads in tests          767
+source-text reads in tests          766
 lint warnings                       355   in 153 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      722   the shell included
 workspace route CSS, KB gzipped     145

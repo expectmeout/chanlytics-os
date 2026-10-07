@@ -23,7 +23,7 @@
     "broadcasts/broadcasts.test.mjs": 19,
     "calendar/availability-tool.test.mjs": 1,
     "calendar/availability.test.mjs": 4,
-    "calendar/calendar-people.test.mjs": 32,
+    "calendar/calendar-people.test.mjs": 31,
     "calendar/calendar.test.mjs": 12,
     "connections/connections.test.mjs": 10,
     "consent/consent-door.test.mjs": 4,

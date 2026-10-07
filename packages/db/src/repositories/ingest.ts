@@ -4,6 +4,7 @@
  * dedupe; everything else is plain row work.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolvePerson } from "./people";
 import {
   CARRIER_CONSENT_SOURCE,
   conversationPatch,
@@ -298,44 +299,32 @@ export async function recordOutbound(
 }
 
 /**
- * Get-or-create a contact by phone.
- *
- * NOT an upsert: `contacts_tenant_phone_uq` is a PARTIAL unique index
- * (`... where phone_e164 is not null`), and PostgREST's `on_conflict=` cannot
- * target a partial index — it fails with "no unique or exclusion constraint
- * matching the ON CONFLICT specification". Every `.upsert(..., { onConflict:
- * "tenant_id,phone_e164" })` in this file was therefore a silent no-op for any
- * contact that did not already exist. Raw SQL can target it (by repeating the
- * WHERE clause) which is why ingest_inbound and ingest_call are unaffected.
- *
- * Insert-then-reselect handles the concurrent case: 23505 means someone else
- * won the race, and their row is the one we want.
+ * A first-time caller's row, through the one door a person is resolved by (resolve_person, decision 0034: 00342,
+ * 00344): the number as their voice identity, observed, seen now. The door makes nobody twice (a caller who texted
+ * first is the same person) and keeps the identity the call's own ingest will find. The row is then read for what the
+ * consent predicate asks of it.
  */
 async function getOrCreateContact(
   db: Db,
   tenantId: string,
   phoneE164: string,
 ): Promise<{ id: string; consent: string; dnc: boolean; marketing_consent: string }> {
+  const made = await resolvePerson(db, {
+    tenantId,
+    channel: "voice",
+    external: phoneE164,
+    phone: phoneE164,
+    assurance: "observed",
+    source: "call",
+  });
   const { data, error } = await db
-    .from("contacts")
-    .insert({ tenant_id: tenantId, phone_e164: phoneE164, last_seen_at: new Date().toISOString() })
-    // `marketing_consent` rides along so every caller holding this row can answer
-    // BOTH consent questions without a second read. On the insert path it is the
-    // column default, 'unknown' -- which is the honest answer for somebody who has
-    // never been asked, and the one that fails closed on a promotion.
-    .select("id, consent, dnc, marketing_consent")
-    .single();
-  if (!error && data) return data;
-  if (error && error.code !== "23505") throw new Error(`get_or_create_contact: ${error.message}`);
-
-  const { data: raced, error: reErr } = await db
     .from("contacts")
     .select("id, consent, dnc, marketing_consent")
     .eq("tenant_id", tenantId)
-    .eq("phone_e164", phoneE164)
+    .eq("id", made.contact_id)
     .single();
-  if (reErr || !raced) throw new Error(`get_or_create_contact reselect: ${reErr?.message}`);
-  return raced;
+  if (error || !data) throw new Error(`get_or_create_contact reselect: ${error?.message}`);
+  return data;
 }
 
 /**

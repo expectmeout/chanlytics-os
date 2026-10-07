@@ -116,6 +116,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST contacts/[id]/notes/remove": people,
   // A receptionist's suggestion kept becomes a note, perhaps a step: the same rows move.
   "POST contacts/[id]/notes/decide": people,
+  // Not the same (0034 step 4): the pair leaves the person's page, which reads itself again; People's rows are as they were.
+  "POST contacts/[id]/doubts/dismiss": people,
   "POST contacts": peopleAndAudiences,
   "POST contacts/import": peopleAndAudiences,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.

@@ -23380,6 +23380,26 @@ function attentionRow(p, tz, nowMs) {
   return { channel, when, sentence: sentence2, quoted, status, tone: r2.tone, cta };
 }
 
+// src/people/person-doubts.ts
+var DOUBT_SEEN = ["name", "phone", "email"];
+var DOUBT_SETTLED_AS = ["merged", "not_the_same"];
+var DOUBT_WORDS = {
+  heading: "Same person?",
+  seen: {
+    name: (other) => `${other} has the same name. One person, or two?`,
+    phone: (other) => `${other} has the number this record was reached on. One person, or two?`,
+    email: (other) => `${other} has the address this record was reached on. One person, or two?`
+  },
+  merge: "Merge",
+  mergeHint: "Two records of one person become one (the owner's act)",
+  apart: "Not the same",
+  apartHint: "Keep both records; this pair is not asked about again",
+  apartBusy: "Keeping both\u2026",
+  apartDone: (other) => `Kept apart from ${other}`,
+  apartFailed: "Could not settle this pair.",
+  notFound: "This doubt is not on this person."
+};
+
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {
   sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
@@ -24612,6 +24632,20 @@ function filterTimeline(items, id) {
   const kinds = TIMELINE_FILTERS.find((f) => f.id === id)?.kinds ?? null;
   return kinds ? items.filter((i) => kinds.includes(i.kind)) : [...items];
 }
+function doubtsOf(d) {
+  return (d.doubts ?? []).map((x) => {
+    const other = personName(x.other);
+    return {
+      id: x.id,
+      otherId: x.other.id,
+      other,
+      phone: x.other.phone_e164 ? formatPhoneDisplay(x.other.phone_e164) : null,
+      email: x.other.email,
+      seen: x.seen,
+      sentence: DOUBT_WORDS.seen[x.seen](other)
+    };
+  });
+}
 function personActs(p) {
   const acts = [];
   const reach = mayReach(p);
@@ -24692,6 +24726,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
     smartLists: smartListsOf(d, base),
     campaigns: campaignsOf(d, tz, nowMs),
     lead: leadOf(d, base, tz, nowMs),
+    doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,
     dealsOn,
@@ -27210,6 +27245,7 @@ var ROUTE_KEYS = [
   "POST client-errors",
   "POST contacts",
   "POST contacts/[id]/deal",
+  "POST contacts/[id]/doubts/dismiss",
   "POST contacts/[id]/merge",
   "POST contacts/[id]/notes",
   "POST contacts/[id]/notes/decide",
@@ -27591,6 +27627,8 @@ var SCHEMA_SETS = {
   "partner_tenants.origin": ["link", "handover", "invite"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
+  "person_doubts.seen": ["name", "phone", "email"],
+  "person_doubts.settled_as": ["merged", "not_the_same"],
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread", "reach_out"],
   "person_notes.state": ["kept", "suggested"],
@@ -33711,6 +33749,9 @@ export {
   DOMAIN_HOLDS,
   DOMAIN_RAMP,
   DOMAIN_RESUMERS,
+  DOUBT_SEEN,
+  DOUBT_SETTLED_AS,
+  DOUBT_WORDS,
   DRAFT_NEEDS_MS,
   DRAFT_NOTICE_MAX,
   DRAFT_WHYS,

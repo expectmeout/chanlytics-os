@@ -192,6 +192,14 @@ export async function mergePerson(keep: string, merge: string): Promise<DeleteRe
 }
 
 /**
+ * Not the same (decision 0034, step 4): the doubt the door raised on this person is settled as two people, and the
+ * next arrival never raises it again. Any acting member's; the page reads itself again afterwards, with the row gone.
+ */
+export async function settleDoubt(id: string, doubtId: string): Promise<DeleteResult> {
+  return api()("POST contacts/[id]/doubts/dismiss", { params: { id }, body: { doubt_id: doubtId } });
+}
+
+/**
  * Receptionist mode for one person.
  *
  * "auto" / "ask" / "never" set the person's own row; "inherit" removes it so

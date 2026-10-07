@@ -45,7 +45,7 @@ corepack pnpm check:dead-exports              # knip against a baseline that may
 corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against its budget and ceiling (CI holds each change to what it adds against main's own build); -- --update banks a fall, -- --raise js=<bytes> <page>=<bytes> a rise by the growth argued, both with CI's numbers and no build
 corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
-node tooling/scripts/checks/smoke.mjs <host>  # after a deploy: the edge's /api/health and the dashboard's /api/version answer (docs/runbook.md, Deploy)
+node tooling/scripts/checks/smoke.mjs --edge <edge-host> --dashboard <dashboard-host> --sha <merge-sha>  # after a deploy: the edge's /api/health and the dashboard's /api/version answer with the sha (docs/runbook.md, Deploy); one host alone exits 1, since the dashboard's /api/health is behind sign-in
 corepack pnpm e2e                             # Playwright, against production by default
 node tooling/scripts/gen/route-types.mjs      # the typed client, after a route changes (--check to verify)
 corepack pnpm gen:api-reference               # docs/api.md (what each route takes), after a route's input or policy changes; the suite fails a stale one
