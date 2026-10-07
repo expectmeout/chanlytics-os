@@ -1,14 +1,38 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
+import { reviewsFromProfile } from "../packages/contracts/src/google/google";
 
 /**
  * Google, on a real workspace: the listing route answers honestly about what
  * this deployment can do and never carries a key; without a Places key on
- * the edge there is no row on Setup, no section on Reports and no card on
- * Integrations; with one and no listing yet, each offers the one next step.
- * Read-only: nothing here links, reads or removes a listing.
+ * the edge there is no row on Setup, the Reviews lens on Reports says there is
+ * nothing to find and no card on Integrations; with one and no listing yet,
+ * each offers the one next step. With a listing, Reviews draws five figures
+ * where the Business Profile's reviews are on record and four where only the
+ * five Google shows are. Read-only: nothing here links, reads or removes a
+ * listing.
  */
+
+/**
+ * What each figure of the Reviews lens says as its number, by the metric it counts, in the order the lens draws them (contracts
+ * report-tiles.ts and review-report.ts): a dash where the stored rows cannot say, never a zero.
+ */
+const PROFILE_FIGURES: ReadonlyArray<[string, RegExp]> = [
+  ["rating", /^(\d\.\d|—)$/],
+  ["reviews", /^(\d+|—)$/],
+  ["reviews_written", /^(\d+|—)$/],
+  ["reviews_answered", /^(\d+ of \d+|—)$/],
+  ["review_reply_time", /^(\d+(s|m( \d+s)?|h( \d+m)?)|—)$/],
+];
+const PLACES_FIGURES: ReadonlyArray<[string, RegExp]> = [
+  ["rating", /^(\d\.\d|—)$/],
+  ["reviews", /^(\d+|—)$/],
+  ["ratings_gained", /^(-?\d+|—)$/],
+  ["newest_review", /^(just now|\d+[smhd] ago|[A-Z][a-z]{2} \d{1,2}|—)$/],
+];
+/** The period before beside a number, in counts (compareWords, and the rating's own): never a percentage. */
+const FIGURE_CHANGE = /^(up from \d+(\.\d)?|down from \d+(\.\d)?|same as the .+ before|none the .+ before)$/;
 test.describe("Google on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -67,20 +91,55 @@ test.describe("Google on a real workspace", () => {
       if (!linked) await expect(row.getByTestId("setup-verb")).toHaveText(ready ? "Find it" : "Connect");
     }
 
-    // Google is Reports' Reviews lens (surfaces/reports/lenses/reviews.tsx), at its own address since #1424.
+    // Google is Reports' Reviews lens (surfaces/reports/lenses/reviews.tsx), at its own address since #1424 and drawn from its own
+    // read (`reports/reviews`). Whose reviews it counts is the Business Profile's once a location is chosen and a sync has stored
+    // them, and the five Google shows until then (contracts reviewsFromProfile, the one test): five figures and the cards that count
+    // them, or four and the days gained.
     await page.goto("/#/reports/reviews");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("reports-real")).toBeVisible();
-    if (!ready && !profile) {
+    if (!ready && !profile && !linked) {
+      // Nothing can be looked up or connected here: the registry's empty, and no card that leads to Find.
+      await expect(page.getByTestId("lens-empty")).toBeVisible();
       await expect(page.getByTestId("google-none")).toHaveCount(0);
       await expect(page.getByTestId("google-tiles")).toHaveCount(0);
     } else if (!linked) {
       await expect(page.getByTestId("google-none")).toContainText("Find it");
+      await expect(page.getByTestId("google-tiles")).toHaveCount(0);
     } else {
-      const tiles = page.getByTestId("google-tiles").locator("[data-figure]");
-      await expect(tiles).toHaveCount(4);
-      for (const v of await tiles.locator(".figure-value").allInnerTexts())
-        expect(v.trim()).toMatch(/^(\d+(\.\d)?|—|just now|\d+[smhd] ago|[A-Z][a-z]{2} \d{1,2})$/);
+      const connection = data.google.connection;
+      const fromProfile = reviewsFromProfile(connection);
+      const figures = page.getByTestId("google-tiles").locator("[data-figure]");
+      const expected = fromProfile ? PROFILE_FIGURES : PLACES_FIGURES;
+      await expect(figures).toHaveCount(expected.length);
+      // The number alone: the figure's value also holds the period before beside it, in its own span.
+      const drawn = await figures.evaluateAll((els) =>
+        els.map((el) => ({
+          id: el.getAttribute("data-figure"),
+          value: (el.querySelector(".figure-value")?.firstChild?.textContent ?? "").trim(),
+          change: el.querySelector(".figure-change")?.textContent?.trim() ?? null,
+        })),
+      );
+      expect(drawn.map((f) => f.id)).toEqual(expected.map(([id]) => id));
+      expected.forEach(([id, value], i) => {
+        expect(drawn.at(i)?.value, `${id}'s number`).toMatch(value);
+        const change = drawn.at(i)?.change;
+        if (change) expect(change, `${id}'s change`).toMatch(FIGURE_CHANGE);
+      });
+      await expect(page.getByTestId("chart-google-latest")).toBeVisible();
+      const profileCards = ["chart-reviews-stars", "chart-reviews-weekly", "reviews-waiting"];
+      if (fromProfile) {
+        // Every review on record: the mix, the weeks and who waits, and no day-by-day count of Google's own.
+        for (const id of profileCards) await expect(page.getByTestId(id), id).toBeVisible();
+        await expect(page.getByTestId("chart-google-gained")).toHaveCount(0);
+        await expect(page.getByTestId("reviews-connect")).toHaveCount(0);
+      } else {
+        // The five Google shows count nothing: the days gained, and the door to the profile where none is connected or its
+        // location is still to choose.
+        await expect(page.getByTestId("chart-google-gained")).toBeVisible();
+        for (const id of profileCards) await expect(page.getByTestId(id), id).toHaveCount(0);
+        await expect(page.getByTestId("reviews-connect")).toHaveCount(connection?.location_name ? 0 : 1);
+      }
     }
 
     await page.goto("/#/admin/integrations");

@@ -115,7 +115,7 @@ Order: A first (small, independent). B next. D runs beside B and C, lowest-numbe
 | Calendar | a calendar feed is connected | 30 days (booked hours: this week and next) | 7 / 30 / 90 | member |
 | Pipeline | `tenants.sells_by = 'proposal'` and a deal was ever recorded | 90 days | 30 / 90 / Month | member |
 | Campaigns | a playbook, broadcast or reach-out ever sent | 30 days | 7 / 30 / 90 / Month | member |
-| Reviews | a Google listing is linked | 30 days | 30 / 90 | member |
+| Reviews | always; with no listing linked it draws its empty state, the door to Find it | 30 days | 7 / 30 / 90 / Month | member |
 | Usage | always, for the owner | this billing period | billing periods | owner |
 | Leads | a lead search ever ran | 30 days | 7 / 30 / 90 | member |
 
@@ -157,7 +157,7 @@ Each lens names the tables it repaints on from the workspace topic (00265; `pack
 | People | messages, calls, segment_members |
 | Pipeline | deals |
 | Campaigns | messages, reach_out_replies |
-| Reviews | google_reviews, google_listings |
+| Reviews | google_reviews (a review seen for the first time), google_listings, google_connections; the daily readings and the reply events are not on the topic: read with the rest, and again after a reply posted from the page |
 | Leads | leads, lead_rounds, lead_search_members, reach_out_replies |
 | Calendar, Usage | none: read on visit (the feed and the ledger are not on the topic) |
 
@@ -298,7 +298,9 @@ The canvas draws each lens; the catalog lists every source. Status: **Moved** (t
 | Tile | Status |
 | --- | --- |
 | Rating and reviews gained (two charts, one scale each); Google's five | Moved |
-| Stars; answered and how fast; velocity; held replies; receptionist vs you; languages | Now with the Business Profile; a door to connect it otherwise |
+| Stars; answered and how fast; velocity; held replies | Now with the Business Profile, counted over the reviews on record (`google_reviews`: each one's stars, the day Google dates it, its reply and when that was written) and the reply events Chanlytics filed (`google.reply_held`); a door to connect it otherwise. No table of Google's own insights is read: none exists |
+| Receptionist vs you | Now with the Business Profile: a reply is the receptionist's where the last `google.replied` event Chanlytics recorded under the review names it as the writer; every other reply is the owner's, written here or on Google (a reply a person writes through Chanlytics files the event with no writer, and one typed on Google files none) |
+| Languages of reviews | Not drawn: the Business Profile's reviews carry no language (`google_reviews.language_code` is null on every one), so there is nothing to count |
 | Asking for reviews | out of this program: needs a review-request feature (§18) |
 | Near you (competitors) | out of this program (§18) |
 
