@@ -17,5 +17,39 @@ export default async function OsLayout({ children }: { children: React.ReactNode
   const supabase = await createClient();
   const { data: verified } = await supabase.auth.getClaims();
   if (!verified?.claims) redirect("/login");
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <TurnUpright />
+    </>
+  );
+}
+
+/**
+ * What a phone held sideways shows in place of the OS (mobile.css, `.turn-upright`): no page is drawn for that shape
+ * yet, and a page cannot hold an iPhone upright (Safari reads no orientation from the manifest and takes no lock from a
+ * script), so the app stands down and says so (Ruben, 7 Oct 2026). It is drawn beside every page of the OS and the
+ * stylesheet alone decides when it shows, so nothing waits on a script and the page under it is hidden, never unloaded:
+ * turned back, it is as it was left. The pages outside the OS (the doors, a business's public pages) reflow and keep
+ * their sideways view.
+ */
+function TurnUpright() {
+  return (
+    <div className="turn-upright" role="alert">
+      <svg
+        width="26"
+        height="40"
+        viewBox="0 0 26 40"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        aria-hidden="true"
+      >
+        <rect x="1" y="1" width="24" height="38" rx="5" />
+        <path d="M10 34.5h6" strokeLinecap="round" />
+      </svg>
+      <strong>Turn your phone upright</strong>
+      <span>Chanlytics has no sideways view on a phone yet.</span>
+    </div>
+  );
 }

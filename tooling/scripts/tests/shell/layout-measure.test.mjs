@@ -42,11 +42,13 @@ test("the shell is as tall as the phone shows, not as tall as it could show: 100
     assert.ok(rule, `${root} has a rule`);
     assert.match(rule[0], /height: 100vh;\s*height: 100dvh;/, `${root}: 100vh for a browser without dvh, then 100dvh`);
   }
-  // The room under the bar, which dvh keeps on screen: the boards' tab bar floats 14px (or the safe area) above the
-  // bottom and stands 62px tall with its capsule, so the page keeps 76px over that (mobile.css).
+  // The room under the bar, which dvh keeps on screen: the boards' tab bar floats 14px above the bottom (--bar-foot:
+  // nearer the edge than the phone's own inset where that is more) and stands 62px tall with its capsule, so the page
+  // keeps 76px over that (mobile.css). It is said once, as --page-foot: a page that scrolls inside a pane hands it to
+  // that scroller, so its list runs under the bar as Today's does, and ends clear of it (7 Oct 2026).
   assert.match(
     MOBILE,
-    /\.main-scroll \{\s*padding-bottom: calc\(max\(14px, env\(safe-area-inset-bottom\)\) \+ 76px\);\s*\}/,
+    /\.main-scroll \{\s*--page-foot: calc\(var\(--bar-foot\) \+ 76px\);\s*padding-bottom: var\(--page-foot\);\s*\}/,
   );
 });
 
