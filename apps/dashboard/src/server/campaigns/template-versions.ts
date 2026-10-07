@@ -1,23 +1,31 @@
 import "server-only";
 import {
   AppError,
+  MESSAGE_BEGIN_WORDS,
   OWN_VERSION_CHANNELS,
   TEMPLATE_LANGUAGES,
+  TEMPLATE_NAME_WORDS,
+  channelNeverCarries,
   isReachOutRow,
+  purposeOfTemplate,
   starterByName,
   starterEmailText,
   starterSmsText,
   starterText,
+  templateNameOk,
   validateOwnVersion,
   type OwnVersionChannel,
   type StarterTemplate,
   type VersionWords,
 } from "@chanlytics/contracts";
 import {
+  createMessageVersion,
+  isMissingDoor,
   messageSlots,
   ownVersionsFiled,
   removeTemplateVersion,
   saveTemplateVersion,
+  type MessageVariable,
   type VersionRef,
 } from "@chanlytics/db";
 import type { Member } from "@/server/route";
@@ -31,8 +39,22 @@ import { dbRefusal, type RouteContext } from "@/server/with-route";
  * slots and no others, a subject, a text's segments. WhatsApp's versions are Meta's and stay the edge's. A reach-out's
  * email (step 5) is a version too, filed under the name of its step: it is written through its chain's own save, which
  * runs the same email check over the reach-out's rules and keeps what that save guarantees.
+ *
+ * A message may BEGIN as an email or a text (a message needs no WhatsApp row): the first version of a name the workspace
+ * holds no row of is written through another door (create_message_version, 00342), which takes what the message is with
+ * it, since no row is there to say it: its category, its values and its title. A starter of the registry says them itself
+ * (its category and its slots); a message a member writes says them in `message`, and is an offer or news, never
+ * about a visit or a proposal, which only a starter is (the one rule, here). A name the workspace already holds is a
+ * message that exists: its version is written beside the rows it has, and `message` is ignored.
  */
 type Db = Pick<RouteContext, "supabase">;
+
+/** What a message is, said with its first version when the workspace has no row of its name (POST templates/versions). */
+interface NewMessage {
+  category: "marketing" | "utility";
+  variables: Array<{ position: number; label: string; example?: string | null }>;
+  title?: string | null;
+}
 
 /** A version as a person asks for it. */
 interface VersionRequest {
@@ -41,6 +63,7 @@ interface VersionRequest {
   channel: OwnVersionChannel;
   subject?: string | null;
   body: string;
+  message?: NewMessage;
 }
 
 /** A version written, what reads badly in it without failing it, and for a reach-out's email, how many sends it sent back to the check. */
@@ -56,8 +79,7 @@ interface VersionSaved {
  * says it. Refusals are the person's words: the check's, or the door's.
  */
 async function writeVersion(db: Db, tenantId: string, v: VersionRequest, slots: number): Promise<VersionSaved> {
-  const check = validateOwnVersion(v.channel, { subject: v.subject, body: v.body }, slots, v.language);
-  if (!check.ok) throw new AppError("validation", check.error);
+  const check = checkedWords(v, slots);
   const door = await saveTemplateVersion(db.supabase, {
     tenantId,
     name: v.name,
@@ -70,15 +92,89 @@ async function writeVersion(db: Db, tenantId: string, v: VersionRequest, slots: 
   return { version: door.version, warnings: check.warnings };
 }
 
-/** The slots a version of `name` in `language` fills: its message's, from what the workspace holds, else the starter's. */
-async function slotsFor(db: Db, tenantId: string, name: string, language: string): Promise<number | null> {
-  const held = await messageSlots(db.supabase, tenantId, name, language);
-  if (held !== null) return held;
-  const starter = starterByName(name);
-  return starter ? starterText(starter, language).slots.length : null;
+/** A version's words checked on their channel's rules against the message's slots, or the refusal in the person's words. */
+function checkedWords(v: VersionRequest, slots: number): { value: VersionWords; warnings: string[] } {
+  const check = validateOwnVersion(v.channel, { subject: v.subject, body: v.body }, slots, v.language);
+  if (!check.ok) throw new AppError("validation", check.error);
+  return check;
 }
 
-/** POST templates/versions: one email or text version of a message, in a language, written or rewritten. */
+/** A starter's values as the edge files them on its WhatsApp row: numbered from 1, each with the label and the example its slot has. */
+function starterVariables(s: StarterTemplate, language: string): MessageVariable[] {
+  return starterText(s, language).slots.map((slot, i) => ({
+    position: i + 1,
+    label: slot.label,
+    example: slot.example,
+  }));
+}
+
+/** A refusal of the door that begins a message: a database that has not run 00342 says so in one sentence, any other is the door's own. */
+function beginRefusal(e: { code: string | null; message: string }): AppError {
+  return isMissingDoor(e) ? new AppError("conflict", MESSAGE_BEGIN_WORDS.doorNotSwitchedOn, 409) : dbRefusal(e);
+}
+
+/**
+ * Write the first version of a message, its words already checked, through the door that needs no row of its name. A text
+ * never carries an offer (contracts channelNeverCarries, the sentence the ticks and the sends say), refused before the
+ * door is asked.
+ */
+async function beginMessage(
+  db: Db,
+  tenantId: string,
+  v: VersionRequest,
+  words: { value: VersionWords; warnings: string[] },
+  message: { category: "marketing" | "utility"; variables: MessageVariable[]; title: string | null },
+): Promise<VersionSaved> {
+  const never = channelNeverCarries(v.channel, purposeOfTemplate(message.category));
+  if (never) throw new AppError("validation", never);
+  const door = await createMessageVersion(db.supabase, {
+    tenantId,
+    name: v.name,
+    language: v.language,
+    channel: v.channel,
+    subject: words.value.subject,
+    body: words.value.body,
+    ...message,
+  });
+  if (!door.ok) throw beginRefusal(door.error);
+  return { version: door.version, warnings: words.warnings };
+}
+
+/**
+ * The first version of a message the workspace holds no row of. A starter of the registry begins as itself: its category,
+ * its values and no title of its own (the starter's title is read from the registry), and only on a channel it writes
+ * something for in this language, else it is not found, as it was before this door existed. Any other name needs
+ * `message`, which is what a member writes it as: under a name of the shape Meta takes, with the values and title it
+ * says, and an offer or news, never about a visit or a proposal. Nobody reviews a message with no WhatsApp row, so only
+ * a starter, which Chanlytics writes, may be about a visit. With neither, there is no message.
+ */
+async function beginVersion(db: Db, tenantId: string, v: VersionRequest): Promise<VersionSaved> {
+  const starter = starterByName(v.name);
+  if (starter) {
+    if (!starterWords(starter, v.channel, v.language)) throw new AppError("not_found", "Message not found.", 404);
+    const variables = starterVariables(starter, v.language);
+    const words = checkedWords(v, variables.length);
+    return beginMessage(db, tenantId, v, words, { category: starter.category, variables, title: null });
+  }
+  if (!v.message) throw new AppError("not_found", "Message not found.", 404);
+  if (!templateNameOk(v.name)) throw new AppError("validation", TEMPLATE_NAME_WORDS);
+  const { category, title } = v.message;
+  const variables = v.message.variables.map((x) => ({
+    position: x.position,
+    label: x.label,
+    example: x.example ?? null,
+  }));
+  const words = checkedWords(v, variables.length);
+  if (category === "utility") throw new AppError("validation", MESSAGE_BEGIN_WORDS.customIsAnOffer);
+  return beginMessage(db, tenantId, v, words, { category, variables, title: title ?? null });
+}
+
+/**
+ * POST templates/versions: one email or text version of a message, in a language, written or rewritten. A name the
+ * workspace holds a row of is a message that exists, and its version is checked against that message's slots and written
+ * beside its rows (`message`, if sent, is ignored: the message already says what it is); one it holds no row of
+ * begins a message (beginVersion).
+ */
 export async function saveVersion(ctx: RouteContext, member: Member, v: VersionRequest): Promise<VersionSaved> {
   if (isReachOutRow({ name: v.name })) {
     if (v.channel !== "email") throw new AppError("validation", "A reach-out sends email only.");
@@ -87,9 +183,9 @@ export async function saveVersion(ctx: RouteContext, member: Member, v: VersionR
   }
   if (!TEMPLATE_LANGUAGES.some((l) => l.id === v.language))
     throw new AppError("validation", "Pick a language from the list.");
-  const slots = await slotsFor(ctx, member.tenantId, v.name, v.language);
-  if (slots === null) throw new AppError("not_found", "Message not found.", 404);
-  return writeVersion(ctx, member.tenantId, v, slots);
+  const held = await messageSlots(ctx.supabase, member.tenantId, v.name, v.language);
+  if (held !== null) return writeVersion(ctx, member.tenantId, v, held);
+  return beginVersion(ctx, member.tenantId, v);
 }
 
 /** DELETE templates/versions/:id: an email or text version a member wrote, and nothing else (the door says which rows). */

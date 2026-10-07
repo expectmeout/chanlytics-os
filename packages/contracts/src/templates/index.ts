@@ -25,6 +25,7 @@ export {
   TEMPLATE_FOOTER_MAX,
   TEMPLATE_EXAMPLE_MAX,
   TEMPLATE_NAME_MAX,
+  TEMPLATE_NAME_WORDS,
   TEMPLATE_BUTTON_TEXT_MAX,
   PARAM_SOURCES,
   PARAM_SOURCE_LABELS,
@@ -103,6 +104,7 @@ export {
   messageHolds,
   messageWhyNot,
   MESSAGE_GONE_WORDS,
+  MESSAGE_BEGIN_WORDS,
   whatsappStoppedRunWords,
 } from "./campaign-message";
 export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";

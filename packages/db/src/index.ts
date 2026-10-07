@@ -283,10 +283,18 @@ export {
   messageVersionRowsOf,
   ownVersionsFiled,
   saveTemplateVersion,
+  createMessageVersion,
+  isMissingDoor,
   removeTemplateVersion,
   setTemplateQuality,
 } from "./repositories/templates";
-export type { MessageVersionRow, TemplateRow, TemplateToSend, VersionRef } from "./repositories/templates";
+export type {
+  MessageVariable,
+  MessageVersionRow,
+  TemplateRow,
+  TemplateToSend,
+  VersionRef,
+} from "./repositories/templates";
 export {
   getTenantConfig,
   putTenantConfig,

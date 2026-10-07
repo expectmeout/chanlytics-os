@@ -5,8 +5,9 @@
  * WhatsApp's rows are the edge's: its admin doors own creating, syncing and deleting them, because that is where the
  * number's credentials live. What is read here is the one question the rest of the product asks -- which templates may
  * this workspace send, right now -- so that no caller has to name one by a literal again. An email or a text version
- * (00296) is written and removed through the two doors below, on the member's own session: a member may only read the
- * table, and the doors say who may write it and which rows. The one write Meta's webhook makes between two syncs is here
+ * (00296) is written and removed through the doors below, on the member's own session, and the first version of a message
+ * with no row yet through a third (00342): a member may only read the table, and the doors say who may write it and which
+ * rows. The one write Meta's webhook makes between two syncs is here
  * too: a WhatsApp template's quality, as Meta just said it (setTemplateQuality). A message's rows, on whatever channel,
  * are read once (messageVersionRowsOf) for contracts' campaignMessageOf to pick its versions out of.
  */
@@ -243,6 +244,61 @@ export async function saveTemplateVersion(
   const version = versionRefOf(data);
   if (!version) throw new Error("saveTemplateVersion: the door answered without the version it wrote");
   return { ok: true, version };
+}
+
+/**
+ * A value a message fills, as the edge writes it on a WhatsApp row's `variables` and as the first version of a message
+ * with no WhatsApp row files it: its number (1, 2, 3 in order), the name a person sees for it, and an example or none.
+ */
+export type MessageVariable = { position: number; label: string; example: string | null };
+
+/**
+ * Write the FIRST version of a message, on email or text (create_message_version, 00342): a name the workspace holds no
+ * row of, so there is no WhatsApp row to take the message's category and values from, and this version says them. The
+ * words are already checked (contracts validateOwnVersion) and so is the category's rule (only a starter is utility);
+ * the door holds who may, the lengths, that the values are numbered in order, that a text is never an offer, and that no
+ * row of that name exists on any channel or in any language. A text takes no subject and a message with no title none.
+ * The session's own client, never the service role's: the door judges the caller. A database that has not run 00342
+ * answers `PGRST202` (PostgREST) or `42883` (Postgres), which `isMissingDoor` reads.
+ */
+export async function createMessageVersion(
+  db: Db,
+  p: {
+    tenantId: string;
+    name: string;
+    language: string;
+    channel: OwnVersionChannel;
+    subject: string | null;
+    body: string;
+    category: "marketing" | "utility";
+    variables: MessageVariable[];
+    title: string | null;
+  },
+): Promise<VersionDoor> {
+  const { data, error } = await db.rpc("create_message_version", {
+    p_tenant_id: p.tenantId,
+    p_name: p.name,
+    p_language: p.language,
+    p_channel: p.channel,
+    p_subject: p.subject ?? "",
+    p_body: p.body,
+    p_category: p.category,
+    p_variables: p.variables,
+    p_title: p.title ?? "",
+  });
+  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  const version = versionRefOf(data);
+  if (!version) throw new Error("createMessageVersion: the door answered without the version it wrote");
+  return { ok: true, version };
+}
+
+/**
+ * Whether a door's refusal says the function is not on this database at all (a migration not applied yet): PostgREST's
+ * `PGRST202`, which is what a schema cache without the function answers, or Postgres's own `42883`, undefined_function,
+ * which a cache that still lists a function the database has dropped answers.
+ */
+export function isMissingDoor(error: { code: string | null }): boolean {
+  return error.code === "PGRST202" || error.code === "42883";
 }
 
 /** Remove an email or text version a member wrote (remove_template_version, 00296); never a WhatsApp template. */

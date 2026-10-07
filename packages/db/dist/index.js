@@ -2887,6 +2887,26 @@ async function saveTemplateVersion(db, p) {
   if (!version) throw new Error("saveTemplateVersion: the door answered without the version it wrote");
   return { ok: true, version };
 }
+async function createMessageVersion(db, p) {
+  const { data, error } = await db.rpc("create_message_version", {
+    p_tenant_id: p.tenantId,
+    p_name: p.name,
+    p_language: p.language,
+    p_channel: p.channel,
+    p_subject: p.subject ?? "",
+    p_body: p.body,
+    p_category: p.category,
+    p_variables: p.variables,
+    p_title: p.title ?? ""
+  });
+  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  const version = versionRefOf(data);
+  if (!version) throw new Error("createMessageVersion: the door answered without the version it wrote");
+  return { ok: true, version };
+}
+function isMissingDoor(error) {
+  return error.code === "PGRST202" || error.code === "42883";
+}
 async function removeTemplateVersion(db, templateId) {
   const { data, error } = await db.rpc("remove_template_version", { p_template_id: templateId });
   if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
@@ -3849,6 +3869,7 @@ export {
   countSendingDomains,
   countSentToday,
   createList,
+  createMessageVersion,
   createServiceClient,
   createWorkspaceFn,
   createWorkspaceForBusiness,
@@ -3910,6 +3931,7 @@ export {
   insertVoiceSession,
   invitePartner,
   inviteUserByEmail,
+  isMissingDoor,
   isWorkspaceCall,
   keepChannelQuality,
   keepChannelStanding,

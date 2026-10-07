@@ -2,13 +2,22 @@
  * A message's email and text versions, saved and removed through their doors -- on a real database.
  *
  * 00296 gives a member two definer doors over `templates`, which members may only read: save_template_version writes
- * (or rewrites) the email or text version of a message, remove_template_version deletes one. What reading the SQL
- * cannot prove is who may call them, what they refuse and what they leave alone, so these sign real people in and
- * call them. Runs the way tenancy.db.test.mjs does, against the local stack only; skipped without one.
+ * (or rewrites) the email or text version of a message, remove_template_version deletes one. 00342 gives a third,
+ * create_message_version, which writes the FIRST version of a message no row of the workspace holds, with the category,
+ * the values and the title that version says. What reading the SQL cannot prove is who may call them, what they refuse
+ * and what they leave alone, so these sign real people in and call them. Runs the way tenancy.db.test.mjs does, against
+ * the local stack only; skipped without one.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { channelNeverCarries } from "@chanlytics/contracts";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -358,4 +367,335 @@ test("a member still cannot write the table directly: the doors are the only way
   const direct = await owner.client.from("templates").delete().eq("id", whatsappId).select("id");
   assert.deepEqual(direct.data ?? [], [], "and a delete takes no row");
   assert.ok(await rowOf(whatsappId));
+});
+
+/* ---- 00342: a message may begin as an email or a text ---- */
+
+const BEGIN_VARIABLES = [
+  { position: 1, label: "First name", example: "Dani" },
+  { position: 2, label: "The offer", example: null },
+];
+
+/** create_message_version as a member calls it: a first email of an offer, over what a test changes. */
+function begin(who, over = {}) {
+  return who.client.rpc("create_message_version", {
+    p_tenant_id: A,
+    p_name: "spring_news",
+    p_language: "en_US",
+    p_channel: "email",
+    p_subject: "News from {{2}}",
+    p_body: "Hi {{1}},\r\n\r\nSpring is here: {{2}}",
+    p_category: "marketing",
+    p_variables: BEGIN_VARIABLES,
+    p_title: "Spring news",
+    ...over,
+  });
+}
+
+async function rowsNamed(name) {
+  const r = await db.from("templates").select("*").eq("tenant_id", A).eq("name", name).order("channel");
+  assert.equal(r.error, null, r.error?.message);
+  return r.data;
+}
+
+/** One statement through `supabase db query --local`, for what only the catalog can say (SUPABASE_CLI names the binary). */
+function catalog(sql) {
+  const r = spawnSync(CLI, ["db", "query", "--local", "--output-format", "json", sql], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+  assert.equal(r.status, 0, `supabase db query exited ${r.status}: ${(r.stderr ?? "") + (r.stdout ?? "")}`);
+  const out = r.stdout;
+  const start = out.search(/[[{]/);
+  const parsed = JSON.parse(out.slice(start, out.lastIndexOf(out[start] === "{" ? "}" : "]") + 1));
+  return Array.isArray(parsed) ? parsed : (parsed.rows ?? []);
+}
+
+test(
+  "a member begins a message with an email: approved at once, the first version's category, values and title, and Meta's component shape",
+  { skip },
+  async () => {
+    const r = await begin(owner);
+    assert.equal(r.error, null, r.error?.message);
+    assert.deepEqual(
+      { ...r.data, id: typeof r.data.id },
+      { id: "string", channel: "email", name: "spring_news", language: "en_US" },
+    );
+    const row = await rowOf(r.data.id);
+    assert.equal(row.tenant_id, A);
+    assert.equal(row.meta_status, "approved", "nothing reviews it but the person who wrote it");
+    assert.equal(row.source, "chanlytics");
+    assert.equal(row.category, "marketing", "the category the first version says");
+    assert.deepEqual(row.variables, BEGIN_VARIABLES, "the values, as the edge writes them on a WhatsApp row");
+    assert.equal(row.title, "Spring news");
+    assert.equal(row.created_by, owner.userId);
+    assert.equal(row.meta_id, null, "never filed with Meta");
+    assert.equal(row.hidden_at, null);
+    assert.deepEqual(row.components, [
+      { type: "HEADER", format: "TEXT", text: "News from {{2}}" },
+      { type: "BODY", text: "Hi {{1}},\n\nSpring is here: {{2}}" },
+    ]);
+    assert.equal(row.body_preview, "Hi {{1}},\n\nSpring is here: {{2}}", "line endings read as \\n, the words trimmed");
+    assert.equal((await rowsNamed("spring_news")).length, 1, "no WhatsApp row came with it");
+  },
+);
+
+test(
+  "a message with no values takes none, an example may be left out, and only the three keys the edge writes are kept, cleaned",
+  { skip },
+  async () => {
+    const none = await begin(operator, {
+      p_name: "plain_news",
+      p_variables: [],
+      p_title: "   ",
+      p_body: "No values here.",
+    });
+    assert.equal(none.error, null, none.error?.message);
+    const plain = await rowOf(none.data.id);
+    assert.deepEqual(plain.variables, []);
+    assert.equal(plain.title, null, "a blank title is none: its name made words");
+    assert.equal(plain.created_by, operator.userId);
+
+    const cleaned = await begin(owner, {
+      p_name: "cleaned_news",
+      p_title: "  Cleaned   news ",
+      p_subject: "  Hello   there ",
+      p_variables: [
+        { position: 1, label: "  First   name ", example: "   ", ignored: "x" },
+        { position: 2, label: "Offer" },
+      ],
+      p_body: "Hi {{1}}, {{2}}",
+    });
+    assert.equal(cleaned.error, null, cleaned.error?.message);
+    const row = await rowOf(cleaned.data.id);
+    assert.deepEqual(row.variables, [
+      { position: 1, label: "First name", example: null },
+      { position: 2, label: "Offer", example: null },
+    ]);
+    assert.equal(row.title, "Cleaned news");
+    assert.equal(row.components[0].text, "Hello there", "the subject's white space is read as one space");
+
+    const edge = await begin(owner, {
+      p_name: "edge_values",
+      p_variables: [{ position: 1, label: "x".repeat(40), example: "y".repeat(100) }],
+      p_title: "t".repeat(60),
+      p_subject: "x".repeat(60),
+      p_body: "x".repeat(2000),
+    });
+    assert.equal(edge.error, null, "the limits themselves are allowed");
+  },
+);
+
+test(
+  "a text of an offer is refused with contracts' own sentence and writes nothing; a text of a message about a visit is written, with no subject",
+  { skip },
+  async () => {
+    const offer = await begin(owner, {
+      p_name: "spring_text",
+      p_channel: "sms",
+      p_subject: "ignored",
+      p_body: "Hi {{1}}",
+    });
+    assert.equal(offer.error?.code, "22023");
+    assert.equal(
+      offer.error.message,
+      channelNeverCarries("sms", "marketing"),
+      "the sentence the ticks and the sends say",
+    );
+    assert.equal(offer.error.message, "Texts carry no offers.");
+    assert.deepEqual(await rowsNamed("spring_text"), []);
+
+    const visit = await begin(owner, {
+      p_name: "visit_text",
+      p_channel: "sms",
+      p_category: "utility",
+      p_subject: "ignored",
+      p_body: "  Hi {{1}}, see you soon.  ",
+    });
+    assert.equal(visit.error, null, visit.error?.message);
+    assert.equal(visit.data.channel, "sms");
+    const row = await rowOf(visit.data.id);
+    assert.equal(row.category, "utility");
+    assert.deepEqual(row.components, [{ type: "BODY", text: "Hi {{1}}, see you soon." }], "a text has no subject");
+    assert.equal(row.meta_status, "approved");
+
+    // An email of an offer is the message's own channel.
+    assert.equal((await begin(owner, { p_name: "spring_mail" })).error, null);
+  },
+);
+
+test(
+  "a message that exists is never begun again, in any language or on any channel: a second writer overwrites neither its category nor its values",
+  { skip },
+  async () => {
+    const first = await begin(owner, { p_name: "visit_check", p_category: "utility", p_title: "Visit check" });
+    assert.equal(first.error, null, first.error?.message);
+    const hidden = await seedTemplate({
+      tenant_id: A,
+      channel: "email",
+      name: "hidden_note",
+      language: "en_US",
+      body_preview: "Hi",
+      components: [{ type: "BODY", text: "Hi" }],
+      hidden_at: new Date().toISOString(),
+    });
+    assert.ok(hidden);
+    const refused = [
+      ["the same email again", { p_name: "visit_check" }],
+      ["its email in another language", { p_name: "visit_check", p_language: "es" }],
+      ["its text in its language", { p_name: "visit_check", p_channel: "sms" }],
+      ["its text in another language", { p_name: "visit_check", p_channel: "sms", p_language: "es" }],
+      ["a message that has a WhatsApp row", { p_name: "visit_reminder", p_language: "fr", p_category: "utility" }],
+      ["a message the workspace hid", { p_name: "hidden_note", p_language: "es", p_category: "utility" }],
+    ];
+    for (const [why, over] of refused) {
+      const r = await begin(owner, { p_category: "utility", p_variables: [], p_body: "Hello", ...over });
+      assert.equal(r.error?.code, "23505", why);
+      assert.equal(r.error.message, "This message already exists. Write its other versions in the Library.", why);
+    }
+    assert.deepEqual(
+      (await rowsNamed("visit_check")).map((x) => [x.channel, x.language, x.category, x.title]),
+      [["email", "en_US", "utility", "Visit check"]],
+      "nothing was written beside it, and nothing of it was changed",
+    );
+
+    // The versions after the first are 00296's door, which takes the category, the values and the title from the row.
+    const next = await save(operator, {
+      p_name: "visit_check",
+      p_channel: "sms",
+      p_subject: "",
+      p_body: "Hi {{1}}",
+    });
+    assert.equal(next.error, null, next.error?.message);
+    const text = await rowOf(next.data.id);
+    assert.equal(text.category, "utility");
+    assert.deepEqual(text.variables, BEGIN_VARIABLES);
+    assert.equal(text.title, "Visit check");
+  },
+);
+
+test("two first writers of one name take turns: one writes it and the other is told it exists", { skip }, async () => {
+  for (let round = 1; round <= 4; round++) {
+    const name = `race_news_${round}`;
+    const [a, b] = await Promise.all([
+      begin(owner, { p_name: name, p_language: "en_US", p_category: "utility" }),
+      begin(operator, {
+        p_name: name,
+        p_language: "es",
+        p_category: "utility",
+        p_channel: round % 2 ? "sms" : "email",
+      }),
+    ]);
+    const errors = [a, b].filter((r) => r.error).map((r) => r.error.code);
+    assert.deepEqual(errors, ["23505"], `round ${round}: exactly one is refused, as a conflict`);
+    assert.equal((await rowsNamed(name)).length, 1, `round ${round}: one first version, not two`);
+  }
+});
+
+test(
+  "what it refuses, in a person's words: the name, the channel, the language, the words' lengths, the category, the values, the title",
+  { skip },
+  async () => {
+    const before = (await db.from("templates").select("id", { count: "exact", head: true }).eq("tenant_id", A)).count;
+    const say = async (over, code, words) => {
+      const r = await begin(owner, { p_name: "refused_news", p_category: "utility", ...over });
+      assert.equal(r.error?.code, code, JSON.stringify(over));
+      assert.match(r.error.message, words, JSON.stringify(over));
+    };
+    await say({ p_name: "" }, "P0002", /Message not found/);
+    await say({ p_name: "x".repeat(61) }, "22023", /name is at most 60/);
+    await say({ p_name: "reach_out_0123456789abcdef" }, "22023", /edited in the reach-out/);
+    await say({ p_channel: "whatsapp" }, "22023", /email or text/);
+    await say({ p_channel: "voice" }, "22023", /email or text/);
+    await say({ p_language: "english" }, "22023", /language/);
+    await say({ p_subject: "   " }, "22023", /subject/);
+    await say({ p_subject: "x".repeat(61) }, "22023", /at most 60/);
+    await say({ p_body: " \n " }, "22023", /Write the email/);
+    await say({ p_body: "x".repeat(2001) }, "22023", /at most 2000/);
+    await say({ p_channel: "sms", p_body: "" }, "22023", /Write the text/);
+    await say({ p_channel: "sms", p_body: "x".repeat(1601) }, "22023", /at most 1600/);
+    for (const category of [null, "", "Marketing", "authentication", "offer"])
+      await say({ p_category: category }, "22023", /offer or news, or about their own visit or proposal/);
+    const values = /Give each value a number, in order from 1, and a name/;
+    for (const variables of [
+      null,
+      {},
+      "1",
+      [1],
+      [null],
+      [{ position: 2, label: "A" }],
+      [{ position: 0, label: "A" }],
+      [
+        { position: 1, label: "A" },
+        { position: 3, label: "B" },
+      ],
+      [
+        { position: 1, label: "A" },
+        { position: 1, label: "B" },
+      ],
+      [
+        { position: 2, label: "B" },
+        { position: 1, label: "A" },
+      ],
+      [{ position: 1.5, label: "A" }],
+      [{ position: "1", label: "A" }],
+      [{ label: "A" }],
+      [{ position: 1 }],
+      [{ position: 1, label: "   " }],
+      [{ position: 1, label: 7 }],
+      [{ position: 1, label: "A", example: 7 }],
+    ])
+      await say({ p_variables: variables }, "22023", values);
+    await say({ p_variables: [{ position: 1, label: "x".repeat(41) }] }, "22023", /name is at most 40/);
+    await say(
+      { p_variables: [{ position: 1, label: "A", example: "y".repeat(101) }] },
+      "22023",
+      /example is at most 100/,
+    );
+    await say({ p_title: "x".repeat(61) }, "22023", /A title is at most 60 characters/);
+    const after = (await db.from("templates").select("id", { count: "exact", head: true }).eq("tenant_id", A)).count;
+    assert.equal(after, before, "none of them wrote a row");
+
+    // A title is held to the title door's own length and words (00050): one sentence, whichever door says it.
+    const named = await owner.client.rpc("set_template_title", { p_template_id: whatsappId, p_title: "x".repeat(61) });
+    const titled = await begin(owner, { p_name: "refused_news", p_title: "x".repeat(61) });
+    assert.equal(titled.error.message, named.error.message);
+  },
+);
+
+test(
+  "who may begin a message: an owner or an operator of the workspace; a viewer, a stranger and a signed-out caller may not",
+  { skip },
+  async () => {
+    const before = (await db.from("templates").select("id", { count: "exact", head: true }).eq("tenant_id", A)).count;
+    const asViewer = await begin(viewer, { p_name: "who_news" });
+    assert.equal(asViewer.error?.code, "P0002", "a viewer changes nothing: not found, as a stranger reads it");
+    assert.equal(asViewer.error.message, "Message not found.");
+    const asStranger = await begin(stranger, { p_name: "who_news" });
+    assert.equal(asStranger.error?.code, "P0002");
+    assert.equal(asStranger.error.message, "Message not found.");
+    const anon = createClient(URL_, ANON, { auth: { persistSession: false } });
+    const asAnon = await begin({ client: anon }, { p_name: "who_news" });
+    assert.equal(asAnon.error?.code, "42501", "the logged-out key holds no door");
+    const noUser = await begin({ client: db }, { p_name: "who_news" });
+    assert.equal(noUser.error?.code, "28000", "the service role has no person, and a door that names one says sign in");
+    const after = (await db.from("templates").select("id", { count: "exact", head: true }).eq("tenant_id", A)).count;
+    assert.equal(after, before, "none of them wrote a row");
+    assert.deepEqual(await rowsNamed("who_news"), []);
+    assert.equal((await begin(owner, { p_name: "who_news_owner" })).error, null);
+    assert.equal((await begin(operator, { p_name: "who_news_operator" })).error, null);
+    // Another workspace's rows are no reason to refuse: a name is a workspace's own.
+    const theirs = await begin(stranger, { p_tenant_id: B, p_name: "visit_reminder", p_category: "utility" });
+    assert.equal(theirs.error, null, "B holds no row of that name, though A does");
+  },
+);
+
+test("a message has no kind to set afterwards: there is no set_message_kind", { skip }, () => {
+  const rows = catalog(
+    "select exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'set_message_kind') as kind, " +
+      "exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'create_message_version') as door",
+  );
+  assert.deepEqual(rows, [{ kind: false, door: true }]);
 });

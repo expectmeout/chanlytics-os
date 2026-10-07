@@ -256,7 +256,7 @@ export { personInitials, identityWords, memberWords, cleanDisplayName, providerN
 export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING } from "./shell/refusal";
 export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } from "./shell/tone";
 export { PAGE_VITALS, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";
-export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot, MESSAGE_GONE_WORDS, whatsappStoppedRunWords } from "./templates/campaign-message";
+export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot, MESSAGE_GONE_WORDS, MESSAGE_BEGIN_WORDS, whatsappStoppedRunWords } from "./templates/campaign-message";
 export { emailFoot, emailFootHtml } from "./templates/email-foot";
 export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds } from "./templates/inbox-templates";
 export { libraryCount, isLibrarySample } from "./templates/library-count";
@@ -273,7 +273,7 @@ export { footerOf, templateFooter, templateParts, templateBlocked, refusedWords,
 export { starterPreviewValues, starterPreview, templatePreviewValues, templatePreview } from "./templates/template-preview";
 export { guessSlotKind, defaultSlotKinds, defaultParamSpecs, slotChoices, templateSlots, slotLabels } from "./templates/template-slots";
 export { TEMPLATE_TITLE_MAX, templateTitle, playbookName } from "./templates/template-titles";
-export { templateNameOk, slugTemplateName, placeholdersOf, placeholdersSequential, validateTemplateDraft, templateComponents, parseParamSpec, parseParamSpecs, paramLabel, playbooksStillSending, firstNameOf, resolveParams, exampleParams, templateUsage, templateUseWords, templateUseNote, templateUnused, templateSends, templateSentWords, TEMPLATE_LANGUAGES, TEMPLATE_CATEGORIES, TEMPLATE_BODY_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_EXAMPLE_MAX, TEMPLATE_NAME_MAX, TEMPLATE_BUTTON_TEXT_MAX, PARAM_SOURCES, PARAM_SOURCE_LABELS, PARAM_SOURCE_HINTS } from "./templates/templates";
+export { templateNameOk, slugTemplateName, placeholdersOf, placeholdersSequential, validateTemplateDraft, templateComponents, parseParamSpec, parseParamSpecs, paramLabel, playbooksStillSending, firstNameOf, resolveParams, exampleParams, templateUsage, templateUseWords, templateUseNote, templateUnused, templateSends, templateSentWords, TEMPLATE_LANGUAGES, TEMPLATE_CATEGORIES, TEMPLATE_BODY_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_EXAMPLE_MAX, TEMPLATE_NAME_MAX, TEMPLATE_NAME_WORDS, TEMPLATE_BUTTON_TEXT_MAX, PARAM_SOURCES, PARAM_SOURCE_LABELS, PARAM_SOURCE_HINTS } from "./templates/templates";
 export { NOTIFICATION_KIND_GROUPS, NOTIFICATION_PANE_WORDS, EMAILED_NOTIFICATION_KINDS, emailsNotificationKind } from "./today/notification-kinds";
 export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX } from "./today/notifications";
 export { parseDevice, firstLine, pushFor, PUSH_PLATFORMS, PUSH_KINDS, isPushKind, unreadFor, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./today/push";

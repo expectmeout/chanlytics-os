@@ -262,3 +262,15 @@ export const MESSAGE_GONE_WORDS = {
   composer: (title: string): string =>
     `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`,
 } as const;
+
+/**
+ * What the route that writes a message's first version (an email or a text, with no WhatsApp row) says when it refuses
+ * one, or cannot write it. A message a member writes is an offer or news (rule 4): only a starter of the registry, which
+ * Chanlytics itself writes, is about their own visit or proposal, so no one declares a custom message utility. The door
+ * that files it (create_message_version, 00342) is a migration the owner applies, and until it is on a database the
+ * route says so in one sentence and nothing else changes.
+ */
+export const MESSAGE_BEGIN_WORDS = {
+  customIsAnOffer: "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
+  doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
+} as const;

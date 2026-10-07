@@ -26,6 +26,8 @@ export const TEMPLATE_BODY_MAX = 1024;
 export const TEMPLATE_FOOTER_MAX = 60;
 export const TEMPLATE_EXAMPLE_MAX = 100;
 export const TEMPLATE_NAME_MAX = 60;
+/** What a name that is not one Meta accepts is told (templateNameOk). */
+export const TEMPLATE_NAME_WORDS = "The name needs letters, digits or underscores.";
 /** Meta's ceiling for the words on a button. */
 export const TEMPLATE_BUTTON_TEXT_MAX = 25;
 
@@ -96,7 +98,7 @@ export type TemplateDraftCheck = { ok: true; value: TemplateDraft; warnings: str
  */
 export function validateTemplateDraft(d: TemplateDraftInput): TemplateDraftCheck {
   const name = slugTemplateName(d.name);
-  if (!name || !templateNameOk(name)) return { ok: false, error: "The name needs letters, digits or underscores." };
+  if (!name || !templateNameOk(name)) return { ok: false, error: TEMPLATE_NAME_WORDS };
   if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language))
     return { ok: false, error: "Pick a language from the list." };
   if (!(TEMPLATE_CATEGORIES as readonly string[]).includes(d.category))

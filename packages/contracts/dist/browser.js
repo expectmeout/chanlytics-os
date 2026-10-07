@@ -8428,6 +8428,7 @@ var TEMPLATE_BODY_MAX = 1024;
 var TEMPLATE_FOOTER_MAX = 60;
 var TEMPLATE_EXAMPLE_MAX = 100;
 var TEMPLATE_NAME_MAX = 60;
+var TEMPLATE_NAME_WORDS = "The name needs letters, digits or underscores.";
 var TEMPLATE_BUTTON_TEXT_MAX = 25;
 var NAME = /^[a-z0-9_]{1,512}$/;
 function templateNameOk(name) {
@@ -8446,7 +8447,7 @@ function placeholdersSequential(positions) {
 }
 function validateTemplateDraft(d) {
   const name = slugTemplateName(d.name);
-  if (!name || !templateNameOk(name)) return { ok: false, error: "The name needs letters, digits or underscores." };
+  if (!name || !templateNameOk(name)) return { ok: false, error: TEMPLATE_NAME_WORDS };
   if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language))
     return { ok: false, error: "Pick a language from the list." };
   if (!TEMPLATE_CATEGORIES.includes(d.category))
@@ -29544,6 +29545,10 @@ var MESSAGE_GONE_WORDS = {
   card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the playbook sends another.`,
   composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
 };
+var MESSAGE_BEGIN_WORDS = {
+  customIsAnOffer: "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
+  doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet."
+};
 
 // src/templates/message-version-slots.ts
 var partWritten = (part) => part.written ?? slotWritten(part.slot);
@@ -33733,6 +33738,7 @@ export {
   MERGE_CONSENT_SOURCE,
   MERGE_REFUSALS,
   MERGE_WORDS,
+  MESSAGE_BEGIN_WORDS,
   MESSAGE_CHANNELS,
   MESSAGE_DIRECTIONS,
   MESSAGE_GONE_WORDS,
@@ -34047,6 +34053,7 @@ export {
   TEMPLATE_FOOTER_MAX,
   TEMPLATE_LANGUAGES,
   TEMPLATE_NAME_MAX,
+  TEMPLATE_NAME_WORDS,
   TEMPLATE_STATUSES,
   TEMPLATE_TITLE_MAX,
   TENANT_STATUSES,
