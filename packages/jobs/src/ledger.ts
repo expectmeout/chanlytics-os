@@ -219,7 +219,7 @@ export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
   // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
   event_deliver: [2 * MIN_MS, 10 * MIN_MS],
-  // A text answered after its acknowledgement (00347): a thrown read or write is the database's bad minute. One more
+  // A text answered after its acknowledgement (00348): a thrown read or write is the database's bad minute. One more
   // try, after a wait that outlasts the lease; a second throw fails it, and the deadman sweep then hands the message to
   // a person (lib/receptionist/unfinished.ts), as it would a turn that died in the door.
   inbound_answer: [2 * MIN_MS],

@@ -8,7 +8,7 @@ the same day (00344): every writer matches through the door (`ingest_inbound`, `
 `reach_out_person` in SQL; the calendar sweep, the booking link and the email intake through `packages/db`'s
 `resolvePerson`), a doubt is a row on `person_doubts` that the People page shows as "Same person?" with Merge (0028's
 door) and Not the same (`person_doubt_dismiss`), and the two open questions are answered below; step 5, the lead link
-on every identity, built the same day (00346): the door links the lead holding a person's number or address whenever it
+on every identity, built the same day (00347): the door links the lead holding a person's number or address whenever it
 learns one, and the insert trigger that did it once is gone. Proposed the same day. Written against
 commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6
 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Where this
@@ -148,7 +148,7 @@ _Both orders:_ a table only the door writes and only a newer dashboard reads.
 
 **5 · Leads link on every identity.** `contacts_link_lead` fires from the door on every identity added, not on insert
 alone, and writes `lead.converted` with a version bump, which `lead_link_contact` never did (00184). _Both orders._
-Built, 00346: `person_link_lead`, called by `resolve_person` when it makes a person, fills a number or an address, or adds
+Built, 00347: `person_link_lead`, called by `resolve_person` when it makes a person, fills a number or an address, or adds
 an identity, takes the lead holding the person's number, else their address, that names nobody yet, and converts it
 through `lead_convert_by` (its version moved, `lead.converted` with how `arrived` for a person who wrote or called, at
 any stage, and `added` for one a member, a file, the calendar or the finder named, an open lead only, so a lead a member

@@ -1,5 +1,5 @@
 /**
- * The calendar feed kept on the appointments record, on a real database (00348 on 00345's record, decision 0002).
+ * The calendar feed kept on the appointments record, on a real database (00349 on 00345's record, decision 0002).
  *
  * The hourly sweep hands appointments_feed_sync each read of a workspace's feed; what the door keeps is proved here,
  * since it is a definer door over a table with a guard: the same read twice adds nothing, an appointment that moves is

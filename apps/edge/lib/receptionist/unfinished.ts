@@ -57,7 +57,7 @@ type Db = SupabaseClient<Database>;
  *
  * A new channel is excluded by construction, which is the safe direction: a
  * channel is added here only once somebody decides this sweep owns it. A text
- * is answered after its acknowledgement by a job (inbound_answer, 00347): its
+ * is answered after its acknowledgement by a job (inbound_answer, 00348): its
  * message is left alone while that job waits or runs and is not long overdue,
  * and is this sweep's again once the job has failed for good.
  */
@@ -155,7 +155,7 @@ async function liveJobsNaming(
 }
 
 /**
- * The texts, of these, whose answer is a job still in hand (inbound_answer, 00347): waiting or running, and due since
+ * The texts, of these, whose answer is a job still in hand (inbound_answer, 00348): waiting or running, and due since
  * ANSWER_JOB_GRACE_MS ago. Not abandoned, so not this sweep's; one overdue past it is a ledger that stopped, and the
  * text is a person's.
  */

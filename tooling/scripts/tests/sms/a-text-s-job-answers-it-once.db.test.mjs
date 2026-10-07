@@ -1,5 +1,5 @@
 /**
- * A text's answer is a job that answers it once, on a real database (00347, decision 0031 Phase 2).
+ * A text's answer is a job that answers it once, on a real database (00348, decision 0031 Phase 2).
  *
  * The door records the text (ingest_inbound) and leaves its answer to an inbound_answer job; the job's own ingest is a
  * redelivery, and it goes on only while the message is unprocessed and no reply names it. What the job reads is proved

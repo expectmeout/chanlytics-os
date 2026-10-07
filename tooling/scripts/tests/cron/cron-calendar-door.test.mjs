@@ -109,7 +109,7 @@ function world({ ticks = 1, faults = {}, booked = () => 0, rpcs = {} } = {}) {
           phone_e164: c.phone_e164 ?? null,
           email: c.email ?? null,
         })),
-    // The appointments door (00348), whose SQL is proved on a stack (calendar/appointments/feed-appointments.db.test.mjs): kept here as
+    // The appointments door (00349), whose SQL is proved on a stack (calendar/appointments/feed-appointments.db.test.mjs): kept here as
     // what each read handed it.
     appointments_feed_sync: (a) => {
       kept.push(a);

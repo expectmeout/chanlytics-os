@@ -4,7 +4,7 @@
 the table (step 1, with a `booking_email` source and the client's name, number and address on the row), its first
 writer (a booking tool's notice, read by the `booking_read` job: the `booking_tool` door of step 7, arriving by email
 rather than a signed webhook), the board drawing its rows, and a caller's own visit said from them. Then step 2
-(migration 00348): the hourly calendar sweep keeps each read of the feed as `calendar_feed` rows through
+(migration 00349): the hourly calendar sweep keeps each read of the feed as `calendar_feed` rows through
 `appointments_feed_sync` (inserted or moved by the event's key, vanished and never cancelled, never the event's title,
 and a read older than the workspace's last refused), which the board and the openings leave out since they read the
 feed itself; and step 5 in part: a visit run's reminder asks its row again at the send and is held for one cancelled or

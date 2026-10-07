@@ -1,4 +1,4 @@
--- 00346 · A lead is linked on every identity its person gains.
+-- 00347 · A lead is linked on every identity its person gains.
 --
 -- Decision 0034, step 5. A lead the finder found was linked to a person only by contacts_link_lead (00140), a trigger
 -- on the person's insert that ran only when no one was signed in: a person who arrived by message or call took the lead
@@ -80,7 +80,7 @@ begin
 end $$;
 
 comment on function public.lead_convert_by(uuid, uuid, text, jsonb, boolean) is
-  'A lead''s conversion, written once for every door that converts (Reach out Part 5, G19; the person door''s link since 00346): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking, deal, arrived (their person wrote or called) or added (their person was named by a member, a file, the calendar or the finder). Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
+  'A lead''s conversion, written once for every door that converts (Reach out Part 5, G19; the person door''s link since 00347): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking, deal, arrived (their person wrote or called) or added (their person was named by a member, a file, the calendar or the finder). Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
 
 /* --------------------------------------------------------------------------------------------------- the link */
 
@@ -464,7 +464,7 @@ end $$;
 revoke all on function public.resolve_person(uuid, text, text, text, text, text, text, text, jsonb, timestamptz) from public, anon, authenticated;
 grant execute on function public.resolve_person(uuid, text, text, text, text, text, text, text, jsonb, timestamptz) to service_role;
 comment on function public.resolve_person(uuid, text, text, text, text, text, text, text, jsonb, timestamptz) is
-  'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00346); contact.added for a new person a member, a feed or the finder brought, person.resolved for every call. The service role''s and the doors'' alone.';
+  'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00347); contact.added for a new person a member, a feed or the finder brought, person.resolved for every call. The service role''s and the doors'' alone.';
 
 /* ----------------------------------------------------------------------------------- the trigger it replaces */
 

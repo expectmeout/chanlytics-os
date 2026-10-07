@@ -79,7 +79,7 @@ export const ACTIVITY_NOISE_KINDS = [
   "channel.quality_rating",
   // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
   "person.resolved",
-  // The calendar's hourly read, one row per appointment it kept (00348, decision 0002): the calendar is where they read it.
+  // The calendar's hourly read, one row per appointment it kept (00349, decision 0002): the calendar is where they read it.
   "appointment.changed",
 ] as const;
 
@@ -272,7 +272,7 @@ function importWords(p: Record<string, unknown>): string {
   return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
 }
 
-/** How a lead became Talking (00220 lead_convert_by's `how`; arrived and added are the person door's link, 00346). */
+/** How a lead became Talking (00220 lead_convert_by's `how`; arrived and added are the person door's link, 00347). */
 const CONVERTED_HOW: Record<string, string> = {
   call: "after a call",
   reply: "they wrote back",

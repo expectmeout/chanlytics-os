@@ -39,7 +39,8 @@
     "00294": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
-    "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head"
+    "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
+    "00346": "#1478 (each member keeps what they have seen of a person) was applied in production as 00346 before it reached main; #1471 landed its three, applied nowhere, on 00346 to 00348 the same hour, and they moved to 00347 to 00349. #1478 records its file here, in its place, when it lands (7 Oct 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -348,8 +349,8 @@
     "00343_a_message_may_begin_as_an_email_or_a_text.sql": "4b901ea4d5f4662cee1bf5d6a362e6a47a70ab719daacbd679b335e26cda129f",
     "00344_the_other_writers_match_through_the_door_and_a_doubt_is_a_row.sql": "e6be89b343797379e32427c5af8e0037de2f664df8df36c318e4a252d9896cae",
     "00345_an_appointment_is_a_record.sql": "3869a4cf6a8fe237fb03a93e21f58509231a2fa2f1cd4ecf8d2a8a0a77f148e5",
-    "00346_a_lead_is_linked_on_every_identity_its_person_gains.sql": "0311b692e7040f09e6894928f0b5aad658099a1e73af6a84f711f194b284e39e",
-    "00347_a_text_is_answered_after_its_acknowledgement.sql": "72b3dbb7cc4aff61876705958a7f722bb375401ccda67604d53255b626a37b74",
-    "00348_the_calendar_feed_is_kept_on_the_appointments_record.sql": "a5837d86538d7405cf41784cb40ccfe06860e5cb9fd0062d78efa402a3b743ac"
+    "00347_a_lead_is_linked_on_every_identity_its_person_gains.sql": "1d38ec14cd5583e504e5769895bf806b85b5aab4998dc2e2b1baf213f97e2752",
+    "00348_a_text_is_answered_after_its_acknowledgement.sql": "337af32db4918e06237cddc7509b265e672256a85cad05852dac4a3c78c15127",
+    "00349_the_calendar_feed_is_kept_on_the_appointments_record.sql": "459f3b8977f72ac5cada51ec1f87071b54431444919e4635ced828f9f474107b"
   }
 }

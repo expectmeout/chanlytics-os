@@ -37,7 +37,7 @@
  * kept, nothing decided) and schedules its answer as a job (inbound_answer, once per message, in the reply lane), then
  * answers Twilio. The job (answerText) reads the line and its routing again and takes the text up again through the
  * whole phase (resumeInbound), so a runner killed mid-turn leaves a job the ledger claims again, which answers while
- * the message is unprocessed and no reply names it, and never texts twice. A job the database refuses (one before 00347
+ * the message is unprocessed and no reply names it, and never texts twice. A job the database refuses (one before 00348
  * fails the kind's CHECK) is said (sms_answer_unscheduled) and the text is answered here, as before; any other failure
  * to write it may be a write that landed, so nothing is answered here and the deadman sweep hands a text no job holds
  * to a person. When recording throws, only a text the database did not keep (IngestFailed) is refused, with a 503 so the
@@ -176,7 +176,7 @@ function answerPayload(form: Record<string, string>, receivedAt: number, ing: In
 
 /**
  * The text's answer scheduled as its job, once per message, due now. `refused` when the database refused the kind (one
- * before 00347 fails its CHECK), and the door then answers the text itself. Any other failure may be a write that
+ * before 00348 fails its CHECK), and the door then answers the text itself. Any other failure may be a write that
  * landed and an answer that did not come back (a timeout), so the door answers nothing: a job that exists answers it,
  * and the deadman sweep hands a text with none to a person. A missed auto-reply beats a double text.
  */

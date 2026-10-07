@@ -58,7 +58,7 @@ var RETRY_WAITS_MS = {
   // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
   // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
   event_deliver: [2 * MIN_MS, 10 * MIN_MS],
-  // A text answered after its acknowledgement (00347): a thrown read or write is the database's bad minute. One more
+  // A text answered after its acknowledgement (00348): a thrown read or write is the database's bad minute. One more
   // try, after a wait that outlasts the lease; a second throw fails it, and the deadman sweep then hands the message to
   // a person (lib/receptionist/unfinished.ts), as it would a turn that died in the door.
   inbound_answer: [2 * MIN_MS]
@@ -395,7 +395,7 @@ function peoplePorts(ctx, tenantId) {
       if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
       return new Map((data ?? []).map((c) => [c.id, c]));
     },
-    // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
+    // The appointments a visit run's reminders were drawn for, by the calendar's key (00349, decision 0002).
     appointments: (keys) => appointmentStates(db, tenantId, keys),
     // create: false — a broadcast never opens a contact. touch: false — the
     // door below still has to refuse some of these people, and a thread they

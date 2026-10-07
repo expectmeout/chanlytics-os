@@ -241,7 +241,7 @@ function peoplePorts(
       if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
       return new Map((data ?? []).map((c) => [c.id, c]));
     },
-    // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
+    // The appointments a visit run's reminders were drawn for, by the calendar's key (00349, decision 0002).
     appointments: (keys) => appointmentStates(db, tenantId, keys),
     // create: false — a broadcast never opens a contact. touch: false — the
     // door below still has to refuse some of these people, and a thread they

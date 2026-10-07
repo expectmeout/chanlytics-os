@@ -1,4 +1,4 @@
--- 00347 · A text is answered after its acknowledgement.
+-- 00348 · A text is answered after its acknowledgement.
 --
 -- Decision 0031, Phase 2. The SMS door held Twilio's request while the receptionist answered: a model's turn can take
 -- longer than the fifteen seconds Twilio waits, and a function killed mid-turn left a text nobody answered, which only
@@ -38,4 +38,4 @@ alter table public.jobs alter column lane set expression as (
   end
 );
 comment on column public.jobs.lane is
-  'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+  'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00348); null for a kind the case does not name, claimed last.';

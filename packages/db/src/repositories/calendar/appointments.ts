@@ -7,7 +7,7 @@
  *                       guard will not take the move: a finished visit cancelled).
  *   the board           appointmentsBetween (the live rows over a span the feed does not already draw), appointmentsForClient
  *                       (one person's, by their number or address, from an instant on).
- *   the feed            syncFeedAppointments (one read of the calendar feed kept through appointments_feed_sync, 00348),
+ *   the feed            syncFeedAppointments (one read of the calendar feed kept through appointments_feed_sync, 00349),
  *                       appointmentStates (how the appointments a reminder batch was drawn for stand now, by key).
  *   an erasure's hand   appointmentsScrub (appointments_scrub: the person taken out of their visits and the notices).
  *   the person          contactIdByPhone, contactIdByEmail: the one row a number or an address names in People.

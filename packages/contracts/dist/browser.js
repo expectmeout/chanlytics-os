@@ -14023,7 +14023,7 @@ var JOB_KINDS = [
    */
   "event_deliver",
   /**
-   * One text answered after its acknowledgement (00347, decision 0031 Phase 2): the SMS door records the text and answers
+   * One text answered after its acknowledgement (00348, decision 0031 Phase 2): the SMS door records the text and answers
    * Twilio, and this job takes it up again through the whole inbound phase (core answerInbound with `resume`), keyed
    * 'inbound_answer:<message>' (jobs.dedupe_key), in the reply lane. A runner killed mid-turn leaves it to be claimed
    * again: the message is answered while it is unprocessed and no reply names it, so a second claim never texts twice.
@@ -14221,7 +14221,7 @@ var EVENT_KINDS = [
   // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
   "workspace.activated",
   /**
-   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00348, decision 0002): { change: added
+   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00349, decision 0002): { change: added
    * | moved | vanished | back, source, starts_at }, never its title. On the appointment; hidden from the activity
    * log unless asked for by name, since a calendar read writes one per appointment.
    */
@@ -33281,7 +33281,7 @@ var ACTIVITY_NOISE_KINDS = [
   "channel.quality_rating",
   // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
   "person.resolved",
-  // The calendar's hourly read, one row per appointment it kept (00348, decision 0002): the calendar is where they read it.
+  // The calendar's hourly read, one row per appointment it kept (00349, decision 0002): the calendar is where they read it.
   "appointment.changed"
 ];
 var isActivityMoney = (row2) => row2.category === "billing";

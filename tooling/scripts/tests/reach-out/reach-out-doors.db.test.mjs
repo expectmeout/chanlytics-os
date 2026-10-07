@@ -505,7 +505,7 @@ test("the person a first send needs is made once, and its lead is not converted 
     [first.contact_id, first.conversation_id, false],
   );
   // A customer since it was planned: a person with its address came into People (they wrote, through the person door,
-  // which links and converts the lead outside reach_out_person: the switch is the door's transaction's alone, 00346).
+  // which links and converts the lead outside reach_out_person: the switch is the door's transaction's alone, 00347).
   // Its person is theirs.
   const email = `customer-${stamp}@fixture-doors.example`;
   const became = await lead({ email });

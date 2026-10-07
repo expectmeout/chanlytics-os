@@ -33,7 +33,7 @@ export interface ScheduleParams {
 /**
  * What makes a row once-only while it is scheduled or fired (jobs.dedupe_key, 00333, decision 0033): the three kinds the
  * ledger held once per subject by an index of their own carry the same subject as their key, so one index holds every
- * kind once the three retire. A text's answer (inbound_answer, 00347) is held once per message the same way. A kind with
+ * kind once the three retire. A text's answer (inbound_answer, 00348) is held once per message the same way. A kind with
  * no rule has no key.
  */
 function dedupeKeyOf(kind: JobKind, payload: Json): string | null {

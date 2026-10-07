@@ -1,4 +1,4 @@
--- 00348 · The calendar feed is kept on the appointments record.
+-- 00349 · The calendar feed is kept on the appointments record.
 --
 -- Decision 0002, step 2, on the record 00345 made for a booking tool's notice (#1469). The owner's calendar feed was
 -- re-read live by every page and reply, and kept nowhere, so a reminder planned for a visit could not ask whether the
@@ -157,4 +157,4 @@ revoke all on function public.appointments_feed_sync(uuid, text, jsonb, timestam
 grant execute on function public.appointments_feed_sync(uuid, text, jsonb, timestamptz, timestamptz, timestamptz)
   to service_role;
 comment on function public.appointments_feed_sync(uuid, text, jsonb, timestamptz, timestamptz, timestamptz) is
-  'The hourly sweep''s door (decision 0002, 00348): one read of a workspace''s feed kept on the appointments record (00345) as calendar_feed rows, in one transaction, never its titles. Each row inserted or updated by its key; a row the read no longer names, starting inside the window it covered, vanished (never cancelled). A read older than the workspace''s last (tenant_config.calendar_checked_at) is refused as stale. appointment.changed for each added, moved, vanished or back. Answers the counts. Service role only.';
+  'The hourly sweep''s door (decision 0002, 00349): one read of a workspace''s feed kept on the appointments record (00345) as calendar_feed rows, in one transaction, never its titles. Each row inserted or updated by its key; a row the read no longer names, starting inside the window it covered, vanished (never cancelled). A read older than the workspace''s last (tenant_config.calendar_checked_at) is refused as stale. appointment.changed for each added, moved, vanished or back. Answers the counts. Service role only.';

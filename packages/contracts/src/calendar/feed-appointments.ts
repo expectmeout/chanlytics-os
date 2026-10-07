@@ -5,7 +5,7 @@
  * and a person are its only sources, and the receptionist is none of them.
  *
  * Pure: the rows a feed's events become (feedAppointmentRows), and whether the appointment a send was drawn for still
- * stands (appointmentHolds). The sync door is 00348's; the sweep that writes through it is the edge's
+ * stands (appointmentHolds). The sync door is 00349's; the sweep that writes through it is the edge's
  * (apps/edge/lib/calendar/calendar-appointments.ts).
  */
 import type { FeedItem } from "./feed";

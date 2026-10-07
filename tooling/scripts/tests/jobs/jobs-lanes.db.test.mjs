@@ -127,7 +127,7 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
     outbound_send: 0, // a member's reply, or the receptionist's
     email_ingest: 0,
     push_send: 0,
-    inbound_answer: 0, // a text's answer after its acknowledgement: a customer is waiting (00347)
+    inbound_answer: 0, // a text's answer after its acknowledgement: a customer is waiting (00348)
     line_provision: 1,
     reply_read: 1,
     broadcast_send: 2,

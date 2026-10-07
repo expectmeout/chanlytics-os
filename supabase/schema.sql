@@ -282,7 +282,7 @@ end $$;
 -- Name: FUNCTION appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone) IS 'The hourly sweep''s door (decision 0002, 00348): one read of a workspace''s feed kept on the appointments record (00345) as calendar_feed rows, in one transaction, never its titles. Each row inserted or updated by its key; a row the read no longer names, starting inside the window it covered, vanished (never cancelled). A read older than the workspace''s last (tenant_config.calendar_checked_at) is refused as stale. appointment.changed for each added, moved, vanished or back. Answers the counts. Service role only.';
+COMMENT ON FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone) IS 'The hourly sweep''s door (decision 0002, 00349): one read of a workspace''s feed kept on the appointments record (00345) as calendar_feed rows, in one transaction, never its titles. Each row inserted or updated by its key; a row the read no longer names, starting inside the window it covered, vanished (never cancelled). A read older than the workspace''s last (tenant_config.calendar_checked_at) is refused as stale. appointment.changed for each added, moved, vanished or back. Answers the counts. Service role only.';
 
 
 --
@@ -1242,7 +1242,7 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 -- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00348); null for a kind the case does not name, claimed last.';
 
 
 --
@@ -5209,7 +5209,7 @@ end $$;
 -- Name: FUNCTION lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean) IS 'A lead''s conversion, written once for every door that converts (Reach out Part 5, G19; the person door''s link since 00346): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking, deal, arrived (their person wrote or called) or added (their person was named by a member, a file, the calendar or the finder). Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
+COMMENT ON FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean) IS 'A lead''s conversion, written once for every door that converts (Reach out Part 5, G19; the person door''s link since 00347): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking, deal, arrived (their person wrote or called) or added (their person was named by a member, a file, the calendar or the finder). Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
 
 
 --
@@ -16802,7 +16802,7 @@ end $_$;
 -- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00346); contact.added for a new person a member, a feed or the finder brought, person.resolved for every call. The service role''s and the doors'' alone.';
+COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00347); contact.added for a new person a member, a feed or the finder brought, person.resolved for every call. The service role''s and the doors'' alone.';
 
 
 --

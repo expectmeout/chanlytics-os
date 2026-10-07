@@ -79,7 +79,7 @@ before(async () => {
       .single(),
   ).id;
   // The person first, then the leads that name them, placed in the stages the test needs by hand: the door links a
-  // person to a lead holding their address (00346), and this person is written directly, before any lead exists.
+  // person to a lead holding their address (00347), and this person is written directly, before any lead exists.
   person = ok(
     await db
       .from("contacts")
