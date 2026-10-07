@@ -504,11 +504,21 @@ test("the person a first send needs is made once, and its lead is not converted 
     [again.contact_id, again.conversation_id, again.made],
     [first.contact_id, first.conversation_id, false],
   );
-  // A customer since it was planned: a person with its address came into People, and outside the door the insert
-  // trigger still links and converts the lead (the switch is the door's transaction's alone). Its person is theirs.
+  // A customer since it was planned: a person with its address came into People (they wrote, through the person door,
+  // which links and converts the lead outside reach_out_person: the switch is the door's transaction's alone, 00345).
+  // Its person is theirs.
   const email = `customer-${stamp}@fixture-doors.example`;
   const became = await lead({ email });
-  ok(await db.from("contacts").insert({ tenant_id: A, email }));
+  ok(
+    await db.rpc("resolve_person", {
+      p_tenant_id: A,
+      p_channel: "email",
+      p_external: email,
+      p_email: email,
+      p_assurance: "observed",
+      p_source: "inbound",
+    }),
+  );
   assert.equal(ok(await db.from("leads").select("stage").eq("id", became).single()).stage, "converted");
   assert.deepEqual(ok(await db.rpc("reach_out_person", { p_tenant_id: A, p_lead_id: became })), {
     refused: "lead_closed",

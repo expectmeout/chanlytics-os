@@ -78,8 +78,8 @@ before(async () => {
       .select("id")
       .single(),
   ).id;
-  // The person first, then the leads that name them: contacts_link_lead links a new contact to a lead by address
-  // at INSERT, and these leads are placed in the stages the test needs by hand.
+  // The person first, then the leads that name them, placed in the stages the test needs by hand: the door links a
+  // person to a lead holding their address (00345), and this person is written directly, before any lead exists.
   person = ok(
     await db
       .from("contacts")

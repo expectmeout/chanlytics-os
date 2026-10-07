@@ -1,9 +1,49 @@
 # 0002 · An appointments record
 
-**Status:** decided, not built. Written against commit `b729bdf` (21 September 2026) and refreshed against `e3d9dc6c` (PR #885, 23 September 2026): every file
-and line below was re-read at that commit, with deals (0004), the proposal link
-and smart lists on main. _What has changed since it was written_ says what moved
-around it. Where this note and the code disagree, the code wins.
+**Status:** decided; steps 1 and 2 built on 7 October 2026 (00346), step 3 by the sync's first read, step 6 before
+them (#1362), and a reminder's send asks its appointment again; steps 4, 5 (the playbooks' reading), 7 and 8 to come
+(_Built_, below). Written against commit `b729bdf` (21 September 2026) and refreshed against `e3d9dc6c` (PR #885, 23
+September 2026): every file and line below was re-read at that commit, with deals (0004), the proposal link and smart
+lists on main. _What has changed since it was written_ says what moved around it. Where this note and the code
+disagree, the code wins.
+
+## Built
+
+Read against main at `1893551fd` (7 October 2026), where the files the Context names have moved: the sweep is
+`apps/edge/lib/calendar/calendar-sweep.ts`, the parser `packages/contracts/src/calendar/feed.ts`, the dashboard's reads
+`apps/dashboard/src/server/calendar/people-visits.ts`, the config schema
+`packages/contracts/src/config/workspace-config/brain-config-schema.ts`.
+
+- **Step 1, the table** (00346): the Shape's `appointments`, with three changes. The person is named with the
+  workspace (`appointments_contact_id_same_workspace`, `on delete set null (contact_id)`), as every child is since 00279;
+  `lead_id` is left out, as the Risks advise; and an erasure takes the person's rows
+  (`appointments_erase_on_contact`, registered in `packages/db/src/erasure-registry.ts` and proved by
+  `people/erasure/erasure-completeness.db`). The guard is the Shape's, on an update of the status.
+- **Step 2, the feed sync fills it** (00346 `appointments_feed_sync`, called from the sweep through
+  `apps/edge/lib/calendar/calendar-appointments.ts`): every event inside the season the read covers (ninety days back,
+  forward as far as the workspace books or ninety days), keyed by the event's UID and, for one occurrence of a repeating
+  event, the occurrence's original start (`appointmentKeyOf`; the parser now carries `FeedItem.occurrence`, the
+  RECURRENCE-ID for a moved occurrence, so a move is the same row moved); the person by the board's `matchPerson`
+  against everyone in People after the sweep added the calendar's people; the service the title names; a consultation by
+  `isConsultationTitle`. A row the read stops naming is vanished, never cancelled, and back when it is named again.
+  `kept` is inferred a day after the end, not at it, so the day is the owner's to say `missed` first once step 8 lets
+  them, since the guard makes kept final. Each change writes `appointment.changed` (added, moved, vanished, back,
+  kept), hidden from the activity log unless asked for by name.
+- **Step 3, the backfill**, is the sync's first read: a feed carries only its own horizon, the sync covers ninety days
+  back, and a script would read the same feed and write the same rows.
+- **Step 5 in part, the reminder asks its appointment again.** A visit run keeps the appointment's key and start on
+  each recipient's row (`run-playbook.ts` `recipientFacts`), and the send reads those rows once per batch and holds a
+  person whose appointment was cancelled or marked missed, left the calendar, or moved since the run drew it
+  (`appointmentHolds`; `appointment_changed`, "their appointment moved or was cancelled"). A run drawn before the
+  record, and an appointment the sync has not written yet, go as before; a read that fails holds nobody. The playbooks
+  still draw from the live feed: reading the table instead is the rest of step 5.
+- **Step 6** was built before this, by #1362 (1 October 2026) and #1373: `booking_link` is optional, every reader
+  checks for it (`offersBookingLink`), and the receptionist with no link takes the customer's details for the team.
+
+Not yet: step 4 (Reports and People counting rows), the rest of step 5, step 7 (a booking tool's webhook) and step 8
+(a person's kept, missed and cancelled, which the open questions' third answers first). The reminder as a job on a due
+row of its own, which 0031's Phase 2 names, waits on step 5: today the run is the hourly playbooks sweep's, and its send
+is the job.
 
 ## Context
 

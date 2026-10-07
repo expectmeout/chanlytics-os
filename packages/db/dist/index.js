@@ -246,7 +246,8 @@ var ERASURE_LEGS = {
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
-  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)"
+  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
+  appointments_trigger: "appointments_erase_on_contact: their appointments deleted; the calendar's next read writes what it still names, linked to nobody (00346)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
 var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
@@ -255,6 +256,10 @@ var DIGEST = { kind: "digest" };
 var NOT_PERSONAL = { kind: "not_personal" };
 var all = (strategy, ...names) => Object.fromEntries(names.map((n) => [n, strategy]));
 var ERASURE_STRATEGIES = {
+  appointments: {
+    ...all(withPerson("appointments_trigger"), "external_id", "title", "service"),
+    timezone: NOT_PERSONAL
+  },
   ask_messages: { content: scrubbedBy("ask_scrub") },
   calls: all(
     withPerson("erase_contact"),
@@ -710,10 +715,10 @@ async function queuedRecipients(db, p) {
 }
 async function runGoesByOthers(db, tenantId, broadcastId, than) {
   const of = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
-  const { count, error } = await (than === "whatsapp" ? of.in("channel", ["sms", "email"]) : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
+  const { count: count2, error } = await (than === "whatsapp" ? of.in("channel", ["sms", "email"]) : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
   if (noChannelColumns(error)) return than === "email";
   if (error) throw new Error(`run_goes_by_others: ${error.message}`);
-  return (count ?? 0) > 0;
+  return (count2 ?? 0) > 0;
 }
 async function campaignMonthSent(db, tenantId, channel, at) {
   const { data, error } = await db.rpc("campaign_month_sent", {
@@ -923,9 +928,9 @@ async function wireRowOf(db, p) {
 }
 async function countSentToday(db, p) {
   const since = new Date(Date.now() - 24 * HOUR_MS).toISOString();
-  const { count, error } = await db.from("messages").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("direction", "outbound").gte("created_at", since).contains("meta", { source: p.source });
+  const { count: count2, error } = await db.from("messages").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("direction", "outbound").gte("created_at", since).contains("meta", { source: p.source });
   if (error) throw new Error(`count_sent_today: ${error.message}`);
-  return count ?? 0;
+  return count2 ?? 0;
 }
 async function recordStatusByExternalId(db, tenantId, externalId, status, errorDetail) {
   const patch = { status };
@@ -3055,9 +3060,9 @@ async function workspaceAnswersOnItsOwn(db, tenantId) {
   return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status));
 }
 async function membershipCountOf(db, userId) {
-  const { count, error } = await db.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", userId);
+  const { count: count2, error } = await db.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", userId);
   if (error) throw new Error(`memberships_count: ${error.message}`);
-  return count ?? 0;
+  return count2 ?? 0;
 }
 async function createWorkspaceFn(db, args) {
   return db.rpc("create_workspace", args).single();
@@ -3074,8 +3079,8 @@ async function updatePlaybook(db, id, patch) {
   return { error };
 }
 async function removePlaybook(db, id) {
-  const { error, count } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
-  return { error, count };
+  const { error, count: count2 } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
+  return { error, count: count2 };
 }
 
 // src/paged.ts
@@ -3237,8 +3242,8 @@ async function playbooksOnList(db, tenantId, listId) {
   return data ?? [];
 }
 async function deleteList(db, id) {
-  const { error, count } = await db.from("segments").delete({ count: "exact" }).eq("id", id);
-  return { error, count };
+  const { error, count: count2 } = await db.from("segments").delete({ count: "exact" }).eq("id", id);
+  return { error, count: count2 };
 }
 
 // src/repositories/touches.ts
@@ -3891,6 +3896,52 @@ async function keepChannelStanding(db, tenantId, channelId, standing) {
   if (kept === void 0) throw new Error(`channel_keep_standing: answered ${JSON.stringify(data)}`);
   return kept;
 }
+
+// src/appointments.ts
+import { APPOINTMENT_STATUSES } from "../../contracts/dist/index.js";
+var count = (o, k) => typeof o[k] === "number" ? o[k] : 0;
+async function syncFeedAppointments(db, p) {
+  const { data, error } = await db.rpc("appointments_feed_sync", {
+    p_tenant_id: p.tenantId,
+    p_timezone: p.timezone,
+    p_rows: p.rows.map((r) => ({
+      external_id: r.external_id,
+      starts_at: r.starts_at,
+      ends_at: r.ends_at,
+      all_day: r.all_day,
+      title: r.title,
+      service: r.service,
+      consultation: r.consultation,
+      contact_id: r.contact_id
+    })),
+    p_from: p.window.from.toISOString(),
+    p_to: p.window.to.toISOString(),
+    p_now: (p.now ?? /* @__PURE__ */ new Date()).toISOString()
+  });
+  if (error) throw Object.assign(new Error(`appointments_feed_sync: ${error.message}`), { code: error.code });
+  const o = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return {
+    added: count(o, "added"),
+    moved: count(o, "moved"),
+    back: count(o, "back"),
+    vanished: count(o, "vanished"),
+    kept: count(o, "kept"),
+    seen: count(o, "seen")
+  };
+}
+var isStatus = (s) => APPOINTMENT_STATUSES.includes(s);
+async function appointmentStates(db, tenantId, keys) {
+  const out = /* @__PURE__ */ new Map();
+  if (keys.length === 0) return out;
+  const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", [...keys]);
+  if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
+  if (error) throw new Error(`appointments: ${error.message}`);
+  for (const r of data ?? []) {
+    if (r.external_id && isStatus(r.status))
+      out.set(r.external_id, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at });
+  }
+  return out;
+}
 export {
   CALL_CONTROL_S,
   DB_REQUEST_HEADER,
@@ -3912,6 +3963,7 @@ export {
   answeredReachOutEmail,
   applyDomainCheck,
   applyReplyReading,
+  appointmentStates,
   archiveConversation,
   archiveList,
   assembleBroadcast,
@@ -4173,6 +4225,7 @@ export {
   subscribeWorkspaceChanges,
   subscriptionPaused,
   suppressEmailOf,
+  syncFeedAppointments,
   takeCheckAttempt,
   takeIdempotencyKey,
   takeReplyRead,

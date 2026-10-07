@@ -34,6 +34,12 @@ export interface FeedItem extends BusyBlock {
    * Kept so the match can tell them from the customer (calendar-people.ts).
    */
   organizer: string | null;
+  /**
+   * For one occurrence of a repeating event, the instant it was due before any override moved it (epoch ms): its own
+   * start when the rule made it, the RECURRENCE-ID when an override moved it. Absent on a single event. With the UID it
+   * keys the appointment (appointment-key.ts), so a moved occurrence keeps its row.
+   */
+  occurrence?: number;
 }
 
 export interface ParsedFeed {
@@ -182,6 +188,14 @@ function instantsOf(lines: Array<{ params: Record<string, string>; value: string
  * where it moved to, and a cancelled override removes its instance -- which
  * is what Google writes when one appointment in a weekly series is moved.
  */
+/** An item's place in its series (FeedItem.occurrence), or nothing for a single event. */
+const seriesOf = (occurrence: number | null): { occurrence?: number } => (occurrence === null ? {} : { occurrence });
+
+/** The instant an override's RECURRENCE-ID names: when the occurrence it moves was due. Null for an event that is none. */
+function dueAt(rid: { params: Record<string, string>; value: string } | undefined, fallbackTz: string): number | null {
+  return rid ? toMs(rid.value, rid.params, fallbackTz) : null;
+}
+
 export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = {}): ParsedFeed {
   const horizon = opts.horizon ?? { from: Date.now() - 86400000, to: Date.now() + 90 * 86400000 };
   const busy: BusyBlock[] = [];
@@ -262,7 +276,6 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     const title = unescapeText(p.SUMMARY?.value ?? "");
     const description = unescapeText(p.DESCRIPTION?.value ?? "") || null;
     const location = unescapeText(p.LOCATION?.value ?? "") || null;
-    const guests = r.attendees.slice();
     const allDay = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim());
     const uid = p.UID?.value.trim() || null;
     const org = p.ORGANIZER?.value.trim() ?? "";
@@ -271,9 +284,10 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
     const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
-    const push = (o: BusyBlock) => {
+    const words = { title, allDay, uid, description, location, attendees: r.attendees.slice(), organizer };
+    const push = (o: BusyBlock, occurrence: number | null = null) => {
       busy.push(o);
-      items.push({ ...o, title, allDay, uid, description, location, attendees: guests, organizer });
+      items.push({ ...o, ...words, ...seriesOf(occurrence) });
     };
 
     if (p.RRULE && !isOverride && rule && local) {
@@ -284,32 +298,32 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
       for (const o of occ) {
         if (!seen.has(o.start)) {
           seen.add(o.start);
-          push(o);
+          push(o, o.start);
         }
       }
       // RDATE: dates the rule does not produce, added to the series.
       for (const ms of instantsOf(r.rdates, fallbackTz)) {
         if (ex.has(ms) || seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
         seen.add(ms);
-        push({ start: ms, end: ms + dur });
+        push({ start: ms, end: ms + dur }, ms);
       }
       recurringExpanded++;
     } else if (!p.RRULE && r.rdates.length && !isOverride) {
       // A list of dates with no rule: the event and its extra dates are a series.
       const ex = new Set<number>(instantsOf(r.exdates, fallbackTz));
       const seen = new Set<number>([start]);
-      push({ start, end });
+      push({ start, end }, start);
       for (const ms of instantsOf(r.rdates, fallbackTz)) {
         if (ex.has(ms) || seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
         seen.add(ms);
-        push({ start: ms, end: ms + dur });
+        push({ start: ms, end: ms + dur }, ms);
       }
       recurringExpanded++;
     } else {
       // A single event, an override standing where it moved to, or a rule we
       // cannot read keeping its first occurrence.
       if (p.RRULE && !isOverride) skippedRecurring++;
-      push({ start, end });
+      push({ start, end }, dueAt(p["RECURRENCE-ID"], fallbackTz));
     }
   }
   busy.sort((a, b) => a.start - b.start);

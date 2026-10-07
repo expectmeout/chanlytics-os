@@ -23,6 +23,7 @@ import {
 } from "@chanlytics/core";
 import {
   type Database,
+  appointmentStates,
   campaignMonthSent,
   emitEvent,
   insertQueuedEmail,
@@ -211,6 +212,7 @@ function peoplePorts(
   BroadcastBatchPorts,
   | "batch"
   | "contacts"
+  | "appointments"
   | "target"
   | "targetOfContact"
   | "emailRequest"
@@ -239,6 +241,8 @@ function peoplePorts(
       if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
       return new Map((data ?? []).map((c) => [c.id, c]));
     },
+    // The appointments a visit run's reminders were drawn for, by the calendar's key (00346, decision 0002).
+    appointments: (keys) => appointmentStates(db, tenantId, keys),
     // create: false — a broadcast never opens a contact. touch: false — the
     // door below still has to refuse some of these people, and a thread they
     // were not messaged in has nothing new in it.

@@ -14,6 +14,40 @@
       "where": null
     },
     {
+      "table": "appointments",
+      "name": "appointments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "appointments",
+      "name": "appointments_source_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "source"
+        },
+        {
+          "column": "external_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "external_id"
+        }
+      }
+    },
+    {
       "table": "ask_messages",
       "name": "ask_messages_pkey",
       "primary": true,

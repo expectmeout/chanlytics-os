@@ -68,6 +68,9 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
   send_failed: "the provider refused it",
   missing_value: "a value was missing",
+  // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
+  // (calendar/appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
+  appointment_changed: "their appointment moved or was cancelled",
   // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
   // this object opaque to the bundler, which then carries the whole map into
   // every package that imports anything from here. core-broadcast.test.mjs

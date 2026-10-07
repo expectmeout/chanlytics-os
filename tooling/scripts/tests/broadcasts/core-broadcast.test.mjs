@@ -2693,3 +2693,68 @@ test("a read of the message that throws leaves the batch unsent and the error up
   assert.deepEqual(lost.f.ops(), ["startSending"], "marked sending, as the batch's first write; nothing else written");
   assert.deepEqual(lost.f.marks(), [], "nobody is claimed or held");
 });
+
+/* --------------------------------------------------------------------- an appointment asked again (decision 0002) */
+
+test("a reminder asks its appointment again at the send: one cancelled, gone from the calendar or moved holds its person (appointment_changed) and nobody else; one that stands, one the record has not written, and a run drawn before the record go; the rows are read once for the batch, and a read that fails holds nobody", async () => {
+  const start = "2026-09-12T14:00:00.000Z";
+  const drawn = (key) => ({ ...VISIT, appointment: key, visit_start: start });
+  const batch = [
+    on("sms", "k1", drawn("cancelled-one")),
+    on("sms", "k2", drawn("stands")),
+    on("sms", "k3", drawn("not-written")),
+    on("sms", "k4", VISIT),
+  ];
+  const rows = new Map([
+    ["cancelled-one", { status: "cancelled", starts_at: start, vanished_at: null }],
+    ["stands", { status: "booked", starts_at: start, vanished_at: null }],
+  ]);
+  const asked = [];
+  const { f } = world({
+    batch,
+    appointments: (keys) => {
+      asked.push(keys);
+      return rows;
+    },
+    contacts: (ids) =>
+      new Map(
+        ids.map((id) => [
+          id,
+          { ...reachable.k1, id, phone_e164: `+1347555010${id.slice(1)}`, display_name: `Person ${id}` },
+        ]),
+      ),
+  });
+  await sendBroadcastBatch(f.ports, cmd());
+  assert.deepEqual(asked, [["cancelled-one", "stands", "not-written"]], "one read, the batch's keys once each");
+  assert.deepEqual(
+    f.marks().filter(([, state]) => state !== "failed"),
+    [
+      ["k1", "skipped", "appointment_changed"],
+      ["k2", "sent", null],
+      ["k3", "sent", null],
+      ["k4", "sent", null],
+    ],
+  );
+  assert.equal(HELD_REASONS.appointment_changed, "their appointment moved or was cancelled");
+
+  // Gone from the calendar, or moved: held too.
+  for (const row of [
+    { status: "booked", starts_at: start, vanished_at: "2026-09-11T11:00:00Z" },
+    { status: "booked", starts_at: "2026-09-12T15:00:00.000Z", vanished_at: null },
+  ]) {
+    const { f: g } = world({ batch: [on("sms", "k1", drawn("x"))], appointments: () => new Map([["x", row]]) });
+    await sendBroadcastBatch(g.ports, cmd());
+    assert.deepEqual(
+      g.marks().filter(([, s]) => s !== "failed"),
+      [["k1", "skipped", "appointment_changed"]],
+    );
+  }
+
+  // A read that fails holds nobody: the run read the live calendar when it drew them.
+  const { f: h } = world({ batch: [on("sms", "k1", drawn("x"))], appointments: new Error("statement timeout") });
+  await sendBroadcastBatch(h.ports, cmd());
+  assert.deepEqual(
+    h.marks().filter(([, s]) => s !== "failed"),
+    [["k1", "sent", null]],
+  );
+});

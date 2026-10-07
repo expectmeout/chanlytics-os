@@ -1,4 +1,7 @@
 import {
+  appointmentHolds,
+  appointmentKeysOf,
+  type AppointmentState,
   BROADCAST_CHUNK,
   BROADCAST_GAP_MS,
   BROADCAST_THROTTLE_WAITS_MS,
@@ -135,16 +138,37 @@ async function readPeople(
   ports: BroadcastBatchPorts,
   b: BroadcastRow,
   batch: readonly RecipientRow[],
-): Promise<Pick<Work, "people" | "priors"> & { unreadable: boolean }> {
+): Promise<Pick<Work, "people" | "priors" | "appointments"> & { unreadable: boolean }> {
   const ids = batch.map((r) => r.contact_id);
-  if (ids.length === 0) return { people: new Map(), priors: new Map(), unreadable: false };
+  if (ids.length === 0) return { people: new Map(), priors: new Map(), appointments: new Map(), unreadable: false };
   try {
-    const [people, priors] = await Promise.all([ports.contacts(ids), ports.alreadySent(b.id, ids)]);
-    return { people, priors, unreadable: false };
+    const [people, priors, appointments] = await Promise.all([
+      ports.contacts(ids),
+      ports.alreadySent(b.id, ids),
+      appointmentsOf(ports, b, batch),
+    ]);
+    return { people, priors, appointments, unreadable: false };
   } catch (e) {
     broadcastLog.error("broadcast_batch_unreadable", { broadcast_id: b.id, error: errField(e) });
-    return { people: new Map(), priors: new Map(), unreadable: true };
+    return { people: new Map(), priors: new Map(), appointments: new Map(), unreadable: true };
   }
+}
+
+/**
+ * The appointments the batch's reminders were drawn for (decision 0002), one read for all of them. A read that fails is
+ * none, said in the log: the people go as they did before the record, never held for a read this run could not make.
+ */
+async function appointmentsOf(
+  ports: BroadcastBatchPorts,
+  b: BroadcastRow,
+  batch: readonly RecipientRow[],
+): Promise<ReadonlyMap<string, AppointmentState>> {
+  const keys = appointmentKeysOf(batch);
+  if (!ports.appointments || keys.length === 0) return new Map();
+  return ports.appointments(keys).catch((e: unknown) => {
+    broadcastLog.warn("broadcast_appointments_unread", { broadcast_id: b.id, error: errField(e) });
+    return new Map<string, AppointmentState>();
+  });
 }
 
 /** Where a person is reached on their channel, or why not: a number for WhatsApp and a text, an address for an email. */
@@ -180,6 +204,9 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
     await w.mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
     return "go on";
   }
+  // A reminder's appointment, asked again at the send (decision 0002): one that moved, was cancelled or left the calendar
+  // since the run drew it holds the person, never a message for a time that no longer stands.
+  if (!appointmentHolds(w.appointments, rowFacts(r))) return skip("appointment_changed");
   // Meta no longer approves WhatsApp's template: that holds the people who go by WhatsApp, and by no other channel, who
   // stay as they were and go on their own versions (the run fails only when nobody else is on it, below).
   if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");
@@ -340,7 +367,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   const offers = isOfferByEmail({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
   if (head === "wait" || head === "stopped") return;
-  const { people, priors, unreadable } = await readPeople(ports, b, batch);
+  const { people, priors, appointments, unreadable } = await readPeople(ports, b, batch);
   const w: Work = {
     ports,
     cmd,
@@ -354,6 +381,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     facts,
     people,
     priors,
+    appointments,
     month: {},
     offersClosed: head === "closed",
     // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.

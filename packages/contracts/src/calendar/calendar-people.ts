@@ -18,6 +18,7 @@
  */
 import { dayInZone, dayPlusInZone } from "./zone-math";
 import type { FeedItem } from "./feed";
+import { appointmentKeyOf } from "./appointment-key";
 import { normalizeEmail } from "../shared/email-address";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { dateFormat, DAY_MS } from "../shared/time";
@@ -273,6 +274,8 @@ export function matchPerson(
 
 export interface Visit {
   id: string;
+  /** The appointment's own key (appointment-key.ts): what its row is stored under, and what a send asks of it again. Absent on a visit rebuilt from an older read. */
+  key?: string;
   /** Epoch ms. */
   start: number;
   end: number;
@@ -321,6 +324,17 @@ export function indexFeed(items: FeedItem[], own: OwnAddresses): FeedIndex {
   return { byPhone, byEmail, texts, own };
 }
 
+/** One feed item as a visit of the person it was matched to, by the route it was matched by. */
+const visitOf = (it: FeedItem, via: MatchVia): Visit => ({
+  id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
+  key: appointmentKeyOf(it),
+  start: it.start,
+  end: it.end,
+  title: it.title || "Busy",
+  allDay: it.allDay,
+  via,
+});
+
 /** Every appointment of one person against an indexed feed, oldest first: their number first, their address second, their whole name third. */
 export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
   // By every route, not only the address: a named owner would otherwise take
@@ -331,14 +345,7 @@ export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
   const take = (it: FeedItem, via: MatchVia) => {
     if (seen.has(it)) return;
     seen.add(it);
-    out.push({
-      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
-      start: it.start,
-      end: it.end,
-      title: it.title || "Busy",
-      allDay: it.allDay,
-      via,
-    });
+    out.push(visitOf(it, via));
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
@@ -357,14 +364,7 @@ export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): V
   const take = (it: FeedItem, via: MatchVia) => {
     if (seen.has(it)) return;
     seen.add(it);
-    const v: Visit = {
-      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
-      start: it.start,
-      end: it.end,
-      title: it.title || "Busy",
-      allDay: it.allDay,
-      via,
-    };
+    const v = visitOf(it, via);
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
@@ -509,6 +509,8 @@ export interface VisitDto {
   via: MatchVia;
   /** The visit is a consultation: its title says so, or names a consult-first service (contracts isConsultationTitle, set by the server). Absent on an older read. */
   consultation?: boolean;
+  /** The appointment's key (Visit.key), which a reminder keeps to ask its row again when it goes. Absent on an older read. */
+  key?: string;
 }
 
 /** A person's appointments as their profile reads them. */
@@ -533,6 +535,7 @@ export function toVisitDto(v: Visit | null): VisitDto | null {
         title: v.title,
         all_day: v.allDay,
         via: v.via,
+        ...(v.key ? { key: v.key } : {}),
       }
     : null;
 }

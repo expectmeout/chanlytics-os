@@ -17,6 +17,7 @@ what the script writes.
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
 | [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
+| [`appointments`](#appointments) | none | on, 1 policy |
 | [`ask_messages`](#ask_messages) | none | on, 4 policies |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
 | [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/ask-voice-session.ts` | on, 4 policies |
@@ -148,6 +149,44 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `ai_usage_member_select` | select | authenticated | `((NOT shadow) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid()))))` |  |
+
+### appointments
+
+An appointment, as its source keeps it (decision 0002): the owner's calendar feed read hourly (calendar_feed), later a booking tool (booking_tool) or a person (person); never the receptionist, which does not book. One row per source's own id; status held by appointments_guard; vanished_at when the feed stopped naming it, which is not a cancellation. A member reads their workspace's; the definer doors write.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `contact_id` | uuid | yes |  |  |
+| `source` | text | no |  |  |
+| `external_id` | text | yes |  | The source's own id: an event's UID, with the occurrence's original start for one instance of a repeating event (contracts appointmentKeyOf). The replay gate. |
+| `status` | text | no | `'booked'::text` |  |
+| `starts_at` | timestamp with time zone | no |  |  |
+| `ends_at` | timestamp with time zone | no |  |  |
+| `all_day` | boolean | no | `false` |  |
+| `title` | text | yes |  |  |
+| `service` | text | yes |  |  |
+| `consultation` | boolean | no | `false` | Whether its title says consultation or names a consult-first service (contracts isConsultationTitle), decided when the row was written. |
+| `timezone` | text | no |  |  |
+| `vanished_at` | timestamp with time zone | yes |  | When the feed stopped naming it: not a cancellation (a feed drops a cancelled event, and a feed that could not be read says nothing). Cleared when the feed names it again. |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `appointments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### ask_messages
 

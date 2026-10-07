@@ -1,6 +1,16 @@
 /** The owner's calendar as the receptionist reads it: the feed's address, what is open, and the people in it. */
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./zone-math";
 export { parseIcs } from "./feed";
+export { appointmentKeyOf } from "./appointment-key";
+export {
+  APPOINTMENT_SOURCES,
+  APPOINTMENT_STATUSES,
+  appointmentHolds,
+  appointmentKeysOf,
+  feedAppointmentRows,
+  serviceNamedIn,
+} from "./appointments";
+export type { AppointmentSource, AppointmentState, AppointmentStatus, FeedAppointmentRow } from "./appointments";
 export type { BusyBlock, FeedAttendee, FeedItem, ParsedFeed, ParseOptions } from "./feed";
 export {
   dayIntervals,

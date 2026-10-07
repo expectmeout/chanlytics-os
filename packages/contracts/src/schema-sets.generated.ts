@@ -13,6 +13,8 @@ export const SCHEMA_SETS = {
     "receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge",
     "note_suggest", "reach_out_check", "reply_read",
   ],
+  "appointments.source": ["calendar_feed", "booking_tool", "person"],
+  "appointments.status": ["proposed", "booked", "kept", "missed", "cancelled"],
   "ask_messages.role": ["user", "assistant"],
   "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
   "ask_voice_sessions.language": ["en", "es", "other"],

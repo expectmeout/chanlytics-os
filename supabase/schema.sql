@@ -164,6 +164,178 @@ COMMENT ON FUNCTION public.ai_usage_purge(p_keep interval) IS 'Drops ledger rows
 
 
 --
+-- Name: appointments_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_erase_on_contact() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    delete from public.appointments a where a.tenant_id = new.tenant_id and a.contact_id = new.id;
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: appointments_feed_sync(uuid, text, jsonb, timestamp with time zone, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_now      timestamptz := coalesce(p_now, now());
+  v_tz       text := coalesce(nullif(btrim(p_timezone), ''), 'UTC');
+  v_in       record;
+  v_row      public.appointments%rowtype;
+  v_contact  uuid;
+  v_id       uuid;
+  v_change   text;
+  v_seen     text[] := '{}';
+  v_added    integer := 0;
+  v_moved    integer := 0;
+  v_back     integer := 0;
+  v_vanished integer := 0;
+  v_kept     integer := 0;
+begin
+  if p_tenant_id is null or not exists (select 1 from tenants t where t.id = p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if jsonb_typeof(coalesce(p_rows, 'null'::jsonb)) <> 'array' then
+    raise exception 'The rows are a list.' using errcode = '22023';
+  end if;
+  if p_from is null or p_to is null or p_to <= p_from then
+    raise exception 'The window runs forward.' using errcode = '22023';
+  end if;
+  -- One read of a workspace's feed at a time: two sweeps that overlap never vanish each other's rows.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|appointments|calendar_feed', 42));
+
+  for v_in in
+    select distinct on (r.external_id) r.*
+      from jsonb_to_recordset(p_rows) as r(
+             external_id text, starts_at timestamptz, ends_at timestamptz, all_day boolean, title text,
+             service text, consultation boolean, contact_id uuid)
+     where nullif(btrim(r.external_id), '') is not null
+       and r.starts_at is not null and r.ends_at is not null and r.ends_at > r.starts_at
+       and r.starts_at between p_from and p_to
+     order by r.external_id
+  loop
+    v_seen := array_append(v_seen, v_in.external_id);
+    -- Only a living person of this workspace: a match the sweep made against a list read a moment ago may have been
+    -- erased or merged since.
+    select c.id into v_contact from contacts c
+     where c.id = v_in.contact_id and c.tenant_id = p_tenant_id
+       and c.erased_at is null and c.merged_into_contact_id is null;
+    v_change := null;
+    select * into v_row from appointments a
+     where a.tenant_id = p_tenant_id and a.source = 'calendar_feed' and a.external_id = v_in.external_id
+     for update;
+    if v_row.id is null then
+      insert into appointments (tenant_id, contact_id, source, external_id, status, starts_at, ends_at, all_day, title,
+                                service, consultation, timezone)
+      values (p_tenant_id, v_contact, 'calendar_feed', left(v_in.external_id, 1024), 'booked', v_in.starts_at,
+              v_in.ends_at, coalesce(v_in.all_day, false), left(nullif(btrim(v_in.title), ''), 500),
+              left(nullif(btrim(v_in.service), ''), 200), coalesce(v_in.consultation, false), v_tz)
+      returning id into v_id;
+      v_change := 'added';
+      v_added := v_added + 1;
+    else
+      v_id := v_row.id;
+      if v_row.vanished_at is not null then
+        v_change := 'back';
+        v_back := v_back + 1;
+      elsif v_row.starts_at is distinct from v_in.starts_at then
+        v_change := 'moved';
+        v_moved := v_moved + 1;
+      end if;
+      update appointments
+         set contact_id = v_contact, starts_at = v_in.starts_at, ends_at = v_in.ends_at,
+             all_day = coalesce(v_in.all_day, false), title = left(nullif(btrim(v_in.title), ''), 500),
+             service = left(nullif(btrim(v_in.service), ''), 200), consultation = coalesce(v_in.consultation, false),
+             timezone = v_tz, vanished_at = null
+       where id = v_id
+         and (contact_id is distinct from v_contact or starts_at is distinct from v_in.starts_at
+              or ends_at is distinct from v_in.ends_at or all_day is distinct from coalesce(v_in.all_day, false)
+              or title is distinct from left(nullif(btrim(v_in.title), ''), 500)
+              or service is distinct from left(nullif(btrim(v_in.service), ''), 200)
+              or consultation is distinct from coalesce(v_in.consultation, false)
+              or timezone is distinct from v_tz or vanished_at is not null);
+    end if;
+    if v_change is not null then
+      insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'appointment.changed', 'appointment', 'appointment', v_id,
+              jsonb_build_object('change', v_change, 'source', 'calendar_feed', 'starts_at', v_in.starts_at));
+    end if;
+  end loop;
+
+  -- Gone from the read, inside the window it covered: vanished, never cancelled.
+  for v_row in
+    update appointments a
+       set vanished_at = v_now
+     where a.tenant_id = p_tenant_id and a.source = 'calendar_feed' and a.vanished_at is null
+       and a.starts_at between p_from and p_to
+       and not (a.external_id = any (v_seen))
+    returning a.*
+  loop
+    v_vanished := v_vanished + 1;
+    insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'appointment.changed', 'appointment', 'appointment', v_row.id,
+            jsonb_build_object('change', 'vanished', 'source', 'calendar_feed', 'starts_at', v_row.starts_at));
+  end loop;
+
+  -- Kept, from time alone: booked, still named, and over for a day with nobody saying otherwise.
+  for v_row in
+    update appointments a
+       set status = 'kept'
+     where a.tenant_id = p_tenant_id and a.status = 'booked' and a.vanished_at is null
+       and a.ends_at <= v_now - interval '1 day'
+    returning a.*
+  loop
+    v_kept := v_kept + 1;
+    insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'appointment.changed', 'appointment', 'appointment', v_row.id,
+            jsonb_build_object('change', 'kept', 'source', v_row.source, 'starts_at', v_row.starts_at));
+  end loop;
+
+  return jsonb_build_object('added', v_added, 'moved', v_moved, 'back', v_back, 'vanished', v_vanished, 'kept', v_kept,
+                            'seen', cardinality(v_seen));
+end $$;
+
+
+--
+-- Name: FUNCTION appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone) IS 'The hourly sweep''s door (decision 0002): one read of a workspace''s feed kept as appointments, in one transaction. Each row inserted or updated by its key; a row the read no longer names, starting inside the window it covered, vanished (never cancelled); a booked appointment over for a day, kept. appointment.changed for each added, moved, vanished, back or kept. Answers the counts. Service role only.';
+
+
+--
+-- Name: appointments_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.status is distinct from old.status then
+    if old.status in ('kept', 'missed', 'cancelled') then
+      raise exception 'An appointment that was kept, missed or cancelled stays so (% to % refused).', old.status, new.status
+        using errcode = '23514';
+    end if;
+    if old.status = 'proposed' and new.status not in ('booked', 'cancelled') then
+      raise exception 'A proposed appointment is booked or cancelled (% refused).', new.status using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end $$;
+
+
+--
 -- Name: ask_for_tick(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4953,8 +5125,8 @@ CREATE FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how t
 declare
   v_lead public.leads%rowtype;
 begin
-  if p_how is null or p_how not in ('call', 'reply', 'booking', 'deal') then
-    raise exception 'how must be call, reply, booking or deal' using errcode = '22023';
+  if p_how is null or p_how not in ('call', 'reply', 'booking', 'deal', 'arrived', 'added') then
+    raise exception 'how must be call, reply, booking, deal, arrived or added' using errcode = '22023';
   end if;
   update public.leads l
      set stage        = 'converted',
@@ -4982,7 +5154,7 @@ end $$;
 -- Name: FUNCTION lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean) IS 'A lead''s conversion, written once for the doors that convert (Reach out Part 5, G19; lead_link_contact still converts on its own): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking or deal. Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
+COMMENT ON FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean) IS 'A lead''s conversion, written once for every door that converts (Reach out Part 5, G19; the person door''s link since 00345): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking, deal, arrived (their person wrote or called) or added (their person was named by a member, a file, the calendar or the finder). Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
 
 
 --
@@ -5199,64 +5371,6 @@ $$;
 --
 
 COMMENT ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason text) IS 'A lead is set aside when it is archived and closed stale: the nightly purge''s word for a lead nobody worked, and what a hand that sets a lead to stale makes it too (K5). leads_note_set_aside asks it of the old row and the new.';
-
-
---
--- Name: lead_link_contact(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.lead_link_contact() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_lead uuid;
-begin
-  begin
-    if current_setting('chanlytics.link_lead', true) = 'off' then return null; end if;
-    if auth.uid() is not null then return null; end if;
-    if NEW.erased_at is not null or NEW.merged_into_contact_id is not null then return null; end if;
-    if NEW.phone_e164 is null and NEW.email is null then return null; end if;
-    -- Two guarded single-column lookups, never one OR over two nullable
-    -- parameters: this runs on EVERY contacts insert (the inbound hot path),
-    -- and an OR of two nullable parameters plans as a sequential scan over
-    -- leads. Each lookup reaches its own index (leads_tenant_phone,
-    -- leads_tenant_email); the number is tried first, being the stronger
-    -- identity.
-    if NEW.phone_e164 is not null then
-      select l.id into v_lead from public.leads l
-       where l.tenant_id = NEW.tenant_id and l.phone_e164 = NEW.phone_e164
-         and l.contact_id is null and l.erased_at is null and l.blanked_at is null
-       order by l.found_at desc
-       limit 1;
-    end if;
-    if v_lead is null and NEW.email is not null then
-      select l.id into v_lead from public.leads l
-       where l.tenant_id = NEW.tenant_id and l.email = NEW.email
-         and l.contact_id is null and l.erased_at is null and l.blanked_at is null
-       order by l.found_at desc
-       limit 1;
-    end if;
-    if v_lead is null then return null; end if;
-    update public.leads
-       set contact_id = NEW.id, stage = 'converted', closed_reason = null, converted_at = now(), contacted_at = coalesce(contacted_at, now())
-     where id = v_lead;
-    if not exists (select 1 from public.events e where e.tenant_id = NEW.tenant_id and e.subject_type = 'contact' and e.subject_id = NEW.id and e.kind = 'contact.added') then
-      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
-      values (NEW.tenant_id, 'contact.added', 'contact', 'contact', NEW.id, jsonb_build_object('source', 'lead'));
-    end if;
-  exception when others then
-    raise warning 'lead_link_contact: %', sqlerrm;
-  end;
-  return null;
-end $$;
-
-
---
--- Name: FUNCTION lead_link_contact(); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.lead_link_contact() IS 'A person the edge makes from a message or a call, whose number or address a lead holds, links that lead and converts it; the event that says where they came from reads "a lead you found". A signed-in caller''s insert never links.';
 
 
 --
@@ -11174,6 +11288,66 @@ end $$;
 
 
 --
+-- Name: person_link_lead(uuid, uuid, text, text, boolean, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_link_lead(p_tenant_id uuid, p_contact_id uuid, p_assurance text, p_source text, p_made boolean DEFAULT false, p_skip_lead uuid DEFAULT NULL::uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row  public.contacts%rowtype;
+  v_lead uuid;
+begin
+  if current_setting('chanlytics.link_lead', true) = 'off' then return null; end if;
+  select * into v_row from public.contacts c where c.id = p_contact_id and c.tenant_id = p_tenant_id;
+  if v_row.id is null or v_row.erased_at is not null or v_row.merged_into_contact_id is not null then return null; end if;
+  if v_row.phone_e164 is null and v_row.email is null then return null; end if;
+  -- Two guarded single-column lookups, never one OR over two nullable values (00140): each reaches its own index
+  -- (leads_tenant_phone, leads_tenant_email); the number first, being the stronger identity.
+  if v_row.phone_e164 is not null then
+    select l.id into v_lead from public.leads l
+     where l.tenant_id = p_tenant_id and l.phone_e164 = v_row.phone_e164
+       and l.contact_id is null and l.erased_at is null and l.blanked_at is null
+       and l.id is distinct from p_skip_lead
+     order by l.found_at desc
+     limit 1;
+  end if;
+  if v_lead is null and v_row.email is not null then
+    select l.id into v_lead from public.leads l
+     where l.tenant_id = p_tenant_id and l.email = v_row.email
+       and l.contact_id is null and l.erased_at is null and l.blanked_at is null
+       and l.id is distinct from p_skip_lead
+     order by l.found_at desc
+     limit 1;
+  end if;
+  if v_lead is null then return null; end if;
+  -- Only a lead still naming nobody: two arrivals of two people cannot both take it.
+  update public.leads set contact_id = p_contact_id where id = v_lead and contact_id is null;
+  if not found then return null; end if;
+  perform public.lead_convert_by(p_tenant_id, v_lead,
+                                 case when p_assurance = 'observed' then 'arrived' else 'added' end,
+                                 jsonb_build_object('contact_id', p_contact_id, 'source', p_source), true);
+  if coalesce(p_made, false) and not exists (
+       select 1 from public.events e
+        where e.tenant_id = p_tenant_id and e.subject_type = 'contact' and e.subject_id = p_contact_id
+          and e.kind = 'contact.added') then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'contact.added', 'contact', 'contact', p_contact_id,
+            jsonb_build_object('source', 'lead', 'lead_id', v_lead, 'by', auth.uid()));
+  end if;
+  return v_lead;
+end $$;
+
+
+--
+-- Name: FUNCTION person_link_lead(p_tenant_id uuid, p_contact_id uuid, p_assurance text, p_source text, p_made boolean, p_skip_lead uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_link_lead(p_tenant_id uuid, p_contact_id uuid, p_assurance text, p_source text, p_made boolean, p_skip_lead uuid) IS 'The lead a person turns out to be (decision 0034, step 5): the one holding their number, else their address, naming nobody yet, converted onto them through lead_convert_by (how arrived or added), with contact.added {source lead} for a person the link made and no door named. Skips the lead the caller converts itself; held off by chanlytics.link_lead = off. Called by resolve_person alone.';
+
+
+--
 -- Name: person_moments_calls_added(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -16270,6 +16444,7 @@ declare
   v_other_row public.contacts%rowtype;
   v_seen_as   text;                 -- name | phone | email
   v_doubt_id  uuid;
+  v_lead      uuid;                 -- the lead this person turned out to be (step 5)
   v_outcome   text;
   v_existed   boolean;
 begin
@@ -16511,17 +16686,32 @@ begin
     end if;
   end if;
 
+  -- The lead this person is (step 5): whenever the door learns something a lead could be matched on (a new person, a
+  -- number or an address filled, an identity added), the lead that holds their number or address and names nobody yet
+  -- converts onto them, through the one converter. A caller converting a lead itself names it in p_detail and is left to
+  -- it; a reach-out's cold first email holds the link off (chanlytics.link_lead). Never at the cost of the arrival: a
+  -- link that fails warns and is undone alone.
+  if v_outcome = 'new' or cardinality(v_filled) > 0 or v_identity = 'added' then
+    begin
+      v_lead := public.person_link_lead(p_tenant_id, v_id, v_assurance, v_source, v_outcome = 'new',
+                                        nullif(p_detail->>'lead_id', '')::uuid);
+    exception when others then
+      raise warning 'person_link_lead: %', sqlerrm;
+      v_lead := null;
+    end;
+  end if;
+
   insert into events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'person.resolved', 'contact', 'contact', v_id,
           jsonb_build_object(
             'outcome', v_outcome, 'matched_by', v_by, 'source', v_source, 'channel', v_channel,
             'assurance', v_assurance, 'by', v_user, 'filled', to_jsonb(v_filled), 'identity', v_identity,
-            'doubt', v_other, 'doubt_seen', v_seen_as));
+            'doubt', v_other, 'doubt_seen', v_seen_as, 'lead', v_lead));
 
   return jsonb_build_object(
     'contact_id', v_id, 'outcome', v_outcome, 'existed', v_existed, 'matched_by', v_by,
     'email', v_email_out, 'filled', to_jsonb(v_filled), 'identity', v_identity,
-    'doubt', v_other, 'doubt_seen', v_seen_as, 'doubt_id', v_doubt_id);
+    'doubt', v_other, 'doubt_seen', v_seen_as, 'doubt_id', v_doubt_id, 'lead_id', v_lead);
 end $_$;
 
 
@@ -16529,7 +16719,7 @@ end $_$;
 -- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; contact.added for a new person a member, a feed or the finder brought, person.resolved for every call. The service role''s and the doors'' alone.';
+COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00345); contact.added for a new person a member, a feed or the finder brought, person.resolved for every call. The service role''s and the doors'' alone.';
 
 
 --
@@ -19385,6 +19575,65 @@ ALTER TABLE public.ai_usage ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     NO MAXVALUE
     CACHE 1
 );
+
+
+--
+-- Name: appointments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.appointments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    contact_id uuid,
+    source text NOT NULL,
+    external_id text,
+    status text DEFAULT 'booked'::text NOT NULL,
+    starts_at timestamp with time zone NOT NULL,
+    ends_at timestamp with time zone NOT NULL,
+    all_day boolean DEFAULT false NOT NULL,
+    title text,
+    service text,
+    consultation boolean DEFAULT false NOT NULL,
+    timezone text NOT NULL,
+    vanished_at timestamp with time zone,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT appointments_ends_after_start CHECK ((ends_at > starts_at)),
+    CONSTRAINT appointments_external_id_length CHECK (((external_id IS NULL) OR ((char_length(external_id) >= 1) AND (char_length(external_id) <= 1024)))),
+    CONSTRAINT appointments_service_length CHECK (((service IS NULL) OR (char_length(service) <= 200))),
+    CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_tool'::text, 'person'::text]))),
+    CONSTRAINT appointments_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'booked'::text, 'kept'::text, 'missed'::text, 'cancelled'::text]))),
+    CONSTRAINT appointments_title_length CHECK (((title IS NULL) OR (char_length(title) <= 500)))
+);
+
+
+--
+-- Name: TABLE appointments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.appointments IS 'An appointment, as its source keeps it (decision 0002): the owner''s calendar feed read hourly (calendar_feed), later a booking tool (booking_tool) or a person (person); never the receptionist, which does not book. One row per source''s own id; status held by appointments_guard; vanished_at when the feed stopped naming it, which is not a cancellation. A member reads their workspace''s; the definer doors write.';
+
+
+--
+-- Name: COLUMN appointments.external_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.external_id IS 'The source''s own id: an event''s UID, with the occurrence''s original start for one instance of a repeating event (contracts appointmentKeyOf). The replay gate.';
+
+
+--
+-- Name: COLUMN appointments.consultation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.consultation IS 'Whether its title says consultation or names a consult-first service (contracts isConsultationTitle), decided when the row was written.';
+
+
+--
+-- Name: COLUMN appointments.vanished_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.vanished_at IS 'When the feed stopped naming it: not a cancellation (a feed drops a cancelled event, and a feed that could not be read says nothing). Cleared when the feed names it again.';
 
 
 --
@@ -22600,6 +22849,14 @@ ALTER TABLE ONLY public.ai_usage
 
 
 --
+-- Name: appointments appointments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ask_messages ask_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -23602,6 +23859,27 @@ CREATE INDEX ai_usage_shadow_at ON public.ai_usage USING btree (created_at) WHER
 --
 
 CREATE INDEX ai_usage_tenant_at ON public.ai_usage USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: appointments_contact_start; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_contact_start ON public.appointments USING btree (tenant_id, contact_id, starts_at) WHERE (contact_id IS NOT NULL);
+
+
+--
+-- Name: appointments_source_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX appointments_source_key ON public.appointments USING btree (tenant_id, source, external_id) WHERE (external_id IS NOT NULL);
+
+
+--
+-- Name: appointments_tenant_start; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_tenant_start ON public.appointments USING btree (tenant_id, starts_at);
 
 
 --
@@ -24823,6 +25101,20 @@ ALTER INDEX public.events_tenant_subject ATTACH PARTITION public.events_default_
 
 
 --
+-- Name: appointments appointments_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_guard BEFORE UPDATE OF status ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.appointments_guard();
+
+
+--
+-- Name: appointments appointments_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
 -- Name: billing_accounts billing_accounts_moddatetime; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -24970,6 +25262,13 @@ CREATE TRIGGER contacts_erase_scrubs_events AFTER UPDATE OF erased_at ON public.
 
 
 --
+-- Name: contacts contacts_erase_takes_appointments; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_takes_appointments AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.appointments_erase_on_contact();
+
+
+--
 -- Name: contacts contacts_erase_takes_notes; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -24981,13 +25280,6 @@ CREATE TRIGGER contacts_erase_takes_notes AFTER UPDATE OF erased_at ON public.co
 --
 
 CREATE TRIGGER contacts_erasure_digest_keyed BEFORE INSERT OR UPDATE OF erased_phone_hash, erased_email_hash ON public.contacts FOR EACH ROW WHEN (((COALESCE(new.erased_phone_hash, 'h1:'::text) !~~ 'h1:%'::text) OR (COALESCE(new.erased_email_hash, 'h1:'::text) !~~ 'h1:%'::text))) EXECUTE FUNCTION public.erasure_digest_keyed_on_write();
-
-
---
--- Name: contacts contacts_link_lead; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER contacts_link_lead AFTER INSERT ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.lead_link_contact();
 
 
 --
@@ -25935,6 +26227,30 @@ ALTER TABLE ONLY public.ai_usage
 
 ALTER TABLE ONLY public.ai_usage
     ADD CONSTRAINT ai_usage_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: appointments appointments_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
+
+
+--
+-- Name: appointments appointments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: appointments appointments_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -27270,6 +27586,21 @@ ALTER TABLE public.ai_usage ENABLE ROW LEVEL SECURITY;
 CREATE POLICY ai_usage_member_select ON public.ai_usage FOR SELECT TO authenticated USING (((NOT shadow) AND (tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
+-- Name: appointments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: appointments appointments_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY appointments_member_select ON public.appointments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -28653,6 +28984,31 @@ GRANT ALL ON FUNCTION public.ai_usage_purge(p_keep interval) TO service_role;
 
 
 --
+-- Name: FUNCTION appointments_erase_on_contact(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_erase_on_contact() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_erase_on_contact() TO service_role;
+
+
+--
+-- Name: FUNCTION appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION appointments_guard(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_guard() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_guard() TO authenticated;
+GRANT ALL ON FUNCTION public.appointments_guard() TO service_role;
+
+
+--
 -- Name: FUNCTION ask_for_tick(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -29587,14 +29943,6 @@ GRANT ALL ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason tex
 
 
 --
--- Name: FUNCTION lead_link_contact(); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.lead_link_contact() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.lead_link_contact() TO service_role;
-
-
---
 -- Name: FUNCTION lead_list_counts(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -30517,6 +30865,13 @@ GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) TO service_ro
 
 REVOKE ALL ON FUNCTION public.person_doubts_on_contact_change() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.person_doubts_on_contact_change() TO service_role;
+
+
+--
+-- Name: FUNCTION person_link_lead(p_tenant_id uuid, p_contact_id uuid, p_assurance text, p_source text, p_made boolean, p_skip_lead uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_link_lead(p_tenant_id uuid, p_contact_id uuid, p_assurance text, p_source text, p_made boolean, p_skip_lead uuid) FROM PUBLIC;
 
 
 --
@@ -31907,6 +32262,14 @@ GRANT SELECT ON TABLE public.ai_usage TO authenticated;
 
 GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO service_role;
+
+
+--
+-- Name: TABLE appointments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.appointments TO authenticated;
+GRANT ALL ON TABLE public.appointments TO service_role;
 
 
 --

@@ -120,6 +120,81 @@ export type Database = {
           },
         ]
       }
+      appointments: {
+        Row: {
+          all_day: boolean
+          consultation: boolean
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          external_id: string | null
+          id: string
+          service: string | null
+          source: string
+          starts_at: string
+          status: string
+          tenant_id: string
+          timezone: string
+          title: string | null
+          updated_at: string
+          vanished_at: string | null
+        }
+        Insert: {
+          all_day?: boolean
+          consultation?: boolean
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          external_id?: string | null
+          id?: string
+          service?: string | null
+          source: string
+          starts_at: string
+          status?: string
+          tenant_id: string
+          timezone: string
+          title?: string | null
+          updated_at?: string
+          vanished_at?: string | null
+        }
+        Update: {
+          all_day?: boolean
+          consultation?: boolean
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          external_id?: string | null
+          id?: string
+          service?: string | null
+          source?: string
+          starts_at?: string
+          status?: string
+          tenant_id?: string
+          timezone?: string
+          title?: string | null
+          updated_at?: string
+          vanished_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ask_messages: {
         Row: {
           content: Json
@@ -5837,6 +5912,17 @@ export type Database = {
         }[]
       }
       ai_usage_purge: { Args: { p_keep?: string }; Returns: number }
+      appointments_feed_sync: {
+        Args: {
+          p_from: string
+          p_now?: string
+          p_rows: Json
+          p_tenant_id: string
+          p_timezone: string
+          p_to: string
+        }
+        Returns: Json
+      }
       ask_for_tick: { Args: never; Returns: boolean }
       ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
       assemble_broadcast: {
@@ -6989,6 +7075,17 @@ export type Database = {
         }[]
       }
       person_doubt_dismiss: { Args: { p_doubt_id: string }; Returns: Json }
+      person_link_lead: {
+        Args: {
+          p_assurance: string
+          p_contact_id: string
+          p_made?: boolean
+          p_skip_lead?: string
+          p_source: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       person_moments_check: {
         Args: { p_after?: string; p_limit?: number; p_tenant_id: string }
         Returns: {

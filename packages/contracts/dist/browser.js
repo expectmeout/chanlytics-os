@@ -10051,6 +10051,9 @@ var HELD_REASONS = {
   // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
   send_failed: "the provider refused it",
   missing_value: "a value was missing",
+  // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
+  // (calendar/appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
+  appointment_changed: "their appointment moved or was cancelled",
   // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
   // this object opaque to the bundler, which then carries the whole map into
   // every package that imports anything from here. core-broadcast.test.mjs
@@ -10897,6 +10900,783 @@ var SEND_WHEN_WORDS = {
   timeLabel: "The time it goes out"
 };
 
+// src/calendar/appointment-key.ts
+function appointmentKeyOf(item) {
+  if (!item.uid) return `ev:${item.start}`;
+  return item.occurrence === void 0 ? item.uid : `${item.uid}:${item.occurrence}`;
+}
+
+// src/calendar/service-offer.ts
+var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+function sameListed(a, b) {
+  const x = foldName(String(a ?? "").trim());
+  return x !== "" && x === foldName(String(b ?? "").trim());
+}
+var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+function matchService(services, asked) {
+  const q = typeof asked === "string" ? foldName(asked.trim()) : "";
+  if (!q || !services?.length) return null;
+  const named = services.map((s) => ({ s, n: foldName(s.name) }));
+  const exact = named.find((x) => x.n === q);
+  if (exact) return exact.s;
+  const contains = named.find((x) => x.n && (x.n.includes(q) || q.includes(x.n)));
+  if (contains) return contains.s;
+  const asks = wordsOf(q).filter((w) => w.length >= 4);
+  let best = null;
+  let bestScore = 0;
+  for (const { s, n } of named) {
+    const own = wordsOf(n);
+    const score = asks.filter((w) => own.includes(w)).length;
+    if (score > bestScore) {
+      best = s;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+function needsConsultation(name, rules) {
+  const n = foldName(name.trim());
+  const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
+  return !!n && list2.some((c) => foldName(String(c).trim()) === n);
+}
+function offerFor(services, rules, asked, opts = {}) {
+  const service = matchService(services, asked);
+  if (!service) return null;
+  if (opts.client)
+    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
+  if (!needsConsultation(service.name, rules))
+    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
+  const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
+  let consultationService = null;
+  let best = -1;
+  for (const s of services ?? []) {
+    const n = foldName(s.name);
+    if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
+    const score = wordsOf(n).filter((w) => own.includes(w)).length;
+    if (score > best) {
+      consultationService = s;
+      best = score;
+    }
+  }
+  return { service, consultation: true, consultationService, minMinutes: consultationService?.duration_min ?? null };
+}
+function offerLead(offer) {
+  if (!offer) return "";
+  if (!offer.consultation)
+    return offer.service.duration_min ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): ` : "";
+  const c = offer.consultationService;
+  const detail = [
+    c && foldName(c.name.trim()) !== "consultation" ? c.name : "",
+    offer.minMinutes ? `about ${offer.minMinutes} minutes` : ""
+  ].filter(Boolean).join(", ");
+  return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
+}
+
+// src/calendar/calendar-people.ts
+function threadOf(p) {
+  return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
+}
+var EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+var PHONE_RE = /\+?\(?\d{1,4}\)?(?:[\s.-]?\(?\d{2,4}\)?){2,5}/g;
+var ISO_DATE_RE = /^\d{4}[-./]\d{2}[-./]\d{2}/;
+function phoneFrom(raw) {
+  const s = raw.trim();
+  if (ISO_DATE_RE.test(s)) return null;
+  const digits2 = s.replace(/\D/g, "");
+  if (digits2.length < 10 || digits2.length > 15) return null;
+  const bare = /^\+?\d+$/.test(s);
+  if (bare && !s.startsWith("+") && !(digits2.length === 10 || digits2.length === 11 && digits2.startsWith("1")))
+    return null;
+  return normalizePhone(s.startsWith("+") ? `+${digits2}` : digits2);
+}
+var NO_OWN_ADDRESSES = /* @__PURE__ */ new Set();
+function calendarOwnerOf(url) {
+  const m = /^https:\/\/calendar\.google\.com\/calendar\/ical\/([^/]+)\//i.exec(url ?? "");
+  if (!m) return null;
+  let id;
+  try {
+    id = decodeURIComponent(m[1]).trim().toLowerCase();
+  } catch {
+    return null;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || /@(group|import)\.calendar\.google\.com$/.test(id)) return null;
+  return id;
+}
+function ownAddressesOf(cfg) {
+  const out = /* @__PURE__ */ new Set();
+  for (const e of cfg?.notifications?.escalation_emails ?? []) {
+    const a = String(e).trim().toLowerCase();
+    if (a) out.add(a);
+  }
+  const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
+  if (owner) out.add(owner);
+  return out;
+}
+function isOwn(own, p) {
+  return !!p.email && own.has(p.email.toLowerCase());
+}
+function extractContacts(item, own) {
+  const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
+  const organizer = item.organizer?.toLowerCase() || null;
+  const emails = /* @__PURE__ */ new Set();
+  for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
+  for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
+  if (organizer) emails.delete(organizer);
+  for (const a of own) emails.delete(a);
+  const phones = /* @__PURE__ */ new Set();
+  for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
+    const p = phoneFrom(m);
+    if (p) phones.add(p);
+  }
+  const names3 = /* @__PURE__ */ new Set();
+  for (const a of item.attendees ?? []) {
+    if (organizer && a.email?.toLowerCase() === organizer) continue;
+    if (a.email && own.has(a.email.toLowerCase())) continue;
+    const n = (a.name ?? "").trim();
+    if (n && !EMAIL_RE.test(n)) names3.add(n);
+    EMAIL_RE.lastIndex = 0;
+  }
+  return { phones: [...phones], emails: [...emails], names: [...names3] };
+}
+var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function nameMatcher(name) {
+  const n = name.trim();
+  if (n.length < 4 || /^[+\d(]/.test(n)) return null;
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
+}
+function personInText(text, people) {
+  let best = null;
+  for (const p of people) {
+    const re = nameMatcher(p.name);
+    if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
+  }
+  return best;
+}
+var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
+function matchPerson(item, everyone, own) {
+  const c = extractContacts(item, own);
+  const people = everyone.filter((p2) => !isOwn(own, p2));
+  if (c.phones.length) {
+    const byPhone = /* @__PURE__ */ new Map();
+    for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
+    for (const ph of c.phones) {
+      const p2 = byPhone.get(ph);
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "phone", ...threadOf(p2) };
+    }
+  }
+  if (c.emails.length) {
+    const byEmail = /* @__PURE__ */ new Map();
+    for (const p2 of people) if (p2.email) byEmail.set(p2.email.toLowerCase(), p2);
+    for (const em of c.emails) {
+      const p2 = byEmail.get(em);
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "email", ...threadOf(p2) };
+    }
+  }
+  const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
+  return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p) } : null;
+}
+var NEAR_VISIT_MS = 3 * DAY_MS;
+function indexFeed(items, own) {
+  const byPhone = /* @__PURE__ */ new Map();
+  const byEmail = /* @__PURE__ */ new Map();
+  const texts = [];
+  for (const it of items) {
+    const c = extractContacts(it, own);
+    for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
+    for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
+    texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+  }
+  return { byPhone, byEmail, texts, own };
+}
+var visitOf = (it, via) => ({
+  id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
+  key: appointmentKeyOf(it),
+  start: it.start,
+  end: it.end,
+  title: it.title || "Busy",
+  allDay: it.allDay,
+  via
+});
+function allVisitsIn(index, person) {
+  if (isOwn(index.own, person)) return [];
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const take = (it, via) => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    out.push(visitOf(it, via));
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
+  const re = nameMatcher(person.name);
+  if (re) {
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+function visitsIn(index, person, nowMs) {
+  if (isOwn(index.own, person)) return { next: null, last: null, near: [] };
+  let next = null;
+  let last = null;
+  const near2 = [];
+  const seen = /* @__PURE__ */ new Set();
+  const take = (it, via) => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    const v = visitOf(it, via);
+    if (it.end >= nowMs) {
+      if (!next || v.start < next.start) next = v;
+    } else if (!last || v.end > last.end) last = v;
+    if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near2.push(v);
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
+  const re = nameMatcher(person.name);
+  if (re) {
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+  }
+  return { next, last, near: near2.sort((a, b) => a.start - b.start) };
+}
+function visitsOf(items, person, nowMs, own) {
+  return visitsIn(indexFeed(items, own), person, nowMs);
+}
+var ms = (t) => typeof t === "number" ? t : Date.parse(t);
+function visitDay(start, tz, nowMs) {
+  const key = dayInZone(tz, ms(start)).key;
+  const today = dayInZone(tz, nowMs).key;
+  const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
+  if (key === today) return "Today";
+  if (key === tomorrow) return "Tomorrow";
+  return dateFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
+    new Date(ms(start))
+  );
+}
+function visitTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const a = f.format(new Date(ms(v.start)));
+  const b = f.format(new Date(ms(v.end)));
+  const sameHalf = a.slice(-2) === b.slice(-2);
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+function visitDateKey(start, tz) {
+  return dayInZone(tz, ms(start)).key;
+}
+function visitStartTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  return dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
+}
+function visitLine(v, tz, nowMs) {
+  return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
+}
+function describeVisits(visits, tz, nowMs, opts) {
+  const out = [];
+  if (visits.next) {
+    const n = visits.next;
+    out.push(
+      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} \u2014 nothing is changed from here.`
+    );
+  }
+  if (visits.last) {
+    const l = visits.last;
+    out.push(
+      `Their last visit on the calendar: ${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`
+    );
+  }
+  return out.length ? out.join(" ") : null;
+}
+function feedSourceLabel(url) {
+  if (!url) return "your calendar";
+  let host;
+  try {
+    host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
+  } catch {
+    return "your calendar";
+  }
+  if (host.includes("google")) return "Google Calendar";
+  if (host.includes("icloud")) return "Apple Calendar";
+  if (host.includes("office365") || host.includes("outlook") || host.includes("live.com")) return "Outlook";
+  return "your calendar";
+}
+function eventText(raw, max = 1500) {
+  if (!raw) return null;
+  const text = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (!text) return null;
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
+}
+function toVisitDto(v) {
+  return v ? {
+    id: v.id,
+    start: new Date(v.start).toISOString(),
+    end: new Date(v.end).toISOString(),
+    title: v.title,
+    all_day: v.allDay,
+    via: v.via,
+    ...v.key ? { key: v.key } : {}
+  } : null;
+}
+var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
+var CAPITAL = /^\p{Lu}/u;
+function guessName(item, services = []) {
+  const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const organizer = item.organizer?.toLowerCase() || null;
+  const guest = (item.attendees ?? []).filter((a) => !organizer || a.email?.toLowerCase() !== organizer).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
+  if (guest) return guest.slice(0, 80);
+  const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+  const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
+  for (const part of parts2) {
+    if (svc.has(part.toLowerCase())) continue;
+    const words2 = part.split(/\s+/);
+    if (words2.length < 2 || words2.length > 4) continue;
+    if (!words2.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
+    if (words2.some((w) => svc.has(w.toLowerCase()))) continue;
+    return part;
+  }
+  return null;
+}
+function peopleFromItems(items, services, nowMs, window = {}) {
+  const from = nowMs - (window.backDays ?? 30) * DAY_MS;
+  const to = nowMs + (window.aheadDays ?? 90) * DAY_MS;
+  const byPhone = /* @__PURE__ */ new Map();
+  const ridersOf = /* @__PURE__ */ new Map();
+  const better = (a, b) => {
+    const aUp = a.start >= nowMs;
+    const bUp = b.start >= nowMs;
+    if (aUp !== bUp) return aUp;
+    return aUp ? a.start < b.start : a.start > b.start;
+  };
+  for (const it of items) {
+    if (it.end < from || it.start > to) continue;
+    const found = extractContacts(it, NO_OWN_ADDRESSES);
+    const phones = found.phones;
+    if (!phones.length) continue;
+    for (const e of found.emails) {
+      const riders = ridersOf.get(e) ?? /* @__PURE__ */ new Set();
+      for (const phone of phones) riders.add(phone);
+      ridersOf.set(e, riders);
+    }
+    const email = phones.length === 1 && found.emails.length === 1 ? normalizeEmail(found.emails[0]) : null;
+    const name = guessName(it, services);
+    for (const phone of phones) {
+      const row2 = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start, email };
+      const have = byPhone.get(phone);
+      if (!have) {
+        byPhone.set(phone, row2);
+        continue;
+      }
+      const [keep, other] = better(row2, have) ? [row2, have] : [have, row2];
+      byPhone.set(phone, { ...keep, name: keep.name ?? other.name, email: keep.email ?? other.email });
+    }
+  }
+  return [...byPhone.values()].map((r2) => r2.email && (ridersOf.get(r2.email)?.size ?? 0) > 1 ? { ...r2, email: null } : r2).sort((a, b) => a.start - b.start);
+}
+function afterPersonRefused(code2) {
+  return code2 === "22023" || code2 === "PE001" ? "skip" : "stop";
+}
+function bookedAfterAsk(visits, askedMs) {
+  if (!visits) return false;
+  return visitAnswersAsk(visits.next ? visits.next.start : null, visits.last ? visits.last.start : null, askedMs);
+}
+function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
+  if (nextStartMs !== null) return true;
+  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
+}
+function toBookingReportVM(dto) {
+  if (!dto || dto.calendar === "none")
+    return {
+      present: false,
+      calendar: "none",
+      headline: "\u2014",
+      sub: "Connect your calendar under Settings \u203A Business to see who booked.",
+      words: "",
+      pct: null,
+      asked: 0,
+      booked: 0,
+      unbooked: 0,
+      rest: ""
+    };
+  if (dto.calendar === "unavailable")
+    return {
+      present: false,
+      calendar: "unavailable",
+      headline: "\u2014",
+      sub: "Your calendar could not be read.",
+      words: "",
+      pct: null,
+      asked: dto.asked,
+      booked: 0,
+      unbooked: 0,
+      rest: ""
+    };
+  if (dto.asked === 0)
+    return {
+      present: true,
+      calendar: "ok",
+      headline: "Nobody asked",
+      sub: `nobody wrote or called in the last ${plural(dto.days, "day")}`,
+      words: "",
+      pct: null,
+      asked: 0,
+      booked: 0,
+      unbooked: 0,
+      rest: ""
+    };
+  const pct3 = Math.round(dto.booked / dto.asked * 100);
+  const words2 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
+  const unbooked = dto.asked - dto.booked;
+  return {
+    present: true,
+    calendar: "ok",
+    headline: `${dto.booked} of ${dto.asked} booked`,
+    sub: `${pct3}% ${words2}`,
+    words: words2,
+    pct: pct3,
+    asked: dto.asked,
+    booked: dto.booked,
+    unbooked,
+    // The other side of the same share, said once: who is still waiting to be
+    // given a time. It is the half an owner can do something about.
+    rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
+  };
+}
+
+// src/shared/link.ts
+var MAX_LINK = 500;
+var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+function normalizeLink(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s || /\s/.test(s)) return null;
+  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
+  if (withScheme.length > MAX_LINK) return null;
+  let u;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (!HOST.test(u.hostname)) return null;
+  return withScheme;
+}
+function whyNotALink(raw) {
+  if (normalizeLink(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "A web address is needed.";
+  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
+  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
+  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
+  return "That needs a full web address, like docs.example.com/proposal.";
+}
+function linkHost(url) {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+// src/deals/deal-amount.ts
+function amountWords(cents, per, currency = "USD") {
+  if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
+  const whole = cents % 100 === 0;
+  const money2 = numberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2
+  }).format(cents / 100);
+  const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
+  return p && per !== "once" ? `${money2} ${p}` : money2;
+}
+function parseAmount(words2) {
+  const digits2 = String(words2 || "").replace(/[^0-9.-]/g, "");
+  const n = digits2 ? Number(digits2) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+function amountTotalsWords(items) {
+  const order = ["once", "month", "year"];
+  const sums = /* @__PURE__ */ new Map();
+  for (const i of items) {
+    if (i.amount_cents === null || i.amount_cents === void 0 || !Number.isFinite(i.amount_cents)) continue;
+    const per = i.per === "month" || i.per === "year" ? i.per : "once";
+    const currency = (i.currency || "USD").toUpperCase();
+    const key = `${per}|${currency}`;
+    const s = sums.get(key) ?? { cents: 0, per, currency };
+    s.cents += i.amount_cents;
+    sums.set(key, s);
+  }
+  if (!sums.size) return null;
+  return [...sums.values()].sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency)).map((s) => amountWords(s.cents, s.per, s.currency)).join(" + ");
+}
+
+// src/deals/deal-vm.ts
+function dealFactsOf(r2) {
+  if (!r2 || !isDealStage(r2.deal_stage)) return null;
+  return {
+    stage: r2.deal_stage,
+    service: r2.deal_service ?? null,
+    proposed_at: r2.deal_proposed_at ?? null,
+    decided_at: r2.deal_decided_at ?? null,
+    ended_at: r2.deal_ended_at ?? null,
+    amount_cents: r2.deal_amount_cents ?? null,
+    per: r2.deal_per ?? null,
+    currency: r2.deal_currency ?? null,
+    proposal_url: r2.deal_proposal_url ?? null,
+    valid_until: r2.deal_valid_until ?? null,
+    lost_reason: r2.deal_lost_reason ?? null
+  };
+}
+function pickCurrentDeal(rows) {
+  const sorted = [...rows].sort(
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
+  return sorted[0] ?? null;
+}
+function dealIsOpen(d) {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
+}
+function proposalLinkOf(current, personLink) {
+  if (!current) return personLink?.trim() || null;
+  if (current.stage !== "proposed") return null;
+  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
+}
+function wholeDaysSince(atMs, nowMs) {
+  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
+}
+function dealSinceMs(d) {
+  const at3 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
+  const ms2 = at3 ? Date.parse(at3) : NaN;
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function validUntilOf(day, tz, nowMs) {
+  if (!day || !isRealDate(day)) return null;
+  const at3 = wallClockAt(tz, day, 12, 0);
+  if (!Number.isFinite(at3)) return null;
+  const lapsed = zoneDayKey(nowMs, tz) > day;
+  const date = clockDate(at3, tz, nowMs);
+  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
+}
+function toDealVM(d, tz, nowMs) {
+  if (!isDealStage(d.stage)) return null;
+  const sinceMs = dealSinceMs(d);
+  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
+  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
+  const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
+  const url = d.proposal_url?.trim() || null;
+  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
+  const word = DEAL_STAGE_WORDS[d.stage];
+  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
+  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
+  return {
+    id: d.id ?? null,
+    version: d.version ?? null,
+    stage: d.stage,
+    word,
+    service: d.service,
+    sinceMs,
+    since,
+    said,
+    line,
+    facts,
+    brief,
+    waitingDays,
+    amount,
+    amountCents: d.amount_cents === null || d.amount_cents === void 0 || !Number.isFinite(d.amount_cents) ? null : d.amount_cents,
+    per: isDealPer(d.per) ? d.per : null,
+    currency: d.currency || "USD",
+    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
+    proposal: url ? { url, host: linkHost(url) } : null,
+    validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
+    reason: d.stage === "lost" && isDealLostReason(d.lost_reason) ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] } : null
+  };
+}
+function dealOf(r2, tz, nowMs) {
+  const f = dealFactsOf(r2);
+  return f ? toDealVM({ ...f, id: r2?.deal_id ?? null }, tz, nowMs) : null;
+}
+var strOrNull = (v) => typeof v === "string" ? v : null;
+function openDealsFromJson(j) {
+  if (j === void 0) return void 0;
+  if (!Array.isArray(j)) return null;
+  const out = [];
+  for (const x of j) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x;
+    const id = strOrNull(o.id);
+    const stage = strOrNull(o.stage);
+    if (!id || !stage) continue;
+    out.push({
+      id,
+      stage,
+      service: strOrNull(o.service),
+      proposed_at: strOrNull(o.proposed_at),
+      decided_at: strOrNull(o.decided_at),
+      ended_at: strOrNull(o.ended_at),
+      amount_cents: typeof o.amount_cents === "number" ? o.amount_cents : null,
+      per: strOrNull(o.per),
+      currency: strOrNull(o.currency),
+      proposal_url: strOrNull(o.proposal_url),
+      valid_until: strOrNull(o.valid_until),
+      lost_reason: strOrNull(o.lost_reason)
+    });
+  }
+  return out;
+}
+function openDealsOf(r2, tz, nowMs) {
+  if (!r2) return [];
+  if (r2.open_deals === void 0) {
+    const one = dealOf(r2, tz, nowMs);
+    return one && dealIsOpen(one) ? [one] : [];
+  }
+  return (r2.open_deals ?? []).map(
+    (x) => dealOf(
+      {
+        deal_id: x.id,
+        deal_stage: x.stage,
+        deal_service: x.service,
+        deal_proposed_at: x.proposed_at,
+        deal_decided_at: x.decided_at,
+        deal_ended_at: x.ended_at,
+        deal_amount_cents: x.amount_cents,
+        deal_per: x.per,
+        deal_currency: x.currency,
+        deal_proposal_url: x.proposal_url,
+        deal_valid_until: x.valid_until,
+        deal_lost_reason: x.lost_reason
+      },
+      tz,
+      nowMs
+    )
+  ).filter((d) => d !== null && dealIsOpen(d));
+}
+function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
+  if (!d || !isDealStage(d.stage)) return null;
+  const svc = d.service ? ` (${d.service})` : "";
+  const sinceMs = dealSinceMs(d);
+  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
+  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  switch (d.stage) {
+    case "won":
+      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+    case "proposed":
+      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
+    case "lost":
+      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
+    case "ended":
+      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
+  }
+}
+
+// src/deals/deal-consultations.ts
+var CONSULT_FOLLOW_DAYS = 7;
+function consultServiceOf(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+function isConsultationTitle(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return false;
+  if (t.includes("consult")) return true;
+  return consultServiceOf(title, services, rules) !== null;
+}
+function noProposalSince(deal, endedMs) {
+  if (!deal) return true;
+  if (dealIsOpen(deal)) return false;
+  return deal.sinceMs !== null && deal.sinceMs < endedMs;
+}
+function consultationHeld(r2, nowMs) {
+  const at3 = r2.consultedMs;
+  if (typeof at3 !== "number" || !Number.isFinite(at3)) return false;
+  if (at3 > nowMs || nowMs - at3 > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+  return noProposalSince(r2.deal, at3);
+}
+function dealStageOf(r2, nowMs) {
+  if (consultationHeld(r2, nowMs)) return "consultation";
+  const d = r2.deal;
+  if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
+  if (r2.consultAhead) return "consultation";
+  return d ? d.stage : null;
+}
+function dealStagesOf(stage, open) {
+  const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
+  return [...new Set(stage ? [stage, ...theirs] : theirs)];
+}
+function consultationsWithoutProposal(rows, nowMs) {
+  const endOf = (r2) => r2.consultedMs;
+  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
+    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
+  );
+}
+function consultsHeldWords(n) {
+  return `${n} held in the last week, no proposal yet`;
+}
+
+// src/calendar/appointments.ts
+var APPOINTMENT_SOURCES = ["calendar_feed", "booking_tool", "person"];
+var APPOINTMENT_STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"];
+function serviceNamedIn(title, services) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (folded && t.includes(folded) && (!best || folded.length > best.folded.length)) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+function feedAppointmentRows(items, o) {
+  const out = /* @__PURE__ */ new Map();
+  for (const it of items) {
+    if (it.start < o.window.from || it.start > o.window.to) continue;
+    const key = appointmentKeyOf(it);
+    if (out.has(key)) continue;
+    const title = it.title.trim() || null;
+    out.set(key, {
+      external_id: key,
+      starts_at: new Date(it.start).toISOString(),
+      ends_at: new Date(it.end).toISOString(),
+      all_day: it.allDay,
+      title,
+      service: serviceNamedIn(title, o.services),
+      consultation: isConsultationTitle(title, o.services, o.rules),
+      contact_id: matchPerson(it, o.people, o.own)?.id ?? null
+    });
+  }
+  return [...out.values()];
+}
+var STANDING = /* @__PURE__ */ new Set(["proposed", "booked", "kept"]);
+function appointmentHolds(rows, facts) {
+  const key = typeof facts.appointment === "string" ? facts.appointment : null;
+  const start = typeof facts.visit_start === "string" ? Date.parse(facts.visit_start) : NaN;
+  const row2 = key ? rows.get(key) : void 0;
+  if (!row2 || !Number.isFinite(start)) return true;
+  return STANDING.has(row2.status) && row2.vanished_at === null && Date.parse(row2.starts_at) === start;
+}
+function appointmentKeysOf(rows) {
+  const keys = /* @__PURE__ */ new Set();
+  for (const r2 of rows) {
+    const f = r2.facts;
+    if (f && typeof f === "object" && !Array.isArray(f)) {
+      const k = f.appointment;
+      if (typeof k === "string" && k) keys.add(k);
+    }
+  }
+  return [...keys];
+}
+
 // src/calendar/day-keys.ts
 var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 var DAY_SHORT = {
@@ -11083,72 +11863,6 @@ function describeOpenings(openings, tz, opts) {
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
 ` + (held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
-}
-
-// src/calendar/service-offer.ts
-var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-function sameListed(a, b) {
-  const x = foldName(String(a ?? "").trim());
-  return x !== "" && x === foldName(String(b ?? "").trim());
-}
-var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-function matchService(services, asked) {
-  const q = typeof asked === "string" ? foldName(asked.trim()) : "";
-  if (!q || !services?.length) return null;
-  const named = services.map((s) => ({ s, n: foldName(s.name) }));
-  const exact = named.find((x) => x.n === q);
-  if (exact) return exact.s;
-  const contains = named.find((x) => x.n && (x.n.includes(q) || q.includes(x.n)));
-  if (contains) return contains.s;
-  const asks = wordsOf(q).filter((w) => w.length >= 4);
-  let best = null;
-  let bestScore = 0;
-  for (const { s, n } of named) {
-    const own = wordsOf(n);
-    const score = asks.filter((w) => own.includes(w)).length;
-    if (score > bestScore) {
-      best = s;
-      bestScore = score;
-    }
-  }
-  return best;
-}
-function needsConsultation(name, rules) {
-  const n = foldName(name.trim());
-  const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
-  return !!n && list2.some((c) => foldName(String(c).trim()) === n);
-}
-function offerFor(services, rules, asked, opts = {}) {
-  const service = matchService(services, asked);
-  if (!service) return null;
-  if (opts.client)
-    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
-  if (!needsConsultation(service.name, rules))
-    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
-  const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
-  let consultationService = null;
-  let best = -1;
-  for (const s of services ?? []) {
-    const n = foldName(s.name);
-    if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
-    const score = wordsOf(n).filter((w) => own.includes(w)).length;
-    if (score > best) {
-      consultationService = s;
-      best = score;
-    }
-  }
-  return { service, consultation: true, consultationService, minMinutes: consultationService?.duration_min ?? null };
-}
-function offerLead(offer) {
-  if (!offer) return "";
-  if (!offer.consultation)
-    return offer.service.duration_min ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): ` : "";
-  const c = offer.consultationService;
-  const detail = [
-    c && foldName(c.name.trim()) !== "consultation" ? c.name : "",
-    offer.minMinutes ? `about ${offer.minMinutes} minutes` : ""
-  ].filter(Boolean).join(", ");
-  return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
 }
 
 // src/config/workspace-config/prompt-hours.ts
@@ -11518,378 +12232,6 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   };
 }
 
-// src/calendar/calendar-people.ts
-function threadOf(p) {
-  return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
-}
-var EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-var PHONE_RE = /\+?\(?\d{1,4}\)?(?:[\s.-]?\(?\d{2,4}\)?){2,5}/g;
-var ISO_DATE_RE = /^\d{4}[-./]\d{2}[-./]\d{2}/;
-function phoneFrom(raw) {
-  const s = raw.trim();
-  if (ISO_DATE_RE.test(s)) return null;
-  const digits2 = s.replace(/\D/g, "");
-  if (digits2.length < 10 || digits2.length > 15) return null;
-  const bare = /^\+?\d+$/.test(s);
-  if (bare && !s.startsWith("+") && !(digits2.length === 10 || digits2.length === 11 && digits2.startsWith("1")))
-    return null;
-  return normalizePhone(s.startsWith("+") ? `+${digits2}` : digits2);
-}
-var NO_OWN_ADDRESSES = /* @__PURE__ */ new Set();
-function calendarOwnerOf(url) {
-  const m = /^https:\/\/calendar\.google\.com\/calendar\/ical\/([^/]+)\//i.exec(url ?? "");
-  if (!m) return null;
-  let id;
-  try {
-    id = decodeURIComponent(m[1]).trim().toLowerCase();
-  } catch {
-    return null;
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || /@(group|import)\.calendar\.google\.com$/.test(id)) return null;
-  return id;
-}
-function ownAddressesOf(cfg) {
-  const out = /* @__PURE__ */ new Set();
-  for (const e of cfg?.notifications?.escalation_emails ?? []) {
-    const a = String(e).trim().toLowerCase();
-    if (a) out.add(a);
-  }
-  const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
-  if (owner) out.add(owner);
-  return out;
-}
-function isOwn(own, p) {
-  return !!p.email && own.has(p.email.toLowerCase());
-}
-function extractContacts(item, own) {
-  const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
-  const organizer = item.organizer?.toLowerCase() || null;
-  const emails = /* @__PURE__ */ new Set();
-  for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
-  for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
-  if (organizer) emails.delete(organizer);
-  for (const a of own) emails.delete(a);
-  const phones = /* @__PURE__ */ new Set();
-  for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
-    const p = phoneFrom(m);
-    if (p) phones.add(p);
-  }
-  const names3 = /* @__PURE__ */ new Set();
-  for (const a of item.attendees ?? []) {
-    if (organizer && a.email?.toLowerCase() === organizer) continue;
-    if (a.email && own.has(a.email.toLowerCase())) continue;
-    const n = (a.name ?? "").trim();
-    if (n && !EMAIL_RE.test(n)) names3.add(n);
-    EMAIL_RE.lastIndex = 0;
-  }
-  return { phones: [...phones], emails: [...emails], names: [...names3] };
-}
-var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-function nameMatcher(name) {
-  const n = name.trim();
-  if (n.length < 4 || /^[+\d(]/.test(n)) return null;
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
-}
-function personInText(text, people) {
-  let best = null;
-  for (const p of people) {
-    const re = nameMatcher(p.name);
-    if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
-  }
-  return best;
-}
-var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
-function matchPerson(item, everyone, own) {
-  const c = extractContacts(item, own);
-  const people = everyone.filter((p2) => !isOwn(own, p2));
-  if (c.phones.length) {
-    const byPhone = /* @__PURE__ */ new Map();
-    for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
-    for (const ph of c.phones) {
-      const p2 = byPhone.get(ph);
-      if (p2) return { id: p2.id, name: labelOf(p2), via: "phone", ...threadOf(p2) };
-    }
-  }
-  if (c.emails.length) {
-    const byEmail = /* @__PURE__ */ new Map();
-    for (const p2 of people) if (p2.email) byEmail.set(p2.email.toLowerCase(), p2);
-    for (const em of c.emails) {
-      const p2 = byEmail.get(em);
-      if (p2) return { id: p2.id, name: labelOf(p2), via: "email", ...threadOf(p2) };
-    }
-  }
-  const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
-  return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p) } : null;
-}
-var NEAR_VISIT_MS = 3 * DAY_MS;
-function indexFeed(items, own) {
-  const byPhone = /* @__PURE__ */ new Map();
-  const byEmail = /* @__PURE__ */ new Map();
-  const texts = [];
-  for (const it of items) {
-    const c = extractContacts(it, own);
-    for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
-    for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
-    texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
-  }
-  return { byPhone, byEmail, texts, own };
-}
-function allVisitsIn(index, person) {
-  if (isOwn(index.own, person)) return [];
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    out.push({
-      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
-      start: it.start,
-      end: it.end,
-      title: it.title || "Busy",
-      allDay: it.allDay,
-      via
-    });
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  const re = nameMatcher(person.name);
-  if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
-  }
-  return out.sort((a, b) => a.start - b.start);
-}
-function visitsIn(index, person, nowMs) {
-  if (isOwn(index.own, person)) return { next: null, last: null, near: [] };
-  let next = null;
-  let last = null;
-  const near2 = [];
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    const v = {
-      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
-      start: it.start,
-      end: it.end,
-      title: it.title || "Busy",
-      allDay: it.allDay,
-      via
-    };
-    if (it.end >= nowMs) {
-      if (!next || v.start < next.start) next = v;
-    } else if (!last || v.end > last.end) last = v;
-    if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near2.push(v);
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  const re = nameMatcher(person.name);
-  if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
-  }
-  return { next, last, near: near2.sort((a, b) => a.start - b.start) };
-}
-function visitsOf(items, person, nowMs, own) {
-  return visitsIn(indexFeed(items, own), person, nowMs);
-}
-var ms = (t) => typeof t === "number" ? t : Date.parse(t);
-function visitDay(start, tz, nowMs) {
-  const key = dayInZone(tz, ms(start)).key;
-  const today = dayInZone(tz, nowMs).key;
-  const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
-  if (key === today) return "Today";
-  if (key === tomorrow) return "Tomorrow";
-  return dateFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
-    new Date(ms(start))
-  );
-}
-function visitTime(v, tz) {
-  if (v.allDay || v.all_day) return "all day";
-  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
-  const a = f.format(new Date(ms(v.start)));
-  const b = f.format(new Date(ms(v.end)));
-  const sameHalf = a.slice(-2) === b.slice(-2);
-  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
-}
-function visitDateKey(start, tz) {
-  return dayInZone(tz, ms(start)).key;
-}
-function visitStartTime(v, tz) {
-  if (v.allDay || v.all_day) return "all day";
-  return dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
-}
-function visitLine(v, tz, nowMs) {
-  return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
-}
-function describeVisits(visits, tz, nowMs, opts) {
-  const out = [];
-  if (visits.next) {
-    const n = visits.next;
-    out.push(
-      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} \u2014 nothing is changed from here.`
-    );
-  }
-  if (visits.last) {
-    const l = visits.last;
-    out.push(
-      `Their last visit on the calendar: ${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`
-    );
-  }
-  return out.length ? out.join(" ") : null;
-}
-function feedSourceLabel(url) {
-  if (!url) return "your calendar";
-  let host;
-  try {
-    host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
-  } catch {
-    return "your calendar";
-  }
-  if (host.includes("google")) return "Google Calendar";
-  if (host.includes("icloud")) return "Apple Calendar";
-  if (host.includes("office365") || host.includes("outlook") || host.includes("live.com")) return "Outlook";
-  return "your calendar";
-}
-function eventText(raw, max = 1500) {
-  if (!raw) return null;
-  const text = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (!text) return null;
-  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
-}
-function toVisitDto(v) {
-  return v ? {
-    id: v.id,
-    start: new Date(v.start).toISOString(),
-    end: new Date(v.end).toISOString(),
-    title: v.title,
-    all_day: v.allDay,
-    via: v.via
-  } : null;
-}
-var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
-var CAPITAL = /^\p{Lu}/u;
-function guessName(item, services = []) {
-  const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
-  const organizer = item.organizer?.toLowerCase() || null;
-  const guest = (item.attendees ?? []).filter((a) => !organizer || a.email?.toLowerCase() !== organizer).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
-  if (guest) return guest.slice(0, 80);
-  const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
-  const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
-  for (const part of parts2) {
-    if (svc.has(part.toLowerCase())) continue;
-    const words2 = part.split(/\s+/);
-    if (words2.length < 2 || words2.length > 4) continue;
-    if (!words2.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
-    if (words2.some((w) => svc.has(w.toLowerCase()))) continue;
-    return part;
-  }
-  return null;
-}
-function peopleFromItems(items, services, nowMs, window = {}) {
-  const from = nowMs - (window.backDays ?? 30) * DAY_MS;
-  const to = nowMs + (window.aheadDays ?? 90) * DAY_MS;
-  const byPhone = /* @__PURE__ */ new Map();
-  const ridersOf = /* @__PURE__ */ new Map();
-  const better = (a, b) => {
-    const aUp = a.start >= nowMs;
-    const bUp = b.start >= nowMs;
-    if (aUp !== bUp) return aUp;
-    return aUp ? a.start < b.start : a.start > b.start;
-  };
-  for (const it of items) {
-    if (it.end < from || it.start > to) continue;
-    const found = extractContacts(it, NO_OWN_ADDRESSES);
-    const phones = found.phones;
-    if (!phones.length) continue;
-    for (const e of found.emails) {
-      const riders = ridersOf.get(e) ?? /* @__PURE__ */ new Set();
-      for (const phone of phones) riders.add(phone);
-      ridersOf.set(e, riders);
-    }
-    const email = phones.length === 1 && found.emails.length === 1 ? normalizeEmail(found.emails[0]) : null;
-    const name = guessName(it, services);
-    for (const phone of phones) {
-      const row2 = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start, email };
-      const have = byPhone.get(phone);
-      if (!have) {
-        byPhone.set(phone, row2);
-        continue;
-      }
-      const [keep, other] = better(row2, have) ? [row2, have] : [have, row2];
-      byPhone.set(phone, { ...keep, name: keep.name ?? other.name, email: keep.email ?? other.email });
-    }
-  }
-  return [...byPhone.values()].map((r2) => r2.email && (ridersOf.get(r2.email)?.size ?? 0) > 1 ? { ...r2, email: null } : r2).sort((a, b) => a.start - b.start);
-}
-function afterPersonRefused(code2) {
-  return code2 === "22023" || code2 === "PE001" ? "skip" : "stop";
-}
-function bookedAfterAsk(visits, askedMs) {
-  if (!visits) return false;
-  return visitAnswersAsk(visits.next ? visits.next.start : null, visits.last ? visits.last.start : null, askedMs);
-}
-function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
-  if (nextStartMs !== null) return true;
-  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
-}
-function toBookingReportVM(dto) {
-  if (!dto || dto.calendar === "none")
-    return {
-      present: false,
-      calendar: "none",
-      headline: "\u2014",
-      sub: "Connect your calendar under Settings \u203A Business to see who booked.",
-      words: "",
-      pct: null,
-      asked: 0,
-      booked: 0,
-      unbooked: 0,
-      rest: ""
-    };
-  if (dto.calendar === "unavailable")
-    return {
-      present: false,
-      calendar: "unavailable",
-      headline: "\u2014",
-      sub: "Your calendar could not be read.",
-      words: "",
-      pct: null,
-      asked: dto.asked,
-      booked: 0,
-      unbooked: 0,
-      rest: ""
-    };
-  if (dto.asked === 0)
-    return {
-      present: true,
-      calendar: "ok",
-      headline: "Nobody asked",
-      sub: `nobody wrote or called in the last ${plural(dto.days, "day")}`,
-      words: "",
-      pct: null,
-      asked: 0,
-      booked: 0,
-      unbooked: 0,
-      rest: ""
-    };
-  const pct3 = Math.round(dto.booked / dto.asked * 100);
-  const words2 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
-  const unbooked = dto.asked - dto.booked;
-  return {
-    present: true,
-    calendar: "ok",
-    headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct3}% ${words2}`,
-    words: words2,
-    pct: pct3,
-    asked: dto.asked,
-    booked: dto.booked,
-    unbooked,
-    // The other side of the same share, said once: who is still waiting to be
-    // given a time. It is the half an owner can do something about.
-    rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
-  };
-}
-
 // src/calendar/calendar-views.ts
 function spanForView(view, anchor) {
   if (view === "month") return monthSpan(anchor);
@@ -12100,6 +12442,10 @@ function instantsOf(lines, fallbackTz) {
   }
   return out;
 }
+var seriesOf = (occurrence) => occurrence === null ? {} : { occurrence };
+function dueAt(rid, fallbackTz) {
+  return rid ? toMs(rid.value, rid.params, fallbackTz) : null;
+}
 function parseIcs(text, fallbackTz, opts = {}) {
   const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
   const busy = [];
@@ -12173,7 +12519,6 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const title = unescapeText(p.SUMMARY?.value ?? "");
     const description = unescapeText(p.DESCRIPTION?.value ?? "") || null;
     const location = unescapeText(p.LOCATION?.value ?? "") || null;
-    const guests = r2.attendees.slice();
     const allDay = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim());
     const uid = p.UID?.value.trim() || null;
     const org = p.ORGANIZER?.value.trim() ?? "";
@@ -12182,9 +12527,10 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
     const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
-    const push = (o) => {
+    const words2 = { title, allDay, uid, description, location, attendees: r2.attendees.slice(), organizer };
+    const push = (o, occurrence = null) => {
       busy.push(o);
-      items.push({ ...o, title, allDay, uid, description, location, attendees: guests, organizer });
+      items.push({ ...o, ...words2, ...seriesOf(occurrence) });
     };
     if (p.RRULE && !isOverride && rule && local) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
@@ -12194,28 +12540,28 @@ function parseIcs(text, fallbackTz, opts = {}) {
       for (const o of occ) {
         if (!seen.has(o.start)) {
           seen.add(o.start);
-          push(o);
+          push(o, o.start);
         }
       }
       for (const ms2 of instantsOf(r2.rdates, fallbackTz)) {
         if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
         seen.add(ms2);
-        push({ start: ms2, end: ms2 + dur });
+        push({ start: ms2, end: ms2 + dur }, ms2);
       }
       recurringExpanded++;
     } else if (!p.RRULE && r2.rdates.length && !isOverride) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
       const seen = /* @__PURE__ */ new Set([start]);
-      push({ start, end });
+      push({ start, end }, start);
       for (const ms2 of instantsOf(r2.rdates, fallbackTz)) {
         if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
         seen.add(ms2);
-        push({ start: ms2, end: ms2 + dur });
+        push({ start: ms2, end: ms2 + dur }, ms2);
       }
       recurringExpanded++;
     } else {
       if (p.RRULE && !isOverride) skippedRecurring++;
-      push({ start, end });
+      push({ start, end }, dueAt(p["RECURRENCE-ID"], fallbackTz));
     }
   }
   busy.sort((a, b) => a.start - b.start);
@@ -13099,6 +13445,12 @@ var EVENT_KINDS = [
    * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
    */
   "person.resolved",
+  /**
+   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00346, decision 0002): { change: added
+   * | moved | vanished | back | kept, source, starts_at }, never its title. On the appointment; hidden from the activity
+   * log unless asked for by name, since a calendar read writes one per appointment.
+   */
+  "appointment.changed",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -16672,289 +17024,6 @@ function lastWordOf(dto) {
   }
   const said = lastWordLine(false, last, messageAuthor(last));
   return failedBy ? { text: `${said} \u2014 the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" } : { text: `${said} \u2014 no one asked for you.`, tone: "ok", short: null };
-}
-
-// src/deals/deal-amount.ts
-function amountWords(cents, per, currency = "USD") {
-  if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
-  const whole = cents % 100 === 0;
-  const money2 = numberFormat("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2
-  }).format(cents / 100);
-  const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
-  return p && per !== "once" ? `${money2} ${p}` : money2;
-}
-function parseAmount(words2) {
-  const digits2 = String(words2 || "").replace(/[^0-9.-]/g, "");
-  const n = digits2 ? Number(digits2) : NaN;
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
-}
-function amountTotalsWords(items) {
-  const order = ["once", "month", "year"];
-  const sums = /* @__PURE__ */ new Map();
-  for (const i of items) {
-    if (i.amount_cents === null || i.amount_cents === void 0 || !Number.isFinite(i.amount_cents)) continue;
-    const per = i.per === "month" || i.per === "year" ? i.per : "once";
-    const currency = (i.currency || "USD").toUpperCase();
-    const key = `${per}|${currency}`;
-    const s = sums.get(key) ?? { cents: 0, per, currency };
-    s.cents += i.amount_cents;
-    sums.set(key, s);
-  }
-  if (!sums.size) return null;
-  return [...sums.values()].sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency)).map((s) => amountWords(s.cents, s.per, s.currency)).join(" + ");
-}
-
-// src/shared/link.ts
-var MAX_LINK = 500;
-var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
-function normalizeLink(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s || /\s/.test(s)) return null;
-  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
-  if (withScheme.length > MAX_LINK) return null;
-  let u;
-  try {
-    u = new URL(withScheme);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (!HOST.test(u.hostname)) return null;
-  return withScheme;
-}
-function whyNotALink(raw) {
-  if (normalizeLink(raw)) return null;
-  const s = String(raw ?? "").trim();
-  if (!s) return "A web address is needed.";
-  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
-  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
-  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
-  return "That needs a full web address, like docs.example.com/proposal.";
-}
-function linkHost(url) {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
-// src/deals/deal-vm.ts
-function dealFactsOf(r2) {
-  if (!r2 || !isDealStage(r2.deal_stage)) return null;
-  return {
-    stage: r2.deal_stage,
-    service: r2.deal_service ?? null,
-    proposed_at: r2.deal_proposed_at ?? null,
-    decided_at: r2.deal_decided_at ?? null,
-    ended_at: r2.deal_ended_at ?? null,
-    amount_cents: r2.deal_amount_cents ?? null,
-    per: r2.deal_per ?? null,
-    currency: r2.deal_currency ?? null,
-    proposal_url: r2.deal_proposal_url ?? null,
-    valid_until: r2.deal_valid_until ?? null,
-    lost_reason: r2.deal_lost_reason ?? null
-  };
-}
-function pickCurrentDeal(rows) {
-  const sorted = [...rows].sort(
-    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
-  );
-  return sorted[0] ?? null;
-}
-function dealIsOpen(d) {
-  return !!d && (d.stage === "proposed" || d.stage === "won");
-}
-function proposalLinkOf(current, personLink) {
-  if (!current) return personLink?.trim() || null;
-  if (current.stage !== "proposed") return null;
-  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
-}
-function wholeDaysSince(atMs, nowMs) {
-  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
-}
-function dealSinceMs(d) {
-  const at3 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
-  const ms2 = at3 ? Date.parse(at3) : NaN;
-  return Number.isFinite(ms2) ? ms2 : null;
-}
-function validUntilOf(day, tz, nowMs) {
-  if (!day || !isRealDate(day)) return null;
-  const at3 = wallClockAt(tz, day, 12, 0);
-  if (!Number.isFinite(at3)) return null;
-  const lapsed = zoneDayKey(nowMs, tz) > day;
-  const date = clockDate(at3, tz, nowMs);
-  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
-}
-function toDealVM(d, tz, nowMs) {
-  if (!isDealStage(d.stage)) return null;
-  const sinceMs = dealSinceMs(d);
-  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
-  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
-  const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
-  const url = d.proposal_url?.trim() || null;
-  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
-  const word = DEAL_STAGE_WORDS[d.stage];
-  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
-  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
-  return {
-    id: d.id ?? null,
-    version: d.version ?? null,
-    stage: d.stage,
-    word,
-    service: d.service,
-    sinceMs,
-    since,
-    said,
-    line,
-    facts,
-    brief,
-    waitingDays,
-    amount,
-    amountCents: d.amount_cents === null || d.amount_cents === void 0 || !Number.isFinite(d.amount_cents) ? null : d.amount_cents,
-    per: isDealPer(d.per) ? d.per : null,
-    currency: d.currency || "USD",
-    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
-    proposal: url ? { url, host: linkHost(url) } : null,
-    validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
-    reason: d.stage === "lost" && isDealLostReason(d.lost_reason) ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] } : null
-  };
-}
-function dealOf(r2, tz, nowMs) {
-  const f = dealFactsOf(r2);
-  return f ? toDealVM({ ...f, id: r2?.deal_id ?? null }, tz, nowMs) : null;
-}
-var strOrNull = (v) => typeof v === "string" ? v : null;
-function openDealsFromJson(j) {
-  if (j === void 0) return void 0;
-  if (!Array.isArray(j)) return null;
-  const out = [];
-  for (const x of j) {
-    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
-    const o = x;
-    const id = strOrNull(o.id);
-    const stage = strOrNull(o.stage);
-    if (!id || !stage) continue;
-    out.push({
-      id,
-      stage,
-      service: strOrNull(o.service),
-      proposed_at: strOrNull(o.proposed_at),
-      decided_at: strOrNull(o.decided_at),
-      ended_at: strOrNull(o.ended_at),
-      amount_cents: typeof o.amount_cents === "number" ? o.amount_cents : null,
-      per: strOrNull(o.per),
-      currency: strOrNull(o.currency),
-      proposal_url: strOrNull(o.proposal_url),
-      valid_until: strOrNull(o.valid_until),
-      lost_reason: strOrNull(o.lost_reason)
-    });
-  }
-  return out;
-}
-function openDealsOf(r2, tz, nowMs) {
-  if (!r2) return [];
-  if (r2.open_deals === void 0) {
-    const one = dealOf(r2, tz, nowMs);
-    return one && dealIsOpen(one) ? [one] : [];
-  }
-  return (r2.open_deals ?? []).map(
-    (x) => dealOf(
-      {
-        deal_id: x.id,
-        deal_stage: x.stage,
-        deal_service: x.service,
-        deal_proposed_at: x.proposed_at,
-        deal_decided_at: x.decided_at,
-        deal_ended_at: x.ended_at,
-        deal_amount_cents: x.amount_cents,
-        deal_per: x.per,
-        deal_currency: x.currency,
-        deal_proposal_url: x.proposal_url,
-        deal_valid_until: x.valid_until,
-        deal_lost_reason: x.lost_reason
-      },
-      tz,
-      nowMs
-    )
-  ).filter((d) => d !== null && dealIsOpen(d));
-}
-function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
-  if (!d || !isDealStage(d.stage)) return null;
-  const svc = d.service ? ` (${d.service})` : "";
-  const sinceMs = dealSinceMs(d);
-  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
-  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
-  switch (d.stage) {
-    case "won":
-      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
-    case "proposed":
-      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
-    case "lost":
-      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
-    case "ended":
-      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
-  }
-}
-
-// src/deals/deal-consultations.ts
-var CONSULT_FOLLOW_DAYS = 7;
-function consultServiceOf(title, services, rules) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return null;
-  let best = null;
-  for (const s of services ?? []) {
-    const name = String(s.name ?? "").trim();
-    const folded = foldName(name);
-    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
-    if (!best || folded.length > best.folded.length) best = { name, folded };
-  }
-  return best ? best.name : null;
-}
-function isConsultationTitle(title, services, rules) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return false;
-  if (t.includes("consult")) return true;
-  return consultServiceOf(title, services, rules) !== null;
-}
-function noProposalSince(deal, endedMs) {
-  if (!deal) return true;
-  if (dealIsOpen(deal)) return false;
-  return deal.sinceMs !== null && deal.sinceMs < endedMs;
-}
-function consultationHeld(r2, nowMs) {
-  const at3 = r2.consultedMs;
-  if (typeof at3 !== "number" || !Number.isFinite(at3)) return false;
-  if (at3 > nowMs || nowMs - at3 > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
-  return noProposalSince(r2.deal, at3);
-}
-function dealStageOf(r2, nowMs) {
-  if (consultationHeld(r2, nowMs)) return "consultation";
-  const d = r2.deal;
-  if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
-  if (r2.consultAhead) return "consultation";
-  return d ? d.stage : null;
-}
-function dealStagesOf(stage, open) {
-  const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
-  return [...new Set(stage ? [stage, ...theirs] : theirs)];
-}
-function consultationsWithoutProposal(rows, nowMs) {
-  const endOf = (r2) => r2.consultedMs;
-  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
-    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
-  );
-}
-function consultsHeldWords(n) {
-  return `${n} held in the last week, no proposal yet`;
 }
 
 // src/deals/deal-report.ts
@@ -27368,6 +27437,8 @@ var SCHEMA_SETS = {
     "reach_out_check",
     "reply_read"
   ],
+  "appointments.source": ["calendar_feed", "booking_tool", "person"],
+  "appointments.status": ["proposed", "booked", "kept", "missed", "cancelled"],
   "ask_messages.role": ["user", "assistant"],
   "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
   "ask_voice_sessions.language": ["en", "es", "other"],
@@ -32561,7 +32632,9 @@ var ACTIVITY_NOISE_KINDS = [
   "booking_link.sent",
   "channel.quality_rating",
   // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
-  "person.resolved"
+  "person.resolved",
+  // The calendar's hourly read, one row per appointment it kept (00346, decision 0002): the calendar is where they read it.
+  "appointment.changed"
 ];
 var isActivityMoney = (row2) => row2.category === "billing";
 var WORDS2 = {
@@ -32634,6 +32707,7 @@ var WORDS2 = {
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
   "person.resolved": "A door resolved who a person is",
+  "appointment.changed": "An appointment on the calendar changed",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -32737,7 +32811,9 @@ var CONVERTED_HOW = {
   call: "after a call",
   reply: "they wrote back",
   booking: "they booked",
-  deal: "a deal was opened"
+  deal: "a deal was opened",
+  arrived: "they got in touch",
+  added: "they were added to People"
 };
 function readingWords(kind, p, base) {
   if (kind === "lead.converted") {
@@ -33593,6 +33669,8 @@ export {
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
   ANGLE_WORDS_MAX,
+  APPOINTMENT_SOURCES,
+  APPOINTMENT_STATUSES,
   APP_KEYS_RESIZE_CLASS,
   APP_ROUTE_RE,
   ASK_ANSWER_CAPS,
@@ -34372,6 +34450,9 @@ export {
   answeredYes,
   applyReadState,
   applySettingsChange,
+  appointmentHolds,
+  appointmentKeyOf,
+  appointmentKeysOf,
   approvalWordsOf,
   areaCodeOf,
   asContactId,
@@ -34648,6 +34729,7 @@ export {
   fallbackMessages,
   fallbackModel,
   fallbacksWords,
+  feedAppointmentRows,
   feedBodyProblem,
   feedNotes,
   feedProblemWords,
@@ -35389,6 +35471,7 @@ export {
   sendingDomainsFootWords,
   sentByWords,
   serverNotificationRows,
+  serviceNamedIn,
   serviceOf2 as serviceOf,
   serviceSuggestionsOf,
   serviceUndoName,

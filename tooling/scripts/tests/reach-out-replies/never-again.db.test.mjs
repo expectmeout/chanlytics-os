@@ -7,7 +7,7 @@
  *     undo puts the answer back only while that reply is what holds it (never after an unsubscribe or a complaint);
  *   - D18: a reply's no counts beside an unsubscribe, until it is undone;
  *   - the dated-step door: a step for the team, once per source, the person's next step on People;
- *   - the converter: lead_convert_by, and the member's Interested through it (lead_link_contact still converts on its own);
+ *   - the converter: lead_convert_by, and the member's Interested through it (and, since 00345, the person door's link);
  *   - every re-created body equals its source's but for the lines it meant to change, and the new doors are closed to
  *     a session.
  * The migration is applied twice by the replay (Task 2.5's eighth), not here. Local stack only: it makes workspaces,
@@ -513,7 +513,9 @@ test(
     assert.deepEqual(convert(ready, "reply", false, B), { moved: false, version: null }, "only the workspace's own");
     assert.deepEqual(convert(closed, "deal", true), { moved: true, version: 2 }, "any stage, when asked");
     assert.equal((await leadRow(talking)).converted_at, "2026-09-02T12:00:00+00:00");
-    assert.throws(() => convert(nurture, "click"), /how must be call, reply, booking or deal/);
+    assert.throws(() => convert(nurture, "click"), /how must be call, reply, booking, deal, arrived or added/);
+    // The person door's two words (00345): their person wrote or called, or was named by a member, a file or a feed.
+    for (const how of ["arrived", "added"]) assert.equal(convert(await lead(), how).moved, true, how);
 
     const denied = await db.rpc("lead_convert_by", { p_tenant_id: A, p_lead_id: ready, p_how: "reply" });
     assert.ok(denied.error, "only definer doors call it: the service role holds no EXECUTE");

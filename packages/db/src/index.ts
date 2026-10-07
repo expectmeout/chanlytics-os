@@ -425,4 +425,6 @@ export {
   keepChannelStanding,
 } from "./sweeps";
 export type { DuePage, DuePlaybook, DueCalendar, WhatsappNumber } from "./sweeps";
+export { syncFeedAppointments, appointmentStates } from "./appointments";
+export type { AppointmentSync } from "./appointments";
 export type { Database, Json } from "./database.types";

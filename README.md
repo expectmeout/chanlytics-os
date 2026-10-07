@@ -12,9 +12,9 @@ Playbooks and broadcasts send the routine messages around an appointment, to
 the people who said yes.
 
 It does not book. The booking tool behind the link does that, and the
-receptionist is told never to confirm a slot itself: there is no appointments
-table here, and nothing in the product can create, move or cancel one
-(`docs/decisions/0002-appointments-record.md` proposes the record). It does
+receptionist is told never to confirm a slot itself. The owner's calendar is
+kept as a record (`appointments`, decision 0002): the hourly sweep writes what
+the feed says, and nothing in the product creates, moves or cancels one. It does
 not decide money: the money class of the Autonomy matrix is locked to `never`
 by a database trigger, the prompt says so, and a deterministic check after
 generation holds any reply that names a refund, a discount, a coupon, a deposit

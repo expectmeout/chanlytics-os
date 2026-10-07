@@ -688,6 +688,18 @@ test("a lead's life says what happened, from the fields its writers file, in the
   assert.equal(activityWords("lead.not_a_fit", { why: null, by: "u1" }), "A lead was marked not a fit");
   assert.equal(activityWords("lead.not_a_fit", { why: null, count: 3, bulk: true }), "3 leads were marked not a fit");
   assert.equal(activityWords("lead.not_a_fit", { why: null, count: 1, bulk: true }), "1 lead was marked not a fit");
+  // lead.converted's how: the converter's four doors, and the person door's link (00345) for a person who got in touch
+  // or was added with the lead's number or address.
+  assert.equal(activityWords("lead.converted", { how: "call", by: "u1" }), "A lead is Talking · after a call");
+  assert.equal(
+    activityWords("lead.converted", { how: "arrived", contact_id: "c1", source: "inbound" }),
+    "A lead is Talking · they got in touch",
+  );
+  assert.equal(
+    activityWords("lead.converted", { how: "added", contact_id: "c1", source: "import" }),
+    "A lead is Talking · they were added to People",
+  );
+  assert.equal(activityWords("lead.converted", { how: "mystery" }), "A lead is Talking");
 });
 
 test("a WhatsApp connection, a milestone and a held review reply say what they are, naming the few fields their writers file", () => {
