@@ -279,7 +279,7 @@ function inviteRow(o: {
   return (
     <div className="set-invite">
       <input
-        className="sd-input"
+        className="rec-input set-invite-email"
         type="email"
         placeholder="teammate@email.com"
         value={o.email}

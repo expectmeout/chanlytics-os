@@ -391,7 +391,6 @@
      ‹ People. The arrow stood in a column of its own beside the avatar, so every line under the name began 102px in
      and wrapped, and the head had three left edges. Now it starts at the page's edge, the avatar a mark beside the name. */
   .cl-prof-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "id" "acts"; gap: 14px; }
-  .cl-prof-hero > .cl-prof-back { display: none; }
   .cl-prof-id { align-items: flex-start; gap: 10px; }
   .cl-prof-name { font-size: var(--text-xl); }
   /* The acts take the row under who they are, the page's full width, a thumb's height each: the thread and a send
