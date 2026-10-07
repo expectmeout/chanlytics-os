@@ -2,6 +2,7 @@
  * A calendar feed as iCal text (RFC 5545): its folded lines unfolded and split into a name, parameters and a value,
  * and a value read as text, an instant, a wall-clock time or a duration. feed.ts reads the events out of them.
  */
+import { zoneOfTzid } from "./ics-zones";
 import { localToUtcMs, zoneParts } from "./zone-math";
 
 /* ------------------------------------------------------------ the feed */
@@ -68,7 +69,8 @@ export function splitLine(line: string): { name: string; params: Record<string, 
 /**
  * An iCal date-time to an instant.
  *  - "20260909T180000Z"  → UTC
- *  - "20260909T140000" with TZID → that zone; without → `fallbackTz`
+ *  - "20260909T140000" with TZID → that zone, by whichever name the feed's writer gave it (ics-zones.ts); without, or
+ *    with a name nobody knows → `fallbackTz`
  *  - "20260909" (VALUE=DATE) → midnight in `fallbackTz`; `endOfDay` for DTEND
  */
 export function toMs(value: string, params: Record<string, string>, fallbackTz: string): number | null {
@@ -83,12 +85,8 @@ export function toMs(value: string, params: Record<string, string>, fallbackTz: 
   if (!m) return null;
   const [, y, mo, d, hh, mm, ss, z] = m;
   if (z) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
-  const tz = params.TZID ?? fallbackTz;
-  try {
-    return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1000;
-  } catch {
-    return localToUtcMs(fallbackTz, Number(y), Number(mo), Number(d), Number(hh), Number(mm));
-  }
+  const tz = zoneOfTzid(params.TZID, fallbackTz);
+  return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1000;
 }
 
 /** The wall-clock parts of an iCal date-time in the zone it names (or the
@@ -115,7 +113,8 @@ export function localPartsOf(
     return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
   }
   return {
-    tz: params.TZID ?? fallbackTz,
+    // A zone the clock reads: the series is stepped with it, and a name it did not know threw there (ics-zones.ts).
+    tz: zoneOfTzid(params.TZID, fallbackTz),
     y: Number(m[1]),
     m: Number(m[2]),
     d: Number(m[3]),
