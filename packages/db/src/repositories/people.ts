@@ -184,6 +184,28 @@ export async function erasureDigests(db: Db, tenantId: string, values: string[])
   return out;
 }
 
+/**
+ * An erasure's hand in other people's notes (person_notes_scrub, 00341; decision 0036): each of the person's numbers
+ * and addresses (`needles`, erasureKeys) overwritten with "[erased]" in place, in every note of the workspace but the
+ * person's own, which go with them. Nothing is deleted and names are left. Answers how many notes changed. Service role.
+ */
+export async function scrubPersonNotes(
+  db: Db,
+  tenantId: string,
+  contactId: string,
+  needles: readonly string[],
+): Promise<number> {
+  const { data, error } = await db.rpc("person_notes_scrub", {
+    p_tenant_id: tenantId,
+    p_contact_id: contactId,
+    p_needles: [...needles],
+  });
+  // A database before 00341 has no scrub, and the notes stay as they were: the dashboard may deploy first (either order).
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`person_notes_scrub: ${error.message}`);
+  return data ?? 0;
+}
+
 /** What the merge door answers (merge_people, 00326): the kept record, the merged one, and what moved. */
 interface MergedPeople {
   contact_id: string;

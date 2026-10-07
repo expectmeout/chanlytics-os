@@ -221,19 +221,27 @@ export function ledgerAgainstBase(ledger, base) {
   return problems;
 }
 
+/** A cell of the CLI's table as a value: since 2.116 each is drawn in backticks, and an empty one as "` `". */
+const cellOf = (cell) => cell.replace(/`/g, "").trim();
+
 /**
- * The versions production has applied, from what `supabase migration list` prints (its Remote column), one version a
- * line, or a JSON array. Throws when nothing in the text is a version.
+ * The versions production has applied, from what `supabase migration list` prints: its table (the Remote column), the
+ * object it prints when it runs under an agent (`{ migrations: [{ local, remote, time }] }`, since 2.116, when AI_AGENT
+ * or CLAUDECODE is set), one version a line, or a JSON array. Throws when nothing in the text is a version.
  */
 export function parseProductionLedger(text) {
   const trimmed = String(text ?? "").trim();
   let versions;
   if (trimmed.startsWith("[")) versions = JSON.parse(trimmed).map(String);
-  else
+  else if (trimmed.startsWith("{")) {
+    const listed = JSON.parse(trimmed).migrations;
+    if (!Array.isArray(listed)) throw new Error("production's ledger is an object with no migrations list");
+    versions = listed.map((m) => String(m?.remote ?? "").trim());
+  } else
     versions = trimmed
       .split(/\r?\n/)
-      .map((line) => (/[|\u2502]/.test(line) ? (line.split(/[|\u2502]/)[1] ?? "") : line).trim())
-      .filter((v) => /^\d+$/.test(v));
+      .map((line) => cellOf(/[|\u2502]/.test(line) ? (line.split(/[|\u2502]/)[1] ?? "") : line));
+  versions = versions.filter((v) => /^\d+$/.test(v));
   if (!versions.length) throw new Error("no version in production's ledger: nothing to compare");
   return new Set(versions);
 }

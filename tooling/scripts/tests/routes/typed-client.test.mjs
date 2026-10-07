@@ -398,3 +398,29 @@ test("the refresh map names surfaces only for writes, and every key it names is 
     assert.notEqual(ROUTES[k].method, "GET", `${k}: a read refreshes nothing`);
   }
 });
+
+test("once: one intent carries one key from its first send until it lands; the same request after a timeout is the same intent, another body is another", async () => {
+  // Decision 0035's client half. A press that timed out may have done its work on the server; pressed again it must be
+  // the same request, which route() answers once. Landed, the next send is a new intent with a new key.
+  let answer = () => Promise.reject(Object.assign(new Error("timed out"), { name: "TimeoutError" }));
+  const h = harness((url, init) => answer(url, init));
+  const keyOf = (i) => h.sent[i].init.headers["idempotency-key"];
+  const send = (body) => h.api("POST broadcasts", { body, once: true, refresh: false });
+  const body = { name: "October", channel: "whatsapp", template: { name: "hello", language: "en" } };
+
+  assert.equal((await send(body)).ok, false, "the first press timed out");
+  answer = async () => envelope({ id: "b1" });
+  assert.equal((await send(body)).ok, true);
+  assert.ok(keyOf(0), "a key is made at the first send");
+  assert.equal(keyOf(1), keyOf(0), "the press after the timeout is the same intent");
+  await send(body);
+  assert.notEqual(keyOf(2), keyOf(0), "landed: the next send is a new intent");
+  await send({ ...body, name: "November" });
+  assert.notEqual(keyOf(3), keyOf(2), "another body is another request");
+  assert.match(keyOf(2), /^[0-9a-f-]{36}$/);
+
+  await h.api("POST broadcasts", { body, refresh: false });
+  assert.equal(h.sent[4].init.headers["idempotency-key"], undefined, "without once, no key is sent");
+  await h.api("POST broadcasts", { body, once: true, idempotencyKey: "mine", refresh: false });
+  assert.equal(h.sent[5].init.headers["idempotency-key"], "mine", "a key the caller names is the key");
+});

@@ -32,6 +32,9 @@ apps/dashboard/src/legacy/
 apps/edge/public/
 apps/dashboard/public/
 
+# Copied as a program printed them: a fixture of real output is its bytes
+tooling/scripts/tests/fixtures/supabase-migration-list-*
+
 # Not JavaScript's to format
 supabase/
 .claude/

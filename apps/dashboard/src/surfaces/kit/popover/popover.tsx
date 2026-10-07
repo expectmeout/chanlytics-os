@@ -9,6 +9,9 @@
  * turns over where there is no room, placed by Base UI against the window in a portal on the document's body. The
  * kit writes none of it.
  *
+ * `defaultOpen` opens it as it is first drawn: for a popover a page loads on demand, drawn in place of a control that
+ * was pressed before it had loaded (Reports' period), so the press opens what it asked for.
+ *
  * It draws what the gallery's Panel family draws for a pop (tooling/scripts/e2e-harness/kit-gallery.mjs), which
  * e2e/kit/kit-behaves.spec.ts holds to it in a browser. `className` is for the page's layout (its width), and comes
  * last; the ref reaches the popover.
@@ -30,6 +33,8 @@ export type PopoverProps = {
   size?: "md" | "sm" | "flush";
   side?: "top" | "bottom";
   align?: "start" | "center" | "end";
+  /** Open as it is first drawn; its control opens and closes it after. */
+  defaultOpen?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
 };
@@ -42,11 +47,12 @@ export function Popover({
   size = "sm",
   side = "bottom",
   align = "center",
+  defaultOpen = false,
   className,
   ref,
 }: PopoverProps) {
   return (
-    <BasePopover.Root>
+    <BasePopover.Root defaultOpen={defaultOpen}>
       <BasePopover.Trigger render={trigger} />
       <BasePopover.Portal>
         <BasePopover.Positioner className="pop-place" side={side} align={align} sideOffset={POP_GAP_PX}>

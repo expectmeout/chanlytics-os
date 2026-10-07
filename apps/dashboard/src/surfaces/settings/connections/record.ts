@@ -81,7 +81,7 @@ export const businessRecord: BusinessRecordApi = {
     return { ok: false, message: r.message, title: r.title, problems: { ...(r.fields ?? {}) } };
   },
   async register(lineId) {
-    const r = await api()("POST lines/register", { body: { line_id: lineId } });
+    const r = await api()("POST lines/register", { body: { line_id: lineId }, once: true });
     if (!r.ok) return { ok: false, pending: false, message: r.message };
     const pending = r.data.pending === true;
     return {

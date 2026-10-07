@@ -24,7 +24,7 @@ import {
   tableOf,
   underFloors,
 } from "../../checks/coverage.mjs";
-import { withoutCoverage } from "../../checks/tap-reporter.mjs";
+import { failuresLast, noteFailures, withoutCoverage } from "../../checks/tap-reporter.mjs";
 import { ROOT } from "../_source.mjs";
 
 const made = [];
@@ -286,6 +286,69 @@ test("the reporter drops the runner's coverage table and keeps everything else",
   const kept = [];
   for await (const e of withoutCoverage(events)) kept.push(e.type);
   assert.deepEqual(kept, ["test:pass", "test:diagnostic"]);
+});
+
+test("the reporter names each failed test again at the run's end: its name, where, and the first line of why, never a parent for its subtests", async () => {
+  const at = (rel, line) => ({ file: path.join(ROOT, rel), line });
+  const events = [
+    { type: "test:pass", data: { name: "passes" } },
+    {
+      type: "test:fail",
+      data: {
+        name: "fails here",
+        ...at("tooling/scripts/tests/x/a.test.mjs", 4),
+        details: { error: { failureType: "testCodeFailure", message: "the reason\nsecond line\n\n1 !== 2\n" } },
+      },
+    },
+    {
+      type: "test:fail",
+      data: {
+        name: "a parent",
+        ...at("tooling/scripts/tests/x/a.test.mjs", 7),
+        details: { error: { failureType: "subtestsFailed", message: "1 subtest failed" } },
+      },
+    },
+  ];
+  const failed = [];
+  const passed = [];
+  for await (const e of noteFailures(events, failed)) passed.push(e.data.name);
+  assert.deepEqual(passed, ["passes", "fails here", "a parent"], "every event goes on to the TAP");
+  assert.equal(
+    failuresLast(failed, ROOT),
+    "# failing tests: 1\n# not ok - fails here (tooling/scripts/tests/x/a.test.mjs:4): the reason\n",
+  );
+  assert.equal(failuresLast([], ROOT), "", "a green run ends on its totals");
+});
+
+test("through Node's own runner, a failed test is named again after the run's totals, its last lines", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coverage-fails-"));
+  made.push(dir);
+  const file = path.join(dir, "fails.test.mjs");
+  fs.writeFileSync(
+    file,
+    [
+      'import { test } from "node:test";',
+      'test("passes", () => {});',
+      'test("fails here", () => { throw new Error("the reason"); });',
+      "",
+    ].join("\n"),
+  );
+  const env = { ...process.env, TZ: "UTC" };
+  // a child of the suite's own runner is told so; a runner started inside it must not be
+  delete env.NODE_TEST_CONTEXT;
+  const run = spawnSync(
+    process.execPath,
+    ["--test", "--test-reporter=./tooling/scripts/checks/tap-reporter.mjs", "--test-reporter-destination=stdout", file],
+    { cwd: ROOT, env, encoding: "utf8" },
+  );
+  assert.equal(run.status, 1, run.stdout + run.stderr);
+  const lines = run.stdout.trimEnd().split("\n");
+  assert.match(run.stdout, /^not ok 2 - fails here$/m, "the TAP says it where it happened, as before");
+  assert.deepEqual(lines.slice(-2), [
+    "# failing tests: 1",
+    `# not ok - fails here (${path.relative(ROOT, file)}:3): the reason`,
+  ]);
+  assert.ok(lines.indexOf("# fail 1") < lines.length - 2, "after the totals");
 });
 
 test("through Node's own runner, the reporter prints TAP with no coverage table and the lcov file names the code it ran", () => {

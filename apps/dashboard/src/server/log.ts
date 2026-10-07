@@ -98,6 +98,8 @@ export const DASHBOARD_LOG_EVENTS = [
   "erase_jobs_prescrub_failed",
   "erase_jobs_scrub_failed",
   "erase_jobs_scrubbed",
+  "erase_notes_prescrub_failed",
+  "erase_notes_scrub_failed",
   "erase_person_policy_failed",
   "erase_storage_failed",
   "erase_sweep_decision_failed",
@@ -175,6 +177,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "unsubscribe_unavailable",
   "waitlist_join",
   "waitlist_repeat_not_updated",
+  "write_receipt_unkept",
   "you_are_live_tell_failed",
 ] as const;
 export type DashboardLogEvent = (typeof DASHBOARD_LOG_EVENTS)[number];

@@ -2,7 +2,8 @@
 
 **Status:** Built, steps 1, 2 and 4 (6 October 2026, 00333 and 00335): the wake, the dedupe key, capacity and turns in
 the claim. Decided on 6 October 2026 (Ruben: "all approved"), with 0031, and proposed the same day; step 3, the three
-indexes retiring, waits one release, and the reach-out sender keeps its own count until its sends are jobs (0031, Phase
+indexes retiring, waits on the dedupe key's index covering what they cover (found on 6 October 2026: they hold a
+subject once in every state but failed, the key's index only while scheduled or fired), and the reach-out sender keeps its own count until its sends are jobs (0031, Phase
 4). Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at
 `6a8e85f` (main, 6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the
 code. Nothing of it is built; the two changes the trace proposed in the ledger's neighbourhood that this note declines
@@ -50,8 +51,8 @@ change the plan.
    so a knock before a row is due is a knock wasted, and `requested_at` could not be the debounce, since the poll's
    own look moves it every ten seconds.
 2. **One dedupe key.** `jobs.dedupe_key text`, with a partial unique index over scheduled and fired rows. The three
-   bespoke indexes retire one release after every caller writes the key. A caller that must schedule once passes the
-   key; `scheduleJobOnce` reads the one 23505.
+   bespoke indexes retire once the key's index covers what they cover, and every caller writes the key. A caller that
+   must schedule once passes the key; `scheduleJobOnce` reads the one 23505.
 3. **Capacity in the claim.** `job_capacity (scope, key, max_in_flight)`: a scope is `workspace`, `provider` or
    `domain`, counted in `claim_due_jobs` against fired rows under a live lease. A job names the keys it spends in its
    payload (`capacity: ["provider:meta", "domain:<id>"]`); the claim skips a row whose key is full. The runner is
@@ -106,10 +107,14 @@ milliseconds at 30,000 due rows on the replayed stack.
 alone; an edge that is not deployed answers the knock as it answers pg_cron's.
 
 **2 · The dedupe key.** Built, 00333: the column and the index; `scheduleJobOnce` writes the key beside its payload
-for the three kinds, and writes none to a database that has no column yet; the three indexes stay one release. _Both
+for the three kinds, and writes none to a database that has no column yet; the three indexes stay (step 3). _Both
 orders:_ an older edge writes no key and trips the old index as today.
 
-**3 · The three indexes retire.** _Both orders:_ every writer carries the key.
+**3 · The three indexes retire.** Not yet: each holds its subject once in every state but `failed`, so an email
+replayed after its intake is done, a lead batch after its collect, or a read after its reply, schedules nothing, while
+`jobs_dedupe_live` holds a key only while the row is scheduled or fired. Dropped as they are, a replay after the job
+finished would run it again. They retire when a key's index covers a finished row too, for the kinds that need it,
+and every writer carries the key. _Both orders:_ every writer carries the key.
 
 **4 · Capacity and fairness in the claim.** Built, 00335: the table, the clauses, `jobs/jobs-lanes.db.test.mjs`
 grown by the cases below. The reach-out sender's per-domain count is not a jobs row today

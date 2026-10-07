@@ -165,8 +165,13 @@ const cls = (tree, c) => find(tree, (n) => classes(n).includes(c));
 const { Segmented } = await import(`${S}/surfaces/kit/segmented/segmented.tsx`);
 const { Field } = await import(`${S}/surfaces/kit/field/field.tsx`);
 const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
-const { Tooltip } = await import(`${S}/surfaces/kit/tooltip/tooltip.tsx`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
+const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
+const { MonthRange } = await import(`${S}/surfaces/kit/datepicker/month-range.tsx`);
+// What the period's button opens loads on demand in the app (period-picker.tsx, held by periods/period-picker.test.mjs); the page's
+// tests read and press it open, so it is loaded first, as a pointer on the button loads it.
+const { loadPeriodPopover } = await import(`${S}/surfaces/reports/period-picker.tsx`);
+await loadPeriodPopover();
 /**
  * What a person sees of the page: its tree, and on a desk what it said to the frame's head as its act (the period, at the right of
  * the strip of lenses), which the frame draws beside it. The stub's window is a desk's: it matches no width query.
@@ -636,7 +641,7 @@ test("the head names Reports on every lens with no way back above it: a lens is 
   lensAt = LENS_PATHS[0];
 });
 
-test("the period control is the kit's Segmented over the table's periods, each option with a test id", () => {
+test("the period is a round button that opens the table's periods, each with a test id, the days in words and on a month", () => {
   const tree = page();
   const c = control(tree);
   assert.deepEqual(
@@ -649,10 +654,39 @@ test("the period control is the kit's Segmented over the table's periods, each o
     ],
   );
   assert.equal(c.props.label, "Period");
-  // The zone the days follow is the kit's tooltip over the dates (a native title reaches nobody on a keyboard); the dates are on screen.
-  const dates = find(byTestId(seen(tree), "reports-period"), (n) => n.type === Tooltip);
-  assert.match(dates.props.tip, /^Days follow /);
-  assert.ok(textOf(dates.props.children).includes(" to "), "the days themselves are words on the page");
+  const period = byTestId(seen(tree), "reports-period");
+  const pop = find(period, (n) => n.type === Popover);
+  // A glyph alone, as the Calendar's options are, opening it: named for a screen reader by the period and its days.
+  const open = pop.props.trigger;
+  assert.equal(open.props["data-testid"], "reports-period-open");
+  assert.equal(open.props.iconOnly, true);
+  assert.equal(open.props["aria-label"], "Period: Last 7 days, Aug 29 – Sep 4");
+  assert.equal(pop.props.label, "Period", "what it opens names itself");
+  assert.equal(textOf(byTestId(pop, "reports-period-range")), "Aug 29 – Sep 4", "the days in words");
+  assert.match(textOf(cls(pop, "rpt-when-said")), /^Last 7 days · .+ time$/, "the period and the zone the days follow");
+  const month = find(pop, (n) => n.type === MonthRange);
+  assert.deepEqual(
+    [month.props.from, month.props.to, month.props.today],
+    ["2026-08-29", "2026-09-04", "2026-09-04"],
+    "and on a month: the window's first day to today",
+  );
+});
+
+test("the window picked shows at once, before its read lands: Month is the 1st to today", async () => {
+  await inPeriodTest("hold", async () => {
+    let tree = page();
+    choose(tree, "Month");
+    tree = redraw();
+    const pop = find(seen(tree), (n) => n.type === Popover);
+    assert.equal(
+      textOf(byTestId(pop, "reports-period-range")),
+      "Sep 1 – Sep 4",
+      "said at once, from the business's today",
+    );
+    assert.match(textOf(cls(pop, "rpt-when-said")), /^This month so far · /);
+    const month = find(pop, (n) => n.type === MonthRange);
+    assert.deepEqual([month.props.from, month.props.to], ["2026-09-01", "2026-09-04"]);
+  });
 });
 
 test("a period on its way keeps the one showing, dimmed by the one rule every page uses, and says it is busy", async () => {
@@ -1022,7 +1056,7 @@ test("REGRESSION: a tile is a number, what it is and one line under it; the head
     head &&
       find(head, (n) => n.type === Segmented) &&
       chosen(head) === "7 days" &&
-      textOf(find(head, (n) => n.type === Tooltip)?.props.children).includes("Aug 29 to Sep 4"),
+      textOf(cls(head, "rpt-dates")) === "Aug 29 – Sep 4",
     `the period and its days: ${textOf(head)}`,
   );
   const said = textOf(tree);
@@ -1151,34 +1185,37 @@ test("REGRESSION: recording a deal re-reads Reports as well as People -- an open
   );
 });
 
-test("on a desk the period is the head's act on every lens, at the right of the strip, and the page draws no row of its own", () => {
+test("on a desk the period is the head's act on every lens, its days then its button, and the page draws no row of its own", () => {
   for (const path of LENS_PATHS) {
     lensAt = path;
     const tree = pageOnce();
-    const act = standingSaid()?.act;
-    assert.equal(act?.props?.["data-testid"], "reports-period", `${path}: the period, said to the head as its act`);
-    assert.ok(classes(act).includes("rpt-period"), `${path}: drawn as the act's group, the days then the control`);
-    const kids = act.props.children.filter(Boolean);
-    assert.equal(kids.at(-1).type, Segmented, `${path}: the control at the row's end`);
-    assert.equal(kids.at(-2).type, Tooltip, `${path}: the days it covers before it`);
+    const group = byTestId(standingSaid()?.act, "reports-period");
+    assert.ok(classes(group).includes("rpt-period"), `${path}: the period, said to the head as its act`);
+    const kids = group.props.children.filter(Boolean);
+    assert.equal(textOf(kids[0]), "Aug 29 – Sep 4", `${path}: the days it covers first`);
+    assert.ok(
+      find(kids.at(-1), (n) => n.type === Popover),
+      `${path}: then the button that opens it, at the row's end`,
+    );
     assert.equal(all(tree, (n) => classes(n).includes("rpt-head")).length, 0, `${path}: no period row in the page`);
     assert.equal(byTestId(tree, "reports-period"), null, `${path}: the period once, in the head`);
   }
   lensAt = LENS_PATHS[0];
 });
 
-test("on a phone the page's period row stands over every lens, once, and the head has no act", () => {
+test("on a phone the period is the button alone beside the strip, on every lens; the page draws no row of its own", () => {
   onAPhone(() => {
     for (const path of LENS_PATHS) {
       lensAt = path;
       const tree = pageOnce();
-      assert.equal(all(tree, (n) => classes(n).includes("rpt-head")).length, 1, `${path}: the period row, once`);
-      const row = byTestId(tree, "reports-period");
-      assert.ok(
-        find(row, (n) => n.type === Segmented),
-        `${path}: the control in it`,
+      const group = byTestId(standingSaid()?.act, "reports-period");
+      assert.equal(
+        find(group, (n) => n.type === Popover)?.props.trigger.props["data-testid"],
+        "reports-period-open",
+        `${path}: the button, the head's act beside the strip`,
       );
-      assert.equal(standingSaid()?.act, undefined, `${path}: a phone's strip has no act beside it`);
+      assert.equal(cls(group, "rpt-dates"), null, `${path}: a phone has room for the button alone`);
+      assert.equal(all(tree, (n) => classes(n).includes("rpt-head")).length, 0, `${path}: no period row in the page`);
     }
   });
   lensAt = LENS_PATHS[0];

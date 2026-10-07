@@ -237,7 +237,7 @@ export const setupVerbs: SetupApi = {
       return { ok: true, numbers: r.data.numbers as LineChoice[], message: "" };
     },
     async buy(number, areaCode) {
-      const r = await api()("POST lines/buy", { body: { number, area_code: areaCode } });
+      const r = await api()("POST lines/buy", { body: { number, area_code: areaCode }, once: true });
       if (!r.ok) return { ok: false, queued: false, message: r.message };
       return { ok: r.data.ok, queued: r.data.queued, message: "" };
     },

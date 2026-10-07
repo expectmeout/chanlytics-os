@@ -291,6 +291,34 @@ test("run against a ref, the script exits 0 when the entries hold, 1 when one ch
   }
 });
 
+test("production's ledger as CLI 2.116 prints it: each cell in backticks, and an object under an agent", () => {
+  // Copied from `supabase migration list` 2.116.0 against a stack holding a migration the folder lacks (99999) and a
+  // file it has not applied (99998): the table as a person sees it, and what it prints when AI_AGENT or CLAUDECODE
+  // is set. Both read as exit 2 before (6 October 2026), so the release's compare and the weekly workflow could not run.
+  const fixture = (name) => fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures", name), "utf8");
+  const remote = ["00001", "00002", "00003", "00335", "00336", "00337", "99999"];
+  const table = fixture("supabase-migration-list-2.116.txt");
+  assert.deepEqual([...parseProductionLedger(table)], remote, "the Remote column, an empty cell's ` ` read as none");
+  const agent = fixture("supabase-migration-list-2.116-agent.json");
+  assert.deepEqual([...parseProductionLedger(agent)], remote, "each entry's remote, an empty one read as none");
+  assert.throws(() => parseProductionLedger('{"message":"Migrations listed"}'), /no migrations list/);
+
+  // And the script reads both whole, over the real folder: production holding exactly what main carries is exit 0.
+  const versions = readFolder(ROOT).map((m) => m.version);
+  const row = (v) => `   \`${v}\` | \`${v}\` | \`${v}\`    `;
+  const drawn = runCompare(
+    ["   Local   | Remote  | Time (UTC) ", "  ---------|---------|------------", ...versions.map(row)].join("\n"),
+  );
+  assert.equal(drawn.status, 0, drawn.stdout + drawn.stderr);
+  const listed = runCompare(
+    JSON.stringify({
+      migrations: versions.map((v) => ({ local: v, remote: v, time: v })),
+      message: "Migrations listed",
+    }),
+  );
+  assert.equal(listed.status, 0, listed.stdout + listed.stderr);
+});
+
 test("the same table drawn with box characters is read as well as one drawn with pipes", () => {
   const boxed = [
     "   00001 " + String.fromCharCode(0x2502) + " 00001 " + String.fromCharCode(0x2502) + " 00001",

@@ -66,6 +66,8 @@ export const POST = write({
   scope: conversationScope,
   role: "operator",
   rate: "reply",
+  // The reply keeps its key itself, per member, with its own window (core reply.ts, 0004): route() leaves it alone.
+  idempotent: "own",
   input: ReplyBody,
   handle: ({ ctx, req, row: conv, input }) =>
     replyToConversation(replyPorts(ctx), {

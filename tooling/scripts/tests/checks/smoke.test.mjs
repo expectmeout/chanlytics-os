@@ -1,7 +1,7 @@
 /**
- * The smoke after a deploy (tooling/scripts/checks/smoke.mjs): the edge's health door and the dashboard's version
- * door, asked over HTTP the way a pinger and the phone app ask them. Run here against a local server that answers as
- * each door does, well and badly.
+ * The smoke after a deploy (tooling/scripts/checks/smoke.mjs): the edge's health door and each app's version door,
+ * asked over HTTP the way a pinger and the phone app ask them. Run here against a local server that answers as each
+ * door does, well and badly.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -102,4 +102,31 @@ test("run against a host: both doors asked, the bypass header sent, the exit cod
   assert.match(failed.out, /FAIL .*\/api\/version: runs dev, not 1388f2cc6/);
   assert.equal((await run(["--edge", bad.base, "--allow-unhealthy"])).code, 0);
   assert.equal((await run([])).code, 2);
+});
+
+test("an edge still serving the build before the merge fails the smoke, though its health door answers well", async () => {
+  // 6 October 2026: the smoke asked the edge only for its health, which the old build answers as well as the new one,
+  // so it passed while the edge had not deployed yet.
+  const edge = await host({
+    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT }],
+    "/api/version": [200, { sha: "163f3678aee" }],
+  });
+  const dashboard = await host({ "/api/version": [200, { sha: "de16cc2e14f" }] });
+  const results = await smoke(argsOf(["--edge", edge.base, "--dashboard", dashboard.base, "--sha", "de16cc2e1"]), {});
+  assert.deepEqual(
+    results.map((r) => [r.door, r.url.startsWith(edge.base) ? "edge" : "dashboard", r.problem]),
+    [
+      ["health", "edge", null],
+      ["version", "edge", "runs 163f3678aee, not de16cc2e1"],
+      ["version", "dashboard", null],
+    ],
+  );
+  assert.deepEqual(
+    edge.seen.map((s) => s.url),
+    ["/api/health", "/api/version"],
+  );
+  const failed = await run(["--edge", edge.base, "--dashboard", dashboard.base, "--sha", "de16cc2e1"]);
+  assert.equal(failed.code, 1);
+  assert.match(failed.out, /FAIL .*\/api\/version: runs 163f3678aee, not de16cc2e1/);
+  assert.equal((await run(["--edge", edge.base, "--dashboard", dashboard.base, "--sha", "163f3678a"])).code, 1);
 });
