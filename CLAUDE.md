@@ -145,6 +145,10 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   `tooling/scripts/tests/edge/error-codes.test.mjs` holds the set both ways.
 - **Prettier owns formatting.** The hook formats what you stage; CI runs `format:check`. Never
   argue with it in a review.
+- **Nothing reaches Expo by itself.** The phone app is paused (Ruben, 7 October 2026), and every run there spends the
+  plan. No EAS workflow starts on a push, a tag, a pull request or a schedule, and no GitHub workflow holds the Expo
+  account's token (`apps/mobile/test/expo-by-hand.test.mjs`). A build, an update, a store submission or a workflow run,
+  from a terminal or through a tool, is asked for by hand and only on Ruben's word for that run.
 
 ## The canonical example of each thing
 

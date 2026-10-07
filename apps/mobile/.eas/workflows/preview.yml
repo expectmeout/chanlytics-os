@@ -1,28 +1,19 @@
-# The preview app on main: what a tester installs before the stores. A build is one of the plan's builds, so the
-# shell is built only when its native code changed (no preview build carries this fingerprint yet); a change to the
-# screens, the bridge or the contracts they bundle reaches the installed preview app as an update on its channel, on
-# the next launch. iOS has no preview build until the Apple account exists (an internal iOS build needs its
-# credentials); a simulator build is asked for by hand with the development-simulator profile.
+# The preview app: what a tester installs before the stores. Run by hand, and only on Ruben's word: the phone app is
+# paused (7 October 2026) and nothing in this repository sends anything to Expo by itself. A run spends the plan's
+# minutes, and a build its credit. From apps/mobile:
+#   npx eas-cli@latest workflow:run .eas/workflows/preview.yml
 #
-# It runs only for what the app is made of: its own tree, the versions it is built with, the entry it imports
-# contracts through (the package's exports) and the modules that entry reaches. The rest of contracts is the web's,
-# and publishing an update for every change to it (most pull requests) spent a run on an app nothing had changed in.
-# apps/mobile/test/preview-paths.test.mjs holds the contracts lines to what src/mobile/phone-app.ts imports.
+# A build is one of the plan's builds, so the shell is built only when its native code changed (no preview build
+# carries this fingerprint yet); otherwise what the run's commit holds reaches the installed preview app as an update
+# on its channel, on the next launch. iOS has no preview build until the Apple account exists (an internal iOS build
+# needs its credentials); a simulator build is asked for by hand with the development-simulator profile.
+#
+# Until 7 October it ran on every push to main that changed what the app is made of. When the app's work starts
+# again, that trigger and the test that held its paths to what the app bundles are in this file's history (#1291,
+# apps/mobile/test/preview-paths.test.mjs). apps/mobile/test/expo-by-hand.test.mjs holds this file to a hand's run.
 name: Preview
 on:
-  push:
-    branches: [main]
-    paths:
-      - apps/mobile/**
-      - pnpm-lock.yaml
-      - packages/contracts/package.json
-      - packages/contracts/src/mobile/**
-      - packages/contracts/src/shared/identity.ts
-      - packages/contracts/src/shared/phone.ts
-      - packages/contracts/src/shared/time.ts
-      - packages/contracts/src/shell/address.ts
-      - packages/contracts/src/shell/chrome.ts
-      - packages/contracts/src/workspace/billing.ts
+  workflow_dispatch: {}
 jobs:
   fingerprint:
     type: fingerprint
