@@ -329,7 +329,7 @@ export async function calendarSources(
   // A caller that asks only whether the feed reads (`feedOnly`: Setup's row) is read nothing of the record.
   const { rows, notices } = opts.feedOnly
     ? NO_RECORD
-    : await recordOverSpan(ctx, tenantId, timezone, span.from, to, cfg?.calendar?.tool ?? null);
+    : await recordOverSpan(ctx, tenantId, timezone, span.from, to, cfg?.bookings?.tool ?? null);
   base.feed.notices = { ...notices, count: rows.length };
 
   // What the board needs of the address and the settings, and not them: the calendar's name, the business's own.

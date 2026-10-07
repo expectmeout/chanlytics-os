@@ -472,6 +472,12 @@ interface ClaimedJob {
     tenant_id: string;
     kind: string;
     payload: Record<string, unknown>;
+    /**
+     * Which try this is, as the claim counts them (the ledger's attempts: 1 on the first run). For a handler that must
+     * leave its own record when the last try fails (booking_read holds the notice for a person rather than leaving only
+     * a failed job). Absent in a context that does not say, which reads as a first try.
+     */
+    attempts?: number;
 }
 
 /**

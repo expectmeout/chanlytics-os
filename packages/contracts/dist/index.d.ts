@@ -3444,21 +3444,7 @@ type NotificationsConfig = z$1.infer<typeof NotificationsConfigSchema>;
  * whichever tool is behind it.
  */
 declare const CalendarConfigSchema: z$1.ZodObject<{
-    ical_url: z$1.ZodOptional<z$1.ZodString>;
-    tool: z$1.ZodOptional<z$1.ZodEnum<{
-        booksy: "booksy";
-        acuity: "acuity";
-        fresha: "fresha";
-        square: "square";
-        vagaro: "vagaro";
-        glossgenius: "glossgenius";
-        calendly: "calendly";
-        setmore: "setmore";
-        mindbody: "mindbody";
-        simplybook: "simplybook";
-        schedulicity: "schedulicity";
-        styleseat: "styleseat";
-    }>>;
+    ical_url: z$1.ZodString;
 }, z$1.core.$strip>;
 type CalendarConfig = z$1.infer<typeof CalendarConfigSchema>;
 /**
@@ -3544,7 +3530,9 @@ declare const TenantConfigSchema: z$1.ZodObject<{
         from: z$1.ZodOptional<z$1.ZodString>;
     }, z$1.core.$strip>>;
     calendar: z$1.ZodOptional<z$1.ZodObject<{
-        ical_url: z$1.ZodOptional<z$1.ZodString>;
+        ical_url: z$1.ZodString;
+    }, z$1.core.$strip>>;
+    bookings: z$1.ZodOptional<z$1.ZodObject<{
         tool: z$1.ZodOptional<z$1.ZodEnum<{
             booksy: "booksy";
             acuity: "acuity";
@@ -3645,7 +3633,9 @@ declare const TenantConfigWriteSchema: z$1.ZodPipe<z$1.ZodUnknown, z$1.ZodObject
         from: z$1.ZodOptional<z$1.ZodString>;
     }, z$1.core.$strip>>;
     calendar: z$1.ZodOptional<z$1.ZodObject<{
-        ical_url: z$1.ZodOptional<z$1.ZodString>;
+        ical_url: z$1.ZodString;
+    }, z$1.core.$strip>>;
+    bookings: z$1.ZodOptional<z$1.ZodObject<{
         tool: z$1.ZodOptional<z$1.ZodEnum<{
             booksy: "booksy";
             acuity: "acuity";
@@ -14598,7 +14588,7 @@ declare function seasonHorizon(now: Date, daysAhead?: number): FeedHorizon;
  */
 declare function previewHorizon(now: Date): FeedHorizon;
 
-/** The tools an owner may pick as theirs (config.calendar.tool), in the order the picker lists them. */
+/** The tools an owner may pick as theirs (config.bookings.tool), in the order the picker lists them. */
 declare const BOOKING_TOOL_IDS: readonly ["booksy", "acuity", "fresha", "square", "vagaro", "glossgenius", "calendly", "setmore", "mindbody", "simplybook", "schedulicity", "styleseat"];
 type BookingTool = (typeof BOOKING_TOOL_IDS)[number];
 /** Whether a stored or typed value names a tool of the list: the card's picker and the steps read it through this. */
@@ -14920,14 +14910,15 @@ interface HeldNoticeDto {
 }
 /**
  * Where the workspace's bookings come from, as the card states it (00345): the tool the owner named, the address its
- * emails go to (null until the workspace has one), the latest notice, the ones held for a person, and Gmail's pending
- * confirmation of a forward here, when there is one.
+ * emails go to (null until the workspace has one), the latest notice that became a visit, the ones held for a person,
+ * and Gmail's pending confirmation of a forward here, when there is one.
  */
 interface CalendarNoticesDto {
-    /** The tool the owner named in Settings (config.calendar.tool), else the latest notice's; null for neither. */
+    /** The tool the owner named in Settings (config.bookings.tool), else the latest notice's; null for neither. */
     tool: string | null;
     /** The workspace's address, as the tool is to send to; null when it has none yet. */
     address: string | null;
+    /** When the latest notice that became a visit arrived; null until one has. */
     last_at: string | null;
     count: number;
     held: number;

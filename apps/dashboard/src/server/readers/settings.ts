@@ -25,12 +25,10 @@ function maskFeedUrl(u: string): string {
  * only an owner sees it whole; anyone else learns that one is set. The read and the write's answer both say it this
  * way: a partner's save (0012) answered with the whole address before.
  */
-export function feedVisibleTo<T extends { calendar?: { ical_url?: string } | null }>(role: string, cfg: T): T {
-  // The section's other keys (the booking tool, 00345) are everyone's to see.
-  const feed = cfg.calendar?.ical_url;
-  return role === "owner" || !cfg.calendar || feed === undefined
+export function feedVisibleTo<T extends { calendar?: { ical_url: string } | null }>(role: string, cfg: T): T {
+  return role === "owner" || !cfg.calendar
     ? cfg
-    : { ...cfg, calendar: { ...cfg.calendar, ical_url: maskFeedUrl(feed) } };
+    : { ...cfg, calendar: { ical_url: maskFeedUrl(cfg.calendar.ical_url) } };
 }
 
 /**

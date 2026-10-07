@@ -210,11 +210,10 @@ test("a cancellation ends the row the time names; a finished visit is not moved;
   assert.equal(twice.calls("update").length, 0);
 });
 
-test("what is held, with its reason on the ledger and no row written: no model, no spend, an answer that is not a booking", async () => {
+test("what is held, with its reason on the ledger and no row written: no model, no spend, an answer with no time or no shape", async () => {
   for (const [over, reason] of [
     [{ mayRead: "no_model" }, "no_model"],
     [{ mayRead: "may_not_spend" }, "may_not_spend"],
-    [{ ask: answer({ kind: "other" }) }, "not_a_booking"],
     [{ ask: answer({ starts_at: null }) }, "no_time"],
     [{ ask: null }, "unreadable"],
   ]) {
@@ -228,6 +227,68 @@ test("what is held, with its reason on the ledger and no row written: no model, 
     assert.equal(kept.holdReason, reason);
     assert.equal(kept.appointmentId, null);
   }
+});
+
+test("a tool's email about no booking is kept on the ledger and set aside: nobody is asked to look at a receipt", async () => {
+  // Held, each one rang the bell and stood in "N booking emails need a look": a filter that forwards a tool's mail
+  // forwards its payouts, its digests and its newsletter too, and the list a person was asked to look at was those.
+  const w = world({ ask: answer({ kind: "other" }) });
+  assert.equal(await run(w), "set_aside");
+  assert.deepEqual(w.ops(), ["noticeOf", "mayRead", "ask", "keepNotice"]);
+  const [, kept] = w.calls("keepNotice")[0];
+  assert.equal(kept.outcome, "dismissed", "on the ledger, so the delivery said again pays nothing");
+  assert.equal(kept.holdReason, "not_a_booking");
+  assert.equal(kept.appointmentId, null);
+  // And said again, it is one the ledger holds as done: no second read.
+  const again = world({ noticeOf: { outcome: "dismissed", holdReason: "not_a_booking", appointmentId: null } });
+  assert.equal(await run(again), "already");
+  assert.deepEqual(again.ops(), ["noticeOf"]);
+});
+
+test("REGRESSION: a time that was withdrawn and is booked again is a visit again -- it stayed cancelled, and the time was offered to someone else", async () => {
+  // The key is the tool, the client and the start, so Thursday at three cancelled and booked again states the key of
+  // a row that ended, and an ended row does not come back (the table's guard). The ended row leaves the key and the
+  // visit is written anew under it.
+  const ended = { id: "a1", status: "cancelled", starts_at: THU_3PM, ends_at: THU_5PM, external_id: KEY };
+  const w = world({ byKey: ended, insert: { id: "a2" } });
+  assert.equal(await run(w), "booked");
+  assert.deepEqual(w.ops(), ["noticeOf", "mayRead", "ask", "personFor", "byKey", "update", "insert", "keepNotice"]);
+  assert.deepEqual(w.calls("update")[0].slice(1), [T, "a1", { externalId: `${KEY}|ended:a1` }]);
+  const [, row] = w.calls("insert")[0];
+  assert.equal(row.externalId, KEY);
+  assert.equal(row.status, "booked");
+  assert.equal(w.calls("keepNotice")[0][1].appointmentId, "a2");
+
+  // A time already past is left as it ended: nothing is offered there, and an old email forwarded late books nothing.
+  const past = { ...ended, starts_at: "2026-10-01T19:00:00.000Z", ends_at: "2026-10-01T21:00:00.000Z" };
+  const late = world({ byKey: past, ask: answer({ starts_at: "2026-10-01T15:00", ends_at: "2026-10-01T17:00" }) });
+  assert.equal(await run(late), "booked_again");
+  assert.equal(late.calls("insert").length, 0);
+  assert.equal("externalId" in late.calls("update")[0][3], false);
+});
+
+test("REGRESSION: a visit moved onto a time the client once withdrew keeps the visit -- the ended row refused the booking and the moved one was withdrawn", async () => {
+  const live = {
+    id: "a1",
+    status: "booked",
+    starts_at: "2026-10-07T19:00:00.000Z",
+    ends_at: "2026-10-07T21:00:00.000Z",
+  };
+  const ended = { id: "a0", status: "cancelled", starts_at: THU_3PM, ends_at: THU_5PM, external_id: KEY };
+  const w = world({
+    ask: answer({ kind: "changed", previous_starts_at: "2026-10-07T15:00" }),
+    byClientStart: live,
+    byKey: ended,
+  });
+  assert.equal(await run(w), "changed");
+  const updates = w.calls("update").map((c) => [c[2], c[3]]);
+  assert.deepEqual(updates[0], ["a0", { externalId: `${KEY}|ended:a0` }], "the ended row leaves the key");
+  assert.equal(updates[1][0], "a1", "and the row that moves takes it");
+  assert.equal(updates[1][1].externalId, KEY);
+  assert.equal(updates[1][1].status, "booked");
+  assert.equal(updates[1][1].startsAt, THU_3PM);
+  assert.equal(updates.length, 2, "nothing is withdrawn");
+  assert.equal(w.calls("keepNotice")[0][1].appointmentId, "a1");
 });
 
 test("a failed call is the ledger's to try again: nothing is kept for it", async () => {

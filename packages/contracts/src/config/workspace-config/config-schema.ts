@@ -54,18 +54,21 @@ export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
  */
 export const CalendarConfigSchema = z
   .object({
-    // The feed's address, when the workspace reads one. Optional since 00345: a workspace whose bookings arrive by
-    // email names its tool here and may read no calendar at all.
     ical_url: z
       .string()
       .max(2000)
-      .refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-      .optional(),
-    // The booking tool the owner named (contracts BOOKING_TOOLS): what the card's steps and the board's words say.
-    tool: z.enum(BOOKING_TOOL_IDS).optional(),
+      .refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address"),
   })
   .strip();
 export type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
+
+/**
+ * Where the bookings come from (00345): the booking tool the owner named (contracts BOOKING_TOOLS), whose emails the
+ * intake then reads as bookings. A section of its own, never a key of `calendar`: a build from before it leaves out a
+ * section it has never heard of and keeps answering, where a calendar section with no address would have failed its
+ * whole parse and muted the receptionist (the note above; either deploy order, and a rollback).
+ */
+const BookingsConfigSchema = z.object({ tool: z.enum(BOOKING_TOOL_IDS).optional() }).strip();
 
 /**
  * Opt-in abilities, off unless the workspace turns them on.
@@ -81,6 +84,7 @@ export const TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
+  bookings: BookingsConfigSchema.optional(),
   features: FeaturesConfigSchema.optional(),
 });
 export type TenantConfig = z.infer<typeof TenantConfigSchema>;
@@ -145,7 +149,7 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
 /** The rules only a save has, over the shape the read keeps (TenantConfigWriteSchema). */
 const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
-  if (cfg.calendar?.ical_url !== undefined && !feedUrlOk(cfg.calendar.ical_url)) {
+  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["calendar", "ical_url"],

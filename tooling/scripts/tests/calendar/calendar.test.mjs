@@ -218,6 +218,22 @@ test("the Business row says the next thing to do first: an address to make, a fo
   const working = notices({ last_at: "2026-09-08T14:00:00.000Z", count: 3 });
   assert.deepEqual(of(working).row, { tone: "ok", label: "Working", words: "Last booking email 2h ago" });
   assert.deepEqual(of({ ...working, held: 2 }).row, needsYou("Last booking email 2h ago · 2 to look at"));
+  // Held for a look before any has become a visit (`last_at` is the last one that did): the row says what waits on
+  // the owner, never that it is still waiting for the first, and never that it is working.
+  assert.equal(of(notices({ held: 1 })).state, "waiting");
+  assert.deepEqual(of(notices({ held: 1 })).row, needsYou("1 booking email to look at"));
+  assert.deepEqual(of(notices({ held: 3 })).row, needsYou("3 booking emails to look at"));
+  // Gmail's confirmation is shown for three days. Past that it is nobody's to confirm (another account's, or an old
+  // try), and the row goes back to what is true without it.
+  const stale = { ...forwarding, at: "2026-09-05T15:59:00.000Z" };
+  assert.equal(of(notices({ forwarding: stale })).forwarding, null);
+  assert.equal(of(notices({ forwarding: stale })).row.words, "Waiting for the first booking email");
+  const fresh = { ...forwarding, at: "2026-09-05T16:00:00.000Z" };
+  assert.deepEqual(of(notices({ forwarding: fresh })).forwarding, {
+    account: "owner@example.com",
+    code: "4815162",
+    link: null,
+  });
   // The board's card and the row read one view model: the tool as the product says it, and the line said whole.
   const held = of({ ...working, held: 1 });
   assert.equal(held.tool, "Booksy");

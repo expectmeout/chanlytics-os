@@ -83,9 +83,14 @@ export async function appointmentByClientStart(
   return rows[0] ?? null;
 }
 
+/**
+ * A visit written. A failure throws with the database's own code on it (`code`): 23514 is a row one of the table's
+ * checks refuses, which no second try will write, where anything else may be a bad minute.
+ */
 export async function insertAppointment(db: Db, row: AppointmentInsert): Promise<{ id: string }> {
   const { data, error } = await db.from("appointments").insert(row).select("id").single();
-  if (error || !data) throw new Error(`appointment_insert: ${error?.message ?? "no row"}`);
+  if (error || !data)
+    throw Object.assign(new Error(`appointment_insert: ${error?.message ?? "no row"}`), { code: error?.code ?? null });
   return { id: data.id };
 }
 

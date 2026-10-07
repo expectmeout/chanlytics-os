@@ -169,7 +169,7 @@ lane, and against what a modern booking-ingestion feature owes its owner.
 **Refinements proposed, in order of value. Ruben said go on A to D the same day ("go on 1 to 4"); E to G wait.**
 
 - [x] **A. "Where your bookings come from", one fold.** Built 7 October in Settings › Business, the fold after
-      "Calendar it reads" (`open-bookings.tsx`): a tool picker (kept as `config.calendar.tool`, the schema holding it
+      "Calendar it reads" (`open-bookings.tsx`): a tool picker (kept as `config.bookings.tool`, the schema holding it
       to contracts `BOOKING_TOOL_IDS`), the workspace's address inline with Copy, and a door to Connections when the
       workspace has none yet (the mailbox door itself stays on Connections; a second copy of it here was not worth a
       second writer); the steps for the chosen tool (`BOOKING_TOOL_STEPS`: a recipient the tool takes, or a forward,
@@ -240,3 +240,34 @@ Recommended: A, B, C and D as one continuation of this lane (about two days), E 
 lane. What is already in keeping with modern practice and stays: one idempotent job per delivery with a ledger and a
 dedupe key, structured outputs held to a strict shape, RLS with service-role writes, an erasure leg beside the
 columns, the live feed, and the record as the one thing every reader reads.
+
+**One whole-branch review before the merge, and what it changed (7 October).** An independent read of the branch,
+with the pull request open and its checks green, found the trust rule above wrong in the one way that mattered, and
+nine smaller things. Each was checked against the code before it was changed.
+
+- **A forward by hand was trusted on a From line anyone can write.** The member's address was asked of the workspace,
+  and whether the sender was proved was not: an owner's address over a quoted `From: Booksy` booked, moved or
+  cancelled a visit. And the deployment could prove no sender at all (`EMAIL_AUTHSERV_ID` is not set on production),
+  so the forged path was the only one that would have worked. Now three things, each one a stranger cannot supply:
+  the sender is proved, whichever way the notice came; the tool is the one the workspace named (so a workspace that
+  set nothing up reads nothing, and its email is what it was before); and a forward by hand is a member's. Until the
+  deployment can prove a sender, no notice is read, and each is kept for a person (docs/runbook.md says how to set it).
+- **The tool is a section of its own in the config** (`bookings.tool`). As a key of `calendar` it made a calendar
+  section with no address, which a build from before this could not parse, and a config that does not parse is a
+  receptionist that says nothing: either deploy order, and a rollback.
+- **A read that threw was never tried again.** The kind had no waits, so the first throw failed the job and nothing
+  was left of the delivery. It is tried twice more, and the last try holds the notice for a person.
+- **A tool's email about no booking is set aside, not held**: a filter forwards a tool's receipts and its newsletter
+  too, and each rang the bell. An email written to a client about a visit of their own somewhere else is one of
+  those (an owner's own appointment at another business, booked on the same tool, is forwarded like the rest).
+- **A time withdrawn and booked again is a visit again.** Its key named the ended row, which does not come back, and
+  the time was offered to someone else.
+- A number the table refuses is no number (the visit is kept by the name and the address); an end more than half a
+  day off, and a day its month does not have, are misreads; an erasure finds a visit by the number as the visit
+  keeps it; "Working" means a notice became a visit; Gmail's confirmation is shown for three days.
+
+Known, and left for the pilot to say more about: a change whose email names no old time is written as a booking at the
+new time and the old row stays until it passes (moving the client's only other visit would be a guess that frees a
+taken hour when wrong); a cancellation that names its client differently from the booking is kept as the fact and
+ends nothing; a tool's notice proves the tool, and with the tool named and the sender proved, a notice the same tool
+sends about another business's booking is told apart by its words alone (the reader's "written to the client" rule).

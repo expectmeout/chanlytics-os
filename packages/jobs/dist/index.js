@@ -49,6 +49,11 @@ var RETRY_WAITS_MS = {
   // (its claim goes stale with the lease, before either wait ends). A thrown read or write, or a notice whose mail
   // failed, lands here: two minutes, then ten, each outlasting the lease.
   reply_read: [2 * MIN_MS, 10 * MIN_MS],
+  // A booking tool's notice, read (00345). Written to be run again: the ledger's row is kept last and a visit is found
+  // by its key, so a try that died after the write restates the row it wrote. A model's bad minute or a failed write
+  // throws and lands here: two minutes, then ten, each outlasting the lease. The third try holds the notice for a
+  // person before it fails (booking-read.ts), so the delivery is never only a failed job.
+  booking_read: [2 * MIN_MS, 10 * MIN_MS],
   // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
   // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
   event_deliver: [2 * MIN_MS, 10 * MIN_MS]
@@ -164,7 +169,8 @@ import {
   PUSH_RECEIPTS_AFTER_MS,
   BELL_WINDOW_DAYS,
   REACH_OUT_REPLY_DAYS as REACH_OUT_REPLY_DAYS2,
-  EVENT_SUBSCRIBERS
+  EVENT_SUBSCRIBERS,
+  isBookingTool
 } from "../../contracts/dist/index.js";
 import {
   classifyReceived,
@@ -196,7 +202,8 @@ import {
   deliveryOf,
   settleDelivery,
   memberHasAddress,
-  keepForwardingConfirmation
+  keepForwardingConfirmation,
+  getTenantConfig
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -715,7 +722,7 @@ import {
   clearForwardingConfirmation
 } from "../../db/dist/index.js";
 var STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"];
-var OUTCOMES = ["booked", "changed", "cancelled", "held"];
+var OUTCOMES = ["booked", "changed", "cancelled", "held", "dismissed"];
 var isStatus = (v) => STATUSES.includes(v);
 var isOutcome = (v) => OUTCOMES.includes(v);
 function stored(r) {
@@ -841,7 +848,31 @@ async function bookingRead(ctx, job) {
       tool: notice.tool,
       email: { id: e.id, from: e.from, subject: e.subject, text, receivedAt: e.createdAt }
     }
-  );
+  ).catch(async (err) => {
+    const refused = err?.code === "23514";
+    if (!refused && (job.attempts ?? 1) < MAX_ATTEMPTS) throw err;
+    const reason = refused ? "unreadable" : "no_model";
+    await keepAppointmentNotice(db, {
+      tenant_id: job.tenant_id,
+      notice_id: receivedId,
+      tool: notice.tool,
+      from_address: e.from?.address ?? null,
+      subject: e.subject,
+      received_at: e.createdAt ?? (/* @__PURE__ */ new Date()).toISOString(),
+      outcome: "held",
+      hold_reason: reason,
+      appointment_id: null
+    });
+    log.error("booking_notice_held", {
+      job: job.id,
+      received_id: receivedId,
+      tool: notice.tool,
+      outcome: refused ? "refused" : "failed",
+      attempts: job.attempts ?? 1,
+      error: err instanceof Error ? err.message : String(err)
+    });
+    return `held:${reason}`;
+  });
   log.info(outcome.startsWith("held:") ? "booking_notice_held" : "booking_notice_read", {
     job: job.id,
     received_id: receivedId,
@@ -960,7 +991,14 @@ async function emailIngest(ctx, job) {
       readBooking: async (_tenantId, mailboxId, receivedId, tool) => {
         await ctx.scheduleOnce("booking_read", /* @__PURE__ */ new Date(), { received_id: receivedId, mailbox_id: mailboxId, tool });
       },
-      // A forward by hand is trusted from a member of the workspace (member_has_address, 00345).
+      // Only the tool the workspace named is read as its bookings (config bookings.tool), read off what is stored: a
+      // workspace that named none reads none, and a value the list does not know is none.
+      bookingTool: async (tenantId) => {
+        const stored2 = (await getTenantConfig(db, tenantId))?.config;
+        const named2 = stored2?.bookings?.tool;
+        return isBookingTool(named2) ? named2 : null;
+      },
+      // A forward by hand is trusted from a member of the workspace, once its sender is proved (member_has_address, 00345).
       memberAddress: (tenantId, address) => memberHasAddress(db, tenantId, address),
       // Gmail's confirmation of a forward here, kept on the mailbox for Settings to show (00345).
       keepForwarding: (mailboxId, p) => keepForwardingConfirmation(db, mailboxId, p),

@@ -1040,7 +1040,7 @@ async function keptAside(ports, mailbox, email, { address, at }) {
   const words = { from: email.from, subject: email.subject, text: email.text };
   const notice = email.claim === "booking_notice" ? bookingNoticeOf(words) : null;
   if (notice) {
-    const trusted = notice.forwarded ? await ports.memberAddress(mailbox.tenant_id, address) : email.senderAuthenticated;
+    const trusted = email.senderAuthenticated && await ports.bookingTool(mailbox.tenant_id) === notice.tool && (!notice.forwarded || await ports.memberAddress(mailbox.tenant_id, address));
     if (trusted) {
       await ports.readBooking(mailbox.tenant_id, mailbox.id, email.id, notice.tool);
       await ports.received(mailbox.id, at);
@@ -2067,6 +2067,7 @@ import {
   SAME_VISIT_MS
 } from "../../contracts/dist/index.js";
 var stillAhead = (row) => row && (row.status === "proposed" || row.status === "booked") ? row : null;
+var asideKey = (key, row) => `${key}|ended:${row.id}`;
 async function readBookingNotice(ports, cmd) {
   const { tenantId, tz, tool, email } = cmd;
   const nowMs = ports.now();
@@ -2096,6 +2097,10 @@ async function readBookingNotice(ports, cmd) {
   });
   const answer = await ports.ask(words.system, words.user);
   const read = noticeAnswerOf(answer, tz, nowMs);
+  if (read.hold === "not_a_booking") {
+    await ports.keepNotice({ ...ledger, outcome: "dismissed", holdReason: "not_a_booking", appointmentId: null });
+    return "set_aside";
+  }
   if (read.hold) return hold(read.hold);
   const r = read.reading;
   const key = appointmentKey(tool, r.client, r.start);
@@ -2128,13 +2133,19 @@ async function readBookingNotice(ports, cmd) {
     });
     return outcome;
   };
-  const visit = { tenantId, key, r, fresh, stated };
+  const visit = { tenantId, key, r, fresh, stated, ahead: r.start > nowMs };
   if (r.kind === "booked") return keep(...await booked(ports, visit));
   if (r.kind === "changed") return keep(...await changed(ports, visit));
   return keep(...await cancelled(ports, visit));
 }
-async function booked(ports, { tenantId, key, r, fresh, stated }) {
+async function bookedAgainOver(ports, { tenantId, key, fresh }, ended) {
+  await ports.update(tenantId, ended.id, { externalId: asideKey(key, ended) });
+  return (await ports.insert(fresh("booked"))).id;
+}
+async function booked(ports, visit) {
+  const { tenantId, key, r, fresh, stated } = visit;
   const have = await ports.byKey(tenantId, key);
+  if (have && have.status === "cancelled" && visit.ahead) return ["booked", await bookedAgainOver(ports, visit, have)];
   if (have) {
     await ports.update(tenantId, have.id, {
       ...stated,
@@ -2146,20 +2157,26 @@ async function booked(ports, { tenantId, key, r, fresh, stated }) {
   const made = await ports.insert(fresh("booked"));
   return ["booked", made.id];
 }
-async function changed(ports, { tenantId, key, r, fresh, stated }) {
+async function changed(ports, visit) {
+  const { tenantId, key, r, fresh, stated } = visit;
   const at = { startsAt: new Date(r.start).toISOString(), endsAt: new Date(r.end).toISOString() };
   const moved = r.previousStart !== null ? stillAhead(await ports.byClientStart(tenantId, r.client, r.previousStart, SAME_VISIT_MS)) : null;
   if (moved) {
     const already = await ports.byKey(tenantId, key);
     if (already && already.id !== moved.id) {
-      await ports.update(tenantId, already.id, { ...stated, ...at, status: "booked" });
-      await ports.update(tenantId, moved.id, { status: "cancelled" });
-      return ["changed", already.id];
+      if (stillAhead(already)) {
+        await ports.update(tenantId, already.id, { ...stated, ...at, status: "booked" });
+        await ports.update(tenantId, moved.id, { status: "cancelled" });
+        return ["changed", already.id];
+      }
+      await ports.update(tenantId, already.id, { externalId: asideKey(key, already) });
     }
     await ports.update(tenantId, moved.id, { ...stated, ...at, externalId: key, status: "booked" });
     return ["changed", moved.id];
   }
   const have = await ports.byKey(tenantId, key);
+  if (have && have.status === "cancelled" && visit.ahead)
+    return ["changed_unknown", await bookedAgainOver(ports, visit, have)];
   if (have) {
     await ports.update(tenantId, have.id, {
       ...stated,

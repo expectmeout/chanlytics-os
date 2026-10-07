@@ -19,7 +19,7 @@
  * hold the rest: the route's DTO (calendar-dto.ts), day keys (day-keys.ts), the words (calendar-words.ts), and
  * the views and the window loaded around them (calendar-views.ts).
  */
-import { timezoneCity } from "../shared/time";
+import { DAY_MS, timezoneCity } from "../shared/time";
 import { waWindow } from "../config/policy";
 import { formatPhoneDisplay } from "../shared/phone";
 import { BOOKING_DEFAULTS, closedOn, dayIntervals } from "./availability";
@@ -126,6 +126,12 @@ function feedLineOf(state: CalendarFeedDto["state"], feedDetail: string, notices
   return noticesLine || "No calendar connected";
 }
 
+/**
+ * How long Gmail's confirmation of a forward is shown. Google's link is good for about that long, and a code nobody
+ * confirmed in three days is one nobody is looking for: it is another account's, or an old try.
+ */
+const FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
+
 /** The bookings that arrived by email, as the board's card, Settings' row and Ask say them: one line, said once. */
 function noticesVM(n: CalendarFeedDto["notices"], now: Date): CalendarVM["feed"]["notices"] {
   const tool = n?.tool ? bookingToolName(n.tool) : null;
@@ -134,7 +140,7 @@ function noticesVM(n: CalendarFeedDto["notices"], now: Date): CalendarVM["feed"]
   const line = n?.last_at
     ? `Bookings arrive by email from ${tool ?? "your booking tool"} · last ${lastAgo ?? "just now"}${held ? ` · ${held} to look at` : ""}`
     : "";
-  // Working once a notice has arrived; waiting from the moment the owner named a tool; nothing before that.
+  // Working once a notice has become a visit; waiting from the moment the owner named a tool; nothing before that.
   const state = n?.last_at ? "working" : n?.tool ? "waiting" : "none";
   const heldList = (n?.held_list ?? []).map((h) => ({
     id: h.id,
@@ -144,9 +150,11 @@ function noticesVM(n: CalendarFeedDto["notices"], now: Date): CalendarVM["feed"]
     receivedAgo: readAgoLabel(h.received_at, now),
     reason: NOTICE_HOLD_WORDS[h.reason],
   }));
-  const forwarding = n?.forwarding
-    ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link }
-    : null;
+  const asked = n?.forwarding ? now.getTime() - Date.parse(n.forwarding.at) : Number.NaN;
+  const forwarding =
+    n?.forwarding && asked <= FORWARD_CONFIRM_SHOWN_MS
+      ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link }
+      : null;
   const address = n?.address ?? null;
   const row = noticeRowOf({ state, address, forwarding: !!forwarding, lastAgo, held });
   return { tool, address, lastAgo, count: n?.count ?? 0, held, line, state, heldList, forwarding, row };
@@ -168,7 +176,11 @@ function noticeRowOf(s: {
   const needsYou = (words: string) => ({ tone: "warn" as const, label: "Needs you", words });
   if (!s.address) return needsYou("Needs a workspace email address");
   if (s.forwarding) return needsYou("Confirm the forward in Gmail");
-  if (s.state === "waiting") return { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
+  // Emails held for a look are the owner's to see whether or not one has become a visit yet.
+  if (s.state === "waiting")
+    return s.held
+      ? needsYou(`${s.held} booking ${s.held === 1 ? "email" : "emails"} to look at`)
+      : { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
   const last = `Last booking email ${s.lastAgo ?? "just now"}`;
   return s.held ? needsYou(`${last} · ${s.held} to look at`) : { tone: "ok", label: "Working", words: last };
 }

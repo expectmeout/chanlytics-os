@@ -16,7 +16,7 @@ import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
 
 /* ------------------------------------------------------------------ the tools whose mail is recognised */
 
-/** The tools an owner may pick as theirs (config.calendar.tool), in the order the picker lists them. */
+/** The tools an owner may pick as theirs (config.bookings.tool), in the order the picker lists them. */
 export const BOOKING_TOOL_IDS = [
   "booksy",
   "acuity",
@@ -176,7 +176,7 @@ export function noticePrompt(p: {
 }): { system: string; user: string } {
   const system = [
     "You read one email a booking tool sent a business about one of its appointments, and answer in the JSON shape asked.",
-    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing).`,
+    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing), and other when it is written TO THE CLIENT about a booking of their own at a business ('Your appointment at Harbor Studio is confirmed', 'See you tomorrow at 3'): the business's notice names its client as someone else, it never speaks to them.`,
     "client_name, client_phone, client_email: the CLIENT's, as written; never the business's, the staff member's or the tool's own.",
     "service: the service booked, as written (with its category if the tool writes one: 'Hair Color: Partial highlight'). staff: who it is with, as written.",
     "starts_at, ends_at: the appointment's start and end on the business's own clock as YYYY-MM-DDTHH:MM, from the date and the time range the email states. For a change, the NEW time; previous_starts_at is the old one. ends_at null when no end is stated.",
@@ -226,6 +226,13 @@ export interface NoticeReading {
 
 /** How long a booking is taken to last when the notice states no end: the slot most salons book by. */
 export const NOTICE_DEFAULT_LENGTH_MS = HOUR_MS;
+/**
+ * The longest one visit a notice may state. An end further off is a misread (or words in the email meant for the
+ * reader): written as it stands, one row would be taken time for every day it spans, and no open time would be named.
+ */
+const NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
+/** A number as the appointments table keeps one (00345's check): a plus, no leading zero, seven to fifteen digits. */
+const E164 = /^\+[1-9][0-9]{6,14}$/;
 /** A time further from now than this is a misread, not a booking. */
 const NOTICE_TIME_REACH_MS = 400 * DAY_MS;
 /** The most of a free-text field the row keeps. */
@@ -244,6 +251,9 @@ function localMs(tz: string, v: unknown): number | null {
   const hh = part(4);
   const mm = part(5);
   if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
+  // A day its month does not have (31 February) is no date: read on, it would roll into the month after.
+  const day = new Date(Date.UTC(y, mo - 1, d));
+  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
   const ms = localToUtcMs(tz, y, mo, d, hh, mm);
   return Number.isFinite(ms) ? ms : null;
 }
@@ -271,11 +281,17 @@ export function noticeAnswerOf(
   const start = localMs(tz, a.starts_at);
   if (start === null || Math.abs(start - nowMs) > NOTICE_TIME_REACH_MS) return { reading: null, hold: "no_time" };
   const endRead = localMs(tz, a.ends_at);
-  // An end before its start is the tool's midnight or a misread: the default length, not a negative one.
-  const end = endRead !== null && endRead > start ? endRead : start + NOTICE_DEFAULT_LENGTH_MS;
+  // An end before its start is the tool's midnight or a misread, and so is one half a day off: the default length.
+  const end =
+    endRead !== null && endRead > start && endRead - start <= NOTICE_LENGTH_MAX_MS
+      ? endRead
+      : start + NOTICE_DEFAULT_LENGTH_MS;
+  // A number the table would refuse (a national one written with its leading zero) is no number: the visit is kept
+  // by the name and the address, where the row's check would have thrown the whole notice away.
+  const phone = normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null);
   const client = {
     name: trimmedText(a.client_name, NOTICE_FIELD_MAX),
-    phone: normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null),
+    phone: phone && E164.test(phone) ? phone : null,
     email: normalizeEmail(typeof a.client_email === "string" ? a.client_email : null),
   };
   if (!client.name && !client.phone && !client.email) return { reading: null, hold: "no_client" };
@@ -443,6 +459,7 @@ export const NOTICE_HOLD_WORDS: Record<NoticeHold, string> = {
   no_model: "The reader was unavailable. Press Read again.",
   may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
   unreadable: "It could not be read as a booking.",
+  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
   not_a_booking: "It is from your booking tool, but not about one booking.",
   no_time: "No appointment time could be read from it.",
   no_client: "No client could be read from it.",

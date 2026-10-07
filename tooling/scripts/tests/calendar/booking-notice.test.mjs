@@ -49,7 +49,7 @@ test("a row is taken time from its start to its end, the one rule every reader t
 });
 
 test("the tools an owner may pick are the tools the intake recognises, in one order, each with its name, its sender and its steps", () => {
-  // The picker's ids (BOOKING_TOOL_IDS, which the config schema holds config.calendar.tool to) and the senders' list
+  // The picker's ids (BOOKING_TOOL_IDS, which the config schema holds config.bookings.tool to) and the senders' list
   // are declared apart, so the compiler can hold each row to an id: this holds the list to every id, in its order.
   assert.deepEqual(
     bookingToolOptions().map((o) => o.value),
@@ -176,6 +176,10 @@ test("the shape the model answers names every field, none optional, and the prom
   assert.match(p.user, /Received on 2026-10-06; the business's zone is America\/New_York\./);
   assert.match(p.user, /Hair Color: Partial highlight/);
   assert.match(p.system, /Invent nothing/);
+  // An email written to the client about a visit of their own somewhere is not this business's booking: an owner's
+  // filter forwards those too (their own appointment at another business, booked on the same tool), and anyone may
+  // have a tool write one here.
+  assert.match(p.system, /other when it is written TO THE CLIENT about a booking of their own at a business/);
   // The same system words for every notice: one prompt hash on the ledger.
   assert.equal(
     p.system,
@@ -223,6 +227,43 @@ test("no end is the default length; an end before its start is too; a change kee
     reading: null,
     hold: "no_time",
   });
+});
+
+test("REGRESSION: an answer is held to what the table takes and a day lasts -- a number with a leading zero threw the whole notice away, and an end a year off took every open time", () => {
+  // The table keeps a number as a plus, no leading zero, seven to fifteen digits (00345's check). A national number
+  // written with its zero is read as +0..., which the row refuses: the notice's write threw, and nothing was kept of
+  // it. It is no number, and the visit is kept by the name and the address.
+  const zero = noticeAnswerOf(answer({ client_phone: "07911 123456" }), TZ, NOW);
+  assert.equal(zero.hold, null);
+  assert.deepEqual(zero.reading.client, { name: "Dana Rivera", phone: null, email: "dana.rivera@example.com" });
+  // With nothing else to name the client, there is no client.
+  assert.equal(
+    noticeAnswerOf(answer({ client_phone: "07911 123456", client_name: null, client_email: null }), TZ, NOW).hold,
+    "no_client",
+  );
+  // A number the table takes is kept as it was.
+  assert.equal(
+    noticeAnswerOf(answer({ client_phone: "+44 7700 900123" }), TZ, NOW).reading.client.phone,
+    "+447700900123",
+  );
+
+  // An end is believed up to half a day. Past it, the visit is the default length: one row a year long would be
+  // taken time for every day it spans.
+  const hour = 60 * 60 * 1000;
+  const long = noticeAnswerOf(answer({ ends_at: "2027-10-08T15:00" }), TZ, NOW).reading;
+  assert.equal(long.end - long.start, hour);
+  const day = noticeAnswerOf(answer({ starts_at: "2026-10-08T08:00", ends_at: "2026-10-08T20:00" }), TZ, NOW).reading;
+  assert.equal(day.end - day.start, 12 * hour, "twelve hours is still a visit");
+  const over = noticeAnswerOf(answer({ starts_at: "2026-10-08T08:00", ends_at: "2026-10-08T20:01" }), TZ, NOW).reading;
+  assert.equal(over.end - over.start, hour);
+
+  // A day its month does not have is no time, never the month after's.
+  assert.equal(noticeAnswerOf(answer({ starts_at: "2026-02-31T15:00" }), TZ, NOW).hold, "no_time");
+  assert.equal(noticeAnswerOf(answer({ starts_at: "2026-11-31T15:00" }), TZ, NOW).hold, "no_time");
+  assert.equal(noticeAnswerOf(answer({ starts_at: "2026-10-31T15:00" }), TZ, NOW).hold, null);
+  // And an end on such a day is no end: the default length.
+  const badEnd = noticeAnswerOf(answer({ ends_at: "2026-02-30T17:00" }), TZ, NOW).reading;
+  assert.equal(badEnd.end - badEnd.start, hour);
 });
 
 test("what is held, and why: not a booking, no time, no client, an answer that is not the shape", () => {

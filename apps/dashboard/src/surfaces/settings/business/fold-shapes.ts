@@ -204,8 +204,8 @@ export const BT_PATHS_OF: Record<FoldName, string[]> = {
   extra_instructions: ["brain.profile.extra_instructions", "brain.system_prompt"],
   fallbacks: BT_FALLBACKS.map((key) => `brain.fallbacks.${key}`),
   calendar: ["calendar.ical_url"],
-  // The tool the owner named (00345): beside the feed's address in the same section, written by its own fold.
-  bookings: ["calendar.tool"],
+  // The tool the owner named (00345): a section of its own, which a build from before it leaves out and reads on.
+  bookings: ["bookings.tool"],
   // The first save a workspace makes, where it has no receptionist (create.tsx): the three things it
   // cannot answer anyone without, and the product's own prompt and messages, which the schema needs and nobody should
   // have to write (contracts newReceptionistDefaults), written only where none is stored.
