@@ -443,12 +443,8 @@ test("REGRESSION (S20): Profile's sign-out is not titled for one device, and Ale
   assert.ok(profile.includes("Sign out everywhere"), profile);
   const alerts = textOf(settings("notifications"));
   assert.ok(!alerts.includes("push notifications are not built"), "REGRESSION: denied the alerts the bell offers");
-  // The device's switch is a card on this pane since #1467 ("This device"), where it stood only in the bell's popover:
-  // the sentence points at it, and no longer sends the reader to the bell.
-  assert.ok(
-    alerts.includes("Your browser can alert you too while Chanlytics is open in it: This device, above."),
-    alerts,
-  );
+  // The device's switch is the pane's own card since #1467 ("This device"), and the line under the list points to it.
+  assert.ok(alerts.includes("This device, above"), alerts);
 });
 
 test("a real roster is counted in people, never in seats of a plan it does not have, and Invite stays offered", () => {
