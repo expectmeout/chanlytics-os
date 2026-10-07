@@ -131,6 +131,45 @@ function rowActs(o: ConnectionRowProps & { owner: boolean; armed: string | null;
   );
 }
 
+/**
+ * The question a row asks before Remove and before Disconnect, on a line of its own under the row (settings.css,
+ * .set-row-ask), as the team's does: in the row's body it stood in what a phone leaves between the tile and the pill.
+ */
+function rowAsk(o: Pick<ConnectionRowProps, "busy" | "setArm" | "confirm"> & { armed: string | null }): ReactNode {
+  const { busy, setArm, confirm, armed } = o;
+  if (armed === "remove") {
+    return (
+      <Confirm
+        className="set-row-ask"
+        question="Remove the listing?"
+        detail="What was read from it goes with it."
+        yes="Yes, remove"
+        danger
+        busy={busy}
+        onYes={() => confirm("remove")}
+        onNo={() => setArm(null)}
+        testid="google-remove"
+      />
+    );
+  }
+  if (armed === "disconnect") {
+    return (
+      <Confirm
+        className="set-row-ask"
+        question="Disconnect Google?"
+        detail="The public listing stays; replies and the full history do not."
+        yes="Yes, disconnect"
+        danger
+        busy={busy}
+        onYes={() => confirm("disconnect")}
+        onNo={() => setArm(null)}
+        testid="google-disconnect"
+      />
+    );
+  }
+  return null;
+}
+
 export const ConnectionRow = (props: ConnectionRowProps) => {
   const { r, run, busy, arm, setArm, confirm } = props;
   const owner = canDo("team");
@@ -169,6 +208,7 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
       data-testid={`connection-${r.kind}`}
       data-state={r.state}
       data-offers={offers}
+      data-asking={armed ? "true" : undefined}
       onClick={offers === "one" ? connRowPress : undefined}
     >
       <span className={`st-tile ${r.group === "connected" ? "installed " : ""}set-int-tile`} data-kind={r.kind}>
@@ -208,30 +248,6 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
             ))}
           </span>
         )}
-        {armed === "remove" && (
-          <Confirm
-            question="Remove the listing?"
-            detail="What was read from it goes with it."
-            yes="Yes, remove"
-            danger
-            busy={busy}
-            onYes={() => confirm("remove")}
-            onNo={() => setArm(null)}
-            testid="google-remove"
-          />
-        )}
-        {armed === "disconnect" && (
-          <Confirm
-            question="Disconnect Google?"
-            detail="The public listing stays; replies and the full history do not."
-            yes="Yes, disconnect"
-            danger
-            busy={busy}
-            onYes={() => confirm("disconnect")}
-            onNo={() => setArm(null)}
-            testid="google-disconnect"
-          />
-        )}
       </span>
       <StatePill kind="tone" value={r.tone} label={r.stateWords} />
       {rowActs({ ...props, owner, armed, primary })}
@@ -245,6 +261,7 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
           <MoreMenu items={acts} title={`${r.title}: more`} escape testid={`connection-${r.kind}-more`} />
         </span>
       )}
+      {rowAsk({ busy, setArm, confirm, armed })}
     </div>
   );
 };

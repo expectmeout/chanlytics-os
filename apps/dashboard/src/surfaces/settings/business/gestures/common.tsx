@@ -83,7 +83,16 @@ export const btWorkedOut = <T,>(what: string, fn: () => T, otherwise: T | null =
  *
  * useBtAsk() holds whether Cancel's is armed (the one hook here; it stands where each gesture's `arm` stood). btAsks
  * builds, from it and the gesture's own close and reset, the `cancel` the kit's foot and Escape call and the `confirm`
- * the kit draws above Save. A gesture's reset disarms, as it always did.
+ * the kit draws in Save's place. A gesture's reset disarms, as it always did.
+ *
+ * Not every Cancel asks. In an editor that holds ONE value (`light`: a row edited in its place, the calendar's
+ * address, the booking tool picked from a list) the editor's own Cancel, Close, Escape and wash close it at once,
+ * whatever was typed: the person has said they are done with it, typing it again costs a breath, and a question over
+ * one word is in the way (Ruben, 7 Oct 2026, of "Where your bookings come from"). Moving away by another act is not
+ * that decision, so it still asks, whatever the editor holds: another row's act, the rail, a step of the first run and
+ * the tab closing all go through the registry, which is told of anything typed as before (a person who typed a name and
+ * pressed the next thing may believe it was kept). An editor of several fields, a list or a sentence asks on its own
+ * Cancel too. Every one of these questions wears the quiet tone a discard has (kit/confirm).
  */
 export const useBtAsk = () => {
   const [armed, setArmed] = useState(false);
@@ -97,10 +106,12 @@ interface BtAsksArgs {
   prefix: string;
   busy: boolean;
   dirty: boolean;
+  /** One value, typed again in a breath: the editor's own Cancel throws it away without asking. */
+  light?: boolean;
   close: () => void;
   reset: () => void;
 }
-export const btAsks = ({ ask, fold, prefix, busy, dirty, close, reset }: BtAsksArgs) => {
+export const btAsks = ({ ask, fold, prefix, busy, dirty, light = false, close, reset }: BtAsksArgs) => {
   const words = {
     question: "Discard your changes?",
     detail: "Nothing you changed here has been saved.",
@@ -111,7 +122,7 @@ export const btAsks = ({ ask, fold, prefix, busy, dirty, close, reset }: BtAsksA
     // Not while it saves: the save is on its way, and closes the editor when the server takes it (kit/record/fold.tsx).
     cancel: () => {
       if (busy) return;
-      if (dirty) {
+      if (dirty && !light) {
         ask.arm();
         return;
       }
@@ -120,7 +131,7 @@ export const btAsks = ({ ask, fold, prefix, busy, dirty, close, reset }: BtAsksA
     confirm: fold.asking ? (
       <Confirm
         {...words}
-        danger
+        discard
         onYes={() => {
           reset();
           fold.discard();
@@ -132,7 +143,7 @@ export const btAsks = ({ ask, fold, prefix, busy, dirty, close, reset }: BtAsksA
         testid={`${prefix}-ask`}
       />
     ) : ask.armed ? (
-      <Confirm {...words} danger onYes={close} onNo={ask.disarm} testid={`${prefix}-cancel`} />
+      <Confirm {...words} discard onYes={close} onNo={ask.disarm} testid={`${prefix}-cancel`} />
     ) : null,
   };
 };

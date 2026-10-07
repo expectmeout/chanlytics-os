@@ -835,7 +835,7 @@ test("only one editor is open at a time: a clean one gives way, one holding chan
   );
 });
 
-test("Cancel with changes asks first; with none it closes at once; Escape is Cancel, and Ctrl or Cmd with Enter saves", () => {
+test("Cancel closes a row's one value at once and asks first in a fold of several; Escape is Cancel, and Ctrl or Cmd with Enter saves", () => {
   const sent = saving();
   let tree = drawTab();
   openFold(tree, "website");
@@ -849,14 +849,13 @@ test("Cancel with changes asks first; with none it closes at once; Escape is Can
   typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   assert.equal(W.__settingsUnsaved(), true, "the Settings rail and the browser ask before this is thrown away");
+  // A row holds one value: its own Cancel throws it away without a question (Ruben, 7 Oct 2026). Moving away is not
+  // that decision, which is why the rail and the browser were told of it while it stood open.
   cancelRow(tree, "website");
   tree = redrawTab();
-  assert.deepEqual(openRows(tree), ["website"], "not thrown away yet");
-  assert.match(textOf(byTestId(tree, "rec-inline-website-cancel-confirm")), /Discard your changes\?/);
-  press(byTestId(tree, "rec-inline-website-cancel-no"));
-  tree = redrawTab();
-  assert.equal(byTestId(tree, "rec-inline-website-cancel-confirm"), null);
-  assert.equal(boxOf(tree, "website").props.value, "https://marisas.example");
+  assert.equal(byTestId(tree, "rec-inline-website-cancel-confirm"), null, "nothing asked");
+  assert.deepEqual(openRows(tree), [], "closed at once: one value, typed again in a breath");
+  assert.equal(W.__settingsUnsaved(), false);
 
   const key = (k, over = {}) => ({
     key: k,
@@ -870,12 +869,38 @@ test("Cancel with changes asks first; with none it closes at once; Escape is Can
     },
     ...over,
   });
+  openFold(tree, "website");
+  tree = redrawTab();
+  typeInto(tree, "website", "https://marisas.example");
+  tree = redrawTab();
   inline(tree, "website").props.onKeyDown(key("Escape"));
   tree = redrawTab();
-  assert.ok(byTestId(tree, "rec-inline-website-cancel-confirm"), "Escape asks, as Cancel does");
-  press(byTestId(tree, "rec-inline-website-cancel-yes"));
+  assert.deepEqual(openRows(tree), [], "Escape closes it, as Cancel does");
+  assert.equal(W.__settingsUnsaved(), false);
+  assert.equal(sent.length, 0);
+
+  // A fold of several fields asks first, and a keystroke is an answer: keep editing.
+  openFold(tree, "hours");
   tree = redrawTab();
-  assert.deepEqual(openRows(tree), []);
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab();
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "rec-fold-hours-cancel-confirm")), /Discard your changes\?/);
+  press(byTestId(tree, "rec-fold-hours-cancel-no"));
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-fold-hours-cancel-confirm"), null);
+  assert.equal(labelled(tree, "Monday closes").props.value, "17:00", "keep editing keeps what was typed");
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  assert.ok(byTestId(tree, "rec-fold-hours-cancel-confirm"));
+  typeAt(tree, "Monday closes", "16:30");
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-fold-hours-cancel-confirm"), null, "a keystroke is an answer: keep editing");
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab();
+  press(byTestId(tree, "rec-fold-hours-cancel-yes"));
+  tree = redrawTab();
   assert.equal(W.__settingsUnsaved(), false);
   assert.equal(sent.length, 0);
 
@@ -889,7 +914,7 @@ test("Cancel with changes asks first; with none it closes at once; Escape is Can
   assert.equal(sent.length, 1, "Ctrl or Cmd with Enter does");
 });
 
-test("answered with Keep editing, an ask gives focus back to the box, whichever ask it was", () => {
+test("answered with Keep editing, another row's ask gives focus back to the box", () => {
   // The stub attaches no ref, so the test stands in for the element React would have put there: the box, the one
   // thing in it Tab stops at.
   const focused = [];
@@ -921,39 +946,17 @@ test("answered with Keep editing, an ask gives focus back to the box, whichever 
     typeInto(tree, "website", "https://marisas.example");
     tree = redrawTab();
 
-    // Cancel's own ask: "Yes, discard" had focus, and "Keep editing" takes the ask away.
-    cancelRow(tree, "website");
-    tree = redrawTab();
-    inline(tree, "website").props.onFocus({ target: yes });
-    press(byTestId(tree, "rec-inline-website-cancel-no"));
-    asking = false;
-    tree = redrawTab();
-    assert.deepEqual(focused, ["box"], "back in the box, not at the top of the document");
-
-    // The registry's ask, from another row's act: the same.
+    // The registry's ask, from another row's act (a row's own Cancel asks nothing: it holds one value). "Yes, discard"
+    // had focus, and "Keep editing" takes the ask away. A fold's own ask gives focus back the same way, and a keystroke
+    // that answers one leaves focus where it is: the kit's tests hold both (shell/record-kit.test.mjs).
     openFold(tree, "name");
-    asking = true;
     tree = redrawTab();
     inline(tree, "website").props.onFocus({ target: yes });
     press(byTestId(tree, "rec-inline-website-ask-no"));
     asking = false;
     tree = redrawTab();
-    assert.deepEqual(focused, ["box", "box"]);
+    assert.deepEqual(focused, ["box"], "back in the box, not at the top of the document");
     assert.deepEqual(openRows(tree), ["website"]);
-
-    // Typing takes Cancel's ask away too, with focus in the box being typed in: it is left there, its caret with it. The
-    // refocus once fired whenever an ask went, so the caret jumped to the end after one keystroke.
-    cancelRow(tree, "website");
-    asking = true;
-    tree = redrawTab();
-    assert.ok(byTestId(tree, "rec-inline-website-cancel-confirm"));
-    inline(tree, "website").props.onFocus({ target: box });
-    doc.activeElement = box;
-    typeInto(tree, "website", "https://marisas.example/h");
-    asking = false;
-    tree = redrawTab();
-    assert.equal(byTestId(tree, "rec-inline-website-cancel-confirm"), null, "a keystroke is an answer: keep editing");
-    assert.deepEqual(focused, ["box", "box"], "and focus that was never lost is not moved");
   } finally {
     Object.assign(doc, was);
     if (was.contains === undefined) delete doc.contains;
@@ -1408,8 +1411,7 @@ test("what a row will say is worked out on the brain its save goes on: a save st
     "the address still composes: emptying the website crosses nothing",
   );
   cancelRow(tree, "website");
-  tree = redrawTab();
-  press(byTestId(tree, "rec-inline-website-cancel-yes"));
+  redrawTab();
   out("website", "");
   assert.equal(sent.length, 1);
   tree = redrawTab();
@@ -1449,8 +1451,7 @@ test("what a row will say is worked out on the brain its save goes on: a save st
   tree = redrawTab();
   assert.equal(textOf(byTestId(tree, "rec-inline-says-website-note")), PROFILE_CROSSING_WORDS.starts);
   cancelRow(tree, "website");
-  tree = redrawTab();
-  press(byTestId(tree, "rec-inline-website-cancel-yes"));
+  redrawTab();
   out("website", "https://bella.example");
   tree = redrawTab();
   openFold(tree, "address");
@@ -1572,7 +1573,7 @@ test("a save whose promise fails before the server takes it says so, and leaves 
   assert.deepEqual([flashes.at(-1).tone, textOf(flashes.at(-1).msg)], ["danger", "The network went away."]);
   cancelRow(tree, "website");
   tree = redrawTab(flash);
-  assert.ok(byTestId(tree, "rec-inline-website-cancel-confirm"), "and Cancel still asks, where it did nothing before");
+  assert.deepEqual(openRows(tree), [], "and Cancel still closes it, where it did nothing before");
 });
 
 test("the number it gives out: your line stores nothing, and a different number is checked, then stored as typed", () => {
@@ -1981,13 +1982,12 @@ test("Cancel's question and another row's are one question: answered once, asked
   );
   assert.equal(labelled(tree, "Monday closes").props.value, "17:00", "keep editing keeps what was typed");
 
-  // A row edited in its place, the same.
+  // A row edited in its place holds one value, so its own Cancel arms no question: the one it can show is another
+  // row's, asked once.
   tree = drawTab();
   openFold(tree, "website");
   tree = redrawTab();
   typeInto(tree, "website", "https://marisas.example");
-  tree = redrawTab();
-  cancelRow(tree, "website");
   tree = redrawTab();
   openFold(tree, "address");
   tree = redrawTab();

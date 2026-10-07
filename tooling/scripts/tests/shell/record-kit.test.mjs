@@ -1496,13 +1496,22 @@ test("a row a list has just been given takes focus in its first box", () => {
   assert.equal(focused.length, 2, "a row that is not there takes nothing");
 });
 
-test("a fold draws the page's ask above its foot, where the changes it asks about are", () => {
+test("a fold draws the page's ask in its foot's place: a question stands alone, and Save and Cancel are back once it is answered", () => {
+  // Ruben, 7 Oct 2026: the question stood above Save and Cancel, four presses in two colours in one foot. It takes
+  // their place now, and they come back with its answer.
   const ask = W.React.createElement("span", { className: "confirm", "data-testid": "ask" }, "Discard your changes?");
-  const inner = find(draw(W.RecordFold, bookingRules({ confirm: ask })), (n) => classes(n).includes("rec-fold-inner"));
-  const kids = [].concat(inner.props.children).filter(Boolean);
-  const at = (pred) => kids.findIndex(pred);
-  assert.ok(at((k) => k === ask) >= 0, "inside the fold");
-  assert.ok(at((k) => k === ask) < at((k) => classes(k.rendered).includes("rec-foot")), "above Save and Cancel");
+  const kidsOf = (props) => {
+    const inner = find(draw(W.RecordFold, bookingRules(props)), (n) => classes(n).includes("rec-fold-inner"));
+    return [].concat(inner.props.children).filter(Boolean);
+  };
+  const isFoot = (k) => classes(k.rendered).includes("rec-foot");
+  const asked = kidsOf({ confirm: ask });
+  assert.ok(asked.includes(ask), "inside the fold, where the changes it asks about are");
+  assert.equal(asked.findIndex(isFoot), -1, "Save and Cancel are not drawn beside its two answers");
+  assert.ok(kidsOf({}).findIndex(isFoot) >= 0, "and they are back once it is answered");
+  // A save that is out is never asked about: the foot stays, busy, and the ask is not drawn.
+  const saving = kidsOf({ confirm: ask, saving: true });
+  assert.deepEqual([saving.includes(ask), saving.findIndex(isFoot) >= 0], [false, true]);
 });
 
 /* ------------------------------------ the fold on a phone ------------------------------------ */
@@ -1690,7 +1699,6 @@ test("on a phone a fold opens as a sheet from the bottom: a modal dialog named b
     const ask = W.React.createElement("span", { className: "confirm", "data-testid": "ask" }, "Discard your changes?");
     const tree = drawFold(
       bookingRules({
-        confirm: ask,
         footNote: "Saves these five rules and nothing else on the page.",
         onSave: () => saved.push(1),
         onCancel: () => cancelled.push(1),
@@ -1716,10 +1724,6 @@ test("on a phone a fold opens as a sheet from the bottom: a modal dialog named b
       "the page's field is in it",
     );
     assert.match(textOf(byTestId(sheet, "rec-fold-says-booking_rules")), /At least 2 hours/, "what saving writes");
-    assert.ok(
-      find(sheet, (n) => n === ask),
-      "the page's ask",
-    );
     assert.match(textOf(find(sheet, (n) => classes(n).includes("rec-foot-note"))), /five rules/, "the foot's own line");
     assert.ok(
       find(tree, (n) => classes(n).includes("rec-sheet-backdrop")),
@@ -1730,9 +1734,22 @@ test("on a phone a fold opens as a sheet from the bottom: a modal dialog named b
     const body = find(sheet, (n) => classes(n).includes("rec-sheet-body"));
     const foot = find(sheet, (n) => classes(n).includes("rec-sheet-foot"));
     assert.ok(find(body, (n) => n.props?.id === "bt-lead") && byTestId(body, "rec-fold-says-booking_rules"));
-    const kids = [].concat(foot.props.children).filter(Boolean);
-    const at = (pred) => kids.findIndex(pred);
-    assert.ok(at((k) => k === ask) >= 0 && at((k) => k === ask) < at((k) => k.type === W.RecordFoot), "above Save");
+    const held = (f) => [].concat(f.props.children).filter(Boolean);
+    assert.deepEqual(
+      [held(foot).map((k) => k.type === W.RecordFoot), foot.props["data-asking"]],
+      [[true], undefined],
+      "Save and Cancel, and no question",
+    );
+    // Asked, the question holds the foot alone: its two answers where Save and Cancel stood, and the foot says so for
+    // kit.css to give the words their room.
+    const asking = find(dialogOf(drawFold(bookingRules({ confirm: ask }))), (n) =>
+      classes(n).includes("rec-sheet-foot"),
+    );
+    assert.deepEqual(
+      [held(asking).map((k) => k === ask), asking.props["data-asking"]],
+      [[true], "true"],
+      "the ask in Save's place, never beside it",
+    );
 
     press(byTestId(sheet, "rec-fold-save-booking_rules"));
     press(byTestId(sheet, "rec-fold-cancel-booking_rules"));
@@ -3272,7 +3289,7 @@ test("a sheet gives focus back as a fold does: to the field the person was in wh
   }
 });
 
-test("a sheet given a Save draws the fold's own foot: the ask above it, and nothing while its save is out; Escape and Close cancel, Ctrl or Cmd with Enter saves", () => {
+test("a sheet given a Save draws the fold's own foot, and the ask in its place while one is asked: nothing asks while its save is out; Escape and Close cancel, Ctrl or Cmd with Enter saves", () => {
   // The quality review: the Business tab's sheet built its own foot (RecordFoot, the ask hidden while saving), which a
   // fold's kit owns. The sheet takes RecordFold's foot props, optional, so a sheet with a foot of its own (the playbook
   // composer's) is drawn as it was.
@@ -3286,19 +3303,25 @@ test("a sheet given a Save draws the fold's own foot: the ask above it, and noth
       onSave: () => saves.push(1),
       saveLabel: "Save 33 services",
       footNote: "Removing one offers an undo.",
-      confirm: ask,
       ...over,
     });
   let tree = draw(W.RecordSheet, props());
   const foot = () => find(tree, (n) => classes(n).includes("rec-sheet-foot"));
   assert.equal(textOf(byTestId(foot(), "rec-sheet-save-services")), "Save 33 services");
   assert.match(textOf(foot()), /Removing one offers an undo\./);
-  const kids = all(foot(), (n) => n.props?.["data-testid"] === "ask" || n.type === W.RecordFoot);
+  const parts = () =>
+    all(foot(), (n) => n.props?.["data-testid"] === "ask" || n.type === W.RecordFoot).map((n) =>
+      n.type === W.RecordFoot ? "foot" : "ask",
+    );
+  assert.deepEqual([parts(), foot().props["data-asking"]], [["foot"], undefined], "Save and Cancel, and no question");
+  // Asked, the question stands in Save's and Cancel's place, alone, and the foot says so (kit.css gives it room).
+  tree = draw(W.RecordSheet, props({ confirm: ask }));
   assert.deepEqual(
-    kids.map((n) => (n.type === W.RecordFoot ? "foot" : "ask")),
-    ["ask", "foot"],
-    "the ask above Save, where the changes it asks about are",
+    [parts(), foot().props["data-asking"]],
+    [["ask"], "true"],
+    "the ask in Save's place, never beside it",
   );
+  tree = draw(W.RecordSheet, props());
   press(byTestId(foot(), "rec-sheet-save-services"));
   press(byTestId(foot(), "rec-sheet-cancel-services"));
   assert.deepEqual([saves.length, cancels.length], [1, 1], "Save saves, and Cancel is the sheet's close, with its ask");
@@ -3319,7 +3342,7 @@ test("a sheet given a Save draws the fold's own foot: the ask above it, and noth
   assert.equal(saves.length, 3, "Ctrl or Cmd with Enter saves, as a fold's does; Enter alone does not");
 
   // While its save is out: busy, still a button, the ask not drawn, and nothing cancels it.
-  tree = draw(W.RecordSheet, props({ saving: true }));
+  tree = draw(W.RecordSheet, props({ saving: true, confirm: ask }));
   assert.equal(sheet().props["aria-busy"], true, "record.css draws its boxes read-only by it, as a fold's");
   const save = byTestId(foot(), "rec-sheet-save-services");
   assert.deepEqual(

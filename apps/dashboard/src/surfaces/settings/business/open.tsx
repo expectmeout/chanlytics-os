@@ -404,6 +404,7 @@ export const BtOpenCard = ({
       <BtFold<string>
         {...shared}
         id="calendar"
+        light
         label="Calendar it reads"
         hint="Read-only, so it can say which times are open before sending the link."
         channel={null}
@@ -423,6 +424,7 @@ export const BtOpenCard = ({
       <BtFold<BookingsDraft>
         {...shared}
         id="bookings"
+        light
         label="Where your bookings come from"
         hint="Name your tool and send its booking emails to your workspace address. Each becomes an appointment on the board."
         channel={null}

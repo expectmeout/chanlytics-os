@@ -13,7 +13,8 @@
  *
  * A sheet that saves as a fold does takes the fold's foot props instead of drawing its own: `onSave`, `saving`,
  * `saveLabel`, `savingLabel`, `cancelLabel`, `gate`, `footNote` and `confirm`, as RecordFold takes them. Then the kit
- * draws the fold's foot (RecordFoot) after the page's `foot`, with the page's ask above it, not while the save is out;
+ * draws the fold's foot (RecordFoot) after the page's `foot`, or the page's ask in its place while one is asked (never
+ * while the save is out: fold.tsx says why a question stands alone);
  * Cancel is `onClose`; and while the save is out nothing cancels it (Escape, the head's Close, Cancel) and Ctrl or Cmd
  * with Enter saves, by the fold's rule (recKeys). A sheet with a foot of its own (the playbook composer's) passes none of
  * them and is drawn as it was.
@@ -128,25 +129,24 @@ function sheetHead(props: RecordSheetProps) {
 function sheetFoot(props: RecordSheetProps) {
   const { id = null, foot = null, onSave = null, onClose, saving = false, saveLabel = "Save" } = props;
   const { savingLabel = "Saving…", cancelLabel = "Cancel", gate = null, footNote = null, confirm = null } = props;
+  const ask = onSave && !saving ? confirm : null;
   return foot || onSave ? (
-    <footer className="rec-sheet-foot">
+    <footer className="rec-sheet-foot" data-asking={ask ? "true" : undefined}>
       {foot}
-      {onSave ? (
-        <>
-          {saving ? null : confirm}
-          <RecordFoot
-            saveTestid={id ? `rec-sheet-save-${id}` : undefined}
-            cancelTestid={id ? `rec-sheet-cancel-${id}` : undefined}
-            onSave={onSave}
-            onCancel={onClose}
-            saving={saving}
-            saveLabel={saveLabel}
-            savingLabel={savingLabel}
-            cancelLabel={cancelLabel}
-            gate={gate}
-            footNote={footNote}
-          />
-        </>
+      {ask}
+      {onSave && !ask ? (
+        <RecordFoot
+          saveTestid={id ? `rec-sheet-save-${id}` : undefined}
+          cancelTestid={id ? `rec-sheet-cancel-${id}` : undefined}
+          onSave={onSave}
+          onCancel={onClose}
+          saving={saving}
+          saveLabel={saveLabel}
+          savingLabel={savingLabel}
+          cancelLabel={cancelLabel}
+          gate={gate}
+          footNote={footNote}
+        />
       ) : null}
     </footer>
   ) : null;

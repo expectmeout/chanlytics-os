@@ -1528,8 +1528,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .int-soon-list { font-style: normal; line-height: 1.6; }
 .int-soon-list b { color: var(--ink); font-weight: 500; }
 
-/* Under a thumb the quiet "No" beside a Confirm's button is 14px wide: the 44px floor gives it height, not width. */
-@media (pointer: coarse) { .confirm-acts .cl-bucket-link { padding-left: 12px; padding-right: 12px; } }
 
 /* A view on its way -- the loading standard's one rule, for any page whose view is being read: what is on screen stays
    (never a blank, never a skeleton over rows already there), and what the view marks data-dims fades a little and

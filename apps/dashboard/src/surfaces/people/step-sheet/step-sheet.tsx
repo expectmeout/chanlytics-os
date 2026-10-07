@@ -304,7 +304,7 @@ function discardAsk(props: Pick<ComponentProps<typeof Confirm>, "onYes" | "onNo"
       detail={W.discard.detail}
       yes={W.discard.yes}
       no={W.discard.no}
-      danger
+      discard
       {...props}
     />
   );

@@ -392,6 +392,16 @@
 }
 .set-team-row:first-of-type, .set-int-row:first-of-type { border-top: none; }
 .set-team-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* A question a row asks (Remove, Revoke, Disconnect) takes a line of its own under the row, starting under the name:
+   inside the body's column it stood in the 145px a phone leaves between the face and the role, its words broken three
+   to a line and its two answers pinched (Ruben, 7 Oct 2026). On a phone it takes the row's whole width. */
+.set-team-row[data-asking="true"] { flex-wrap: wrap; }
+.set-row-ask { flex: 1 1 100%; grid-column: 2 / -1; }
+.set-team-row > .set-row-ask { margin-left: calc(var(--row-face, 32px) + var(--set-lead-gap)); }
+@media (max-width: 900px) {
+  .set-row-ask { grid-column: 1 / -1; }
+  .set-team-row > .set-row-ask { margin-left: 0; }
+}
 /* An address is one long word: it is cut with an ellipsis inside its own column rather than broken across two lines
    ("hi@chanlytics.agen / cy" at a phone's width); the whole of it is the row's title on hover. */
 .set-team-name, .set-team-mail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
