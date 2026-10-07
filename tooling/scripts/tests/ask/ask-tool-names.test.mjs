@@ -776,7 +776,21 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         : reachReads;
     // 7 Oct 2026 (00344, decision 0034 step 4): a person's page reads the open doubts naming them (person_doubts) in the
     // same round, so people.get makes that one read more; its bytes are unchanged, the tool not saying them yet.
-    const reads = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
+    const withDoubts = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
+    // 7 Oct 2026 (00345, bookings arrive by email): the calendar's reader reads the record beside the feed -- the
+    // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
+    // -- so calendar.week makes those four reads more. Its bytes are unchanged: this workspace has no calendar and no
+    // booking has arrived, and with no feed to read nothing of the record's taken time is asked.
+    const reads =
+      NAMES[old] === "calendar.week"
+        ? [
+            ...withDoubts,
+            "appointments.select",
+            "appointment_notices.select",
+            "appointment_notices.select",
+            "mailboxes.select",
+          ]
+        : withDoubts;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)

@@ -132,8 +132,15 @@ const ctxFor = (t, rpcs = {}) => ({
   email: "ada@example.com",
   params: {},
 });
-/** The workspace's zone and settings as a turn reads them from `t` (readers/openings.ts hands openingsFor these). */
-const knownOf = (t) => ({ timezone: t.tenants[0].timezone, config: t.tenant_config[0].config });
+/**
+ * The workspace's zone and settings as a turn reads them from `t` (readers/openings.ts hands openingsFor these), and the
+ * record's taken time over the days on offer (calendar/record-busy.ts): none, unless a test says a booking arrived.
+ */
+const knownOf = (t, taken = []) => ({
+  timezone: t.tenants[0].timezone,
+  config: t.tenant_config[0].config,
+  taken: async () => taken,
+});
 
 test("everyone: the people come page after page, never one page of them", async () => {
   const all = Array.from({ length: PEOPLE_PAGE + 3 }, (_, i) => person(i + 1));
@@ -737,6 +744,16 @@ test("the openings the palette answers with, and its route: no calendar, a calen
   assert.equal(wed.days.length, 1);
   assert.deepEqual(wed.days[0].windows, ["12:00 PM–6:00 PM"], "the morning is taken; the afternoon is open");
   assert.match(wed.text, /^For Balayage \(about 90 minutes\): /);
+  // A booking that arrived by email took its hour too (00345): subtracted beside the feed's, as the receptionist does,
+  // so the assistant never names a time the board draws as taken. One to two in the afternoon, New York.
+  const emailed = [{ start: Date.parse("2026-09-09T17:00:00.000Z"), end: Date.parse("2026-09-09T18:00:00.000Z") }];
+  const split = await openingsFor(T, { day: "2026-09-09", service: null }, NOW, knownOf(tables(url), emailed));
+  assert.deepEqual(split.days[0].windows, ["12:00 PM–1:00 PM", "2:00 PM–6:00 PM"], "the emailed hour is left out");
+  // Asked for only once a feed has read: with no calendar nothing is offered, so nothing of the record is read.
+  let asked = 0;
+  const counting = { ...knownOf(tables(null)), taken: async () => ((asked += 1), []) };
+  assert.equal((await openingsFor(T, { day: null, service: null }, NOW, counting)).state, "no_calendar");
+  assert.equal(asked, 0, "no calendar, no read of the record");
   // The route reads with the real clock, so the day above is in its past; what it proves is the door and the shape.
   const viaRoute = await openingsRoute.GET.run(
     new Request(`http://localhost/api/v1/ask/openings?workspace=${T}&service=Balayage`),

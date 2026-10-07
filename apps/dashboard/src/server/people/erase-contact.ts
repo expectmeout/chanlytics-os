@@ -15,7 +15,7 @@
  * order they run in, on the session's client for the rest.
  */
 import { AppError } from "@chanlytics/contracts";
-import { scrubPersonNotes, scrubProviderEvents, type Json } from "@chanlytics/db";
+import { appointmentsScrub, scrubPersonNotes, scrubProviderEvents, type Json } from "@chanlytics/db";
 import { serviceDb } from "@/server/service-db";
 import { type erasureScope, recordDecision } from "@/server/verbs";
 import {
@@ -268,6 +268,7 @@ async function forgetAfterRows(ctx: RouteContext, contact: ErasedContact, keys: 
   log.info("erase_jobs_scrubbed", { contact: contact.id, jobs: jobsScrubbed });
   await scrubKeptDeliveriesBestEffort(contact, keys.needles);
   await scrubOthersNotesBestEffort(contact, keys.needles);
+  await scrubAppointmentsBestEffort(contact, keys.needles);
 }
 
 /* ---- 5. anything that landed during the window ----
@@ -366,5 +367,17 @@ async function scrubOthersNotesBestEffort(contact: ErasedContact, needles: reado
     await scrubPersonNotes(serviceDb(), contact.tenant_id, contact.id, needles);
   } catch (e) {
     log.error("erase_notes_scrub_failed", { contact: contact.id, error: e });
+  }
+}
+
+/**
+ * Their visits (appointments_scrub, 00345; decision 0036): the time and the service stay the business's, the client's
+ * name, number, address and note go, and the notices that named them lose the name. A failure is logged and carries on.
+ */
+async function scrubAppointmentsBestEffort(contact: ErasedContact, needles: readonly string[]): Promise<void> {
+  try {
+    await appointmentsScrub(serviceDb(), { tenantId: contact.tenant_id, contactId: contact.id, needles });
+  } catch (e) {
+    log.error("erase_appointments_scrub_failed", { contact: contact.id, error: e });
   }
 }

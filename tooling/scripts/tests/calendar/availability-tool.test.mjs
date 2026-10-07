@@ -30,6 +30,7 @@ import { desiredVoiceShell, availabilityUrl, voiceLlmCreateBody } from "@chanlyt
 const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 import { readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
+import { logLineOf } from "../_log-lines.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.RETELL_FN_SECRET = "availability-secret-for-this-file";
@@ -864,6 +865,90 @@ test("the door reads the caller's deal: a client on the line is offered a consul
     }
   } finally {
     globalThis.fetch = realFetch;
+    setPg(null);
+    forgetFeeds();
+  }
+});
+
+test("a booking that arrived by email is taken time for the receptionist: its hour is left out beside the feed's, a cancelled one is not, and a record that cannot be read leaves the feed's openings", async () => {
+  // The board, Ask and the prompt's preview subtract the record's rows (00345, contracts busyOfAppointments); so does
+  // the receptionist, or it would offer a time the board draws as taken. Tuesday noon in New York; every day nine to six.
+  const T = "cccccccc-0000-4000-8000-000000000003";
+  const NOW = new Date("2026-09-08T16:00:00.000Z");
+  const hours = Object.fromEntries(
+    ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => [d, { open: "09:00", close: "18:00" }]),
+  );
+  const { forgetFeeds, openingsData } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/edge/lib/calendar/availability.ts")).href
+  );
+  const rt = {
+    tenantId: T,
+    timezone: TZ,
+    calendar: { ical_url: "https://cal.example/record.ics" },
+    brain: { profile: { hours, closures: [] } },
+  };
+  // The feed holds Wednesday ten to eleven. The record holds a booking Wednesday two to three, and one cancelled, four
+  // to five.
+  const feed = ics(["DTSTART;TZID=America/New_York:20260909T100000", "DTEND;TZID=America/New_York:20260909T110000"]);
+  const emailed = (id, fromHour, status) => ({
+    id,
+    tenant_id: T,
+    source: "booking_email",
+    tool: "booksy",
+    external_id: `booksy:${id}`,
+    status,
+    starts_at: new Date(ny(2026, 9, 9, fromHour)).toISOString(),
+    ends_at: new Date(ny(2026, 9, 9, fromHour + 1)).toISOString(),
+    all_day: false,
+    timezone: TZ,
+  });
+  const record = () => fakeDb({ appointments: [emailed("a1", 14, "booked"), emailed("a2", 16, "cancelled")] });
+  const wednesday = async () => {
+    const data = await openingsData(rt, NOW);
+    return data.openings.find((o) => o.key === "2026-09-09").windows.map((w) => [w.start, w.end]);
+  };
+  const feedOnly = [
+    [ny(2026, 9, 9, 9), ny(2026, 9, 9, 10)],
+    [ny(2026, 9, 9, 11), ny(2026, 9, 9, 18)],
+  ];
+  const realFetch = globalThis.fetch;
+  const realError = console.error;
+  const logged = [];
+  globalThis.fetch = async () => new Response(feed, { status: 200, headers: { "content-type": "text/calendar" } });
+  console.error = (...args) => {
+    const line = logLineOf(args);
+    if (line) logged.push(line);
+  };
+  try {
+    forgetFeeds();
+    // A record with nothing in it for those days: the feed's openings alone, as before the record.
+    setPg(fakeDb({ appointments: [] }));
+    assert.deepEqual(await wednesday(), feedOnly);
+    // The record beside the feed: the emailed hour is left out, and the cancelled one is not taken.
+    setPg(record());
+    assert.deepEqual(await wednesday(), [
+      [ny(2026, 9, 9, 9), ny(2026, 9, 9, 10)],
+      [ny(2026, 9, 9, 11), ny(2026, 9, 9, 14)],
+      [ny(2026, 9, 9, 15), ny(2026, 9, 9, 18)],
+    ]);
+    assert.deepEqual(logged, [], "nothing failed so far");
+    // A record that cannot be read: the feed's openings are still said, never held, and the failure is logged by name.
+    const db = record();
+    setPg({
+      ...db,
+      from: (table) => {
+        if (table === "appointments") throw new Error("the record is down");
+        return db.from(table);
+      },
+    });
+    assert.deepEqual(await wednesday(), feedOnly);
+    assert.deepEqual(
+      logged.map((l) => [l.event, l.tenant_id, l.error]),
+      [["availability_record_failed", T, "Error: the record is down"]],
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    console.error = realError;
     setPg(null);
     forgetFeeds();
   }

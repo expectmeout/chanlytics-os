@@ -2,9 +2,10 @@
 //
 // The second card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.3; the canvas's Record and
 // Group-Open boards): the week as one sentence, the zone with the local time beside it, the days the week
-// does not apply to, and the calendar the receptionist reads, saying what its last read found. Four rows, each edited
-// where it is stated: the week and the closed days fold open under their rows, the zone is one value edited in its row,
-// and the calendar's fold holds its one box. It replaces three sections of the form this page retires (BusinessEditor,
+// does not apply to, the calendar the receptionist reads, saying what its last read found, and where the bookings come
+// from (the tool, and the address its emails go to, open-bookings.tsx). Five rows, each edited where it is stated: the
+// week and the closed days fold open under their rows, the zone is one value edited in its row, and the calendar's
+// fold holds its one box. It replaces three sections of the form this page retires (BusinessEditor,
 // settings.jsx: "When you are open", "Days you are closed", "Calendar it may look at") and its TimezoneRow, and what
 // those learned came with them, comments and all.
 //
@@ -34,6 +35,8 @@ import type { LegacyFlash } from "../../legacy-verbs";
 import { BtRow } from "./gestures/row";
 import { BtFold } from "./gestures/fold";
 import { BtoFeedBox, BtoFeedRead, btoFeedHost } from "./open-calendar";
+import { BtoBookingsBody, BtoBookingsRead, BtoBookingsTool } from "./open-bookings";
+import type { BookingsDraft } from "./fold-shapes";
 import { BtoWeek } from "./open-week";
 import type { Week } from "./open-week";
 import { businessTabSave } from "./saver";
@@ -349,7 +352,7 @@ export const BtOpenCard = ({
   saver,
 }: {
   brain: Brain;
-  config?: { calendar?: { ical_url?: string | null } } | null;
+  config?: { calendar?: { ical_url?: string | null; tool?: string | null } } | null;
   prompt?: Pick<PromptPreviewDto, "tz"> | null;
   canEdit: boolean;
   flash: Flash;
@@ -367,6 +370,7 @@ export const BtOpenCard = ({
     ? tab.closuresAheadWords(profile.closures as ClosuresIn, wsZone, new Date())
     : { count: 0, line: null };
   const feed = (config && config.calendar && config.calendar.ical_url) || "";
+  const bookingTool = (config && config.calendar && config.calendar.tool) || "";
 
   return (
     <section className="rec-card" data-testid="rec-card-open" aria-labelledby="bt-open-title">
@@ -412,6 +416,25 @@ export const BtOpenCard = ({
           name: feed ? "Change the calendar it reads" : "Add one: a calendar for it to read",
         }}
         body={(f) => <BtoFeedBox {...f} stored={feed} offers={offers} />}
+      />
+
+      {/* The row states the tool (the owner's own fact) and, under it, one quiet signal with the next thing to do
+          (BtoBookingsRead: the Calendar page's own read, as the calendar row's is); the fold holds the rest. */}
+      <BtFold<BookingsDraft>
+        {...shared}
+        id="bookings"
+        label="Where your bookings come from"
+        hint="Name your tool and send its booking emails to your workspace address. Each becomes an appointment on the board."
+        channel={null}
+        gate={gate("where your bookings come from")}
+        row={{
+          value: bookingTool ? <BtoBookingsTool tool={bookingTool} /> : null,
+          empty: "Not set up",
+          hint: bookingTool ? null : "Booking emails from your tool become appointments on the board.",
+          children: <BtoBookingsRead />,
+          name: bookingTool ? "Change where your bookings come from" : "Set up: where your bookings come from",
+        }}
+        body={(f) => <BtoBookingsBody {...f} />}
       />
     </section>
   );

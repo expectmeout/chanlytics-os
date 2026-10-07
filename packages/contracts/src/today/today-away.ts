@@ -60,6 +60,7 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   job_failed: ["job did not finish", "jobs did not finish"],
   review: ["new rating on Google", "new ratings on Google"],
   calendar_people: ["person added from your calendar", "people added from your calendar"],
+  booking_notice: ["booking email needs a look", "booking emails need a look"],
   handoff: ["conversation needs you", "conversations need you"],
   playbook: ["playbook is ready", "playbooks are ready"],
   // One sync can approve several at once, and several rejections read as one

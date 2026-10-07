@@ -3,6 +3,7 @@ import { config } from "zod/v4/core";
 config({ jitless: true });
 
 // src/shared/time.ts
+var MIN_MS = 6e4;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 function formatterOnUse(locales, options) {
@@ -53,6 +54,24 @@ function feedProblemWords(reason, status) {
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+
+// src/calendar/booking-notice.ts
+var BOOKING_TOOL_IDS = [
+  "booksy",
+  "acuity",
+  "fresha",
+  "square",
+  "vagaro",
+  "glossgenius",
+  "calendly",
+  "setmore",
+  "mindbody",
+  "simplybook",
+  "schedulicity",
+  "styleseat"
+];
+var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
+var SAME_VISIT_MS = 15 * MIN_MS;
 
 // src/config/workspace-config/config-schema.ts
 import { z as z3 } from "zod";
@@ -333,7 +352,11 @@ var NotificationsConfigSchema = z3.object({
   from: z3.string().max(200).optional()
 }).strip();
 var CalendarConfigSchema = z3.object({
-  ical_url: z3.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+  // The feed's address, when the workspace reads one. Optional since 00345: a workspace whose bookings arrive by
+  // email names its tool here and may read no calendar at all.
+  ical_url: z3.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address").optional(),
+  // The booking tool the owner named (contracts BOOKING_TOOLS): what the card's steps and the board's words say.
+  tool: z3.enum(BOOKING_TOOL_IDS).optional()
 }).strip();
 var FeaturesConfigSchema = z3.object({ vision: z3.boolean().optional() }).strip();
 var TenantConfigSchema = z3.object({
@@ -376,7 +399,7 @@ function checkClosure(c, n, ctx) {
   }
 }
 var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
-  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
+  if (cfg.calendar?.ical_url !== void 0 && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
       path: ["calendar", "ical_url"],

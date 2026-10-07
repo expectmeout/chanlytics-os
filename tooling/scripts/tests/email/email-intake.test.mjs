@@ -238,6 +238,26 @@ test("what a message claims to be: a report and an automatic reply before the ge
   assert.equal(claim({ "auto-submitted": "auto-replied" }), "auto_reply");
   assert.equal(claim({ "auto-submitted": "auto-replied; owner-email=x" }), "auto_reply");
   assert.equal(claim({ "x-autoreply": "yes" }), "auto_reply");
+  // A booking tool's notice (00345), by its sender's domain, and Gmail asking whether it may forward here, by Google's
+  // own sender and its subject: each claimed after a report, before anything automated.
+  assert.equal(
+    classifyReceived({
+      headers: { "auto-submitted": "auto-generated" },
+      from: { address: "no-reply@booksy.com", name: "Booksy" },
+      subject: "Dana Rivera: new booking Thursday, October 8, 2026 3:00 PM",
+      text: "Dana Rivera\n(305) 555-0144\nThursday, October 8, 2026, 3:00 PM",
+    }),
+    "booking_notice",
+  );
+  assert.equal(
+    classifyReceived({
+      headers: {},
+      from: { address: "forwarding-noreply@google.com", name: "Gmail Team" },
+      subject: "(#4815162) Gmail Forwarding Confirmation - Receive Mail from owner@example.com",
+      text: "owner@example.com has requested to automatically forward mail to your email address salon@mail.example.com.\nConfirmation code: 4815162\n\nhttps://mail-settings.google.com/mail/vf-%5BANGjdJ8%5D-abc",
+    }),
+    "forwarding_confirmation",
+  );
   assert.equal(claim({ precedence: "auto_reply" }), "auto_reply");
   assert.equal(
     claim({ "auto-submitted": "auto-generated" }),

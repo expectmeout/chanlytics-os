@@ -346,6 +346,7 @@
     "00341_a_note_keeps_nothing_of_a_person_erased_elsewhere.sql": "553be061d1d7181069f0f95c8f1eb7c30036a09de55b94862e21bbd5715fcbd2",
     "00342_a_person_is_resolved_by_one_door.sql": "cec9764a41c99e33908320414865f8c0d12e75398af66696b3404f2a1699ebfb",
     "00343_a_message_may_begin_as_an_email_or_a_text.sql": "4b901ea4d5f4662cee1bf5d6a362e6a47a70ab719daacbd679b335e26cda129f",
-    "00344_the_other_writers_match_through_the_door_and_a_doubt_is_a_row.sql": "e6be89b343797379e32427c5af8e0037de2f664df8df36c318e4a252d9896cae"
+    "00344_the_other_writers_match_through_the_door_and_a_doubt_is_a_row.sql": "e6be89b343797379e32427c5af8e0037de2f664df8df36c318e4a252d9896cae",
+    "00345_an_appointment_is_a_record.sql": "3869a4cf6a8fe237fb03a93e21f58509231a2fa2f1cd4ecf8d2a8a0a77f148e5"
   }
 }

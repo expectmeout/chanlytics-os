@@ -6,6 +6,7 @@
 import type { BookingRules, Closure, Hours } from "../config/workspace-config/business-profile";
 import type { MatchVia } from "./calendar-people";
 import type { FeedFailure } from "./feed-url";
+import type { NoticeHold } from "./booking-notice";
 
 export interface CalendarItemDto {
   id: string;
@@ -30,6 +31,16 @@ export interface CalendarItemDto {
   consultation?: boolean;
   /** The consult-first service the title names, as Settings spells it (consultServiceOf); null when it names none. */
   consult_service?: string | null;
+  /**
+   * Where the board read this one: the calendar feed (absent, or "calendar"), or a booking notice the tool emailed
+   * (docs/plans/2026-10-07-bookings-arrive-by-email.md). A notice carries what a feed's event never promises.
+   */
+  source?: "calendar" | "notice";
+  /** The tool whose notice it is, as the product says it ("Booksy"); null for a feed's event. */
+  tool?: string | null;
+  service?: string | null;
+  staff?: string | null;
+  price?: string | null;
 }
 
 export interface CalendarDayDto {
@@ -61,6 +72,39 @@ export interface CalendarFeedDto {
   dropped?: number;
   /** When the calendar was last tried, good or not: the news when a read failed or a refresh couldn't reach it (C2). */
   checked_at?: string | null;
+  /**
+   * The booking notices the workspace's address has taken in (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
+   * tool the latest came from, when, how many visits they hold in this span, and how many a person must look at. Absent
+   * on an older read, and `last_at` null when none has ever arrived.
+   */
+  notices?: CalendarNoticesDto;
+}
+
+/** A notice a person must look at, as the card lists it. */
+export interface HeldNoticeDto {
+  id: string;
+  tool: string | null;
+  from: string | null;
+  subject: string | null;
+  received_at: string;
+  reason: NoticeHold;
+}
+
+/**
+ * Where the workspace's bookings come from, as the card states it (00345): the tool the owner named, the address its
+ * emails go to (null until the workspace has one), the latest notice, the ones held for a person, and Gmail's pending
+ * confirmation of a forward here, when there is one.
+ */
+export interface CalendarNoticesDto {
+  /** The tool the owner named in Settings (config.calendar.tool), else the latest notice's; null for neither. */
+  tool: string | null;
+  /** The workspace's address, as the tool is to send to; null when it has none yet. */
+  address: string | null;
+  last_at: string | null;
+  count: number;
+  held: number;
+  held_list: HeldNoticeDto[];
+  forwarding: { account: string; code: string; link: string | null; at: string } | null;
 }
 
 export interface CalendarServiceDto {

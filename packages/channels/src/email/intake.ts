@@ -3,6 +3,7 @@
  * email, the ids a header lists, and what a message claims to be. Whether a delivery is Resend's at all is
  * webhook-signature.ts; the header values it reads are header-values.ts.
  */
+import { bookingNoticeOf, forwardingConfirmationOf } from "@chanlytics/contracts";
 import { addressOf, addressesOf, messageIdHeader } from "./header-values";
 
 /* ------------------------------------------------------------------ intake
@@ -173,7 +174,8 @@ export function messageIdsIn(header: string | null | undefined): string[] {
  *              day one is parsed, its source is tested before this.)
  *   person     none of the above.
  */
-export type EmailClaim = "report" | "auto_reply" | "automated" | "person";
+export type EmailClaim =
+  "report" | "auto_reply" | "automated" | "person" | "booking_notice" | "forwarding_confirmation";
 
 /** One result of an Authentication-Results header (RFC 8601): `method=result` and its `ptype.property=value` pairs. */
 interface AuthResult {
@@ -269,10 +271,16 @@ export function senderAuthenticated(
   return alignedDmarc || signedByFrom;
 }
 
-export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from">): EmailClaim {
+export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">): EmailClaim {
   const h = e.headers;
   const local = e.from?.address.split("@")[0] ?? "";
   if (/multipart\/report/i.test(h["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/.test(local)) return "report";
+  // A booking tool writing about one of the business's appointments (contracts bookingNoticeOf): its own sender, or a
+  // person's forward whose quoted head names it. Before the automated marks, which a tool's notice carries too.
+  if (bookingNoticeOf({ from: e.from, subject: e.subject, text: e.text })) return "booking_notice";
+  // Gmail asking whether it may forward an account's mail here (contracts forwardingConfirmationOf): kept on the
+  // mailbox for Settings, never as a thread; the same automated marks as a tool's notice.
+  if (forwardingConfirmationOf({ from: e.from, subject: e.subject, text: e.text })) return "forwarding_confirmation";
   const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
   if (
     auto.startsWith("auto-replied") ||

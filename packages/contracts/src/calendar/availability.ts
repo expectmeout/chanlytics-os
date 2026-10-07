@@ -2,10 +2,10 @@
  * Read-only availability: what is open, from a calendar feed and the rules.
  *
  * The receptionist never books. It may SEE the calendar — the owner's
- * appointments as an iCal feed, which every booking tool that syncs to
- * Google, Apple or Outlook can produce (Booksy Biz syncs two-way with Google
- * and Apple; Calendly, Square and the rest do the same) — subtract what is
- * taken from the opening hours, apply the owner's booking rules, and say
+ * appointments as an iCal feed: the calendar a booking tool writes into
+ * (Square, Vagaro, Acuity and Fresha write Google's; Booksy writes none), or
+ * the feed a tool offers of its own (Fresha, GlossGenius, Acuity) — subtract
+ * what is taken from the opening hours, apply the owner's booking rules, and say
  * which windows are open before sending the booking link. The link is the
  * only way anything gets booked, whatever provider stands behind it.
  *

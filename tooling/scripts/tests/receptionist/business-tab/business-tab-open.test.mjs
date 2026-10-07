@@ -79,13 +79,15 @@ const copyTo = (tree, flash, words) => {
 /** The card's summary is the composer's own run-collapsing, joined. Never a second implementation. */
 const summaryOf = (hours) => hoursLines(hours).join(" · ");
 
-test("When you're open draws four rows in the spec's order, under a line contracts wrote", () => {
+test("When you're open draws five rows in the spec's order, under a line contracts wrote", () => {
   const card = byTestId(drawTab(), "rec-card-open");
   assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
     "Hours",
     "Timezone",
     "Days you're closed",
     "Calendar it reads",
+    // The booking tool and the address its emails go to (00345), beside the calendar it reads.
+    "Where your bookings come from",
   ]);
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "When you're open");
   assert.equal(
@@ -991,6 +993,90 @@ test("the calendar row says where it reads and when, and keeps the address, the 
     );
     const bad = redrawTab();
     assert.match(textOf(byTestId(bad, "rec-calendar-whole")), /tried 4m ago/);
+  } finally {
+    delete W.__CALENDAR;
+  }
+});
+
+test("the bookings row states the tool, and under it one mark with the next thing to do; nothing named, it says Not set up", () => {
+  const nothing = { state: "none", present: false, read_at: null, events: 0 };
+  const notices = (over = {}) => ({
+    tool: "booksy",
+    address: "marisa@mail.example.com",
+    last_at: null,
+    count: 0,
+    held: 0,
+    held_list: [],
+    forwarding: null,
+    ...over,
+  });
+  const lineOf = (row) => byTestId(row, "bt-bookings-read");
+  try {
+    // Nothing named and nothing arrived: an empty row with its hint, and no line under it.
+    W.__CALENDAR = calendarRead(readOk(nothing));
+    let row = byTestId(drawTab(), "rec-row-bookings");
+    assert.equal(row.props["data-empty"], "true");
+    assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-empty"))), "Not set up");
+    assert.match(textOf(row), /Booking emails from your tool become appointments on the board\./);
+    assert.equal(lineOf(row), null);
+    // A tool named: the row states it as the product says it, and the line says it waits for the first email. The
+    // mark's own word is its accessible name and its tip, as the calendar row's mark carries the Calendar page's.
+    W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: notices() }));
+    row = byTestId(drawTab({ config: { calendar: { tool: "booksy" } } }), "rec-row-bookings");
+    assert.equal(row.props["data-empty"], "false");
+    assert.equal(textOf(byTestId(row, "bt-bookings-tool")), "Booksy");
+    assert.equal(textOf(lineOf(row)), "Waiting for the first booking email");
+    assert.equal(lineOf(row).props["data-tone"], "plain");
+    const mark = byTestId(row, "bt-bookings-state");
+    assert.equal(mark.props["aria-label"], "Waiting");
+    assert.equal(mark.props["data-tip"], "Waiting");
+    assert.equal(textOf(mark), "", "a mark, not a word on the row");
+    assert.doesNotMatch(textOf(row), /Booking emails from your tool/, "a row that has its fact states it and stops");
+    // Emails arriving, two held for a look: one mark in the warn tone, and the count, never a list on the row.
+    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    const heldRow = (id, reason) => ({
+      id,
+      tool: "booksy",
+      from: "no-reply@booksy.com",
+      subject: `New booking ${id}`,
+      received_at: twoHoursAgo,
+      reason,
+    });
+    W.__CALENDAR = calendarRead(
+      readOk({
+        ...nothing,
+        notices: notices({
+          last_at: twoHoursAgo,
+          count: 5,
+          held: 2,
+          held_list: [heldRow("n1", "no_time"), heldRow("n2", "not_a_booking")],
+        }),
+      }),
+    );
+    row = byTestId(drawTab({ config: { calendar: { tool: "booksy" } } }), "rec-row-bookings");
+    assert.equal(textOf(lineOf(row)), "Last booking email 2h ago · 2 to look at");
+    assert.equal(lineOf(row).props["data-tone"], "warn");
+    assert.deepEqual(
+      all(row, (n) => n.type === "button").map((b) => b.props["data-testid"]),
+      ["rec-row-act-bookings"],
+      "the row's one act; Read again and Dismiss wait in the fold",
+    );
+    // The fold: the tool's picker, the address with Copy, the tool's steps, and the two held emails with their presses.
+    openFold(drawTab({ config: { calendar: { tool: "booksy" } } }), "bookings");
+    const open = foldOf(redrawTab(), "bookings");
+    assert.match(textOf(byTestId(open, "bto-bookings-address")), /Send booking emails to marisa@mail\.example\.com/);
+    assert.equal(textOf(byTestId(open, "bto-bookings-copy")), "Copy");
+    assert.match(textOf(byTestId(open, "bto-bookings-steps")), /no-reply@booksy\.com/);
+    assert.match(textOf(byTestId(open, "bto-bookings-steps")), /forward any past booking email/);
+    assert.match(textOf(byTestId(open, "bto-bookings-held")), /2 booking emails need a look\./);
+    // Who a held email came from waits under a pointer, on its subject: the row stays two lines and two presses.
+    const heldRows = all(
+      byTestId(open, "bto-bookings-held"),
+      (n) => n.props?.["data-testid"] === "bto-bookings-held-row",
+    );
+    assert.equal(heldRows.length, 2);
+    assert.equal(find(heldRows[0], (n) => n.props?.title === "no-reply@booksy.com") != null, true);
+    assert.doesNotMatch(textOf(heldRows[0]), /no-reply@booksy\.com/);
   } finally {
     delete W.__CALENDAR;
   }

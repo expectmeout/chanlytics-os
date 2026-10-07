@@ -182,6 +182,8 @@ const BT_DRAFT_OF: { [F in FoldName]: (p: Profile, brain: Brain, config: Config)
   // for one set up before them, the product's wording, which names the details rather than copying them in.
   fallbacks: (p, brain) => ({ ...(brain.fallbacks || fallbackDefaults()) }),
   calendar: (p, brain, config) => (config.calendar && config.calendar.ical_url) || "",
+  // The booking tool the owner named (00345), "" for none yet.
+  bookings: (p, brain, config) => ({ tool: (config.calendar && config.calendar.tool) || "" }),
   // The name, the number it gives out as the Who you are row holds it (the line it answers, `own`, unless a different
   // number is typed), and the booking link: the old form's create path.
   receptionist: (p, brain) => ({
@@ -415,6 +417,16 @@ const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
     if (Object.keys(section).length) next.calendar = section;
     else delete next.calendar;
   },
+  // The same section, its other key (00345): the tool is written onto what the section holds, and none removes it,
+  // and the section with it once nothing else is in it.
+  bookings: (next, draft) => {
+    btWhole("bookings", draft, ["tool"], "string");
+    const tool = trimmed((draft as Record<string, string>).tool);
+    const section = { ...(next.calendar || {}) };
+    btPut(section, "tool", tool || undefined);
+    if (Object.keys(section).length) next.calendar = section;
+    else delete next.calendar;
+  },
   receptionist: btWriteReceptionist,
 };
 
@@ -591,6 +603,8 @@ const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
       ? { ical_url: "The calendar feed needs to be a full address, starting with https:// or webcal://" }
       : {};
   },
+  // A tool is picked from the list, never typed: nothing to refuse.
+  bookings: (): Problems => ({}),
   // The name and the booking link by the Who you are rows' own checks (save.tsx CHECK_OF), the old create
   // path's sentences. The number's check needs the line the workspace answers on, which no draft holds: the create
   // card asks the row's check with it (BtFold's `check`).
@@ -658,6 +672,7 @@ const btFieldOf = (fold: FoldName, path: (string | number)[], draft: unknown) =>
   if (fold === "booking_rules" || fold === "consult_first") return String(path[3]);
   if (fold === "fallbacks") return String(path[2]);
   if (fold === "calendar") return "ical_url";
+  if (fold === "bookings") return "tool";
   // The three boxes the create card draws; the product's own prompt and messages have none, and a refusal of them is
   // said once, as a refusal elsewhere is.
   if (fold === "receptionist") {
