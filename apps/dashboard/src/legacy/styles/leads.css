@@ -420,8 +420,6 @@
 .fr { max-width: 816px; padding: 20px 28px 40px; display: flex; flex-direction: column; gap: 10px; }
 .fr-h { font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--ink); margin: 0; }
 .fr-p { font-size: var(--text-md); color: var(--ink-muted); margin: 0; max-width: 62ch; line-height: 1.5; }
-/* The first day's one door to Ask (spec F1): a button, not a bar, so it keeps its own width in the column. */
-.fr-find { align-self: flex-start; }
 
 .fr-ways { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 6px 0 4px; }
 .fr-way { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
@@ -432,7 +430,9 @@
 .fr-door { margin-top: auto; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--accent); cursor: pointer; text-align: left; }
 .fr-door:hover { text-decoration: underline; }
 
-.fr-sub { margin-top: 10px; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
+/* The first day's parts are named for Leads: the first run (first-run.css) has its own .fr-sub, .fr-foot and .fr-find, and
+   as the later sheet it drew this heading as its grey subtitle and pinned the foot under a phone's tab bar (7 Oct 2026). */
+.ld-first-sub { margin-top: 10px; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
 
 .fr-sugs-h { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .fr-line-edit { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--accent); cursor: pointer; }
@@ -448,8 +448,8 @@
 .fr-sug .w { font-size: var(--text-sm); color: var(--ink-muted); }
 .fr-sug .reach { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
 
-.fr-foot { display: flex; align-items: center; gap: 5px; margin-top: 16px; font-size: var(--text-xs); color: var(--ink-dim); }
-.fr-foot .icon { color: var(--ink-faint); }
+.ld-first-foot { display: flex; align-items: center; gap: 5px; margin-top: 16px; font-size: var(--text-xs); color: var(--ink-dim); }
+.ld-first-foot .icon { color: var(--ink-faint); }
 
 /* ========================================================== the phone ====
    900px and under: cards, one bar, and the work first. Nothing above the rows

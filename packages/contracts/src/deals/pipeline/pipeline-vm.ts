@@ -118,6 +118,11 @@ export interface PipelineLinePart {
   words: string;
   view: PipelineView | null;
   tone: "warn" | null;
+  /**
+   * It goes on with the part before it, as a total's worth goes with its count ("$4,250" after "3 proposals out"): a
+   * page that sets each fact on a line of its own keeps the two together, so a dot never starts a line.
+   */
+  joins: boolean;
 }
 
 export interface PipelineVM<T extends PipelineSource = PersonRowVM> {

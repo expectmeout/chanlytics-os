@@ -363,14 +363,19 @@ function listPane(p: {
         ))}
         {rows.length === 0 &&
           (CONVERSATIONS.length === 0 ? (
-            // A workspace with none yet is not a filter with no match.
-            <EmptyState
-              kind="line"
-              className="empty-center"
-              title="No conversations yet."
-              body="They show up here as customers write and call."
-              testid="cv-none"
-            />
+            // A workspace with none yet is not a filter with no match. On a phone the list is the screen and no reading pane
+            // stands beside it, so it says what that pane says, as the Inbox says it has nothing: centred, with its glyph.
+            cvOnPhone() ? (
+              noneYet("cv-none")
+            ) : (
+              <EmptyState
+                kind="line"
+                className="empty-center"
+                title="No conversations yet."
+                body="They show up here as customers write and call."
+                testid="cv-none"
+              />
+            )
           ) : (
             <EmptyState
               kind="line"
@@ -417,6 +422,20 @@ function openedRow(p: { selected: ConversationRow; closeRow: () => void }) {
 }
 
 /** The reading pane: a link's notice, the row open, or what there is when nothing is. */
+/** A workspace with no conversation yet: the reading pane's page on a desk, and the list's on a phone. */
+function noneYet(testid: string) {
+  return (
+    <EmptyState
+      kind="page"
+      glyph="chat"
+      title="Nothing to read yet"
+      body="Every WhatsApp chat and phone call with a customer lands here, with what was said."
+      action={{ label: "Finish setting up", to: "start" }}
+      testid={testid}
+    />
+  );
+}
+
 function readingPane(p: {
   data: ConversationsSurface;
   requestedMissing: boolean;
@@ -445,18 +464,7 @@ function readingPane(p: {
     );
   }
   if (selected) return openedRow({ selected, closeRow });
-  if (CONVERSATIONS.length === 0) {
-    return (
-      <EmptyState
-        kind="page"
-        glyph="chat"
-        title="Nothing to read yet"
-        body="Every WhatsApp chat and phone call with a customer lands here, with what was said."
-        action={{ label: "Finish setting up", to: "start" }}
-        testid="cv-none-pane"
-      />
-    );
-  }
+  if (CONVERSATIONS.length === 0) return noneYet("cv-none-pane");
   return (
     <EmptyState
       kind="page"

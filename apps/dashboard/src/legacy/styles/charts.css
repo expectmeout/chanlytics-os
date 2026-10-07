@@ -102,8 +102,10 @@
   padding: 14px 18px 16px; background: var(--bg-raised);
   border: 1px solid var(--line); border-radius: var(--radius-lg);
 }
-.ck-card-head { display: flex; align-items: flex-start; gap: 12px; }
-.ck-card-titles { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* The switch and the CSV stand beside the title where the card has the room, and under it where it has not (a phone's
+   card, half a narrow grid): the title keeps its line rather than wrap beside them (7 Oct 2026). */
+.ck-card-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px 12px; }
+.ck-card-titles { flex: 1 1 14em; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ck-card-title { margin: 0; font-size: var(--text-base); font-weight: 500; color: var(--ink); letter-spacing: -0.005em; line-height: 1.35; }
 .ck-card-takeaway { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); line-height: 1.45; }
 .ck-card-actions { display: flex; align-items: center; gap: 6px; flex: none; }
@@ -113,11 +115,12 @@
   .ck-card:hover .ck-card-actions, .ck-card:focus-within .ck-card-actions, .ck-card.is-table .ck-card-actions { opacity: 1; }
 }
 .ck-card-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.ck-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 7px; background: var(--bg-sunken); border: 1px solid var(--line); }
-.ck-seg button { font-size: 11.5px; line-height: 1; padding: 5px 8px; border-radius: 5px; color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
+/* The switch is the kit's segmented capsule in a pane (kit.css .rec-seg): an inset track, the one picked the lozenge. */
+.ck-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth); }
+.ck-seg button { font-size: 11.5px; line-height: 1; padding: 5px 10px; border-radius: var(--radius-full); color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
 .ck-seg button:hover { color: var(--ink); }
-.ck-seg button.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); }
-.ck-icon-btn { width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--radius-sm); color: var(--ink-dim); }
+.ck-seg button.on { background: var(--selected-fill); color: var(--ink); box-shadow: var(--selected-depth); }
+.ck-icon-btn { width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--radius-full); color: var(--ink-dim); }
 .ck-icon-btn:hover { background: var(--bg-hover); color: var(--ink); }
 .ck-seg button:focus-visible, .ck-icon-btn:focus-visible { box-shadow: var(--focus-ring); outline: none; }
 /* On a touch screen legacy.css gives every control 44px of height; the icon button gets the width to match. */

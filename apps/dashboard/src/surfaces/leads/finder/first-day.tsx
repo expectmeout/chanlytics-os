@@ -107,7 +107,7 @@ export const LeadsFirstDay = ({
           <LeadWayCard key={w.id} way={w} onGo={onGo} />
         ))}
       </div>
-      <div className="fr-sub">{LEAD_WORDS.firstDay.sub}</div>
+      <div className="ld-first-sub">{LEAD_WORDS.firstDay.sub}</div>
       {composer}
       <div>
         <div className="fr-sugs-h">
@@ -159,7 +159,7 @@ export const LeadsFirstDay = ({
           ))}
         </div>
       </div>
-      <div className="fr-foot" data-testid="ld-first-day-foot">
+      <div className="ld-first-foot" data-testid="ld-first-day-foot">
         <Icon name="lock" size={12} />
         <span>{LEAD_WORDS.firstDay.foot}</span>
       </div>
