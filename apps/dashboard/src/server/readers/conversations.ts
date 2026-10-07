@@ -2,6 +2,7 @@ import "server-only";
 import { contactName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
 import { failedMessageErrors } from "@chanlytics/db";
 import { CONVERSATION_COLUMNS, groupMessages, messageRowsOf, toConversationDto } from "../dto";
+import { seenOfPeople } from "../people/person-seen";
 import { stamp, type Reader, type RowRef } from "./index";
 
 /** Each thread's newest messages the Inbox holds: a hundred, the page GET conversations/:id reads a thread by. */
@@ -54,8 +55,14 @@ export const conversations: Reader<{ ids: string[] | null }, { conversations: Co
         for (const list of byConv.values()) for (const m of list) if (said.has(m.id)) m.error = said.get(m.id);
       }
     }
+    // The reader's own reading of each person here (00345), so a row can say it is new to them.
+    const seenOf = await seenOfPeople(
+      rc.ctx,
+      tenantId,
+      (convs ?? []).flatMap((c) => (c.contacts?.id ? [c.contacts.id] : [])),
+    );
     const conversations: ConversationDto[] = (convs ?? []).map((c) =>
-      toConversationDto(c, byConv.get(c.id) ?? [], userId),
+      toConversationDto(c, byConv.get(c.id) ?? [], userId, c.contacts?.id ? seenOf(c.contacts.id) : {}),
     );
     return {
       data: { conversations },

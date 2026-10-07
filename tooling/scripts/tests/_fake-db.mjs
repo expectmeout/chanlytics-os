@@ -828,6 +828,16 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // The Inbox's messages (00258), each thread's newest, from the messages the fixture holds: every suite that reads
     // GET conversations reads through it.
     newest_messages: (args) => newestMessagesIn(tables, args),
+    // What a member has seen of the people named (00345 contact_seen), from the floor and the marks a fixture holds:
+    // every suite that reads GET conversations reads through it. The double holds one member's view, so the rows are
+    // that member's: the workspace's floor, and each mark on those people. A fixture with neither answers a member
+    // with no reading, and nothing is then new to them.
+    contact_seen: ({ p_tenant_id, p_contact_ids }) => ({
+      floor_at: (tables.contact_reads ?? []).find((r) => r.tenant_id === p_tenant_id)?.seen_at ?? null,
+      marks: (tables.contact_marks ?? [])
+        .filter((m) => m.tenant_id === p_tenant_id && (p_contact_ids ?? []).includes(m.contact_id))
+        .map((m) => ({ contact_id: m.contact_id, seen_at: m.seen_at ?? null, unread_at: m.unread_at ?? null })),
+    }),
     /**
      * The hourly sweeps' pages (00245 playbooks_due, calendars_due), answered from the rows a fixture sets the way
      * the database answers them: only what is due, a paused workspace's never, the longest waiting first, `p_limit`

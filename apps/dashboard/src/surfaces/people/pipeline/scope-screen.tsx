@@ -188,11 +188,13 @@ function rowsView(s: PipelineState) {
   );
 }
 
-/** A phone's top: the scopes as the Inbox's tab strip, then the bar -- the view shown (its rows in a sheet), search, and New proposal's +. */
+/**
+ * A phone's top: the scopes as the Inbox's tab strip, then the bar -- the view shown (its rows in a sheet) and search. New
+ * proposal is the head's act beside the page's name, with its words (standing.tsx, 7 Oct 2026): the bar drew it as a bare +.
+ */
 function phoneBar(s: PipelineState) {
-  const { f, ui, r, newActs, newGate } = s;
+  const { f, ui, r } = s;
   const { q, setQ, searchRef, searchOpen, setSearchOpen } = f.controls;
-  const { words } = P;
   return (
     <PeoplePhoneBar
       listLabel={P.viewLabel(r.view, r.pace)}
@@ -205,18 +207,6 @@ function phoneBar(s: PipelineState) {
       searchOpen={searchOpen}
       onSearchOpen={setSearchOpen}
       searchLabel={PL_SEARCH_LABEL}
-      trailing={
-        <button
-          type="button"
-          className="pp-bar-icon"
-          aria-label={words.newProposal.button}
-          onClick={newActs.openNew}
-          data-testid="pipeline-new-open"
-          {...newGate}
-        >
-          <Icon name="plus" size={18} />
-        </button>
-      }
       testid="pipeline"
     />
   );

@@ -413,43 +413,59 @@
 .ld-search-renaming input { flex: 1; min-width: 0; }
 
 /* ======================================================= the first day ====
-   No search kept yet (Task 17, §8.9): people first, then Find leads (the door
-   to Ask) and the suggestions Claude wrote from this workspace's own line. It
-   stands where the table stands, so it keeps the table's column of measure. */
+   No search kept and no lead held (§8.9; redrawn 7 Oct 2026, canvas "Leads, the first day", option A): one question, the
+   door to Ask, and the ideas written from the workspace's own line. The page is that alone: no rail, no controls and no
+   pane round it (scope.tsx draws none of them, and the main column gives up its glass here), the words in the middle of
+   the page on a desk and at the left under the page's name on a phone. One coral thing, the door's own press; every
+   other door is the ink's. It was three boxed ways people arrive over a boxed list, a coral link in each. */
+.main-scroll .leads-scope[data-first-day] .cl-main { border-radius: 0; background: none; box-shadow: none; }
+.main-scroll .leads-scope[data-first-day] .cl-main::after { content: none; }
 
-.fr { max-width: 816px; padding: 20px 28px 40px; display: flex; flex-direction: column; gap: 10px; }
-.fr-h { font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--ink); margin: 0; }
-.fr-p { font-size: var(--text-md); color: var(--ink-muted); margin: 0; max-width: 62ch; line-height: 1.5; }
+/* Each grid is one column no wider than its box: an auto track grows to its widest item's words, and the door's (one
+   line where they fit) stood the column 25px past a 320px screen. */
+.ld-first { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; padding: clamp(36px, 10vh, 104px) var(--gutter-page) 40px; }
+.ld-first-col { width: min(640px, 100%); display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
+.ld-first-h { margin: 0; font-size: var(--text-3xl); font-weight: var(--weight-semibold); letter-spacing: -0.02em; line-height: var(--leading-tight); color: var(--ink); text-wrap: balance; }
+.ld-first-sub { margin: 12px 0 0; max-width: 46ch; font-size: var(--text-md); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
 
-.fr-ways { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 6px 0 4px; }
-.fr-way { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
-.fr-way b { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
-.fr-way > span { font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.45; }
-.fr-status { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--ok-ink); }
-.fr-status .icon { color: var(--ok-ink); }
-.fr-door { margin-top: auto; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--accent); cursor: pointer; text-align: left; }
-.fr-door:hover { text-decoration: underline; }
+/* The door: the control layer's glass as one capsule, the three's mark, the words a field would hold, and the press in
+   the primary fill. A button, as the top bar's Ask is: the words are typed in Ask, which it opens. */
+.ld-first-ask { position: relative; margin-top: 28px; width: 100%; height: 60px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 22px; border: 0; border-radius: var(--radius-full); background-color: var(--surface-control-fill); background-image: var(--surface-control-sheen); box-shadow: var(--surface-control-depth); backdrop-filter: var(--surface-control-blur); font: inherit; color: var(--ink-muted); text-align: left; cursor: pointer; }
+.ld-first-ask::after { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; background: var(--surface-control-rim); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); pointer-events: none; }
+.ld-first-ask:focus-visible { outline: none; box-shadow: var(--surface-control-depth), var(--focus-ring); }
+.ld-first-ask > .icon { flex: none; }
+/* The words take a second line on a screen too narrow for one (under 375px), rather than lose their end. */
+.ld-first-ask-words { flex: 1; min-width: 0; font-size: var(--text-md); line-height: var(--leading-tight); color: var(--ink-dim); text-wrap: balance; transition: color var(--duration-fast) var(--ease-out); }
+.ld-first-ask-go { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-circle); background: var(--primary-fill); box-shadow: var(--primary-depth); color: var(--primary-ink); transition: background-color var(--duration-fast) var(--ease-out); }
+.ld-first-ask[aria-disabled="true"] { cursor: default; }
+.ld-first-ask[aria-disabled="true"] .ld-first-ask-go { opacity: 0.45; }
+@media (hover: hover) {
+  .ld-first-ask:not([aria-disabled="true"]):hover .ld-first-ask-words { color: var(--ink-muted); }
+  .ld-first-ask:not([aria-disabled="true"]):hover .ld-first-ask-go { background: var(--primary-hover); }
+}
 
-/* The first day's parts are named for Leads: the first run (first-run.css) has its own .fr-sub, .fr-foot and .fr-find, and
-   as the later sheet it drew this heading as its grey subtitle and pinned the foot under a phone's tab bar (7 Oct 2026). */
-.ld-first-sub { margin-top: 10px; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
-
-.fr-sugs-h { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: var(--text-xs); color: var(--ink-dim); }
-.fr-line-edit { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--accent); cursor: pointer; }
-.fr-line-edit:hover { text-decoration: underline; }
-.fr-line-form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-.fr-line-form .inp { flex: 1; min-width: 220px; height: 32px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); padding: 0 8px; font: inherit; font-size: var(--text-sm); color: var(--ink); }
-.fr-sugs-note { margin: 0 0 8px; font-size: var(--text-sm); color: var(--ink-dim); }
-
-.fr-sugs { display: flex; flex-direction: column; gap: 6px; }
-.fr-sug { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
-.fr-sug .q { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--accent); cursor: pointer; text-align: left; }
-.fr-sug .q:hover { text-decoration: underline; }
-.fr-sug .w { font-size: var(--text-sm); color: var(--ink-muted); }
-.fr-sug .reach { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
-
-.ld-first-foot { display: flex; align-items: center; gap: 5px; margin-top: 16px; font-size: var(--text-xs); color: var(--ink-dim); }
-.ld-first-foot .icon { color: var(--ink-faint); }
+/* The ideas: the kit's large button each, placed here, its words beginning with a capital whatever the search's own
+   spelling. A desk says who an idea is for under a pointer (the house's tip); a phone's, below, are rows. */
+.ld-first-eyebrow { margin: 40px 0 0; font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+.ld-first-ideas { margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.ld-first-idea-words { display: inline-block; min-width: 0; }
+.ld-first-idea-words::first-letter { text-transform: uppercase; }
+.ld-first-note { margin: 28px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.ld-first-from { margin: 16px 0 0; max-width: 100%; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* A door in a sentence: the kit's quiet link at the sentence's own size, in the ink, underlined so it reads as one. It
+   keeps the line's height (a touch screen gives every button 44px, which stood the sentence's two lines 31px apart), and
+   a thumb's target reaches past its words instead. */
+.ld-first-col .ld-first-edit { position: relative; display: inline; min-height: 0; padding: 0; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.ld-first-col .ld-first-edit::after { content: ""; position: absolute; inset: -12px -10px; }
+/* The line's sheet (first-day.tsx LeadLineSheet): under its box, what is wrong at the left and how much of the line's
+   length is written at the right. */
+.ld-line-under { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.ld-line-count { margin-left: auto; font-size: var(--text-xs); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+/* A phone's sheet for it (People's small job): what it is for over the box, and the box four lines tall, where People's
+   field is one. Named with its tag, so it outweighs that field's one-line height wherever the two sheets load. */
+.ld-line-lead { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
+textarea.ld-line-box { height: auto; min-height: 112px; padding: 12px 14px; line-height: var(--leading-snug); resize: none; }
+.ld-first-side { margin: 40px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
 
 /* ========================================================== the phone ====
    900px and under: cards, one bar, and the work first. Nothing above the rows
@@ -480,16 +496,20 @@
   /* The classes and the chips give up the gutter, not their words. */
   .ld-classes, .ld-chips { flex-wrap: nowrap; overflow-x: auto; }
 
-  /* The first day stacks: three ways side by side at a phone's width are three
-     columns of one word each. The reach line goes under the suggestion rather
-     than to its right, for the same reason. */
-  .fr { padding: 4px var(--gutter-page) 32px; gap: 8px; }
-  .fr-h { font-size: var(--text-lg); }
-  .fr-ways { grid-template-columns: 1fr; gap: 8px; }
-  .fr-door { margin-top: 2px; min-height: 32px; }
-  .fr-sug { flex-direction: column; align-items: flex-start; gap: 3px; }
-  .fr-sug .reach { margin-left: 0; }
-  .fr-line-form .inp { min-width: 0; height: 40px; }
+  /* The first day on a phone: the words at the left under the page's name, the door a thumb tall, and each idea a row
+     the width of the screen with the mark of a door, since nothing hovers here to say more. */
+  .ld-first { justify-items: start; padding: 6px var(--gutter-page) 8px; }
+  .ld-first-col { justify-items: start; text-align: left; }
+  .ld-first-h { font-size: var(--text-hero); }
+  .ld-first-sub { font-size: var(--text-base); }
+  /* The door and the ideas stand at the boards' 12px from the screen's edges, where every page's capsules and panes
+     stand under a head at 16 (the Inbox's search, People's, Today's panes): 4px out of the words' column each side. */
+  .ld-first-ask { width: calc(100% + 8px); margin: 22px -4px 0; height: 56px; gap: 8px; padding: 0 8px 0 16px; }
+  .ld-first-eyebrow { margin-top: 30px; }
+  .ld-first-ideas { width: calc(100% + 8px); margin: 12px -4px 0; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
+  .ld-first-col .ld-first-ideas .ld-first-idea { width: 100%; height: auto; min-height: 50px; justify-content: space-between; gap: 10px; padding: 8px 14px 8px 16px; border-radius: var(--surface-row-radius); text-align: left; white-space: normal; }
+  .ld-first-col .ld-first-ideas .ld-first-idea > .icon { flex: none; color: var(--ink-faint); }
+  .ld-first-note { margin-top: 22px; }
 
   /* A running search is two lines; the question is a card with its four
      answers two by two, each 44px. */
@@ -1366,14 +1386,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 :is(.ld-row-name > .tint-4, .pk-band.tint-4) { --tint: var(--tile-tint-4); --tint-ink: var(--tile-tint-ink); }
 :is(.ld-row-name > .tint-5, .pk-band.tint-5) { --tint: var(--tile-tint-5); --tint-ink: var(--tile-tint-ink); }
 :is(.ld-row-name > .tint-6, .pk-band.tint-6) { --tint: var(--tile-tint-6); --tint-ink: var(--tile-tint-ink); }
-
-/* The first day's Find leads is a button's width under its sentence; a phone's spans the column, under a thumb. It wore
-   the setup's own class (fr-find, a grid), which stood its glyph over its words outside it (6 Oct 2026). */
-@media (min-width: 721px) {
-  .ld-first-find {
-    align-self: flex-start;
-  }
-}
 
 @media (width > 900px) {
   /* The list's name sits where People's does (P1): close under the controls, the pane's 18px at its sides. */

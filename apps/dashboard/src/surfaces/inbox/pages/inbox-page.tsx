@@ -22,6 +22,7 @@ import {
   inboxMoves,
   inboxVerdict,
   ixKeyLeft,
+  ixOnPhone,
   IX_VIEW_FILTERS,
   useInboxAutoSend,
   useInboxState,
@@ -30,6 +31,7 @@ import {
 } from "./inbox-state";
 import { ixKeepPlace } from "../place";
 import { ixBucketOf, ixRank } from "../rules";
+import { threadWhose, useSeeOpen, useSeen } from "../../seen";
 import { canDo, gate, presenceAway } from "../shell";
 import { inboxData } from "../store";
 import { ThreadPane } from "../thread/thread-pane";
@@ -449,6 +451,15 @@ export const Inbox = ({
   const withBulkActs = Object.assign(withRealBulk, inboxBulkActs(withRealBulk));
   const withScreen = Object.assign(withBulkActs, inboxOnScreen(withBulkActs, initialThreadId));
   useInboxKeys(withScreen);
+  // The thread on screen is read (surfaces/seen.ts): beside the list on a desk, and on a phone while it is the screen.
+  // A link's notice is nobody's thread. And a row opened or put back, here or in Conversations, draws the list again.
+  const open =
+    withScreen.activeThread && withScreen.activeThread.real && !withScreen.requestedMissing
+      ? withScreen.activeThread
+      : null;
+  const reading = open && (!ixOnPhone() || withScreen.phoneThreadOpen) ? open : null;
+  useSeeOpen(reading ? threadWhose(reading) : null, !!reading?.unread, reading?.heardAtMs ?? 0);
+  useSeen();
   const withBucketMoves = Object.assign(withScreen, inboxBucketMoves(withScreen));
   const full = Object.assign(
     withBucketMoves,

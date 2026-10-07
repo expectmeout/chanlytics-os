@@ -335,6 +335,8 @@ export {
   openDoubtsOf,
   doubtOn,
   dismissPersonDoubt,
+  contactSeen,
+  markContact,
 } from "./repositories/people";
 export type { PeopleCursor, ResolvePersonInput, ResolvedPerson } from "./repositories/people";
 export {

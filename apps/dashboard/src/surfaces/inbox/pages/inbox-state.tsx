@@ -25,6 +25,7 @@ import {
   type Flash,
   type SeededLead,
 } from "../shell";
+import { seePerson, threadUnread, threadWhose } from "../../seen";
 import { inboxData, IX_STORE, VW_STORE, VW_UTIL, type Decision } from "../store";
 import { threadVerbs } from "../thread/thread-verbs";
 import type { RealThread, Resolution, SeededThread, Thread, ThreadState, TimelineEntry, VerdictOption } from "../types";
@@ -84,7 +85,7 @@ const firstBucketWithThreads = (list: Thread[]): string => {
 };
 
 // The phone's width, where the list and the thread take turns on the screen (mobile.css, 720px).
-const ixOnPhone = (): boolean => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+export const ixOnPhone = (): boolean => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
 
 // The bucket the member had (the Inbox's place, place.ts ixPlace) comes back with a refresh; a thread the
 // address names opens in it when it lists that thread, and in its own bucket when it does not.
@@ -455,8 +456,9 @@ export const inboxMoves = (ix: InboxState) => {
   const mutate: Mutate = (id, fn) => setThreads((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
 
   // Opening a thread clears its unread dot; Mark as unread sets it back (one honest meaning of "unread").
-  // On a real thread the dot means it needs you (the view model's needsYou), so opening it changes nothing: it
-  // cleared, and the next read lit it again (I2). A seeded thread's dot is its unread one.
+  // A real thread's dot is the reader's own mark on the person (surfaces/seen.ts, 00345): opening it is kept, so it
+  // stays read on the next read and on their other screens. It meant "needs you" until the marks were kept, and
+  // opening it changed nothing: it cleared, and the next read lit it again (I2). A seeded thread's is the page's flag.
   // A search spans every bucket (inbox-list.tsx), so a thread picked from it may live in another: its own bucket opens
   // with it. The pane looked only in the bucket on screen and fell to that bucket's first thread -- another customer,
   // with the reply meant for this one in its composer.
@@ -471,6 +473,8 @@ export const inboxMoves = (ix: InboxState) => {
     setPhoneThreadOpen(true);
     setKeepOpenId(null);
     mutate(id, (x) => (x.unread && !x.real ? { ...x, unread: false } : x));
+    // A row pressed is read, the one already open too: one put back as unread stays so until it is opened again.
+    if (t && t.real && threadUnread(t)) seePerson(threadWhose(t), t.heardAtMs);
     // The thread open is the address's: a refresh opens it again and the crumbs name it.
     openThread(id);
   };

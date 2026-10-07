@@ -96,6 +96,8 @@ export const RATE = {
   person_edit: { limit: 60, windowMs: MIN_MS, noun: "profile edits" },
   /** Read and dismiss marks on the bell. */
   notify_mark: { limit: 120, windowMs: MIN_MS, noun: "notification marks" },
+  /** A member's own seen and unread marks on people: one as each thread or person is opened. */
+  seen_mark: { limit: 240, windowMs: MIN_MS, noun: "read marks" },
   setup_request: { limit: 5, windowMs: HOUR_MS, noun: "setup requests" },
   lines_search: { limit: 20, windowMs: HOUR_MS, noun: "number searches" },
   lines_buy: { limit: 3, windowMs: HOUR_MS, noun: "lines" },

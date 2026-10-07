@@ -11,7 +11,9 @@ import type { ChangeEvent, ReactNode } from "react";
 import { leadsRoute } from "@chanlytics/contracts";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { ReachOutSheet } from "../../campaigns/reach-out/sheet";
+import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
+import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
 import { RecordSheet } from "../../kit/record/sheet";
 import { canDo, gate, navigate } from "../../legacy-verbs";
@@ -346,6 +348,10 @@ export const LeadImportSheet = ({
 /** What the page draws of a list of your own: the rail's door, the bar's act, the sheets, and a list's strip and empty state. */
 export interface LeadLists {
   importDoor: ReactNode;
+  /** Opens the import sheet: the first day's own door to it, where no rail is drawn. */
+  openImport: () => void;
+  /** Import leads as the page's act: a phone's head holds it, where the rail that keeps the door is a sheet away. */
+  importAct: ReactNode;
   writeAct: (a: { ids: string[]; phone?: boolean; shut?: () => void }) => ReactNode;
   node: ReactNode;
   stripOf: Lists["stripOf"] | (() => null);
@@ -436,5 +442,27 @@ export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => vo
     </>
   );
   // A list's own strip in the finder's strip's place, and what its table says while its addresses are checked (J8).
-  return { importDoor, writeAct, node, stripOf: L.stripOf, emptyOf: L.emptyOf };
+  // The same door as a phone's head draws it (scope/scope.tsx): the page's one filled act there, as Add a person is
+  // People's and New proposal the Pipeline's (Ruben, 7 Oct 2026: a phone's Leads had no way to bring a list in but the
+  // Lists sheet's last row). Its first word is kept where the row of views is short (kit/head/act-words.tsx).
+  const importAct = (
+    <Button
+      variant="primary"
+      size="sm"
+      onClick={() => setImporting(true)}
+      data-testid="leads-import-open"
+      {...gate("find", "import leads")}
+    >
+      <ActWords icon={<Icon name="download" size={12} />} words={L.words.importDoor} />
+    </Button>
+  );
+  return {
+    importDoor,
+    openImport: () => setImporting(true),
+    importAct,
+    writeAct,
+    node,
+    stripOf: L.stripOf,
+    emptyOf: L.emptyOf,
+  };
 };

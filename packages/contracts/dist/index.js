@@ -6931,9 +6931,20 @@ function leadsStanding(counts, searches) {
 }
 
 // src/leads/leads.ts
-var LEAD_FIRST_DAY_TITLE = "Your people gather here";
-var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
-var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
+var LEAD_FIRST_DAY = {
+  title: "Who do you want as customers?",
+  sub: "Say it in a sentence. Claude finds businesses that fit, checks each one, and shows how to reach them.",
+  ask: "Describe the businesses you want",
+  ideas: "Or start from an idea",
+  from: "Written from what you do:",
+  edit: "Edit",
+  lineTitle: "What your business does",
+  lineSub: "Claude writes your ideas from this. Say what you sell and who you sell it to.",
+  lineLabel: "Your business, in a sentence",
+  linePlaceholder: "What you sell, and who buys it",
+  haveList: "Have a list already?",
+  importIt: "Import it"
+};
 var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 var LEAD_WORDS = {
   /**
@@ -7002,7 +7013,7 @@ var LEAD_WORDS = {
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
-  firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  firstDay: LEAD_FIRST_DAY,
   about: "About",
   reachHeading: "Reach",
   unclaimed: LEAD_UNCLAIMED_NOTE,
@@ -7966,6 +7977,26 @@ function replyWaitsOnYou(r2, nowMs) {
   if (r2.held) return false;
   if (r2.endsAtMs !== void 0 && r2.endsAtMs !== null) return r2.endsAtMs > nowMs;
   return !!r2.queued;
+}
+function seenBy(marks) {
+  if (!marks) return () => ({});
+  const floorMs = marks.floor_at ? Date.parse(marks.floor_at) : Number.NEGATIVE_INFINITY;
+  const own = new Map(marks.marks.map((m) => [m.contact_id, m]));
+  return (contactId) => {
+    const mark = own.get(contactId);
+    const markMs = mark?.seen_at ? Date.parse(mark.seen_at) : Number.NEGATIVE_INFINITY;
+    const seenMs = Math.max(floorMs, markMs);
+    return {
+      ...Number.isFinite(seenMs) ? { seen_at: new Date(seenMs).toISOString() } : {},
+      ...mark?.unread_at ? { marked_unread: true } : {}
+    };
+  };
+}
+var heardMs = (lastInboundAt) => lastInboundAt ? Date.parse(lastInboundAt) : 0;
+function isUnseen(heardAt2, seen) {
+  if (seen.marked_unread) return true;
+  if (!heardAt2 || !seen.seen_at) return false;
+  return (typeof heardAt2 === "number" ? heardAt2 : Date.parse(heardAt2)) > Date.parse(seen.seen_at);
 }
 
 // src/conversations/thread-clock.ts
@@ -18403,9 +18434,9 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
-    // The dot means a person is needed and nobody has it: needsYou, the one rule.
-    // "Escalated and not mine" lit it on a thread a teammate is answering too.
-    unread: needsYou,
+    // The dot is the reader's own (standing.ts isUnseen, 00345; inbox-thread-vm.ts says what it meant before).
+    unread: isUnseen(dto.last_inbound_at, dto),
+    heardAtMs: heardMs(dto.last_inbound_at),
     pinned: false,
     tags: [],
     priority: "P2",
@@ -18486,6 +18517,8 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     standing: v.standing,
+    unseen: isUnseen(dto.last_inbound_at, dto),
+    heardAtMs: heardMs(dto.last_inbound_at),
     outcome,
     snippet: last ? messageWords(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
@@ -21741,1352 +21774,6 @@ function planLeadSearch(input) {
   return { ok: true, plan: checked.data, view: { title: `Find ${checked.data.count} ${checked.data.name}` } };
 }
 
-// src/voice/greeting.ts
-function greetingFor(name) {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
-}
-function pausedGreetingFor(name) {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant, and today I can only take a message for the team.`;
-}
-var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
-
-// src/setup/check-chips.ts
-var SUGGESTIONS = {
-  hair_salon: [
-    "Haircut",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Color",
-    "Highlights",
-    "Balayage",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Blowout",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Keratin treatment",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Extensions"
-  ],
-  barber_shop: [
-    "Haircut",
-    // trade-word: a barber's own service, suggested only where Google lists a barber shop
-    "Beard trim",
-    "Hot towel shave",
-    "Fade",
-    "Kids' cut",
-    "Line-up"
-  ],
-  beauty_salon: [
-    "Haircut",
-    // trade-word: a beauty salon's own service, suggested only where Google lists one or a beautician
-    "Color",
-    "Manicure",
-    "Pedicure",
-    "Facial",
-    "Waxing",
-    "Brow shaping",
-    "Makeup"
-  ],
-  nail_salon: ["Manicure", "Pedicure", "Gel manicure", "Acrylic set", "Dip powder", "Nail art", "Fill"],
-  spa: ["Massage", "Facial", "Body scrub", "Hot stone massage", "Couples massage", "Body wrap"],
-  skin_care_clinic: ["Facial", "Chemical peel", "Microneedling", "Dermaplaning", "Acne treatment", "Consultation"],
-  makeup_artist: ["Bridal makeup", "Event makeup", "Makeup lesson", "Airbrush makeup", "Trial session"],
-  tanning_studio: ["Spray tan", "Tanning session", "Tanning package", "Rapid tan"],
-  body_art_service: ["Tattoo", "Piercing", "Touch-up", "Cover-up", "Consultation"],
-  dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"],
-  chiropractor: ["New patient exam", "Adjustment", "Massage", "Spinal decompression", "Consultation"],
-  physiotherapist: [
-    "Evaluation",
-    "Physical therapy session",
-    "Sports injury rehab",
-    "Post-surgery rehab",
-    "Dry needling"
-  ],
-  doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"],
-  foot_care: ["Foot exam", "Nail care", "Callus removal", "Orthotics fitting", "Diabetic foot check"],
-  wellness_center: ["Consultation", "Massage", "Acupuncture", "IV drip", "Membership"],
-  veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"],
-  pet_care: ["Full groom", "Bath and brush", "Nail trim", "Boarding", "Daycare", "Dog walking"],
-  fitness_center: ["Personal training", "Group class", "Membership", "Day pass", "Nutrition coaching"],
-  yoga_studio: ["Drop-in class", "Class pack", "Private session", "Beginners series", "Membership"],
-  car_repair: ["Oil change", "Brake service", "Diagnostics", "Tire rotation", "Inspection", "AC repair"],
-  car_wash: ["Exterior wash", "Full detail", "Interior cleaning", "Wax", "Monthly plan"],
-  tire_shop: ["Tire installation", "Rotation", "Balancing", "Alignment", "Flat repair"],
-  moving_company: ["Local move", "Long-distance move", "Packing", "Storage", "Piano move", "Office move"],
-  plumber: ["Leak repair", "Drain cleaning", "Water heater", "Toilet repair", "Emergency call-out", "Inspection"],
-  electrician: [
-    "Outlet installation",
-    "Panel upgrade",
-    "Lighting installation",
-    "EV charger installation",
-    "Troubleshooting",
-    "Inspection"
-  ],
-  roofing_contractor: ["Roof inspection", "Roof repair", "Roof replacement", "Gutter repair", "Estimate"],
-  painter: ["Interior painting", "Exterior painting", "Cabinet painting", "Drywall repair", "Estimate"],
-  locksmith: ["Lockout", "Rekey", "Lock installation", "Key cutting", "Car lockout"],
-  laundry: ["Wash and fold", "Dry cleaning", "Pickup and delivery", "Alterations"],
-  tailor: ["Alterations", "Hemming", "Suit tailoring", "Repairs", "Custom fitting"],
-  florist: ["Bouquet", "Wedding flowers", "Event flowers", "Sympathy flowers", "Delivery"],
-  lawyer: ["Consultation", "Contract review", "Estate planning", "Family law", "Business formation"],
-  insurance_agency: ["Quote", "Auto insurance", "Home insurance", "Life insurance", "Policy review"],
-  real_estate_agency: ["Home valuation", "Buyer consultation", "Listing appointment", "Showing", "Rental help"],
-  catering_service: ["Event catering", "Tasting", "Corporate lunch", "Wedding catering", "Drop-off catering"],
-  child_care_agency: ["Tour", "Full-time care", "Part-time care", "After-school care", "Drop-in care"]
-};
-var SAME_AS = {
-  hair_care: "hair_salon",
-  beautician: "beauty_salon",
-  massage: "spa",
-  massage_spa: "spa",
-  dental_clinic: "dentist",
-  medical_clinic: "doctor",
-  medical_center: "doctor",
-  gym: "fitness_center",
-  pet_boarding_service: "pet_care"
-};
-var SERVICE_SUGGESTION_TYPES = /* @__PURE__ */ (() => Object.keys(SUGGESTIONS))();
-function serviceSuggestionsOf(type) {
-  const t = (type ?? "").trim();
-  return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
-}
-function checkChipsOf(i) {
-  const listed = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
-  const chosen = (Array.isArray(i.languages) ? i.languages : []).filter((l) => typeof l === "string" && l.trim() !== "").map((l) => l.trim());
-  const has3 = (list2, name) => list2.some((x) => sameListed(x, name));
-  const besides = chosen.filter((l, k) => !has3(COMMON_LANGUAGES, l) && !has3(chosen.slice(0, k), l));
-  const set = (key, chips, count2) => count2 >= PROFILE_LIMITS[key] && chips.some((c) => !c.on) ? { chips: chips.filter((c) => c.on), full: profileRefusal(key) } : { chips, full: null };
-  return {
-    services: set(
-      "services",
-      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
-      listed.length
-    ),
-    languages: set(
-      "languages",
-      [
-        ...COMMON_LANGUAGES.map((name) => ({ name, on: has3(chosen, name) })),
-        ...besides.map((name) => ({ name, on: true }))
-      ],
-      chosen.length
-    )
-  };
-}
-
-// src/setup/first-run-live.ts
-var FIRST_RUN_LIVE_WORDS = {
-  heading: (business) => business ? `${business}'s receptionist is answering` : "Your receptionist is answering",
-  lead: "Every call shows up on Today and in your Inbox.",
-  answers: "Answers",
-  answersKept: (kept) => `${kept}, when nobody picks up`,
-  answersKeptAll: (kept) => `Every call to ${kept}`,
-  through: "Puts callers through to",
-  throughNobody: "Nobody: it takes a message and emails you",
-  throughNobodyUnaddressed: "Nobody: it takes a message",
-  emails: "Emails you at",
-  emailsTo: (to) => `${to}, when someone needs you`,
-  emailsNobody: "Nobody yet",
-  knows: "Knows",
-  knowsNothing: "Only your name so far",
-  change: "Change",
-  greeting: (words3) => `Every caller hears \u201C${words3}\u201D`,
-  finishNote: "We'll email you a copy of this.",
-  /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
-  emailSubject: (business) => business ? `Your receptionist is answering ${business}'s calls` : "Your receptionist is answering your calls",
-  emailTest: (length, from, through) => `It answered your test call${length ? ` (${length})` : ""}${from ? ` from ${from}` : ""}${through ? ` through ${through}` : ""}.`,
-  emailFrom: (kept, own, always = false) => kept ? always ? `From now on, every call to ${kept} reaches your receptionist.` : `From now on, calls to ${kept} that nobody picks up reach your receptionist.` : own ? `From now on, calls to ${own} reach your receptionist.` : "From now on, your receptionist answers your calls.",
-  emailThrough: (to) => to ? `A caller who asks for a person is put through to ${to}.` : "A caller who asks for a person leaves a message.",
-  emailAlerts: "We'll email you here when someone needs you.",
-  emailOpen: (url) => `Open Today: ${url}`
-};
-function listWords2(parts2) {
-  if (parts2.length <= 1) return parts2[0] ?? "";
-  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-function firstRunLiveOf({ dto, emails, business, owner }) {
-  const W = FIRST_RUN_LIVE_WORDS;
-  const own = dto.channels.voice.active ? formatPhoneDisplay(dto.channels.voice.number) : null;
-  const fw = forwardedLineOf(dto.lines);
-  const kept = fw && fw.forwarding_state === "verified" ? formatPhoneDisplay(fw.e164) : null;
-  const always = fw?.forwarding?.mode === "always";
-  const handoff = formatPhoneDisplay(dto.business.handoff);
-  const b = dto.business;
-  const knows = [
-    b.hours ? "your hours" : null,
-    b.address ? "your address" : null,
-    b.services ? `${b.services} ${b.services === 1 ? "service" : "services"}` : null,
-    b.bookingLink ? "your booking link" : null
-  ].filter((x) => !!x);
-  const knowsWords = listWords2(knows);
-  return {
-    heading: W.heading(business),
-    lead: W.lead,
-    summary: [
-      {
-        key: "answers",
-        label: W.answers,
-        value: kept ? always ? W.answersKeptAll(kept) : W.answersKept(kept) : own ?? "\u2014",
-        change: null
-      },
-      {
-        key: "through",
-        label: W.through,
-        value: handoff ?? (emails.length ? W.throughNobody : W.throughNobodyUnaddressed),
-        change: { label: W.change, to: "admin/workspace" }
-      },
-      {
-        key: "emails",
-        label: W.emails,
-        value: emails.length ? W.emailsTo(emails.join(", ")) : W.emailsNobody,
-        change: { label: W.change, to: "admin/notifications" }
-      },
-      {
-        key: "knows",
-        label: W.knows,
-        value: knowsWords ? knowsWords.charAt(0).toUpperCase() + knowsWords.slice(1) : W.knowsNothing,
-        change: { label: W.change, to: "admin/workspace" }
-      }
-    ],
-    greeting: W.greeting(greetingFor(business)),
-    // The email goes with the first run's first activation of calls (the capability route, first_run): said only
-    // where it will go.
-    finish: {
-      note: owner && own && emails.length > 0 && !(dto.activations ?? []).some((a) => a.capability === "voice") ? W.finishNote : null
-    }
-  };
-}
-function youAreLiveEmail(i) {
-  const W = FIRST_RUN_LIVE_WORDS;
-  const own = formatPhoneDisplay(i.own);
-  const kept = formatPhoneDisplay(i.kept);
-  const lines = [
-    i.test ? W.emailTest(i.test.length, formatPhoneDisplay(i.test.from), kept) : null,
-    W.emailFrom(kept, own, i.always),
-    W.emailThrough(formatPhoneDisplay(i.handoff)),
-    W.emailAlerts,
-    i.todayUrl ? W.emailOpen(i.todayUrl) : null
-  ].filter((x) => !!x);
-  return { subject: W.emailSubject(i.business), body: `${lines.join("\n\n")}
-` };
-}
-
-// src/voice/forwarding.ts
-var CARRIERS = ["verizon", "att", "tmobile", "other", "office"];
-var FORWARDING_MODES = ["unanswered", "always"];
-var CARRIER_WORDS = {
-  verizon: "Verizon",
-  att: "AT&T",
-  tmobile: "T-Mobile",
-  other: "Another carrier or a landline",
-  office: "An office phone system"
-};
-var FORWARDING_MODE_WORDS = {
-  unanswered: "Only calls you don't answer",
-  always: "Every call"
-};
-var FORWARDING_TEST_WINDOW_MS = 30 * MIN_MS;
-function telHref(code2) {
-  return `tel:${code2.replace(/\+/g, "%2B").replace(/#/g, "%23")}`;
-}
-function national(e164) {
-  const d = e164.replace(/[^\d]/g, "");
-  return d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
-}
-var code = (c) => ({ code: c, tel: telHref(c) });
-var UNANSWERED_NOTE = "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
-var DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
-var OFFICE_NOTE = "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
-var OFFICE_VOICEMAIL_NOTE = "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach the receptionist. Its support can set it for you.";
-function forwardingDialLabel(carrier, kept) {
-  return carrier === "office" ? `In the phone system for ${kept}, forward the calls to` : `Dial on the phone with ${kept}`;
-}
-function forwardingCodes(carrier, mode, destinationE164) {
-  const n10 = national(destinationE164);
-  const full = normalizePhone(destinationE164) ?? destinationE164;
-  const conditional = mode === "unanswered";
-  switch (carrier) {
-    // No code: the receptionist's number, set in the system's own settings, and taken out there to switch it off.
-    case "office":
-      return {
-        on: code(full),
-        off: code(""),
-        notes: [OFFICE_NOTE, ...conditional ? [OFFICE_VOICEMAIL_NOTE] : []]
-      };
-    case "verizon":
-      return {
-        on: code(conditional ? `*71${n10}` : `*72${n10}`),
-        off: code("*73"),
-        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "Verizon forwards calls only, never texts."]
-      };
-    case "att":
-      return {
-        on: code(conditional ? `*61*${n10}#` : `*21*${n10}#`),
-        off: code(conditional ? "#61#" : "#21#"),
-        notes: [
-          DIAL_NOTE,
-          ...conditional ? [
-            UNANSWERED_NOTE,
-            `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`
-          ] : []
-        ]
-      };
-    case "tmobile":
-      return {
-        on: code(conditional ? `**004*${full}#` : `**21*${full}#`),
-        off: code(conditional ? "##004#" : "##21#"),
-        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "T-Mobile takes the number with +1 in front."]
-      };
-    default:
-      return {
-        on: code(conditional ? `*92${n10}` : `*72${n10}`),
-        off: code(conditional ? "*93" : "*73"),
-        notes: [
-          DIAL_NOTE,
-          ...conditional ? [UNANSWERED_NOTE] : [],
-          "Codes vary by carrier. If these are refused, ask your carrier for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer."
-        ]
-      };
-  }
-}
-var isCarrier = (v) => typeof v === "string" && CARRIERS.includes(v);
-var isForwardingMode = (v) => typeof v === "string" && FORWARDING_MODES.includes(v);
-function forwardingMatch(facts, call, nowMs = Date.now()) {
-  const started = call.startedAtIso ? Date.parse(call.startedAtIso) : nowMs;
-  const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
-  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
-  if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
-  if (started < from - MIN_MS || started > until) return false;
-  const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
-  if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
-  const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
-  if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
-  return true;
-}
-function divertedNumbers(headers) {
-  if (!headers || typeof headers !== "object") return null;
-  const values = ["diversion", "history-info"].map((k) => headers[k]).filter((v) => typeof v === "string" && v.trim() !== "");
-  if (!values.length) return null;
-  const out = [];
-  for (const v of values)
-    for (const m of v.matchAll(/(?:sips?|tel):(\+?\d{7,15})/gi)) {
-      const n = normalizePhone(m[1]);
-      if (n && !out.includes(n)) out.push(n);
-    }
-  return out;
-}
-function forwardingProof(keptE164, diverted) {
-  if (diverted === null) return "unseen";
-  const kept = keptE164 ? normalizePhone(keptE164) : null;
-  return kept && diverted.includes(kept) ? "carrier" : "not_shown";
-}
-function forwardingTestOpen(facts, nowMs = Date.now()) {
-  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
-  return !Number.isNaN(until) && until > nowMs;
-}
-
-// src/setup/first-run-try.ts
-var TRY_QUIET_AFTER_MS = 3 * MIN_MS;
-var TRY_SLACK_MS = MIN_MS;
-var FIRST_RUN_TRY_WORDS = {
-  listenForwarded: "Call your number from your cell. Don't pick up.",
-  listenOwn: "Call your receptionist from your cell.",
-  lead: "Ask what a customer would, like \u201CAre you open on Sunday?\u201D",
-  listening: "Listening for your call",
-  listeningDetail: "This page changes the moment it picks up.",
-  listeningWindow: (minutes) => `This page changes the moment it picks up. Open for ${minutes} more ${minutes === 1 ? "minute" : "minutes"}.`,
-  route: (kept) => `Your cell calls ${kept} \u2192 nobody picks up \u2192 your receptionist answers`,
-  quietHeading: "No call has reached your receptionist yet",
-  stillListening: "Still listening",
-  causesForwarded: [
-    {
-      question: "Did you hear a tone after dialing the code?",
-      answer: "If not, dial the code again, or pick another phone company."
-    },
-    {
-      question: "Did an answering machine or voicemail pick up?",
-      answer: "Turn it off. It answers before your receptionist can."
-    },
-    {
-      question: "Did you call from the phone customers call?",
-      answer: "Use another phone. A line can't forward a call to itself."
-    }
-  ],
-  causeOwn: (number2) => ({
-    question: `Did you call ${number2}?`,
-    answer: "That's the number your receptionist answers."
-  }),
-  showCode: "Show the code again",
-  help: "Ask Chanlytics for help",
-  helpSent: "We'll email you to find a time for a call.",
-  helpFailed: "Not asked",
-  pickedUp: "It picked up.",
-  proofForwarded: "Forwarding works",
-  proofOwn: "Your receptionist answered",
-  onTheCall: "on the call now",
-  behind: "Words arrive a moment behind the call.",
-  doneHeading: "That's your receptionist.",
-  from: (number2) => `from ${number2}`,
-  through: (number2) => `through ${number2}`,
-  receptionist: "Receptionist",
-  caller: "You",
-  someone: "Caller",
-  transferLabel: "When a caller asks for a person",
-  putThrough: (number2) => `Put them through to ${number2}`,
-  putThroughCaller: "The phone you just called from. It rings during opening hours; outside them, it takes a message.",
-  keepPutting: (number2) => `Keep putting them through to ${number2}`,
-  keepPuttingSentence: "The number on record now.",
-  message: "Take a message and email me",
-  messageSentence: "Nobody is put through. You get the message right away.",
-  notKept: (kept) => `Not ${kept}: while it forwards, that call would ring straight back here.`,
-  saved: "Saved. Your receptionist puts callers through as you chose.",
-  notSaved: "Not saved",
-  notReadYet: "Your settings are still being read. Try again in a moment.",
-  inbox: "It's in your Inbox too",
-  continue: "Continue",
-  skip: "Can't call right now? Skip for now",
-  nudge: "Most owners call once. It takes a minute, and it's the only way to know your calls really reach your receptionist.",
-  stay: "OK, I'll call",
-  anyway: "Skip anyway"
-};
-function firstRunTryOf({ dto, calls, since, nowMs }) {
-  const W = FIRST_RUN_TRY_WORDS;
-  const voice = dto.channels.voice;
-  const own = voice.active ? normalizePhone(voice.number) : null;
-  const fw = forwardedLineOf(dto.lines);
-  const kept = fw ? normalizePhone(fw.e164) : null;
-  const forwarded = !!kept;
-  const proven = forwarded && fw.forwarding_state === "verified";
-  const shown = formatPhoneDisplay(kept ?? own);
-  const skip = { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway };
-  const f0 = fw?.forwarding ?? null;
-  const openTest = fw && f0 && fw.forwarding_state !== "verified" && !forwardingTestOpen(f0, nowMs) ? fw.id : null;
-  const base = {
-    number: shown,
-    forwarded,
-    help: forwarded ? W.help : null,
-    openTest,
-    listening: null,
-    causes: [],
-    call: null,
-    transfer: null,
-    skip
-  };
-  if (!own) return { ...base, stage: "rows", heading: "", lead: "" };
-  const tested = !!voice.lastInboundAt;
-  const inbound = calls.filter((c) => c.direction === "inbound" && !c.missed && c.startedAtMs !== null).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
-  const call = inbound.find((c) => (c.startedAtMs ?? 0) >= since - TRY_SLACK_MS) ?? (tested ? inbound[0] ?? null : null);
-  if (!call) {
-    const f = fw?.forwarding ?? null;
-    const open = !!f && fw.forwarding_state !== "verified" && forwardingTestOpen(f, nowMs);
-    const left = open && f.test_until ? Math.max(1, Math.ceil((Date.parse(f.test_until) - nowMs) / MIN_MS)) : null;
-    const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
-    return {
-      ...base,
-      stage: quiet ? "quiet" : "listen",
-      heading: quiet ? W.quietHeading : forwarded ? W.listenForwarded : W.listenOwn,
-      lead: quiet ? "" : W.lead,
-      listening: {
-        sentence: quiet ? W.stillListening : W.listening,
-        detail: left !== null ? W.listeningWindow(left) : W.listeningDetail,
-        route: forwarded ? W.route(shown ?? "") : null
-      },
-      causes: quiet ? forwarded ? W.causesForwarded.map((c) => ({ ...c })) : [W.causeOwn(formatPhoneDisplay(own) ?? own)] : []
-    };
-  }
-  const test = (call.startedAtMs ?? 0) >= since - TRY_SLACK_MS;
-  const turns = call.transcript.filter((t) => t.speaker === "agent" || t.speaker === "client").map((t) => ({
-    who: t.speaker === "agent" ? W.receptionist : test ? W.caller : W.someone,
-    text: t.text,
-    agent: t.speaker === "agent"
-  }));
-  const proof = proven ? W.proofForwarded : W.proofOwn;
-  const to = `conversations/${call.cvId}`;
-  if (call.live) {
-    const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1e3));
-    const clock3 = mmss(secs * 1e3);
-    return {
-      ...base,
-      stage: "call",
-      heading: W.pickedUp,
-      lead: "",
-      call: { line: [proof, W.onTheCall, clock3].join(" \xB7 "), live: true, test, turns, behind: W.behind, to }
-    };
-  }
-  const caller = normalizePhone(call.from);
-  const current = normalizePhone(dto.business.handoff);
-  const callerOk = test && !!caller && whyNotAHandoff(caller, own, kept) === null;
-  const options = [];
-  if (callerOk) {
-    options.push({
-      key: "caller",
-      label: W.putThrough(formatPhoneDisplay(caller) ?? caller),
-      sentence: W.putThroughCaller,
-      to: caller
-    });
-  }
-  if (current && !samePhone(current, caller)) {
-    options.push({
-      key: "current",
-      label: W.keepPutting(formatPhoneDisplay(current) ?? current),
-      sentence: W.keepPuttingSentence,
-      to: current
-    });
-  }
-  options.push({ key: "message", label: W.message, sentence: W.messageSentence, to: null });
-  const value = !current ? "message" : samePhone(current, caller) && callerOk ? "caller" : "current";
-  const line = [
-    call.duration ?? call.lengthWords,
-    call.number ? W.from(call.number) : null,
-    proven && shown ? W.through(shown) : null,
-    call.startedLabel
-  ].filter(Boolean).join(" \xB7 ");
-  return {
-    ...base,
-    stage: "done",
-    heading: W.doneHeading,
-    lead: "",
-    call: { line, live: false, test, turns, behind: null, to },
-    transfer: {
-      label: W.transferLabel,
-      options,
-      value,
-      note: forwarded && shown ? W.notKept(shown) : null
-    }
-  };
-}
-
-// src/setup/first-run-phone.ts
-var PHONE_WAYS = ["keep", "new", "move"];
-var PHONE_RINGS = ["mobile", "landline", "office"];
-function forwardingCarrierOf(rings, company) {
-  if (rings === "office") return "office";
-  if (rings === "landline") return "other";
-  if (rings === "mobile") return company ?? null;
-  return null;
-}
-var FIRST_RUN_PHONE_WORDS = {
-  chooseHeading: "How should calls reach your receptionist?",
-  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
-  readyHeading: "Getting your receptionist's number ready",
-  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
-  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
-  recommended: "Recommended",
-  keepTitle: (display) => display ? `Keep ${display}` : "Keep the number you have",
-  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
-  newTitle: "Get a new number",
-  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
-  moveTitle: "Move my number to Chanlytics",
-  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
-  numberLabel: "The number customers call",
-  numberPlaceholder: "(305) 555-0100",
-  areaLabel: "Area code",
-  areaPlaceholder: "305",
-  find: "Find numbers",
-  finding: "Looking\u2026",
-  pickLabel: "Pick your receptionist's number",
-  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
-  threeDigits: "Three digits, like 305.",
-  local: "Local",
-  held: {
-    number: "Type the number customers call.",
-    us: "Forwarding works for a US number: type it with its area code.",
-    pick: "Pick a number first."
-  },
-  cta: {
-    planKeep: "Start my plan",
-    planNew: (number2) => number2 ? `Start my plan with ${number2}` : "Start my plan",
-    planMove: "Start my plan and ask for the move",
-    keep: "Keep this number",
-    new: (number2) => number2 ? `Get ${number2}` : "Get this number",
-    move: "Ask for the move"
-  },
-  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
-  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
-  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
-  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
-  starting: "Starting your plan\u2026",
-  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
-  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
-  buyingNew: (number2) => `Getting ${number2}\u2026`,
-  usually: "Usually a minute or two; this page updates by itself",
-  /** What the page says when a buy or a search is refused, over the door's own sentence. */
-  notBought: "No number yet",
-  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
-  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
-  cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
-  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
-  ringsLabel: (display) => display ? `Which phone rings when customers call ${display}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
-  companyLabel: "Who's the phone company?",
-  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
-  show: "Show me what to dial",
-  showOffice: "Show me where to forward",
-  readySoon: "Ready in a moment",
-  answerFirst: "Answer the questions first.",
-  askHeading: "One more thing",
-  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
-  /** The code (canvas R5, P5). */
-  codeHeading: "Dial this on the phone customers call",
-  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
-  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
-  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
-  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
-  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
-  /** A tab that lost the answers: what rings is not known, so neither is said. */
-  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
-  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
-  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
-  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
-  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
-  off: (code2) => `To switch it off later, dial ${code2}.`,
-  tap: "Tap to dial",
-  done: "Done, let's try it",
-  help: "The code didn't work",
-  change: "Change the answers",
-  keepCode: "Keep what I have",
-  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
-  officeHeading: "Forward missed calls in your phone system",
-  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
-  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
-  officeSteps: [
-    "Open your phone system's settings.",
-    "Find forwarding, or what happens when no one answers.",
-    "Forward the calls to the number above: your receptionist's number. Customers never see it."
-  ],
-  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
-  officeOff: "To switch it off later, take the forwarding out in the same settings.",
-  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
-  withMeLabel: "Do it with me",
-  helpOffice: "It didn't work",
-  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
-  withMeFailed: "Not asked",
-  withMeSent: "We'll email you to find a time for a call.",
-  notForwarded: "Forwarding not saved"
-};
-function areaCodeOf(raw) {
-  const e164 = normalizePhone(raw);
-  return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
-}
-function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
-  const s = phoneStepOf({ dto, vm, choice, returned, nowMs });
-  if (dto.channels.voice.present) return answeringStageOf(s);
-  if (s.ownLine) return onItsWayStageOf(s, s.ownLine);
-  return noLineYetStageOf(s);
-}
-function phoneStepOf(input) {
-  const { dto, vm, choice } = input;
-  const { way, forwarded, listed, number: number2, area } = numbersOf(dto, choice);
-  const billing = dto.billing;
-  const ownLine = dto.lines?.rows.find((l) => l.voice_state !== "none") ?? null;
-  const lineRow2 = vm.rows.find((r2) => r2.id === "line") ?? null;
-  const pick = choice?.pick ?? null;
-  const base = {
-    way,
-    ways: waysOf(number2, listed),
-    number: number2,
-    listed,
-    box: formatPhoneDisplay(listed) ?? "",
-    area
-  };
-  const ready = readyOf(choice, forwarded);
-  return {
-    ...input,
-    way,
-    forwarded,
-    number: number2,
-    area,
-    ownLine,
-    lineRow: lineRow2,
-    canSpend: !billing || maySpend(billing.mode, billing.status),
-    pick,
-    picked: pick ? formatPhoneDisplay(pick.e164) : null,
-    base,
-    ready,
-    rows: { ...base, ...ready, stage: "rows", status: null },
-    ...answersOf(choice, forwarded, number2)
-  };
-}
-function numbersOf(dto, choice) {
-  const way = choice?.way ?? "keep";
-  const forwarded = way !== "new";
-  const listed = normalizePhone(dto.google?.phone ?? null);
-  const typed = normalizePhone(choice?.number ?? null);
-  const number2 = choice && choice.number !== null ? typed : listed;
-  const area = areaCodeOf(forwarded ? number2 : null) ?? areaCodeOf(listed);
-  return { way, forwarded, listed, number: number2, area };
-}
-function waysOf(number2, listed) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  return [
-    {
-      key: "keep",
-      title: W.keepTitle(formatPhoneDisplay(number2)),
-      sentence: number2 && number2 === listed ? W.keepListed : W.keepTyped,
-      recommended: W.recommended
-    },
-    { key: "new", title: W.newTitle, sentence: W.newSentence, recommended: null },
-    { key: "move", title: W.moveTitle, sentence: W.moveSentence, recommended: null }
-  ];
-}
-function readyOf(choice, forwarded) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  return {
-    heading: W.readyHeading,
-    lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
-    plan: null,
-    cta: null,
-    questions: null,
-    code: null,
-    forwardFrom: null,
-    saved: null,
-    keepCode: null
-  };
-}
-function answersOf(choice, forwarded, number2) {
-  const rings = choice?.rings ?? null;
-  const company = choice?.company ?? null;
-  const asking = !!choice && forwarded && !!number2;
-  return {
-    rings,
-    company,
-    questions: asking && number2 ? questionsAbout(number2, rings, company) : null,
-    answered: !!forwardingCarrierOf(rings, company)
-  };
-}
-function questionsAbout(about, rings, company) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  return {
-    rings: {
-      label: W.ringsLabel(formatPhoneDisplay(about)),
-      options: PHONE_RINGS.map((k) => ({ key: k, label: W.rings[k] })),
-      value: rings
-    },
-    // A landline takes the landline codes whoever runs it, so only a mobile is asked its company.
-    company: rings === "mobile" ? {
-      label: W.companyLabel,
-      options: ["verizon", "att", "tmobile", "other"].map((k) => ({
-        key: k,
-        label: W.company[k]
-      })),
-      value: company
-    } : null
-  };
-}
-function showCtaOf(s, lineAnswers) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  return {
-    label: s.rings === "office" ? W.showOffice : W.show,
-    held: !lineAnswers ? W.readySoon : s.answered ? null : W.answerFirst,
-    act: "forward"
-  };
-}
-function answeringStageOf(s) {
-  const voice = s.dto.channels.voice;
-  const dest = voice.active ? voice.number : null;
-  const saved = savedForwardingOf(s.dto.lines);
-  if (!dest) return s.rows;
-  const line = { dest, saved, from: saved ? normalizePhone(saved.line.e164) : null };
-  for (const stage of ANSWERING_STAGES) {
-    const drawn = stage(s, line);
-    if (drawn) return drawn;
-  }
-  return s.rows;
-}
-function savedForwardingOf(lines) {
-  const fw = lines?.rows.find((l) => l.kind === "forwarded") ?? null;
-  const f = fw?.forwarding ?? null;
-  return fw && f && isCarrier(f.carrier) && (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified") ? { line: fw, forwarding: f, carrier: f.carrier } : null;
-}
-var ANSWERING_STAGES = [
-  askedAgainStageOf,
-  officeCodeStageOf,
-  phoneCodeStageOf,
-  questionsStageOf
-];
-function askedAgainStageOf(s, line) {
-  if (!line.saved || !s.choice?.redo || !line.from) return null;
-  return askStageOf(s, {
-    questions: questionsAbout(line.from, s.rings, s.company),
-    forwardFrom: line.from,
-    saved: { carrier: line.saved.carrier },
-    keepCode: FIRST_RUN_PHONE_WORDS.keepCode
-  });
-}
-function officeCodeStageOf(s, line) {
-  const saved = line.saved;
-  if (!saved || saved.carrier !== "office") return null;
-  const W = FIRST_RUN_PHONE_WORDS;
-  const f = saved.forwarding;
-  const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
-  const codes = forwardingCodes("office", mode, f.destination_e164 ?? line.dest);
-  const keepRow2 = s.vm.rows.find((r2) => r2.id === "keep") ?? null;
-  const asked = withMeAskedOf(s);
-  return codeStageOf(s, W.officeHeading, W.officeLead, {
-    label: W.officeLabel(mode === "always"),
-    dial: formatPhoneDisplay(f.destination_e164 ?? line.dest) ?? line.dest,
-    tel: codes.on.tel,
-    tap: null,
-    steps: [...W.officeSteps],
-    warn: W.officeWarn,
-    off: W.officeOff,
-    help: { label: W.helpOffice, notes: codes.notes },
-    change: line.from ? W.change : null,
-    verified: saved.line.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
-    withMe: {
-      sentence: W.withMe,
-      label: W.withMeLabel,
-      asked: asked !== null ? W.withMeAsked(agoWords(asked, s.nowMs)) : null
-    }
-  });
-}
-function withMeAskedOf(s) {
-  const askedAt = s.dto.requests.forwarding ? Date.parse(s.dto.requests.forwarding) : NaN;
-  return !Number.isNaN(askedAt) && s.nowMs - askedAt < DAY_MS ? askedAt : null;
-}
-function phoneCodeStageOf(s, line) {
-  const saved = line.saved;
-  if (!saved || saved.carrier === "office") return null;
-  const W = FIRST_RUN_PHONE_WORDS;
-  const carrier = saved.carrier;
-  const f = saved.forwarding;
-  const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
-  const codes = forwardingCodes(carrier, mode, f.destination_e164 ?? line.dest);
-  const said = s.rings === "office" ? null : s.rings;
-  const keepRow2 = s.vm.rows.find((r2) => r2.id === "keep") ?? null;
-  return codeStageOf(s, W.codeHeading, mode === "always" ? W.codeLeadAll : W.codeLead, {
-    label: said ? W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said) : CARRIER_WORDS[carrier],
-    dial: codes.on.code,
-    tel: codes.on.tel,
-    ...ringWordsOf(said),
-    off: W.off(codes.off.code),
-    help: { label: W.help, notes: codes.notes },
-    change: line.from ? W.change : null,
-    verified: saved.line.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
-    withMe: null
-  });
-}
-function ringWordsOf(said) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  return {
-    tap: said === "mobile" ? W.tap : null,
-    steps: said === "mobile" ? [...W.stepsMobile] : said === "landline" ? [...W.stepsLandline] : [...W.stepsAny],
-    warn: said === "mobile" ? W.warnMobile : said === "landline" ? W.warnLandline : W.warnAny
-  };
-}
-function questionsStageOf(s) {
-  if (!s.questions) return null;
-  return askStageOf(s, { questions: s.questions, forwardFrom: s.number, saved: null, keepCode: null });
-}
-function askStageOf(s, asked) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  return {
-    ...s.base,
-    stage: "ask",
-    heading: W.askHeading,
-    lead: W.askLead,
-    plan: null,
-    status: null,
-    questions: asked.questions,
-    cta: showCtaOf(s, true),
-    code: null,
-    forwardFrom: asked.forwardFrom,
-    saved: asked.saved,
-    keepCode: asked.keepCode
-  };
-}
-function codeStageOf(s, heading, lead, code2) {
-  return {
-    ...s.base,
-    stage: "code",
-    heading,
-    lead,
-    plan: null,
-    status: null,
-    questions: null,
-    cta: { label: FIRST_RUN_PHONE_WORDS.done, held: null, act: "onward" },
-    code: code2,
-    forwardFrom: null,
-    saved: null,
-    keepCode: null
-  };
-}
-function onItsWayStageOf(s, ownLine) {
-  const onItsWay = ownLine.voice_state === "provisioning" && !lineStuckProvisioning(ownLine, s.nowMs) || ownLine.voice_state === "answering";
-  const row2 = s.lineRow;
-  if (!onItsWay || !row2) return s.rows;
-  return {
-    ...s.base,
-    ...s.ready,
-    stage: "getting",
-    status: { state: row2.state, words: row2.stateWords, sentence: row2.sentence, detail: row2.details[0] ?? "" },
-    questions: s.questions,
-    cta: s.questions ? showCtaOf(s, false) : null
-  };
-}
-function noLineYetStageOf(s) {
-  const { dto, choice, returned } = s;
-  if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
-  const onTrial = billingDoorOpen(dto.billing) && dto.billing.status === "trialing";
-  const plan = planOf(dto.billing, onTrial);
-  if (!s.canSpend && !plan) return s.rows;
-  if (plan && returned) return startingStageOf(s);
-  if (s.canSpend && choice?.pending) return buyingStageOf(s);
-  return chooseStageOf(s, plan, onTrial);
-}
-function planOf(billing, onTrial) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  return billingDoorOpen(billing) && (billing.status === "none" || onTrial) ? { offer: W.planOffer(priceWords(billing.price ?? null)), note: onTrial ? W.planNoteTrial : W.planNote } : null;
-}
-function startingStageOf(s) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  return { ...s.base, ...s.ready, stage: "starting", status: waitingOn(W.starting, W.startingDetail) };
-}
-function buyingStageOf(s) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  return {
-    ...s.base,
-    ...s.ready,
-    stage: "buying",
-    status: waitingOn(
-      s.way === "new" && s.picked ? W.buyingNew(s.picked) : W.buyingIn(s.forwarded ? s.area : null),
-      W.usually
-    ),
-    questions: s.questions,
-    cta: s.questions ? showCtaOf(s, false) : null
-  };
-}
-function waitingOn(sentence2, detail) {
-  return { state: "waiting_them", words: SETUP_STATE_WORDS.waiting_them, sentence: sentence2, detail };
-}
-function chooseStageOf(s, plan, onTrial) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  const boxProblem = boxProblemOf(s);
-  return {
-    ...s.base,
-    stage: "choose",
-    heading: W.chooseHeading,
-    lead: W.chooseLead,
-    plan,
-    boxProblem,
-    cta: {
-      label: ctaLabelOf(s.way, plan, s.picked),
-      held: ctaHeldOf(s, boxProblem),
-      act: plan ? onTrial ? "startNow" : "plan" : "buy"
-    },
-    status: null,
-    questions: null,
-    code: null,
-    forwardFrom: null,
-    saved: null,
-    keepCode: null
-  };
-}
-function boxProblemOf(s) {
-  const typedSome = !!s.choice && typeof s.choice.number === "string" && s.choice.number.trim() !== "";
-  return s.way !== "new" && typedSome && !(s.number && areaCodeOf(s.number)) ? FIRST_RUN_PHONE_WORDS.held.us : null;
-}
-function ctaHeldOf(s, boxProblem) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  if (s.way === "new") return s.pick ? null : W.held.pick;
-  return boxProblem ?? (!s.number ? W.held.number : areaCodeOf(s.number) ? null : W.held.us);
-}
-function ctaLabelOf(way, plan, picked) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  if (way === "keep") return plan ? W.cta.planKeep : W.cta.keep;
-  if (way === "new") return plan ? W.cta.planNew(picked) : W.cta.new(picked);
-  return plan ? W.cta.planMove : W.cta.move;
-}
-
-// src/setup/first-run-route.ts
-var FIRST_RUN_ROUTE = "start";
-function firstRunStepRoute(key) {
-  return `${FIRST_RUN_ROUTE}/${key}`;
-}
-var FIND_PARAM = "find";
-var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
-
-// src/setup/first-run.ts
-function businessNameOf(receptionistName, workspaceName) {
-  return (receptionistName ?? "").trim() || (workspaceName ?? "").trim() || null;
-}
-var FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
-var FINISH_SETTING_UP = "Finish setting up";
-var LIVE_ROWS = ["whatsapp", "calendar", "team", "email", "yes"];
-var FIRST_RUN_STEPS = [
-  {
-    key: "business",
-    name: "Your business",
-    lead: "What your receptionist says about you: your name, when you're open, what you offer.",
-    rows: ["facts", "google"],
-    needs: ["facts"]
-  },
-  {
-    key: "phone",
-    name: "Your phone",
-    lead: "The number your customers call, and how those calls reach your receptionist.",
-    rows: ["billing", "line", "keep"],
-    needs: ["billing", "line"]
-  },
-  {
-    key: "try",
-    name: "Try it",
-    lead: "Call it from your own phone and hear what your customers will hear.",
-    rows: ["try", "handoff"],
-    needs: ["receptionist", "try"]
-  },
-  // The last step is where the others lead: nothing to finish, only what is left after it.
-  { key: "live", name: "Live", lead: "", rows: LIVE_ROWS, needs: [] }
-];
-var SETUP_CARD_ORDER = [
-  "try",
-  "whatsapp",
-  "calendar",
-  "team",
-  "handoff",
-  "keep",
-  "google",
-  "email",
-  "yes"
-];
-var FIRST_RUN_WORDS = {
-  title: "Setting up",
-  later: "Finish later",
-  laterShort: "Later",
-  back: "Back",
-  continue: "Continue",
-  finish: "Finish",
-  liveHeading: "Your receptionist is answering",
-  liveNext: "When you're ready",
-  reading: "Reading your workspace\u2026",
-  failedWhat: "your workspace",
-  failedBody: "This page can't read your workspace at the moment. Nothing you set up is lost.",
-  toToday: "Back to Today",
-  /** Finish's activation refused: said, and Finish still goes on to Today. */
-  notFinished: "Calls were not switched on",
-  /**
-   * Asked before the page moves on while a row on it holds typing never saved (the record kit's open fold), or while
-   * a save is on its way, which asks in other words: "without saving" is untrue of a change already sent.
-   */
-  leave: {
-    question: "Leave without saving?",
-    detail: "What you typed on this step has not been saved.",
-    savingQuestion: "Leave while this saves?",
-    savingDetail: "Your change is on its way and carries on without this step. If it does not go through you are told.",
-    yes: "Yes, leave",
-    no: "Stay"
-  },
-  /** A row's second button on the first run, and what it says once pressed. */
-  putOff: { put: "Later", undo: "Undo later" },
-  /** Find, the business step while there is a listing to link (canvas R1, P1): only what Google said, and the owner's words. */
-  find: {
-    heading: (name) => name ? `Is this ${name}?` : "Which one is your business?",
-    /** The search asks the name typed at sign-up while there is no receptionist, and the name and address on record after (the search route). */
-    lead: "We looked you up on Google with the name you signed up with.",
-    leadOnRecord: "We looked you up on Google with the name and address on record.",
-    typed: (q) => `What Google has for \u201C${q}\u201D.`,
-    reading: "Looking on Google\u2026",
-    pick: "Your listing on Google",
-    best: "Best match",
-    maps: "See it on Maps",
-    noAddress: "No address on Google",
-    none: (q) => `Nothing on Google for \u201C${q}\u201D.`,
-    search: "Not these? Search by name or phone number",
-    /** A phone shows the best match alone until this is pressed (canvas P1). */
-    more: "Not this one? Search again",
-    searchCta: "Search",
-    yes: "Yes, this is us",
-    notOnGoogle: "We're not on Google",
-    linked: (name, read) => `${name} is your listing on Google \u2014 ${read ? "read just now" : "Google will be read within the hour"}.`,
-    notLinked: "Not linked",
-    notSaved: "Not saved",
-    retry: "Try again",
-    terms: "Terms of service",
-    privacy: "Privacy policy"
-  },
-  /** Check, the business step once Find is not shown (canvas R2, V2): what the receptionist answers from. */
-  check: {
-    /** A listing on record: what was found there. */
-    found: "Here's what we found",
-    foundLead: "Your receptionist answers from this. Fix anything that's off.",
-    /** None: the basics, asked (V2). */
-    basics: "Tell us the basics",
-    basicsLead: "Your receptionist answers from this. You can add more later in Settings \u203A Business.",
-    /** No receptionist yet: the owner's one press, and where it starts from. */
-    makeListed: "Your receptionist starts from what your Google listing says, and you check it here.",
-    makeNamed: (name) => `Your receptionist starts with ${name ? `the name ${name}` : "your business's name"}, and you add the rest here.`,
-    make: "Set up your receptionist",
-    making: "Setting up\u2026",
-    notMade: "Not set up",
-    ownerSetsUp: "An owner sets up the receptionist here.",
-    /** Made, but the settings read has not brought it yet; and a read that failed, by what it could not read. */
-    reading: "Reading your receptionist\u2026",
-    failedWhat: "your receptionist",
-    /** The onward, once what it answers from is checked. */
-    looksRight: "Looks right",
-    /** Not on Google, said, where Google can be searched: the way back to Find. */
-    findIt: "On Google after all? Find it",
-    /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
-    groups: { facts: "Your hours and where you are", buys: "How customers buy", offer: "What it offers" },
-    /** The chips (check-chips.ts): a tap adds one, a tap on one that is on takes it out, with an Undo. */
-    chips: {
-      services: "Tap what you offer. A few is enough.",
-      languages: "Languages it answers in",
-      ownService: "+ Your own",
-      otherLanguage: "+ Other",
-      removed: (name) => `Removed ${name}`
-    },
-    /** The booking page the business's website names, offered under the booking link row (3c-4). */
-    bookingPage: { found: (page) => `Found on your website: ${page}`, use: "Use it" }
-  }
-};
-function unsureHoursWords(days) {
-  if (!days.length) return null;
-  if (days.length >= 7) return "Google's hours for every day could not be copied: add yours.";
-  const names3 = days.map((d) => DAY_NAMES[d] ?? d);
-  const list2 = names3.length === 1 ? names3[0] : `${names3.slice(0, -1).join(", ")} and ${names3[names3.length - 1]}`;
-  return `Google's hours for ${list2} could not be copied: check ${days.length === 1 ? "that day" : "those days"}.`;
-}
-var rowOf = (vm, id) => vm.rows.find((r2) => r2.id === id) ?? null;
-var stepDone = (vm, def) => def.needs.every((id) => {
-  const r2 = rowOf(vm, id);
-  return !r2 || r2.state === "ready" || id === "try" && (vm.trySkipped || r2.later);
-});
-function firstRunStepOf(param) {
-  const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
-  return hit ? hit.key : null;
-}
-function firstRunKicker(key) {
-  const i = FIRST_RUN_STEPS.findIndex((s) => s.key === key);
-  return `Step ${i + 1} of ${FIRST_RUN_STEPS.length} \xB7 ${FIRST_RUN_STEPS[i].name}`;
-}
-function firstRunOf(vm, at3, who) {
-  const last = FIRST_RUN_STEPS[FIRST_RUN_STEPS.length - 1];
-  const open = FIRST_RUN_STEPS.find((s) => s !== last && !stepDone(vm, s));
-  const current = open ? open.key : last.key;
-  const steps = FIRST_RUN_STEPS.map((def2, i) => ({
-    key: def2.key,
-    name: def2.name,
-    number: i + 1,
-    state: def2.key === current ? "current" : def2 !== last && stepDone(vm, def2) ? "done" : "ahead",
-    rows: def2.rows.map((id) => rowOf(vm, id)).filter((r2) => r2 !== null),
-    to: def2.key === current ? FIRST_RUN_ROUTE : firstRunStepRoute(def2.key)
-  }));
-  const findAsked = at3 === FIND_PARAM;
-  const asked = findAsked ? "business" : firstRunStepOf(at3);
-  const shown = steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
-  const def = FIRST_RUN_STEPS[shown.number - 1];
-  const final = def === last;
-  const google = rowOf(vm, "google");
-  const find = shown.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
-  const C2 = FIRST_RUN_WORDS.check;
-  const onCheck = shown.key === "business" && !find && vm.check.receptionist !== "broken";
-  const made = vm.check.receptionist === "set";
-  const check = onCheck ? {
-    made,
-    make: !made && who?.owner ? {
-      sentence: vm.check.listed ? C2.makeListed : C2.makeNamed(businessNameOf(null, who.workspaceName)),
-      cta: C2.make,
-      busy: C2.making
-    } : null,
-    waiting: !made && !who?.owner ? C2.ownerSetsUp : null,
-    unsure: made ? unsureHoursWords(vm.check.unsure) : null,
-    find: vm.findable && who?.owner ? { label: C2.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
-    type: vm.check.type,
-    bookingPage: vm.check.bookingPage
-  } : null;
-  const F = FIRST_RUN_WORDS.find;
-  const facts = rowOf(vm, "facts");
-  const face = find ? {
-    heading: F.heading(businessNameOf(who?.receptionistName, who?.workspaceName)),
-    lead: who?.receptionistName ? F.leadOnRecord : F.lead,
-    onward: null
-  } : check ? {
-    heading: vm.check.listed ? C2.found : C2.basics,
-    lead: vm.check.listed ? C2.foundLead : C2.basicsLead,
-    onward: made ? {
-      label: C2.looksRight,
-      to: FIRST_RUN_ROUTE,
-      leaves: false,
-      held: shown.state === "done" ? null : facts?.sentence ?? null
-    } : null
-  } : final ? {
-    heading: FIRST_RUN_WORDS.liveHeading,
-    lead: vm.readiness.sentence,
-    onward: { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true, held: null }
-  } : {
-    heading: def.name,
-    lead: def.lead,
-    onward: shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null } : null
-  };
-  const onward = face.onward;
-  const primary = onward || find || check ? null : shown.rows.find((r2) => r2.state !== "ready" && !r2.later && r2.verb) ?? null;
-  return {
-    steps,
-    current,
-    complete: !open,
-    shown,
-    heading: face.heading,
-    lead: face.lead,
-    phoneLine: firstRunKicker(shown.key),
-    progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
-    primaryRow: primary ? primary.id : null,
-    back: shown.number > 1 ? steps[shown.number - 2].to : null,
-    onward,
-    find,
-    findDone: find && findAsked ? shown.to : null,
-    check
-  };
-}
-var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
-function setupCardOf(vm) {
-  const fr = firstRunOf(vm);
-  if (!fr.complete && fr.current !== "try") {
-    const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
-    const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
-    const def = FIRST_RUN_STEPS[next.number - 1];
-    return {
-      title: FINISH_SETTING_UP,
-      left: `${left} ${left === 1 ? "step" : "steps"} left`,
-      start: {
-        // Said as it is: nothing answers yet; WhatsApp answers and calls do not (Setup's readiness counts either);
-        // or calls are answered and a step is still open.
-        name: !vm.readiness.answering ? "Your receptionist isn't answering yet" : vm.tryIt?.voice ? "Your receptionist is answering" : "Calls aren't answered yet",
-        sentence: def.lead,
-        status: `Next: ${next.name.toLowerCase()}`,
-        cta: "Continue setting up",
-        ctaShort: "Continue",
-        to: FIRST_RUN_ROUTE
-      },
-      rows: [],
-      hide: null,
-      skip: CARD_SKIP
-    };
-  }
-  const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
-    (r2) => r2 !== null && r2.state !== "ready" && !r2.later && !!r2.verb
-  );
-  if (!rows.length) return null;
-  const said = rows.length === 1 ? CARD_SKIP.said : `All ${rows.length} put off. They stay in Setting up for when you're ready.`;
-  return {
-    title: FINISH_SETTING_UP,
-    left: `${rows.length} left`,
-    start: null,
-    rows,
-    hide: { put: "Hide", said },
-    skip: CARD_SKIP
-  };
-}
-var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
-function receptionistCardOf(i) {
-  if (i.sellsBy !== null && typeof i.sellsBy !== "string") {
-    throw new TypeError(
-      "receptionistCardOf needs how customers buy (the workspace's sells_by, null when not said): how a business that quotes is reached turns on it."
-    );
-  }
-  const b = i.brain;
-  const p = b?.profile ?? null;
-  const spoken = (b?.business_name || i.setup.business.name || "").trim();
-  const name = businessNameOf(spoken, i.workspaceName) ?? "";
-  const tried = !!(i.setup.channels.voice.lastInboundAt || i.setup.channels.whatsapp.lastInboundAt);
-  const status = !i.answering ? { state: "not_started", words: "Not answering yet" } : tried ? { state: "ready", words: "Answering" } : { state: "waiting_you", words: "Answering \xB7 not tried yet" };
-  const sv = servicesWords(p?.services ?? null);
-  const kept = i.numbers?.keptLine ?? null;
-  const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
-  const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
-  const show = (n) => n ? formatPhoneDisplay(n) ?? n : null;
-  const quotes = !!b && !b.booking_link && bookingLinkOptional(i.sellsBy);
-  return {
-    caption: "Your receptionist, so far",
-    initials: name ? initialsOf(name) : "",
-    name: name || "Your receptionist",
-    status,
-    strip: `Your receptionist \xB7 ${status.words}`,
-    greetingLabel: "Greets every caller with",
-    greeting: greetingFor(spoken || null),
-    rows: [
-      { key: "open", label: "Open", value: i.setup.business.hours && p?.hours ? openWeekWords(p.hours, i.tz) : null },
-      {
-        key: "knows",
-        label: "Knows",
-        value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null
-      },
-      quotes ? { key: "books", label: "For a quote", value: "Takes their details" } : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
-      { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
-      // The line it answers, and the number set to forward to it, as recorded: no claim about when a call forwards.
-      {
-        key: "answers",
-        label: "Answers",
-        value: line ? kept ? `${show(line)}, and calls forwarded from ${show(kept)}` : show(line) : null
-      },
-      { key: "through", label: "Puts through to", value: show(through) }
-    ],
-    foot: "Fills in as you go. You can change any of it later in Settings \u203A Business."
-  };
-}
-function shouldLandOnFirstRun(role, answering, route, landed) {
-  if (landed || answering || !ROLE_PERMS[role]?.settings) return false;
-  return route === "" || route === "today";
-}
-var FIRST_RUN_HELPERS = {
-  of: firstRunOf,
-  receptionist: receptionistCardOf,
-  todayCard: setupCardOf,
-  chips: checkChipsOf,
-  bookingPageOffered,
-  /** The phone step (first-run-phone.ts): what it says over Setup and the owner's choice, and its words. */
-  phone: firstRunPhoneOf,
-  phoneWords: FIRST_RUN_PHONE_WORDS,
-  areaCodeOf,
-  /** Try it (first-run-try.ts): what the step says over Setup and the Live page's calls, its words, and when it asks why. */
-  tryIt: firstRunTryOf,
-  tryWords: FIRST_RUN_TRY_WORDS,
-  tryQuietAfterMs: TRY_QUIET_AFTER_MS,
-  trySkipped: TRY_SKIPPED,
-  /** Live (first-run-live.ts): the summary, the greeting and Finish; "It will / Not yet" is the Business tab's card. */
-  live: firstRunLiveOf,
-  liveWords: FIRST_RUN_LIVE_WORDS,
-  /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
-  forwardingCarrierOf,
-  /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */
-  numberWords: formatPhoneDisplay,
-  words: FIRST_RUN_WORDS,
-  landedKey: FIRST_RUN_LANDED_KEY
-};
-
-// src/leads/lead-first-day.ts
-function leadsFirstDayWays(f) {
-  const live = !!(f.voice && f.voice.active && f.voice.number);
-  const reachDoors = [
-    { id: "line", label: live ? "Your number" : "Set up your number", to: firstRunStepRoute("phone") }
-  ];
-  if (!f.whatsapp || !f.whatsapp.active)
-    reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
-  return [
-    {
-      id: "reach",
-      title: "They reach you",
-      line: live ? `Calls and texts to ${f.voice.number} are answered, and each person lands here.` : "Calls and texts to your number are answered, and each person lands here.",
-      status: live ? "Your number is live" : null,
-      doors: reachDoors
-    },
-    {
-      id: "calendar",
-      title: "Your calendar",
-      line: "Anyone with an appointment is added, with their visits, so regulars aren't strangers.",
-      status: f.calendar === "ok" ? "Your calendar is connected" : null,
-      doors: f.calendar === "ok" ? [{ id: "calendar", label: "Open the calendar", to: "calendar" }] : [{ id: "calendar", label: "Connect your calendar", to: "admin/integrations" }]
-    },
-    {
-      id: "yours",
-      title: "Clients you already have",
-      line: "Add them one at a time, and they gather here with everyone else.",
-      status: f.people > 0 ? `${f.people} ${f.people === 1 ? "person" : "people"} here already` : null,
-      doors: [{ id: "add", label: "Add someone", to: "clients" }]
-    }
-  ];
-}
-
 // src/leads/lead-import-schema.ts
 import { z as z12 } from "zod";
 var nullableText = (max) => z12.string().trim().max(max).nullable().optional();
@@ -24370,6 +23057,13 @@ function rowReplyOf(r2, now, emailStopped) {
     bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[via], window: win, emailStopped })
   };
 }
+function rowThreadOf(r2, askedMs) {
+  return {
+    threadId: r2.has_chat && r2.latest_conversation_id ? `th-${r2.latest_conversation_id}` : null,
+    conversationId: r2.latest_conversation_id,
+    unseen: isUnseen(askedMs, r2)
+  };
+}
 function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null, ready) {
   const nowMs = now.getTime();
   const name = personName(r2);
@@ -24416,7 +23110,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     calls: r2.call_count ?? 0,
     escalations: r2.escalation_count ?? 0,
     callSeconds: r2.call_seconds ?? 0,
-    threadId: r2.has_chat && r2.latest_conversation_id ? `th-${r2.latest_conversation_id}` : null,
+    ...rowThreadOf(r2, askedMs),
     needsYouSinceMs: ts(r2.open_escalation_since),
     calendar,
     booked,
@@ -28436,6 +27130,128 @@ function capabilityStatus(kind, i, nowMs = Date.now()) {
   return { kind, ready, blockers, tested, activated, live, words: words3 };
 }
 
+// src/setup/first-run-route.ts
+var FIRST_RUN_ROUTE = "start";
+function firstRunStepRoute(key) {
+  return `${FIRST_RUN_ROUTE}/${key}`;
+}
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
+
+// src/voice/forwarding.ts
+var CARRIERS = ["verizon", "att", "tmobile", "other", "office"];
+var FORWARDING_MODES = ["unanswered", "always"];
+var CARRIER_WORDS = {
+  verizon: "Verizon",
+  att: "AT&T",
+  tmobile: "T-Mobile",
+  other: "Another carrier or a landline",
+  office: "An office phone system"
+};
+var FORWARDING_MODE_WORDS = {
+  unanswered: "Only calls you don't answer",
+  always: "Every call"
+};
+var FORWARDING_TEST_WINDOW_MS = 30 * MIN_MS;
+function telHref(code2) {
+  return `tel:${code2.replace(/\+/g, "%2B").replace(/#/g, "%23")}`;
+}
+function national(e164) {
+  const d = e164.replace(/[^\d]/g, "");
+  return d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+}
+var code = (c) => ({ code: c, tel: telHref(c) });
+var UNANSWERED_NOTE = "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
+var DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
+var OFFICE_NOTE = "An office phone system takes no code: in its settings, under forwarding or what happens when no one answers, forward the calls to the number above.";
+var OFFICE_VOICEMAIL_NOTE = "If the system sends unanswered calls to voicemail, the forwarding has to come before it, or calls never reach the receptionist. Its support can set it for you.";
+function forwardingDialLabel(carrier, kept) {
+  return carrier === "office" ? `In the phone system for ${kept}, forward the calls to` : `Dial on the phone with ${kept}`;
+}
+function forwardingCodes(carrier, mode, destinationE164) {
+  const n10 = national(destinationE164);
+  const full = normalizePhone(destinationE164) ?? destinationE164;
+  const conditional = mode === "unanswered";
+  switch (carrier) {
+    // No code: the receptionist's number, set in the system's own settings, and taken out there to switch it off.
+    case "office":
+      return {
+        on: code(full),
+        off: code(""),
+        notes: [OFFICE_NOTE, ...conditional ? [OFFICE_VOICEMAIL_NOTE] : []]
+      };
+    case "verizon":
+      return {
+        on: code(conditional ? `*71${n10}` : `*72${n10}`),
+        off: code("*73"),
+        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "Verizon forwards calls only, never texts."]
+      };
+    case "att":
+      return {
+        on: code(conditional ? `*61*${n10}#` : `*21*${n10}#`),
+        off: code(conditional ? "#61#" : "#21#"),
+        notes: [
+          DIAL_NOTE,
+          ...conditional ? [
+            UNANSWERED_NOTE,
+            `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`
+          ] : []
+        ]
+      };
+    case "tmobile":
+      return {
+        on: code(conditional ? `**004*${full}#` : `**21*${full}#`),
+        off: code(conditional ? "##004#" : "##21#"),
+        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "T-Mobile takes the number with +1 in front."]
+      };
+    default:
+      return {
+        on: code(conditional ? `*92${n10}` : `*72${n10}`),
+        off: code(conditional ? "*93" : "*73"),
+        notes: [
+          DIAL_NOTE,
+          ...conditional ? [UNANSWERED_NOTE] : [],
+          "Codes vary by carrier. If these are refused, ask your carrier for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer."
+        ]
+      };
+  }
+}
+var isCarrier = (v) => typeof v === "string" && CARRIERS.includes(v);
+var isForwardingMode = (v) => typeof v === "string" && FORWARDING_MODES.includes(v);
+function forwardingMatch(facts, call, nowMs = Date.now()) {
+  const started = call.startedAtIso ? Date.parse(call.startedAtIso) : nowMs;
+  const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
+  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
+  if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
+  if (started < from - MIN_MS || started > until) return false;
+  const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
+  if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
+  const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
+  if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
+  return true;
+}
+function divertedNumbers(headers) {
+  if (!headers || typeof headers !== "object") return null;
+  const values = ["diversion", "history-info"].map((k) => headers[k]).filter((v) => typeof v === "string" && v.trim() !== "");
+  if (!values.length) return null;
+  const out = [];
+  for (const v of values)
+    for (const m of v.matchAll(/(?:sips?|tel):(\+?\d{7,15})/gi)) {
+      const n = normalizePhone(m[1]);
+      if (n && !out.includes(n)) out.push(n);
+    }
+  return out;
+}
+function forwardingProof(keptE164, diverted) {
+  if (diverted === null) return "unseen";
+  const kept = keptE164 ? normalizePhone(keptE164) : null;
+  return kept && diverted.includes(kept) ? "carrier" : "not_shown";
+}
+function forwardingTestOpen(facts, nowMs = Date.now()) {
+  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
+  return !Number.isNaN(until) && until > nowMs;
+}
+
 // src/setup/setup-rows-phone.ts
 function lineRow(i, ctx) {
   const { voice, voiceReady, voiceNum, answering, ownLine, texting } = ctx;
@@ -29259,6 +28075,1197 @@ function setupSteps(i, nowMs = Date.now()) {
     }
   };
 }
+
+// src/voice/greeting.ts
+function greetingFor(name) {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
+}
+function pausedGreetingFor(name) {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant, and today I can only take a message for the team.`;
+}
+var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
+
+// src/setup/check-chips.ts
+var SUGGESTIONS = {
+  hair_salon: [
+    "Haircut",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Color",
+    "Highlights",
+    "Balayage",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Blowout",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Keratin treatment",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Extensions"
+  ],
+  barber_shop: [
+    "Haircut",
+    // trade-word: a barber's own service, suggested only where Google lists a barber shop
+    "Beard trim",
+    "Hot towel shave",
+    "Fade",
+    "Kids' cut",
+    "Line-up"
+  ],
+  beauty_salon: [
+    "Haircut",
+    // trade-word: a beauty salon's own service, suggested only where Google lists one or a beautician
+    "Color",
+    "Manicure",
+    "Pedicure",
+    "Facial",
+    "Waxing",
+    "Brow shaping",
+    "Makeup"
+  ],
+  nail_salon: ["Manicure", "Pedicure", "Gel manicure", "Acrylic set", "Dip powder", "Nail art", "Fill"],
+  spa: ["Massage", "Facial", "Body scrub", "Hot stone massage", "Couples massage", "Body wrap"],
+  skin_care_clinic: ["Facial", "Chemical peel", "Microneedling", "Dermaplaning", "Acne treatment", "Consultation"],
+  makeup_artist: ["Bridal makeup", "Event makeup", "Makeup lesson", "Airbrush makeup", "Trial session"],
+  tanning_studio: ["Spray tan", "Tanning session", "Tanning package", "Rapid tan"],
+  body_art_service: ["Tattoo", "Piercing", "Touch-up", "Cover-up", "Consultation"],
+  dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"],
+  chiropractor: ["New patient exam", "Adjustment", "Massage", "Spinal decompression", "Consultation"],
+  physiotherapist: [
+    "Evaluation",
+    "Physical therapy session",
+    "Sports injury rehab",
+    "Post-surgery rehab",
+    "Dry needling"
+  ],
+  doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"],
+  foot_care: ["Foot exam", "Nail care", "Callus removal", "Orthotics fitting", "Diabetic foot check"],
+  wellness_center: ["Consultation", "Massage", "Acupuncture", "IV drip", "Membership"],
+  veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"],
+  pet_care: ["Full groom", "Bath and brush", "Nail trim", "Boarding", "Daycare", "Dog walking"],
+  fitness_center: ["Personal training", "Group class", "Membership", "Day pass", "Nutrition coaching"],
+  yoga_studio: ["Drop-in class", "Class pack", "Private session", "Beginners series", "Membership"],
+  car_repair: ["Oil change", "Brake service", "Diagnostics", "Tire rotation", "Inspection", "AC repair"],
+  car_wash: ["Exterior wash", "Full detail", "Interior cleaning", "Wax", "Monthly plan"],
+  tire_shop: ["Tire installation", "Rotation", "Balancing", "Alignment", "Flat repair"],
+  moving_company: ["Local move", "Long-distance move", "Packing", "Storage", "Piano move", "Office move"],
+  plumber: ["Leak repair", "Drain cleaning", "Water heater", "Toilet repair", "Emergency call-out", "Inspection"],
+  electrician: [
+    "Outlet installation",
+    "Panel upgrade",
+    "Lighting installation",
+    "EV charger installation",
+    "Troubleshooting",
+    "Inspection"
+  ],
+  roofing_contractor: ["Roof inspection", "Roof repair", "Roof replacement", "Gutter repair", "Estimate"],
+  painter: ["Interior painting", "Exterior painting", "Cabinet painting", "Drywall repair", "Estimate"],
+  locksmith: ["Lockout", "Rekey", "Lock installation", "Key cutting", "Car lockout"],
+  laundry: ["Wash and fold", "Dry cleaning", "Pickup and delivery", "Alterations"],
+  tailor: ["Alterations", "Hemming", "Suit tailoring", "Repairs", "Custom fitting"],
+  florist: ["Bouquet", "Wedding flowers", "Event flowers", "Sympathy flowers", "Delivery"],
+  lawyer: ["Consultation", "Contract review", "Estate planning", "Family law", "Business formation"],
+  insurance_agency: ["Quote", "Auto insurance", "Home insurance", "Life insurance", "Policy review"],
+  real_estate_agency: ["Home valuation", "Buyer consultation", "Listing appointment", "Showing", "Rental help"],
+  catering_service: ["Event catering", "Tasting", "Corporate lunch", "Wedding catering", "Drop-off catering"],
+  child_care_agency: ["Tour", "Full-time care", "Part-time care", "After-school care", "Drop-in care"]
+};
+var SAME_AS = {
+  hair_care: "hair_salon",
+  beautician: "beauty_salon",
+  massage: "spa",
+  massage_spa: "spa",
+  dental_clinic: "dentist",
+  medical_clinic: "doctor",
+  medical_center: "doctor",
+  gym: "fitness_center",
+  pet_boarding_service: "pet_care"
+};
+var SERVICE_SUGGESTION_TYPES = /* @__PURE__ */ (() => Object.keys(SUGGESTIONS))();
+function serviceSuggestionsOf(type) {
+  const t = (type ?? "").trim();
+  return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
+}
+function checkChipsOf(i) {
+  const listed = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
+  const chosen = (Array.isArray(i.languages) ? i.languages : []).filter((l) => typeof l === "string" && l.trim() !== "").map((l) => l.trim());
+  const has3 = (list2, name) => list2.some((x) => sameListed(x, name));
+  const besides = chosen.filter((l, k) => !has3(COMMON_LANGUAGES, l) && !has3(chosen.slice(0, k), l));
+  const set = (key, chips, count2) => count2 >= PROFILE_LIMITS[key] && chips.some((c) => !c.on) ? { chips: chips.filter((c) => c.on), full: profileRefusal(key) } : { chips, full: null };
+  return {
+    services: set(
+      "services",
+      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
+      listed.length
+    ),
+    languages: set(
+      "languages",
+      [
+        ...COMMON_LANGUAGES.map((name) => ({ name, on: has3(chosen, name) })),
+        ...besides.map((name) => ({ name, on: true }))
+      ],
+      chosen.length
+    )
+  };
+}
+
+// src/setup/first-run-live.ts
+var FIRST_RUN_LIVE_WORDS = {
+  heading: (business) => business ? `${business}'s receptionist is answering` : "Your receptionist is answering",
+  lead: "Every call shows up on Today and in your Inbox.",
+  answers: "Answers",
+  answersKept: (kept) => `${kept}, when nobody picks up`,
+  answersKeptAll: (kept) => `Every call to ${kept}`,
+  through: "Puts callers through to",
+  throughNobody: "Nobody: it takes a message and emails you",
+  throughNobodyUnaddressed: "Nobody: it takes a message",
+  emails: "Emails you at",
+  emailsTo: (to) => `${to}, when someone needs you`,
+  emailsNobody: "Nobody yet",
+  knows: "Knows",
+  knowsNothing: "Only your name so far",
+  change: "Change",
+  greeting: (words3) => `Every caller hears \u201C${words3}\u201D`,
+  finishNote: "We'll email you a copy of this.",
+  /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
+  emailSubject: (business) => business ? `Your receptionist is answering ${business}'s calls` : "Your receptionist is answering your calls",
+  emailTest: (length, from, through) => `It answered your test call${length ? ` (${length})` : ""}${from ? ` from ${from}` : ""}${through ? ` through ${through}` : ""}.`,
+  emailFrom: (kept, own, always = false) => kept ? always ? `From now on, every call to ${kept} reaches your receptionist.` : `From now on, calls to ${kept} that nobody picks up reach your receptionist.` : own ? `From now on, calls to ${own} reach your receptionist.` : "From now on, your receptionist answers your calls.",
+  emailThrough: (to) => to ? `A caller who asks for a person is put through to ${to}.` : "A caller who asks for a person leaves a message.",
+  emailAlerts: "We'll email you here when someone needs you.",
+  emailOpen: (url) => `Open Today: ${url}`
+};
+function listWords2(parts2) {
+  if (parts2.length <= 1) return parts2[0] ?? "";
+  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function firstRunLiveOf({ dto, emails, business, owner }) {
+  const W = FIRST_RUN_LIVE_WORDS;
+  const own = dto.channels.voice.active ? formatPhoneDisplay(dto.channels.voice.number) : null;
+  const fw = forwardedLineOf(dto.lines);
+  const kept = fw && fw.forwarding_state === "verified" ? formatPhoneDisplay(fw.e164) : null;
+  const always = fw?.forwarding?.mode === "always";
+  const handoff = formatPhoneDisplay(dto.business.handoff);
+  const b = dto.business;
+  const knows = [
+    b.hours ? "your hours" : null,
+    b.address ? "your address" : null,
+    b.services ? `${b.services} ${b.services === 1 ? "service" : "services"}` : null,
+    b.bookingLink ? "your booking link" : null
+  ].filter((x) => !!x);
+  const knowsWords = listWords2(knows);
+  return {
+    heading: W.heading(business),
+    lead: W.lead,
+    summary: [
+      {
+        key: "answers",
+        label: W.answers,
+        value: kept ? always ? W.answersKeptAll(kept) : W.answersKept(kept) : own ?? "\u2014",
+        change: null
+      },
+      {
+        key: "through",
+        label: W.through,
+        value: handoff ?? (emails.length ? W.throughNobody : W.throughNobodyUnaddressed),
+        change: { label: W.change, to: "admin/workspace" }
+      },
+      {
+        key: "emails",
+        label: W.emails,
+        value: emails.length ? W.emailsTo(emails.join(", ")) : W.emailsNobody,
+        change: { label: W.change, to: "admin/notifications" }
+      },
+      {
+        key: "knows",
+        label: W.knows,
+        value: knowsWords ? knowsWords.charAt(0).toUpperCase() + knowsWords.slice(1) : W.knowsNothing,
+        change: { label: W.change, to: "admin/workspace" }
+      }
+    ],
+    greeting: W.greeting(greetingFor(business)),
+    // The email goes with the first run's first activation of calls (the capability route, first_run): said only
+    // where it will go.
+    finish: {
+      note: owner && own && emails.length > 0 && !(dto.activations ?? []).some((a) => a.capability === "voice") ? W.finishNote : null
+    }
+  };
+}
+function youAreLiveEmail(i) {
+  const W = FIRST_RUN_LIVE_WORDS;
+  const own = formatPhoneDisplay(i.own);
+  const kept = formatPhoneDisplay(i.kept);
+  const lines = [
+    i.test ? W.emailTest(i.test.length, formatPhoneDisplay(i.test.from), kept) : null,
+    W.emailFrom(kept, own, i.always),
+    W.emailThrough(formatPhoneDisplay(i.handoff)),
+    W.emailAlerts,
+    i.todayUrl ? W.emailOpen(i.todayUrl) : null
+  ].filter((x) => !!x);
+  return { subject: W.emailSubject(i.business), body: `${lines.join("\n\n")}
+` };
+}
+
+// src/setup/first-run-try.ts
+var TRY_QUIET_AFTER_MS = 3 * MIN_MS;
+var TRY_SLACK_MS = MIN_MS;
+var FIRST_RUN_TRY_WORDS = {
+  listenForwarded: "Call your number from your cell. Don't pick up.",
+  listenOwn: "Call your receptionist from your cell.",
+  lead: "Ask what a customer would, like \u201CAre you open on Sunday?\u201D",
+  listening: "Listening for your call",
+  listeningDetail: "This page changes the moment it picks up.",
+  listeningWindow: (minutes) => `This page changes the moment it picks up. Open for ${minutes} more ${minutes === 1 ? "minute" : "minutes"}.`,
+  route: (kept) => `Your cell calls ${kept} \u2192 nobody picks up \u2192 your receptionist answers`,
+  quietHeading: "No call has reached your receptionist yet",
+  stillListening: "Still listening",
+  causesForwarded: [
+    {
+      question: "Did you hear a tone after dialing the code?",
+      answer: "If not, dial the code again, or pick another phone company."
+    },
+    {
+      question: "Did an answering machine or voicemail pick up?",
+      answer: "Turn it off. It answers before your receptionist can."
+    },
+    {
+      question: "Did you call from the phone customers call?",
+      answer: "Use another phone. A line can't forward a call to itself."
+    }
+  ],
+  causeOwn: (number2) => ({
+    question: `Did you call ${number2}?`,
+    answer: "That's the number your receptionist answers."
+  }),
+  showCode: "Show the code again",
+  help: "Ask Chanlytics for help",
+  helpSent: "We'll email you to find a time for a call.",
+  helpFailed: "Not asked",
+  pickedUp: "It picked up.",
+  proofForwarded: "Forwarding works",
+  proofOwn: "Your receptionist answered",
+  onTheCall: "on the call now",
+  behind: "Words arrive a moment behind the call.",
+  doneHeading: "That's your receptionist.",
+  from: (number2) => `from ${number2}`,
+  through: (number2) => `through ${number2}`,
+  receptionist: "Receptionist",
+  caller: "You",
+  someone: "Caller",
+  transferLabel: "When a caller asks for a person",
+  putThrough: (number2) => `Put them through to ${number2}`,
+  putThroughCaller: "The phone you just called from. It rings during opening hours; outside them, it takes a message.",
+  keepPutting: (number2) => `Keep putting them through to ${number2}`,
+  keepPuttingSentence: "The number on record now.",
+  message: "Take a message and email me",
+  messageSentence: "Nobody is put through. You get the message right away.",
+  notKept: (kept) => `Not ${kept}: while it forwards, that call would ring straight back here.`,
+  saved: "Saved. Your receptionist puts callers through as you chose.",
+  notSaved: "Not saved",
+  notReadYet: "Your settings are still being read. Try again in a moment.",
+  inbox: "It's in your Inbox too",
+  continue: "Continue",
+  skip: "Can't call right now? Skip for now",
+  nudge: "Most owners call once. It takes a minute, and it's the only way to know your calls really reach your receptionist.",
+  stay: "OK, I'll call",
+  anyway: "Skip anyway"
+};
+function firstRunTryOf({ dto, calls, since, nowMs }) {
+  const W = FIRST_RUN_TRY_WORDS;
+  const voice = dto.channels.voice;
+  const own = voice.active ? normalizePhone(voice.number) : null;
+  const fw = forwardedLineOf(dto.lines);
+  const kept = fw ? normalizePhone(fw.e164) : null;
+  const forwarded = !!kept;
+  const proven = forwarded && fw.forwarding_state === "verified";
+  const shown = formatPhoneDisplay(kept ?? own);
+  const skip = { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway };
+  const f0 = fw?.forwarding ?? null;
+  const openTest = fw && f0 && fw.forwarding_state !== "verified" && !forwardingTestOpen(f0, nowMs) ? fw.id : null;
+  const base = {
+    number: shown,
+    forwarded,
+    help: forwarded ? W.help : null,
+    openTest,
+    listening: null,
+    causes: [],
+    call: null,
+    transfer: null,
+    skip
+  };
+  if (!own) return { ...base, stage: "rows", heading: "", lead: "" };
+  const tested = !!voice.lastInboundAt;
+  const inbound = calls.filter((c) => c.direction === "inbound" && !c.missed && c.startedAtMs !== null).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
+  const call = inbound.find((c) => (c.startedAtMs ?? 0) >= since - TRY_SLACK_MS) ?? (tested ? inbound[0] ?? null : null);
+  if (!call) {
+    const f = fw?.forwarding ?? null;
+    const open = !!f && fw.forwarding_state !== "verified" && forwardingTestOpen(f, nowMs);
+    const left = open && f.test_until ? Math.max(1, Math.ceil((Date.parse(f.test_until) - nowMs) / MIN_MS)) : null;
+    const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
+    return {
+      ...base,
+      stage: quiet ? "quiet" : "listen",
+      heading: quiet ? W.quietHeading : forwarded ? W.listenForwarded : W.listenOwn,
+      lead: quiet ? "" : W.lead,
+      listening: {
+        sentence: quiet ? W.stillListening : W.listening,
+        detail: left !== null ? W.listeningWindow(left) : W.listeningDetail,
+        route: forwarded ? W.route(shown ?? "") : null
+      },
+      causes: quiet ? forwarded ? W.causesForwarded.map((c) => ({ ...c })) : [W.causeOwn(formatPhoneDisplay(own) ?? own)] : []
+    };
+  }
+  const test = (call.startedAtMs ?? 0) >= since - TRY_SLACK_MS;
+  const turns = call.transcript.filter((t) => t.speaker === "agent" || t.speaker === "client").map((t) => ({
+    who: t.speaker === "agent" ? W.receptionist : test ? W.caller : W.someone,
+    text: t.text,
+    agent: t.speaker === "agent"
+  }));
+  const proof = proven ? W.proofForwarded : W.proofOwn;
+  const to = `conversations/${call.cvId}`;
+  if (call.live) {
+    const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1e3));
+    const clock3 = mmss(secs * 1e3);
+    return {
+      ...base,
+      stage: "call",
+      heading: W.pickedUp,
+      lead: "",
+      call: { line: [proof, W.onTheCall, clock3].join(" \xB7 "), live: true, test, turns, behind: W.behind, to }
+    };
+  }
+  const caller = normalizePhone(call.from);
+  const current = normalizePhone(dto.business.handoff);
+  const callerOk = test && !!caller && whyNotAHandoff(caller, own, kept) === null;
+  const options = [];
+  if (callerOk) {
+    options.push({
+      key: "caller",
+      label: W.putThrough(formatPhoneDisplay(caller) ?? caller),
+      sentence: W.putThroughCaller,
+      to: caller
+    });
+  }
+  if (current && !samePhone(current, caller)) {
+    options.push({
+      key: "current",
+      label: W.keepPutting(formatPhoneDisplay(current) ?? current),
+      sentence: W.keepPuttingSentence,
+      to: current
+    });
+  }
+  options.push({ key: "message", label: W.message, sentence: W.messageSentence, to: null });
+  const value = !current ? "message" : samePhone(current, caller) && callerOk ? "caller" : "current";
+  const line = [
+    call.duration ?? call.lengthWords,
+    call.number ? W.from(call.number) : null,
+    proven && shown ? W.through(shown) : null,
+    call.startedLabel
+  ].filter(Boolean).join(" \xB7 ");
+  return {
+    ...base,
+    stage: "done",
+    heading: W.doneHeading,
+    lead: "",
+    call: { line, live: false, test, turns, behind: null, to },
+    transfer: {
+      label: W.transferLabel,
+      options,
+      value,
+      note: forwarded && shown ? W.notKept(shown) : null
+    }
+  };
+}
+
+// src/setup/first-run-phone.ts
+var PHONE_WAYS = ["keep", "new", "move"];
+var PHONE_RINGS = ["mobile", "landline", "office"];
+function forwardingCarrierOf(rings, company) {
+  if (rings === "office") return "office";
+  if (rings === "landline") return "other";
+  if (rings === "mobile") return company ?? null;
+  return null;
+}
+var FIRST_RUN_PHONE_WORDS = {
+  chooseHeading: "How should calls reach your receptionist?",
+  chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
+  readyHeading: "Getting your receptionist's number ready",
+  readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
+  readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
+  recommended: "Recommended",
+  keepTitle: (display) => display ? `Keep ${display}` : "Keep the number you have",
+  keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
+  newTitle: "Get a new number",
+  newSentence: "For a business that doesn't have one yet. Customers call it directly.",
+  moveTitle: "Move my number to Chanlytics",
+  moveSentence: "Takes 7\u201314 business days. Your number forwards in the meantime, so nothing changes for customers.",
+  numberLabel: "The number customers call",
+  numberPlaceholder: "(305) 555-0100",
+  areaLabel: "Area code",
+  areaPlaceholder: "305",
+  find: "Find numbers",
+  finding: "Looking\u2026",
+  pickLabel: "Pick your receptionist's number",
+  noneFree: (area) => `Nothing free in ${area} right now. Try a nearby area code.`,
+  threeDigits: "Three digits, like 305.",
+  local: "Local",
+  held: {
+    number: "Type the number customers call.",
+    us: "Forwarding works for a US number: type it with its area code.",
+    pick: "Pick a number first."
+  },
+  cta: {
+    planKeep: "Start my plan",
+    planNew: (number2) => number2 ? `Start my plan with ${number2}` : "Start my plan",
+    planMove: "Start my plan and ask for the move",
+    keep: "Keep this number",
+    new: (number2) => number2 ? `Get ${number2}` : "Get this number",
+    move: "Ask for the move"
+  },
+  planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
+  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
+  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  starting: "Starting your plan\u2026",
+  startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
+  buyingIn: (area) => area ? `Getting your receptionist's number in ${area}\u2026` : "Getting your receptionist's number\u2026",
+  buyingNew: (number2) => `Getting ${number2}\u2026`,
+  usually: "Usually a minute or two; this page updates by itself",
+  /** What the page says when a buy or a search is refused, over the door's own sentence. */
+  notBought: "No number yet",
+  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
+  moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
+  cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
+  /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
+  ringsLabel: (display) => display ? `Which phone rings when customers call ${display}?` : "Which phone rings when customers call?",
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
+  companyLabel: "Who's the phone company?",
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
+  show: "Show me what to dial",
+  showOffice: "Show me where to forward",
+  readySoon: "Ready in a moment",
+  answerFirst: "Answer the questions first.",
+  askHeading: "One more thing",
+  askLead: "How the calls are sent to your receptionist depends on the phone that rings.",
+  /** The code (canvas R5, P5). */
+  codeHeading: "Dial this on the phone customers call",
+  codeLead: "It tells your phone company to send the calls nobody picks up to your receptionist. You only do this once.",
+  codeLeadAll: "It tells your phone company to send every call to your receptionist. You only do this once.",
+  codeLabel: (company, rings) => rings === "landline" ? "A landline" : company ? `${company} \xB7 a mobile` : "A mobile",
+  stepsLandline: ["Pick up the phone customers call.", "Dial the code above.", "Wait for the tone, then hang up."],
+  stepsMobile: ["On the phone customers call, dial the code above.", "Wait for the tone, then hang up."],
+  /** A tab that lost the answers: what rings is not known, so neither is said. */
+  stepsAny: ["Dial the code above on the phone customers call.", "Wait for the tone, then hang up."],
+  // Not a promise the code replaces voicemail: forwarding.ts says a voicemail that picks up first keeps calls away.
+  warnMobile: "Voicemail on this phone? If it still picks up after you dial the code, calls never reach your receptionist: see The code didn't work.",
+  warnLandline: "If an answering machine is on this line, turn it off. Otherwise it answers before your receptionist can.",
+  warnAny: "Voicemail or an answering machine on that phone? If it picks up first, calls never reach your receptionist: see The code didn't work.",
+  off: (code2) => `To switch it off later, dial ${code2}.`,
+  tap: "Tap to dial",
+  done: "Done, let's try it",
+  help: "The code didn't work",
+  change: "Change the answers",
+  keepCode: "Keep what I have",
+  /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
+  officeHeading: "Forward missed calls in your phone system",
+  officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
+  officeLabel: (always) => always ? "Forward every call to" : "Forward unanswered calls to",
+  officeSteps: [
+    "Open your phone system's settings.",
+    "Find forwarding, or what happens when no one answers.",
+    "Forward the calls to the number above: your receptionist's number. Customers never see it."
+  ],
+  officeWarn: "Voicemail in the system? The forwarding has to come before it, or calls never reach your receptionist.",
+  officeOff: "To switch it off later, take the forwarding out in the same settings.",
+  withMe: "Not sure where it is? A person at Chanlytics can do it with you on a call.",
+  withMeLabel: "Do it with me",
+  helpOffice: "It didn't work",
+  withMeAsked: (ago3) => `Asked ${ago3}: a person at Chanlytics will email you to find a time.`,
+  withMeFailed: "Not asked",
+  withMeSent: "We'll email you to find a time for a call.",
+  notForwarded: "Forwarding not saved"
+};
+function areaCodeOf(raw) {
+  const e164 = normalizePhone(raw);
+  return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
+}
+function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
+  const s = phoneStepOf({ dto, vm, choice, returned, nowMs });
+  if (dto.channels.voice.present) return answeringStageOf(s);
+  if (s.ownLine) return onItsWayStageOf(s, s.ownLine);
+  return noLineYetStageOf(s);
+}
+function phoneStepOf(input) {
+  const { dto, vm, choice } = input;
+  const { way, forwarded, listed, number: number2, area } = numbersOf(dto, choice);
+  const billing = dto.billing;
+  const ownLine = dto.lines?.rows.find((l) => l.voice_state !== "none") ?? null;
+  const lineRow2 = vm.rows.find((r2) => r2.id === "line") ?? null;
+  const pick = choice?.pick ?? null;
+  const base = {
+    way,
+    ways: waysOf(number2, listed),
+    number: number2,
+    listed,
+    box: formatPhoneDisplay(listed) ?? "",
+    area
+  };
+  const ready = readyOf(choice, forwarded);
+  return {
+    ...input,
+    way,
+    forwarded,
+    number: number2,
+    area,
+    ownLine,
+    lineRow: lineRow2,
+    canSpend: !billing || maySpend(billing.mode, billing.status),
+    pick,
+    picked: pick ? formatPhoneDisplay(pick.e164) : null,
+    base,
+    ready,
+    rows: { ...base, ...ready, stage: "rows", status: null },
+    ...answersOf(choice, forwarded, number2)
+  };
+}
+function numbersOf(dto, choice) {
+  const way = choice?.way ?? "keep";
+  const forwarded = way !== "new";
+  const listed = normalizePhone(dto.google?.phone ?? null);
+  const typed = normalizePhone(choice?.number ?? null);
+  const number2 = choice && choice.number !== null ? typed : listed;
+  const area = areaCodeOf(forwarded ? number2 : null) ?? areaCodeOf(listed);
+  return { way, forwarded, listed, number: number2, area };
+}
+function waysOf(number2, listed) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return [
+    {
+      key: "keep",
+      title: W.keepTitle(formatPhoneDisplay(number2)),
+      sentence: number2 && number2 === listed ? W.keepListed : W.keepTyped,
+      recommended: W.recommended
+    },
+    { key: "new", title: W.newTitle, sentence: W.newSentence, recommended: null },
+    { key: "move", title: W.moveTitle, sentence: W.moveSentence, recommended: null }
+  ];
+}
+function readyOf(choice, forwarded) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    heading: W.readyHeading,
+    lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
+    plan: null,
+    cta: null,
+    questions: null,
+    code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null
+  };
+}
+function answersOf(choice, forwarded, number2) {
+  const rings = choice?.rings ?? null;
+  const company = choice?.company ?? null;
+  const asking = !!choice && forwarded && !!number2;
+  return {
+    rings,
+    company,
+    questions: asking && number2 ? questionsAbout(number2, rings, company) : null,
+    answered: !!forwardingCarrierOf(rings, company)
+  };
+}
+function questionsAbout(about, rings, company) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    rings: {
+      label: W.ringsLabel(formatPhoneDisplay(about)),
+      options: PHONE_RINGS.map((k) => ({ key: k, label: W.rings[k] })),
+      value: rings
+    },
+    // A landline takes the landline codes whoever runs it, so only a mobile is asked its company.
+    company: rings === "mobile" ? {
+      label: W.companyLabel,
+      options: ["verizon", "att", "tmobile", "other"].map((k) => ({
+        key: k,
+        label: W.company[k]
+      })),
+      value: company
+    } : null
+  };
+}
+function showCtaOf(s, lineAnswers) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    label: s.rings === "office" ? W.showOffice : W.show,
+    held: !lineAnswers ? W.readySoon : s.answered ? null : W.answerFirst,
+    act: "forward"
+  };
+}
+function answeringStageOf(s) {
+  const voice = s.dto.channels.voice;
+  const dest = voice.active ? voice.number : null;
+  const saved = savedForwardingOf(s.dto.lines);
+  if (!dest) return s.rows;
+  const line = { dest, saved, from: saved ? normalizePhone(saved.line.e164) : null };
+  for (const stage of ANSWERING_STAGES) {
+    const drawn = stage(s, line);
+    if (drawn) return drawn;
+  }
+  return s.rows;
+}
+function savedForwardingOf(lines) {
+  const fw = lines?.rows.find((l) => l.kind === "forwarded") ?? null;
+  const f = fw?.forwarding ?? null;
+  return fw && f && isCarrier(f.carrier) && (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified") ? { line: fw, forwarding: f, carrier: f.carrier } : null;
+}
+var ANSWERING_STAGES = [
+  askedAgainStageOf,
+  officeCodeStageOf,
+  phoneCodeStageOf,
+  questionsStageOf
+];
+function askedAgainStageOf(s, line) {
+  if (!line.saved || !s.choice?.redo || !line.from) return null;
+  return askStageOf(s, {
+    questions: questionsAbout(line.from, s.rings, s.company),
+    forwardFrom: line.from,
+    saved: { carrier: line.saved.carrier },
+    keepCode: FIRST_RUN_PHONE_WORDS.keepCode
+  });
+}
+function officeCodeStageOf(s, line) {
+  const saved = line.saved;
+  if (!saved || saved.carrier !== "office") return null;
+  const W = FIRST_RUN_PHONE_WORDS;
+  const f = saved.forwarding;
+  const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
+  const codes = forwardingCodes("office", mode, f.destination_e164 ?? line.dest);
+  const keepRow2 = s.vm.rows.find((r2) => r2.id === "keep") ?? null;
+  const asked = withMeAskedOf(s);
+  return codeStageOf(s, W.officeHeading, W.officeLead, {
+    label: W.officeLabel(mode === "always"),
+    dial: formatPhoneDisplay(f.destination_e164 ?? line.dest) ?? line.dest,
+    tel: codes.on.tel,
+    tap: null,
+    steps: [...W.officeSteps],
+    warn: W.officeWarn,
+    off: W.officeOff,
+    help: { label: W.helpOffice, notes: codes.notes },
+    change: line.from ? W.change : null,
+    verified: saved.line.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
+    withMe: {
+      sentence: W.withMe,
+      label: W.withMeLabel,
+      asked: asked !== null ? W.withMeAsked(agoWords(asked, s.nowMs)) : null
+    }
+  });
+}
+function withMeAskedOf(s) {
+  const askedAt = s.dto.requests.forwarding ? Date.parse(s.dto.requests.forwarding) : NaN;
+  return !Number.isNaN(askedAt) && s.nowMs - askedAt < DAY_MS ? askedAt : null;
+}
+function phoneCodeStageOf(s, line) {
+  const saved = line.saved;
+  if (!saved || saved.carrier === "office") return null;
+  const W = FIRST_RUN_PHONE_WORDS;
+  const carrier = saved.carrier;
+  const f = saved.forwarding;
+  const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
+  const codes = forwardingCodes(carrier, mode, f.destination_e164 ?? line.dest);
+  const said = s.rings === "office" ? null : s.rings;
+  const keepRow2 = s.vm.rows.find((r2) => r2.id === "keep") ?? null;
+  return codeStageOf(s, W.codeHeading, mode === "always" ? W.codeLeadAll : W.codeLead, {
+    label: said ? W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said) : CARRIER_WORDS[carrier],
+    dial: codes.on.code,
+    tel: codes.on.tel,
+    ...ringWordsOf(said),
+    off: W.off(codes.off.code),
+    help: { label: W.help, notes: codes.notes },
+    change: line.from ? W.change : null,
+    verified: saved.line.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
+    withMe: null
+  });
+}
+function ringWordsOf(said) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    tap: said === "mobile" ? W.tap : null,
+    steps: said === "mobile" ? [...W.stepsMobile] : said === "landline" ? [...W.stepsLandline] : [...W.stepsAny],
+    warn: said === "mobile" ? W.warnMobile : said === "landline" ? W.warnLandline : W.warnAny
+  };
+}
+function questionsStageOf(s) {
+  if (!s.questions) return null;
+  return askStageOf(s, { questions: s.questions, forwardFrom: s.number, saved: null, keepCode: null });
+}
+function askStageOf(s, asked) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    ...s.base,
+    stage: "ask",
+    heading: W.askHeading,
+    lead: W.askLead,
+    plan: null,
+    status: null,
+    questions: asked.questions,
+    cta: showCtaOf(s, true),
+    code: null,
+    forwardFrom: asked.forwardFrom,
+    saved: asked.saved,
+    keepCode: asked.keepCode
+  };
+}
+function codeStageOf(s, heading, lead, code2) {
+  return {
+    ...s.base,
+    stage: "code",
+    heading,
+    lead,
+    plan: null,
+    status: null,
+    questions: null,
+    cta: { label: FIRST_RUN_PHONE_WORDS.done, held: null, act: "onward" },
+    code: code2,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null
+  };
+}
+function onItsWayStageOf(s, ownLine) {
+  const onItsWay = ownLine.voice_state === "provisioning" && !lineStuckProvisioning(ownLine, s.nowMs) || ownLine.voice_state === "answering";
+  const row2 = s.lineRow;
+  if (!onItsWay || !row2) return s.rows;
+  return {
+    ...s.base,
+    ...s.ready,
+    stage: "getting",
+    status: { state: row2.state, words: row2.stateWords, sentence: row2.sentence, detail: row2.details[0] ?? "" },
+    questions: s.questions,
+    cta: s.questions ? showCtaOf(s, false) : null
+  };
+}
+function noLineYetStageOf(s) {
+  const { dto, choice, returned } = s;
+  if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
+  const onTrial = billingDoorOpen(dto.billing) && dto.billing.status === "trialing";
+  const plan = planOf(dto.billing, onTrial);
+  if (!s.canSpend && !plan) return s.rows;
+  if (plan && returned) return startingStageOf(s);
+  if (s.canSpend && choice?.pending) return buyingStageOf(s);
+  return chooseStageOf(s, plan, onTrial);
+}
+function planOf(billing, onTrial) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return billingDoorOpen(billing) && (billing.status === "none" || onTrial) ? { offer: W.planOffer(priceWords(billing.price ?? null)), note: onTrial ? W.planNoteTrial : W.planNote } : null;
+}
+function startingStageOf(s) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return { ...s.base, ...s.ready, stage: "starting", status: waitingOn(W.starting, W.startingDetail) };
+}
+function buyingStageOf(s) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    ...s.base,
+    ...s.ready,
+    stage: "buying",
+    status: waitingOn(
+      s.way === "new" && s.picked ? W.buyingNew(s.picked) : W.buyingIn(s.forwarded ? s.area : null),
+      W.usually
+    ),
+    questions: s.questions,
+    cta: s.questions ? showCtaOf(s, false) : null
+  };
+}
+function waitingOn(sentence2, detail) {
+  return { state: "waiting_them", words: SETUP_STATE_WORDS.waiting_them, sentence: sentence2, detail };
+}
+function chooseStageOf(s, plan, onTrial) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  const boxProblem = boxProblemOf(s);
+  return {
+    ...s.base,
+    stage: "choose",
+    heading: W.chooseHeading,
+    lead: W.chooseLead,
+    plan,
+    boxProblem,
+    cta: {
+      label: ctaLabelOf(s.way, plan, s.picked),
+      held: ctaHeldOf(s, boxProblem),
+      act: plan ? onTrial ? "startNow" : "plan" : "buy"
+    },
+    status: null,
+    questions: null,
+    code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null
+  };
+}
+function boxProblemOf(s) {
+  const typedSome = !!s.choice && typeof s.choice.number === "string" && s.choice.number.trim() !== "";
+  return s.way !== "new" && typedSome && !(s.number && areaCodeOf(s.number)) ? FIRST_RUN_PHONE_WORDS.held.us : null;
+}
+function ctaHeldOf(s, boxProblem) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  if (s.way === "new") return s.pick ? null : W.held.pick;
+  return boxProblem ?? (!s.number ? W.held.number : areaCodeOf(s.number) ? null : W.held.us);
+}
+function ctaLabelOf(way, plan, picked) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  if (way === "keep") return plan ? W.cta.planKeep : W.cta.keep;
+  if (way === "new") return plan ? W.cta.planNew(picked) : W.cta.new(picked);
+  return plan ? W.cta.planMove : W.cta.move;
+}
+
+// src/setup/first-run.ts
+function businessNameOf(receptionistName, workspaceName) {
+  return (receptionistName ?? "").trim() || (workspaceName ?? "").trim() || null;
+}
+var FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
+var FINISH_SETTING_UP = "Finish setting up";
+var LIVE_ROWS = ["whatsapp", "calendar", "team", "email", "yes"];
+var FIRST_RUN_STEPS = [
+  {
+    key: "business",
+    name: "Your business",
+    lead: "What your receptionist says about you: your name, when you're open, what you offer.",
+    rows: ["facts", "google"],
+    needs: ["facts"]
+  },
+  {
+    key: "phone",
+    name: "Your phone",
+    lead: "The number your customers call, and how those calls reach your receptionist.",
+    rows: ["billing", "line", "keep"],
+    needs: ["billing", "line"]
+  },
+  {
+    key: "try",
+    name: "Try it",
+    lead: "Call it from your own phone and hear what your customers will hear.",
+    rows: ["try", "handoff"],
+    needs: ["receptionist", "try"]
+  },
+  // The last step is where the others lead: nothing to finish, only what is left after it.
+  { key: "live", name: "Live", lead: "", rows: LIVE_ROWS, needs: [] }
+];
+var SETUP_CARD_ORDER = [
+  "try",
+  "whatsapp",
+  "calendar",
+  "team",
+  "handoff",
+  "keep",
+  "google",
+  "email",
+  "yes"
+];
+var FIRST_RUN_WORDS = {
+  title: "Setting up",
+  later: "Finish later",
+  laterShort: "Later",
+  back: "Back",
+  continue: "Continue",
+  finish: "Finish",
+  liveHeading: "Your receptionist is answering",
+  liveNext: "When you're ready",
+  reading: "Reading your workspace\u2026",
+  failedWhat: "your workspace",
+  failedBody: "This page can't read your workspace at the moment. Nothing you set up is lost.",
+  toToday: "Back to Today",
+  /** Finish's activation refused: said, and Finish still goes on to Today. */
+  notFinished: "Calls were not switched on",
+  /**
+   * Asked before the page moves on while a row on it holds typing never saved (the record kit's open fold), or while
+   * a save is on its way, which asks in other words: "without saving" is untrue of a change already sent.
+   */
+  leave: {
+    question: "Leave without saving?",
+    detail: "What you typed on this step has not been saved.",
+    savingQuestion: "Leave while this saves?",
+    savingDetail: "Your change is on its way and carries on without this step. If it does not go through you are told.",
+    yes: "Yes, leave",
+    no: "Stay"
+  },
+  /** A row's second button on the first run, and what it says once pressed. */
+  putOff: { put: "Later", undo: "Undo later" },
+  /** Find, the business step while there is a listing to link (canvas R1, P1): only what Google said, and the owner's words. */
+  find: {
+    heading: (name) => name ? `Is this ${name}?` : "Which one is your business?",
+    /** The search asks the name typed at sign-up while there is no receptionist, and the name and address on record after (the search route). */
+    lead: "We looked you up on Google with the name you signed up with.",
+    leadOnRecord: "We looked you up on Google with the name and address on record.",
+    typed: (q) => `What Google has for \u201C${q}\u201D.`,
+    reading: "Looking on Google\u2026",
+    pick: "Your listing on Google",
+    best: "Best match",
+    maps: "See it on Maps",
+    noAddress: "No address on Google",
+    none: (q) => `Nothing on Google for \u201C${q}\u201D.`,
+    search: "Not these? Search by name or phone number",
+    /** A phone shows the best match alone until this is pressed (canvas P1). */
+    more: "Not this one? Search again",
+    searchCta: "Search",
+    yes: "Yes, this is us",
+    notOnGoogle: "We're not on Google",
+    linked: (name, read) => `${name} is your listing on Google \u2014 ${read ? "read just now" : "Google will be read within the hour"}.`,
+    notLinked: "Not linked",
+    notSaved: "Not saved",
+    retry: "Try again",
+    terms: "Terms of service",
+    privacy: "Privacy policy"
+  },
+  /** Check, the business step once Find is not shown (canvas R2, V2): what the receptionist answers from. */
+  check: {
+    /** A listing on record: what was found there. */
+    found: "Here's what we found",
+    foundLead: "Your receptionist answers from this. Fix anything that's off.",
+    /** None: the basics, asked (V2). */
+    basics: "Tell us the basics",
+    basicsLead: "Your receptionist answers from this. You can add more later in Settings \u203A Business.",
+    /** No receptionist yet: the owner's one press, and where it starts from. */
+    makeListed: "Your receptionist starts from what your Google listing says, and you check it here.",
+    makeNamed: (name) => `Your receptionist starts with ${name ? `the name ${name}` : "your business's name"}, and you add the rest here.`,
+    make: "Set up your receptionist",
+    making: "Setting up\u2026",
+    notMade: "Not set up",
+    ownerSetsUp: "An owner sets up the receptionist here.",
+    /** Made, but the settings read has not brought it yet; and a read that failed, by what it could not read. */
+    reading: "Reading your receptionist\u2026",
+    failedWhat: "your receptionist",
+    /** The onward, once what it answers from is checked. */
+    looksRight: "Looks right",
+    /** Not on Google, said, where Google can be searched: the way back to Find. */
+    findIt: "On Google after all? Find it",
+    /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
+    groups: { facts: "Your hours and where you are", buys: "How customers buy", offer: "What it offers" },
+    /** The chips (check-chips.ts): a tap adds one, a tap on one that is on takes it out, with an Undo. */
+    chips: {
+      services: "Tap what you offer. A few is enough.",
+      languages: "Languages it answers in",
+      ownService: "+ Your own",
+      otherLanguage: "+ Other",
+      removed: (name) => `Removed ${name}`
+    },
+    /** The booking page the business's website names, offered under the booking link row (3c-4). */
+    bookingPage: { found: (page) => `Found on your website: ${page}`, use: "Use it" }
+  }
+};
+function unsureHoursWords(days) {
+  if (!days.length) return null;
+  if (days.length >= 7) return "Google's hours for every day could not be copied: add yours.";
+  const names3 = days.map((d) => DAY_NAMES[d] ?? d);
+  const list2 = names3.length === 1 ? names3[0] : `${names3.slice(0, -1).join(", ")} and ${names3[names3.length - 1]}`;
+  return `Google's hours for ${list2} could not be copied: check ${days.length === 1 ? "that day" : "those days"}.`;
+}
+var rowOf = (vm, id) => vm.rows.find((r2) => r2.id === id) ?? null;
+var stepDone = (vm, def) => def.needs.every((id) => {
+  const r2 = rowOf(vm, id);
+  return !r2 || r2.state === "ready" || id === "try" && (vm.trySkipped || r2.later);
+});
+function firstRunStepOf(param) {
+  const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
+  return hit ? hit.key : null;
+}
+function firstRunKicker(key) {
+  const i = FIRST_RUN_STEPS.findIndex((s) => s.key === key);
+  return `Step ${i + 1} of ${FIRST_RUN_STEPS.length} \xB7 ${FIRST_RUN_STEPS[i].name}`;
+}
+function firstRunOf(vm, at3, who) {
+  const last = FIRST_RUN_STEPS[FIRST_RUN_STEPS.length - 1];
+  const open = FIRST_RUN_STEPS.find((s) => s !== last && !stepDone(vm, s));
+  const current = open ? open.key : last.key;
+  const steps = FIRST_RUN_STEPS.map((def2, i) => ({
+    key: def2.key,
+    name: def2.name,
+    number: i + 1,
+    state: def2.key === current ? "current" : def2 !== last && stepDone(vm, def2) ? "done" : "ahead",
+    rows: def2.rows.map((id) => rowOf(vm, id)).filter((r2) => r2 !== null),
+    to: def2.key === current ? FIRST_RUN_ROUTE : firstRunStepRoute(def2.key)
+  }));
+  const findAsked = at3 === FIND_PARAM;
+  const asked = findAsked ? "business" : firstRunStepOf(at3);
+  const shown = steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
+  const def = FIRST_RUN_STEPS[shown.number - 1];
+  const final = def === last;
+  const google = rowOf(vm, "google");
+  const find = shown.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
+  const C2 = FIRST_RUN_WORDS.check;
+  const onCheck = shown.key === "business" && !find && vm.check.receptionist !== "broken";
+  const made = vm.check.receptionist === "set";
+  const check = onCheck ? {
+    made,
+    make: !made && who?.owner ? {
+      sentence: vm.check.listed ? C2.makeListed : C2.makeNamed(businessNameOf(null, who.workspaceName)),
+      cta: C2.make,
+      busy: C2.making
+    } : null,
+    waiting: !made && !who?.owner ? C2.ownerSetsUp : null,
+    unsure: made ? unsureHoursWords(vm.check.unsure) : null,
+    find: vm.findable && who?.owner ? { label: C2.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
+    type: vm.check.type,
+    bookingPage: vm.check.bookingPage
+  } : null;
+  const F = FIRST_RUN_WORDS.find;
+  const facts = rowOf(vm, "facts");
+  const face = find ? {
+    heading: F.heading(businessNameOf(who?.receptionistName, who?.workspaceName)),
+    lead: who?.receptionistName ? F.leadOnRecord : F.lead,
+    onward: null
+  } : check ? {
+    heading: vm.check.listed ? C2.found : C2.basics,
+    lead: vm.check.listed ? C2.foundLead : C2.basicsLead,
+    onward: made ? {
+      label: C2.looksRight,
+      to: FIRST_RUN_ROUTE,
+      leaves: false,
+      held: shown.state === "done" ? null : facts?.sentence ?? null
+    } : null
+  } : final ? {
+    heading: FIRST_RUN_WORDS.liveHeading,
+    lead: vm.readiness.sentence,
+    onward: { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true, held: null }
+  } : {
+    heading: def.name,
+    lead: def.lead,
+    onward: shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null } : null
+  };
+  const onward = face.onward;
+  const primary = onward || find || check ? null : shown.rows.find((r2) => r2.state !== "ready" && !r2.later && r2.verb) ?? null;
+  return {
+    steps,
+    current,
+    complete: !open,
+    shown,
+    heading: face.heading,
+    lead: face.lead,
+    phoneLine: firstRunKicker(shown.key),
+    progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
+    primaryRow: primary ? primary.id : null,
+    back: shown.number > 1 ? steps[shown.number - 2].to : null,
+    onward,
+    find,
+    findDone: find && findAsked ? shown.to : null,
+    check
+  };
+}
+var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
+function setupCardOf(vm) {
+  const fr = firstRunOf(vm);
+  if (!fr.complete && fr.current !== "try") {
+    const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
+    const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
+    const def = FIRST_RUN_STEPS[next.number - 1];
+    return {
+      title: FINISH_SETTING_UP,
+      left: `${left} ${left === 1 ? "step" : "steps"} left`,
+      start: {
+        // Said as it is: nothing answers yet; WhatsApp answers and calls do not (Setup's readiness counts either);
+        // or calls are answered and a step is still open.
+        name: !vm.readiness.answering ? "Your receptionist isn't answering yet" : vm.tryIt?.voice ? "Your receptionist is answering" : "Calls aren't answered yet",
+        sentence: def.lead,
+        status: `Next: ${next.name.toLowerCase()}`,
+        cta: "Continue setting up",
+        ctaShort: "Continue",
+        to: FIRST_RUN_ROUTE
+      },
+      rows: [],
+      hide: null,
+      skip: CARD_SKIP
+    };
+  }
+  const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
+    (r2) => r2 !== null && r2.state !== "ready" && !r2.later && !!r2.verb
+  );
+  if (!rows.length) return null;
+  const said = rows.length === 1 ? CARD_SKIP.said : `All ${rows.length} put off. They stay in Setting up for when you're ready.`;
+  return {
+    title: FINISH_SETTING_UP,
+    left: `${rows.length} left`,
+    start: null,
+    rows,
+    hide: { put: "Hide", said },
+    skip: CARD_SKIP
+  };
+}
+var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
+function receptionistCardOf(i) {
+  if (i.sellsBy !== null && typeof i.sellsBy !== "string") {
+    throw new TypeError(
+      "receptionistCardOf needs how customers buy (the workspace's sells_by, null when not said): how a business that quotes is reached turns on it."
+    );
+  }
+  const b = i.brain;
+  const p = b?.profile ?? null;
+  const spoken = (b?.business_name || i.setup.business.name || "").trim();
+  const name = businessNameOf(spoken, i.workspaceName) ?? "";
+  const tried = !!(i.setup.channels.voice.lastInboundAt || i.setup.channels.whatsapp.lastInboundAt);
+  const status = !i.answering ? { state: "not_started", words: "Not answering yet" } : tried ? { state: "ready", words: "Answering" } : { state: "waiting_you", words: "Answering \xB7 not tried yet" };
+  const sv = servicesWords(p?.services ?? null);
+  const kept = i.numbers?.keptLine ?? null;
+  const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
+  const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
+  const show = (n) => n ? formatPhoneDisplay(n) ?? n : null;
+  const quotes = !!b && !b.booking_link && bookingLinkOptional(i.sellsBy);
+  return {
+    caption: "Your receptionist, so far",
+    initials: name ? initialsOf(name) : "",
+    name: name || "Your receptionist",
+    status,
+    strip: `Your receptionist \xB7 ${status.words}`,
+    greetingLabel: "Greets every caller with",
+    greeting: greetingFor(spoken || null),
+    rows: [
+      { key: "open", label: "Open", value: i.setup.business.hours && p?.hours ? openWeekWords(p.hours, i.tz) : null },
+      {
+        key: "knows",
+        label: "Knows",
+        value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null
+      },
+      quotes ? { key: "books", label: "For a quote", value: "Takes their details" } : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
+      { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
+      // The line it answers, and the number set to forward to it, as recorded: no claim about when a call forwards.
+      {
+        key: "answers",
+        label: "Answers",
+        value: line ? kept ? `${show(line)}, and calls forwarded from ${show(kept)}` : show(line) : null
+      },
+      { key: "through", label: "Puts through to", value: show(through) }
+    ],
+    foot: "Fills in as you go. You can change any of it later in Settings \u203A Business."
+  };
+}
+function shouldLandOnFirstRun(role, answering, route, landed) {
+  if (landed || answering || !ROLE_PERMS[role]?.settings) return false;
+  return route === "" || route === "today";
+}
+var FIRST_RUN_HELPERS = {
+  of: firstRunOf,
+  receptionist: receptionistCardOf,
+  todayCard: setupCardOf,
+  chips: checkChipsOf,
+  bookingPageOffered,
+  /** The phone step (first-run-phone.ts): what it says over Setup and the owner's choice, and its words. */
+  phone: firstRunPhoneOf,
+  phoneWords: FIRST_RUN_PHONE_WORDS,
+  areaCodeOf,
+  /** Try it (first-run-try.ts): what the step says over Setup and the Live page's calls, its words, and when it asks why. */
+  tryIt: firstRunTryOf,
+  tryWords: FIRST_RUN_TRY_WORDS,
+  tryQuietAfterMs: TRY_QUIET_AFTER_MS,
+  trySkipped: TRY_SKIPPED,
+  /** Live (first-run-live.ts): the summary, the greeting and Finish; "It will / Not yet" is the Business tab's card. */
+  live: firstRunLiveOf,
+  liveWords: FIRST_RUN_LIVE_WORDS,
+  /** The carrier whose codes the answers choose (first-run-phone.ts), which the forwarding is saved with. */
+  forwardingCarrierOf,
+  /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */
+  numberWords: formatPhoneDisplay,
+  words: FIRST_RUN_WORDS,
+  landedKey: FIRST_RUN_LANDED_KEY
+};
 
 // src/setup/connections.ts
 var CONNECTION_KINDS = [
@@ -30563,6 +30570,7 @@ var ROUTE_KEYS = [
   "PUT contacts/[id]/details",
   "PUT contacts/[id]/marketing-consent",
   "PUT contacts/[id]/receptionist",
+  "PUT contacts/[id]/seen",
   "PUT contacts/consent",
   "PUT contacts/marketing-consent",
   "PUT contacts/notes",
@@ -32767,6 +32775,16 @@ var SERVER_KEY_PREFIX = "n:";
 var NEEDS_KEY_PREFIX = "needs:th-";
 function conversationOfNeedsKey(key) {
   return key.startsWith(NEEDS_KEY_PREFIX) ? key.slice(NEEDS_KEY_PREFIX.length) : null;
+}
+var THREAD_DOOR = /^inbox\/th-([0-9a-f-]{36})$/;
+var PERSON_DOOR = /^clients\/([0-9a-f-]{36})$/;
+function noteWhose(row2) {
+  if (row2.about?.type === "conversation") return { conversationId: row2.about.id };
+  if (row2.about?.type === "contact") return { personId: row2.about.id };
+  const thread = THREAD_DOOR.exec(row2.to);
+  if (thread?.[1]) return { conversationId: thread[1] };
+  const person = PERSON_DOOR.exec(row2.to);
+  return person?.[1] ? { personId: person[1] } : null;
 }
 var CALL_KEY_PREFIX = "call:";
 function callOfKey(key) {
@@ -35286,9 +35304,6 @@ export {
   LEAD_ERASE_WORDS,
   LEAD_ESTIMATE_MARGIN,
   LEAD_FACT_MAX,
-  LEAD_FIRST_DAY_FOOT,
-  LEAD_FIRST_DAY_SUB,
-  LEAD_FIRST_DAY_TITLE,
   LEAD_FITS,
   LEAD_FIT_WORDS,
   LEAD_IMPORT_MAX_BYTES,
@@ -36301,6 +36316,7 @@ export {
   isTypingTarget,
   isUngrounded,
   isUnread,
+  isUnseen,
   isUsablePassword,
   isUuid,
   isVoiceEndReason,
@@ -36386,7 +36402,6 @@ export {
   leadWeekBars,
   leadWeekSummary,
   leadWhere,
-  leadsFirstDayWays,
   leadsRoute,
   leadsStanding,
   legacyErasedEmailHash,
@@ -36509,6 +36524,7 @@ export {
   noteRows,
   noteSuggestSystemPrompt,
   noteSuggestUserContent,
+  noteWhose,
   notesWords,
   numberHealth,
   numberHealthWithStanding,
@@ -36872,6 +36888,7 @@ export {
   seatNeedsSecondFactor,
   secondFactorResetWords,
   secondFactorShown,
+  seenBy,
   sellsBySaved,
   sellsByVM,
   sendFailureIsOurs,

@@ -13,6 +13,7 @@ import {
   type PersonDecisionDto,
   type PersonDoubtDto,
   type PersonRowDto,
+  type SeenMarksDto,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
@@ -395,4 +396,45 @@ export async function dismissPersonDoubt(
     doubt_id: typeof o.doubt_id === "string" ? o.doubt_id : doubtId,
     settled_as: typeof o.settled_as === "string" ? o.settled_as : null,
   };
+}
+
+/** A stamp the door answered, or null. */
+const stampOf = (v: unknown): string | null => (typeof v === "string" ? v : null);
+
+/**
+ * What the calling member has seen of these people (contact_seen, 00345): their floor, everything before which is
+ * seen, and their own marks for the people named. One call for any number of ids: the door takes them in its body.
+ * The caller's rows only, by the door's own rule. A read that fails THROWS, and the reader decides what a list says
+ * of a reading it could not have (readers/seen.ts: nothing is then called new).
+ */
+export async function contactSeen(db: Db, tenantId: string, contactIds: readonly string[]): Promise<SeenMarksDto> {
+  const { data, error } = await db.rpc("contact_seen", { p_tenant_id: tenantId, p_contact_ids: [...contactIds] });
+  if (error) throw error;
+  const o = (data ?? {}) as { floor_at?: unknown; marks?: unknown };
+  const marks = Array.isArray(o.marks) ? (o.marks as Record<string, unknown>[]) : [];
+  return {
+    floor_at: stampOf(o.floor_at),
+    marks: marks
+      .filter((m) => typeof m.contact_id === "string")
+      .map((m) => ({
+        contact_id: m.contact_id as string,
+        seen_at: stampOf(m.seen_at),
+        unread_at: stampOf(m.unread_at),
+      })),
+  };
+}
+
+/**
+ * The calling member's own mark on a person (contact_mark, 00345): seen, as they open the person, or unread, as they
+ * put it back. The door's refusals are thrown as they came (a person not theirs to see is P0002).
+ */
+export async function markContact(
+  db: Db,
+  contactId: string,
+  seen: boolean,
+): Promise<{ contact_id: string; seen_at: string | null; unread_at: string | null }> {
+  const { data, error } = await db.rpc("contact_mark", { p_contact_id: contactId, p_seen: seen });
+  if (error) throw error;
+  const o = (data ?? {}) as Record<string, unknown>;
+  return { contact_id: contactId, seen_at: stampOf(o.seen_at), unread_at: stampOf(o.unread_at) };
 }

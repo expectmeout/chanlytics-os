@@ -10,6 +10,7 @@
  */
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
+import { unreadHere } from "../../seen";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
@@ -126,9 +127,20 @@ function PeopleRowActions({
  * lines. The number and the channels are Reach, a column of their own; when they first wrote is First contact, a column of
  * its own; their WhatsApp name is the name's tip; the counts are the profile's.
  */
+/**
+ * Whether a person is new to the reader now: what the last read said of them (contracts isUnseen), over what this tab
+ * did since, or a note about them the bell still holds unread (surfaces/seen.ts). The Inbox's unread, on People's row.
+ */
+const plUnread = (p: PersonRowVM): boolean =>
+  unreadHere({ personId: p.id, conversationId: p.conversationId }, !!p.unseen, p.askedMs ?? 0);
+
 export const plNameCell = (
   p: PersonRowVM,
-  { attention, onOpen }: Pick<PeopleCellCtx, "attention" | "onOpen">,
+  /**
+   * `unread`: the person is new to the reader (plUnread), which People's own list says. The Pipeline draws this cell
+   * too, over rows that are not drawn again as the reader's marks move, and says nothing of it.
+   */
+  { attention, onOpen, unread = false }: Pick<PeopleCellCtx, "attention" | "onOpen"> & { unread?: boolean },
   said?: string | null,
   /** The row it is drawn on, where that is not the person's own id (the Pipeline's further deal, 0029). */
   rowId?: string,
@@ -141,7 +153,7 @@ export const plNameCell = (
   const words = said === undefined ? attentionWordsOf(p, attention) : said;
   return (
     <td key="name" className="cl-name-cell pl-pin">
-      <div className="cl-row-name">
+      <div className={unread ? "cl-row-name unread" : "cl-row-name"}>
         {numbered ? (
           <Face size="sm" glyph={<Icon name={byNumber ? "phone" : "mail"} size={12} />} title="No name yet" />
         ) : (
@@ -275,7 +287,13 @@ const plReachCell = (p: PersonRowVM) => {
 type PeopleColumn = TableColumn<PersonRowVM, PeopleCellCtx>;
 
 export const PL_COLUMNS: PeopleColumn[] = [
-  { key: "name", label: "Person", sortable: true, pinned: true, cell: plNameCell },
+  {
+    key: "name",
+    label: "Person",
+    sortable: true,
+    pinned: true,
+    cell: (p, x) => plNameCell(p, plUnread(p) ? { ...x, unread: true } : x),
+  },
   { key: "state", label: "State", sortable: true, cell: plStateCell },
   { key: "reach", label: "Reach", sortable: false, cell: plReachCell },
   {
@@ -400,6 +418,7 @@ const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attentio
     face: plFace(p),
     pick,
     name: p.name,
+    unread: plUnread(p),
     numeric: byNumber,
     pill: <PeopleStatePill state={p.state} label={p.stateLabel} />,
     lead: asks && p.stateDetail ? p.stateDetail : words,

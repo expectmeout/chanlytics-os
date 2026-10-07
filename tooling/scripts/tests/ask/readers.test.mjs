@@ -2436,6 +2436,9 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["tenants.select", "sells_by"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
+  // 7 Oct 2026 (00345): what the member asking has seen of each person on the page (server/people/person-seen.ts), for
+  // the rows that say who is new to them: one call to the door, with the page's other reads of its rows.
+  ["rpc:contact_seen", null],
   ["rpc:team_roster", null],
   // 3 Oct 2026: what the workspace can send on, with the first page (readers/facts.ts channelsReady): its WhatsApp
   // number, and its texting line. The mailbox is read only where the deployment has an email domain.
@@ -2487,6 +2490,7 @@ const PEOPLE_ASKED_NOW = [
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
   ["deals.select", "id, contact_id, proposed_at"],
+  ["rpc:contact_seen", null],
   ["rpc:team_roster", null],
   ["playbooks.select", "channels"],
   ["templates.select", MESSAGE_ROWS_ASKED],

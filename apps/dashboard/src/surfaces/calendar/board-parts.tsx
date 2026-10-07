@@ -106,14 +106,26 @@ function optionsGroups(p: BarProps): MenuGroup[] {
 }
 
 /**
- * The bar: the steps, the range (which says which days are on screen, and opens a date picker: the date field was a control
- * of its own), the service the open times must fit, and the four views.
+ * The bar: the four views, the steps, the range (which says which days are on screen, and opens a date picker: the date
+ * field was a control of its own), the service the open times must fit, and the options.
  */
 export function calendarHead(p: BarProps) {
   const { vm, view, anchor, label, onToday, serviceName, move, setAnchorKey, setServiceName, setView } = p;
   return (
     <div className="cal-head">
       <div className="cal-bar" data-testid="cal-bar">
+        {/* The views stand first, where every other page's row of views stands under the head (the frame's strip, at the
+            left), with the range and its steps after them and the page's options at the right (Ruben, 7 Oct 2026: they
+            stood at the right on a desk, so the tabs moved across the page between the Inbox and the Calendar). A view
+            is a different height under the tabs (fourteen cards, six weeks, a day): they hold still, from the button
+            that was pressed, which has the focus. */}
+        <Segmented
+          label="View"
+          value={view}
+          onValueChange={(next) => holdStill(document.activeElement, () => setView(next))}
+          options={VIEW_OPTIONS}
+          className="cal-views"
+        />
         <div className="cal-when">
           <div className="cal-steps">
             <Button
@@ -184,15 +196,6 @@ export function calendarHead(p: BarProps) {
               data-testid="cal-service"
             />
           )}
-          {/* A view is a different height under the tabs (fourteen cards, six weeks, a day): they hold still, from the
-              button that was pressed, which has the focus. */}
-          <Segmented
-            label="View"
-            value={view}
-            onValueChange={(next) => holdStill(document.activeElement, () => setView(next))}
-            options={VIEW_OPTIONS}
-            className="cal-views"
-          />
           <Menu
             align="end"
             label="Calendar options"

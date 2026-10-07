@@ -1067,9 +1067,10 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
    as People's sheets do. It was a 568px popover hung from the top bar, as far from the thumb as the screen allows. */
 .tbn-handle { display: none; }
 @media (max-width: 720px) {
-  /* The page stays as it is behind the notes (Ruben, 2 Oct: no fade, no lightening): the backdrop is only the layer a tap
-     outside the sheet closes it through. */
-  .tbn-backdrop { background: transparent; }
+  /* Behind the notes the page wears the phone's one veil, the drawer's (tokens.css --surface-veil; Ruben, 7 Oct 2026:
+     every card that rises on a phone, alike). It wore the ink's wash, which lightened a dark page, and then none (Ruben,
+     2 Oct: no fade, no lightening). A tap on it closes the sheet. */
+  .tbn-backdrop { background: var(--surface-veil); }
   .tbn-pop {
     top: auto; right: 0; bottom: 0; left: 0; max-width: none; max-height: 82vh; max-height: 82dvh;
     border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
@@ -2218,6 +2219,24 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 #pg-act {
   display: contents;
 }
+/* An act's words (kit/head/act-words.tsx): the mark and the first word kept together, 6px apart as a button's mark and
+   words are, and the rest after them, its own space kept (it leads the rest, and a flex item drops a leading space). On a
+   phone's row of views the rest gives way where the row is short (below). */
+.pg-act-fit {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.pg-act-keep {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.pg-act-rest {
+  flex: none;
+  white-space: pre;
+}
 /* A rule with a :has() over the element it styles names that element by its tag or class, never by its place alone
    (`> :first-child`, `> *`): the browser cannot narrow such a rule, and a press anywhere on the page restyled all of it
    (tooling/scripts/tests/styles/has-subjects.test.mjs). The act is a button or a link. */
@@ -2371,11 +2390,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     position: absolute;
     inset: -4px 0;
   }
-  /* On a phone People's three scopes draw their act in their own bar (the Pipeline's + beside its search, canvas
-     D-phone-list), so the frame's copy of it leaves. */
-  .main:has(> .main-scroll > .clients) .pg-act-slot {
-    display: none;
-  }
   /* Where a phone draws a strip of views and the page's act (Campaigns' New; canvas C-phone-list), the act stands
      beside the strip at its right as a 44px circle of the primary fill, its mark alone, the words kept for a screen
      reader. Named with the strip's element, since its class is the kit's. The two stand 8px apart, as the Calendar's
@@ -2393,8 +2407,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     align-self: center;
     justify-content: flex-end;
   }
-  .pg-slot:has(> nav) > .pg-act-slot > span > button:first-child,
-  .pg-slot:has(> nav) > .pg-act-slot > span > a:first-child {
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child,
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > a:first-child {
     width: 44px;
     height: 44px;
     min-height: 44px;
@@ -2406,7 +2420,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     box-shadow: var(--primary-depth);
     color: var(--primary-ink);
   }
-  .pg-slot:has(> nav) > .pg-act-slot > span > :first-child > span {
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > :first-child > span {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -2424,16 +2438,15 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     display: none;
   }
   /* On a phone the strip and the act stand at the boards' 12px from the screen's edges (every phone board draws its
-     row of views at 12 under a head at 16), 4 in from the slot's gutter, the edge of the capsules under them (the
-     Inbox's and People's search). Reports' panes stand at the gutter, so its strip and its period stand there too, as
-     the Calendar's views and options do over its panes: 4px out, the two stood apart from everything under them
-     (Ruben, 7 Oct 2026). The slot says whose views it holds (app-shell.jsx glassHead `data-strip`, the chrome's
-     `views.name`), so Reports' row is known at first paint and never by the page under it: the page draws once its
-     read lands, a beat after the strip, and a rule keyed on the page's body moved the strip 4px at that beat. */
-  .pg-slot:not([data-strip="reports"]) > :nth-child(2):not(.pg-act-slot) {
+     row of views at 12 under a head at 16), 4 in from the slot's gutter, the edge of the capsules and panes under them
+     (the Inbox's and People's search, Today's panes). Every page's, at one place: Reports' row stood at the gutter for
+     a few hours, over panes that stood there (7 Oct 2026), and so did the Calendar's views, so the row moved 4px and the
+     page was 8px narrower between the Inbox and either of them (Ruben, 7 Oct 2026). Their panes stand at 12 now
+     (reports.css, calendar.css), under a row that stands where every row does. */
+  .pg-slot > :nth-child(2):not(.pg-act-slot) {
     margin-left: -4px;
   }
-  .pg-slot:has(> nav):not([data-strip="reports"]) > .pg-act-slot {
+  .pg-slot:has(> nav) > .pg-act-slot {
     margin-right: -4px;
   }
   /* The period's place is kept from the first paint. The period is the page's act (period-picker.tsx, said through the
@@ -2445,6 +2458,53 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .pg-slot[data-strip="reports"] > .pg-act-slot {
     min-width: 44px;
     min-height: 44px;
+  }
+  /* People's scopes (People, Leads, the Pipeline) keep their act on a phone with its words, on the strip's row at its
+     right, as a desk draws it (Ruben, 7 Oct 2026). It was hidden, each scope's act left to its own bar or menu, and a
+     phone showed no way to add a person; then it stood beside the name, which stood People's strip 16px under where
+     the Inbox's stands. Here the strip keeps the width of its tabs and the act takes what is left of the row. Where that
+     is less than its words (three scopes beside "New proposal" on a phone 360 wide), the capsule says the first of them
+     beside its mark, "New", "Add", "Find": the rest wraps onto a second line, which the words' box, one line tall, does
+     not show (kit/head/act-words.tsx). Nothing is measured, and no width is named. The slot says whose strip it holds
+     (app-shell.jsx `data-strip`), so these stand after the rules for every other strip and outweigh them by that name. */
+  .pg-slot[data-strip="people"] {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  /* The strip stands 4px out of its column (above), so its measure is the column's and those 4: held to the column
+     alone it scrolled its last 4px away. */
+  .pg-slot[data-strip="people"] > nav {
+    max-width: calc(100% + 4px);
+  }
+  .pg-slot[data-strip="people"] > .pg-act-slot {
+    min-width: 0;
+  }
+  .pg-slot[data-strip="people"] > .pg-act-slot > span > button,
+  .pg-slot[data-strip="people"] > .pg-act-slot > span > a {
+    position: relative;
+    flex: 0 1 auto;
+    min-width: 0;
+    height: var(--control-h-lg);
+    min-height: var(--control-h-lg);
+    padding: 0 14px 0 12px;
+    font-size: var(--text-base);
+  }
+  .pg-slot[data-strip="people"] > .pg-act-slot > span > button::after,
+  .pg-slot[data-strip="people"] > .pg-act-slot > span > a::after {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
+  }
+  .pg-slot[data-strip="people"] .pg-act-fit {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    height: calc(var(--control-h-lg) - 2px);
+    overflow: hidden;
+  }
+  .pg-slot[data-strip="people"] :is(.pg-act-keep, .pg-act-rest) {
+    height: calc(var(--control-h-lg) - 2px);
+    display: inline-flex;
+    align-items: center;
   }
   /* The Inbox's row of views (Needs you, Conversations, Live) stands on a phone as on a desk (Ruben, 2 Oct 2026: the
      canvas's swipe between them was not found); the buckets' capsule is the list's own, under it. */

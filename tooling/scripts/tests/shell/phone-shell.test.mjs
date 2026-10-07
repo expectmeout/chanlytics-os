@@ -76,7 +76,9 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
     "belt and braces for the frame before the shell reads the global",
   );
   assert.ok(
-    css.includes("html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }"),
+    css.includes(
+      "html.in-app .main-scroll { --page-foot: var(--app-inset-bottom, 0px); padding-bottom: var(--app-inset-bottom, 0px); }",
+    ),
     "the room under every surface is the shell's tab bar, not the web's",
   );
   assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));

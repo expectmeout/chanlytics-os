@@ -783,6 +783,22 @@ test("REGRESSION (B11): days that could not be read say so with a Retry, and are
   assert.equal(byTestId(tree, "cal-failed"), null, "a read that lands takes the line away");
 });
 
+test("the views are the bar's first: they stand where every page's row of views stands, before the range and the options", () => {
+  // They were the bar's last on a desk, at its right: the tabs crossed the page between the Inbox and the Calendar
+  // (Ruben, 7 Oct 2026). First in the bar, a keyboard meets them first too, as it meets the frame's strip.
+  fresh();
+  const bar = byTestId(page(), "cal-bar");
+  const parts = (bar.props.children ?? []).flat().filter((n) => n && typeof n === "object");
+  assert.equal(parts[0], views(bar), "the four views come first");
+  assert.equal(parts[0].props.className, "cal-views");
+  assert.deepEqual(
+    parts.slice(1).map((n) => n.props.className),
+    ["cal-when", "cal-tools"],
+    "then the range with its steps, then the page's options",
+  );
+  assert.equal(views(parts[2]), null, "and the options' group no longer holds them");
+});
+
 test("REGRESSION (B12): the range names the days on screen in every view -- a line over the board said 'This week' of next week and 'This month' of any month", () => {
   fresh();
   let tree = page();

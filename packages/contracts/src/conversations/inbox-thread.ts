@@ -7,7 +7,7 @@ import { MIN_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
-import { HELD_WORDS, replyWaitsOnYou, standingOfThread } from "./standing";
+import { HELD_WORDS, heardMs, isUnseen, replyWaitsOnYou, standingOfThread } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
 import { agentFor, isChatMessage, replyWireOf, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
@@ -362,9 +362,9 @@ export function toInboxThreadVM(
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     ...(escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {}),
-    // The dot means a person is needed and nobody has it: needsYou, the one rule.
-    // "Escalated and not mine" lit it on a thread a teammate is answering too.
-    unread: needsYou,
+    // The dot is the reader's own (standing.ts isUnseen, 00345; inbox-thread-vm.ts says what it meant before).
+    unread: isUnseen(dto.last_inbound_at, dto),
+    heardAtMs: heardMs(dto.last_inbound_at),
     pinned: false,
     tags: [],
     priority: "P2",

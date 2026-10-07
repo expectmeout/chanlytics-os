@@ -85,12 +85,12 @@ const callback = asked({
 
 /* ------------------------------- the view model ------------------------------- */
 
-test("a thread a teammate is answering is theirs: not Needs you, no unread dot, and the claim carries whose it is", () => {
+test("a thread a teammate is answering is theirs: not Needs you, and the claim carries whose it is; the dot is the reader's own and says nothing of whose", () => {
   const theirs = toInboxThreadVM(conv({ assignee_user_id: ANA, assignee_is_me: false }), asked(), ZONE, NOW);
   assert.equal(theirs.claimedByOther, true);
   assert.equal(theirs.assigneeUserId, ANA);
   assert.equal(theirs.needsYou, false);
-  assert.equal(theirs.unread, false, "REGRESSION: it kept the dot that means a person is needed and nobody has it");
+  assert.equal(theirs.unread, false, "nothing is known of the reader here, so nothing is called new");
   assert.equal(theirs.summary, "A teammate is answering this. The receptionist stays quiet until they hand it back.");
   assert.equal(
     theirs.subject,
@@ -98,10 +98,23 @@ test("a thread a teammate is answering is theirs: not Needs you, no unread dot, 
     "the reason stays on its row, and the pill says whose it is: the row said 'A teammate is answering this'",
   );
 
+  // The dot was needs you, the only thing known of a reader. It is their own mark now (00345, people/seen/new-to-the-reader.test.mjs):
+  // whose the thread is does not move it, either way.
   const open = toInboxThreadVM(conv(), asked(), ZONE, NOW);
-  assert.deepEqual([open.claimedByOther, open.assigneeUserId, open.needsYou, open.unread], [false, null, true, true]);
+  assert.deepEqual([open.claimedByOther, open.assigneeUserId, open.needsYou, open.unread], [false, null, true, false]);
   const mine = toInboxThreadVM(conv({ assignee_user_id: "u-me", assignee_is_me: true }), asked(), ZONE, NOW);
   assert.deepEqual([mine.claimedByOther, mine.takenOver, mine.unread], [false, true, false]);
+  const theirsAndNew = toInboxThreadVM(
+    conv({ assignee_user_id: ANA, assignee_is_me: false, last_inbound_at: ago(5), seen_at: ago(60) }),
+    asked(),
+    ZONE,
+    NOW,
+  );
+  assert.deepEqual(
+    [theirsAndNew.needsYou, theirsAndNew.unread],
+    [false, true],
+    "a teammate's thread the reader has not opened since they wrote is new to the reader",
+  );
 });
 
 test("the customer's own words ride with the decision: what they last wrote, quoted; what the call left, as noted; nothing when nothing is being decided", () => {
@@ -189,7 +202,13 @@ const paneOf = (thread) => {
 
 test("the list: a wait reads as days, and a teammate's thread says whose it is instead of Needs you", () => {
   globalThis.window.__TEAM = TEAM;
-  const waiting = toInboxThreadVM(conv(), asked({ created_at: ago(10_869) }), ZONE, NOW);
+  // New to the reader: they wrote five minutes ago, and the reader last opened them an hour ago.
+  const waiting = toInboxThreadVM(
+    conv({ last_inbound_at: ago(5), seen_at: ago(60) }),
+    asked({ created_at: ago(10_869) }),
+    ZONE,
+    NOW,
+  );
   const nina = { ...rosa, id: "p2", display_name: "Nina Park" };
   const theirs = toInboxThreadVM(
     conv({ id: "c2", contact: nina, assignee_user_id: ANA, assignee_is_me: false }),
@@ -208,12 +227,12 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
     null,
     "in its own bucket a thread that needs you is not told so again: the chip counts it (I2)",
   );
-  assert.ok(hasClass("unread")(rosaRow));
+  assert.ok(hasClass("unread")(rosaRow), "new to the reader: the row wears the dot");
 
   const ninaRow = rowOf(tree, "Nina Park");
   assert.equal(find(ninaRow, byTestId("thread-state")), null, "REGRESSION: a teammate's thread said Needs you");
   assert.equal(textOf(find(ninaRow, byTestId("thread-theirs"))), "Ana García has it");
-  assert.ok(!hasClass("unread")(ninaRow), "and carries no unread dot");
+  assert.ok(!hasClass("unread")(ninaRow), "and one the read says nothing new of carries no dot");
   const ninaWait = find(ninaRow, hasClass("ix-wait"));
   assert.ok(ninaWait && !ninaWait.props.className.includes("warn"), "its wait is not amber: it is not waiting on you");
 

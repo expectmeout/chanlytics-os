@@ -533,6 +533,8 @@ const { LeadPlanPanel } = await importSrc("apps/dashboard/src/surfaces/leads/fin
 const { LeadStrip } = await importSrc("apps/dashboard/src/surfaces/leads/finder/strip-view.tsx");
 const { LeadsPhoneBar, LeadPlanSheet } = await importSrc("apps/dashboard/src/surfaces/leads/scope/phone-bar.tsx");
 const { LeadsRailRows } = await importSrc("apps/dashboard/src/surfaces/leads/scope/rail.tsx");
+const { LeadImportSheet } = await importSrc("apps/dashboard/src/surfaces/leads/reach-out/lists.tsx");
+const { RecordSheet } = await importSrc("apps/dashboard/src/surfaces/kit/record/sheet.tsx");
 const { LEAD_COLUMNS, LEAD_PHONE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/leads/cells/columns.tsx");
 const { LeadHover, ldPlacePop } = await importSrc("apps/dashboard/src/surfaces/leads/cells/hover.tsx");
 recorded.set(MoreMenu, menus);
@@ -1134,8 +1136,15 @@ test("a hover's card is drawn once a pointer, focus or a finger first reaches it
 
 // The first day is what every workspace opens Leads on, and it is what nothing drew: the component this file
 // used to stub did not exist, so the scope threw "LeadsFirstDay is not defined" for anyone without a search.
-test("with no search kept the first day stands where the table would, and claims only what this tab has read", async () => {
-  await fresh({ leads: { searches: [], rows: [], suggestions: SUGGESTIONS } });
+/** A workspace on its first day, as the wire answers it: no search kept and no lead held (the page's rule, page/props.tsx). */
+const FIRST_DAY = {
+  searches: [],
+  rows: [],
+  counts: { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 },
+};
+
+test("with no search kept and no lead held the first day stands alone: the question, the door, the ideas, and nothing that acts on a list", async () => {
+  await fresh({ leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
   const tree = draw();
   const fd = byTestId(tree, "leads-first-day");
   assert.ok(fd, "the first day is drawn");
@@ -1144,29 +1153,39 @@ test("with no search kept the first day stands where the table would, and claims
     null,
     "and the table is not: there is nothing to put in it",
   );
+  assert.equal(textOf(find(fd, (n) => n.type === "h1")), LEAD_WORDS.firstDay.title, "the page is its question");
 
-  assert.deepEqual(
-    all(fd, (n) => /^ld-way-[a-z]+$/.test(String(n.props?.["data-testid"] || ""))).map((n) => n.props["data-testid"]),
-    ["ld-way-reach", "ld-way-calendar", "ld-way-yours"],
-    "the three ways people arrive, People first",
-  );
+  // Nothing stands round it that acts on a list: no rail (its lists and searches are all empty), no search box, and no
+  // act in the head beside the page's own door. The head keeps People's name and says no "0 leads · 0 ready · 0 searches".
   assert.equal(
-    byTestId(fd, "ld-way-status-reach"),
+    find(tree, (n) => n.type === LeadsRailRows),
     null,
-    "this tab never read the setup surface, so nothing says a number is live",
+    "no rail",
   );
-  assert.equal(byTestId(fd, "ld-way-status-calendar"), null, "and nothing says a calendar is connected");
-  assert.match(
-    textOf(byTestId(fd, "ld-way-reach")),
-    /Set up your number/,
-    "what it says instead is the door to set one up",
+  assert.equal(searchBox(tree), null, "no search over no leads");
+  assert.equal(byTestId(tree, "leads-file-menu"), null, "no columns and no file");
+  const said = standingSaid();
+  assert.deepEqual(
+    [said?.title, said?.sentence, said?.act],
+    ["People", undefined, undefined],
+    "the head says the name alone",
   );
+  const scope = find(tree, (n) =>
+    String(n.props?.className || "")
+      .split(/\s+/)
+      .includes("leads-scope"),
+  );
+  assert.ok(String(scope.props.className).split(/\s+/).includes("no-rail"), "and the page takes the rail's column");
+  assert.equal(scope.props["data-first-day"], "", "named for the stylesheet, which draws no pane round it");
 
-  assert.ok(byTestId(fd, "ld-sug-gym"), "the suggestion Claude wrote for this workspace is offered");
-  assert.match(
-    textOf(byTestId(fd, "ld-sug-gym")),
+  const idea = byTestId(fd, "ld-sug-gym");
+  assert.ok(idea, "the idea Claude wrote for this workspace is offered");
+  assert.equal(textOf(idea), "gyms in Denver", "by its name alone");
+  assert.equal(idea.props["data-tip"], "owners who refer clients out", "who it is for is said under a pointer");
+  assert.doesNotMatch(
+    textOf(fd),
     /About 6 in 10 have an email/,
-    "with how reachable that kind is, measured, never promised",
+    "how reachable its kind is stays Ask's to say, in the plan it writes",
   );
   assert.match(
     textOf(byTestId(fd, "ld-line")),
@@ -1174,15 +1193,32 @@ test("with no search kept the first day stands where the table would, and claims
     "and what they were written from",
   );
   assert.ok(byTestId(fd, "ld-line-edit"), "with the one control that renews them");
-  assert.match(
-    textOf(byTestId(fd, "ld-first-day-foot")),
-    /not people at home/,
-    "the foot says what the finder does not do",
+  assert.equal(byTestId(fd, "ld-first-day-foot"), null, "no line under them about what the finder does not do");
+  assert.equal(
+    all(fd, (n) => /^ld-way-/.test(String(n.props?.["data-testid"] || ""))).length,
+    0,
+    "the ways people arrive are People's subject: they stood over the finder here, and buried it",
   );
 });
 
-test("suggestions the page could not read say so, and Find leads is still offered", async () => {
-  await fresh({ leads: { searches: [], rows: [], suggestions: undefined } });
+test("leads held with no search kept are a list to work: the rail and the table stand, never the first day", async () => {
+  // A search removed keeps the leads it found. The first day drew over them, with nothing of them in reach.
+  await fresh({ leads: { searches: [] } });
+  const tree = draw();
+  assert.equal(byTestId(tree, "leads-first-day"), null, "not the first day: there are leads to work");
+  assert.ok(
+    find(tree, (n) => n.type === "table"),
+    "the table",
+  );
+  assert.ok(
+    find(tree, (n) => n.type === LeadsRailRows),
+    "the rail",
+  );
+  assert.ok(byTestId(seen(tree), "leads-find"), "and Find leads in the head");
+});
+
+test("suggestions the page could not read say so, and both doors are still offered", async () => {
+  await fresh({ leads: { ...FIRST_DAY, suggestions: undefined } });
   const fd = byTestId(draw(), "leads-first-day");
   assert.ok(fd, "the first day is still drawn");
   assert.equal(
@@ -1190,40 +1226,192 @@ test("suggestions the page could not read say so, and Find leads is still offere
     LEAD_WORDS.suggestUnavailable,
     "the space where they go says why it is empty",
   );
-  assert.equal(textOf(byTestId(fd, "ld-line")), "", "and nothing claims a business line that was never read");
+  assert.equal(byTestId(fd, "ld-line"), null, "and nothing claims a business line that was never read");
+  assert.equal(byTestId(fd, "ld-line-edit"), null, "nor offers to rewrite one");
   assert.ok(
     byTestId(fd, "leads-first-find"),
     "the door is drawn either way: the owner can still describe what they want",
   );
+  assert.ok(byTestId(fd, "ld-first-import"), "and so is the door for a list of their own");
 });
 
-test("the first day offers Find leads, which opens Ask; a suggestion picked opens Ask with its words", async () => {
-  await fresh({ leads: { searches: [], rows: [], suggestions: SUGGESTIONS } });
+test("the first day's door opens Ask; an idea picked opens Ask with its words", async () => {
+  await fresh({ leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
   const fd = byTestId(draw(), "leads-first-day");
-  // The composer's slot is one button (spec F1): the page draws no composer of its own on the first day.
+  // The door is one button (spec F1): the page draws no composer of its own on the first day.
   assert.equal(panels.length, 0, "no composer is drawn: Ask is the finder");
   const door = byTestId(fd, "leads-first-find");
-  assert.match(textOf(door), /Find leads/);
+  assert.equal(door.type, "button", "a door drawn as a field, never a field: the words are typed in Ask");
+  assert.equal(textOf(door), LEAD_WORDS.firstDay.ask, "saying what to type there");
   assert.ok(
     find(door, (n) => n.type === Icon && n.props?.name === "three"),
     "wearing the three's still mark, Ask's face at rest",
   );
   click(door);
-  assert.equal(asks.at(-1), "open", "Find leads opens Ask as ⌘K does, keeping what was left in the field");
-  find(fd, (n) => n.type === "button" && n.props?.className === "q").props.onClick();
+  assert.equal(asks.at(-1), "open", "the door opens Ask as ⌘K does, keeping what was left in the field");
+  click(byTestId(fd, "ld-sug-gym"));
   assert.deepEqual(
     asks.at(-1),
     { mode: "compose", prompt: "gyms in Denver" },
-    "a suggestion's words are in the field, ready to send",
+    "an idea's words are in the field, ready to send",
   );
   assert.equal(panels.length, 0, "and still no composer");
-  // The button is gated as the bar's square was: an operator sees it refuse in the gate's sentence.
-  await fresh({ role: "operator", leads: { searches: [], rows: [], suggestions: SUGGESTIONS } });
-  const gated = byTestId(byTestId(draw(), "leads-first-day"), "leads-first-find");
-  assert.deepEqual(
-    [gated.props["aria-disabled"], gated.props["aria-description"]],
-    [true, "Only an owner can find businesses for you."],
+  // Both are gated as the bar's square was: an operator sees each refuse in the gate's sentence.
+  await fresh({ role: "operator", leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
+  const refused = byTestId(draw(), "leads-first-day");
+  for (const id of ["leads-first-find", "ld-sug-gym"]) {
+    const gated = byTestId(refused, id);
+    assert.deepEqual(
+      [gated.props["aria-disabled"], gated.props["aria-description"]],
+      [true, "Only an owner can find businesses for you."],
+      id,
+    );
+  }
+  assert.equal(byTestId(refused, "ld-line-edit"), null, "and no control for a line they may not rewrite");
+});
+
+test("the first day keeps a door for a list the owner already has: Import it opens the sheet the rail's door opens", async () => {
+  await fresh({ leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
+  let tree = draw();
+  assert.equal(byTestId(tree, "leads-import"), null, "the rail's own door is not drawn: there is no rail");
+  assert.equal(
+    find(tree, (n) => n.type === LeadImportSheet),
+    null,
+    "nothing is open yet",
   );
+  click(byTestId(tree, "ld-first-import"));
+  tree = draw();
+  assert.ok(
+    find(tree, (n) => n.type === LeadImportSheet),
+    "the press opens the import sheet",
+  );
+});
+
+test("Edit opens the business line in a sheet of its own: Cancel closes it, Save sends the owner's words", async () => {
+  const held = await fresh({ leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
+  const day = () => byTestId(draw(), "leads-first-day");
+  // The record kit's sheet, as a list is imported in one: it was a one-line field where the sentence stood.
+  const sheet = (fd) => find(fd, (n) => n.type === RecordSheet && n.props.testid === "ld-line-sheet");
+  let fd = day();
+  assert.equal(sheet(fd), null, "no sheet until it is asked for");
+  click(byTestId(fd, "ld-line-edit"));
+  fd = day();
+  assert.equal(sheet(fd).props.title, LEAD_WORDS.firstDay.lineTitle, "the sheet says what it is for");
+  assert.equal(
+    byTestId(fd, "ld-line-input").props.value,
+    "a personal training studio in Denver",
+    "its field opens on the line as it stands",
+  );
+  assert.equal(byTestId(fd, "ld-line-input").type, "textarea", "with room for a sentence");
+  assert.equal(textOf(byTestId(fd, "ld-line-count")), "36 of 160", "and says how much of its length is written");
+  assert.ok(byTestId(fd, "ld-line"), "the sentence stays on the page behind it");
+  sheet(fd).props.onClose();
+  fd = day();
+  assert.equal(sheet(fd), null, "Cancel closes it");
+
+  click(byTestId(fd, "ld-line-edit"));
+  byTestId(day(), "ld-line-input").props.onChange({ target: { value: "a yoga studio in Boulder" } });
+  held.answer = ({ key }) =>
+    key === "PUT /api/v1/lead-suggestions"
+      ? { ...SUGGESTIONS, business_line: "a yoga studio in Boulder", by_owner: true, items: [] }
+      : undefined;
+  sheet(day()).props.onSave();
+  await settle();
+  assert.deepEqual(
+    wrote((w) => w.key === "PUT /api/v1/lead-suggestions"),
+    [{ key: "PUT /api/v1/lead-suggestions", body: { business_line: "a yoga studio in Boulder" } }],
+    "Save sends the owner's own words, once",
+  );
+  assert.equal(sheet(day()), null, "and the sheet closes on the answer");
+});
+
+test("on a phone the first day draws no bar, its ideas are rows with a door's mark, and the head holds Import leads", async () => {
+  await fresh({ leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
+  globalThis.__phone = true;
+  let tree = draw();
+  const fd = byTestId(tree, "leads-first-day");
+  assert.ok(fd, "the first day is drawn");
+  assert.equal(
+    find(tree, (n) => n.type === LeadsPhoneBar),
+    null,
+    "no bar: there is no list to pick and nothing to search",
+  );
+  const idea = byTestId(fd, "ld-sug-gym");
+  assert.ok(
+    find(idea, (n) => n.type === Icon && n.props?.name === "chevron"),
+    "an idea is a row that opens",
+  );
+  assert.equal(idea.props["data-tip"], undefined, "nothing hovers on a phone");
+  assert.equal(
+    idea.props["aria-description"],
+    "owners who refer clients out",
+    "a screen reader still hears who it is for",
+  );
+  assert.match(
+    textOf(byTestId(fd, "ld-line")),
+    /a personal training studio in Denver/,
+    "the line they were written from stays",
+  );
+  assert.ok(byTestId(fd, "ld-line-edit"), "with its control");
+  // On a phone the line is rewritten in the kit's small job, only as tall as what it holds, never the record sheet
+  // that rises the whole height of the screen (Ruben, 7 Oct 2026). It is drawn while shut, so it leaves as it came.
+  assert.equal(openSheet(tree, "ld-line-sheet"), null, "the line's sheet is shut");
+  click(byTestId(fd, "ld-line-edit"));
+  tree = draw();
+  const lineSheet = openSheet(tree, "ld-line-sheet");
+  assert.ok(lineSheet, "Edit opens it");
+  assert.equal(lineSheet.props.shape, "job", "a phone's small job");
+  lineSheet.props.onClose();
+  tree = draw();
+  assert.equal(openSheet(tree, "ld-line-sheet"), null, "and Cancel shuts it");
+  // The door for a list the owner already has is the head's act on a phone, on the row of views where People's Add a
+  // person and the Pipeline's New proposal stand (Ruben, 7 Oct 2026); the page does not say it a second time.
+  const said = standingSaid();
+  assert.deepEqual([said?.title, said?.sentence], ["People", undefined], "the head says the name and no sentence");
+  const act = byTestId(said.act, "leads-import-open");
+  assert.ok(act, "and holds Import leads");
+  assert.equal(byTestId(fd, "ld-first-import"), null, "so the page's own line for it is a desk's");
+  act.props.onClick();
+  tree = draw();
+  assert.ok(
+    find(tree, (n) => n.type === LeadImportSheet),
+    "the press opens the import sheet",
+  );
+});
+
+test("on a phone Leads' act is Import leads, on the row of views, its first word kept where the row is short", async () => {
+  // A phone's Leads had no way to bring a list in but the Lists sheet's last row. Find leads is Ask's circle there,
+  // which stands over every page (spec F1), so the head holds the door that adds: as People's and the Pipeline's do.
+  await fresh();
+  globalThis.__phone = true;
+  let tree = draw();
+  const said = standingSaid();
+  assert.equal(said?.title, "People");
+  const act = byTestId(said.act, "leads-import-open");
+  assert.ok(act, "the head holds Import leads");
+  assert.equal(textOf(act), "Import leads", "in the rail's own words for the same door");
+  const part = (name) => find(act, (n) => n.props?.className === name);
+  assert.equal(textOf(part("pg-act-keep")), "Import", "the first word is kept with the mark");
+  assert.equal(textOf(part("pg-act-rest")), " leads", "the rest follows, and gives way beside three scopes");
+  assert.equal(byTestId(said.act, "leads-find"), null, "one act in the head: Find leads is Ask's on a phone");
+  assert.equal(
+    find(tree, (n) => n.type === LeadImportSheet),
+    null,
+    "nothing is open yet",
+  );
+  act.props.onClick();
+  tree = draw();
+  assert.ok(
+    find(tree, (n) => n.type === LeadImportSheet),
+    "the press opens the import sheet",
+  );
+  // A role that may not find may not import: the act says why at the button, as the rail's door does.
+  await fresh({ role: "operator" });
+  globalThis.__phone = true;
+  draw();
+  const gated = byTestId(standingSaid().act, "leads-import-open");
+  assert.equal(gated.props["aria-disabled"], true);
+  assert.match(String(gated.props["aria-description"]), /import leads/);
 });
 
 // D3: Needs review is a queue. Its head is one chip per thing that would resolve the leads in it; a chip selects
@@ -1883,8 +2071,8 @@ test("on a desk Find leads is the page's act, at the right of the strip over the
   );
 });
 
-test("the first day's Find leads is a button of its own, never the setup's find step (fr-find, a grid)", async () => {
-  await fresh({ leads: { searches: [], rows: [], suggestions: SUGGESTIONS } });
+test("the first day's door is a button of its own, never the setup's find step (fr-find, a grid)", async () => {
+  await fresh({ leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
   const door = byTestId(byTestId(draw(), "leads-first-day"), "leads-first-find");
   assert.ok(door, "the first day's door");
   assert.ok(

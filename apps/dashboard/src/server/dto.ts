@@ -4,6 +4,7 @@ import {
   type CallDto,
   type ConversationDto,
   type MessageDto,
+  type SeenOf,
 } from "@chanlytics/contracts";
 
 /**
@@ -19,7 +20,7 @@ import {
  */
 
 export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
+  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, last_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
@@ -35,6 +36,7 @@ interface ConversationRow {
   assignee_user_id: string | null;
   last_wa_inbound_at: string | null;
   last_message_at: string | null;
+  last_inbound_at?: string | null;
   contacts: {
     id: string;
     display_name: string | null;
@@ -184,7 +186,16 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
   return byConv;
 }
 
-export function toConversationDto(c: ConversationRow, messages: MessageDto[], userId: string): ConversationDto {
+/**
+ * A conversation as the wire says it. `seen` is the reader's own reading of the person (people/person-seen.ts): where
+ * a reader hands none, the row says nothing of it and no list calls it new.
+ */
+export function toConversationDto(
+  c: ConversationRow,
+  messages: MessageDto[],
+  userId: string,
+  seen: SeenOf = {},
+): ConversationDto {
   return {
     id: c.id,
     state: c.state as ConversationDto["state"],
@@ -194,6 +205,9 @@ export function toConversationDto(c: ConversationRow, messages: MessageDto[], us
     assignee_is_me: c.assignee_user_id ? c.assignee_user_id === userId : undefined,
     last_wa_inbound_at: c.last_wa_inbound_at,
     last_message_at: c.last_message_at,
+    // Said where the row was read with it (CONVERSATION_COLUMNS asks for it).
+    ...(c.last_inbound_at !== undefined ? { last_inbound_at: c.last_inbound_at } : {}),
+    ...seen,
     contact: {
       id: c.contacts?.id ?? "",
       display_name: c.contacts?.display_name ?? null,

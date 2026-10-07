@@ -160,6 +160,8 @@ test("the thread's menu: what to do with the conversation, then the person, then
   assert.deepEqual(shape, [
     "Snooze",
     "Archive",
+    // The reader's own mark on the person (00345): on a real thread it is kept, so the menu offers it again.
+    "Mark as unread",
     "|",
     "Open profile",
     "Receptionist settings",
@@ -197,6 +199,7 @@ test("a group with nothing in it takes no divider with it", () => {
   );
   const menu = find(tree, (n) => n.type === Menu);
   const shape = menuShape(menu);
+  assert.ok(!shape.includes("Mark as unread"), "nobody behind the thread: there is no one to mark");
   assert.ok(
     !shape.includes("Archive") && shape[0] !== "|" && shape.at(-1) !== "|",
     `no divider at an edge: ${shape.join(", ")}`,
@@ -716,6 +719,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     assert.deepEqual(shape(draw(vm)), [
       "Snooze",
       "Archive",
+      "Mark as unread",
       "|",
       "Open profile",
       "Receptionist settings",
@@ -736,7 +740,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     assert.deepEqual(order, ["actions", "sheet"]);
     // A proposal out (with no link to send on People's row here): its moves, each on this deal.
     people({ id: "d1", stage: "proposed", proposal: null });
-    assert.deepEqual(shape(draw(vm)).slice(6, 9), ["Mark as client", "Mark as passed", "Edit proposal"]);
+    assert.deepEqual(shape(draw(vm)).slice(7, 10), ["Mark as client", "Mark as passed", "Edit proposal"]);
     for (const [label, mode] of [
       ["Mark as client", "won"],
       ["Mark as passed", "lost"],
@@ -748,7 +752,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       assert.deepEqual(order, ["actions", "sheet"], label);
     }
     people({ id: "d1", stage: "won" });
-    assert.deepEqual(shape(draw(vm)).slice(6, 7), ["End the engagement"]);
+    assert.deepEqual(shape(draw(vm)).slice(7, 8), ["End the engagement"]);
     press("End the engagement");
     assert.deepEqual(opened.at(-1), { personId: "k1", mode: "ended", dealId: "d1" });
     people({ id: "d1", stage: "lost" });

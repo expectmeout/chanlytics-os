@@ -3750,3 +3750,38 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     box-shadow: var(--surface-control-depth);
   }
 }
+
+/* A person new to the reader (surfaces/seen.ts; cells/columns.tsx plUnread): the Inbox's unread, on People's row. The
+   dot stands at the row's edge, before the face, where the Inbox's does (inbox.css .ix-thread.unread), so every name
+   keeps its line; what they said reads in ink; and on a phone the name is a step heavier, as the Inbox's is (a desk's
+   is already the table's heaviest). The card's dot is held by the row, past the name's own clip. */
+.cl-row-name.unread {
+  position: relative; /* holds the dot */
+}
+.cl-row-name.unread::before,
+.pl-unread::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-circle);
+  background: var(--ink);
+  transform: translateY(-50%);
+}
+/* Midway between the row's box for a selection and the face. */
+.cl-row-name.unread::before {
+  left: -10px;
+}
+/* Level with the face, which a card of three lines stands above the middle of. */
+.pl-unread::before {
+  top: calc(var(--row-pad-y) + var(--row-face) / 2);
+  left: 3px;
+}
+.pl-unread {
+  font-weight: var(--weight-semibold);
+}
+.cl-row-name.unread .cl-row-words,
+td .pl-unread-said {
+  color: var(--ink);
+}

@@ -72,7 +72,7 @@ export {
 export type { CallDto } from "./call-dto";
 export { spokenDuration, toCallVM } from "./call-vm";
 export type { CallVM } from "./call-vm";
-export { standingOf, replyWaitsOnYou, HELD_WORDS } from "./standing";
-export type { StandingInput, Standing, StandingVerdict } from "./standing";
+export { standingOf, replyWaitsOnYou, HELD_WORDS, seenBy, isUnseen } from "./standing";
+export type { StandingInput, Standing, StandingVerdict, SeenMarksDto, SeenOf } from "./standing";
 export { CONVERSATION_MOVES, conversationPatch, conversationMoveAllowed } from "./conversation-moves";
 export type { ConversationMoveName, ConversationPatch } from "./conversation-moves";

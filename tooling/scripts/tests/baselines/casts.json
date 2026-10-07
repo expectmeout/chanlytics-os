@@ -333,9 +333,6 @@
   "packages/contracts/src/email/sending-domains.ts": {
     "nonNull": 2
   },
-  "packages/contracts/src/leads/lead-first-day.ts": {
-    "nonNull": 1
-  },
   "packages/contracts/src/people/lists/list-rules.ts": {
     "nonNull": 1
   },

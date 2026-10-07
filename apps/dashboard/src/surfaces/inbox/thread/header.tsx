@@ -285,12 +285,12 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
           },
         ]
       : []),
-    // On a real thread "Mark as unread" flipped a local flag the next
-    // realtime reseed wiped, and "Block sender" opened the Ask overlay,
-    // a no-op outside a demo: both promised something that did not
-    // happen. The real way to stop the receptionist for one person is
-    // the mode on their profile, so that is where a real session goes.
-    ...(demoSession()
+    // Mark as unread is the reader's own mark on the person now (00345, surfaces/seen.ts), kept: on a real thread it
+    // flipped a local flag the next realtime reseed wiped, and was taken out of the menu for promising what did not
+    // happen. A thread with nobody behind it (a caller who withheld their number) has no one to mark. "Block sender"
+    // opened the Ask overlay, a no-op outside a demo: the real way to stop the receptionist for one person is the
+    // mode on their profile, so that is where a real session goes.
+    ...(demoSession() || (thread.real && thread.clientId)
       ? [{ label: "Mark as unread", glyph: ixGlyph("inbox"), onSelect: () => onMarkUnread(thread.id) }]
       : []),
   ];

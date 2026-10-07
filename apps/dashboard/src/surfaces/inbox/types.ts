@@ -237,6 +237,7 @@ export interface SeededThread extends ThreadBase {
   phoneDisplay?: undefined;
   replyVia?: undefined;
   lastAtMs?: undefined;
+  heardAtMs?: undefined;
   escalatedAtMs?: undefined;
 }
 
@@ -329,6 +330,10 @@ export interface ConversationRow {
   outcome: string;
   /** Who has the thread, by the one rule (contracts standingOf): the pill reads it before `outcome`. A call's is its thread's. */
   standing?: Standing;
+  /** New to the reader, by the one rule (contracts isUnseen); a call's is its thread's, as its standing is. */
+  unseen?: boolean;
+  /** When they last wrote or called, epoch ms: what a mark made in this tab is held against (surfaces/seen.ts). */
+  heardAtMs?: number;
   snippet: string;
   threadId?: string;
   duration?: string;

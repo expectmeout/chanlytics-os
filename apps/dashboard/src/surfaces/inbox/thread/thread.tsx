@@ -409,9 +409,13 @@ export const InboxThread = (props: InboxThreadProps) => {
 };
 
 // =============== EMPTY STATE ===============
+// Placed by the page (inbox.css, .ix-zero): a little over the middle of the room it has, and on a phone in the room under
+// the search, clear of the tab bar. It stood in the middle of the pane on a desk, under the window's own middle, and at
+// the foot of a phone's screen with its button under the tab bar (Ruben, 7 Oct 2026).
 const InboxEmpty = () => (
   <EmptyState
     kind="page"
+    className="ix-zero"
     glyph="inbox"
     title="Inbox zero"
     body="The receptionist is handling everything. Anything that needs your call appears here."

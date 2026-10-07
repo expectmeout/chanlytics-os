@@ -6,6 +6,7 @@
  * numbers. People's and a person's standing are said by page/people-head.tsx; the Pipeline says its own because the act
  * is the page's, and the route cannot reach it.
  */
+import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import type { gate } from "../../legacy-verbs";
@@ -31,7 +32,7 @@ export function usePipelineStanding(line: readonly { words: string }[], newAct: 
         data-testid="pipeline-new-open"
         {...newAct.gate}
       >
-        <Icon name="plus" size={12} /> {P.words.newProposal.button}
+        <ActWords icon={<Icon name="plus" size={12} />} words={P.words.newProposal.button} />
       </button>
     ) : undefined,
     // A scope is picked in the page's own strip (People | Leads | Pipeline), so it has no way back above its name (D1).

@@ -29,6 +29,8 @@ what the script writes.
 | [`calls`](#calls) | `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
 | [`contact_identities`](#contact_identities) | `packages/db/src/repositories/email.ts` | on, 1 policy |
+| [`contact_marks`](#contact_marks) | none | on, 1 policy |
+| [`contact_reads`](#contact_reads) | none | on, 1 policy |
 | [`contacts`](#contacts) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
@@ -548,6 +550,53 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `contact_identities_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### contact_marks
+
+Per member per person: seen_at is when the member last opened the person (their thread or their page), unread_at when they put it back as unread, cleared by the next opening (00345). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member's floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.
+
+- Owned by: none
+- Primary key: `contact_id`, `user_id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `contact_id` | uuid | no |  |  |
+| `user_id` | uuid | no |  |  |
+| `seen_at` | timestamp with time zone | yes |  |  |
+| `unread_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `contact_id` → [`contacts`](#contacts) (`id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `contact_marks_own_select` | select | authenticated | `(user_id = auth.uid())` |  |
+
+### contact_reads
+
+Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00345). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.
+
+- Owned by: none
+- Primary key: `tenant_id`, `user_id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `user_id` | uuid | no |  |  |
+| `seen_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `contact_reads_own_select` | select | authenticated | `(user_id = auth.uid())` |  |
 
 ### contacts
 

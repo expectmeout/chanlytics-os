@@ -282,8 +282,10 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   body:has([data-takeover], [data-dock]) .phone-ask { display: none; }
 
   /* Every dialog on the ask overlay sits on the bottom edge on a phone: the Calendar's event panel (calendar-real.jsx)
-     shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. */
-  .ask-overlay { padding: 0; align-items: flex-end; }
+     shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. Behind
+     a dialog the page wears the phone's one veil (tokens.css --surface-veil): it wore the ink's wash, which lightened
+     a dark page. */
+  .ask-overlay { padding: 0; align-items: flex-end; background: var(--surface-veil); }
   .ask-overlay.ask-line-scrim { padding: 0; }
   /* The screen: the head, the middle that scrolls, the foot above the keys (--ask-keys) and the home bar. The keys are
      what the document says (data-bits watchKeyboard): what a keyboard covers once it is up (--kb), and, from the moment
