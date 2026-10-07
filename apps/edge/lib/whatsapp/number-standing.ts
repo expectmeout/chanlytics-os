@@ -84,6 +84,15 @@ export async function readAndKeepStanding(p: StandingPorts, token: string, n: Nu
       });
       return { outcome: "unreadable", standing: null, told: false };
     }
+    // What Meta answered, by its shape alone: the word for whether it may send and each problem's entity and code (never its
+    // words, which name the number). The codes are what tells a calling problem from a messaging one once they are known
+    // (contracts number-standing.ts CALLING_PROBLEM reads the words until then).
+    p.log.info("wa_standing_read", {
+      tenant_id: n.tenant_id,
+      channel_id: n.channel_id,
+      can_send: got.data.can_send,
+      problems: got.data.problems.map((x) => `${x.entity}:${x.code ?? "none"}`),
+    });
     const kept = await keepChannelStanding(p.db, n.tenant_id, n.channel_id, got.data);
     const turned = (kept === "first" || kept === "changed") && got.data.can_send === "BLOCKED";
     return { outcome: kept, standing: got.data, told: turned ? await tellBlocked(p, n, got.data) : false };

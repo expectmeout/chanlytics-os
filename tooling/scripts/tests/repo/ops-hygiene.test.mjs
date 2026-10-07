@@ -8,6 +8,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { ROOT, readRaw } from "../_source.mjs";
 import { LEASE_SECONDS, SEND_SETTLE_MS, YIELD_AT_MS, sendByAt } from "../../../../packages/jobs/src/ledger.ts";
 import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../../apps/edge/api/cron/domains.ts";
@@ -25,10 +27,17 @@ import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 
 test("the events purge drops the evidence kinds and only those, past the contract's days, on a minute no sweep uses", () => {
   // 00038 scheduled it and dropped two kinds; 00115 widened the list to every
-  // evidence kind (contracts EVENT_EVIDENCE_KINDS) and kept the schedule.
+  // evidence kind (contracts EVENT_EVIDENCE_KINDS) and kept the schedule; a later migration that replaces the function
+  // (00342 added person.resolved) is the text held, since an applied file is never edited (migrations are forward-only).
   // retention.db.test.mjs runs the function; this holds the two texts together.
   const sql = readRaw("supabase/migrations/00038_events_purge.sql");
-  const now = readRaw("supabase/migrations/00115_the_events_purge_covers_the_evidence.sql");
+  const defining = fs
+    .readdirSync(path.join(ROOT, "supabase/migrations"))
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .filter((f) => readRaw(`supabase/migrations/${f}`).includes("create or replace function public.purge_events("));
+  assert.ok(defining.includes("00115_the_events_purge_covers_the_evidence.sql"), "00115 defines it");
+  const now = readRaw(`supabase/migrations/${defining.at(-1)}`);
   assert.ok(
     now.includes(
       `create or replace function public.purge_events(p_keep interval default '${RETENTION_DAYS.events_evidence} days')`,

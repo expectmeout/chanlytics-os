@@ -43,6 +43,7 @@ export { DEFAULT_CAMPAIGN_CHANNELS, CHANNEL_WORDS, CAMPAIGN_MONTH_ALLOWANCE, HEL
 export { consentAnswerWords, receiptWords, toRunReportVM, RUN_REPORT_STEPS, RUN_FILTERS } from "./broadcasts/run-report";
 export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
+export { whatsappOffersOpen } from "./broadcasts/whatsapp-offers";
 export { dayIntervals, closedOn, openAt, hasHours, freeWindows, filterOpenings, describeOpenings, BOOKING_DEFAULTS } from "./calendar/availability";
 export { serviceOf, toCalendarVM } from "./calendar/calendar";
 export { calendarOwnerOf, ownAddressesOf, extractContacts, personInText, matchPerson, indexFeed, allVisitsIn, visitsIn, visitsOf, visitDay, visitTime, visitDateKey, visitStartTime, visitLine, describeVisits, feedSourceLabel, eventText, toVisitDto, guessName, peopleFromItems, afterPersonRefused, bookedAfterAsk, visitAnswersAsk, toBookingReportVM } from "./calendar/calendar-people";
@@ -153,7 +154,7 @@ export { channelFor, channelKindWords, toChannelVM, CHANNEL_KIND_WORDS, CHANNEL_
 export { LINE_CODES_WITHIN_MS, LINE_CODES_MAX, LINE_CODES_EVERY_MS } from "./lines/line-codes";
 export { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./lines/line-failure";
 export { lineReleaseAfterDays, billingEndedAt, lineReleaseStep, lineReleaseDay, lineReleaseWarning, lineReleasedWords, LINE_RELEASE_WARN_DAYS, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS } from "./lines/line-release";
-export { standingFromConfig, standingNeedsRead, standingAlertWords, standingAfterNameDecision, nameDecisionWords } from "./lines/number-standing";
+export { standingFromConfig, standingNeedsRead, standingAlertWords, standingAfterNameDecision, nameDecisionWords, numberHealthWithStanding } from "./lines/number-standing";
 export { registrationPathOf, soleProprietorLimits, REGISTRATION_PATHS, SOLE_PROP_LIMITS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS } from "./lines/registration-path";
 export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
 export { APP_ROUTE_RE, PUSH_TOKEN_MAX, parsePageMessage, parseShellMessage } from "./mobile/app-bridge";

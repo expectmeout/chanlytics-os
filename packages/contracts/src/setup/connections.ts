@@ -15,7 +15,7 @@ import { numberHealth } from "../broadcasts/broadcasts";
 import { channelFor, type ChannelVM } from "../lines/channels";
 import type { ConnectionNote } from "../lines/connection-note";
 import { codeNotes, type LineCodeDto } from "../lines/line-codes";
-import { NEW_BUSINESS_LIMIT, standingNotes, standingSentence } from "../lines/number-standing";
+import { standingNotes, standingRow } from "../lines/number-standing";
 import { whatsappCostNotes } from "../lines/whatsapp-cost";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "../google/google";
 import type { LineDto } from "./setup";
@@ -53,9 +53,11 @@ export type ConnectionWho = "owner" | "operator";
 
 export interface ConnectionVerb {
   label: string;
-  /** A route ("start", "messages") or a `verb:` id the page runs. */
+  /** A route ("start", "messages") or a `verb:` id the page runs; the address itself where `href` is set. */
   to: string;
   who: ConnectionWho;
+  /** A page of someone else's that mends the row (Meta's billing page for a WhatsApp account), opened in a new tab. */
+  href?: string;
 }
 
 export interface ConnectionRow {
@@ -350,22 +352,16 @@ function signupCodeNote(own: ConnectionFacts["own"]): ConnectionNote {
 
 /**
  * What Meta's sign-up window asks of the owner, said before it opens, in the order the owner meets it: the sign-in, the code texted
- * to the number (and to keep the page open while it is awaited), what WhatsApp costs and who bills it (Chanlytics is a Tech
- * Provider: Meta bills the business, to its own card, for the messages it starts), the payment method Meta asks for at the end
- * (replies to a customer who wrote first are delivered without one, and are not billed; what is not delivered is the messages the
- * business starts), and the limit a new business starts at. One line each: a row says one thing at a time.
+ * to the number (and to keep the page open while it is awaited), and what WhatsApp costs and who bills it (Chanlytics is a Tech
+ * Provider: Meta bills the business, to its own card, for the messages it starts, so the card Meta asks for at the end is said
+ * with the cost). Three lines: a row says one thing at a time, and what a new business may start in a day is the connected row's
+ * to say (number-standing.ts), where it is read from Meta and not assumed.
  */
 function whatsappConnectNotes(own: ConnectionFacts["own"]): ConnectionNote[] {
   return [
     { text: "Meta asks you to sign in with Facebook and choose or create your business." },
     signupCodeNote(own),
     ...whatsappCostNotes(),
-    {
-      text: "Add a payment method when Meta asks for one: without it, replies still go out, but reminders and campaigns are not delivered.",
-    },
-    {
-      text: `Until Meta verifies your business, it can start conversations with ${NEW_BUSINESS_LIMIT} people a day; replies to customers who write first are not limited.`,
-    },
   ];
 }
 
@@ -400,41 +396,55 @@ function tryItNotes(wa: ChannelVM): ConnectionNote[] {
   ];
 }
 
+/** The WhatsApp row's own verb: the Library, what the receptionist and the campaigns send on the number. */
+const LIBRARY: ConnectionVerb = { label: "Library", to: "messages", who: "operator" };
+
+/**
+ * The row of a connected number. What Meta holds against it comes first (channel.standing, 00338, in contracts' words: a
+ * payment method missing or failing is "Waiting on you", a number Meta has stopped for anything else "Needs attention", each
+ * with the one act that mends it, a page of Meta's), else its rating (a flagged number is the "joined but not working" the
+ * attention state exists for), else on. The notes say what changes what the owner can do, and no more (standingNotes). A row
+ * says one daily limit, the quality webhook's once Meta has sent one, else the tier the standing read: in the sentence where
+ * the rating is known, in the verification's note where it is not. A switched-off number says nothing of Meta's.
+ */
+function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: ChannelVM): Draft {
+  const row = { ...base, detail: wa.number };
+  if (!wa.on) return { ...row, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };
+  const limit = wa.messagingLimit ?? wa.standing?.limit ?? null;
+  const standing = wa.standing && { ...wa.standing, limit };
+  if (standing) {
+    const stood = standingRow(standing);
+    if (stood)
+      return {
+        ...row,
+        state: "attention",
+        stateWords: stood.stateWords,
+        sentence: stood.sentence,
+        verb: stood.act ? { label: stood.act.label, to: stood.act.href, href: stood.act.href, who: "owner" } : null,
+        notes: standingNotes(standing, { limitSaid: false }),
+      };
+  }
+  const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
+  const flagged = h.tone === "danger";
+  const health = h.tone !== "unknown" ? ` · ${h.label}` : "";
+  return {
+    ...row,
+    state: flagged ? "attention" : "connected",
+    stateWords: flagged ? "Needs attention" : "On",
+    sentence: `${wa.healthLabel}${health}`,
+    verb: LIBRARY,
+    // How to try it from a phone, first, on a row nobody has written to yet; then what Meta holds that the owner can act on.
+    notes: [
+      ...(flagged ? [] : tryItNotes(wa)),
+      ...standingNotes(standing, { limitSaid: h.tone !== "unknown" && h.limitPerDay !== null }),
+    ],
+  };
+}
+
 /** WhatsApp: the channel row when there is one; Meta's door when there is not. */
 function whatsappRow(i: ConnectionInputs, { wa, own, nowMs }: ConnectionFacts): Draft {
   const base = { kind: "whatsapp" as const, icon: "chat", title: "WhatsApp Business" };
-  if (wa) {
-    // What Meta holds about the number (channel.standing, 00338) outranks what its rating implies: a number Meta will not
-    // let send is joined and not working whatever its quality was, and Meta's own words say why. A word of Meta's that is
-    // not BLOCKED is never taken for it; a switched-off channel says nothing of Meta's.
-    const standing = wa.on ? wa.standing : null;
-    // One daily limit for the sentence and the notes: the quality webhook's word once Meta has sent one (it is sent when the
-    // tier moves), else the tier the standing read. Two would say "not reported yet" beside "up to 250 people a day".
-    const limit = wa.messagingLimit ?? standing?.limit ?? null;
-    // What Meta has said about the number, in the words Sent, Campaigns
-    // and the assistant already use: a flagged number is exactly the "joined
-    // but not working" the attention state exists for.
-    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
-    const flagged = wa.on && h.tone === "danger";
-    const health = wa.on && h.tone !== "unknown" ? ` · ${h.label}` : "";
-    const blocked = standing?.can_send === "BLOCKED";
-    const attention = flagged || blocked;
-    return {
-      ...base,
-      detail: wa.number,
-      state: !wa.on ? "off" : attention ? "attention" : "connected",
-      stateWords: !wa.on ? "Off" : attention ? "Needs attention" : "On",
-      sentence: standing && blocked ? standingSentence(standing) : `${wa.healthLabel}${health}`,
-      verb: { label: "Library", to: "messages", who: "operator" },
-      // How to try it from a phone, first, on a connected row nobody has written to yet; then what Meta holds; and last what
-      // WhatsApp costs, on every row that is on.
-      notes: [
-        ...(wa.on && !attention ? tryItNotes(wa) : []),
-        ...standingNotes(standing && { ...standing, limit }),
-        ...(wa.on ? whatsappCostNotes() : []),
-      ],
-    };
-  }
+  if (wa) return whatsappNumberRow(base, wa);
   if (i.whatsapp === undefined) {
     return {
       ...base,

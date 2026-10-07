@@ -10,6 +10,7 @@
  */
 import type { MouseEvent, ReactNode } from "react";
 import type { ConnectionRow as Row, ConnectionVerb } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -44,7 +45,8 @@ const connRowPress = (e: MouseEvent<HTMLDivElement>) => {
   if (t.closest("button, a[href], input, select, textarea, [role='button'], .set-row-stack")) return;
   const picked = typeof window.getSelection === "function" ? window.getSelection() : null;
   if (picked && String(picked)) return;
-  const act = row.querySelector<HTMLElement>(".set-int-actions button");
+  // Its act is a button, or a door drawn as one (a page of Meta's that mends the row).
+  const act = row.querySelector<HTMLElement>(".set-int-actions button, .set-int-actions a[href]");
   if (act && typeof act.click === "function") act.click();
 };
 
@@ -92,7 +94,20 @@ function rowActs(o: ConnectionRowProps & { owner: boolean; armed: string | null;
           it used to be hidden, with no word. A page to open is anyone's to open. */}
       {verb &&
         !armed &&
-        (verb.to.startsWith("verb:") ? (
+        (verb.href ? (
+          // Someone else's page that mends the row (Meta's billing page for a WhatsApp account): a door, drawn as the row's
+          // act, in a new tab, with nothing of this page's passing with it.
+          <Button
+            size="sm"
+            variant={primary ? "primary" : "secondary"}
+            href={verb.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid={`connection-${r.kind}-verb`}
+          >
+            {verb.label}
+          </Button>
+        ) : verb.to.startsWith("verb:") ? (
           <button
             className={`btn btn-sm${primary ? " btn-primary" : ""}`}
             onClick={() => run(r)}
@@ -125,7 +140,14 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
     r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention");
   const verb = r.verb;
   const verbGate = verb && !mayPress(verb) ? gate(verb.who === "owner" ? "team" : "approve", VERB_DOING[verb.to]) : {};
-  const press = verb ? () => (verb.to.startsWith("verb:") ? run(r) : navigate(verb.to)) : null;
+  const press = verb
+    ? () =>
+        verb.href
+          ? window.open(verb.href, "_blank", "noopener,noreferrer")
+          : verb.to.startsWith("verb:")
+            ? run(r)
+            : navigate(verb.to)
+    : null;
   // What the row offers a thumb: nothing (a Later row, a row asking a question), its one act, or a menu of two.
   const acts = [
     ...(removable ? [{ label: "Remove", danger: true, onClick: () => setArm({ kind: r.kind, what: "remove" }) }] : []),

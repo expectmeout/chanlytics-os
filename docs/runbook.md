@@ -1080,11 +1080,14 @@ Other lines to know:
   answered: no person, no conversation, no reply. The line holds the service it read (`service`), never the code or a
   number. The owner reads the codes sent to the line on Settings, Connections, from Twilio's own record of them; nothing of
   ours stores one. `line_codes_read_failed` (a warning, with the workspace) is Twilio refusing to list them for that page.
-- `wa_standing_read_failed`, `wa_standing_keep_failed`, `wa_standing_tell_failed`, `wa_standing_told`: what Meta holds about
-  a connected WhatsApp number (whether it may send, its display name, the business's verification, whether a payment method
-  is on file), read as a number is connected, by the channel-quality sweep and when an owner opens Connections. The first is
-  Meta not answering or refusing (a warning, with its `status` and `code`; the row keeps what it held); the second is the
-  database door refusing to keep a reading or a display-name decision and the third the owner's notice failing to send
+- `wa_standing_read`, `wa_standing_read_failed`, `wa_standing_keep_failed`, `wa_standing_tell_failed`, `wa_standing_told`:
+  what Meta holds about a connected WhatsApp number (whether it may send, its display name, the business's verification,
+  whether a payment method is on file), read as a number is connected, by the channel-quality sweep and when an owner opens
+  Connections. The first is every read that answered, at info: the word for whether it may send (`can_send`) and each
+  problem's entity and code (`problems`, as `WABA:141006`), never Meta's words. It is how the codes of Meta's calling
+  problems (SIP) are learned, which the row tells apart by their words until then (contracts number-standing.ts). The next is
+  Meta not answering or refusing (a warning, with its `status` and `code`; the row keeps what it held); the third is the
+  database door refusing to keep a reading or a display-name decision and the fourth the owner's notice failing to send
   (both errors, with the `channel_id` where a read wrote them; the webhook's line for a display name's decision holds the
   workspace and the `error` alone). None of them fails the thing that asked for the read. `wa_standing_told` is the owner
   told that Meta will not let the number send: the bell row, and `mailed` says whether the owner's mail went too (false: a

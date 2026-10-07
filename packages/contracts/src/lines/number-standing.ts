@@ -6,12 +6,14 @@
  * entity's errors, with Meta's own fix), how the display name's review fares, whether the business is verified and how many
  * people it may start a conversation with in a day. The edge keeps that answer whole on the channel's config
  * (`channel_keep_standing`, 00338) and says a change of `can_send` as a `channel.standing` event. This is the one place it
- * is read back and put into words, for the Connections row, the owner's alert and the Activity log: what Meta said, and
- * nothing it did not. A word of Meta's that is not one of the three is kept as Meta said it and never turned into one that is.
- * The account's payment method (is one on file), the business that owns the account and the account itself ride with the standing,
- * so the row can say that none is on file and where to add one (whatsapp-cost.ts).
+ * is read back and put into words, for the Connections row, the owner's alert, a campaign's readiness and the Activity log.
+ * The words are Chanlytics' own, from the fields Meta answers (whether it may send, a payment method on file, the verification,
+ * the name's review, the tier): Meta's own prose is repeated only for a number it has stopped for a reason none of those
+ * fields explains, and a word of Meta's that is not one of the three is kept as Meta said it and never turned into one that
+ * is. The account's payment method (is one on file), the business that owns the account and the account itself ride with the
+ * standing, so the row can send the owner to Meta's own page for each (whatsapp-cost.ts addPaymentMethodLink, and the links here).
  */
-import { dailyLimit } from "../broadcasts/broadcast-number";
+import { dailyLimit, type NumberHealth } from "../broadcasts/broadcast-number";
 import { formatPhoneDisplay } from "../shared/phone";
 import { MIN_MS } from "../shared/time";
 import type { ConnectionNote } from "./connection-note";
@@ -56,9 +58,9 @@ export type NumberStanding = {
 /**
  * How many people a business new to Meta may start a conversation with in a day, until it is verified (Meta, messaging
  * limits: a new business portfolio starts at 250, shared by every number in it). Replies to a customer who wrote first are
- * not counted. Said before Connect, and after it when Meta has not said a tier of its own.
+ * not counted. Said under a connected number's row when Meta has not said a tier of its own.
  */
-export const NEW_BUSINESS_LIMIT = 250;
+const NEW_BUSINESS_LIMIT = 250;
 
 /** How long a page that opens trusts a standing that is not AVAILABLE, before it asks Meta again. */
 const STANDING_STALE_MS = 10 * MIN_MS;
@@ -135,64 +137,122 @@ const withStop = (text: string): string => {
   return /[.!?]$/.test(t) ? t : `${t}.`;
 };
 
-/** A problem as a note: what Meta said, then how it said to fix it. */
+/** A problem as a sentence: what Meta said, then how it said to fix it. */
 const problemWords = (p: StandingProblem): string =>
   p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
 
-/** The sentence of a number Meta will not let send, where it named no problem. */
+/** The sentence of a number Meta will not let send, where it named no problem about messaging. */
 const BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
 
 /**
- * What a payment method is for. Meta delivers the replies to customers who write first without one, and does not bill them, and does
- * not deliver the messages the business starts, like reminders and campaigns (6 October: a reply was delivered within eight seconds
- * on an account with none). Meta's own problem, "a payment method is required to send messages", says neither, so Chanlytics says it.
+ * Meta's problems about WhatsApp calling, its SIP signalling ("WhatsApp Business calling cannot use SIP because it is not
+ * enabled", on the phone and again on the app). Chanlytics does not use WhatsApp calling: a call reaches the business on its
+ * phone line. So a calling problem is never shown, never the row's reason and never the owner's alert (6 October: the row led
+ * with one, over the payment method that was the real block). Told apart by their words until Meta's codes for them are
+ * known: the edge logs each read's codes (`wa_standing_read`).
  */
-const NO_PAYMENT_METHOD =
-  "No payment method on your WhatsApp account yet: replies still go out, but reminders and campaigns will not be delivered.";
-/** The same, for a number Meta will not let send at all: what is missing, and nothing about what still goes out, since nothing does. */
-const NO_PAYMENT_METHOD_BLOCKED = "No payment method on your WhatsApp account yet.";
-const PAYMENT_NOTE =
-  "Without a payment method, Meta still delivers replies to customers who write first; it does not deliver the messages your business starts, like reminders and campaigns.";
+const CALLING_PROBLEM = /\bSIP\b|\bcalling\b/i;
+const messagingProblems = (s: NumberStanding): StandingProblem[] =>
+  s.problems.filter((p) => !CALLING_PROBLEM.test(p.said) && !(p.fix !== null && CALLING_PROBLEM.test(p.fix)));
+
+/** A problem of Meta's that names the account's payment method ("There is an error with the payment method…"). */
 const PAYMENT_PROBLEM = /\bpayment\b/i;
 
 /**
- * The note for the account's payment method. Where the account says none is on file, that is said plainly, with the way to add one: Meta's
- * billing page for this business and this account, or Meta Business Suite where either is not known. Where it could not be read, a
- * problem of Meta's that names a payment gets the note that says what a payment method is for, once; where one is on file, nothing.
- * A number Meta will not let send sends nothing, replies included: its note says only what is missing (Meta's own problem and fix,
- * the row's sentence and notes, say the rest).
+ * What stands with the account's payment method: none on file (the account's own word, `has_payment_method` false), one Meta
+ * names a problem with (a card declined, an account with no timezone or currency: Meta's words name a payment), or nothing.
+ * Chanlytics is a Tech Provider: Meta bills the business to the card on its own WhatsApp account, so without one Meta does not
+ * deliver the messages the business starts, reminders and campaigns.
  */
-function paymentNotes(s: NumberStanding): ConnectionNote[] {
-  const blocked = s.can_send === "BLOCKED";
-  if (s.has_payment_method === false) {
-    const text = blocked ? NO_PAYMENT_METHOD_BLOCKED : NO_PAYMENT_METHOD;
-    const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
-    return href
-      ? [{ text, link: { label: "Add one in Meta", href } }]
-      : [{ text: `${text} Add one in Meta Business Suite › Billing.` }];
-  }
-  const named = !blocked && s.has_payment_method === null && s.problems.some((p) => PAYMENT_PROBLEM.test(p.said));
-  return named ? [{ text: PAYMENT_NOTE }] : [];
+type PaymentTrouble = "missing" | "failing";
+function paymentTrouble(s: NumberStanding): PaymentTrouble | null {
+  if (s.has_payment_method === false) return "missing";
+  return messagingProblems(s).some((p) => PAYMENT_PROBLEM.test(p.said)) ? "failing" : null;
 }
 
-/** The WhatsApp row's sentence for a number Meta will not let send: Meta's first problem, in its words. */
-export function standingSentence(s: NumberStanding): string {
-  const first = s.problems.at(0);
-  return first ? `Meta: ${withStop(first.said)}` : BLOCKED_SENTENCE;
+const META_ID = /^\d+$/;
+
+/** Meta's Security Center for the business that owns the account, where business verification is started; Meta's own page without the business. */
+function securityCenterLink(ownerBusinessId: string | null): string {
+  return ownerBusinessId && META_ID.test(ownerBusinessId)
+    ? `https://business.facebook.com/settings/security?business_id=${ownerBusinessId}`
+    : "https://business.facebook.com/settings/security";
+}
+
+/** WhatsApp Manager on the account's numbers, where Meta says what it holds against one; Meta's own page without the ids. */
+function whatsappManagerLink(ownerBusinessId: string | null, wabaId: string | null): string {
+  return ownerBusinessId && wabaId && META_ID.test(ownerBusinessId) && META_ID.test(wabaId)
+    ? `https://business.facebook.com/wa/manage/phone-numbers/?business_id=${ownerBusinessId}&waba_id=${wabaId}`
+    : "https://business.facebook.com/wa/manage/";
+}
+
+const PAYMENT_SENTENCE: Record<PaymentTrouble, string> = {
+  missing: "Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns.",
+  failing:
+    "Meta reports a problem with the payment method on your WhatsApp account: reminders and campaigns are not delivered until it is fixed.",
+};
+/**
+ * What still goes out without one, said only where Meta itself says the number may send: a BLOCKED number is Meta's word that
+ * it may not, replies included (the final review of 6 October).
+ */
+const REPLIES_STILL_GO = "Replies to customers who write first still go out.";
+/** Where to add one when Meta's own page for it cannot be opened (the business or the account is not known). */
+const ADD_ONE_IN_SUITE = "Add one in Meta Business Suite › Billing.";
+const PAYMENT_ACT: Record<PaymentTrouble, string> = { missing: "Add a card", failing: "Fix the card" };
+
+/**
+ * What a connected number's row says while Meta holds something against it: its state's words, one sentence, and the one act
+ * that mends it, a page of Meta's. Null where Meta holds nothing against it (the row is then its rating's and its last message's).
+ */
+interface StandingRow {
+  stateWords: "Waiting on you" | "Needs attention";
+  sentence: string;
+  act: { label: string; href: string } | null;
+}
+
+/**
+ * The row's words for what Meta holds against a number, in the order an owner can act on: the account's payment method, missing
+ * or failing, is the owner's to mend ("Waiting on you", Meta's billing page for this account); a number Meta has stopped for
+ * anything else needs attention, with Meta's first problem about messaging in Meta's words, and WhatsApp Manager to read the
+ * rest. Nothing else of Meta's is repeated: its notes, its calling problems, and a limit or a review the notes say in
+ * Chanlytics' words (standingNotes).
+ */
+export function standingRow(s: NumberStanding): StandingRow | null {
+  const payment = paymentTrouble(s);
+  if (payment) {
+    const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
+    const words = [
+      PAYMENT_SENTENCE[payment],
+      ...(s.can_send === "BLOCKED" ? [] : [REPLIES_STILL_GO]),
+      ...(href ? [] : [ADD_ONE_IN_SUITE]),
+    ];
+    return {
+      stateWords: "Waiting on you",
+      sentence: words.join(" "),
+      act: href ? { label: PAYMENT_ACT[payment], href } : null,
+    };
+  }
+  if (s.can_send !== "BLOCKED") return null;
+  const first = messagingProblems(s).at(0);
+  return {
+    stateWords: "Needs attention",
+    sentence: first ? `Meta has stopped this number from sending: ${withStop(first.said)}` : BLOCKED_SENTENCE,
+    act: { label: "Open WhatsApp Manager", href: whatsappManagerLink(s.owner_business_id, s.waba_id) },
+  };
 }
 
 /** The display name as a phrase: “Harbor Moving”, or "your display name" while Meta has given none. */
 const displayNameWords = (name: string | null): string => (name ? `the display name “${name}”` : "your display name");
 
 /**
- * What the display name's review says, where it says something an owner can act on: the Connections row's note for the status the
- * standing keeps (the Graph's own words), and the sentence of a decline's notice (nameDecisionWords). One set of words.
+ * What the display name's review says, where it says something an owner can act on: a decline, and a request that lapsed. A
+ * name still in review says nothing: until Meta approves one, customers see the number, which the verification's note says.
+ * The Connections row's note for the status the standing keeps (the Graph's own words), and the sentence of a decline's
+ * notice (nameDecisionWords). One set of words.
  */
 function nameWords(status: string | null, name: string | null): string | null {
   const who = displayNameWords(name);
   switch (status) {
-    case "PENDING_REVIEW":
-      return `Meta is reviewing ${who}; until then customers see the number.`;
     case "DECLINED":
       return `Meta declined ${who} — change it in WhatsApp Manager.`;
     case "EXPIRED":
@@ -263,58 +323,80 @@ export function nameDecisionWords(
 const peopleADay = (n: number): string => `up to ${n.toLocaleString("en-US")} people a day`;
 
 /**
- * Where the business stands with Meta and what it may start: verified, at the tier Meta gave; or not verified, at the tier
- * Meta gave or at the start a new business has. Replies to customers who write first are never limited, and the note says so.
+ * The business's verification, where it changes what the owner can do: not verified (or still in Meta's review), so customers
+ * see the number and not the name, and Meta caps the conversations the business may start in a day: the tier Meta gave, or the
+ * start a new business has. The cap is said here only where the row's sentence does not say it already (`limitSaid`: the
+ * rating's label carries it once the rating is known). Meta's own page to verify on, for the business that owns the account.
+ * A verified business says nothing of itself: its tier is the sentence's, and an owner who needs nothing is told nothing.
+ * Verification is not asked of anyone: a receptionist whose customers write first needs none, and a business grows into it
+ * (more than the day's conversations, its name shown, a third number).
  */
-function verificationNote(s: NumberStanding): string | null {
+function verificationNote(s: NumberStanding, limitSaid: boolean): ConnectionNote | null {
   if (s.verification === null) return null;
+  const word = s.verification.toLowerCase();
+  if (word === "verified") return null;
   const tier = dailyLimit(s.limit);
-  if (s.verification.toLowerCase() === "verified") {
-    if (tier === Number.POSITIVE_INFINITY)
-      return "Your business is verified with Meta and has no daily limit on starting conversations.";
-    return tier === null
-      ? "Your business is verified with Meta."
-      : `Your business is verified with Meta: you can start conversations with ${peopleADay(tier)}.`;
-  }
   const cap = tier === null || tier === Number.POSITIVE_INFINITY ? NEW_BUSINESS_LIMIT : tier;
-  return `Your business isn't verified with Meta: you can start conversations with ${peopleADay(cap)}. Replies to customers who write first are not limited.`;
+  const capWords = limitSaid ? "" : `, and you can start conversations with ${peopleADay(cap)}`;
+  const link = { label: "Verify in Meta", href: securityCenterLink(s.owner_business_id) };
+  return word.startsWith("pending")
+    ? {
+        text: `Meta is reviewing your business's verification: until then customers see your number instead of your name${capWords}.`,
+        link: { ...link, label: "See it in Meta" },
+      }
+    : {
+        text: `Not verified with Meta: customers see your number instead of your name${capWords}. Verify when you need more.`,
+        link,
+      };
 }
 
 /**
- * The notes under the WhatsApp row for a number with a standing read: Meta's problems (a blocked number's first is the
- * row's sentence, so its note is the fix and the rest), the note for the account's payment method, what Meta added, the display
- * name's review and the business's verification. Nothing for a number nothing was read for.
+ * The notes under the WhatsApp row for a number with a standing read: what changes what the owner can do, each its own short
+ * line with Meta's page after it, and no more. A declined or lapsed display name, and the business's verification. Nothing for
+ * a number nothing was read for, nothing of Meta's own notes and problems (the row's sentence says the one that matters), and
+ * nothing of what is fine.
  */
-export function standingNotes(s: NumberStanding | null): ConnectionNote[] {
+export function standingNotes(s: NumberStanding | null, o: { limitSaid: boolean }): ConnectionNote[] {
   if (!s) return [];
   const out: ConnectionNote[] = [];
-  const first = s.problems.at(0);
-  if (s.can_send === "BLOCKED") {
-    if (first?.fix) out.push({ text: withStop(first.fix) });
-    for (const p of s.problems.slice(1)) out.push({ text: problemWords(p) });
-  } else {
-    for (const p of s.problems) out.push({ text: problemWords(p) });
-  }
-  out.push(...paymentNotes(s));
-  for (const n of s.notes) out.push({ text: withStop(n) });
   const name = nameWords(s.name_status, s.name);
   if (name) out.push({ text: name });
-  const verification = verificationNote(s);
-  if (verification) out.push({ text: verification });
-  return out.filter((n, at) => out.findIndex((m) => m.text === n.text) === at);
+  const verification = verificationNote(s, o.limitSaid);
+  if (verification) out.push(verification);
+  return out;
 }
 
 /**
- * The owner's alert for a number that has turned BLOCKED, as the bell and the owner's mail say it: which number, Meta's
- * first problem and Meta's fix. A number Meta blocked without a reason says so and sends the owner to Connections.
+ * The owner's alert for a number that has turned BLOCKED, as the bell and the owner's mail say it. A payment method missing
+ * or failing says what Meta stops, the conversations the business starts, and where to mend it; anything else says which
+ * number, Meta's first problem about messaging and Meta's fix. A number Meta blocked without a reason says so and sends the
+ * owner to Connections.
  */
 export function standingAlertWords(number: string | null, s: NumberStanding): { subject: string; body: string } {
   const which = formatPhoneDisplay(number) ?? "your number";
-  const first = s.problems.at(0);
+  const payment = paymentTrouble(s);
+  if (payment) {
+    const where = payment === "missing" ? ADD_ONE_IN_SUITE : "Fix it in Meta Business Suite › Billing.";
+    return {
+      subject: "WhatsApp can't start conversations from your number",
+      body: `WhatsApp can't start conversations from ${which}: ${PAYMENT_SENTENCE[payment]} ${where}`,
+    };
+  }
+  const first = messagingProblems(s).at(0);
   const body = first
     ? `WhatsApp can't send from ${which}: ${problemWords(first)}`
     : `WhatsApp can't send from ${which}. Meta did not say why; open Connections to read what it holds.`;
   return { subject: "WhatsApp can't send from your number", body };
+}
+
+/**
+ * The number's health with what Meta holds against it: a number whose row says "Waiting on you" or "Needs attention"
+ * (standingRow) cannot carry a campaign whatever its rating said, and the composer refuses it in the row's own sentence, so
+ * the two never disagree. Any other standing, or none read, leaves the health as the rating read it.
+ */
+export function numberHealthWithStanding(health: NumberHealth, standing: NumberStanding | null): NumberHealth {
+  const row = standing ? standingRow(standing) : null;
+  return row ? { ...health, canSend: false, tone: "danger", refusal: row.sentence } : health;
 }
 
 const CAN_SEND_WORDS: Readonly<Record<string, string>> = {

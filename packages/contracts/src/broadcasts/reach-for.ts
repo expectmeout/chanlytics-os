@@ -22,15 +22,18 @@ import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channe
 import { type NotReceived, type ReceiveRow, whyNotReceive } from "../people/person-consent";
 import { triggerOf } from "../playbooks/playbook-triggers";
 import { type EmailOffers, emailOffersOpen, type OfferFacts, OFFERS_BY_EMAIL_WORDS } from "./email-offers";
+import { whatsappOffersOpen } from "./whatsapp-offers";
 
 /** Whether the workspace can send on a channel now, and if not the sentence that says why. */
 export interface ChannelReady {
   ready: boolean;
   why: string | null;
   /**
-   * Email's, where the read says: whether OFFERS by email can go (email-offers.ts), apart from whether email can send
-   * at all. Absent on a read that did not ask (a page cached before it, the WhatsApp-alone reading): offers by email are
-   * then closed, which is what a deployment without the campaigns domain says too.
+   * Whether OFFERS can go by this channel, apart from whether it can send at all. Email's, where the read says
+   * (email-offers.ts): absent on a read that did not ask (a page cached before it, the WhatsApp-alone reading), and offers
+   * by email are then closed, which is what a deployment without the campaigns domain says too. WhatsApp's, where the read
+   * knows the number (whatsapp-offers.ts: Meta's pause on marketing messages to US numbers): absent where it does not, and
+   * offers on WhatsApp are then open, as every campaign went before.
    */
   offers?: EmailOffers;
 }
@@ -91,6 +94,12 @@ export function channelRefuses(
 ): string | null {
   const never = channelNeverCarries(channel, purpose);
   if (never) return never;
+  // An offer on WhatsApp, while Meta's pause holds for this workspace's number (whatsapp-offers.ts): a read that did not know
+  // the number carries no `offers`, and the tick is open, as it was before the pause was read.
+  if (channel === "whatsapp" && purpose === "marketing") {
+    const offers = ready.whatsapp.offers;
+    return offers && !offers.ok ? offers.why : null;
+  }
   // A campaign always starts the conversation: it is proactive.
   if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
   const offers = ready.email.offers;
@@ -101,18 +110,25 @@ export function channelRefuses(
  * Said once on the Broadcasts page, where an owner picks an offer to send: which channels carry offers, so a customer who
  * is absent from an offer's count reads as the rule it is and not as a bug. The refusal per customer is the wire's
  * (consent.ts PURPOSE_REFUSALS); this is the rule, for the page, and it follows the workspace, since it is the same
- * question the ticks ask (channelRefuses): WhatsApp always, email once the workspace can send offers by it
- * (`ready.email.offers`: the campaigns domain, the business's address, no pause), a text never. A workspace whose offers by
- * email are closed, for whatever reason, is told WhatsApp alone, so the note is never false on the day the domain verifies.
+ * question the ticks ask (channelRefuses): WhatsApp unless Meta's pause holds for the workspace's number
+ * (`ready.whatsapp.offers`, whatsapp-offers.ts: marketing messages to US numbers), email once the workspace can send offers
+ * by it (`ready.email.offers`: the campaigns domain, the business's address, no pause), a text never. A workspace whose
+ * offers by email are closed, for whatever reason, is told so, so the note is never false on the day the domain verifies.
  * The workspace's channels are required, as the ticks' are.
  */
 export function offersNote(ready: ChannelsReady): string {
+  const byWhatsApp = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
   const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
   const noText =
     "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
-  return byEmail
-    ? `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`
-    : `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+  const paused = ready.whatsapp.offers?.why ?? "";
+  if (byWhatsApp && byEmail)
+    return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
+  if (byWhatsApp)
+    return `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+  if (byEmail)
+    return `Offers and news go by email only for now. ${paused} ${noText}; someone hears about offers by email if you have their address and they have not said no.`;
+  return `Offers and news have no channel right now. ${paused} ${noText}, and offers by email wait until email is set up for them.`;
 }
 
 /**
@@ -125,17 +141,23 @@ export function offersNote(ready: ChannelsReady): string {
  * mailbox's pause; email-offers.ts), so a tick and a route refuse an offer by email with the reason that is true.
  */
 export function channelsReady(f: {
-  whatsapp: { canSend: boolean; refusal: string | null } | null;
+  /**
+   * The number's health, and the number itself where the read knows it (E.164): offers on WhatsApp are then judged by
+   * Meta's pause on marketing messages to US numbers (whatsapp-offers.ts). A read without the number judges nothing of them.
+   */
+  whatsapp: { canSend: boolean; refusal: string | null; number?: string | null } | null;
   textLine: { sms_state: string | null; reg_mock: boolean | null } | null;
   email: { mailbox: boolean; domain: boolean | null; offers?: OfferFacts };
   /** The workspace is paused (tenants.status): carried as `paused`, and the channels are as they were. Absent: not paused. */
   paused?: boolean;
 }): ChannelsReady {
-  const wa: ChannelReady = !f.whatsapp
+  const waNow: ChannelReady = !f.whatsapp
     ? { ready: false, why: CHANNEL_WORDS.noWhatsApp }
     : f.whatsapp.canSend
       ? { ready: true, why: null }
       : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
+  const wa: ChannelReady =
+    f.whatsapp && f.whatsapp.number !== undefined ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
   const sms: ChannelReady = !f.textLine
     ? { ready: false, why: CHANNEL_WORDS.noTextLine }
     : f.textLine.reg_mock

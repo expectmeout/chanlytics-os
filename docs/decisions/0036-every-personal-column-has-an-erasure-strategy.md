@@ -2,7 +2,9 @@
 
 **Status:** Decided on 6 October 2026 (Ruben, as recommended: a person's numbers and addresses are scrubbed in place in
 other people's notes, nothing of anyone else's is deleted, names are left); step 1 built with the note (the registry
-and its ratchet, and the notes' scrub, 00341). Proposed the same day: the registry 0031's invariant 10 names ("every
+and its ratchet, and the notes' scrub, 00341); step 2's test built on 7 October 2026
+(`people/erasure/erasure-completeness.db.test.mjs`: the needles seeded into every registered column, the real route run
+as the owner, every column searched after; its number on the back office is not yet written). Proposed the same day: the registry 0031's invariant 10 names ("every
 table has a tenant, a floor and an erasure strategy") and leaves to a note of its own. Written against commit
 `163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it, and built on `266fff9a`. Where this note
 and the code disagree, the code wins.
@@ -65,7 +67,9 @@ someone else's thread stays, and stays counted, until an exception to that trigg
    says can hold them, an erasure run, and every such column searched for the needles afterwards. The seeding covers
    the trigger legs (00158 notes, 00131 events, 00101 consent, and the address, proposal, deal, lead and list
    triggers), not only `erase_contact`'s tables. The number on the back office: needles left after an erasure, target
-   zero.
+   zero. The test is built (`people/erasure/erasure-completeness.db.test.mjs`, 7 October 2026): it reads the registry,
+   so a column named later is seeded or the test says which it could not; a column whose CHECK admits no needle is
+   seeded in its own shape and held empty after. The number is not yet written.
 3. **The rest classified**, table by table, until the baseline is empty. `ai_usage`'s questions and answers are the
    first to decide: they can name a person and only their 400 days remove them.
 

@@ -607,12 +607,15 @@ function mergedOf(v) {
 }
 
 // src/repositories/campaigns/campaign-channels.ts
-async function whatsappChannelConfig(db, tenantId) {
-  const { data, error } = await db.from("tenant_channels").select("config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle();
+async function whatsappChannelFacts(db, tenantId) {
+  const { data, error } = await db.from("tenant_channels").select("config, number_e164").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle();
   if (error) throw new Error(`whatsapp_channel_config: ${error.message}`);
   if (!data) return null;
   const cfg = data.config;
-  return cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {};
+  return {
+    config: cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {},
+    number: data.number_e164 ?? null
+  };
 }
 async function textLineFacts(db, tenantId) {
   const { data, error } = await db.from("lines").select("sms_state, reg_mock").eq("tenant_id", tenantId).not("messaging_service_sid", "is", null).neq("voice_state", "failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -4085,7 +4088,7 @@ export {
   waitlistWaiting,
   watchedEvents,
   watchedTables,
-  whatsappChannelConfig,
+  whatsappChannelFacts,
   whatsappNumberOf,
   whatsappNumbersToRead,
   wireRowOf,
