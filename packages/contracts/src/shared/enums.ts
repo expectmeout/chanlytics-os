@@ -14,6 +14,14 @@ export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number];
 export const CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"] as const;
 export type ChannelKind = (typeof CHANNEL_KINDS)[number];
 
+/**
+ * How sure the door that kept an identity was of it (decision 0034, 00342): observed, they wrote to us on that wire;
+ * asserted, a member typed it; found, the finder or a feed named it. A stronger word replaces a weaker one, never the
+ * reverse, and resolution prefers them in that order.
+ */
+export const IDENTITY_ASSURANCES = ["observed", "asserted", "found"] as const;
+export type IdentityAssurance = (typeof IDENTITY_ASSURANCES)[number];
+
 export const CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"] as const;
 export type ConversationState = (typeof CONVERSATION_STATES)[number];
 
@@ -167,6 +175,12 @@ export const EVENT_KINDS = [
   "contact.erased",
   /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
   "contact.merged",
+  /**
+   * A door resolved who a person is (resolve_person, 00342, decision 0034): the outcome (new, matched, filled), how it
+   * matched, what it filled and the doubt it raised; never the number or the address. Evidence, purged with the other
+   * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
+   */
+  "person.resolved",
   "setup.requested",
   "voice.provisioned",
   "line.answering",

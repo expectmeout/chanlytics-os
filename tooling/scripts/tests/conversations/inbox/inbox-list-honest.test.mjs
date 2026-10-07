@@ -616,3 +616,64 @@ test("the list tells Ask what it draws (the Phase 2 plan, D3): the conversations
     "another bucket, its own rows",
   );
 });
+
+test("REGRESSION: a row draws one glyph beside its words, the wire they came on -- not one per wire the thread has used, where WhatsApp and a text drew the same bubble twice", () => {
+  fresh();
+  const on = (m, channel) => ({ ...m, channel });
+  const call = {
+    id: "m-call",
+    direction: "inbound",
+    sender: "system",
+    type: "call_summary",
+    body: "Inbound call · 1 min — The caller asked about Saturday.",
+    media: null,
+    meta: {},
+    status: "received",
+    channel: "voice",
+    created_at: ago(5),
+    channel_ts: ago(5),
+  };
+  const ruben = toInboxThreadVM(
+    {
+      ...conv("c9", "Ruben Ortiz"),
+      state: "open",
+      messages: [on(wrote("m-wa", "Hi there", 60), "whatsapp"), on(wrote("m-sms", "Texting too", 30), "sms"), call],
+    },
+    null,
+    ZONE,
+    NOW,
+  );
+  assert.deepEqual(ruben.channels, ["sms", "whatsapp", "phone"], "the thread has used three wires");
+  assert.equal(ruben.previewChannel, "phone", "and its preview is the call's");
+  inboxWith([ruben]);
+  setSurfaceValue("inbox", {
+    INBOX_BUCKETS: [],
+    INBOX_VIEWS: [],
+    CHANNEL_LABELS: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text" },
+    INBOX_BASELINE: {},
+    THREADS: [ruben],
+  });
+  const tree = again(() =>
+    InboxList(listProps({ threads: [ruben], allThreads: [ruben], activeBucket: "done", activeThreadId: null })),
+  );
+  const wires = findAll(tree, (n) => n.props?.className === "ix-thread-wire");
+  assert.equal(wires.length, 1, "REGRESSION: a glyph for every wire the thread had used");
+  assert.equal(wires[0].props["aria-label"], "Phone", "named for a screen reader");
+  assert.equal(find(wires[0], (n) => n.props?.name)?.props.name, "phone", "the call's glyph, beside the call's words");
+
+  // Where a person is needed the row says what they asked, and its glyph is that message's wire.
+  const asking = toInboxThreadVM(
+    { ...conv("c8", "Ana Ruiz"), messages: [call, on(wrote("m-ask", "Can I move it?", 2), "sms")] },
+    asked("c8"),
+    ZONE,
+    NOW,
+  );
+  assert.equal(asking.ask.channel, "sms");
+  const callback = toInboxThreadVM(
+    conv("c7", "Lea Kim"),
+    { ...asked("c7"), reason: "callback", details: "Ring me back" },
+    ZONE,
+    NOW,
+  );
+  assert.equal(callback.ask.channel, "phone", "a call back's words are the call's");
+});

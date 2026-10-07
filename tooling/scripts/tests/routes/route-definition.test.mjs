@@ -404,6 +404,38 @@ test("a route that keeps its own key, a write with no workspace to keep one in, 
   assert.deepEqual(tables.idempotency_keys, []);
 });
 
+test("the once-rule per route kind (0035 step 3): a row's write is keyed in the row's workspace; a platform's has none to key on", async () => {
+  // A row-scoped write: the key is kept where the row lives, whatever workspace the tab named.
+  const { POST, runs } = counted({ scope: row(loadConversation) });
+  const conversations = [{ id: "c-in-bayside", tenant_id: B }];
+  const tables = { memberships: both("viewer", "operator"), conversations, idempotency_keys: [] };
+  const params = { id: "c-in-bayside" };
+  const first = await POST.run(keyed(`?workspace=${A}`, { text: "hi" }, "k-row"), ctxFor(tables, { params }));
+  const again = await POST.run(keyed(`?workspace=${A}`, { text: "hi" }, "k-row"), ctxFor(tables, { params }));
+  assert.deepEqual([first, again, runs.n], [{ run: 1, text: "hi" }, { run: 1, text: "hi" }, 1]);
+  assert.deepEqual(
+    tables.idempotency_keys.map((k) => [k.tenant_id, k.key]),
+    [[B, "req:k-row"]],
+    "kept in the row's workspace, not the tab's",
+  );
+  await refused(
+    POST.run(keyed(`?workspace=${A}`, { text: "hello" }, "k-row"), ctxFor(tables, { params })),
+    "conflict",
+    422,
+  );
+  assert.equal(runs.n, 1, "another body under the row's key ran nothing");
+
+  // A platform write has no workspace to keep a key in: it runs each time, and keeps nothing.
+  const office = { n: 0 };
+  const ACT = write({ scope: platform, rate: null, handle: async () => ({ run: ++office.n }) });
+  const platformTables = { idempotency_keys: [] };
+  const staff = ctxFor(platformTables, { rpcs: { is_platform_admin: () => true } });
+  await ACT.run(keyed("", { text: "hi" }, "k-platform"), staff);
+  await ACT.run(keyed("", { text: "hi" }, "k-platform"), staff);
+  assert.equal(office.n, 2, "the platform's write has no workspace to key on (0035 names the 27)");
+  assert.deepEqual(platformTables.idempotency_keys, [], "and keeps no key");
+});
+
 test("a write with no schema is keyed by a copy of its body, and its handler still reads the body", async () => {
   const runs = { n: 0 };
   const POST = write({

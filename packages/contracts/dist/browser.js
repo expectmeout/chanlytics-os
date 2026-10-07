@@ -7631,7 +7631,9 @@ var EVENT_EVIDENCE_KINDS = [
   "ingest.unreachable_sender",
   "ingest.unroutable",
   "usage.llm_tokens",
-  "usage.ask_tokens"
+  "usage.ask_tokens",
+  // A door's own record of a match (resolve_person, 00342): the record is the person and their contact.added.
+  "person.resolved"
 ];
 var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
 var forDays = (n) => n === 1 ? "a day" : `${n} days`;
@@ -12996,6 +12998,7 @@ function isBaselinePrompt(text) {
 var TENANT_STATUSES = ["active", "paused", "test"];
 var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
 var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
+var IDENTITY_ASSURANCES = ["observed", "asserted", "found"];
 var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
 var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
 var MESSAGE_DIRECTIONS = ["inbound", "outbound"];
@@ -13090,6 +13093,12 @@ var EVENT_KINDS = [
   "contact.erased",
   /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
   "contact.merged",
+  /**
+   * A door resolved who a person is (resolve_person, 00342, decision 0034): the outcome (new, matched, filled), how it
+   * matched, what it filled and the doubt it raised; never the number or the address. Evidence, purged with the other
+   * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
+   */
+  "person.resolved",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -16469,9 +16478,26 @@ function snoozedThreadWords(openRequest) {
   const hidden = "Hidden from your queue. The receptionist still answers, and a new message brings it back.";
   return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
+var wireOf = (m) => m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
 function previewOf(messages) {
   const last = [...messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
-  return last ? messageWords(last).slice(0, 110) : "";
+  return last ? { text: messageWords(last).slice(0, 110), channel: wireOf(last) } : { text: "", channel: null };
+}
+function askOf(escalation, lastInbound) {
+  if (!escalation) return null;
+  if (escalation.reason === "callback") {
+    const text = escalation.details?.trim();
+    return text ? { kind: "call", label: "From the call", text, quoted: false, channel: "phone" } : null;
+  }
+  if (!lastInbound) return null;
+  const wrote = lastInbound.type === "text";
+  return {
+    kind: wrote ? "wrote" : "sent",
+    label: wrote ? "They wrote" : "They sent",
+    text: messageWords(lastInbound),
+    quoted: wrote,
+    channel: wireOf(lastInbound)
+  };
 }
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
@@ -16553,8 +16579,9 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     else timeline.splice(idx, 0, entry);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
-  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { kind: "call", label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? lastInbound.type === "text" ? { kind: "wrote", label: "They wrote", text: messageWords(lastInbound), quoted: true } : { kind: "sent", label: "They sent", text: messageWords(lastInbound), quoted: false } : null;
+  const ask = askOf(escalation, lastInbound);
   const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
+  const preview = previewOf(dto.messages);
   return {
     id: `th-${dto.id}`,
     real: true,
@@ -16598,7 +16625,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
-    preview: previewOf(dto.messages),
+    preview: preview.text,
+    previewChannel: preview.channel,
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther ? HELD_WORDS.theirs.sentence : escalation ? (
@@ -27312,6 +27340,7 @@ var SCHEMA_SETS = {
   "calls.outcome": ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"],
   "calls.status": ["registered", "ongoing", "ended", "error", "not_connected"],
   "capability_activations.capability": ["voice", "whatsapp", "sms"],
+  "contact_identities.assurance": ["observed", "asserted", "found"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
   "contacts.acquired_via": ["whatsapp", "sms", "email", "call", "ad", "calendar", "import", "lead", "manual"],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
@@ -32469,7 +32498,9 @@ var ACTIVITY_NOISE_KINDS = [
   "lead.set_aside",
   "call.transferred",
   "booking_link.sent",
-  "channel.quality_rating"
+  "channel.quality_rating",
+  // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
+  "person.resolved"
 ];
 var isActivityMoney = (row2) => row2.category === "billing";
 var WORDS2 = {
@@ -32541,6 +32572,7 @@ var WORDS2 = {
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
+  "person.resolved": "A door resolved who a person is",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -33725,6 +33757,7 @@ export {
   HELD_WORDS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
+  IDENTITY_ASSURANCES,
   INSTRUCTIONS_MAX,
   INTENT_LABELS,
   INVOICE_STATUS_WORDS,

@@ -42,7 +42,7 @@ import { dbRefusal, type RouteContext } from "@/server/with-route";
  * runs the same email check over the reach-out's rules and keeps what that save guarantees.
  *
  * A message may BEGIN as an email or a text (a message needs no WhatsApp row): the first version of a name the workspace
- * holds no row of is written through another door (create_message_version, 00342), which takes what the message is with
+ * holds no row of is written through another door (create_message_version, 00343), which takes what the message is with
  * it, since no row is there to say it: its category, its values and its title. A starter of the registry says them itself
  * (its category and its slots), and begins only with its own words; a message a member writes says them in `message`,
  * and is an offer or news, never about a visit or a proposal, which only a starter is (the one rule, here). A name the
@@ -114,7 +114,7 @@ function starterVariables(s: StarterTemplate, language: string): MessageVariable
   }));
 }
 
-/** A refusal of the door that begins a message: a database that has not run 00342 says so in one sentence, any other is the door's own. */
+/** A refusal of the door that begins a message: a database that has not run 00343 says so in one sentence, any other is the door's own. */
 function beginRefusal(e: { code: string | null; message: string }): AppError {
   return isMissingDoor(e) ? new AppError("conflict", MESSAGE_BEGIN_WORDS.doorNotSwitchedOn, 409) : dbRefusal(e);
 }

@@ -384,7 +384,7 @@ test(
   { skip },
   () => {
     // assemble_broadcast puts a send job on the ledger and create_message_version files a message's category: a session that
-    // could call either would walk around the checks the route makes first (00282, 00342). The names are listed here, so a
+    // could call either would walk around the checks the route makes first (00282, 00343). The names are listed here, so a
     // door added to them is held to the same rule, and one dropped from the database fails the second assertion.
     assert.deepEqual(
       rules.session_calls_service_door,

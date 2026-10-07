@@ -77,6 +77,8 @@ export const ACTIVITY_NOISE_KINDS = [
   "call.transferred",
   "booking_link.sent",
   "channel.quality_rating",
+  // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
+  "person.resolved",
 ] as const;
 
 /**
@@ -157,6 +159,7 @@ const WORDS: Record<string, string> = {
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
+  "person.resolved": "A door resolved who a person is",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",

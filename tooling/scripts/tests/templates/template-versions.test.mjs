@@ -1056,7 +1056,7 @@ test("the door that begins a message answers in its own words, a missing door in
   w.refuse.create = doorError("canceling statement due to statement timeout", "57014");
   await refused(post(), "internal", 503, "Something went wrong.");
 
-  // A database that has not applied 00342: PostgREST says its schema cache lacks the function (PGRST202), and Postgres
+  // A database that has not applied 00343: PostgREST says its schema cache lacks the function (PGRST202), and Postgres
   // itself says undefined_function (42883) when the cache still lists one it has dropped.
   const sentence = "Writing a message with no WhatsApp version is not switched on here yet.";
   assert.equal(MESSAGE_BEGIN_WORDS.doorNotSwitchedOn, sentence);

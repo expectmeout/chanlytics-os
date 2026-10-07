@@ -7,7 +7,7 @@
  * this workspace send, right now -- so that no caller has to name one by a literal again. An email or a text version
  * (00296) is written and removed through the doors below, on the member's own session: a member may only read the table,
  * and the doors say who may write it and which rows. The first version of a message with no row yet is a third door
- * (00342), the service role's, which the route calls after its own role check and which asks the member it acts for. The
+ * (00343), the service role's, which the route calls after its own role check and which asks the member it acts for. The
  * one write Meta's webhook makes between two syncs is here
  * too: a WhatsApp template's quality, as Meta just said it (setTemplateQuality). A message's rows, on whatever channel,
  * are read once (messageVersionRowsOf) for contracts' campaignMessageOf to pick its versions out of.
@@ -246,14 +246,14 @@ export async function saveTemplateVersion(
 export type MessageVariable = { position: number; label: string; example: string | null };
 
 /**
- * Write the FIRST version of a message, on email or text (create_message_version, 00342): a name the workspace holds no
+ * Write the FIRST version of a message, on email or text (create_message_version, 00343): a name the workspace holds no
  * row of, so there is no WhatsApp row to take the message's category and values from, and this version says them. The
  * words are already checked (contracts validateOwnVersion) and so is the category's rule (only a starter is utility), by
  * the route that calls this after its role check. The door is the service role's alone (`db` is the service client) and
  * names the member it acts for (`userId`): it holds that this person is an owner, a partner or an operator of the
  * workspace, who wrote the version, the lengths, that the values are numbered in order, that a text is never an offer,
  * and that no row of that name exists on any channel or in any language. A text takes no subject and a message with no
- * title none. A database that has not run 00342 answers `PGRST202` (PostgREST) or `42883` (Postgres), which
+ * title none. A database that has not run 00343 answers `PGRST202` (PostgREST) or `42883` (Postgres), which
  * `isMissingDoor` reads.
  */
 export async function createMessageVersion(

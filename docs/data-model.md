@@ -537,6 +537,7 @@ Foreign keys:
 | `external_id` | text | no |  |  |
 | `raw` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
+| `assurance` | text | no | `'observed'::text` | How sure the door that kept this identity was of it (decision 0034): observed, they wrote to us on that wire; asserted, a member typed it; found, the finder or a feed named it. A stronger word replaces a weaker one, never the reverse. |
 
 Foreign keys:
 

@@ -73,7 +73,7 @@
     "repo/event-kinds.test.mjs": 4,
     "repo/hygiene.test.mjs": 5,
     "repo/legacy-harness.test.mjs": 6,
-    "repo/ops-hygiene.test.mjs": 11,
+    "repo/ops-hygiene.test.mjs": 12,
     "repo/store-retired.test.mjs": 5,
     "reports/campaign-report.test.mjs": 1,
     "reports/metrics-truth.test.mjs": 3,

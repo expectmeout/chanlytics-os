@@ -860,6 +860,7 @@ type Database = {
             };
             contact_identities: {
                 Row: {
+                    assurance: string;
                     channel: string;
                     contact_id: string;
                     created_at: string;
@@ -869,6 +870,7 @@ type Database = {
                     tenant_id: string;
                 };
                 Insert: {
+                    assurance?: string;
                     channel: string;
                     contact_id: string;
                     created_at?: string;
@@ -878,6 +880,7 @@ type Database = {
                     tenant_id: string;
                 };
                 Update: {
+                    assurance?: string;
                     channel?: string;
                     contact_id?: string;
                     created_at?: string;
@@ -8377,6 +8380,20 @@ type Database = {
                     p_timeout_ms?: number;
                 };
                 Returns: number;
+            };
+            resolve_person: {
+                Args: {
+                    p_assurance: string;
+                    p_channel: string;
+                    p_detail?: Json;
+                    p_email: string;
+                    p_external: string;
+                    p_name: string;
+                    p_phone: string;
+                    p_source: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
             };
             resume_email_offers: {
                 Args: {

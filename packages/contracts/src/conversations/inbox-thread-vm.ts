@@ -43,9 +43,16 @@ export interface InboxThreadVM {
    * The customer's own words beside the decision: what they last wrote, quoted,
    * or what the call left behind for a call back. Null when nothing is being decided.
    * `kind` says which: a call back's is the thread's own sentence (`summary`), so the
-   * band does not say it again beneath; the row and its search still read `text`.
+   * band does not say it again beneath; the row and its search still read `text`. `channel` is the wire those
+   * words came on, the one glyph the row draws beside them.
    */
-  ask: { kind: "call" | "wrote" | "sent"; label: string; text: string; quoted: boolean } | null;
+  ask: {
+    kind: "call" | "wrote" | "sent";
+    label: string;
+    text: string;
+    quoted: boolean;
+    channel: "whatsapp" | "phone" | "sms" | "email";
+  } | null;
   /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
   archived: boolean;
   /**
@@ -104,6 +111,12 @@ export interface InboxThreadVM {
   subject: string;
   /** The last thing that happened: the newest message that came in or reached them, never a draft. */
   preview: string;
+  /**
+   * The wire the preview came on, the one glyph the row draws beside it; null with no preview. The row drew a glyph
+   * for every wire the thread had used, and WhatsApp and a text are both the chat bubble, so a person on both with a
+   * call read bubble, bubble, phone. Every wire is said once, in words, under the name in the thread's header.
+   */
+  previewChannel: "whatsapp" | "phone" | "sms" | "email" | null;
   summary: string;
   lastAt: string;
   lastAtFull: string;

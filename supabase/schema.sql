@@ -1625,12 +1625,11 @@ CREATE FUNCTION public.create_person(p_tenant_id uuid, p_phone_e164 text, p_disp
     SET search_path TO 'public'
     AS $_$
 declare
-  v_user    uuid := auth.uid();
-  v_name    text := nullif(btrim(regexp_replace(coalesce(p_display_name, ''), '\s+', ' ', 'g')), '');
-  v_phone   text := btrim(coalesce(p_phone_e164, ''));
-  v_source  text := coalesce(nullif(btrim(p_source), ''), 'manual');
-  v_id      uuid;
-  v_existed boolean := false;
+  v_user   uuid := auth.uid();
+  v_name   text := nullif(btrim(regexp_replace(coalesce(p_display_name, ''), '\s+', ' ', 'g')), '');
+  v_phone  text := btrim(coalesce(p_phone_e164, ''));
+  v_source text := coalesce(nullif(btrim(p_source), ''), 'manual');
+  v_out    jsonb;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -1644,50 +1643,11 @@ begin
   if v_name is not null and char_length(v_name) > 80 then
     raise exception 'A name is at most 80 characters.' using errcode = '22023';
   end if;
-  -- Someone who asked to be forgotten is not brought back by their own appointment, nor by a member typing their
-  -- number: the digest is made here (00263), never handed in, and the refusal is import_person's.
-  if exists (
-    select 1
-      from contacts c
-     where c.tenant_id = p_tenant_id
-       and c.erased_phone_hash = public.erasure_digest(p_tenant_id, v_phone)
-  ) then
-    raise exception 'That person asked to be forgotten.' using errcode = 'PE001';
-  end if;
-
-  select c.id into v_id
-    from contacts c
-   where c.tenant_id = p_tenant_id
-     and c.phone_e164 = v_phone
-     and c.erased_at is null
-     and c.merged_into_contact_id is null
-   limit 1;
-
-  if v_id is not null then
-    v_existed := true;
-    -- A name we did not have is worth keeping; one we have is never overwritten.
-    if v_name is not null then
-      update contacts set display_name = v_name, updated_at = now()
-       where id = v_id and display_name is null;
-    end if;
-  else
-    begin
-      insert into contacts (tenant_id, phone_e164, display_name)
-      values (p_tenant_id, v_phone, v_name)
-      returning id into v_id;
-      insert into events (tenant_id, kind, category, subject_type, subject_id, data)
-      values (p_tenant_id, 'contact.added', 'contact', 'contact', v_id,
-              jsonb_build_object('source', v_source, 'title', p_title, 'by', v_user));
-    exception when unique_violation then
-      -- Someone else won the race: theirs is the one, nothing is created twice.
-      select c.id into v_id from contacts c
-       where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone
-       limit 1;
-      v_existed := true;
-    end;
-  end if;
-
-  return jsonb_build_object('contact_id', v_id, 'existed', v_existed, 'source', v_source);
+  -- Asserted: a member typed it. The door refuses a forgotten number (PE001) and writes the added event with the
+  -- appointment's title where the board gave one.
+  v_out := public.resolve_person(p_tenant_id, null, null, v_phone, null, v_name, 'asserted', v_source,
+                                 jsonb_build_object('title', p_title));
+  return jsonb_build_object('contact_id', v_out->>'contact_id', 'existed', (v_out->>'existed')::boolean, 'source', v_source);
 end $_$;
 
 
@@ -1695,7 +1655,7 @@ end $_$;
 -- Name: FUNCTION create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text, p_title text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text, p_title text) IS 'Owner or operator adds a person by phone — get-or-create; a name fills only an empty one; consent stays unknown; a contact.added event says where they came from. A number whose person asked to be forgotten is refused (PE001, 00331).';
+COMMENT ON FUNCTION public.create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text, p_title text) IS 'Owner or operator adds a person by phone, through resolve_person (00342): get-or-create; a name fills only an empty one; consent stays unknown; the added event says where they came from. A number whose person asked to be forgotten is refused (PE001, 00331).';
 
 
 --
@@ -3811,13 +3771,11 @@ CREATE FUNCTION public.import_person(p_tenant_id uuid, p_name text, p_phone_e164
     SET search_path TO 'public'
     AS $_$
 declare
-  v_user      uuid := auth.uid();
-  v_name      text := left(nullif(btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g')), ''), 80);
-  v_phone     text := nullif(btrim(coalesce(p_phone_e164, '')), '');
-  v_email     text := nullif(lower(btrim(coalesce(p_email, ''))), '');
-  v_new_email text;
-  v_id        uuid;
-  v_email_out text := null;   -- 'set' | 'kept' | 'taken' | null
+  v_user  uuid := auth.uid();
+  v_name  text := left(nullif(btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g')), ''), 80);
+  v_phone text := nullif(btrim(coalesce(p_phone_e164, '')), '');
+  v_email text := nullif(lower(btrim(coalesce(p_email, ''))), '');
+  v_out   jsonb;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -3836,99 +3794,10 @@ begin
   if v_phone is null and v_email is null then
     raise exception 'A number or an address is needed.' using errcode = '22023';
   end if;
-  -- The erased stay erased: a line that names one is left alone (00124, 00125). The digests are the database's own
-  -- (00263 erasure_digest, keyed once the re-key has run): a digest the caller hands in is not read, since only the
-  -- database holds the pepper.
-  if (v_phone is not null and exists (
-        select 1 from contacts c
-         where c.tenant_id = p_tenant_id and c.erased_phone_hash = public.erasure_digest(p_tenant_id, v_phone)))
-     or (v_email is not null and exists (
-        select 1 from contacts c
-         where c.tenant_id = p_tenant_id and c.erased_email_hash = public.erasure_digest(p_tenant_id, v_email))) then
-    raise exception 'That person asked to be forgotten.' using errcode = 'PE001';
-  end if;
-
-  -- Find, else make, in two attempts at most: a line that loses a race to make
-  -- the same person (their number or their address written by another line
-  -- between the look and the insert) looks again and fills the person who won,
-  -- rather than dropping its name and its address.
-  for v_try in 1..2 loop
-    v_id := null;
-    if v_phone is not null then
-      select c.id into v_id from contacts c
-       where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone
-         and c.erased_at is null and c.merged_into_contact_id is null
-       limit 1;
-    end if;
-    if v_id is null and v_email is not null then
-      select c.id into v_id from contacts c
-       where c.tenant_id = p_tenant_id and c.email = v_email
-         and c.erased_at is null and c.merged_into_contact_id is null
-         and (v_phone is null or c.phone_e164 is null)  -- two numbers are two people
-       limit 1;
-    end if;
-    exit when v_id is not null;
-
-    -- Nobody: they are made, with the address only when nobody here holds it.
-    v_new_email := case
-      when v_email is not null
-       and not exists (select 1 from contacts c where c.tenant_id = p_tenant_id and c.email = v_email)
-      then v_email
-    end;
-    -- Never a person with neither. The early checks make this impossible for
-    -- the line as written; it reads what the insert would write, because the
-    -- address may be one another person holds and so be left out.
-    if v_phone is null and v_new_email is null then
-      raise exception 'A number or an address is needed.' using errcode = '22023';
-    end if;
-    begin
-      insert into contacts (tenant_id, phone_e164, email, display_name)
-      values (p_tenant_id, v_phone, v_new_email, v_name)
-      returning id into v_id;
-    exception when unique_violation then
-      if v_try = 2 then
-        raise;
-      end if;
-    end;
-    if v_id is not null then
-      insert into events (tenant_id, kind, category, subject_type, subject_id, data)
-      values (p_tenant_id, 'contact.added', 'contact', 'contact', v_id,
-              jsonb_build_object('source', 'import', 'title', null, 'by', v_user));
-      return jsonb_build_object(
-        'contact_id', v_id,
-        'existed', false,
-        'email', case when v_email is null then null when v_new_email is null then 'taken' else 'set' end);
-    end if;
-  end loop;
-
-  -- Found. A name, a number or an address we did not have is worth keeping; one
-  -- we have is never overwritten.
-  if v_name is not null then
-    update contacts set display_name = v_name, updated_at = now() where id = v_id and display_name is null;
-  end if;
-  if v_phone is not null then
-    begin
-      update contacts set phone_e164 = v_phone, updated_at = now() where id = v_id and phone_e164 is null;
-    exception when unique_violation then
-      null; -- another person here holds the number: theirs stays theirs
-    end;
-  end if;
-  if v_email is not null then
-    if exists (select 1 from contacts c where c.id = v_id and c.email is not null) then
-      v_email_out := 'kept';
-    elsif exists (select 1 from contacts c where c.tenant_id = p_tenant_id and c.email = v_email) then
-      v_email_out := 'taken';
-    else
-      begin
-        perform public.set_person_email(v_id, v_email);
-        v_email_out := 'set';
-      exception when unique_violation then
-        v_email_out := 'taken'; -- another line wrote it between the look and the write
-      end;
-    end if;
-  end if;
-
-  return jsonb_build_object('contact_id', v_id, 'existed', true, 'email', v_email_out);
+  -- The digests a caller hands in are not read: the door makes its own (00263). Asserted: a member brought the list.
+  v_out := public.resolve_person(p_tenant_id, null, null, v_phone, v_email, v_name, 'asserted', 'import',
+                                 jsonb_build_object('title', null));
+  return jsonb_build_object('contact_id', v_out->>'contact_id', 'existed', (v_out->>'existed')::boolean, 'email', v_out->'email');
 end $_$;
 
 
@@ -3936,7 +3805,7 @@ end $_$;
 -- Name: FUNCTION import_person(p_tenant_id uuid, p_name text, p_phone_e164 text, p_email text, p_phone_digest text, p_email_digest text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.import_person(p_tenant_id uuid, p_name text, p_phone_e164 text, p_email text, p_phone_digest text, p_email_digest text) IS 'One line of an imported client list: find by number, then address (two numbers are two people); fill what is empty; never a yes; the erased stay erased (PE001).';
+COMMENT ON FUNCTION public.import_person(p_tenant_id uuid, p_name text, p_phone_e164 text, p_email text, p_phone_digest text, p_email_digest text) IS 'One line of an imported client list, through resolve_person (00342): find by number, then address (two numbers are two people); fill what is empty; never a yes; the erased stay erased (PE001).';
 
 
 --
@@ -13060,7 +12929,8 @@ begin
    where kind in (
      'webhook.auth', 'webhook.delivery',
      'ingest.allowlist_skip', 'ingest.unreachable_sender', 'ingest.unroutable',
-     'usage.llm_tokens', 'usage.ask_tokens'
+     'usage.llm_tokens', 'usage.ask_tokens',
+     'person.resolved'
    )
      and created_at < now() - p_keep;
   get diagnostics v_count = row_count;
@@ -13072,7 +12942,7 @@ end $$;
 -- Name: FUNCTION purge_events(p_keep interval); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.purge_events(p_keep interval) IS 'Drops the evidence kinds (webhook receipts and deliveries, the allowlist''s skips, unreachable and unroutable inbounds, the two model-usage rows) older than p_keep (default 30 days; contracts RETENTION_DAYS.events_evidence). Every other event kind is the record and is never purged here.';
+COMMENT ON FUNCTION public.purge_events(p_keep interval) IS 'Drops the evidence kinds (webhook receipts and deliveries, the allowlist''s skips, unreachable and unroutable inbounds, the two model-usage rows, and person.resolved, a door''s own record of a match, 00342) older than p_keep (default 30 days; contracts RETENTION_DAYS.events_evidence). Every other event kind is the record and is never purged here.';
 
 
 --
@@ -16329,6 +16199,288 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.request_sweep(p_sweep text, p_path text, p_timeout_ms integer) IS 'Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. The one place a scheduled sweep reaches the edge.';
+
+
+--
+-- Name: resolve_person(uuid, text, text, text, text, text, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb DEFAULT '{}'::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_user      uuid := auth.uid();
+  v_channel   text := nullif(btrim(coalesce(p_channel, '')), '');
+  v_external  text := nullif(btrim(coalesce(p_external, '')), '');
+  v_digits    text := regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g');
+  v_phone     text;
+  v_email     text := nullif(lower(btrim(coalesce(p_email, ''))), '');
+  v_name      text := left(nullif(btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g')), ''), 80);
+  v_assurance text := coalesce(nullif(btrim(p_assurance), ''), 'observed');
+  v_source    text := coalesce(nullif(btrim(p_source), ''), 'manual');
+  v_profile   boolean;              -- the name is a WhatsApp profile's, not a member's word
+  v_id        uuid;
+  v_by        text;                 -- identity | phone | email | race
+  v_row       public.contacts%rowtype;
+  v_new_email text;
+  v_email_out text;                 -- set | kept | taken | null
+  v_filled    text[] := '{}';
+  v_identity  text;                 -- added | kept | null
+  v_added     boolean;
+  v_other     uuid;                 -- the doubt: the other record one of the identities names
+  v_seen      text;                 -- name | phone | email
+  v_outcome   text;
+  v_existed   boolean;
+begin
+  if p_tenant_id is null then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if v_assurance not in ('observed', 'asserted', 'found') then
+    raise exception 'An identity is observed, asserted or found.' using errcode = '22023';
+  end if;
+  if (v_channel is null) <> (v_external is null) then
+    raise exception 'An identity needs its channel and its id.' using errcode = '22023';
+  end if;
+  if v_channel is not null and v_channel not in ('whatsapp', 'voice', 'sms', 'email', 'instagram') then
+    raise exception 'That is not a channel.' using errcode = '22023';
+  end if;
+  -- The number as contracts normalizePhone reads it: ten digits are North American, eight to fifteen are as given.
+  if v_digits = '' then
+    v_phone := null;
+  elsif char_length(v_digits) = 10 then
+    v_phone := '+1' || v_digits;
+  elsif char_length(v_digits) between 8 and 15 then
+    v_phone := '+' || v_digits;
+  end if;
+  if (v_digits <> '' and v_phone is null) or (v_phone is not null and v_phone !~ '^\+[1-9][0-9]{7,14}$') then
+    raise exception 'A phone number in international form is needed.' using errcode = '22023';
+  end if;
+  if v_email is not null and (
+       char_length(v_email) not between 3 and 254
+       or v_email !~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$') then
+    raise exception 'That is not an email address.' using errcode = '22023';
+  end if;
+  if v_external is null and v_phone is null and v_email is null then
+    raise exception 'A number or an address is needed.' using errcode = '22023';
+  end if;
+  v_profile := v_channel = 'whatsapp' and v_assurance = 'observed';
+
+  -- The erased stay erased, whichever path brings their number or address back (00263, 00331).
+  if (v_phone is not null and exists (
+        select 1 from contacts c
+         where c.tenant_id = p_tenant_id and c.erased_phone_hash = public.erasure_digest(p_tenant_id, v_phone)))
+     or (v_email is not null and exists (
+        select 1 from contacts c
+         where c.tenant_id = p_tenant_id and c.erased_email_hash = public.erasure_digest(p_tenant_id, v_email))) then
+    raise exception 'That person asked to be forgotten.' using errcode = 'PE001';
+  end if;
+
+  -- One resolution at a time per identity (the key ingest_inbound and ingest_call lock), per number and per address,
+  -- always in this order, so two doors never make one person twice and never wait on each other in a ring.
+  if v_external is not null then
+    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|' || v_channel || '|' || v_external, 42));
+  end if;
+  if v_phone is not null then
+    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|phone|' || v_phone, 42));
+  end if;
+  if v_email is not null then
+    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|email|' || v_email, 42));
+  end if;
+
+  -- The match: the identity, then the number, then the address.
+  if v_external is not null then
+    select c.id into v_id
+      from contact_identities i
+      join contacts c on c.id = i.contact_id
+     where i.tenant_id = p_tenant_id and i.channel = v_channel and i.external_id = v_external
+       and c.erased_at is null
+     limit 1;
+    if v_id is not null then
+      -- An identity moved by a merge (00326) points at the kept record; one hop is every hop a merge leaves.
+      select coalesce(c.merged_into_contact_id, c.id) into v_id from contacts c where c.id = v_id;
+      v_by := 'identity';
+    end if;
+  end if;
+  if v_id is null and v_phone is not null then
+    select c.id into v_id from contacts c
+     where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone
+       and c.erased_at is null and c.merged_into_contact_id is null
+     limit 1;
+    if v_id is not null then v_by := 'phone'; end if;
+  end if;
+  if v_id is null and v_email is not null then
+    select c.id into v_id from contacts c
+     where c.tenant_id = p_tenant_id and c.email = v_email
+       and c.erased_at is null and c.merged_into_contact_id is null
+       and (v_phone is null or c.phone_e164 is null)   -- two numbers are two people
+     limit 1;
+    if v_id is not null then v_by := 'email'; end if;
+  end if;
+
+  if v_id is null then
+    -- Nobody: they are made, with the address only when nobody here holds it; a held address is a doubt.
+    v_new_email := case
+      when v_email is not null
+       and not exists (select 1 from contacts c where c.tenant_id = p_tenant_id and c.email = v_email)
+      then v_email
+    end;
+    if v_email is not null and v_new_email is null then
+      v_email_out := 'taken';
+      select c.id into v_other from contacts c
+       where c.tenant_id = p_tenant_id and c.email = v_email
+         and c.erased_at is null and c.merged_into_contact_id is null
+       limit 1;
+      if v_other is not null then v_seen := 'email'; end if;
+    end if;
+    if v_external is null and v_phone is null and v_new_email is null then
+      raise exception 'A number or an address is needed.' using errcode = '22023';
+    end if;
+    -- A name alone is never a match: a living record with the same name is a doubt beside the new one.
+    if v_name is not null and v_seen is null then
+      select c.id into v_other from contacts c
+       where c.tenant_id = p_tenant_id and lower(c.display_name) = lower(v_name)
+         and c.erased_at is null and c.merged_into_contact_id is null and c.display_name is not null
+       limit 1;
+      if v_other is not null then v_seen := 'name'; end if;
+    end if;
+    begin
+      insert into contacts (tenant_id, phone_e164, email, display_name, wa_profile_name)
+      values (p_tenant_id, v_phone, v_new_email,
+              case when v_profile then null else v_name end,
+              case when v_profile then v_name end)
+      returning id into v_id;
+      v_outcome := 'new';
+      v_existed := false;
+      if v_new_email is not null then v_email_out := 'set'; end if;
+      insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'contact.added', 'contact', 'contact', v_id,
+              coalesce(p_detail, '{}'::jsonb) || jsonb_build_object('source', v_source, 'by', v_user));
+    exception when unique_violation then
+      -- Someone else won the race on the number or the address: theirs is the one, and it is filled below.
+      v_id := null;
+      if v_phone is not null then
+        select c.id into v_id from contacts c
+         where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone
+           and c.erased_at is null and c.merged_into_contact_id is null
+         limit 1;
+      end if;
+      if v_id is null and v_new_email is not null then
+        select c.id into v_id from contacts c
+         where c.tenant_id = p_tenant_id and c.email = v_new_email
+           and c.erased_at is null and c.merged_into_contact_id is null
+         limit 1;
+      end if;
+      if v_id is null then raise; end if;
+      v_by := 'race';
+      v_email_out := null;
+      v_seen := null;
+      v_other := null;
+    end;
+  end if;
+
+  if v_outcome is null then
+    -- Found. What we did not have is worth keeping; what we have is never overwritten.
+    select * into v_row from contacts where id = v_id;
+    v_outcome := 'matched';
+    v_existed := true;
+    if v_name is not null then
+      if v_profile then
+        if v_row.wa_profile_name is null then
+          update contacts set wa_profile_name = v_name, updated_at = now() where id = v_id;
+          v_filled := array_append(v_filled, 'wa_profile_name');
+        end if;
+      elsif v_row.display_name is null then
+        update contacts set display_name = v_name, updated_at = now() where id = v_id;
+        v_filled := array_append(v_filled, 'display_name');
+      end if;
+    end if;
+    if v_phone is not null and v_row.phone_e164 is null then
+      begin
+        update contacts set phone_e164 = v_phone, updated_at = now() where id = v_id;
+        v_filled := array_append(v_filled, 'phone_e164');
+      exception when unique_violation then
+        -- Another person here holds the number: theirs stays theirs, and the pair is a doubt.
+        select c.id into v_other from contacts c
+         where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone and c.id <> v_id
+         limit 1;
+        if v_other is not null then v_seen := 'phone'; end if;
+      end;
+    elsif v_phone is not null and v_row.phone_e164 <> v_phone then
+      select c.id into v_other from contacts c
+       where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone and c.id <> v_id
+         and c.erased_at is null and c.merged_into_contact_id is null
+       limit 1;
+      if v_other is not null then v_seen := 'phone'; end if;
+    end if;
+    if v_email is not null then
+      if v_row.email is not null then
+        v_email_out := 'kept';
+        if v_row.email <> v_email and v_seen is null then
+          select c.id into v_other from contacts c
+           where c.tenant_id = p_tenant_id and c.email = v_email and c.id <> v_id
+             and c.erased_at is null and c.merged_into_contact_id is null
+           limit 1;
+          if v_other is not null then v_seen := 'email'; end if;
+        end if;
+      elsif exists (select 1 from contacts c where c.tenant_id = p_tenant_id and c.email = v_email and c.id <> v_id) then
+        v_email_out := 'taken';
+        if v_seen is null then
+          select c.id into v_other from contacts c
+           where c.tenant_id = p_tenant_id and c.email = v_email and c.id <> v_id
+             and c.erased_at is null and c.merged_into_contact_id is null
+           limit 1;
+          if v_other is not null then v_seen := 'email'; end if;
+        end if;
+      else
+        begin
+          perform public.set_person_email(v_id, v_email);
+          v_email_out := 'set';
+          v_filled := array_append(v_filled, 'email');
+        exception when unique_violation then
+          v_email_out := 'taken';   -- another line wrote it between the look and the write
+        end;
+      end if;
+    end if;
+    if v_assurance = 'observed' then
+      update contacts set last_seen_at = now() where id = v_id;
+    end if;
+    if cardinality(v_filled) > 0 then v_outcome := 'filled'; end if;
+  end if;
+
+  -- The identity, with how sure the door was; one already held keeps its stronger word.
+  if v_external is not null then
+    insert into contact_identities (tenant_id, contact_id, channel, external_id, assurance)
+    values (p_tenant_id, v_id, v_channel, v_external, v_assurance)
+    on conflict (tenant_id, channel, external_id) do update
+      set assurance = case
+        when (case excluded.assurance when 'observed' then 3 when 'asserted' then 2 else 1 end)
+           > (case contact_identities.assurance when 'observed' then 3 when 'asserted' then 2 else 1 end)
+        then excluded.assurance else contact_identities.assurance end
+      where contact_identities.contact_id = excluded.contact_id
+    returning (xmax = 0) into v_added;
+    v_identity := case when v_added then 'added' else 'kept' end;
+  end if;
+
+  insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'person.resolved', 'contact', 'contact', v_id,
+          jsonb_build_object(
+            'outcome', v_outcome, 'matched_by', v_by, 'source', v_source, 'channel', v_channel,
+            'assurance', v_assurance, 'by', v_user, 'filled', to_jsonb(v_filled), 'identity', v_identity,
+            'doubt', v_other, 'doubt_seen', v_seen));
+
+  return jsonb_build_object(
+    'contact_id', v_id, 'outcome', v_outcome, 'existed', v_existed, 'matched_by', v_by,
+    'email', v_email_out, 'filled', to_jsonb(v_filled), 'identity', v_identity,
+    'doubt', v_other, 'doubt_seen', v_seen);
+end $_$;
+
+
+--
+-- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb) IS 'The one door a person is resolved by (decision 0034): the erasure digests first, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites; never merges, and answers a doubt instead; writes contact.added for a new person and person.resolved for every call. The service role''s and the member doors'' alone.';
 
 
 --
@@ -19629,8 +19781,17 @@ CREATE TABLE public.contact_identities (
     external_id text NOT NULL,
     raw jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    assurance text DEFAULT 'observed'::text NOT NULL,
+    CONSTRAINT contact_identities_assurance_check CHECK ((assurance = ANY (ARRAY['observed'::text, 'asserted'::text, 'found'::text]))),
     CONSTRAINT contact_identities_channel_check CHECK ((channel = ANY (ARRAY['whatsapp'::text, 'voice'::text, 'sms'::text, 'email'::text, 'instagram'::text])))
 );
+
+
+--
+-- Name: COLUMN contact_identities.assurance; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contact_identities.assurance IS 'How sure the door that kept this identity was of it (decision 0034): observed, they wrote to us on that wire; asserted, a member typed it; found, the finder or a feed named it. A stronger word replaces a weaker one, never the reverse.';
 
 
 --
@@ -23516,6 +23677,13 @@ CREATE UNIQUE INDEX contacts_tenant_email_uq ON public.contacts USING btree (ten
 --
 
 CREATE INDEX contacts_tenant_last_seen ON public.contacts USING btree (tenant_id, last_seen_at DESC);
+
+
+--
+-- Name: contacts_tenant_name_lower_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX contacts_tenant_name_lower_idx ON public.contacts USING btree (tenant_id, lower(display_name)) WHERE ((erased_at IS NULL) AND (merged_into_contact_id IS NULL) AND (display_name IS NOT NULL));
 
 
 --
@@ -30984,6 +31152,14 @@ GRANT ALL ON FUNCTION public.request_id_of_caller() TO service_role;
 
 REVOKE ALL ON FUNCTION public.request_sweep(p_sweep text, p_path text, p_timeout_ms integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.request_sweep(p_sweep text, p_path text, p_timeout_ms integer) TO service_role;
+
+
+--
+-- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb) TO service_role;
 
 
 --

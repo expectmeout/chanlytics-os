@@ -2,7 +2,8 @@
 
 **Status:** Decided on 6 October 2026 (Ruben, as recommended: keys are kept a day, and the purge takes every row, a
 card's and a reply's too); step 1 built with the note (`route()`, 00340) and step 2 begun at broadcasts, the spend
-routes and a note. Proposed the same day as new scope: 0031 holds one dedupe key below the commit line (invariant 3,
+routes and a note; step 3 built on 7 October 2026 (`routes/route-definition.test.mjs`: a row's write keyed where the row
+lives, a platform's with nothing to key on, beside the workspace's and the account's). Proposed the same day as new scope: 0031 holds one dedupe key below the commit line (invariant 3,
 `jobs.dedupe_key`, 0033), and nothing there answers a request sent twice the same way, which is this note's. Written
 against commit `163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it, and built on `266fff9a`.
 Where this note and the code disagree, the code wins.
@@ -68,7 +69,9 @@ no key and runs as it always has.
    `POST lines/buy`, `POST lines/register`, `POST reach-outs/preview` and `POST contacts/[id]/notes` send `once`; a new
    lead search is an Ask card and keyed as one. Then the workspace's other writes, then the phone app's.
 3. **A conformance test per route kind:** the same key twice is one write and one answer; another body under the same key
-   is 422.
+   is 422. Built: `route()` is the one pipeline every kind runs through, so the proof is per scope it resolves (a
+   workspace's write, a row's write keyed in the row's workspace, an account's and a platform's with no workspace to key
+   on, a card's and the reply's own), in `routes/route-definition.test.mjs` and `ai/card-once.test.mjs`.
 
 ## Tests
 

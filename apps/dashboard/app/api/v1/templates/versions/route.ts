@@ -19,7 +19,7 @@ import { saveVersion } from "@/server/campaigns/template-versions";
  * and what that save guarantees, new words sending what waits for the step back to the check (`rechecked` says how
  * many). It is edited here and in the reach-out's sheet alike, and removed by taking its step out of the chain.
  *
- * A message may begin as an email or a text, with no WhatsApp row (create_message_version, 00342): the first version of a
+ * A message may begin as an email or a text, with no WhatsApp row (create_message_version, 00343): the first version of a
  * NEW name carries what its message is and the values it takes, as `message` { category: "marketing" | "utility",
  * variables: [{ position, label, example? }] (numbered 1, 2, 3 in order, as a WhatsApp row's are), title? }. A name that is a
  * starter of the registry begins as the starter (its category and its values; `message` is not read) and only on a
@@ -27,7 +27,7 @@ import { saveVersion } from "@/server/campaigns/template-versions";
  * starter set, then change the words in the Library). Any other name needs `message`, and is an offer or news: `utility` is
  * the starter's alone, and a text of an offer is refused (texts carry no offers). A name the workspace already holds a row
  * of is a message that exists, so its version is written as above and `message`, if sent, is ignored. With no row, no
- * starter and no `message` the message is not found. A database that has not applied 00342 answers one sentence, 409.
+ * starter and no `message` the message is not found. A database that has not applied 00343 answers one sentence, 409.
  *
  * The answer is the row's `template` ({ id, name, language, channel }) and the check's `warnings`.
  */

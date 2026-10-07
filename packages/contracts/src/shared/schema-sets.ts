@@ -21,6 +21,7 @@ import type {
   CONSENT_STATES,
   CONVERSATION_STATES,
   DECISION_SUBJECTS,
+  IDENTITY_ASSURANCES,
   DECISION_VERBS,
   ESCALATION_REASONS,
   ESCALATION_STATES,
@@ -126,6 +127,8 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"tenant_channels.kind">>>,
   Holds<Exactly<Of<typeof CAPABILITY_KINDS>, SchemaSet<"capability_activations.capability">>>,
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"contact_identities.channel">>>,
+  // How sure a door was of an identity (00342, decision 0034).
+  Holds<Exactly<Of<typeof IDENTITY_ASSURANCES>, SchemaSet<"contact_identities.assurance">>>,
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"templates.channel">>>,
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.consent">>>,
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.marketing_consent">>>,

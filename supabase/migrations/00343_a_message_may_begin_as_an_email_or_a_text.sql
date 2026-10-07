@@ -1,4 +1,4 @@
--- 00342 · A message may begin as an email or a text.
+-- 00343 · A message may begin as an email or a text.
 --
 -- A message is a name; a VERSION of it is a templates row of that name on a channel and in a language (00296). An email's
 -- or a text's is written through save_template_version, which needs the message to exist already: a row of its name,

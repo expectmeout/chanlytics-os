@@ -518,7 +518,7 @@ function pipeline(name, nowMs) {
 
 /**
  * The messages of a workspace with no WhatsApp number, as the library files a message with no WhatsApp version
- * (00296 save_template_version, 00342 create_message_version): a starter written as an email and a text, and an offer
+ * (00296 save_template_version, 00343 create_message_version): a starter written as an email and a text, and an offer
  * written as an email alone, since a text never carries one.
  *
  * The starter is the registry's "How did it go", whose category is utility, so a text may carry it, and whose slots are

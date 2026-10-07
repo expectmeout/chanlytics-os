@@ -344,6 +344,7 @@
     "00339_a_new_table_is_granted_by_its_own_migration.sql": "5e911e9ab4b82e5e18019d19e41c9e32eda1544c79e35c1d1428fb9c46afda0c",
     "00340_a_write_s_answer_is_kept_a_day.sql": "1b5c156401b3054ed5a02ddf33e45eef18b71e5ec631fe0c010e9b8b19fffdbe",
     "00341_a_note_keeps_nothing_of_a_person_erased_elsewhere.sql": "553be061d1d7181069f0f95c8f1eb7c30036a09de55b94862e21bbd5715fcbd2",
-    "00342_a_message_may_begin_as_an_email_or_a_text.sql": "3f35161a006c247f51d30940e6f3048435c722a9c157469ab40cd78c68667db9"
+    "00342_a_person_is_resolved_by_one_door.sql": "cec9764a41c99e33908320414865f8c0d12e75398af66696b3404f2a1699ebfb",
+    "00343_a_message_may_begin_as_an_email_or_a_text.sql": "4b901ea4d5f4662cee1bf5d6a362e6a47a70ab719daacbd679b335e26cda129f"
   }
 }

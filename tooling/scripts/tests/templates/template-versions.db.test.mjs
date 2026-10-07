@@ -2,7 +2,7 @@
  * A message's email and text versions, saved and removed through their doors -- on a real database.
  *
  * 00296 gives a member two definer doors over `templates`, which members may only read: save_template_version writes
- * (or rewrites) the email or text version of a message, remove_template_version deletes one. 00342 gives a third,
+ * (or rewrites) the email or text version of a message, remove_template_version deletes one. 00343 gives a third,
  * create_message_version, which writes the FIRST version of a message no row of the workspace holds, with the category,
  * the values and the title that version says. The first two are a member's own, called on their session; the third is the
  * service role's alone, as the dashboard calls it after its role check, naming the member it acts for (00282's way). What
@@ -372,7 +372,7 @@ test("a member still cannot write the table directly: the doors are the only way
   assert.ok(await rowOf(whatsappId));
 });
 
-/* ---- 00342: a message may begin as an email or a text ---- */
+/* ---- 00343: a message may begin as an email or a text ---- */
 
 const BEGIN_VARIABLES = [
   { position: 1, label: "First name", example: "Dani" },
