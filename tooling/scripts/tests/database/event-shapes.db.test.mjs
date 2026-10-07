@@ -7,8 +7,10 @@
  * Before this the declared shape was the calendar sweep's alone while a dozen functions wrote something else under the
  * same version (scorecard defect A:0), so a reader could not tell an old row from a new one. The shapes are now the
  * union of what the writers write, told apart by their own field; what this holds:
- *   - contact.added <- create_person (manual, calendar with a title, lead), import_person, lead_set_stage (a lead
- *     converted, with a phone and without), the lead-insert trigger lead_link_contact, reach_out_person;
+ *   - contact.added <- resolve_person (00342, decision 0034: the one door create_person and import_person match
+ *     through, so a person added by hand, a calendar guest, a lead and an imported line are its rows), lead_set_stage
+ *     (a lead converted with a phone reaches it through create_person; one without writes its own), the lead-insert
+ *     trigger lead_link_contact, reach_out_person;
  *   - contact.consent_changed <- ingest_inbound (a STOP and a START), note_yes_on_channel (a START by text from
  *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
  *     no taken back), set_email_offers_yes (a yes to offers by email, 00299), stop_all_messages (the unsubscribe page's
@@ -57,7 +59,7 @@ const skip =
 
 /** Every SQL writer of each shared kind, by function name: what the catalog must answer, and what the tests run. */
 const WRITERS = {
-  "contact.added": ["create_person", "import_person", "lead_link_contact", "lead_set_stage", "reach_out_person"],
+  "contact.added": ["lead_link_contact", "lead_set_stage", "reach_out_person", "resolve_person"],
   "contact.consent_changed": [
     "contact_stop_ends_offers_yes",
     "ingest_inbound",
@@ -219,19 +221,19 @@ test("create_person: a person added by hand, by a calendar guest and by a lead",
         `create_person ${source}`,
       ),
     );
-  const [manual] = holds("contact.added", "create_person", (await add("manual")).rows);
+  const [manual] = holds("contact.added", "resolve_person", (await add("manual")).rows);
   assert.equal(manual.source, "manual");
   assert.equal(manual.by, w.owner.id, "by names the member");
-  const [calendar] = holds("contact.added", "create_person", (await add("calendar", "Consultation")).rows);
+  const [calendar] = holds("contact.added", "resolve_person", (await add("calendar", "Consultation")).rows);
   assert.deepEqual(
     [calendar.source, calendar.title],
     ["calendar", "Consultation"],
     "the appointment's title rides along",
   );
-  const [fromLead] = holds("contact.added", "create_person", (await add("lead")).rows);
+  const [fromLead] = holds("contact.added", "resolve_person", (await add("lead")).rows);
   assert.equal(fromLead.source, "lead");
   // The word the hand gave, whatever it is, is the source.
-  const [own] = holds("contact.added", "create_person", (await add("front desk")).rows);
+  const [own] = holds("contact.added", "resolve_person", (await add("front desk")).rows);
   assert.equal(own.source, "front desk");
 });
 
@@ -242,7 +244,7 @@ test("import_person: a person from a client list, with a number and with only an
     );
   const byPhone = await imp({ p_phone_e164: phone(), p_email: null });
   const byEmail = await imp({ p_phone_e164: null, p_email: `listed-${RUN}@example.com` });
-  for (const [data] of [byPhone, byEmail].map((r) => holds("contact.added", "import_person", r.rows, 1)))
+  for (const [data] of [byPhone, byEmail].map((r) => holds("contact.added", "resolve_person", r.rows, 1)))
     assert.deepEqual([data.source, data.by], ["import", w.owner.id]);
 });
 
@@ -255,7 +257,7 @@ test("lead_set_stage: a lead converted, with a number and without one", { skip }
     );
   // With a number the person is made by create_person, told the source is a lead; its row is the same shape.
   const withPhone = await convert({ phone_e164: phone(), email: `lead-a-${RUN}@example.com` });
-  const [a] = holds("contact.added", "create_person", withPhone.rows, 1);
+  const [a] = holds("contact.added", "resolve_person", withPhone.rows, 1);
   assert.equal(a.source, "lead");
   // Without one, lead_set_stage writes the row itself.
   const withoutPhone = await convert({ phone_e164: null, email: `lead-b-${RUN}@example.com` });

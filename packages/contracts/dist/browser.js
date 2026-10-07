@@ -7631,7 +7631,9 @@ var EVENT_EVIDENCE_KINDS = [
   "ingest.unreachable_sender",
   "ingest.unroutable",
   "usage.llm_tokens",
-  "usage.ask_tokens"
+  "usage.ask_tokens",
+  // A door's own record of a match (resolve_person, 00342): the record is the person and their contact.added.
+  "person.resolved"
 ];
 var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
 var forDays = (n) => n === 1 ? "a day" : `${n} days`;
@@ -13084,6 +13086,12 @@ var EVENT_KINDS = [
   "contact.erased",
   /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
   "contact.merged",
+  /**
+   * A door resolved who a person is (resolve_person, 00342, decision 0034): the outcome (new, matched, filled), how it
+   * matched, what it filled and the doubt it raised; never the number or the address. Evidence, purged with the other
+   * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
+   */
+  "person.resolved",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -27266,6 +27274,7 @@ var SCHEMA_SETS = {
   "calls.outcome": ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"],
   "calls.status": ["registered", "ongoing", "ended", "error", "not_connected"],
   "capability_activations.capability": ["voice", "whatsapp", "sms"],
+  "contact_identities.assurance": ["observed", "asserted", "found"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
   "contacts.acquired_via": ["whatsapp", "sms", "email", "call", "ad", "calendar", "import", "lead", "manual"],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
@@ -32276,7 +32285,9 @@ var ACTIVITY_NOISE_KINDS = [
   "lead.set_aside",
   "call.transferred",
   "booking_link.sent",
-  "channel.quality_rating"
+  "channel.quality_rating",
+  // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
+  "person.resolved"
 ];
 var isActivityMoney = (row2) => row2.category === "billing";
 var WORDS2 = {
@@ -32348,6 +32359,7 @@ var WORDS2 = {
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
+  "person.resolved": "A door resolved who a person is",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
