@@ -27,6 +27,7 @@ import { peopleOverride } from "@/surfaces/people/surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
+import { reviewsOverride } from "@/surfaces/reports/reviews-surface";
 import { settingsOverride } from "./surfaces/settings";
 import { todayOverride } from "@/surfaces/today/surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
@@ -75,7 +76,8 @@ const versionWrite = () => [settingsOverride, reachOutsOverride, playbooksOverri
 const leads = () => [leadsOverride];
 const setup = () => [setupOverride];
 const setupAndReadiness = () => [setupOverride, ...readiness()];
-const google = () => [googleOverride, setupOverride];
+// The listing and its reviews are the Reviews lens's read too: a link, a refresh or a disconnect re-reads it with Google's own.
+const google = () => [googleOverride, setupOverride, reviewsOverride];
 const billing = () => [billingOverride, setupOverride];
 const settings = () => [settingsOverride];
 
@@ -202,8 +204,16 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
   // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),
   // and it switches the deal layer: People's lists and column, Reports' Deals section and Today's proposals waiting. The zone
-  // is also where Today's period line counts its days from: the headline is read again too.
-  "PATCH workspaces": () => [settingsOverride, peopleOverride, reportsOverride, reportsHeadlineOverride, todayOverride],
+  // is also where Today's period line counts its days from: the headline is read again too, and so is the Reviews lens's read,
+  // which counts a review on the day it was written in the zone.
+  "PATCH workspaces": () => [
+    settingsOverride,
+    peopleOverride,
+    reportsOverride,
+    reportsHeadlineOverride,
+    reviewsOverride,
+    todayOverride,
+  ],
   "POST team/invite": settings,
   "PATCH team/[id]": settings,
   "DELETE team/[id]": settings,
@@ -244,7 +254,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST google/refresh": google,
   "POST google/locations": google,
   "DELETE google/connection": google,
-  "POST google/reviews/[id]/reply": () => [googleOverride],
+  // A reply posted is a review answered: the Reviews lens counts the answers and lists the reviews that wait (the live feed is
+  // told of a review's first sight only, so a reply moves nothing there on its own).
+  "POST google/reviews/[id]/reply": () => [googleOverride, reviewsOverride],
   // A partner joining a workspace (0020): the switcher's list, so the workspace just joined is there to open, and the
   // partner's count. It was a second path, read by hand in partner.ts.
   "POST partner/invitations/[id]/accept": () => [workspaceOverride, partnerOverride],

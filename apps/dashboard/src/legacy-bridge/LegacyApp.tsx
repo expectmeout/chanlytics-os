@@ -41,6 +41,7 @@ import { settingsOverride } from "./surfaces/settings";
 import { peopleOverride } from "@/surfaces/people/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
+import { reviewsOverride } from "@/surfaces/reports/reviews-surface";
 import { SURFACE_ROUTES } from "@/surfaces/routes";
 import { liveOverride } from "@/surfaces/live/surface";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
@@ -160,6 +161,8 @@ const SURFACES = [
   reportsOverride,
   // Today's period line and Worth a look: one small read of the period Reports shows (surfaces/reports/headline.ts).
   reportsHeadlineOverride,
+  // The Reviews lens's own read, folded once: its figures, its cards and its head (surfaces/reports/reviews-surface.ts).
+  reviewsOverride,
   liveOverride,
   broadcastsOverride,
   playbooksOverride,

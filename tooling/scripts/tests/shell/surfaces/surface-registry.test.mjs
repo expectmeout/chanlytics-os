@@ -351,6 +351,24 @@ test("People resolves to its override for the list; a profile deep link waits on
   assert.equal(registry.routeSurfaceFor("clients", "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c"), "workspace");
 });
 
+test("a lens that names its draws is asked before its page, as the gate asks for a pane: Reviews draws its own read, no other lens of Reports does", () => {
+  const ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
+  assert.deepEqual(registry.routeDrawsFor("reports", "reviews"), ["reports_reviews"]);
+  assert.deepEqual(registry.ROUTE_DRAWS["reports/reviews"], ["reports_reviews"], "the one row that says it");
+  // Reports' other lenses, and the Overview, draw nothing beside the page's own read; the gate still waits for that one.
+  for (const lens of [undefined, null, "people", "pipeline", "campaigns", "receptionist"])
+    assert.deepEqual(registry.routeDrawsFor("reports", lens), [], String(lens));
+  assert.equal(registry.routeSurfaceFor("reports", "reviews"), "reports");
+  assert.deepEqual(registry.routeSurfaces("reports", "reviews"), ["workspace", "reports", "reports_reviews"]);
+  assert.deepEqual(registry.routeSurfaces("reports"), ["workspace", "reports"]);
+  // What was asked of the page alone is asked as it was: a param that names no row of its own falls to the page's.
+  assert.deepEqual(registry.routeDrawsFor("today"), registry.ROUTE_DRAWS.today);
+  assert.deepEqual(registry.routeDrawsFor("today", "anything"), registry.ROUTE_DRAWS.today);
+  assert.deepEqual(registry.routeDrawsFor("clients", ID), ["people"], "a person's page");
+  assert.deepEqual(registry.routeDrawsFor("clients", "leads:s-1:l-1"), registry.ROUTE_DRAWS.leads, "and Leads' scope");
+  assert.deepEqual(registry.routeDrawsFor("clients"), []);
+});
+
 test("the flipped pages still resolve exactly as before", () => {
   for (const page of ["today", "inbox", "conversations"]) {
     assert.equal(registry.routeSurfaceFor(page), page);

@@ -925,8 +925,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   );
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST google/link"]().map((o) => o.key),
-    ["google", "setup"],
-    "a link repaints Setup too",
+    ["google", "setup", "reports_reviews"],
+    "a link repaints Setup too, and the Reviews lens's read, which draws the same listing",
   );
   // The app lists Google's surface and installs nothing for it: its verbs are imported (`googleVerbs`), its value is the
   // seam's alone, so no window door or `__GOOGLE` mirror is published.

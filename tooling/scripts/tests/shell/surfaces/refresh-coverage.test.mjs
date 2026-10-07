@@ -157,3 +157,41 @@ test("a run made or moved is heard by Campaigns' two surfaces wherever the tab i
     }
   }
 });
+
+test("a write that moves the listing, its reviews, an answer or the day a review is counted on re-reads the Reviews lens's read with Google's own", async () => {
+  // The lens counts the reviews of a period by the day Google dates them in the workspace's zone, and who answered; the live feed is
+  // told of a review's first sight, never of a reply, so a reply posted from the page names the surface itself.
+  for (const route of [
+    "POST google/link",
+    "DELETE google/link",
+    "POST google/refresh",
+    "POST google/locations",
+    "DELETE google/connection",
+    "POST google/reviews/[id]/reply",
+    "PATCH workspaces",
+  ])
+    assert.ok(keysOf(route).includes("reports_reviews"), `${route} re-reads the Reviews lens's read: ${keysOf(route)}`);
+  assert.deepEqual(
+    keysOf("POST google/link"),
+    ["google", "setup", "reports_reviews"],
+    "beside Google's own and Setup's row",
+  );
+  assert.deepEqual(keysOf("POST google/reviews/[id]/reply"), ["google", "reports_reviews"]);
+  // A draft and a search change nothing the lens counts.
+  for (const route of ["POST google/reviews/[id]/draft", "POST google/search"])
+    assert.ok(route in REFRESHES_NOTHING, route);
+});
+
+test("the Reviews lens's read repaints on the tables of the live feed that move it, and on no table the feed does not tell a workspace of", async () => {
+  const { reviewsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
+  assert.deepEqual(reviewsOverride.refreshOnTables, ["google_reviews", "google_listings", "google_connections"]);
+  for (const table of reviewsOverride.refreshOnTables)
+    assert.ok(watchedTables().includes(table), `${table}: the feed tells of it`);
+  // Which page hears them is the rule `refreshWhen` holds, run on the real routes in message-fan-out.test.mjs.
+  for (const table of reviewsOverride.refreshOnTables) assert.equal(wantsRefresh(reviewsOverride, table), true, table);
+  for (const table of ["messages", "conversations", "escalations", "google_listing_days", "events", "calls"])
+    assert.equal(wantsRefresh(reviewsOverride, table), false, `${table}: not the lens's`);
+  assert.equal(reviewsOverride.refreshOnMessageInserts, undefined, "a message moves no review");
+});

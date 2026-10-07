@@ -2,8 +2,8 @@
  * A surface marked `onDemand` (surface-data.ts) is read where it is drawn and nowhere else: the boot's two passes leave it alone unless
  * the page on screen draws it, a return to the tab and the shell's Retry-all read only what is drawn here, and a page that draws it
  * has it read as it comes on screen: once, and again when it says it has aged. Run on the real runner and the real routes' registry
- * (`reports` is Reports' own surface; `reports_headline` is one Today draws), the way LegacyApp wires them, each read recorded
- * rather than made. A surface not marked behaves as it always did.
+ * (`reports` is Reports' own surface; `reports_headline` is one Today draws; `reports_reviews` is one only the Reviews lens
+ * draws), the way LegacyApp wires them, each read recorded rather than made. A surface not marked behaves as it always did.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -52,9 +52,11 @@ const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.
 const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
 const { reportsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");
 const { reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
+const { reviewsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
 
 let aged = false;
-/** The real keys, so the registry's own routes decide what a page draws: the page's own, one it draws, and two it does not. */
+let reviewsAged = false;
+/** The real keys, so the registry's own routes decide what a page draws: the page's own, ones it draws, and ones it does not. */
 const world = (asked) => {
   const read = (key, extra = {}) => ({ key, apply: async () => void asked.push(key), ...extra });
   return [
@@ -63,6 +65,7 @@ const world = (asked) => {
     read("inbox"),
     read("reports", { onDemand: true }),
     read("reports_headline", { onDemand: true, isStale: () => aged }),
+    read("reports_reviews", { onDemand: true, isStale: () => reviewsAged }),
   ];
 };
 /** A runner over them, wired as LegacyApp wires it; `go` moves the address as Back does, `away` leaves the tab and comes back. */
@@ -113,6 +116,11 @@ test("on Today neither pass reads Reports' three routes: what Today draws, and t
       "REGRESSION: every page's boot read the report beside its own (and `reports` is Reports' own surface: three routes)",
     );
     assert.equal(status.isSurfaceReady("reports"), false, "never read: nothing of it is held");
+    assert.equal(
+      status.isSurfaceReady("reports_reviews"),
+      false,
+      "nor the Reviews lens's, drawn on no page but its own",
+    );
     // A quick return reads nothing while every surface that ought to be live is: an unread on-demand surface must not defeat that.
     await r.away(1_000);
     assert.deepEqual(r.take(), [], "REGRESSION: one unread surface made every return read every surface again");
@@ -137,7 +145,11 @@ test("moving to Reports reads its surface once and its gate opens; moving back t
     r.take();
     assert.equal(status.isSurfaceReady("reports"), false);
     await r.go("#/reports");
-    assert.deepEqual(r.take(), ["reports"], "read as its page comes on screen, once");
+    assert.deepEqual(
+      r.take(),
+      ["reports"],
+      "read as its page comes on screen, once: not the Reviews lens's, which is not drawn",
+    );
     assert.equal(
       status.isSurfaceReady("reports"),
       true,
@@ -145,6 +157,8 @@ test("moving to Reports reads its surface once and its gate opens; moving back t
     );
     await r.go("#/reports/people");
     assert.deepEqual(r.take(), [], "a move between its lenses reads nothing");
+    await r.go("#/reports/campaigns");
+    assert.deepEqual(r.take(), [], "nor to another lens: the Reviews lens's read is its own");
     await r.go("#/today");
     assert.deepEqual(r.take(), [], "back on Today: the headline is held and fresh, and Reports is not read");
     // The headline aged while away: coming back to Today reads it again, once. Reports is not Today's, and is left.
@@ -157,6 +171,8 @@ test("moving to Reports reads its surface once and its gate opens; moving back t
     // What is asked for by name is made wherever the page is: a zone saved reads the report.
     await runner.refreshSurfaces([r.overrides.find((o) => o.key === "reports")]);
     assert.deepEqual(r.take(), ["reports"], "a named refresh is a request: the caller knows");
+    await runner.refreshSurfaces([r.overrides.find((o) => o.key === "reports_reviews")]);
+    assert.deepEqual(r.take(), ["reports_reviews"], "and the Reviews lens's read too, off its lens");
   } finally {
     r.stop();
   }
@@ -168,22 +184,80 @@ test("a page that opens on Reports reads its surface in its own pass, and neithe
     assert.deepEqual(
       r.take(),
       ["inbox", "reports", "today", "workspace"],
-      "Reports' own, and the unmarked strangers: not the headline Today draws",
+      "Reports' own, and the unmarked strangers: not the headline Today draws, and not the Reviews lens's read",
     );
   } finally {
     r.stop();
   }
 });
 
-test("the two overrides that read Reports are the two marked, and nothing else in this part is", () => {
+test("a page that opens on the Reviews lens reads Reports' surface and its own beside it, in its own pass, and the headline Today draws is no part of it", async () => {
+  const r = await running("#/reports/reviews");
+  try {
+    assert.deepEqual(
+      r.take(),
+      ["inbox", "reports", "reports_reviews", "today", "workspace"],
+      "the frame's read (every lens draws from it) and the lens's own, which no other lens reads",
+    );
+    assert.equal(status.isSurfaceReady("reports_reviews"), true, "its gate opens when its read lands");
+  } finally {
+    r.stop();
+  }
+});
+
+test("moving to the Reviews lens reads its surface once, and leaving it and coming back reads nothing until it ages", async () => {
+  // The tests before this one read both: it starts from the two never read, as a tab that opened on Today.
+  for (const key of ["reports", "reports_reviews"]) status.setStatus(key, "seeded");
+  const r = await running("#/today");
+  try {
+    r.take();
+    await r.go("#/reports");
+    assert.deepEqual(r.take(), ["reports"], "the Overview does not draw it");
+    await r.go("#/reports/reviews");
+    assert.deepEqual(
+      r.take(),
+      ["reports_reviews"],
+      "read as its lens comes on screen: Reports' own is held, and is left",
+    );
+    assert.equal(status.isSurfaceReady("reports_reviews"), true);
+    await r.go("#/reports/people");
+    assert.deepEqual(r.take(), [], "a move to another lens reads nothing");
+    await r.go("#/reports/reviews");
+    assert.deepEqual(r.take(), [], "back on the lens, held and fresh: nothing is read");
+    await r.go("#/today");
+    assert.deepEqual(r.take(), [], "and Today does not draw it");
+    // It aged while away: coming back to the lens reads it again, once; Reports' own, with no `isStale`, is left.
+    reviewsAged = true;
+    await r.go("#/reports/reviews");
+    assert.deepEqual(r.take(), ["reports_reviews"], "an aged read is made again as the lens comes back");
+    reviewsAged = false;
+    await r.go("#/reports/campaigns");
+    await r.go("#/reports/reviews");
+    assert.deepEqual(r.take(), [], "and once: the next arrival reads nothing new");
+  } finally {
+    reviewsAged = false;
+    r.stop();
+  }
+});
+
+test("the three overrides that read Reports are the three marked, and nothing else in this part is", () => {
   assert.equal(reportsOverride.onDemand, true, "the whole report, its campaigns and its reach-outs");
   assert.equal(reportsHeadlineOverride.onDemand, true);
   assert.equal(typeof reportsHeadlineOverride.isStale, "function", "a headline ages: the page that draws it asks");
+  assert.equal(reviewsOverride.onDemand, true, "what the Reviews lens draws, read where it is drawn");
+  assert.equal(typeof reviewsOverride.isStale, "function", "a read of reviews ages: the lens that draws it asks");
   assert.equal(
     reportsOverride.isStale,
     undefined,
     "Reports' own is kept current by its live-feed rule and by its page's arrival",
   );
+});
+
+test("the real registry names the Reviews lens's read for that lens alone, and the page it draws it on owns it", () => {
+  assert.deepEqual(registry.routeDrawsFor("reports", "reviews"), ["reports_reviews"]);
+  assert.equal(registry.ownsTheScreen("reports_reviews", "reports/reviews"), true);
+  for (const route of ["reports", "reports/people", "reports/campaigns", "today", "inbox"])
+    assert.equal(registry.ownsTheScreen("reports_reviews", route), false, route);
 });
 
 test("a return that leaves Reports out keeps it for its page: after a long absence on Today, Reports is read once as it comes on screen", async () => {
@@ -210,6 +284,30 @@ test("a return that leaves Reports out keeps it for its page: after a long absen
   }
 });
 
+test("a return that leaves the Reviews lens out keeps it for its lens: it is read once as the lens comes on screen, and by no other lens of Reports", async () => {
+  const r = await running("#/today");
+  try {
+    await r.go("#/reports/reviews");
+    await r.go("#/today");
+    r.take();
+    await r.away(10 * 60_000);
+    assert.equal(r.take().includes("reports_reviews"), false, "Today's return does not read it");
+    await r.go("#/reports/people");
+    assert.equal(r.take().includes("reports_reviews"), false, "nor does Reports' other lens");
+    await r.go("#/reports/reviews");
+    assert.deepEqual(
+      r.take(),
+      ["reports_reviews"],
+      "REGRESSION: the lens came on screen with what it held from before the absence, and was never read again",
+    );
+    await r.go("#/reports/people");
+    await r.go("#/reports/reviews");
+    assert.deepEqual(r.take(), [], "kept once: the next arrival reads nothing new");
+  } finally {
+    r.stop();
+  }
+});
+
 test("a rejoin of the live feed reads the gap of what is drawn here, and keeps Reports for its page", async () => {
   win.location.hash = "#/today";
   const asked = [];
@@ -221,6 +319,7 @@ test("a rejoin of the live feed reads the gap of what is drawn here, and keeps R
     read("today", { refreshOnMessageInserts: true }),
     read("inbox", { refreshOnMessageInserts: true }),
     read("reports", { onDemand: true, refreshOnMessageInserts: true }),
+    read("reports_reviews", { onDemand: true, refreshOnMessageInserts: true }),
   ];
   const stop = runner.startSurfaces(overrides, (_onChange, opts) => {
     onStatus = opts.onStatus;
@@ -247,6 +346,14 @@ test("a rejoin of the live feed reads the gap of what is drawn here, and keeps R
     win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(asked.splice(0), ["reports"], "the gap is read where Reports is drawn, as it comes on screen");
+    win.location.hash = "#/reports/reviews";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    assert.deepEqual(
+      asked.splice(0),
+      ["reports_reviews"],
+      "and the Reviews lens's, where it is drawn: Reports' own is held",
+    );
   } finally {
     stop();
     off();

@@ -16,6 +16,7 @@
  * holds it sees it change by identity (React's `useSyncExternalStore` asks for exactly that).
  */
 import type { ReportsSurface } from "./reports/surface";
+import type { ReviewsSurface } from "./reports/reviews-surface";
 import type { GoogleSurface } from "../legacy-bridge/google";
 import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
 import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
@@ -36,6 +37,8 @@ export interface SurfaceValues {
   reports: ReportsSurface;
   /** Today's one small read of the period (contracts ReportHeadlineVM): the card's period line and Worth a look read it. */
   reports_headline: ReportHeadlineVM;
+  /** The Reviews lens's own read, folded once: its figures and cards, and the sentence at its head (reports/reviews-surface.ts). */
+  reports_reviews: ReviewsSurface;
   google: GoogleSurface;
   inbox: InboxSurface;
   conversations: ConversationsSurface;
@@ -143,6 +146,7 @@ function isSurfaceKey(key: string): key is SurfaceKey {
 const SURFACE_KEYS: Record<SurfaceKey, true> = {
   reports: true,
   reports_headline: true,
+  reports_reviews: true,
   google: true,
   inbox: true,
   conversations: true,

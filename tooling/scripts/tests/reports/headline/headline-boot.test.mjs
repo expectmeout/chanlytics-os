@@ -121,6 +121,8 @@ const OTHERS = [
   (await importSrc(`${S}/legacy-bridge/surfaces/notifications.ts`)).notificationsOverride,
   (await importSrc(`${S}/surfaces/setup/surface.ts`)).setupOverride,
   (await importSrc(`${S}/legacy-bridge/google.ts`)).googleOverride,
+  // The Reviews lens's own read: on demand, drawn on that lens alone, so neither page's boot reads it.
+  (await importSrc(`${S}/surfaces/reports/reviews-surface.ts`)).reviewsOverride,
   (await importSrc(`${S}/surfaces/settings/billing/surface.ts`)).billingOverride,
 ];
 const settle = async (n = 40) => {
@@ -167,6 +169,7 @@ test("on Today, one small route is read for Reports' sake where three large ones
   );
   assert.deepEqual(before.routes, REPORT_ROUTES);
   assert.deepEqual(after.routes, ["reports/headline"]);
+  assert.equal(after.asked.includes("reports_reviews"), false, "and the Reviews lens's read is not one of Today's");
   assert.ok(
     after.bytes * 20 < before.bytes,
     `a few hundred bytes for tens of thousands: ${after.bytes} against ${before.bytes}`,
@@ -190,6 +193,7 @@ test("on any other page the report is no longer read at all: it was a stranger i
     "the Inbox's boot reads nothing of Reports: not the report, and not Today's headline",
   );
   assert.equal(after.asked.includes("inbox"), true, "and still reads what it draws, and the strangers not marked");
+  assert.equal(after.asked.includes("reports_reviews"), false, "nor the Reviews lens's, which only its lens draws");
 });
 
 /* ---- the server: which doors each route reaches for ---- */

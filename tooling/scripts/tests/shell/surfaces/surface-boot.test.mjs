@@ -510,6 +510,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "leads",
     "reports",
     "reports_headline",
+    "reports_reviews",
     "live",
     "broadcasts",
     "playbooks",
@@ -542,6 +543,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "../surfaces/calendar/surface",
         "../surfaces/reports/surface",
         "../surfaces/reports/headline",
+        "../surfaces/reports/reviews-surface",
         "surfaces/notifications",
         "../surfaces/live/surface",
         "../surfaces/setup/surface",
@@ -561,7 +563,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
   } finally {
     console.error = keepError;
   }
-  for (const k of draws)
+  for (const k of [...draws, ...ROUTE_DRAWS["reports/reviews"]])
     assert.ok(known.has(k), `${k} is a surface an override feeds (known: ${[...known].join(", ")})`);
   const { order, overrides } = crowd(keys, { hash: "#/today" });
   const stop = startSurfaces(overrides);
@@ -571,6 +573,38 @@ test("what the page on screen draws from other surfaces follows its own surface,
     order.slice(0, 1 + draws.length),
     ["today", ...draws],
     "its own surface first, then what it draws in the order it draws them, before Settings or anyone's list",
+  );
+  assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
+});
+
+test("the Reviews lens reads its own surface right after Reports' own, ahead of every stranger", async () => {
+  // Every lens of Reports draws from the one read of the page; Reviews alone draws a read of its own beside it (surfaces/reports/reviews-surface.ts).
+  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  assert.deepEqual(reg.ROUTE_DRAWS["reports/reviews"], ["reports_reviews"]);
+  assert.deepEqual(
+    reg.routeDrawsFor("reports", "reviews"),
+    ["reports_reviews"],
+    "asked as the shell asks: page and lens",
+  );
+  const keys = [
+    "conversations",
+    "inbox",
+    "today",
+    "settings",
+    "people",
+    "leads",
+    "reports",
+    "reports_reviews",
+    "calendar",
+  ];
+  const { order, overrides } = crowd(keys, { hash: "#/reports/reviews" });
+  const stop = startSurfaces(overrides);
+  await settle(80);
+  stop();
+  assert.deepEqual(
+    order.slice(0, 2),
+    ["reports", "reports_reviews"],
+    "its own surface, then the lens's read, before Settings or anyone's list",
   );
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });

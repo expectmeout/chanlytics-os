@@ -106,7 +106,7 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   // is saved through the same route: People's lists and column, Reports' Deals section, Today's proposals waiting.
   assert.deepEqual(
     AFTER["PATCH workspaces"]().map((o) => o.key),
-    ["settings", "people", "reports", "reports_headline", "today"],
+    ["settings", "people", "reports", "reports_headline", "reports_reviews", "today"],
     "the refresh map names the surfaces the workspace's own fields ride on",
   );
 
