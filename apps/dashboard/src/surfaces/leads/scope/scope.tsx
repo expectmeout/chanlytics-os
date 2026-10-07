@@ -10,7 +10,6 @@ import type { ReactElement } from "react";
 import { leadReviewGroups, type LeadRowVM } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { gate } from "../../legacy-verbs";
 import { PeopleListsSheet } from "../../people/rail/lists-sheet";
 import { PeopleRail } from "../../people/rail/people-rail";
 import { PeopleStanding } from "../../people/rail/standing";
@@ -30,7 +29,7 @@ import { LeadLightbox } from "../peek/lightbox";
 import { LeadPeek } from "../peek/peek";
 import type { LeadsScopeProps } from "../page/props";
 import { LeadsBulkBar } from "./bulk-bar";
-import { LeadsActs, LeadsControlsRight } from "./controls";
+import { LeadsActs, LeadsControlsRight, LeadsHead } from "./controls";
 import { LeadPlanSheet, LeadsPhoneBar } from "./phone-bar";
 import { LeadsRailRows } from "./rail";
 import { ldReviewSections } from "./review";
@@ -221,35 +220,26 @@ const bandOf = (p: P) =>
     <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} />
   ) : null;
 
-/** The first day: the suggestions, the three ways, and Find leads in the composer's slot, opening Ask. */
-const firstDayOf = (p: P) => (
+/**
+ * The first day: the question, the door to Ask (Find leads is Ask on this surface, spec F1) and the ideas, each opening
+ * Ask with its words in the field, ready to send; and the door for a list the owner already has, which is the rail's on
+ * every other day.
+ */
+const firstDayOf = (p: P, phone: boolean) => (
   <LeadsFirstDay
-    ways={p.ways}
     suggestions={p.surface.suggestions}
     canFind={p.canFind}
+    phone={phone}
     lineOpen={p.lineOpen}
     lineDraft={p.lineDraft}
     lineError={p.lineError}
     lineBusy={p.lineBusy}
-    // A suggestion picked opens Ask with its words in the field, ready to send (spec F1).
-    onPick={(words) => p.onFind(words)}
-    onGo={p.onGo}
+    onFind={p.onFind}
+    onImport={p.onImport}
     onOpenLine={p.onOpenLine}
     onLineDraft={p.onLineDraft}
     onSaveLine={p.onSaveLine}
     onCancelLine={p.onCancelLine}
-    // The composer's slot holds the one door on the first day: Find leads, wearing the mark, opening Ask.
-    composer={
-      <button
-        type="button"
-        className="btn btn-primary ld-first-find"
-        onClick={() => p.onFind()}
-        data-testid="leads-first-find"
-        {...(p.canFind ? {} : gate("find", "find businesses for you"))}
-      >
-        <Icon name="three" size={13} /> Find leads
-      </button>
-    }
   />
 );
 
@@ -292,7 +282,7 @@ const scopeBodyOf = (p: P, phone: boolean, table: ReactElement) => {
         onNearby={p.onNearby}
       />
     );
-  return p.firstDay ? firstDayOf(p) : table;
+  return p.firstDay ? firstDayOf(p, phone) : table;
 };
 
 /** The next page: how many of how many are loaded, and Show more. */
@@ -387,9 +377,13 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
   const L = p.surface;
   return (
     <div className="cl-main">
-      {phone && phoneBarOf(p)}
+      {/* On the first day the page is its question alone (finder/first-day.tsx): no bar on a phone and no standing line,
+          search or columns on a desk, since with no lead there is nothing for them to act on; the head says the page's
+          name. A phone's head holds Import leads on every day (controls.tsx LeadsHead); a desk's first day holds no act
+          beside the page's own door, and keeps the door for a list under it. */}
+      {phone && !p.firstDay && phoneBarOf(p)}
       <div className="cl-main-scroll pl-main" ref={p.scrollRef}>
-        {!phone && deskTopOf(p)}
+        {phone || p.firstDay ? <LeadsHead act={phone ? p.importAct : undefined} /> : deskTopOf(p)}
 
         {!p.firstDay && p.finderOpen && planPanelOf(p, phone)}
 
@@ -446,10 +440,15 @@ export const LeadsScope = (p: P) => {
       : null;
   const railRows = railRowsOf(p, phone);
   return (
-    <div className="clients leads-scope" data-loading={p.loading ? "1" : undefined}>
+    <div
+      className={p.firstDay ? "clients leads-scope no-rail" : "clients leads-scope"}
+      data-loading={p.loading ? "1" : undefined}
+      data-first-day={p.firstDay ? "" : undefined}
+    >
       {/* The switch between the scopes is the frame's strip of views, over this page (surfaces/people/chrome.ts). At a
-          phone's width the rail is the bar's list button (the stylesheet hides .cl-rail at 900px anyway). */}
-      {!phone && (
+          phone's width the rail is the bar's list button (the stylesheet hides .cl-rail at 900px anyway). On the first
+          day every list and search in it is empty, so it stands down and the page takes its column (.no-rail). */}
+      {!phone && !p.firstDay && (
         <PeopleRail scope="leads" active={null} onPick={NO_PICK}>
           {railRows}
         </PeopleRail>

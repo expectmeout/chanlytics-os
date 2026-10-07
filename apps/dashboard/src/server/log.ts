@@ -134,6 +134,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "partner_invite_failed",
   "pending_workspace_clear_failed",
   "people_policies_read_failed",
+  "people_seen_unavailable",
   "people_visits_failed",
   "person_notes_read_failed",
   "person_visits_failed",

@@ -42,7 +42,7 @@ window publishers                   176   sites in 53 files
 copies                               73   of 21 names
 as unknown as                       140
 as never                             13
-non-null assertions, x!             111
+non-null assertions, x!             110
 index reads the compiler lets pass  476   in 127 files
 table names outside packages/db     473
 SQL functions outside packages/db   129   called by .rpc
@@ -57,7 +57,7 @@ literal style values                982   in 23 stylesheets
 primitives outside the kit         1866   selectors naming 769 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     295
+dead exports, types and modules     292
 source-text reads in tests          766
 lint warnings                       354   in 152 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      725   the shell included

@@ -4,6 +4,8 @@
  * its place and keeps its state there.
  */
 import { canDo, gate, navigate } from "../../legacy-verbs";
+import { Button } from "../../kit/button/button";
+import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
@@ -22,7 +24,15 @@ import { AddPersonButton } from "../sheets/add-person";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleTable } from "../table/table";
 import type { TableEmpty } from "../types";
-import { PL_DEFAULT_GROUPS, PL_NO_LISTS, PL_SEARCH_LABEL, PL_TAB_LABEL, plLoadedWords, plSortedBy } from "../words";
+import {
+  PL_ADD_EMPTY,
+  PL_DEFAULT_GROUPS,
+  PL_NO_LISTS,
+  PL_SEARCH_LABEL,
+  PL_TAB_LABEL,
+  plLoadedWords,
+  plSortedBy,
+} from "../words";
 import type { PeopleState } from "./state";
 import { peoplePhoneMenu } from "./phone-menu";
 import { menuGroups, moreButton } from "../menu-groups";
@@ -225,13 +235,29 @@ function peopleListSection(s: PeopleState) {
 }
 
 /**
- * The page's act on a desk: Add a person, at the right of the strip of scopes over the list (the frame's act, said through its
- * head: people-head.tsx), where Campaigns' Library and New message stand (Ruben, 6 Oct 2026: it stood in the list's controls row,
- * inside the pane). A phone's is its more-menu's (phone-menu.ts); a role that may not change lists has none.
+ * The page's act: Add a person, the frame's act, said through its head (people-head.tsx). On a desk it stands at the right of
+ * the strip of scopes over the list, where Campaigns' Library and New message stand, and opens into its two fields there
+ * (Ruben, 6 Oct 2026: it stood in the list's controls row, inside the pane). On a phone it stands beside the page's name and
+ * opens the phone's sheet, as the more-menu's item does (phone-menu.ts): it was the more-menu's alone, and a phone showed no
+ * way to add a person (Ruben, 7 Oct 2026). A role that may not change lists has none.
  */
 export function peopleAct(s: PeopleState) {
-  const { phone, canEditLists, onOpenProfile, plFlash } = s;
-  return !phone && canEditLists ? <AddPersonButton onAdded={onOpenProfile} flash={plFlash} /> : null;
+  const { phone, canEditLists, onOpenProfile, plFlash, setAddDraft, setAddOpen } = s;
+  if (!canEditLists) return null;
+  if (!phone) return <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />;
+  return (
+    <Button
+      variant="primary"
+      size="sm"
+      onClick={() => {
+        setAddDraft(PL_ADD_EMPTY);
+        setAddOpen(true);
+      }}
+      data-testid="add-person-open"
+    >
+      <ActWords icon={<Icon name="plus" size={12} />} words="Add a person" />
+    </Button>
+  );
 }
 
 /** A desktop's controls: the search, Import, the file of everyone, and the Columns menu (Add a person is the page's act). */

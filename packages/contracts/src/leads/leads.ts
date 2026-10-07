@@ -188,11 +188,28 @@ export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRowVM } from "
  */
 export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_STAGES };
 export type { LeadEmailState, LeadFit }; // A's, re-exported so a page reads one name
-/** The first day of Leads, before a workspace has kept one search (§8.9). */
-export const LEAD_FIRST_DAY_TITLE = "Your people gather here";
-export const LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
-/** What the finder does not do, said where it is offered. */
-export const LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
+/**
+ * The first day of Leads, before a workspace has kept one search or holds one lead (§8.9; redrawn 7 Oct 2026 as one
+ * question and the door to Ask, canvas "Leads, the first day", option A). `ask` is what the door says, in the place a
+ * field's own words would stand; `ideas` heads the searches Claude wrote for this workspace, and `from` leads the
+ * business line they were written from, with `edit` its one control; the four `line` words are the sheet that
+ * rewrites it (its name, the sentence under it, its field's name and what the empty field says); the last two are the
+ * door for a list the owner already has.
+ */
+const LEAD_FIRST_DAY = {
+  title: "Who do you want as customers?",
+  sub: "Say it in a sentence. Claude finds businesses that fit, checks each one, and shows how to reach them.",
+  ask: "Describe the businesses you want",
+  ideas: "Or start from an idea",
+  from: "Written from what you do:",
+  edit: "Edit",
+  lineTitle: "What your business does",
+  lineSub: "Claude writes your ideas from this. Say what you sell and who you sell it to.",
+  lineLabel: "Your business, in a sentence",
+  linePlaceholder: "What you sell, and who buys it",
+  haveList: "Have a list already?",
+  importIt: "Import it",
+} as const;
 /** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
 export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 
@@ -270,7 +287,7 @@ export const LEAD_WORDS = {
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
-  firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  firstDay: LEAD_FIRST_DAY,
   about: "About",
   reachHeading: "Reach",
   unclaimed: LEAD_UNCLAIMED_NOTE,
@@ -325,20 +342,4 @@ export function leadReachLine(prior: LeadNichePrior | null | undefined): string 
   if (tenths === 5) return "About half have an email";
   if (tenths === 7) return "About 2 in 3 have an email";
   return `About ${tenths} in 10 have an email`;
-}
-
-export interface LeadWayFacts {
-  /** The workspace's own line, when this tab has read the setup surface; null when it has not. */
-  voice: { active: boolean; number: string | null } | null;
-  whatsapp: { present: boolean; active: boolean } | null;
-  calendar: "ok" | "unavailable" | "none";
-  people: number;
-}
-export interface LeadWay {
-  id: "reach" | "calendar" | "yours";
-  title: string;
-  line: string;
-  /** Only ever what this tab has read: null claims nothing. */
-  status: string | null;
-  doors: { id: string; label: string; to: string }[];
 }

@@ -334,6 +334,36 @@
       "where": null
     },
     {
+      "table": "contact_marks",
+      "name": "contact_marks_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "contact_id"
+        },
+        {
+          "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "contact_reads",
+      "name": "contact_reads_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "contacts",
       "name": "contacts_pkey",
       "primary": true,

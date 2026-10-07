@@ -89,6 +89,8 @@ const TABLES = [
   "calls",
   "capability_activations",
   "contact_identities",
+  "contact_marks",
+  "contact_reads",
   "contacts",
   "conversations",
   "deals",

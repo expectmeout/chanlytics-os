@@ -1257,13 +1257,31 @@ test("on a desk Add a person is the page's act, at the right of the strip over t
   );
 });
 
-test("on a phone the page says no act: its Add a person is the more-menu's", () =>
+test("on a phone the page's act is Add a person too, its first word kept where the row is short, and it opens the phone's sheet", () =>
   onPhone(async () => {
+    // It was the more-menu's alone, and the frame hid the act: a phone showed no way to add a person (Ruben, 7 Oct 2026).
+    // It stands on the row of views, at its right, as a desk's does (components.css).
     await freshPage({ people: [person(1)] });
-    draw();
+    let tree = draw();
     const said = standingSaid();
     assert.equal(said?.title, "People");
-    assert.equal(said.act, undefined, "nothing beside a phone's strip");
+    const act = find(said.act, (n) => n.props?.["data-testid"] === "add-person-open");
+    assert.ok(act, "the head holds Add a person");
+    assert.match(textOf(act), /Add a person/, "with its words");
+    // The words come in two parts (kit/head/act-words.tsx): the mark and the first word, which a narrow phone keeps
+    // beside three scopes, and the rest, which gives way there and is still read out.
+    const part = (name) => find(act, (n) => n.props?.className === name);
+    assert.equal(textOf(part("pg-act-keep")), "Add", "the first word is kept with the mark");
+    assert.equal(textOf(part("pg-act-rest")), " a person", "the rest follows, its own space with it");
+    assert.equal(
+      byTestId(said.act, "add-person"),
+      null,
+      "never the desk's button, which opens into two fields in the row",
+    );
+    assert.equal(openSheet(tree, "add-person-sheet"), null, "nothing is open yet");
+    act.props.onClick();
+    tree = draw();
+    assert.ok(openSheet(tree, "add-person-sheet"), "the press opens the phone's sheet, as the more-menu's item does");
   }));
 
 test("on a phone search is a capsule at rest that opens into the field; Cancel gives the capsule back and clears the words", () =>

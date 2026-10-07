@@ -249,9 +249,13 @@
   --surface-page-fill: var(--bg);
   /* The inset's hairline as a ring, for an inset that draws no border of its own (a face, a bubble, a capsule). */
   --surface-inset-ring: inset 0 0 0 1px var(--surface-inset-edge);
-  /* The ink's wash, behind what takes the screen: a sheet from a phone's bottom edge, the bell's panel on a phone, a
-     dialog. --surface-scrim fades the page behind a desk's side sheet. */
-  --surface-scrim-modal: oklch(from var(--ink) l c h / 0.35);
+  /* The veil behind what rises over the page on a phone: the drawer, a sheet from the bottom edge, the bell's notes, a
+     menu's actions, a dialog. One veil for all of them, the drawer's: about a third of the look's scrim, which dims
+     the page and lets its own light through (Ruben, 2 Oct 2026, of the drawer: black at 45% "darkens the background too
+     much"). They wore four: the drawer this; a small job's sheet the ink at 35%, which is white on a dark page and
+     lightened it; a record's sheet the whole scrim, nearly three times as dark; the bell and a menu none (Ruben, 7 Oct
+     2026). --surface-scrim itself fades the page behind a desk's side sheet. */
+  --surface-veil: color-mix(in oklab, var(--surface-scrim) 36%, transparent);
   /* Where the three pools of light stand (the canvases' glow). They stand still here; on a desk each is a layer of its
      own that a transform moves (components.css, .pg-light): moving these, which every element inherits, styled the
      whole page again on every frame. */

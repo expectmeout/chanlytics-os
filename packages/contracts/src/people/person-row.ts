@@ -50,7 +50,7 @@ import {
   type PersonLastContact,
 } from "./person-row-facts";
 import { reasonShort } from "../conversations/escalations";
-import { HELD_WORDS } from "../conversations/standing";
+import { HELD_WORDS, readingOf } from "../conversations/standing";
 import { heardAt, PERSON_STATE_LABELS, personStanding, personStateFor, type PersonState } from "./person-state";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { personReachOf, type PersonReach } from "../broadcasts/reach-any";
@@ -142,6 +142,16 @@ export interface PersonRowVM {
   callSeconds: number;
   /** The Inbox route id (`th-<conversation>`); null without a chat. */
   threadId: string | null;
+  /** Their conversation, chat or not: what a bell row about it names (today/notifications.ts noteWhose). */
+  conversationId: string | null;
+  /**
+   * New to the reader: they wrote or called after the reader last opened them, or the reader put them back as unread
+   * (conversations/standing.ts isUnseen, the Inbox's own rule, over askedMs). A person with something unread read the
+   * same as everyone else on the list (Ruben, 7 Oct 2026).
+   */
+  unseen: boolean;
+  /** The stamp of the reader's own mark as this read carried it, epoch ms; 0 where they have none (surfaces/seen.ts). */
+  markAtMs: number;
   needsYouSinceMs: number | null;
   /** The calendar's state for this workspace: the outcome lists exist only when it is "ok". */
   calendar: "ok" | "unavailable" | "none";
@@ -368,6 +378,17 @@ function rowReplyOf(
   };
 }
 
+/** Their thread, their conversation, and whether they are new to the reader, judged against when they last wrote or called. */
+function rowThreadOf(r: PersonRowDto, askedMs: number | null) {
+  const reading = readingOf(askedMs, r);
+  return {
+    threadId: r.has_chat && r.latest_conversation_id ? `th-${r.latest_conversation_id}` : null,
+    conversationId: r.latest_conversation_id,
+    unseen: reading.unseen,
+    markAtMs: reading.markAtMs,
+  };
+}
+
 /**
  * A People row, as it reads at `now` for `viewerId` (the member looking; null for a playbook's run, which has no one):
  * its words, and the facts a list's rule reads (list-rules.ts), each worked out once here in the workspace's own dates.
@@ -453,7 +474,7 @@ export function toPersonRowVM(
     calls: r.call_count ?? 0,
     escalations: r.escalation_count ?? 0,
     callSeconds: r.call_seconds ?? 0,
-    threadId: r.has_chat && r.latest_conversation_id ? `th-${r.latest_conversation_id}` : null,
+    ...rowThreadOf(r, askedMs),
     needsYouSinceMs: ts(r.open_escalation_since),
     calendar,
     booked,

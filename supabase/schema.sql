@@ -1588,6 +1588,55 @@ $$;
 
 
 --
+-- Name: contact_mark(uuid, boolean, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+  -- Said apart: least() skips a null, so a mark with no moment handed in would have reached a day ahead.
+  v_upto   timestamptz := case when p_heard_at is null then now()
+                               else least(p_heard_at, now() + interval '1 day') end;
+  v_row    contact_marks;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_seen is null then
+    raise exception 'Say seen or unread.' using errcode = '22023';
+  end if;
+  select c.tenant_id into v_tenant from contacts c where c.id = p_contact_id;
+  if v_tenant is null or not exists (
+       select 1 from memberships m
+        where m.user_id = v_user and m.tenant_id = v_tenant
+          and (m.role <> 'partner' or public.session_shows_second_factor())) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  -- What they have seen never goes back: an opening that knew less than an earlier one leaves the earlier stand.
+  insert into contact_marks (tenant_id, contact_id, user_id, seen_at, unread_at, marked_at)
+  values (v_tenant, p_contact_id, v_user, case when p_seen then v_upto end, case when p_seen then null else now() end, now())
+  on conflict (contact_id, user_id) do update set
+    seen_at   = case when p_seen then greatest(contact_marks.seen_at, v_upto) else contact_marks.seen_at end,
+    unread_at = case when p_seen then null else now() end,
+    marked_at = now()
+  returning * into v_row;
+  return jsonb_build_object(
+    'contact_id', v_row.contact_id, 'seen_at', v_row.seen_at, 'unread_at', v_row.unread_at, 'marked_at', v_row.marked_at);
+end $$;
+
+
+--
+-- Name: FUNCTION contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone) IS 'The calling member''s own mark on a person of a workspace they belong to: true says they have seen up to p_heard_at (the customer''s last moment as their screen held it; this clock where there is none), never earlier than they had, and clears unread_at; false stamps unread_at now and keeps seen_at (Mark as unread). Either way marked_at is stamped now. Any member, a viewer too, and a partner once the session shows its second factor: it is their own reading. Answers { contact_id, seen_at, unread_at, marked_at }; refuses a caller not signed in (28000), neither word (22023), and a person not theirs to see (P0002).';
+
+
+--
 -- Name: contact_proposal_on_erase(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1601,6 +1650,49 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: contact_seen(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contact_seen(p_tenant_id uuid, p_contact_ids uuid[]) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_joined timestamptz;
+  v_floor  timestamptz;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- The caller's seat, as every door reads it (00261, 00280): a partner's counts once the session has shown its code.
+  select m.created_at into v_joined
+    from memberships m
+   where m.user_id = v_user and m.tenant_id = p_tenant_id
+     and (m.role <> 'partner' or public.session_shows_second_factor());
+  if v_joined is null then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  select r.seen_at into v_floor from contact_reads r where r.tenant_id = p_tenant_id and r.user_id = v_user;
+  return jsonb_build_object(
+    'floor_at', coalesce(v_floor, v_joined),
+    'marks', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'contact_id', k.contact_id, 'seen_at', k.seen_at, 'unread_at', k.unread_at, 'marked_at', k.marked_at))
+        from contact_marks k
+       where k.tenant_id = p_tenant_id and k.user_id = v_user and k.contact_id = any (coalesce(p_contact_ids, '{}'))
+    ), '[]'::jsonb));
+end $$;
+
+
+--
+-- Name: FUNCTION contact_seen(p_tenant_id uuid, p_contact_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.contact_seen(p_tenant_id uuid, p_contact_ids uuid[]) IS 'What the calling member has seen of the people named, in a workspace they belong to: { floor_at, marks: [{ contact_id, seen_at, unread_at }] }. floor_at is the member''s contact_reads.seen_at, or the day they joined where they have none; marks are their own contact_marks rows for those people. Refuses a caller who is not signed in (28000) or not a member (P0002). The dashboard''s readers judge unseen from it (contracts conversations/unseen.ts).';
 
 
 --
@@ -20192,6 +20284,45 @@ COMMENT ON COLUMN public.contact_identities.assurance IS 'How sure the door that
 
 
 --
+-- Name: contact_marks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contact_marks (
+    tenant_id uuid NOT NULL,
+    contact_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    seen_at timestamp with time zone,
+    unread_at timestamp with time zone,
+    marked_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE contact_marks; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.contact_marks IS 'Per member per person: seen_at is how far the member has seen of the person, in the customer''s own moments (the last_inbound_at their screen held as they opened the thread or the page), unread_at when they put it back as unread, cleared by the next opening, and marked_at when the row was last written (00349). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
+
+
+--
+-- Name: contact_reads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contact_reads (
+    tenant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    seen_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE contact_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.contact_reads IS 'Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00349). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.';
+
+
+--
 -- Name: conversations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -23111,6 +23242,22 @@ ALTER TABLE ONLY public.contact_identities
 
 
 --
+-- Name: contact_marks contact_marks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_marks
+    ADD CONSTRAINT contact_marks_pkey PRIMARY KEY (contact_id, user_id);
+
+
+--
+-- Name: contact_reads contact_reads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_reads
+    ADD CONSTRAINT contact_reads_pkey PRIMARY KEY (tenant_id, user_id);
+
+
+--
 -- Name: contacts contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -24188,6 +24335,13 @@ CREATE INDEX calls_transcript_words ON public.calls USING gin (to_tsvector('simp
 --
 
 CREATE INDEX contact_identities_contact ON public.contact_identities USING btree (contact_id);
+
+
+--
+-- Name: contact_marks_member; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX contact_marks_member ON public.contact_marks USING btree (tenant_id, user_id);
 
 
 --
@@ -26698,6 +26852,46 @@ ALTER TABLE ONLY public.contact_identities
 
 
 --
+-- Name: contact_marks contact_marks_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_marks
+    ADD CONSTRAINT contact_marks_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: contact_marks contact_marks_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_marks
+    ADD CONSTRAINT contact_marks_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: contact_marks contact_marks_user_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_marks
+    ADD CONSTRAINT contact_marks_user_id_same_workspace FOREIGN KEY (user_id, tenant_id) REFERENCES public.memberships(user_id, tenant_id) ON DELETE CASCADE;
+
+
+--
+-- Name: contact_reads contact_reads_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_reads
+    ADD CONSTRAINT contact_reads_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: contact_reads contact_reads_user_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_reads
+    ADD CONSTRAINT contact_reads_user_id_same_workspace FOREIGN KEY (user_id, tenant_id) REFERENCES public.memberships(user_id, tenant_id) ON DELETE CASCADE;
+
+
+--
 -- Name: contacts contacts_merged_into_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -28105,6 +28299,32 @@ ALTER TABLE public.contact_identities ENABLE ROW LEVEL SECURITY;
 CREATE POLICY contact_identities_member_select ON public.contact_identities FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: contact_marks; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.contact_marks ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: contact_marks contact_marks_own_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY contact_marks_own_select ON public.contact_marks FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: contact_reads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.contact_reads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: contact_reads contact_reads_own_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY contact_reads_own_select ON public.contact_reads FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
 
 
 --
@@ -29520,12 +29740,30 @@ GRANT ALL ON FUNCTION public.contact_first_moments(p_tenant_id uuid) TO service_
 
 
 --
+-- Name: FUNCTION contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION contact_proposal_on_erase(); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.contact_proposal_on_erase() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.contact_proposal_on_erase() TO authenticated;
 GRANT ALL ON FUNCTION public.contact_proposal_on_erase() TO service_role;
+
+
+--
+-- Name: FUNCTION contact_seen(p_tenant_id uuid, p_contact_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contact_seen(p_tenant_id uuid, p_contact_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contact_seen(p_tenant_id uuid, p_contact_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.contact_seen(p_tenant_id uuid, p_contact_ids uuid[]) TO service_role;
 
 
 --
@@ -32950,6 +33188,22 @@ GRANT INSERT(note) ON TABLE public.capability_activations TO authenticated;
 
 GRANT ALL ON TABLE public.contact_identities TO authenticated;
 GRANT ALL ON TABLE public.contact_identities TO service_role;
+
+
+--
+-- Name: TABLE contact_marks; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.contact_marks TO authenticated;
+GRANT ALL ON TABLE public.contact_marks TO service_role;
+
+
+--
+-- Name: TABLE contact_reads; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.contact_reads TO authenticated;
+GRANT ALL ON TABLE public.contact_reads TO service_role;
 
 
 --

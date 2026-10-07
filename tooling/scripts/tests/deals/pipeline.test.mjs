@@ -1127,7 +1127,7 @@ const { PipelineScope } = await import("../../../../apps/dashboard/src/surfaces/
 const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 const { Sheet } = await import("../../../../apps/dashboard/src/surfaces/kit/sheet/sheet.tsx");
 const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
-/** The page's one filled button: in the frame's head on a desk (what the page says to it, standing.tsx), the bar's + on a phone. */
+/** The page's one filled button: in the frame's head at every width (what the page says to it, standing.tsx). */
 const newOpen = (tree) =>
   byTestId(tree, "pipeline-new-open") ??
   find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "pipeline-new-open");
@@ -1739,7 +1739,7 @@ test("the Pipeline's rows, compact in a phone's sheet: an empty view is said in 
   assert.deepEqual(said(rail), []);
 });
 
-test("on a phone: one bar with the switch, the view's list button, search and New proposal's +, then the line and People's cards", () =>
+test("on a phone: one bar with the view's list button and search, New proposal in the head on the row of views, then the line and People's cards", () =>
   onPhone(async () => {
     await fresh();
     const tree = draw();
@@ -1760,7 +1760,14 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
       [textOf(byClass(lists, "pp-bar-pick-words")), textOf(byClass(lists, "pp-bar-pick-count"))],
       ["All deals", "7"],
     );
-    assert.ok(byTestId(bar, "pipeline-new-open"), "New proposal is the bar's +");
+    // New proposal is the head's act, with its words: the bar drew it as a bare + (Ruben, 7 Oct 2026).
+    assert.equal(byTestId(bar, "pipeline-new-open"), null, "the bar draws no + of its own");
+    const headAct = find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "pipeline-new-open");
+    assert.ok(headAct, "the head holds New proposal");
+    assert.match(textOf(headAct), /New proposal/);
+    // Beside three scopes a narrow phone has room for one word: the act says "New" with its mark, and the rest gives way.
+    assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-keep")), "New");
+    assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-rest")), " proposal");
     assert.equal(byTestId(bar, "pipeline-phone-search-open").props["aria-label"], "Search by name or phone");
     assert.ok(byTestId(tree, "pipeline-summary"));
     const card = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");

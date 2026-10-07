@@ -100,7 +100,7 @@
   "packages/contracts/src/leads/lead-import-schema.ts": 1,
   "packages/contracts/src/leads/lead-import.ts": 1,
   "packages/contracts/src/leads/lead-plan-schema.ts": 1,
-  "packages/contracts/src/leads/leads.ts": 4,
+  "packages/contracts/src/leads/leads.ts": 1,
   "packages/contracts/src/leads/search/clean.ts": 3,
   "packages/contracts/src/lines/business-page.ts": 1,
   "packages/contracts/src/lines/business-record.ts": 1,

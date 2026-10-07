@@ -642,8 +642,9 @@
 }
 
 /* ---- The bar ---- */
+/* The first pane stands 14px under the bar, as the Inbox's and People's stand under the frame's row of views. */
 .main-scroll > .calendar .cal-head {
-  padding: 0 0 var(--space-3);
+  padding: 0 0 14px;
 }
 .main-scroll > .calendar .cal-bar {
   gap: var(--space-2) var(--space-3);
@@ -685,10 +686,44 @@
   padding: 0 14px;
   border-radius: var(--radius-full);
   font-size: var(--text-base);
+  /* One weight whichever is picked, as the frame's tabs are (kit.css): a bolder word is a wider one. */
+  font-weight: var(--weight-medium);
   color: var(--ink-muted);
 }
 .main-scroll > .calendar .cal-views > [aria-checked="true"] {
   color: var(--ink);
+}
+/* The views are the frame's row of views in everything but who draws them, and stand where it stands (the bar's first,
+   board-parts.tsx): on a desk they wear its rim and blur what passes behind, as the strip does (kit.css, .stabs). */
+@media (width > 900px) {
+  .main-scroll > .calendar .cal-views {
+    position: relative;
+    isolation: isolate;
+    backdrop-filter: var(--surface-control-blur);
+  }
+  .main-scroll > .calendar .cal-views::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-control-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+}
+/* On a phone the page keeps the boards' 12px from the screen's edges, as Today's, the Inbox's and People's panes do, so
+   its views stand where every page's row of views stands and its panes are as wide as theirs (Ruben, 7 Oct 2026: both
+   stood at the head's 16). The head's slot gives up 2 of its 16 under the name, so the views' top is the strip's. */
+@media (max-width: 900px) {
+  .main-scroll > .calendar {
+    --gutter-page: 12px;
+  }
+  .main:has(> .main-scroll > .calendar) .pg-slot {
+    padding-bottom: 14px;
+  }
 }
 
 .main-scroll > .calendar .cal-tools {
@@ -914,13 +949,18 @@
 
 /* ---- A phone ---- */
 @media (max-width: 720px) {
-  /* The views stand under the name with the options button beside them; then the range and the steps; then the first day. */
+  /* The views stand under the name with the options button beside them; then the range and the steps; then the first
+     day. The views are the bar's first (board-parts.tsx), so the range's row is put after the options'. A view is the
+     frame's tab on a phone: the large control's height, 10px of room each side. */
+  .main-scroll > .calendar .cal-when {
+    order: 1;
+  }
   .main-scroll > .calendar .cal-tools {
-    order: -1;
+    margin-left: auto;
   }
   .main-scroll > .calendar .cal-views > * {
     height: var(--control-h-lg);
-    padding: 0 var(--space-2);
+    padding: 0 10px;
   }
   .main-scroll > .calendar .cal-options {
     width: 44px;

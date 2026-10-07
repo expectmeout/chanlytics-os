@@ -392,6 +392,13 @@
       "rate": "person_mode",
       "spend": false
     },
+    "PUT contacts/[id]/seen": {
+      "kind": "write",
+      "scope": "row",
+      "role": "viewer",
+      "rate": "seen_mark",
+      "spend": false
+    },
     "GET contacts/[id]": {
       "kind": "read",
       "scope": "workspace",

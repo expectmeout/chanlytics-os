@@ -14,7 +14,18 @@ import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
 import { useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
-import { CV_ICON, cvAddress, cvCallsWords, cvFind, cvLeadOf, cvOnePerPerson, inChannel } from "../cv-rules";
+import {
+  CV_ICON,
+  cvAddress,
+  cvCallsWords,
+  cvFind,
+  cvLeadOf,
+  cvOnePerPerson,
+  cvSeenOf,
+  cvWhoseRow,
+  inChannel,
+} from "../cv-rules";
+import { seePerson, unreadHere, useSeeOpen, useSeen } from "../../seen";
 import { appNavigate, canNavigate, currentRoute, demoSession, liveCallEnded, navigate, tabMemory } from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
@@ -126,7 +137,11 @@ const cvEnded = (c: ConversationRow | null | undefined): boolean =>
 // thread's by-lines name who answered -- and the tab), the time in the foot, where the Inbox's row says it at the first
 // line's end, and a call's length in the foot under words that say it ("Inbound call · 1:35 — …"). The newest row says
 // the time, the words and the wire; the pill is its lead's (cvLeadOf), so a thread that needs you still says so under
-// the call that came after it.
+// the call that came after it. And a person new to the reader reads heavier, as the Inbox's row does (cvUnread): every
+// row drew at one weight, read or not (Ruben, 7 Oct 2026).
+/** Whether a person's row is new to the reader now: the last read's word, over what this tab did since (surfaces/seen.ts). */
+const cvUnread = (c: ConversationRow): boolean => unreadHere(cvWhoseRow(c), cvSeenOf(c));
+
 const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; onSelect: (id: string) => void }) => {
   const lead = cvLeadOf(c);
   const dec = cvDecision(lead);
@@ -134,7 +149,7 @@ const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; o
   const calls = cvCallsWords(c);
   return (
     <button
-      className={`cv-row ${active ? "active" : ""} ${c.live && !cvEnded(c) ? "is-live" : ""}`}
+      className={`cv-row ${active ? "active" : ""} ${c.live && !cvEnded(c) ? "is-live" : ""} ${cvUnread(c) ? "unread" : ""}`}
       onClick={() => onSelect(c.id)}
     >
       <span className="cv-row-avatar">
@@ -576,6 +591,18 @@ export const ConversationsPage = ({
     [channel],
   );
 
+  // The row on screen is read (surfaces/seen.ts): beside the list on a desk, and on a phone while it is the screen. A
+  // link's notice is nobody's row. A row pressed is read too, the one already open among them: one put back as unread
+  // stays so until it is opened again. And a row opened or put back, here or in the Inbox, draws the list again.
+  const onScreen = selected && !requestedMissing && (!cvOnPhone() || phoneOpen) ? (selectedRow ?? selected) : null;
+  useSeeOpen(onScreen ? cvWhoseRow(onScreen) : null, onScreen ? cvSeenOf(onScreen) : undefined);
+  useSeen();
+  const openByHand = (id: string) => {
+    const hit = cvFind(visible, id);
+    if (hit && cvUnread(hit.row)) seePerson(cvWhoseRow(hit.row), cvSeenOf(hit.row));
+    openRow(id);
+  };
+
   // Counted from the tabs THIS workspace has, by the same rule that filters
   // them: a tab that is drawn always carries the number of rows it will show.
   const counts = useMemo(
@@ -587,7 +614,7 @@ export const ConversationsPage = ({
   );
   return (
     <div className="conversations" data-takeover={phoneOpen || undefined}>
-      {listPane({ data, rows: visible, query, setQuery, channel, counts, selectedRow, openRow, swap })}
+      {listPane({ data, rows: visible, query, setQuery, channel, counts, selectedRow, openRow: openByHand, swap })}
       {readingPane({ data, requestedMissing, selected, closeRow, query })}
     </div>
   );

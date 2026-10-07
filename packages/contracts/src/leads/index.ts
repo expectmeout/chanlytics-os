@@ -85,9 +85,6 @@ export {
   LEAD_FITS,
   LEAD_OPERATION_KINDS,
   LEAD_STAGES,
-  LEAD_FIRST_DAY_TITLE,
-  LEAD_FIRST_DAY_SUB,
-  LEAD_FIRST_DAY_FOOT,
   LEAD_SUGGEST_UNAVAILABLE,
   LEAD_WORDS,
   LEAD_SUGGEST_DAYS,
@@ -222,8 +219,6 @@ export type {
   LeadEmailState,
   LeadFit,
   LeadNichePrior,
-  LeadWayFacts,
-  LeadWay,
   LeadClass,
   LeadStage,
   LeadList,
@@ -259,7 +254,6 @@ export type {
   LeadBand,
   LeadRowVM,
 } from "./leads";
-export { leadsFirstDayWays } from "./lead-first-day";
 export {
   LEAD_IMPORT_MAX_BYTES,
   LEAD_LIST_MAX,

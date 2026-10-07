@@ -514,6 +514,31 @@ export function conversationOfNeedsKey(key: string): string | null {
   return key.startsWith(NEEDS_KEY_PREFIX) ? key.slice(NEEDS_KEY_PREFIX.length) : null;
 }
 
+/** Who a bell row is about, where it is one person: their conversation, or the person themselves. */
+interface NoteWhose {
+  conversationId?: string;
+  personId?: string;
+}
+
+const THREAD_DOOR = /^inbox\/th-([0-9a-f-]{36})$/;
+const PERSON_DOOR = /^clients\/([0-9a-f-]{36})$/;
+
+/**
+ * Who a bell row is about, where it is one person: what the edge wrote down (a kept row's subject), else where its
+ * door opens, a thread in the Inbox or a person's page. A derived row carries no subject (nothing wrote it down), and
+ * its door is the thread it was made from. The lists read it so a person with a note still unread says so on their
+ * row, as the bell does, and opening them reads the note (surfaces/seen.ts). Null for a row about anything else: a
+ * broadcast, a search, the workspace.
+ */
+export function noteWhose(row: { about?: { type: string; id: string } | null; to: string }): NoteWhose | null {
+  if (row.about?.type === "conversation") return { conversationId: row.about.id };
+  if (row.about?.type === "contact") return { personId: row.about.id };
+  const thread = THREAD_DOOR.exec(row.to);
+  if (thread?.[1]) return { conversationId: thread[1] };
+  const person = PERSON_DOOR.exec(row.to);
+  return person?.[1] ? { personId: person[1] } : null;
+}
+
 /** A derived missed-call row's key: this prefix plus the call's id (buildNotificationFeed). */
 const CALL_KEY_PREFIX = "call:";
 

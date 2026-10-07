@@ -69,6 +69,7 @@ export {
   verbForRoute,
   conversationOfNeedsKey,
   callOfKey,
+  noteWhose,
   serverNotificationRows,
   dedupeFeed,
   nameKnownCustomers,

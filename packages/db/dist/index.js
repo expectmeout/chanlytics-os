@@ -679,6 +679,37 @@ async function dismissPersonDoubt(db, doubtId) {
     settled_as: typeof o.settled_as === "string" ? o.settled_as : null
   };
 }
+var stampOf = (v) => typeof v === "string" ? v : null;
+async function contactSeen(db, tenantId, contactIds) {
+  const { data, error } = await db.rpc("contact_seen", { p_tenant_id: tenantId, p_contact_ids: [...contactIds] });
+  if (error) throw error;
+  const o = data ?? {};
+  const marks = Array.isArray(o.marks) ? o.marks : [];
+  return {
+    floor_at: stampOf(o.floor_at),
+    marks: marks.filter((m) => typeof m.contact_id === "string").map((m) => ({
+      contact_id: m.contact_id,
+      seen_at: stampOf(m.seen_at),
+      unread_at: stampOf(m.unread_at),
+      marked_at: stampOf(m.marked_at)
+    }))
+  };
+}
+async function markContact(db, contactId, mark) {
+  const { data, error } = await db.rpc("contact_mark", {
+    p_contact_id: contactId,
+    p_seen: mark.seen,
+    ...mark.heardAt ? { p_heard_at: mark.heardAt } : {}
+  });
+  if (error) throw error;
+  const o = data ?? {};
+  return {
+    contact_id: contactId,
+    seen_at: stampOf(o.seen_at),
+    unread_at: stampOf(o.unread_at),
+    marked_at: stampOf(o.marked_at)
+  };
+}
 
 // src/repositories/ingest.ts
 import {
@@ -4150,6 +4181,7 @@ export {
   contactEmailOf,
   contactIdByEmail,
   contactIdByPhone,
+  contactSeen,
   countSendingDomains,
   countSentToday,
   createList,
@@ -4244,6 +4276,7 @@ export {
   mailboxById,
   mailboxFor,
   mailboxOfTenant,
+  markContact,
   markHeldNotice,
   markPartnerPaid,
   markProcessed,

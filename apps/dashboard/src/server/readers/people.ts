@@ -18,6 +18,7 @@ import type { PeopleCursor } from "@chanlytics/db";
 import { withVisits, type PeopleVisits } from "../calendar/people-visits";
 import { dealPaceRead } from "../people/deals";
 import { stepNamer } from "../people/person-notes";
+import { seenOfPeople } from "../people/person-seen";
 import { followUpFacts } from "../campaigns/playbooks";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import { everyone } from "./everyone";
@@ -110,11 +111,17 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
     // Each person with their appointments from the owner's calendar, when one is connected: Booked is a fact here,
     // not a stage. Never fatal to the list, and said from the calendar's last good read while a newer one is fetched
     // behind it, as a person's page says them (person-visits.ts): what was booked, never an opening offered. And who
-    // each next step is for (00166), from the team, read only when a step is for someone.
-    const [out, sellsBy, nameSteps] = await Promise.all([
+    // each next step is for (00166), from the team, read only when a step is for someone. And what the member asking
+    // has seen of each (00349, people/person-seen.ts): the row says who is new to them, as the Inbox's does.
+    const [out, sellsBy, nameSteps, seenOf] = await Promise.all([
       withVisits(ctx, tenantId, rows, rc.now, () => zone, { stale: true }),
       buys,
       stepNamer(ctx, tenantId, rows),
+      seenOfPeople(
+        ctx,
+        tenantId,
+        rows.map((r) => r.id),
+      ),
     ]);
     const dealsOn = dealsAreOn(sellsBy);
     // A short page is the last: someone who wrote as the pages were read counts in the total, and is read first on the
@@ -122,7 +129,7 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
     const hasMore = rows.length === PEOPLE_PAGE && offset + rows.length < total;
     const data: PeoplePage = {
       ...out,
-      people: out.people.map(nameSteps),
+      people: out.people.map(nameSteps).map((p) => ({ ...p, ...seenOf(p.id) })),
       // Deals are on where the workspace says some customers get a proposal first (dealsAreOn, 0008): the Journey's
       // deal lists, the thread's menu item, the column. Consult-first stays a booking rule, sent for its own list; the
       // names of the services stay on the server.
