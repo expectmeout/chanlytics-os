@@ -146,10 +146,10 @@ const strip = (page, param = null) => {
 
 /* ------------------------------- the nav rail ------------------------------- */
 
-test("the nav is seven places, and Conversations is not one of them", () => {
+test("the nav is six places, Conversations is not one of them, and Settings is the account menu's", () => {
   assert.deepEqual(
     nav("home").map((i) => i.label),
-    ["Today", "Inbox", "People", "Calendar", "Campaigns", "Reports", "Settings"],
+    ["Today", "Inbox", "People", "Calendar", "Campaigns", "Reports"],
     "REGRESSION: Conversations was a second nav item over the table the Inbox already reads",
   );
 });

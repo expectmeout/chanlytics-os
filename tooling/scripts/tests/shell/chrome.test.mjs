@@ -224,7 +224,8 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     "window.__shell.switchWorkspace(w.id)",
     "window.__identity.words(me)",
     "data-tip={collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined}",
-    'window.dispatchEvent(new CustomEvent("shortcuts:open"))',
+    // The shortcuts sheet left the account menu (7 Oct 2026: it opens on ?); Settings came in from the sidebar's list.
+    'data-testid="sb-me-settings"',
     "window.__shell.createWorkspace();",
   ])
     assert.ok(sidebar.includes(pin), pin);

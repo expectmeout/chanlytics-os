@@ -58,18 +58,18 @@ test("REGRESSION: the rail button says Collapse, and its tip on the rail says Ex
   assert.deepEqual(keysDrawn(tree), [], "nor as a rail");
 });
 
-test("REGRESSION: the account menu's Keyboard shortcuts says only that, and still opens the sheet -- a ? stood beside it", () => {
+test("the account menu draws no key and no row for the shortcuts: the sheet opens on ?, and the menu holds Settings, Profile and Notifications", () => {
+  // Keyboard shortcuts left the menu (Ruben, 7 Oct 2026): a list of keys is found by its key. Settings came in from the sidebar's list.
   let tree = draw();
   press(byTestId(tree, "sb-account"));
   tree = redraw();
   const menu = byTestId(tree, "sb-account-menu");
   assert.ok(menu, "the menu is open");
-  assert.equal(textOf(byTestId(menu, "sb-me-shortcuts")), "Keyboard shortcuts");
+  assert.equal(byTestId(menu, "sb-me-shortcuts"), null);
   assert.deepEqual(keysDrawn(menu), []);
-  press(byTestId(menu, "sb-me-shortcuts"));
-  tree = redraw();
-  assert.equal(byTestId(tree, "sb-account-menu"), null, "the menu closes");
-  assert.ok(byTestId(tree, "shortcuts-sheet"), "and the sheet opens");
+  assert.equal(textOf(byTestId(menu, "sb-me-settings")), "Settings");
+  assert.match(textOf(byTestId(menu, "sb-me-name")), /^Profile/);
+  assert.equal(textOf(byTestId(menu, "sb-me-notifications")), "Notifications");
 });
 
 test("REGRESSION: the workspace menu names the workspaces and the one being viewed, with no ⌘1 or ⌘2 beside them", () => {
