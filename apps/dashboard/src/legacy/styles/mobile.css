@@ -31,6 +31,10 @@
   .side-wrap .sidebar {
     position: fixed;
     top: 0; left: 0;
+    /* It floats 14px clear of the top (components.css, .sidebar), or under the phone's own bar where the app is on the
+       home screen and that bar is taller (components.css, .app-root), and is never taller than what is left. */
+    margin-top: max(14px, env(safe-area-inset-top, 0px));
+    max-height: calc(100% - 14px - max(14px, env(safe-area-inset-top, 0px)));
     z-index: 220;
     /* The desktop sidebar's own 248px (Ruben, 25 Sep): at 300 its words ended by 190 and the rest of it was empty. */
     width: min(248px, 84vw);
@@ -703,7 +707,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      over it, it hid the island whole (66 to 110px), the one door to Live, for as long as drafts waited. The strip of
      views it stands over is what it covers in Classic too. */
   .main:has(> .live-bar) .ix-sending-strip {
-    top: 118px;
+    top: calc(118px + env(safe-area-inset-top, 0px));
   }
   /* A page that takes the screen over (data-takeover on its root, above) is headed by its own person or call: the
      frame's head and strip of views, the tab bar and the room kept for it leave. */
