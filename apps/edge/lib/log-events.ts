@@ -575,6 +575,7 @@ export const LOG_EVENTS = [
   "wa_skip_workspace_paused",
   "wa_stale_escalated",
   "wa_standing_keep_failed",
+  "wa_standing_read",
   "wa_standing_read_failed",
   "wa_standing_tell_failed",
   "wa_standing_told",

@@ -48,7 +48,8 @@ let popoverLoading: Promise<PopoverModule> | null = null;
 
 /** What the button opens, loaded once for the tab; a test loads it before drawing the page. */
 export function loadPeriodPopover(): Promise<PopoverModule> {
-  popoverLoading ??= import("./period-popover").then((loaded) => (popoverModule = loaded));
+  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
+  popoverLoading ??= import("./period-popover").then(({ PeriodPopover }) => (popoverModule = { PeriodPopover }));
   return popoverLoading;
 }
 

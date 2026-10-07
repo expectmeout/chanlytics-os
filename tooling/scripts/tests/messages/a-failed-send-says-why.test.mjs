@@ -34,7 +34,10 @@ test("a code whose meaning is documented is said in plain words, with its number
     "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now (WhatsApp error 131047).",
   );
   assert.match(wa(131026), /^WhatsApp couldn't deliver it: their number may not be on WhatsApp/);
-  assert.match(wa(131049), /^WhatsApp chose not to deliver it/);
+  assert.match(
+    wa(131049),
+    /^WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now/,
+  );
 
   const sms = (code) => sendFailureWords({ carrier: "undelivered", code: String(code) }, "sms");
   assert.equal(sms(21610), "They've opted out of texts from your number (Twilio error 21610).");

@@ -64,7 +64,8 @@ test.describe("sidebar on a real workspace", () => {
       await page.reload();
       await page.waitForLoadState("networkidle");
       await expect(page.getByTestId("sidebar")).toHaveClass(/collapsed/);
-      await page.getByTestId("sb-collapse").click();
+      // Glass draws no Collapse button (components.css: the sidebar is as tall as its places), so the key opens it too.
+      await page.keyboard.press("Control+b");
       await expect(page.getByTestId("sidebar")).not.toHaveClass(/collapsed/);
 
       // The sheet on "?", closed on Escape.

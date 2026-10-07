@@ -2428,13 +2428,13 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["rpc:team_roster", null],
   // 3 Oct 2026: what the workspace can send on, with the first page (readers/facts.ts channelsReady): its WhatsApp
   // number, and its texting line. The mailbox is read only where the deployment has an email domain.
-  ["tenant_channels.select", "config"],
+  ["tenant_channels.select", "config, number_e164"],
   ["lines.select", "sms_state, reg_mock"],
   ["deals.select", "id, stage, proposed_at, decided_at"],
   ["playbooks.select", "id, state, run_hour, last_run_for, template_name, template_language"],
   ["policies.select", "mode"],
   ["tenants.select", "status"],
-  ["tenant_channels.select", "config"],
+  ["tenant_channels.select", "config, number_e164"],
   ["deals.select", "id, contact_id, proposed_at"],
   // 3 Oct 2026: the channels the follow-up ticks (db playbookChannels), beside its template: the number and Meta's
   // approval stop only a follow-up that goes by WhatsApp.
@@ -2464,7 +2464,7 @@ const PEOPLE_ASKED_NOW = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["rpc:people_list", null],
   ["tenants.select", "sells_by"],
-  ["tenant_channels.select", "config"],
+  ["tenant_channels.select", "config, number_e164"],
   ["lines.select", "sms_state, reg_mock"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
@@ -2474,7 +2474,7 @@ const PEOPLE_ASKED_NOW = [
   ["playbooks.select", "id, state, run_hour, last_run_for, template_name, template_language"],
   ["policies.select", "mode"],
   ["tenants.select", "status"],
-  ["tenant_channels.select", "config"],
+  ["tenant_channels.select", "config, number_e164"],
   ["deals.select", "id, contact_id, proposed_at"],
   ["rpc:team_roster", null],
   ["playbooks.select", "channels"],
@@ -3223,7 +3223,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     want.splice(
       want.findIndex(([k]) => k === "broadcasts.select"),
       0,
-      ["tenant_channels.select", "config"],
+      ["tenant_channels.select", "config, number_e164"],
       ["lines.select", "sms_state, reg_mock"],
       ["tenants.select", "status"],
     );

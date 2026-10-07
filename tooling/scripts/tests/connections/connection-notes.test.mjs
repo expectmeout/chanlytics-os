@@ -43,10 +43,10 @@ const own = (over = {}) => ({
 const by = (rows) => Object.fromEntries(rows.map((r) => [r.kind, r]));
 const rowsOf = (inputs) => by(connectionRows({ ...base(), ...inputs }, NOW));
 
-/** What WhatsApp costs: who bills it, what is free, what is charged, in one line, and Meta's own page for the prices (no rate is written here). */
+/** What WhatsApp costs: who bills it, the card Meta asks for, what is free, what is charged, in one line, and Meta's own page for the prices (no rate is written here). */
 const COST = [
   {
-    text: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.",
+    text: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill, so add one when Meta asks: replies within 24 hours of a customer's message are free; reminders sent after that, and campaigns, are charged for each one Meta delivers.",
     link: { label: "Meta's current prices", href: "https://business.whatsapp.com/products/platform-pricing#rates" },
   },
 ];
@@ -58,17 +58,11 @@ const CODE_NO_LINE = {
 const CODE_OWN_LINE = {
   text: "Meta texts a code to the number. If it is your Chanlytics number, +1 (646) 555-0100, the code shows here on the Texting row: choose Text message, not Phone call. Keep this page open until Meta's window closes.",
 };
-/** The notes the Connect row says before Meta's window opens: what it asks, in the order it asks, and what it costs; one line each. */
+/** The three notes the Connect row says before Meta's window opens: what it asks, in the order it asks, and what it costs; one line each. */
 const preflight = (code) => [
   { text: "Meta asks you to sign in with Facebook and choose or create your business." },
   code,
   ...COST,
-  {
-    text: "Add a payment method when Meta asks for one: without it, replies still go out, but reminders and campaigns are not delivered.",
-  },
-  {
-    text: "Until Meta verifies your business, it can start conversations with 250 people a day; replies to customers who write first are not limited.",
-  },
 ];
 const PREFLIGHT = preflight(CODE_NO_LINE);
 /** What the row says of a sign-up that was started here and did not come back. */
@@ -76,7 +70,7 @@ const LEFT_OPEN = {
   text: "A WhatsApp sign-up was started here and did not come back to Chanlytics — if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.",
 };
 
-test("the WhatsApp row that offers Connect says what Meta will ask and what WhatsApp costs, in the order the owner meets them, and to keep the page open until the window closes; the limit it names is the one the product knows", () => {
+test("the WhatsApp row that offers Connect says what Meta will ask and what WhatsApp costs, in the order the owner meets them, and to keep the page open until the window closes: three lines", () => {
   const r = rowsOf({}).whatsapp;
   assert.equal(r.verb.to, "verb:whatsapp-connect");
   assert.deepEqual(r.notes, PREFLIGHT);
@@ -136,8 +130,8 @@ test("a sign-up started on the page that did not come back is named first, while
   );
   assert.deepEqual(
     rowsOf({ signupLeftOpenAt: mark, channels: [connected] }).whatsapp.notes,
-    COST,
-    "a connected row says what it costs, and nothing of the sign-up",
+    [],
+    "a connected row says nothing of the sign-up, and nothing of what it costs",
   );
 });
 
@@ -159,8 +153,8 @@ test("a WhatsApp row that does not offer Connect says none of the sign-up: still
   // (What a connected number says of what Meta holds, and of how to try it from a phone: whatsapp-standing.test.mjs.)
   assert.deepEqual(
     rowsOf({ channels: [connected] }).whatsapp.notes,
-    COST,
-    "nothing read yet from Meta: what WhatsApp costs, and no more",
+    [],
+    "nothing read yet from Meta, a message arrived: nothing to say, and what WhatsApp costs is the Connect row's and Billing's",
   );
 });
 
