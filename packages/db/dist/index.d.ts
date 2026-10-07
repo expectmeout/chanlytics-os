@@ -37146,9 +37146,11 @@ declare function campaignSeries(db: Db$m, tenantId: string, days: number): Promi
 /**
  * The reviews on record for the Reviews lens, over `days` and the period before (`reviews_ledger`, 00346): the profile's
  * reviews dated in the workspace's own zone, the counts, the oldest few that wait. Contracts' `isReviewsLedgerDto` tells
- * its answer from `{ error: "unknown_tenant" }`.
+ * its answer from `{ error: "unknown_tenant" }`. Null is a database that does not have the function yet: the dashboard
+ * deploys at the merge and 00346 goes to production on the owner's word, so for that window every read answers it, and
+ * the lens draws the listing alone (the function itself never answers null). Any other failure throws.
  */
-declare function reviewsLedger(db: Db$m, tenantId: string, days: number): Promise<Json>;
+declare function reviewsLedger(db: Db$m, tenantId: string, days: number): Promise<Json | null>;
 /**
  * What the workspace's reach-outs wrote over `days`, and what came of it (`reach_out_report`, 00241). The function raises
  * contracts' own refusals with a code the door words (not found, not as it may be); they come back as they are, not thrown.

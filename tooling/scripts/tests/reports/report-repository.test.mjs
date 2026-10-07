@@ -3,7 +3,8 @@
  * over whatever client the caller holds (the session's, so RLS decides what a member reads). A read that fails throws;
  * the reach-outs' say the database's refusal with its code, for the door to word. The reviews' ledger (`reviews_ledger`)
  * is one of them: its counts, its window in the workspace's zone and who wrote each reply are SQL's, held by
- * google/google-reviews-ledger.db.test.mjs over a real database.
+ * google/google-reviews-ledger.db.test.mjs over a real database. It alone answers null where the database does not have
+ * its function yet (00346 is applied after the dashboard deploys).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -49,4 +50,22 @@ test("a read that fails throws, never nothing; the reach-outs' refusal keeps the
     code: "P0002",
     message: "No workspace.",
   });
+});
+
+test("a database that does not have the reviews' ledger yet (00346 not applied) answers null, and only that: any other refusal throws, and no other function is excused", async () => {
+  const gone = "Could not find the function public.reviews_ledger(p_days, p_tenant_id) in the schema cache";
+  const refusedWith = (code) => ({ data: null, error: { message: gone, code } });
+  for (const code of ["PGRST202", "42883"])
+    assert.equal(await reviewsLedger(dbWith({ reviews_ledger: refusedWith(code) }).db, W, 30), null, code);
+  for (const code of ["42501", "08006", undefined])
+    await assert.rejects(
+      reviewsLedger(dbWith({ reviews_ledger: refusedWith(code) }).db, W, 30),
+      /reviews_ledger: Could not find the function/,
+      `${code}`,
+    );
+  await assert.rejects(
+    reportSeries(dbWith({ report_series: refusedWith("PGRST202") }).db, W, 30),
+    /report_series: Could not find the function/,
+    "the series is the report's own: a database without it is a failure, not a lens that draws less",
+  );
 });

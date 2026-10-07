@@ -154,6 +154,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "resolve_escalation_failed",
   "resolve_escalation_noop",
   "resolve_link_decision_failed",
+  "reviews_ledger_missing",
   "route_answered",
   "route_failed",
   "route_refused",

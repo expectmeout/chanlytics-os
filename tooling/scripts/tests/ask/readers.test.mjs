@@ -20,6 +20,7 @@ import {
   toCallVM,
   toPersonVM,
   toReportVM,
+  toReviewsReportVM,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
@@ -672,22 +673,24 @@ test("searches: GET lead-searches' answer -- every kept search with its latest r
 /* -------------------------------------- the Inbox and Today, as the page composes them */
 
 /**
- * What `fn` logged under one event name: a logger line's fields (src/server/log.ts, and the packages', which write
- * through the same logger), or a positional line's values after its name.
+ * What `fn` logged under one event name, at error or warn: a logger line's fields (src/server/log.ts, and the packages',
+ * which write through the same logger), or a positional line's values after its name.
  */
 async function logged(event, fn) {
   const lines = [];
-  const was = console.error;
-  console.error = (...args) => {
+  const was = { error: console.error, warn: console.warn };
+  const hear = (...args) => {
     const line = logLineOf(args);
     if (line) {
       if (line.event === event) lines.push(fieldsOf(line));
     } else if (args[0] === event) lines.push(args.slice(1));
   };
+  console.error = console.warn = hear;
   try {
     return { result: await fn(), lines };
   } finally {
-    console.error = was;
+    console.error = was.error;
+    console.warn = was.warn;
   }
 }
 
@@ -2106,6 +2109,62 @@ test("the reviews' report of a workspace with no listing answers `ledger: null`;
   const unknown = { ...reviewsWorld(), rpcs: { reviews_ledger: () => ({ error: "unknown_tenant" }) } };
   await assert.rejects(kernel.load(turnIn(worldCtx(unknown)), reviewsReport, { days: 30 }), noReport);
   await assert.rejects(reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(unknown)), noReport);
+});
+
+test("the reviews' report on a database that does not have the ledger's function yet (00346 not applied) draws the listing alone: GET reports/reviews answers 200 with `ledger: null` and Google's read, said once in the log with the workspace; the fold's head is the listing's sentence, and any other refusal is still the route's failure", async () => {
+  const gone = Object.assign(
+    new Error("Could not find the function public.reviews_ledger(p_days, p_tenant_id) in the schema cache"),
+    { code: "PGRST202" },
+  );
+  const absent = {
+    ...reviewsWorld(),
+    rpcs: {
+      reviews_ledger: () => {
+        throw gone;
+      },
+    },
+  };
+  const { ready: _ready, ...google } = (await googleRoute.GET.run(req(`?workspace=${A}`), worldCtx(reviewsWorld())))
+    .google;
+  const { result: page, lines } = await logged("reviews_ledger_missing", () =>
+    reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(absent)),
+  );
+  assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "google", "readable", "ledger"]);
+  assert.equal(page.ledger, null);
+  assert.equal(
+    JSON.stringify(page.google),
+    JSON.stringify(google),
+    "Google as GET google reads it, listing and reviews",
+  );
+  assert.deepEqual([page.timezone, page.days, page.readable], ["Pacific/Auckland", 30, true]);
+  assert.deepEqual(
+    lines,
+    [{ tenant_id: A }],
+    "the window is visible in the logs, once for the read, naming the workspace",
+  );
+
+  const { result: r } = await logged("reviews_ledger_missing", () =>
+    kernel.load(turnIn(worldCtx(absent)), reviewsReport, { days: 30 }),
+  );
+  assert.deepEqual(r.data, page, "Ask's reader answers what the route does");
+
+  const vm = toReviewsReportVM(page, { nowMs: Date.parse("2026-10-06T14:00:00Z") });
+  assert.deepEqual([vm.state, vm.source, vm.waiting.total], ["linked", "places", 0]);
+  assert.match(vm.lines.head, /^4\.8 on Google from 213 reviews; /, "the head says the listing's sentence");
+
+  // A different code is not this window: the route fails as it does for any ledger that cannot be read.
+  const denied = {
+    ...reviewsWorld(),
+    rpcs: {
+      reviews_ledger: () => {
+        throw Object.assign(new Error("permission denied for function reviews_ledger"), { code: "42501" });
+      },
+    },
+  };
+  const unsaid = await logged("reviews_ledger_missing", async () => {
+    await assert.rejects(reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(denied)), /permission denied/);
+  });
+  assert.deepEqual(unsaid.lines, [], "and the log does not call it the missing function");
 });
 
 /* ----------------------------------------------------------------------- the calendar (PR 1.5) */
