@@ -736,8 +736,11 @@ test("REGRESSION (C19): with no approved template, the composer's hint opens Mes
   const tree = homeAt("new:every");
   const hint = byTestId(tree, "pb-no-template");
   assert.ok(hint, "the composer is open on a workspace with no template");
-  const door = find(hint, (n) => n.type === "button");
+  // A door is a link inside its sentence: its address in the href, the app's own way there on a press. As a button it took
+  // the touch floor's 44px and broke the sentence on a phone (7 Oct 2026).
+  const door = find(hint, (n) => n.type === "a");
   assert.ok(door, "REGRESSION: 'Campaigns › Messages' as words");
+  assert.match(door.props.href, /messages$/, "the Library's own address, for a new tab or a long press");
   press(door);
   assert.deepEqual(went, ["messages"]);
 });
