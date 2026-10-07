@@ -645,7 +645,7 @@ function calendarRow(i: ConnectionInputs): Draft {
       detail: "iCal feed",
       state: "connected",
       stateWords: CALENDAR_FEED_WORDS.ok,
-      sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
+      sentence: "The receptionist offers times from it. Booking emails from your tool add the client and the service.",
       verb: { label: "Open Calendar", to: "calendar", who: "operator" },
     };
   }
@@ -665,7 +665,7 @@ function calendarRow(i: ConnectionInputs): Draft {
     state: "none",
     stateWords: CALENDAR_FEED_WORDS.none,
     sentence:
-      "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
+      "Paste your calendar's iCal address so the receptionist knows what is taken. Booking emails from your tool can fill the board too.",
     verb: { label: "Paste the address", to: "admin/workspace", who: "owner" },
   };
 }

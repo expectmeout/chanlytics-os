@@ -123,6 +123,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST contacts/[id]/notes/remove": people,
   // A receptionist's suggestion kept becomes a note, perhaps a step: the same rows move.
   "POST contacts/[id]/notes/decide": people,
+  // Not the same (0034 step 4): the pair leaves the person's page, which reads itself again; People's rows are as they were.
+  "POST contacts/[id]/doubts/dismiss": people,
   "POST contacts": peopleAndAudiences,
   "POST contacts/import": peopleAndAudiences,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
@@ -203,6 +205,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     setupOverride,
     ...readiness(),
   ],
+  // A booking email held for a look, read again or dismissed (00345): the Calendar's read carries the held list and its
+  // count, which the Business tab's fold and the board's card both draw from, so the list says what is left at once.
+  "POST calendar/notices/[id]/read-again": () => [calendarOverride],
+  "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
   // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006), and the Reviews
   // lens's, of a review, whether its composer asks the receptionist for a draft.
   "PUT policies": () => [settingsOverride, peopleOverride, reviewsOverride],

@@ -164,6 +164,110 @@ COMMENT ON FUNCTION public.ai_usage_purge(p_keep interval) IS 'Drops ledger rows
 
 
 --
+-- Name: appointments_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if NEW.status is distinct from OLD.status then
+    if OLD.status in ('kept', 'missed', 'cancelled') then
+      raise exception 'appointments.status is terminal (% -> % refused)', OLD.status, NEW.status
+        using errcode = 'check_violation';
+    end if;
+    if OLD.status = 'proposed' and NEW.status not in ('booked', 'cancelled') then
+      raise exception 'a proposed appointment may only be booked or cancelled (% refused)', NEW.status
+        using errcode = 'check_violation';
+    end if;
+  end if;
+  return NEW;
+end $$;
+
+
+--
+-- Name: appointments_scrub(uuid, uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_needles  text[];
+  v_patterns text[];
+  v_needle   text;
+  v_subject  text;
+  v_changed  integer := 0;
+  v_ids      uuid[];
+  r          record;
+begin
+  select coalesce(array_agg(n order by char_length(n) desc, n), '{}')
+    into v_needles
+    from (select distinct lower(btrim(x)) as n from unnest(coalesce(p_needles, '{}'::text[])) x) d
+   where char_length(n) >= 6;
+
+  -- The visits that are theirs: by the person the read linked, or by a number or an address the notice named.
+  with theirs as (
+    update public.appointments a
+       set client_name  = null,
+           client_phone = null,
+           client_email = null,
+           note         = null,
+           title        = null,
+           external_id  = 'erased:' || a.id::text
+     where a.tenant_id = p_tenant_id
+       and (a.contact_id = p_contact_id
+            or (a.client_phone is not null and lower(a.client_phone) = any (v_needles))
+            or (a.client_email is not null and lower(a.client_email) = any (v_needles)))
+       and a.external_id is distinct from 'erased:' || a.id::text
+    returning a.id
+  )
+  select coalesce(array_agg(id), '{}') into v_ids from theirs;
+  v_changed := cardinality(v_ids);
+
+  -- The notices that made those visits say nothing of who: the subject carries the name.
+  update public.appointment_notices n
+     set subject = null
+   where n.tenant_id = p_tenant_id
+     and n.appointment_id = any (v_ids)
+     and n.subject is not null;
+
+  -- Any other notice whose subject names them, as other people's notes are scrubbed (00341).
+  if cardinality(v_needles) > 0 then
+    select array_agg('%' || replace(replace(replace(n, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+      into v_patterns
+      from unnest(v_needles) n;
+    for r in
+      select n.id, n.subject
+        from public.appointment_notices n
+       where n.tenant_id = p_tenant_id
+         and n.subject is not null
+         and lower(n.subject) like any (v_patterns)
+         for update
+    loop
+      v_subject := r.subject;
+      foreach v_needle in array v_needles loop
+        v_subject := regexp_replace(v_subject, regexp_replace(v_needle, '([^[:alnum:]])', '\\\1', 'g'), '[erased]', 'gi');
+      end loop;
+      if v_subject is distinct from r.subject then
+        update public.appointment_notices set subject = v_subject where id = r.id;
+      end if;
+    end loop;
+  end if;
+  return v_changed;
+end $$;
+
+
+--
+-- Name: FUNCTION appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'An erasure''s hand in the appointments (decision 0036): the person''s visits keep their time and service and lose the client''s name, number, address and note; the notices that made them, and any whose subject names them, lose the name. Answers how many visits changed. Service role only.';
+
+
+--
 -- Name: ask_for_tick(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -983,7 +1087,7 @@ CREATE TABLE public.jobs (
     lane smallint GENERATED ALWAYS AS (
 CASE
     WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0
-    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1
+    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text])) THEN 1
     WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2
     WHEN (kind = 'event_deliver'::text) THEN
     CASE
@@ -992,7 +1096,7 @@ CASE
     END
     ELSE NULL::integer
 END) STORED,
-    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text]))),
+    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
 
@@ -1015,7 +1119,7 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 -- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334); null for a kind the case does not name, claimed last.';
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver row carries its subscription''s lane.';
 
 
 --
@@ -3836,6 +3940,7 @@ declare
   v_follow_up       text := nullif(btrim(p_analysis->>'follow_up'), '');
   v_caller_name     text := nullif(btrim(p_analysis->>'caller_name'), '');
   v_analysis        jsonb := case when jsonb_typeof(p_analysis) = 'object' and p_analysis <> '{}'::jsonb then p_analysis end;
+  v_person          jsonb;
 begin
   -- Only the call's own workspace's line (00164): whatever agent id it
   -- carries, a call is never filed under another workspace's channel.
@@ -3854,27 +3959,19 @@ begin
     from calls where tenant_id = p_tenant_id and retell_call_id = p_retell_call_id;
 
   if p_from_e164 is not null then
-    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|voice|' || p_from_e164, 42));
-
-    select contact_id into v_contact_id from contact_identities
-     where tenant_id = p_tenant_id and channel = 'voice' and external_id = p_from_e164;
-
-    if v_contact_id is null then
-      select id into v_contact_id from contacts
-       where tenant_id = p_tenant_id and phone_e164 = p_from_e164;
+    -- The caller, through the one door (00342, 00344), once per call: a row that already names them is read, not
+    -- resolved again, so a live call's every transcript turn writes nothing of the person. The door takes the voice
+    -- identity's lock this door took before it, keeps the identity, and moves last_seen_at to the call's start only
+    -- forward.
+    if v_had_row then
+      select contact_id into v_contact_id from calls
+       where tenant_id = p_tenant_id and retell_call_id = p_retell_call_id;
     end if;
-
     if v_contact_id is null then
-      insert into contacts (tenant_id, phone_e164, last_seen_at)
-      values (p_tenant_id, p_from_e164, greatest(v_ts, now() - interval '10 years'))
-      on conflict (tenant_id, phone_e164) where phone_e164 is not null
-        do update set last_seen_at = greatest(contacts.last_seen_at, excluded.last_seen_at)
-      returning id into v_contact_id;
+      v_person := public.resolve_person(p_tenant_id, 'voice', p_from_e164, p_from_e164, null, null, 'observed', 'call',
+                                        '{}'::jsonb, greatest(v_ts, now() - interval '10 years'));
+      v_contact_id := (v_person->>'contact_id')::uuid;
     end if;
-
-    insert into contact_identities (tenant_id, contact_id, channel, external_id)
-    values (p_tenant_id, v_contact_id, 'voice', p_from_e164)
-    on conflict (tenant_id, channel, external_id) do nothing;
 
     insert into conversations (tenant_id, contact_id, last_message_at, last_inbound_at)
     values (p_tenant_id, v_contact_id, v_ts, v_ts)
@@ -4003,7 +4100,7 @@ end $$;
 CREATE FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb DEFAULT NULL::jsonb, p_meta jsonb DEFAULT '{}'::jsonb, p_opt_out boolean DEFAULT false, p_opt_in boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_contact_id      uuid;
   v_conversation_id uuid;
@@ -4015,33 +4112,19 @@ declare
   v_consent         text;
   v_dnc             boolean;
   v_ts              timestamptz := coalesce(p_channel_ts, now());
+  v_person          jsonb;
 begin
-  -- serialize per identity: closes the NULL-phone concurrent-first-message race
-  perform pg_advisory_xact_lock(
-    hashtextextended(p_tenant_id::text || '|' || p_channel || '|' || p_identity_external_id, 42));
-
-  select contact_id into v_contact_id
-    from contact_identities
-   where tenant_id = p_tenant_id and channel = p_channel and external_id = p_identity_external_id;
-
-  if v_contact_id is null and p_phone_e164 is not null then
-    select id into v_contact_id from contacts
-     where tenant_id = p_tenant_id and phone_e164 = p_phone_e164;
-  end if;
-
-  if v_contact_id is null then
-    insert into contacts (tenant_id, phone_e164, wa_profile_name, last_seen_at)
-    values (p_tenant_id, p_phone_e164, p_wa_profile_name, now())
-    on conflict (tenant_id, phone_e164) where phone_e164 is not null
-      do update set last_seen_at = now(),
-                    wa_profile_name = coalesce(excluded.wa_profile_name, contacts.wa_profile_name)
-    returning id into v_contact_id;
-  else
-    update contacts
-       set last_seen_at = now(),
-           wa_profile_name = coalesce(p_wa_profile_name, wa_profile_name)
-     where id = v_contact_id;
-  end if;
+  -- The person, through the one door (00342, 00344): the wire's identity, the number, and the address when the wire
+  -- is email; what they called themselves follows the wire; seen now. The door takes the identity's lock this door
+  -- took before it, so two first messages still make one person, and keeps the identity.
+  v_person := public.resolve_person(
+    p_tenant_id, p_channel, p_identity_external_id, p_phone_e164,
+    case when p_channel = 'email'
+          and char_length(p_identity_external_id) between 3 and 254
+          and p_identity_external_id ~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$'
+         then p_identity_external_id end,
+    p_wa_profile_name, 'observed', 'inbound', '{}'::jsonb, now());
+  v_contact_id := (v_person->>'contact_id')::uuid;
 
   if p_opt_out then
     update contacts
@@ -4075,10 +4158,6 @@ begin
   -- Read back AFTER the update above, so a STOP arriving in this very batch is
   -- already reflected in what the caller is told.
   select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;
-
-  insert into contact_identities (tenant_id, contact_id, channel, external_id)
-  values (p_tenant_id, v_contact_id, p_channel, p_identity_external_id)
-  on conflict (tenant_id, channel, external_id) do nothing;
 
   -- monotone recency: a replayed/out-of-order old message can never rewind
   insert into conversations (tenant_id, contact_id, last_message_at, last_inbound_at)
@@ -4142,7 +4221,7 @@ begin
     'contact_id', v_contact_id, 'is_new', true, 'processed', false,
     'state', v_state, 'paused_until', v_paused,
     'consent', v_consent, 'dnc', v_dnc);
-end $$;
+end $_$;
 
 
 --
@@ -7142,39 +7221,18 @@ begin
     if v_lead.contact_id is not null then
       v_contact := v_lead.contact_id;
       v_existed := true;
-    elsif v_lead.phone_e164 ~ '^\+[1-9][0-9]{7,14}$' then
-      -- create_person is get-or-create by number (00053), so the workspace
-      -- never gets a second person for a number it already has (25), and its
-      -- contact.added event with source 'lead' is what People reads back as
-      -- "A lead you found" (00138).
-      v_made    := public.create_person(v_lead.tenant_id, v_lead.phone_e164, left(nullif(v_lead.business_name, ''), 80), 'lead');
+    else
+      -- The person, through the one door (00342, 00344): whose number this is, else whose address, else a new one
+      -- named for the business, as the finder's word (found), with the lead on the added event (what People reads
+      -- back as "A lead you found", 00138), the address filled where nobody here holds it, and a person who asked to
+      -- be forgotten refused (PE001). A number not in international form is no number.
+      v_made := public.resolve_person(
+        v_lead.tenant_id, null, null,
+        case when v_lead.phone_e164 ~ '^\+[1-9][0-9]{7,14}$' then v_lead.phone_e164 end,
+        v_lead.email, left(nullif(v_lead.business_name, ''), 80), 'found', 'lead',
+        jsonb_build_object('lead_id', p_lead_id));
       v_contact := (v_made->>'contact_id')::uuid;
       v_existed := coalesce((v_made->>'existed')::boolean, false);
-      -- 00125's door adds the address to a person created by phone, but only
-      -- when they have none and nobody else here holds it: a unique violation
-      -- inside this door would lose the whole act.
-      if v_lead.email is not null
-         and not exists (select 1 from public.contacts c where c.id = v_contact and c.email is not null)
-         and not exists (select 1 from public.contacts c where c.tenant_id = v_lead.tenant_id and c.email = lower(btrim(v_lead.email))) then
-        perform public.set_person_email(v_contact, v_lead.email);
-      end if;
-    else
-      -- A lead with no number converts the way an email-only person arrives:
-      -- the address is the identity, and the same contact.added event says
-      -- where they came from.
-      select c.id into v_contact from public.contacts c
-       where c.tenant_id = v_lead.tenant_id and c.email = lower(btrim(coalesce(v_lead.email, '')))
-         and c.erased_at is null and c.merged_into_contact_id is null
-       limit 1;
-      v_existed := v_contact is not null;
-      if v_contact is null then
-        insert into public.contacts (tenant_id, display_name, email)
-        values (v_lead.tenant_id, left(nullif(v_lead.business_name, ''), 80), nullif(lower(btrim(coalesce(v_lead.email, ''))), ''))
-        returning id into v_contact;
-        insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
-        values (v_lead.tenant_id, 'contact.added', 'contact', 'contact', v_contact,
-                jsonb_build_object('source', 'lead', 'title', null, 'by', v_user));
-      end if;
     end if;
   end if;
 
@@ -7882,6 +7940,31 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: member_has_address(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists (
+    select 1
+      from public.memberships m
+      join auth.users u on u.id = m.user_id
+     where m.tenant_id = p_tenant_id
+       and lower(u.email) = lower(btrim(p_address))
+  );
+$$;
+
+
+--
+-- Name: FUNCTION member_has_address(p_tenant_id uuid, p_address text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) IS 'Is this address a member''s of the workspace: how the intake trusts a booking notice a person forwarded by hand (00345). Service role only.';
 
 
 --
@@ -11140,6 +11223,86 @@ COMMENT ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_qu
 
 
 --
+-- Name: person_doubt_dismiss(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_row  public.person_doubts%rowtype;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_row from public.person_doubts d where d.id = p_doubt_id for update;
+  if v_row.id is null or not public.is_acting_member(v_row.tenant_id) then
+    raise exception 'Not found.' using errcode = 'P0002';
+  end if;
+  if v_row.settled_as = 'merged' then
+    raise exception 'These two records were merged already.' using errcode = '22023';
+  end if;
+  if v_row.settled_at is null then
+    update public.person_doubts
+       set settled_at = now(), settled_as = 'not_the_same', settled_by = v_user
+     where id = p_doubt_id
+     returning * into v_row;
+  end if;
+  return jsonb_build_object('doubt_id', v_row.id, 'contact_id', v_row.contact_id, 'other_id', v_row.other_id,
+                            'settled_as', v_row.settled_as, 'settled_at', v_row.settled_at);
+end $$;
+
+
+--
+-- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) IS 'Not the same (decision 0034, step 4): a member settles a doubt, and the pair is never raised again by the next arrival. Twice is once; a pair the merge settled is refused in words.';
+
+
+--
+-- Name: person_doubts_on_contact_change(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_doubts_on_contact_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_keep uuid := new.merged_into_contact_id;
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    delete from public.person_doubts d where d.contact_id = new.id or d.other_id = new.id;
+  end if;
+  if v_keep is not null and old.merged_into_contact_id is null then
+    -- The pair itself: settled by the merge.
+    update public.person_doubts d
+       set settled_at = now(), settled_as = 'merged', settled_by = auth.uid()
+     where d.tenant_id = new.tenant_id and d.settled_at is null
+       and ((d.contact_id = new.id and d.other_id = v_keep) or (d.contact_id = v_keep and d.other_id = new.id));
+    -- A third record's doubt with the merged one is the kept record's now, unless the kept record already has the pair.
+    delete from public.person_doubts d
+     where d.tenant_id = new.tenant_id and d.settled_at is null
+       and (d.contact_id = new.id or d.other_id = new.id)
+       and exists (
+         select 1 from public.person_doubts k
+          where k.tenant_id = d.tenant_id and k.id <> d.id
+            and least(k.contact_id, k.other_id) = least(v_keep, case when d.contact_id = new.id then d.other_id else d.contact_id end)
+            and greatest(k.contact_id, k.other_id) = greatest(v_keep, case when d.contact_id = new.id then d.other_id else d.contact_id end));
+    update public.person_doubts d
+       set contact_id = least(v_keep, d.other_id), other_id = greatest(v_keep, d.other_id)
+     where d.tenant_id = new.tenant_id and d.settled_at is null and d.contact_id = new.id and d.other_id <> v_keep;
+    update public.person_doubts d
+       set contact_id = least(v_keep, d.contact_id), other_id = greatest(v_keep, d.contact_id)
+     where d.tenant_id = new.tenant_id and d.settled_at is null and d.other_id = new.id and d.contact_id <> v_keep;
+  end if;
+  return new;
+end $$;
+
+
+--
 -- Name: person_moments_calls_added(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14138,6 +14301,7 @@ declare
   v_contact uuid;
   v_conv uuid;
   v_made boolean := false;
+  v_person jsonb;
 begin
   select * into v_lead from public.leads
    where id = p_lead_id and tenant_id = p_tenant_id and erased_at is null and blanked_at is null
@@ -14160,25 +14324,27 @@ begin
                    where i.tenant_id = p_tenant_id and i.channel = 'email' and i.external_id = v_email) then
       return jsonb_build_object('refused', 'already_yours');
     end if;
-    -- The person, made with the lead-link trigger told this insert is not a lead converting. A person with the address
-    -- made meanwhile (another lead's claim, an email in) is somebody's already; an address People cannot hold is none.
-    -- Either refuses, and the switch goes back with the failed insert.
+    -- The person, through the one door (00342, 00344), with the lead-link trigger told this is not a lead converting:
+    -- the address as the identity, the finder's word (found), the lead on the added event, `by` the sender. A person
+    -- the door finds instead of making (another lead's claim, an email in, between the look above and here) is
+    -- somebody's already; an address People cannot hold is none; a person who asked to be forgotten is left alone.
+    -- Each refuses, and the door's writes go back with the refusal (the block is its own transaction).
     begin
       perform set_config('chanlytics.link_lead', 'off', true);
-      insert into public.contacts (tenant_id, display_name, email)
-      values (p_tenant_id, left(nullif(v_lead.business_name, ''), 80), v_email)
-      returning id into v_contact;
+      v_person := public.resolve_person(p_tenant_id, 'email', v_email, null, v_email,
+                                        left(nullif(v_lead.business_name, ''), 80), 'found', 'lead',
+                                        jsonb_build_object('lead_id', p_lead_id, 'by', 'reach_out'));
       perform set_config('chanlytics.link_lead', 'on', true);
+      if coalesce((v_person->>'existed')::boolean, false) then
+        raise exception 'already_yours' using errcode = 'P0003';
+      end if;
+      v_contact := (v_person->>'contact_id')::uuid;
     exception
+      when sqlstate 'P0003' then return jsonb_build_object('refused', 'already_yours');
+      when sqlstate 'PE001' then return jsonb_build_object('refused', 'erased');
       when unique_violation then return jsonb_build_object('refused', 'already_yours');
-      when check_violation then return jsonb_build_object('refused', 'no_address');
+      when check_violation or sqlstate '22023' then return jsonb_build_object('refused', 'no_address');
     end;
-    insert into public.contact_identities (tenant_id, contact_id, channel, external_id)
-    values (p_tenant_id, v_contact, 'email', v_email)
-    on conflict (tenant_id, channel, external_id) do nothing;
-    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
-    values (p_tenant_id, 'contact.added', 'contact', 'contact', v_contact,
-            jsonb_build_object('source', 'lead', 'lead_id', p_lead_id, 'by', 'reach_out'));
     update public.leads set contact_id = v_contact, version = version + 1 where id = p_lead_id;
     v_made := true;
   end if;
@@ -16202,10 +16368,10 @@ COMMENT ON FUNCTION public.request_sweep(p_sweep text, p_path text, p_timeout_ms
 
 
 --
--- Name: resolve_person(uuid, text, text, text, text, text, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+-- Name: resolve_person(uuid, text, text, text, text, text, text, text, jsonb, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb DEFAULT '{}'::jsonb) RETURNS jsonb
+CREATE FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text DEFAULT NULL::text, p_external text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_email text DEFAULT NULL::text, p_name text DEFAULT NULL::text, p_assurance text DEFAULT 'observed'::text, p_source text DEFAULT 'manual'::text, p_detail jsonb DEFAULT '{}'::jsonb, p_seen_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -16219,17 +16385,20 @@ declare
   v_name      text := left(nullif(btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g')), ''), 80);
   v_assurance text := coalesce(nullif(btrim(p_assurance), ''), 'observed');
   v_source    text := coalesce(nullif(btrim(p_source), ''), 'manual');
-  v_profile   boolean;              -- the name is a WhatsApp profile's, not a member's word
+  v_seen      timestamptz := coalesce(p_seen_at, now());
+  v_observed  boolean;              -- they wrote to us, or called: the wire's own word
   v_id        uuid;
   v_by        text;                 -- identity | phone | email | race
   v_row       public.contacts%rowtype;
   v_new_email text;
   v_email_out text;                 -- set | kept | taken | null
   v_filled    text[] := '{}';
-  v_identity  text;                 -- added | kept | null
+  v_identity  text;                 -- added | raised | kept | null
   v_added     boolean;
   v_other     uuid;                 -- the doubt: the other record one of the identities names
-  v_seen      text;                 -- name | phone | email
+  v_other_row public.contacts%rowtype;
+  v_seen_as   text;                 -- name | phone | email
+  v_doubt_id  uuid;
   v_outcome   text;
   v_existed   boolean;
 begin
@@ -16261,18 +16430,20 @@ begin
        or v_email !~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$') then
     raise exception 'That is not an email address.' using errcode = '22023';
   end if;
-  if v_external is null and v_phone is null and v_email is null then
+  if v_external is null and v_phone is null and v_email is null and v_name is null then
     raise exception 'A number or an address is needed.' using errcode = '22023';
   end if;
-  v_profile := v_channel = 'whatsapp' and v_assurance = 'observed';
+  v_observed := v_assurance = 'observed';
 
-  -- The erased stay erased, whichever path brings their number or address back (00263, 00331).
-  if (v_phone is not null and exists (
-        select 1 from contacts c
-         where c.tenant_id = p_tenant_id and c.erased_phone_hash = public.erasure_digest(p_tenant_id, v_phone)))
-     or (v_email is not null and exists (
-        select 1 from contacts c
-         where c.tenant_id = p_tenant_id and c.erased_email_hash = public.erasure_digest(p_tenant_id, v_email))) then
+  -- The erased stay erased on the passive paths (a member typing, a feed, the finder: 00263, 00331). A person who
+  -- asked to be forgotten and then writes or calls again is a new person, as the inbound doors have always made them.
+  if not v_observed and (
+       (v_phone is not null and exists (
+          select 1 from contacts c
+           where c.tenant_id = p_tenant_id and c.erased_phone_hash = public.erasure_digest(p_tenant_id, v_phone)))
+    or (v_email is not null and exists (
+          select 1 from contacts c
+           where c.tenant_id = p_tenant_id and c.erased_email_hash = public.erasure_digest(p_tenant_id, v_email)))) then
     raise exception 'That person asked to be forgotten.' using errcode = 'PE001';
   end if;
 
@@ -16331,31 +16502,34 @@ begin
        where c.tenant_id = p_tenant_id and c.email = v_email
          and c.erased_at is null and c.merged_into_contact_id is null
        limit 1;
-      if v_other is not null then v_seen := 'email'; end if;
-    end if;
-    if v_external is null and v_phone is null and v_new_email is null then
-      raise exception 'A number or an address is needed.' using errcode = '22023';
+      if v_other is not null then v_seen_as := 'email'; end if;
     end if;
     -- A name alone is never a match: a living record with the same name is a doubt beside the new one.
-    if v_name is not null and v_seen is null then
+    if v_name is not null and v_seen_as is null then
       select c.id into v_other from contacts c
        where c.tenant_id = p_tenant_id and lower(c.display_name) = lower(v_name)
          and c.erased_at is null and c.merged_into_contact_id is null and c.display_name is not null
        limit 1;
-      if v_other is not null then v_seen := 'name'; end if;
+      if v_other is not null then v_seen_as := 'name'; end if;
     end if;
     begin
-      insert into contacts (tenant_id, phone_e164, email, display_name, wa_profile_name)
+      insert into contacts (tenant_id, phone_e164, email, display_name, wa_profile_name, last_seen_at)
       values (p_tenant_id, v_phone, v_new_email,
-              case when v_profile then null else v_name end,
-              case when v_profile then v_name end)
+              case when v_observed then null else v_name end,
+              case when v_observed then v_name end,
+              v_seen)
       returning id into v_id;
       v_outcome := 'new';
       v_existed := false;
       if v_new_email is not null then v_email_out := 'set'; end if;
-      insert into events (tenant_id, kind, category, subject_type, subject_id, data)
-      values (p_tenant_id, 'contact.added', 'contact', 'contact', v_id,
-              coalesce(p_detail, '{}'::jsonb) || jsonb_build_object('source', v_source, 'by', v_user));
+      -- Where they came from, when it was not by writing or calling: the message or the call is that record, and the
+      -- first-touch trigger on it says the wire (00306).
+      if not v_observed then
+        insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+        values (p_tenant_id, 'contact.added', 'contact', 'contact', v_id,
+                coalesce(p_detail, '{}'::jsonb)
+                || jsonb_build_object('source', v_source, 'by', coalesce(p_detail->>'by', v_user::text)));
+      end if;
     exception when unique_violation then
       -- Someone else won the race on the number or the address: theirs is the one, and it is filled below.
       v_id := null;
@@ -16374,19 +16548,20 @@ begin
       if v_id is null then raise; end if;
       v_by := 'race';
       v_email_out := null;
-      v_seen := null;
+      v_seen_as := null;
       v_other := null;
     end;
   end if;
 
   if v_outcome is null then
-    -- Found. What we did not have is worth keeping; what we have is never overwritten.
+    -- Found. What we did not have is worth keeping; what we have is never overwritten, but a name the wire gave
+    -- follows the wire.
     select * into v_row from contacts where id = v_id;
     v_outcome := 'matched';
     v_existed := true;
     if v_name is not null then
-      if v_profile then
-        if v_row.wa_profile_name is null then
+      if v_observed then
+        if v_row.wa_profile_name is distinct from v_name then
           update contacts set wa_profile_name = v_name, updated_at = now() where id = v_id;
           v_filled := array_append(v_filled, 'wa_profile_name');
         end if;
@@ -16404,33 +16579,20 @@ begin
         select c.id into v_other from contacts c
          where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone and c.id <> v_id
          limit 1;
-        if v_other is not null then v_seen := 'phone'; end if;
+        if v_other is not null then v_seen_as := 'phone'; end if;
       end;
-    elsif v_phone is not null and v_row.phone_e164 <> v_phone then
-      select c.id into v_other from contacts c
-       where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone and c.id <> v_id
-         and c.erased_at is null and c.merged_into_contact_id is null
-       limit 1;
-      if v_other is not null then v_seen := 'phone'; end if;
     end if;
     if v_email is not null then
       if v_row.email is not null then
         v_email_out := 'kept';
-        if v_row.email <> v_email and v_seen is null then
-          select c.id into v_other from contacts c
-           where c.tenant_id = p_tenant_id and c.email = v_email and c.id <> v_id
-             and c.erased_at is null and c.merged_into_contact_id is null
-           limit 1;
-          if v_other is not null then v_seen := 'email'; end if;
-        end if;
       elsif exists (select 1 from contacts c where c.tenant_id = p_tenant_id and c.email = v_email and c.id <> v_id) then
         v_email_out := 'taken';
-        if v_seen is null then
+        if v_seen_as is null then
           select c.id into v_other from contacts c
            where c.tenant_id = p_tenant_id and c.email = v_email and c.id <> v_id
              and c.erased_at is null and c.merged_into_contact_id is null
            limit 1;
-          if v_other is not null then v_seen := 'email'; end if;
+          if v_other is not null then v_seen_as := 'email'; end if;
         end if;
       else
         begin
@@ -16442,24 +16604,40 @@ begin
         end;
       end if;
     end if;
-    if v_assurance = 'observed' then
-      update contacts set last_seen_at = now() where id = v_id;
+    if v_observed then
+      update contacts set last_seen_at = v_seen where id = v_id and last_seen_at < v_seen;
     end if;
     if cardinality(v_filled) > 0 then v_outcome := 'filled'; end if;
   end if;
 
-  -- The identity, with how sure the door was; one already held keeps its stronger word.
+  -- The identity, with how sure the door was; one already held is written only when its word gets stronger.
   if v_external is not null then
     insert into contact_identities (tenant_id, contact_id, channel, external_id, assurance)
     values (p_tenant_id, v_id, v_channel, v_external, v_assurance)
     on conflict (tenant_id, channel, external_id) do update
-      set assurance = case
-        when (case excluded.assurance when 'observed' then 3 when 'asserted' then 2 else 1 end)
-           > (case contact_identities.assurance when 'observed' then 3 when 'asserted' then 2 else 1 end)
-        then excluded.assurance else contact_identities.assurance end
+      set assurance = excluded.assurance
       where contact_identities.contact_id = excluded.contact_id
+        and (case excluded.assurance when 'observed' then 3 when 'asserted' then 2 else 1 end)
+          > (case contact_identities.assurance when 'observed' then 3 when 'asserted' then 2 else 1 end)
     returning (xmax = 0) into v_added;
-    v_identity := case when v_added then 'added' else 'kept' end;
+    v_identity := case when v_added is null then 'kept' when v_added then 'added' else 'raised' end;
+  end if;
+
+  -- The doubt: only a pair 0028's door could join, two numbers and two addresses being two people by rule; written
+  -- once per pair, whichever way round it was seen, and left alone once settled.
+  if v_other is not null then
+    select * into v_row from contacts where id = v_id;
+    select * into v_other_row from contacts where id = v_other;
+    if (v_row.phone_e164 is null or v_other_row.phone_e164 is null or v_row.phone_e164 = v_other_row.phone_e164)
+       and (v_row.email is null or v_other_row.email is null or v_row.email = v_other_row.email) then
+      insert into person_doubts (tenant_id, contact_id, other_id, seen)
+      values (p_tenant_id, least(v_id, v_other), greatest(v_id, v_other), v_seen_as)
+      on conflict (tenant_id, contact_id, other_id) do nothing
+      returning id into v_doubt_id;
+    else
+      v_other := null;
+      v_seen_as := null;
+    end if;
   end if;
 
   insert into events (tenant_id, kind, category, subject_type, subject_id, data)
@@ -16467,20 +16645,20 @@ begin
           jsonb_build_object(
             'outcome', v_outcome, 'matched_by', v_by, 'source', v_source, 'channel', v_channel,
             'assurance', v_assurance, 'by', v_user, 'filled', to_jsonb(v_filled), 'identity', v_identity,
-            'doubt', v_other, 'doubt_seen', v_seen));
+            'doubt', v_other, 'doubt_seen', v_seen_as));
 
   return jsonb_build_object(
     'contact_id', v_id, 'outcome', v_outcome, 'existed', v_existed, 'matched_by', v_by,
     'email', v_email_out, 'filled', to_jsonb(v_filled), 'identity', v_identity,
-    'doubt', v_other, 'doubt_seen', v_seen);
+    'doubt', v_other, 'doubt_seen', v_seen_as, 'doubt_id', v_doubt_id);
 end $_$;
 
 
 --
--- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb) IS 'The one door a person is resolved by (decision 0034): the erasure digests first, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites; never merges, and answers a doubt instead; writes contact.added for a new person and person.resolved for every call. The service role''s and the member doors'' alone.';
+COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; contact.added for a new person a member, a feed or the finder brought, person.resolved for every call. The service role''s and the doors'' alone.';
 
 
 --
@@ -19383,7 +19561,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -19437,6 +19615,81 @@ ALTER TABLE public.ai_usage ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     NO MAXVALUE
     CACHE 1
 );
+
+
+--
+-- Name: appointment_notices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.appointment_notices (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    notice_id text NOT NULL,
+    tool text NOT NULL,
+    from_address text,
+    subject text,
+    received_at timestamp with time zone NOT NULL,
+    read_at timestamp with time zone DEFAULT now() NOT NULL,
+    outcome text NOT NULL,
+    hold_reason text,
+    appointment_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT appointment_notices_check CHECK (((outcome = ANY (ARRAY['held'::text, 'dismissed'::text])) = (hold_reason IS NOT NULL))),
+    CONSTRAINT appointment_notices_hold_reason_check CHECK (((hold_reason IS NULL) OR (hold_reason = ANY (ARRAY['no_model'::text, 'may_not_spend'::text, 'unreadable'::text, 'not_a_booking'::text, 'no_time'::text, 'no_client'::text, 'gone'::text])))),
+    CONSTRAINT appointment_notices_outcome_check CHECK ((outcome = ANY (ARRAY['booked'::text, 'changed'::text, 'cancelled'::text, 'held'::text, 'dismissed'::text])))
+);
+
+
+--
+-- Name: TABLE appointment_notices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.appointment_notices IS 'Every booking tool''s notice the workspace''s address took in: the delivery, the tool, and what it became or why it is held for a person. Members read; the booking_read job writes.';
+
+
+--
+-- Name: appointments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.appointments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    contact_id uuid,
+    lead_id uuid,
+    source text NOT NULL,
+    tool text,
+    external_id text,
+    status text DEFAULT 'booked'::text NOT NULL,
+    starts_at timestamp with time zone NOT NULL,
+    ends_at timestamp with time zone NOT NULL,
+    all_day boolean DEFAULT false NOT NULL,
+    title text,
+    service text,
+    staff text,
+    price text,
+    note text,
+    client_name text,
+    client_phone text,
+    client_email text,
+    consultation boolean DEFAULT false NOT NULL,
+    timezone text NOT NULL,
+    vanished_at timestamp with time zone,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT appointments_check CHECK ((ends_at > starts_at)),
+    CONSTRAINT appointments_client_phone_check CHECK (((client_phone IS NULL) OR (client_phone ~ '^\+[1-9][0-9]{6,14}$'::text))),
+    CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_email'::text, 'booking_tool'::text, 'person'::text]))),
+    CONSTRAINT appointments_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'booked'::text, 'kept'::text, 'missed'::text, 'cancelled'::text])))
+);
+
+
+--
+-- Name: TABLE appointments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.appointments IS 'One visit as a source stated it (decision 0002): a booking tool''s notice, the calendar feed, a tool''s door or a person; its client, what and with whom, and what became of it. Members read; the service role writes; the product never books.';
 
 
 --
@@ -21154,6 +21407,10 @@ CREATE TABLE public.mailboxes (
     offers_paused_at timestamp with time zone,
     offers_paused_reason text,
     offers_resumed_at timestamp with time zone,
+    forward_confirm_account text,
+    forward_confirm_code text,
+    forward_confirm_link text,
+    forward_confirm_at timestamp with time zone,
     CONSTRAINT mailboxes_from_name_check CHECK (((char_length(btrim(from_name)) >= 1) AND (char_length(btrim(from_name)) <= 80))),
     CONSTRAINT mailboxes_local_part_check CHECK ((local_part ~ '^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$'::text)),
     CONSTRAINT mailboxes_local_part_check1 CHECK ((local_part <> ALL (ARRAY['r'::text, 'postmaster'::text, 'abuse'::text, 'mailer-daemon'::text, 'noreply'::text, 'no-reply'::text, 'admin'::text, 'administrator'::text, 'support'::text, 'security'::text, 'billing'::text, 'hello'::text, 'hi'::text]))),
@@ -21190,6 +21447,13 @@ COMMENT ON COLUMN public.mailboxes.offers_paused_reason IS 'Which gate paused th
 --
 
 COMMENT ON COLUMN public.mailboxes.offers_resumed_at IS 'When the back office last turned this workspace''s offers by email back on (resume_email_offers), or NULL if it never has. The gates are judged over the offers sent after it, so the offers that paused them are not counted again.';
+
+
+--
+-- Name: COLUMN mailboxes.forward_confirm_code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailboxes.forward_confirm_code IS 'Gmail''s confirmation code for forwarding from forward_confirm_account to this address, kept by the intake until the first booking notice is read (00345).';
 
 
 --
@@ -21287,7 +21551,7 @@ CREATE TABLE public.notifications (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     recipient_user_id uuid,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -21571,6 +21835,48 @@ COMMENT ON COLUMN public.partners.written_through IS 'Every change to this partn
 --
 
 COMMENT ON COLUMN public.partners.second_factor_reset_at IS 'When a person at Chanlytics last removed this partner''s second factor (0013), so they could enrol again. The why is second_factor_reset_why, the who second_factor_reset_by.';
+
+
+--
+-- Name: person_doubts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.person_doubts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    contact_id uuid NOT NULL,
+    other_id uuid NOT NULL,
+    seen text NOT NULL,
+    settled_at timestamp with time zone,
+    settled_by uuid,
+    settled_as text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT person_doubts_seen_check CHECK ((seen = ANY (ARRAY['name'::text, 'phone'::text, 'email'::text]))),
+    CONSTRAINT person_doubts_settled_as_check CHECK (((settled_as IS NULL) OR (settled_as = ANY (ARRAY['merged'::text, 'not_the_same'::text])))),
+    CONSTRAINT person_doubts_settled_whole CHECK (((settled_at IS NULL) = (settled_as IS NULL))),
+    CONSTRAINT person_doubts_two_records CHECK ((contact_id <> other_id))
+);
+
+
+--
+-- Name: TABLE person_doubts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.person_doubts IS 'The queue in front of merge_people (decision 0034, step 4): two living records one identity could belong to, written by resolve_person once per pair (the lower id first), open until an owner merges them (00326) or a member says they are not the same (person_doubt_dismiss). Never the identity itself: `seen` says which of the three it was. An erasure takes every row that names the person; a merge settles the pair and moves the merged record''s other doubts onto the kept one.';
+
+
+--
+-- Name: COLUMN person_doubts.seen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.person_doubts.seen IS 'Which identity either record could own, as the door saw it: name, phone or email. Never the value.';
+
+
+--
+-- Name: COLUMN person_doubts.settled_as; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.person_doubts.settled_as IS 'How the pair was settled: merged (0028''s door, through the contacts trigger) or not_the_same (person_doubt_dismiss). Null while open.';
 
 
 --
@@ -22618,6 +22924,30 @@ ALTER TABLE ONLY public.ai_usage
 
 
 --
+-- Name: appointment_notices appointment_notices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointment_notices
+    ADD CONSTRAINT appointment_notices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: appointments appointments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: appointments appointments_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: ask_messages ask_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -23306,6 +23636,22 @@ ALTER TABLE ONLY public.partners
 
 
 --
+-- Name: person_doubts person_doubts_pair_once; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.person_doubts
+    ADD CONSTRAINT person_doubts_pair_once UNIQUE (tenant_id, contact_id, other_id);
+
+
+--
+-- Name: person_doubts person_doubts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.person_doubts
+    ADD CONSTRAINT person_doubts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: person_moments person_moments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -23604,6 +23950,76 @@ CREATE INDEX ai_usage_shadow_at ON public.ai_usage USING btree (created_at) WHER
 --
 
 CREATE INDEX ai_usage_tenant_at ON public.ai_usage USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: appointment_notices_appointment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointment_notices_appointment ON public.appointment_notices USING btree (tenant_id, appointment_id) WHERE (appointment_id IS NOT NULL);
+
+
+--
+-- Name: appointment_notices_delivery_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX appointment_notices_delivery_uq ON public.appointment_notices USING btree (tenant_id, notice_id);
+
+
+--
+-- Name: appointment_notices_held; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointment_notices_held ON public.appointment_notices USING btree (tenant_id) WHERE (outcome = 'held'::text);
+
+
+--
+-- Name: appointment_notices_tenant_received; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointment_notices_tenant_received ON public.appointment_notices USING btree (tenant_id, received_at DESC);
+
+
+--
+-- Name: appointments_client_email; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_client_email ON public.appointments USING btree (tenant_id, client_email, starts_at) WHERE (client_email IS NOT NULL);
+
+
+--
+-- Name: appointments_client_phone; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_client_phone ON public.appointments USING btree (tenant_id, client_phone, starts_at) WHERE (client_phone IS NOT NULL);
+
+
+--
+-- Name: appointments_contact; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_contact ON public.appointments USING btree (tenant_id, contact_id, starts_at);
+
+
+--
+-- Name: appointments_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_lead ON public.appointments USING btree (tenant_id, lead_id) WHERE (lead_id IS NOT NULL);
+
+
+--
+-- Name: appointments_source_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX appointments_source_uq ON public.appointments USING btree (tenant_id, source, external_id);
+
+
+--
+-- Name: appointments_tenant_start; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_tenant_start ON public.appointments USING btree (tenant_id, starts_at);
 
 
 --
@@ -24461,6 +24877,20 @@ CREATE INDEX partner_tenants_partner_idx ON public.partner_tenants USING btree (
 
 
 --
+-- Name: person_doubts_open_contact; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_doubts_open_contact ON public.person_doubts USING btree (tenant_id, contact_id) WHERE (settled_at IS NULL);
+
+
+--
+-- Name: person_doubts_open_other; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_doubts_open_other ON public.person_doubts USING btree (tenant_id, other_id) WHERE (settled_at IS NULL);
+
+
+--
 -- Name: person_moments_new; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -24811,6 +25241,27 @@ ALTER INDEX public.events_tenant_subject ATTACH PARTITION public.events_default_
 
 
 --
+-- Name: appointment_notices appointment_notices_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointment_notices_set_updated_at BEFORE UPDATE ON public.appointment_notices FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: appointments appointments_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_guard BEFORE UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.appointments_guard();
+
+
+--
+-- Name: appointments appointments_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
 -- Name: billing_accounts billing_accounts_moddatetime; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -24878,6 +25329,13 @@ CREATE TRIGGER calls_note_transfer_on_update AFTER UPDATE OF disconnection_reaso
 --
 
 CREATE TRIGGER calls_set_updated_at BEFORE UPDATE ON public.calls FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: contacts contacts_change_settles_doubts; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_change_settles_doubts AFTER UPDATE OF erased_at, merged_into_contact_id ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.person_doubts_on_contact_change();
 
 
 --
@@ -25434,6 +25892,13 @@ CREATE TRIGGER tenants_set_updated_at BEFORE UPDATE ON public.tenants FOR EACH R
 
 
 --
+-- Name: appointments workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.appointments REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: billing_accounts workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -25578,6 +26043,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.sending_domains REFE
 --
 
 CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.tenant_channels REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: appointments workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.appointments REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -25749,6 +26221,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.tenant_channels REFE
 
 
 --
+-- Name: appointments workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.appointments REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: billing_accounts workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -25916,6 +26395,54 @@ ALTER TABLE ONLY public.ai_usage
 
 ALTER TABLE ONLY public.ai_usage
     ADD CONSTRAINT ai_usage_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: appointment_notices appointment_notices_appointment_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointment_notices
+    ADD CONSTRAINT appointment_notices_appointment_id_same_workspace FOREIGN KEY (tenant_id, appointment_id) REFERENCES public.appointments(tenant_id, id) ON DELETE SET NULL (appointment_id);
+
+
+--
+-- Name: appointment_notices appointment_notices_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointment_notices
+    ADD CONSTRAINT appointment_notices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: appointments appointments_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
+
+
+--
+-- Name: appointments appointments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: appointments appointments_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id);
+
+
+--
+-- Name: appointments appointments_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -26767,6 +27294,30 @@ ALTER TABLE ONLY public.partners
 
 
 --
+-- Name: person_doubts person_doubts_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.person_doubts
+    ADD CONSTRAINT person_doubts_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: person_doubts person_doubts_other_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.person_doubts
+    ADD CONSTRAINT person_doubts_other_id_same_workspace FOREIGN KEY (tenant_id, other_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: person_doubts person_doubts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.person_doubts
+    ADD CONSTRAINT person_doubts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: person_moments person_moments_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -27227,6 +27778,36 @@ ALTER TABLE public.ai_usage ENABLE ROW LEVEL SECURITY;
 CREATE POLICY ai_usage_member_select ON public.ai_usage FOR SELECT TO authenticated USING (((NOT shadow) AND (tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
+-- Name: appointment_notices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.appointment_notices ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: appointment_notices appointment_notices_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY appointment_notices_member_select ON public.appointment_notices FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: appointments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: appointments appointments_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY appointments_member_select ON public.appointments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -28145,6 +28726,21 @@ CREATE POLICY partners_self_select ON public.partners FOR SELECT TO authenticate
 
 
 --
+-- Name: person_doubts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.person_doubts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: person_doubts person_doubts_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY person_doubts_member_select ON public.person_doubts FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: person_moments; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -28592,6 +29188,22 @@ GRANT ALL ON FUNCTION public.ai_usage_month(p_tenant_id uuid, p_month date) TO s
 
 REVOKE ALL ON FUNCTION public.ai_usage_purge(p_keep interval) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ai_usage_purge(p_keep interval) TO service_role;
+
+
+--
+-- Name: FUNCTION appointments_guard(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_guard() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) TO service_role;
 
 
 --
@@ -29985,6 +30597,14 @@ GRANT ALL ON FUNCTION public.marketing_consent_on_erase() TO service_role;
 
 
 --
+-- Name: FUNCTION member_has_address(p_tenant_id uuid, p_address text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) TO service_role;
+
+
+--
 -- Name: FUNCTION member_view_set(p_tenant_id uuid, p_page text, p_view jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -30442,6 +31062,23 @@ GRANT ALL ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_
 REVOKE ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION person_doubt_dismiss(p_doubt_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.person_doubt_dismiss(p_doubt_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION person_doubts_on_contact_change(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_doubts_on_contact_change() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_doubts_on_contact_change() TO service_role;
 
 
 --
@@ -31264,11 +31901,11 @@ GRANT ALL ON FUNCTION public.request_sweep(p_sweep text, p_path text, p_timeout_
 
 
 --
--- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) TO service_role;
 
 
 --
@@ -31841,6 +32478,22 @@ GRANT SELECT ON TABLE public.ai_usage TO authenticated;
 
 GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO service_role;
+
+
+--
+-- Name: TABLE appointment_notices; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.appointment_notices TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointment_notices TO service_role;
+
+
+--
+-- Name: TABLE appointments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.appointments TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointments TO service_role;
 
 
 --
@@ -32893,6 +33546,14 @@ GRANT SELECT ON TABLE public.partner_tenants TO authenticated;
 
 GRANT ALL ON TABLE public.partners TO service_role;
 GRANT SELECT ON TABLE public.partners TO authenticated;
+
+
+--
+-- Name: TABLE person_doubts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.person_doubts TO authenticated;
+GRANT ALL ON TABLE public.person_doubts TO service_role;
 
 
 --

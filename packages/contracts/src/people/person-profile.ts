@@ -11,6 +11,9 @@ import type { DealVM } from "../deals/deal-vm";
 import { dealPaceOf, type DealPaceVM } from "../deals/deal-waits";
 import type { PersonCampaignVM, PersonDetailDto } from "./person-dto";
 import { MERGE_WORDS } from "./person-merge";
+import { DOUBT_WORDS, type DoubtSeen } from "./person-doubts";
+import { personName } from "./person-name";
+import { formatPhoneDisplay } from "../shared/phone";
 import type { PersonMode } from "./person-receptionist";
 import { mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
 import type { PersonRowVM } from "./person-row";
@@ -126,6 +129,38 @@ export interface PersonVM extends PersonRowVM {
   lead: { id: string; name: string; found: string; to: string } | null;
   /** What the page's More menu offers for them, in order (personActs): the page keeps those its reader's role allows. */
   acts: PersonActVM[];
+  /** The open doubts naming them (0034 step 4, doubtsOf): another record one identity could belong to, each with its sentence. */
+  doubts: PersonDoubtVM[];
+}
+
+/**
+ * One "same person?" row (decision 0034, step 4): the other record as People names them, with the number and the
+ * address the merge box tells two names apart by, what the door saw, and the row's sentence (DOUBT_WORDS).
+ */
+export interface PersonDoubtVM {
+  id: string;
+  otherId: string;
+  other: string;
+  phone: string | null;
+  email: string | null;
+  seen: DoubtSeen;
+  sentence: string;
+}
+
+/** The open doubts the reader brought, oldest first, each said in the page's words; none from a server before the table. */
+function doubtsOf(d: PersonDetailDto): PersonDoubtVM[] {
+  return (d.doubts ?? []).map((x) => {
+    const other = personName(x.other);
+    return {
+      id: x.id,
+      otherId: x.other.id,
+      other,
+      phone: x.other.phone_e164 ? formatPhoneDisplay(x.other.phone_e164) : null,
+      email: x.other.email,
+      seen: x.seen,
+      sentence: DOUBT_WORDS.seen[x.seen](other),
+    };
+  });
 }
 
 /**
@@ -276,6 +311,7 @@ export function toPersonVM(
     smartLists: smartListsOf(d, base),
     campaigns: campaignsOf(d, tz, nowMs),
     lead: leadOf(d, base, tz, nowMs),
+    doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,
     dealsOn,

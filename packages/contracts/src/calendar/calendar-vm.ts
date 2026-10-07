@@ -33,6 +33,14 @@ export interface CalendarBlockVM {
   consultation: boolean;
   /** The consult-first service its title names, as Settings spells it, or null: what a proposal after it is for. */
   consultService: string | null;
+  /**
+   * A booking that arrived by email (docs/plans/2026-10-07-bookings-arrive-by-email.md): which tool's word it is, as
+   * the product says it ("Booksy"), who it is with and what it costs, as the notice stated them. All null for a feed's
+   * event, whose words are its title.
+   */
+  tool: string | null;
+  staff: string | null;
+  price: string | null;
   start: string;
   end: string;
   /** Blocks that overlap in time sit side by side: this block's lane, and how many lanes its cluster needs. */
@@ -128,6 +136,40 @@ export interface CalendarVM {
     dropped: number;
     /** Those two explained, when a read that landed left anything out. */
     notes: CalendarFeedNoteVM[];
+    /**
+     * The bookings that arrived by email (docs/plans/2026-10-07-bookings-arrive-by-email.md): the tool the latest came
+     * from, as the product says it; when; how many are drawn over the span; how many a person must look at; and the
+     * line that says it whole ("Bookings arrive by email from Booksy · last 2h ago"), "" when none has ever arrived.
+     */
+    notices: {
+      tool: string | null;
+      /** The workspace's address, as the tool is to send to; null when it has none yet. */
+      address: string | null;
+      lastAgo: string | null;
+      count: number;
+      held: number;
+      line: string;
+      /** What the card's row says: nothing set up, waiting for the first email since a tool was named, or working. */
+      state: "none" | "waiting" | "working";
+      /** The notices held for a person, latest first, each with why in the owner's words (NOTICE_HOLD_WORDS). */
+      heldList: Array<{
+        id: string;
+        tool: string | null;
+        from: string | null;
+        subject: string | null;
+        receivedAgo: string | null;
+        reason: string;
+      }>;
+      /** Gmail's pending confirmation of a forward here: the account, the code to paste, the link to press. */
+      forwarding: { account: string; code: string; link: string | null } | null;
+      /**
+       * The Business row's one quiet signal and its phrase, the next thing to do first: no address to send to, a forward
+       * Gmail waits on, emails held for a look, the last email's age, or waiting for the first. `label` is the mark's
+       * own word, under a pointer and for a screen reader (Working, Needs you, Waiting). null before a tool is named
+       * and before any email arrived.
+       */
+      row: { tone: "ok" | "warn" | "plain"; label: string; words: string } | null;
+    };
   };
   stats: { events: number; windows: number; next: string };
   /** How far ahead the receptionist offers times: `days` from today, through the day `until` ("Sep 21"). */

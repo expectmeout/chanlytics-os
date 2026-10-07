@@ -9,7 +9,7 @@ import {
   type PersonDetailDto,
   type PersonEscalationDto,
 } from "@chanlytics/contracts";
-import { personDecisions, personRow, readAllRows } from "@chanlytics/db";
+import { openDoubtsOf, personDecisions, personRow, readAllRows } from "@chanlytics/db";
 import {
   CALL_COLUMNS,
   CONVERSATION_COLUMNS,
@@ -51,6 +51,17 @@ function personMessages(rc: ReaderContext, convIds: string[]) {
         .range(from, to),
     PERSON_MESSAGES,
   ).then((rows) => [...new Map(rows.map((m) => [m.id, m])).values()]);
+}
+
+/** Where they came from, as the profile says it: the door's contact.added row for them, when there is one. */
+function cameFrom(row: { created_at: string; data: unknown } | null): PersonDetailDto["added"] {
+  if (!row) return undefined;
+  const data = row.data as { source?: unknown; title?: unknown } | null;
+  return {
+    at: row.created_at,
+    source: String(data?.source ?? "manual"),
+    title: typeof data?.title === "string" ? data.title : null,
+  };
 }
 
 /**
@@ -137,6 +148,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       visits,
       notes,
       pace,
+      doubts,
     ] = await Promise.all([
       rowRead,
       sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
@@ -215,6 +227,8 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       notesRead,
       // The workspace's pace (0008, amended), for their deal card: when their proposal waits, and how long a yes takes.
       dealPaceRead(rc.ctx, tenantId),
+      // The open doubts naming them (0034 step 4); none on a database before the table.
+      openDoubtsOf(sb, tenantId, id),
     ]);
     if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
     if (history.error) throw new Error(history.error.message);
@@ -266,21 +280,13 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       consent_history: (history.data ?? []).map(consentChangeOf),
       campaigns: runs,
       lead,
+      doubts,
       deals: deals ?? undefined,
       deals_on: dealsAreOn(sellsBy),
       deal_pace: dealsAreOn(sellsBy) ? pace : null,
       services: (profile?.services ?? []).map((s) => s.name),
       consult_first: consultFirst,
-      added: added.data
-        ? {
-            at: added.data.created_at,
-            source: String((added.data.data as { source?: unknown } | null)?.source ?? "manual"),
-            title:
-              typeof (added.data.data as { title?: unknown } | null)?.title === "string"
-                ? String((added.data.data as { title: string }).title)
-                : null,
-          }
-        : undefined,
+      added: cameFrom(added.data),
     };
     // The person as People names them, and each of their threads by the same name, as the Inbox names a thread by its
     // person; each call by its caller, as the Calls page does.

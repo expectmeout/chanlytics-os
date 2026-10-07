@@ -244,6 +244,7 @@ export const SERVER_NOTIFICATION_KINDS = [
   "job_failed",
   "playbook",
   "calendar_people",
+  "booking_notice",
   "alert",
   "review",
   "billing",
@@ -340,6 +341,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
   reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
+  // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
+  // visit would be, and Settings › Business where the notices are counted.
+  booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
   // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
   // did not get there, and the activity log is where the fact is.
   event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
@@ -436,6 +440,8 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
     broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sent", to: "broadcasts" },
     playbook: { icon: "bolt", tone: "ok", action: "Open Campaigns", to: "outbound" },
     calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+    /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Business. */
+    booking_notice: { icon: "calendar", tone: "warn", action: "Open Settings", to: "admin/workspace" },
     /** A search that finished: good news, on the page the leads are on. */
     leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
     /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */

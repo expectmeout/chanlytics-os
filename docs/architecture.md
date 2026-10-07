@@ -630,6 +630,7 @@ packages/contracts/src/
   voice/
   workspace/
 packages/core/src/
+  appointments/
   campaigns/
   conversations/
   inbound/

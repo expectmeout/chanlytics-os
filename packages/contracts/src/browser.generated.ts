@@ -44,7 +44,9 @@ export { consentAnswerWords, receiptWords, toRunReportVM, RUN_REPORT_STEPS, RUN_
 export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
 export { whatsappOffersOpen } from "./broadcasts/whatsapp-offers";
+export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments } from "./calendar/appointment-item";
 export { dayIntervals, closedOn, openAt, hasHours, freeWindows, filterOpenings, describeOpenings, BOOKING_DEFAULTS } from "./calendar/availability";
+export { isBookingTool, bookingToolName, bookingToolOfAddress, bookingNoticeOf, NOTICE_SCHEMA, NOTICE_READ_MAX_TOKENS, noticePrompt, isNoticeHold, NOTICE_DEFAULT_LENGTH_MS, noticeAnswerOf, clientKeyOf, appointmentKey, SAME_VISIT_MS, BOOKING_TOOL_IDS, bookingToolOptions, BOOKING_TOOL_STEPS, GMAIL_FORWARD_NOTE, BOOKING_TRY_NOTE, NOTICE_HOLD_WORDS, forwardingConfirmationOf } from "./calendar/booking-notice";
 export { serviceOf, toCalendarVM } from "./calendar/calendar";
 export { calendarOwnerOf, ownAddressesOf, extractContacts, personInText, matchPerson, indexFeed, allVisitsIn, visitsIn, visitsOf, visitDay, visitTime, visitDateKey, visitStartTime, visitLine, describeVisits, feedSourceLabel, eventText, toVisitDto, guessName, peopleFromItems, afterPersonRefused, bookedAfterAsk, visitAnswersAsk, toBookingReportVM } from "./calendar/calendar-people";
 export { spanForView, windowFor, coversSpan, frameOf } from "./calendar/calendar-views";
@@ -171,6 +173,7 @@ export { listToken, parseListToken, unmetNeed, listMembers, savedListIds, savedL
 export { peopleListAction, savedListAction, noNumberWords, noChannelWords, saidYesWords, peopleAggregates, recencyCells, GET_YES_ROUTE, NO_NUMBER_REACH, NO_CHANNEL_REACH } from "./people/people-lists";
 export { attentionRow } from "./people/person-attention";
 export { offersYesRefusal, ownMessageRefusal, consentSourceLabel, mayReceive, whyNotReceive, saidYesTo, CONSENT_SOURCES, CONSENT_RESET_SOURCE, OFFERS_YES_SOURCES, OWN_MESSAGE_REFUSALS, CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE, WHATSAPP_CONSENT_SOURCE } from "./people/person-consent";
+export { DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS } from "./people/person-doubts";
 export { MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, mergedAnswers } from "./people/person-merge";
 export { callerName, personName } from "./people/person-name";
 export { filterTimeline, personActs, toPersonVM, TIMELINE_FILTERS } from "./people/person-profile";

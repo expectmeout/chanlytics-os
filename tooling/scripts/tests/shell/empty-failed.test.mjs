@@ -74,6 +74,14 @@ globalThis.React = {
     return cells[k];
   },
   useCallback: (fn) => fn,
+  // A kit control names its parts by an id (Segmented's options): one per call site, kept across draws, as React's is.
+  // Team's two choices are that control since #1470, and without this the react module's own useId was called with
+  // no renderer behind it, so the Team card below could not be drawn at all.
+  useId: () => {
+    const k = frames.key();
+    if (!(k in cells)) cells[k] = `id-${k}`;
+    return cells[k];
+  },
   useEffect: (fn) => {
     const k = frames.key();
     if (!(k in cells)) {

@@ -4,7 +4,10 @@
  *
  *   the mailbox            mailboxById, mailboxFor (a published address, or a reply route: a rotated-out token still
  *                          routes until it is revoked, 00126), mailboxOfTenant (null is a workspace with no email
- *                          line) and stampMailboxReceived (the mailbox's health stamp, which only logs when it fails).
+ *                          line) and stampMailboxReceived (the mailbox's health stamp, which only logs when it fails);
+ *                          keepForwardingConfirmation and clearForwardingConfirmation (Gmail's pending confirmation of
+ *                          a forward here, 00345: kept by the intake, shown by Settings, let go of by the first notice
+ *                          read, packages/jobs/src/booking-read.ts).
  *   taking one in          ingestInboundEmail and sentEmailWithMessageId (how a sent email coming back is known),
  *                          asked by the email_ingest job (packages/jobs/src/handlers.ts); the edge's door finds the
  *                          mailbox with mailboxFor (apps/edge/lib/email/email-ingress.ts).
@@ -100,6 +103,11 @@ export interface IngestEmailParams {
 }
 
 export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<IngestResult> {
+  // Who has this address is the inbound door's to say (00344: ingest_inbound hands the address to resolve_person, which
+  // matches by the email identity, then by the address on a row, and keeps the identity). Until every database carries
+  // 00344, a database before it matches by the identity alone, so a person known here by address and not yet by an
+  // email identity is given one first, as before; after the door, the upsert finds the identity it kept and writes
+  // nothing. This read and write leave once 00344 is on production.
   const known = await db
     .from("contacts")
     .select("id")
@@ -151,16 +159,17 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     optIn,
   });
 
-  if (!known.data) {
+  // The address on a new person's row is the door's to set (00344). A database before it leaves the row without one,
+  // so until every database carries 00344 it is set here where it is still empty: a no-op after the door. Somebody
+  // else in the workspace holding this address is a doubt the door keeps now; here, as before, the email is kept
+  // either way and the owner merges them.
+  {
     const { error } = await db
       .from("contacts")
       .update({ email: p.address })
       .eq("id", out.contact_id)
       .eq("tenant_id", p.tenantId)
       .is("email", null);
-    // Somebody else in the workspace was given this address in the same moment:
-    // two people now share a sender, and the owner merges them. The product
-    // does not guess which one it is, and the email is kept either way.
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
     if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
@@ -246,6 +255,39 @@ export async function mailboxOfTenant(db: Db, tenantId: string): Promise<Mailbox
   const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`mailbox: ${error.message}`);
   return data;
+}
+
+/** Gmail's confirmation that it may forward here (00345), kept on the mailbox until the first notice is read. */
+export async function keepForwardingConfirmation(
+  db: Db,
+  mailboxId: string,
+  p: { account: string; code: string; link: string | null },
+): Promise<void> {
+  const { error } = await db
+    .from("mailboxes")
+    .update({
+      forward_confirm_account: p.account,
+      forward_confirm_code: p.code,
+      forward_confirm_link: p.link,
+      forward_confirm_at: new Date().toISOString(),
+    })
+    .eq("id", mailboxId);
+  if (error) throw new Error(`forwarding_confirmation_keep: ${error.message}`);
+}
+
+/** The forward confirmed, as the first notice that arrived proves: the code and the link are let go of. */
+export async function clearForwardingConfirmation(db: Db, mailboxId: string): Promise<void> {
+  const { error } = await db
+    .from("mailboxes")
+    .update({
+      forward_confirm_account: null,
+      forward_confirm_code: null,
+      forward_confirm_link: null,
+      forward_confirm_at: null,
+    })
+    .eq("id", mailboxId)
+    .not("forward_confirm_code", "is", null);
+  if (error) throw new Error(`forwarding_confirmation_clear: ${error.message}`);
 }
 
 /** The email a reply answers: what the thread stores of the person's latest one. */

@@ -144,8 +144,9 @@ const served = (brain, channel, row) => {
 
 /** The real rows whose effect never reaches the cached prompt. */
 // And the create fold of a workspace with no receptionist, which the settings read composes no preview for, and how
-// customers buy (0008), which is the workspace's and no part of the brain.
-const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist", "sells_by"];
+// customers buy (0008), which is the workspace's and no part of the brain. And where the bookings come from (00345):
+// the tool the owner names, which the intake and the board read and the receptionist is told nothing of.
+const NOWHERE = ["fallbacks", "calendar", "bookings", "vision", "timezone", "receptionist", "sells_by"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [

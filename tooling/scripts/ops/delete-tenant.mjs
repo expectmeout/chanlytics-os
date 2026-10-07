@@ -75,6 +75,8 @@ if (!tenantId || !expectName) {
  */
 const TABLES = [
   "ai_usage",
+  "appointment_notices",
+  "appointments",
   "ask_messages",
   "ask_threads",
   "ask_voice_sessions",
@@ -121,6 +123,8 @@ const TABLES = [
   "partner_earnings",
   "partner_invitations",
   "partner_tenants",
+  // The doubt queue (00344): a pair of the workspace's records the door could not tell apart.
+  "person_doubts",
   "person_moments",
   "person_notes",
   "platform_metrics",

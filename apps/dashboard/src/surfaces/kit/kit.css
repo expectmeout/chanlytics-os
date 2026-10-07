@@ -1986,12 +1986,14 @@ textarea.rec-input {
 }
 /* A title said in place (a pane's head, where its name is written where it is read): the words are the page's own
    and a box only as it is hovered or touched. It takes its width from its words where the browser can size a box by
-   them, and the whole line where it cannot. The page's pencil beside it, and where it stands, are the page's. */
+   them, and the whole line where it cannot. The page's pencil beside it, and where it stands, are the page's. Its box
+   hangs 6px past the words on either side (the margin), so it may be 12px wider than the line it stands in: held to the
+   line's width, the words lost those 12px and "Win-back" read "Win-b…" (7 Oct 2026). */
 .rec-input-title {
   flex: 0 1 auto;
   width: auto;
   min-width: 4ch;
-  max-width: 100%;
+  max-width: calc(100% + 12px);
   height: auto;
   field-sizing: content;
   margin: -2px -6px;
@@ -3136,11 +3138,16 @@ a.list-row {
     border-bottom: 0;
     font-size: var(--text-sm);
   }
-  /* A thumb's 44px, as an invisible margin round the 34px tab. */
+  /* A thumb's 44px, as an invisible margin round the 34px tab, and 44px across a tab of one short word ("All", 15px):
+     the margin stands centred on the tab, as wide as the tab and 6px either side, or 44px where that is less. */
   .subtab::before {
     content: "";
     position: absolute;
-    inset: -5px -6px;
+    top: -5px;
+    bottom: -5px;
+    left: 50%;
+    width: max(calc(100% + 12px), 44px);
+    translate: -50% 0;
   }
   .subtab-bar {
     bottom: 5px;

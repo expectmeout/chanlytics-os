@@ -225,3 +225,32 @@ test("an untouched, ordinary config is not made harder to save", () => {
   );
   assert.equal(write(undefined).success, true, "a workspace with no profile saves");
 });
+
+test("REGRESSION: the booking tool an owner names is a section of its own -- as a key of the calendar's, a build from before it could not read the config at all", () => {
+  // Either deploy order, and a rollback: the dashboard may save a tool while the edge is still the build before.
+  // That build's calendar section REQUIRED the address, so `calendar: { tool }` failed its whole parse, and on this
+  // codepath a config that does not parse is a receptionist that says nothing. A section it has never heard of is
+  // left out and it reads on (nothing on the read path is strict).
+  const stored = { brain: BRAIN, bookings: { tool: "booksy" } };
+  const read = TenantConfigSchema.safeParse(stored);
+  assert.equal(read.success, true);
+  assert.deepEqual(read.data.bookings, { tool: "booksy" });
+  assert.equal(TenantConfigWriteSchema.safeParse(stored).success, true, "and it is a section a save may write");
+  // The calendar's section is what it was: an address, required once the section is there.
+  assert.equal(TenantConfigSchema.safeParse({ brain: BRAIN, calendar: { tool: "booksy" } }).success, false);
+  assert.equal(
+    TenantConfigSchema.safeParse({ brain: BRAIN, calendar: { ical_url: "https://calendar.example.com/a.ics" } })
+      .success,
+    true,
+  );
+  // The build before, in the shape it had (its sections, each stripping what it does not know): it reads the new
+  // config and leaves the section out, and it could not read a calendar with a tool and no address.
+  const before = TenantConfigSchema.omit({ bookings: true });
+  const older = before.safeParse(stored);
+  assert.equal(older.success, true, "a build from before reads a config that names a tool");
+  assert.equal("bookings" in older.data, false);
+  // A tool the list does not know is refused on the way in, by name.
+  const typo = TenantConfigWriteSchema.safeParse({ brain: BRAIN, bookings: { tool: "booksie" } });
+  assert.equal(typo.success, false);
+  assert.deepEqual(typo.error.issues[0].path, ["bookings", "tool"]);
+});

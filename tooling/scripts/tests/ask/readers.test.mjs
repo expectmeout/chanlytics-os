@@ -1293,6 +1293,7 @@ const PERSON_KEYS = [
   "consent_history",
   "campaigns",
   "lead",
+  "doubts",
   "deals",
   "deals_on",
   "deal_pace",
@@ -1300,7 +1301,10 @@ const PERSON_KEYS = [
   "consult_first",
   "added",
 ];
-/** Every read GET contacts/:id made at origin/main (fad8b7ea) for one person with threads, by table. */
+/**
+ * Every read GET contacts/:id made at origin/main (fad8b7ea) for one person with threads, by table, and since 00344 the
+ * open doubts naming them (person_doubts, decision 0034 step 4), read in the same round.
+ */
 const PERSON_READS = {
   "rpc:people_list": 1,
   "contact_identities.select": 1,
@@ -1319,6 +1323,7 @@ const PERSON_READS = {
   // Their deals, and the workspace's pace.
   "deals.select": 2,
   "broadcast_recipients.select": 1,
+  "person_doubts.select": 1,
   "person_notes.select": 1,
   "messages.select": 1,
   "escalations.select": 1,
@@ -2268,8 +2273,19 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
     assert.deepEqual(made, [], "nobody put in People");
     assert.deepEqual(
       ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
-      ["rpc:people_list", "policies.select"],
-      "everyone, and nothing the turn already read: no door, no write",
+      // The record's rows over the span and the notices' health line (00345) are read beside the feed, then everyone.
+      // Last, once the feed has read, the record's taken time over the days on offer (record-busy.ts): this week does
+      // not cover a fortnight's offer, so the board's open times ask for it rather than reuse the span's rows.
+      [
+        "appointments.select",
+        "appointment_notices.select",
+        "appointment_notices.select",
+        "mailboxes.select",
+        "rpc:people_list",
+        "policies.select",
+        "appointments.select",
+      ],
+      "the record, everyone, and nothing the turn already read: no door, no write",
     );
     assert.deepEqual(
       tuesday(r.data.calendar).items.map((i) => i.person),
@@ -2280,7 +2296,8 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
     // Read once a turn: the board again is the same read, and its sources are one read for any reader of them.
     assert.equal(kernel.load(rc, calendarReader, WEEK), kernel.load(rc, calendarReader, WEEK));
     const s = await kernel.load(rc, calendarSources, { ...WEEK, fresh: false });
-    assert.equal(s.data.week, null, "the feed was read");
+    assert.notEqual(s.data.parsed, null, "the feed was read");
+    assert.deepEqual(s.data.rows, [], "no booking has arrived by email");
     assert.deepEqual(s.rows, []);
     // What the board needs of the address and the settings, and not them: nothing a projection of the read could leak.
     assert.ok(!("url" in s.data) && !("cfg" in s.data), "no address, no raw settings");
@@ -2290,7 +2307,50 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
       !json.includes("cal.example") && !json.includes("front desk of Harbor"),
       "neither is anywhere in the read",
     );
-    assert.equal(ctx.supabase.seen.length, before + 2, "nothing asked again");
+    // The record, the notices' two, the mailbox, everyone, the policies and the taken time: seven, and nothing asked again.
+    assert.equal(ctx.supabase.seen.length, before + 7, "nothing asked again");
+  });
+});
+
+test("the board's open times leave out a booking that arrived by email, over the days the receptionist may offer, whichever span the page shows (00345)", async () => {
+  // Tuesday noon in New York, two hours' notice, and ONE_ICS takes Tuesday two to half past three: the receptionist's
+  // next open time is Tuesday half past three. Booksy emailed two bookings: the rest of Tuesday, and Wednesday one to two.
+  const emailed = (id, from, to) => ({
+    id,
+    tenant_id: A,
+    source: "booking_email",
+    tool: "booksy",
+    external_id: `booksy:${id}`,
+    status: "booked",
+    starts_at: from,
+    ends_at: to,
+    all_day: false,
+    timezone: "America/New_York",
+  });
+  const withRecord = (rows) => ({ ...calTables("https://cal.example/ok.ics"), appointments: rows });
+  const board = async (t, span) => (await kernel.load(calIn(calCtx(t)), calendarReader, span)).data.calendar;
+  await withFeed({ body: ONE_ICS }, async () => {
+    const alone = await board(withRecord([]), WEEK);
+    assert.equal(alone.next_opening.start, "2026-09-08T19:30:00.000Z", "the feed alone: Tuesday, half past three");
+    const t = withRecord([
+      emailed("appt-1", "2026-09-08T19:30:00.000Z", "2026-09-08T22:00:00.000Z"),
+      emailed("appt-2", "2026-09-09T17:00:00.000Z", "2026-09-09T18:00:00.000Z"),
+    ]);
+    // The week they fall in: both are drawn, Tuesday has nothing left to offer, and Wednesday's hour is left out.
+    const week = await board(t, WEEK);
+    const day = (key) => week.days.find((d) => d.key === key);
+    assert.equal(day("2026-09-08").items.length, 2, "the feed's appointment and the emailed one");
+    assert.deepEqual(day("2026-09-08").windows, []);
+    assert.deepEqual(day("2026-09-09").windows, [
+      { start: "2026-09-09T13:00:00.000Z", end: "2026-09-09T17:00:00.000Z" },
+      { start: "2026-09-09T18:00:00.000Z", end: "2026-09-09T22:00:00.000Z" },
+    ]);
+    assert.equal(week.next_opening.start, "2026-09-09T13:00:00.000Z", "Wednesday at nine, as the receptionist offers");
+    // A board turned to December draws none of those rows, and its next open time is still the receptionist's own: the
+    // record is read over the days on offer, not the days on screen.
+    const december = await board(t, { from: "2026-12-07", days: 7 });
+    assert.equal(december.days.flatMap((d) => d.items).length, 0);
+    assert.equal(december.next_opening.start, "2026-09-09T13:00:00.000Z");
   });
 });
 
@@ -2303,8 +2363,18 @@ const CALENDAR_ASKED_AT_MAIN = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
+  // Since 00345: the record's rows over the span and the notices' health line (the latest, and the held count), read
+  // beside the feed before everyone is (docs/plans/2026-10-07-bookings-arrive-by-email.md).
+  ["appointments.select", "*"],
+  ["appointment_notices.select", "tool, received_at"],
+  ["appointment_notices.select", "id"],
+  // The workspace's address the tool is to send to, and Gmail's pending confirmation of a forward here.
+  ["mailboxes.select", "*"],
   ["rpc:people_list", null],
   ["policies.select", "subject_type, subject_id, mode"],
+  // Once the feed has read: the record's taken time over the days on offer, which the open times subtract beside the
+  // feed's (record-busy.ts). Asked here because this week does not cover a fortnight's offer; the board's first window does.
+  ["appointments.select", "*"],
   ["rpc:create_person", null],
 ];
 
@@ -2412,6 +2482,8 @@ test("the openings, for Ask and for the palette: GET ask/openings answers its re
     const want = await openingsFor(A, { day: "2026-09-09", service: "Balayage" }, CAL_NOW, {
       timezone: t.tenants[0].timezone,
       config: t.tenant_config[0].config,
+      // The record holds nothing for this workspace: the feed's taken time alone.
+      taken: async () => [],
     });
     const read = await kernel.load(calIn(calCtx(t)), openingsReader, { day: "2026-09-09", service: "Balayage" });
     assert.deepEqual(read.data, { openings: want });
@@ -2421,6 +2493,37 @@ test("the openings, for Ask and for the palette: GET ask/openings answers its re
       "the morning is taken; the afternoon is open",
     );
     assert.match(want.text, /^For Balayage \(about 90 minutes\): /);
+  });
+
+  // A booking that arrived by email (00345) is the reader's to read, under the caller's RLS, and is left out beside
+  // the feed's, as the receptionist leaves it out: one to two that Wednesday afternoon, New York. A cancelled one is
+  // not taken time.
+  await withFeed({ body: WEDNESDAY_TAKEN }, async () => {
+    const emailed = (id, from, to, status) => ({
+      id,
+      tenant_id: A,
+      source: "booking_email",
+      tool: "booksy",
+      external_id: `booksy:${id}`,
+      status,
+      starts_at: from,
+      ends_at: to,
+      all_day: false,
+      timezone: "America/New_York",
+    });
+    const t = {
+      ...calTables("https://cal.example/open.ics"),
+      appointments: [
+        emailed("appt-1", "2026-09-09T17:00:00.000Z", "2026-09-09T18:00:00.000Z", "booked"),
+        emailed("appt-2", "2026-09-09T19:00:00.000Z", "2026-09-09T20:00:00.000Z", "cancelled"),
+      ],
+    };
+    const read = await kernel.load(calIn(calCtx(t)), openingsReader, { day: "2026-09-09", service: null });
+    assert.deepEqual(
+      read.data.openings.days.map((d) => d.windows),
+      [["12:00 PM–1:00 PM", "2:00 PM–6:00 PM"]],
+      "the emailed hour is left out; the cancelled one is open",
+    );
   });
 });
 

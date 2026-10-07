@@ -60,6 +60,14 @@ test("REGRESSION: a contact's edit re-reads the threads with them -- their name 
   assert.deepEqual(keysOf("PUT contacts/[id]/receptionist"), ["people"]);
 });
 
+test("a booking email held for a look, read again or dismissed, re-reads the Calendar, whose read carries the list", () => {
+  // The fold under Settings › Business and the board's card both draw the held list from the Calendar's read (00345),
+  // so the write names that surface here: the fold asks for no read of its own.
+  for (const route of ["POST calendar/notices/[id]/read-again", "POST calendar/notices/[id]/dismiss"]) {
+    assert.deepEqual(keysOf(route), ["calendar"], route);
+  }
+});
+
 test("REGRESSION: a write that changes who a campaign reaches re-reads the pages that count it -- a yes recorded, then New message, showed the old audience", () => {
   // Who a broadcast or a playbook reaches is counted from people's answers and from who exists (the composers' audience
   // counts, the playbooks' "N will get it"), and Reports counts the yeses and stops. Each write that moves one of those

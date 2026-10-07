@@ -462,7 +462,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 @media (max-width: 720px) {
   .phone-ask {
     right: 14px;
-    bottom: max(14px, env(safe-area-inset-bottom));
+    bottom: var(--bar-foot);
     width: 62px;
     height: 62px;
   }

@@ -12,6 +12,7 @@ import {
   offersBookingLink,
   parseIcs,
   parseTenantConfig,
+  type BusyBlock,
   type FeedFailure,
   type Opening,
 } from "@chanlytics/contracts";
@@ -22,9 +23,10 @@ import { log } from "@/server/log";
 /**
  * Openings for the assistant and the palette's fast path, computed the way
  * the phone receptionist computes them (edge availability.ts): the calendar
- * feed's busy blocks against the business's hours, closures and booking
- * rules, in the business's zone, which the caller read under its own RLS;
- * the feed URL is fetched server-side and never sent to the browser.
+ * feed's busy blocks, and the record's taken time beside them (00345), against
+ * the business's hours, closures and booking rules, in the business's zone,
+ * which the caller read under its own RLS; the feed URL is fetched server-side
+ * and never sent to the browser.
  */
 
 const FEED_TTL_MS = 5 * 60 * 1000;
@@ -187,13 +189,15 @@ function fmtWindow(start: number, end: number, tz: string): string {
 
 /**
  * `known`: the workspace's zone and its raw settings, as the caller read them this turn (readers/openings.ts, under
- * the caller's RLS): this reads neither, and nothing else of the database -- only the calendar's feed.
+ * the caller's RLS): this reads neither, and nothing else of the database -- only the calendar's feed. `taken` is the
+ * caller's too: the record's taken time over the days on offer (calendar/record-busy.ts), asked for once a feed has
+ * read, since the bookings a tool emailed are subtracted beside the feed's (00345).
  */
 export async function openingsFor(
   tenantId: string,
   by: { day?: string | null; service?: string | null },
   now: Date,
-  known: { timezone: string; config: unknown },
+  known: { timezone: string; config: unknown; taken: (daysAhead: number) => Promise<BusyBlock[]> },
 ): Promise<OpeningsResult> {
   const timezone = known.timezone;
   const cfg = parseTenantConfig(known.config);
@@ -223,7 +227,7 @@ export async function openingsFor(
       hours: profile.hours,
       closures: profile.closures,
       tz: timezone,
-      busy: feed.busy,
+      busy: [...feed.busy, ...(await known.taken(daysAhead))],
       rules,
       now,
     });

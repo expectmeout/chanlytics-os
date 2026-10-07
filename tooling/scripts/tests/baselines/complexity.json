@@ -45,7 +45,7 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
-    "lines": 209,
+    "lines": 208,
     "branches": 32,
     "depth": 0
   },
@@ -55,8 +55,8 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::NotifPopover#1": {
-    "lines": 162,
-    "branches": 13,
+    "lines": 156,
+    "branches": 11,
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::Topbar#1": {
@@ -144,11 +144,6 @@
     "branches": 34,
     "depth": 2
   },
-  "apps/dashboard/src/server/calendar/calendar-week.ts::calendarSources#1": {
-    "lines": 99,
-    "branches": 35,
-    "depth": 2
-  },
   "apps/dashboard/src/server/campaigns/broadcasts.ts::getBroadcast/map(fn)#1": {
     "lines": 23,
     "branches": 35,
@@ -175,8 +170,8 @@
     "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
-    "lines": 233,
-    "branches": 50,
+    "lines": 228,
+    "branches": 45,
     "depth": 1
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
@@ -285,8 +280,8 @@
     "depth": 3
   },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
-    "lines": 186,
-    "branches": 53,
+    "lines": 184,
+    "branches": 50,
     "depth": 3
   },
   "packages/contracts/src/calendar/feed.ts::parseIcs#1": {

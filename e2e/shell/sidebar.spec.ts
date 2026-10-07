@@ -96,13 +96,13 @@ test.describe("sidebar on a real workspace", () => {
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
 
-    // Seven places on a real workspace (Agents is demo-only), and Conversations
+    // Six places on a real workspace (Agents is demo-only; Settings is the account menu's, 7 Oct 2026), and Conversations
     // is not one of them. Counted rather than spelled out: a nav item carries a
     // hint and a badge inside it, and this promise is about which places exist.
     const rail = page.getByTestId("sidebar");
-    await expect(rail.locator(".nav-item")).toHaveCount(7);
+    await expect(rail.locator(".nav-item")).toHaveCount(6);
     await expect(rail.locator(".nav-item", { hasText: "Conversations" })).toHaveCount(0);
-    for (const place of ["Today", "Inbox", "People", "Calendar", "Campaigns", "Reports", "Settings"]) {
+    for (const place of ["Today", "Inbox", "People", "Calendar", "Campaigns", "Reports"]) {
       await expect(rail.locator(".nav-item", { hasText: place })).toHaveCount(1);
     }
 

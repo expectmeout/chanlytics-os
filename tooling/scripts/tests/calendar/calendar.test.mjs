@@ -189,6 +189,58 @@ test("the week as the page draws it: hours with air, bands where closed, blocks 
   assert.equal(vm.bookingLink, "https://book.example.com/marisas");
 });
 
+test("the Business row says the next thing to do first: an address to make, a forward to confirm, emails to look at, the last email's age, or waiting for the first", () => {
+  const now = new Date("2026-09-08T16:00:00.000Z");
+  const feed = { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 };
+  const notices = (over = {}) => ({
+    tool: "booksy",
+    address: "salon@mail.example.com",
+    last_at: null,
+    count: 0,
+    held: 0,
+    held_list: [],
+    forwarding: null,
+    ...over,
+  });
+  const of = (n) => toCalendarVM(dto({ feed: n === undefined ? feed : { ...feed, notices: n } }), now).feed.notices;
+  assert.equal(of(undefined).row, null, "nothing before a tool is named or an email arrived");
+  assert.equal(of(undefined).state, "none");
+  // The mark's own word rides with its colour (Needs you, Waiting, Working); the phrase says what, exactly.
+  const needsYou = (words) => ({ tone: "warn", label: "Needs you", words });
+  assert.deepEqual(of(notices({ address: null })).row, needsYou("Needs a workspace email address"));
+  const forwarding = { account: "owner@example.com", code: "4815162", link: null, at: "2026-09-08T15:00:00.000Z" };
+  assert.deepEqual(of(notices({ forwarding })).row, needsYou("Confirm the forward in Gmail"));
+  assert.deepEqual(of(notices()).row, {
+    tone: "plain",
+    label: "Waiting",
+    words: "Waiting for the first booking email",
+  });
+  const working = notices({ last_at: "2026-09-08T14:00:00.000Z", count: 3 });
+  assert.deepEqual(of(working).row, { tone: "ok", label: "Working", words: "Last booking email 2h ago" });
+  assert.deepEqual(of({ ...working, held: 2 }).row, needsYou("Last booking email 2h ago · 2 to look at"));
+  // Held for a look before any has become a visit (`last_at` is the last one that did): the row says what waits on
+  // the owner, never that it is still waiting for the first, and never that it is working.
+  assert.equal(of(notices({ held: 1 })).state, "waiting");
+  assert.deepEqual(of(notices({ held: 1 })).row, needsYou("1 booking email to look at"));
+  assert.deepEqual(of(notices({ held: 3 })).row, needsYou("3 booking emails to look at"));
+  // Gmail's confirmation is shown for three days. Past that it is nobody's to confirm (another account's, or an old
+  // try), and the row goes back to what is true without it.
+  const stale = { ...forwarding, at: "2026-09-05T15:59:00.000Z" };
+  assert.equal(of(notices({ forwarding: stale })).forwarding, null);
+  assert.equal(of(notices({ forwarding: stale })).row.words, "Waiting for the first booking email");
+  const fresh = { ...forwarding, at: "2026-09-05T16:00:00.000Z" };
+  assert.deepEqual(of(notices({ forwarding: fresh })).forwarding, {
+    account: "owner@example.com",
+    code: "4815162",
+    link: null,
+  });
+  // The board's card and the row read one view model: the tool as the product says it, and the line said whole.
+  const held = of({ ...working, held: 1 });
+  assert.equal(held.tool, "Booksy");
+  assert.equal(held.state, "working");
+  assert.equal(held.line, "Bookings arrive by email from Booksy · last 2h ago · 1 to look at");
+});
+
 test("without a feed the board still shows the hours and says so; a feed that could not be read says that too", () => {
   const none = toCalendarVM(
     dto({
@@ -246,10 +298,12 @@ test("the doors and the page: read-only, the feed's address never in the browser
     svc.includes("const feed = await loadFeed(tenantId, url, opts);"),
     "the same cache the assistant's openings use",
   );
+  // The busy time is the feed's, and beside it the record's taken time over the days on offer (00345): a booking a
+  // tool emailed took its slot too. That the hour is left out, here and for the receptionist, is executed in
+  // ask/readers.test.mjs and availability-tool.test.mjs.
   assert.ok(
-    svc.includes(
-      "freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now })",
-    ),
+    svc.includes("freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy, rules, now })") &&
+      svc.includes("const busy = parsed ? [...parsed.busy, ...taken] : [];"),
     "the windows are the receptionist's own",
   );
   assert.ok(

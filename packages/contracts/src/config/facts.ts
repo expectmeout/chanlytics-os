@@ -357,6 +357,7 @@ export function changedConfigFields(before: unknown, after: unknown): string[] {
     const cfg = (v ?? {}) as {
       brain?: Record<string, unknown>;
       calendar?: unknown;
+      bookings?: unknown;
       notifications?: unknown;
       features?: unknown;
     };
@@ -371,6 +372,7 @@ export function changedConfigFields(before: unknown, after: unknown): string[] {
       ...rest,
       ...(profile ?? {}),
       calendar: cfg.calendar ?? null,
+      bookings: cfg.bookings ?? null,
       notifications: cfg.notifications ?? null,
       features: cfg.features ?? null,
     };

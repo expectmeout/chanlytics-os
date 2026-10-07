@@ -132,8 +132,15 @@ const ctxFor = (t, rpcs = {}) => ({
   email: "ada@example.com",
   params: {},
 });
-/** The workspace's zone and settings as a turn reads them from `t` (readers/openings.ts hands openingsFor these). */
-const knownOf = (t) => ({ timezone: t.tenants[0].timezone, config: t.tenant_config[0].config });
+/**
+ * The workspace's zone and settings as a turn reads them from `t` (readers/openings.ts hands openingsFor these), and the
+ * record's taken time over the days on offer (calendar/record-busy.ts): none, unless a test says a booking arrived.
+ */
+const knownOf = (t, taken = []) => ({
+  timezone: t.tenants[0].timezone,
+  config: t.tenant_config[0].config,
+  taken: async () => taken,
+});
 
 test("everyone: the people come page after page, never one page of them", async () => {
   const all = Array.from({ length: PEOPLE_PAGE + 3 }, (_, i) => person(i + 1));
@@ -567,7 +574,9 @@ test("the runner's own read of People pages the same way, and a refused page is 
 });
 
 test("the sweep's library: a person the feed names is made once, a name fills only an empty one, and each person made gets their event", async () => {
-  const db = fakeDb({
+  // Through the one door a person is resolved by (resolve_person, decision 0034), as the feed's word; the database in
+  // memory answers it from its rows, and what the table holds afterwards is what is asked.
+  const tables = {
     contacts: [
       {
         id: "k1",
@@ -579,39 +588,45 @@ test("the sweep's library: a person the feed names is made once, a name fills on
       },
     ],
     events: [],
-  });
+  };
+  const db = fakeDb(tables);
   const at = (days) => ({ start: NOW.getTime() + days * DAY, email: null });
   const r = await addPeopleFromCalendar(db, T, [
     { phone: "+19175550001", name: "Ana Ruiz", title: "Ana Ruiz · Balayage", uid: "v1", ...at(1) },
     { phone: "+19175550002", name: "Bo Chen", title: "Bo Chen · Cut", uid: "v2", ...at(2) },
   ]);
   assert.deepEqual(r, { seen: 2, added: 1, named: 1, erased: 0, emailed: 0 });
-  const first = (s) => (Array.isArray(s.values) ? s.values[0] : s.values);
-  const contacts = db.seen.filter((s) => s.table === "contacts");
-  assert.ok(
-    contacts.some((s) => s.op === "update" && first(s).display_name === "Ana Ruiz"),
-    "the known number is named, not made again",
+  assert.deepEqual(
+    db.seen.filter((s) => s.rpc === "resolve_person").map((s) => [s.args.p_phone, s.args.p_assurance, s.args.p_source]),
+    [
+      ["+19175550001", "found", "calendar"],
+      ["+19175550002", "found", "calendar"],
+    ],
+    "each row through the door, as what a feed found",
   );
-  assert.ok(
-    contacts.some(
-      (s) => s.op === "insert" && first(s).phone_e164 === "+19175550002" && first(s).display_name === "Bo Chen",
-    ),
-    "the new number is made",
+  assert.deepEqual(
+    tables.contacts.map((c) => [c.id === "k1" ? "k1" : "new", c.phone_e164, c.display_name]),
+    [
+      ["k1", "+19175550001", "Ana Ruiz"],
+      ["new", "+19175550002", "Bo Chen"],
+    ],
+    "the known number is named, not made again; the new number is made",
   );
-  const ev = db.seen.find((s) => s.table === "events" && s.op === "insert");
-  assert.equal(first(ev).kind, "contact.added");
-  assert.deepEqual(first(ev).data, {
-    source: "calendar",
-    title: "Bo Chen · Cut",
-    uid: "v2",
-    start: iso(NOW.getTime() + 2 * DAY),
-  });
+  const [ev] = tables.events.filter((e) => e.kind === "contact.added");
+  assert.deepEqual(
+    [ev.subject_id, ev.data],
+    [
+      tables.contacts[1].id,
+      { source: "calendar", title: "Bo Chen · Cut", uid: "v2", start: iso(NOW.getTime() + 2 * DAY), by: null },
+    ],
+    "the person made says where they came from, with the appointment; the one named gets none",
+  );
 });
 
 test("the sweep's library: a person who asked to be erased is not brought back by their own appointment", async () => {
   const { legacyErasedPhoneHash } = await import("@chanlytics/contracts");
   const h = await legacyErasedPhoneHash(T, "+19175550003");
-  const db = fakeDb({
+  const tables = {
     contacts: [
       {
         id: "k-gone",
@@ -625,17 +640,19 @@ test("the sweep's library: a person who asked to be erased is not brought back b
       },
     ],
     events: [],
-  });
+  };
+  const db = fakeDb(tables);
   const at = { start: NOW.getTime() + DAY, email: null };
   const r = await addPeopleFromCalendar(db, T, [
     { phone: "+19175550003", name: "Cara Voss", title: "Cara Voss · Cut", uid: "v3", ...at },
     { phone: "+19175550004", name: "Dev Rao", title: "Dev Rao · Colour", uid: "v4", ...at },
   ]);
   assert.deepEqual(r, { seen: 2, added: 1, named: 0, erased: 1, emailed: 0 });
-  const inserted = db.seen
-    .filter((s) => s.table === "contacts" && s.op === "insert")
-    .map((s) => (Array.isArray(s.values) ? s.values[0] : s.values).phone_e164);
-  assert.deepEqual(inserted, ["+19175550004"], "the erased number is left erased; the other is made");
+  assert.deepEqual(
+    tables.contacts.map((c) => c.phone_e164),
+    [null, "+19175550004"],
+    "the erased number is left erased (the door's PE001, counted); the other is made",
+  );
 });
 
 test("the sweep fills an empty address from the appointment, never overwrites one, and makes a new person with theirs", async () => {
@@ -667,20 +684,7 @@ test("the sweep fills an empty address from the appointment, never overwrites on
   ]);
   assert.equal(r.emailed, 1);
   assert.equal(r.added, 1);
-  const first = (s) => (Array.isArray(s.values) ? s.values[0] : s.values);
-  const updates = db.seen.filter((s) => s.op === "update" && s.table === "contacts");
-  assert.deepEqual(
-    updates.map((u) => first(u).email),
-    ["ana@example.com"],
-    "Dee's address stays hers",
-  );
-  assert.ok(
-    updates.every((u) => u.filters.some(([op, col, val]) => op === "is" && col === "email" && val === null)),
-    "the fill is guarded: only where no address is",
-  );
-  const insert = db.seen.find((s) => s.op === "insert" && s.table === "contacts");
-  assert.equal(first(insert).email, "eli@example.com");
-  // What the table holds afterwards, since the fake writes in place.
+  // What the table holds afterwards, since the door writes in place: the fill is the door's, only where no address is.
   assert.deepEqual(
     contacts.map((c) => [c.phone_e164, c.email]),
     [
@@ -688,6 +692,7 @@ test("the sweep fills an empty address from the appointment, never overwrites on
       ["+16465550102", "dee@example.com"],
       ["+16465550103", "eli@example.com"],
     ],
+    "Ana given hers, Dee's stays hers, Eli made with theirs",
   );
 });
 
@@ -739,6 +744,16 @@ test("the openings the palette answers with, and its route: no calendar, a calen
   assert.equal(wed.days.length, 1);
   assert.deepEqual(wed.days[0].windows, ["12:00 PM–6:00 PM"], "the morning is taken; the afternoon is open");
   assert.match(wed.text, /^For Balayage \(about 90 minutes\): /);
+  // A booking that arrived by email took its hour too (00345): subtracted beside the feed's, as the receptionist does,
+  // so the assistant never names a time the board draws as taken. One to two in the afternoon, New York.
+  const emailed = [{ start: Date.parse("2026-09-09T17:00:00.000Z"), end: Date.parse("2026-09-09T18:00:00.000Z") }];
+  const split = await openingsFor(T, { day: "2026-09-09", service: null }, NOW, knownOf(tables(url), emailed));
+  assert.deepEqual(split.days[0].windows, ["12:00 PM–1:00 PM", "2:00 PM–6:00 PM"], "the emailed hour is left out");
+  // Asked for only once a feed has read: with no calendar nothing is offered, so nothing of the record is read.
+  let asked = 0;
+  const counting = { ...knownOf(tables(null)), taken: async () => ((asked += 1), []) };
+  assert.equal((await openingsFor(T, { day: null, service: null }, NOW, counting)).state, "no_calendar");
+  assert.equal(asked, 0, "no calendar, no read of the record");
   // The route reads with the real clock, so the day above is in its past; what it proves is the door and the shape.
   const viaRoute = await openingsRoute.GET.run(
     new Request(`http://localhost/api/v1/ask/openings?workspace=${T}&service=Balayage`),

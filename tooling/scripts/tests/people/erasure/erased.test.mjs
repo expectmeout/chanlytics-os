@@ -11,7 +11,7 @@ import { legacyErasedPhoneHash } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { erasedTombstones, erasedBeforeCall, erasedBeforeEmail } = await import(at("apps/edge/lib/erased.ts"));
+const { erasedBeforeCall, erasedBeforeEmail } = await import(at("apps/edge/lib/erased.ts"));
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -25,7 +25,7 @@ test("the digest is sha256 of tenant:number, hex, and keyed by the tenant: the s
   assert.notEqual(h, await legacyErasedPhoneHash(T, "+16465550124"));
 });
 
-test("a tombstone is found by its digest, in its own workspace only; a number nobody erased is not", async () => {
+test("a tombstone is found by its digest, in its own workspace only; a number nobody erased is not (read through the call's question, the one caller the file keeps: the calendar asks the door now)", async () => {
   const h = await legacyErasedPhoneHash(T, PHONE);
   const db = fakeDb({
     contacts: [
@@ -47,14 +47,15 @@ test("a tombstone is found by its digest, in its own workspace only; a number no
       },
     ],
   });
-  const found = await erasedTombstones(db, T, [PHONE, "+16465550124"]);
-  assert.deepEqual([...found.keys()], [PHONE]);
-  assert.deepEqual(found.get(PHONE), {
-    erased_at: "2026-09-10T12:00:00.000Z",
-    erasing_since: "2026-09-10T11:59:00.000Z",
-  });
-  assert.equal((await erasedTombstones(db, OTHER, [PHONE])).size, 0, "another workspace's digest is not this one's");
-  assert.equal((await erasedTombstones(db, T, [])).size, 0);
+  const before = "2026-09-10T11:00:00.000Z";
+  assert.equal(await erasedBeforeCall(db, T, PHONE, before), true, "found by its digest, since when it was asked");
+  assert.equal(await erasedBeforeCall(db, T, "+16465550124", before), false, "a number nobody erased");
+  assert.equal(await erasedBeforeCall(db, OTHER, PHONE, before), false, "another workspace's digest is not this one's");
+  assert.equal(
+    await erasedBeforeCall(db, T, PHONE, "2026-09-10T11:59:30.000Z"),
+    false,
+    "since the request, not since the erasure: erasing_since is the moment that counts",
+  );
 });
 
 test("a call begun before the request belongs to the erasure; one begun after is the person calling back", async () => {

@@ -22,7 +22,8 @@ interface Standing {
   stacked?: boolean;
   /** The page's own act, at the right of the row of views; the frame's act where the page names none. */
   act?: ReactNode;
-  /** The way back, above the name: the crumb before the last where unsaid; null for none. */
+  /** The way back, above the name on a desk and in the date's place on a phone: the crumb before the last where unsaid; null
+   *  for none. */
   back?: BackWay | null;
 }
 

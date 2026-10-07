@@ -39,9 +39,7 @@
     "00294": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
-    "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
-    "00344": "main's (#1465, every writer matches a person through one door) numbered it while this branch was cut: not in this branch, it arrives when the branch is rebased over main",
-    "00345": "a peer branch's migration holds it, pending: not in this branch"
+    "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -348,6 +346,8 @@
     "00341_a_note_keeps_nothing_of_a_person_erased_elsewhere.sql": "553be061d1d7181069f0f95c8f1eb7c30036a09de55b94862e21bbd5715fcbd2",
     "00342_a_person_is_resolved_by_one_door.sql": "cec9764a41c99e33908320414865f8c0d12e75398af66696b3404f2a1699ebfb",
     "00343_a_message_may_begin_as_an_email_or_a_text.sql": "4b901ea4d5f4662cee1bf5d6a362e6a47a70ab719daacbd679b335e26cda129f",
+    "00344_the_other_writers_match_through_the_door_and_a_doubt_is_a_row.sql": "e6be89b343797379e32427c5af8e0037de2f664df8df36c318e4a252d9896cae",
+    "00345_an_appointment_is_a_record.sql": "3869a4cf6a8fe237fb03a93e21f58509231a2fa2f1cd4ecf8d2a8a0a77f148e5",
     "00346_the_reviews_on_record_are_read_once_for_a_report.sql": "f266b8245e188439b19fc821f4d91bd2236d89775460bc791934ea8f7512e103"
   }
 }

@@ -100,6 +100,8 @@ export const calendarOverride: SurfaceOverride = {
   key: "calendar",
   value: "calendar",
   events: ["surface:calendar"],
+  // A booking that arrived by email is a row written (00345): the board repaints as it lands, without a reload.
+  refreshOnTables: ["appointments"],
   // A span's reads take their turn; a move to another span is read at once (activateOverride).
   view: () => `${calendarFrom ?? "today"}|${calendarDays}`,
   apply: async () => {

@@ -845,7 +845,8 @@ test("the wiring: the board and the profile read one match; both receptionists a
     /export async function visitsFor\(\s*rt: TenantRuntime,\s*who: \{ phone: string \| null; name: string \| null \}/.test(
       edge,
     ) &&
-      /return describeVisits\(\s*visitsOf\(feed\.items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
+      // The feed's events and the record's rows for the caller (00345), read by the one index.
+      /return describeVisits\(\s*visitsOf\(items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
         edge,
       ),
   );
@@ -861,7 +862,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   for (const id of ["cal-panel-person", "cal-panel-contact", "cal-panel-where", "cal-panel-desc"])
     assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(
-    page.includes("From {source}. The receptionist treats this time as taken; to change or cancel it, edit it there."),
+    page.includes("From ${source}. The receptionist treats this time as taken; to change or cancel it, edit it there."),
     "one line, no feed counts",
   );
   assert.ok(!page.includes("read just now") && !page.includes("feedLine"), "the chip's sentence stays on the chip");
@@ -1061,20 +1062,103 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
       sweep.includes("select cron.schedule('calendar-people-sweep',"),
     "pg_cron calls the edge every hour, like the other sweeps",
   );
-  const lib = readCode("apps/edge/lib/calendar/calendar-people.ts");
-  assert.ok(
-    lib.includes(".insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name, email })") &&
-      lib.includes('if (iErr.code !== "23505") throw') &&
-      /emitEvent\(\s*db,\s*tenantId,\s*"contact\.added",\s*"contact",\s*created\.id,/.test(lib),
-    "get-or-create with the service role, an event for each person created",
+  // The sweep's writer, run over a database in memory through the one door a person is resolved by (resolve_person,
+  // decision 0034; 00344): a new person with the appointment on their added event, a known number named and given the
+  // address it came with, an address another person holds left theirs, and a person who asked to be erased left erased
+  // and counted, never made again. The door itself is proved on a stack (people/doors/resolve-person.db.test.mjs).
+  const { addPeopleFromCalendar } = await importSrc("apps/edge/lib/calendar/calendar-people.ts");
+  const { createHash } = await import("node:crypto");
+  const digest = (phone) => createHash("sha256").update(`${HARBOR}:${phone}`, "utf8").digest("hex");
+  const tables = {
+    contacts: [
+      {
+        id: MARIA,
+        tenant_id: HARBOR,
+        phone_e164: "+13055550134",
+        display_name: null,
+        email: null,
+        erased_at: null,
+        merged_into_contact_id: null,
+      },
+      {
+        id: "33333333-3333-4333-8333-333333333333",
+        tenant_id: HARBOR,
+        phone_e164: "+13055550177",
+        display_name: "Rosa Perez",
+        email: "rosa@example.com",
+        erased_at: null,
+        merged_into_contact_id: null,
+      },
+      {
+        id: "44444444-4444-4444-8444-444444444444",
+        tenant_id: HARBOR,
+        phone_e164: null,
+        display_name: null,
+        email: null,
+        erased_at: "2026-09-01T00:00:00.000Z",
+        erased_phone_hash: digest("+13055550199"),
+        merged_into_contact_id: null,
+      },
+    ],
+    events: [],
+  };
+  const sweptDb = fakeDb(tables);
+  const start = NOW + 2 * 86_400_000;
+  const swept = await addPeopleFromCalendar(sweptDb, HARBOR, [
+    {
+      phone: "+13055550134",
+      name: "Maria Lopez",
+      title: "Maria Lopez - Balayage",
+      uid: "b1",
+      start,
+      email: "maria@example.com",
+    },
+    {
+      phone: "+13055550155",
+      name: "Lola Diaz",
+      title: "Lola Diaz - Haircut",
+      uid: "b2",
+      start,
+      email: "rosa@example.com",
+    },
+    { phone: "+13055550199", name: "Gone Person", title: "Trim", uid: "b3", start, email: null },
+  ]);
+  assert.deepEqual(swept, { seen: 3, added: 1, named: 1, erased: 1, emailed: 1 }, "what the sweep counts");
+  const maria = tables.contacts.find((c) => c.id === MARIA);
+  assert.deepEqual(
+    [maria.display_name, maria.email],
+    ["Maria Lopez", "maria@example.com"],
+    "named and given the address",
   );
-  assert.ok(lib.includes('.is("display_name", null)'), "a name fills only an empty one");
+  const lola = tables.contacts.find((c) => c.phone_e164 === "+13055550155");
+  assert.deepEqual(
+    [lola.display_name, lola.email],
+    ["Lola Diaz", null],
+    "made, without the address another person here holds",
+  );
+  assert.equal(tables.contacts.length, 4, "nobody made twice, and the erased not made again");
+  assert.deepEqual(
+    tables.events
+      .filter((e) => e.kind === "contact.added")
+      .map((e) => [e.subject_id, e.data.source, e.data.title, e.data.uid, e.data.start]),
+    [[lola.id, "calendar", "Lola Diaz - Haircut", "b2", new Date(start).toISOString()]],
+    "the new person's added event carries the appointment, as the profile reads it",
+  );
+  assert.deepEqual(
+    tables.events.filter((e) => e.kind === "person.resolved").map((e) => [e.data.outcome, e.data.assurance]),
+    [
+      ["filled", "found"],
+      ["new", "found"],
+    ],
+    "each row that went through the door is on the ledger; the erased one was refused before it",
+  );
   // An owner's read (calendar-week.ts calendarWeek) and the door it adds through (people-seen.ts addPeopleSeen).
   const svc = ["calendar-week", "people-seen"]
     .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
     .join("\n");
   assert.ok(
-    /if \(opts\.canAct\)\s*people\.push\(\s*\.\.\.\(await addPeopleSeen\(/.test(svc) &&
+    // Only a feed adds people here (00345): a notice's person was put in People when it was read.
+    /if \(opts\.canAct && s\.parsed\)\s*people\.push\(\s*\.\.\.\(await addPeopleSeen\(/.test(svc) &&
       /ctx\.supabase\.rpc\("create_person", \{\s*p_tenant_id: tenantId,\s*p_phone_e164: r\.phone,\s*p_display_name: r\.name \?\? "",\s*p_source: "calendar",\s*p_title: r\.title,?\s*\}\)/.test(
         svc,
       ),

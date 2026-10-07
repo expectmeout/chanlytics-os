@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, ReactDOM, Icon */
 // Chanlytics — Sidebar v3
 // Workspace menu (top) → nav → (demo agents) → the shell's one
 // status line → account menu (foot). Two popovers and a rail. Every word
@@ -32,9 +32,7 @@ const NAV_INTEL = [
   { id: "reports", icon: "trending-up", label: "Reports" },
 ];
 
-const NAV_FOOT = [
-  { id: "admin", icon: "cog", label: "Settings" },
-];
+// Settings is no place in this list: it is the first door of the account's menu at the sidebar's foot (UserMenu).
 
 const ACTIVE_AGENTS_DEFAULT = [
   { id: "phone",  glyph: "P", name: "Phone Rep",     status: "active",    task: "On call · Selena Cho · 0:42" },
@@ -176,7 +174,9 @@ const useSbMenu = () => {
   const toggle = () => {
     if (!open && ref.current) {
       const r = ref.current.getBoundingClientRect();
-      setRect({ left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width });
+      const bar = ref.current.closest ? ref.current.closest(".sidebar") : null;
+      // `edge` is the sidebar's own right side: a menu that opens beside it starts there, not at its trigger's.
+      setRect({ left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, edge: bar ? bar.getBoundingClientRect().right : r.right });
     }
     setOpen((v) => !v);
   };
@@ -190,23 +190,45 @@ const useSbMenu = () => {
   return { open, rect, ref, toggle, close };
 };
 
-const sbMenuStyle = (rect, { collapsed, side }) => {
-  if (!rect) return {};
-  const width = collapsed ? 240 : Math.max(220, Math.round(rect.width));
-  const left = collapsed ? Math.round(rect.right) + 6 : Math.round(rect.left);
+/** Where the sidebar stands beside the page: a desk. Under it the sidebar is a drawer, and its menus are sheets. */
+const SB_BESIDE_QUERY = "(min-width: 901px)";
+const sbBeside = () => !!(window.matchMedia && window.matchMedia(SB_BESIDE_QUERY).matches);
+/** How far a menu beside the sidebar lies over its edge: a little, so it reads as the sidebar's own. */
+const SB_OVERLAP_PX = 8;
+// On a desk a menu opens beside the sidebar, over its edge by SB_OVERLAP_PX: the workspace's from the top of its row
+// (`side` "down"), the account's with its foot on its row's ("up"). Over the row, the account's covered every place in
+// the sidebar (Ruben, 7 Oct 2026). On a phone it is placed by the stylesheet, as a sheet from the screen's foot
+// (components.css `[data-sb-place]`): it took its place from its row, and a row read while the drawer was still
+// sliding in put the menu off the screen.
+const sbMenuStyle = (rect, { side }) => {
+  if (!rect || !sbBeside()) return {};
+  const left = Math.round(rect.edge) - SB_OVERLAP_PX;
   return side === "up"
-    ? { left, bottom: Math.round(window.innerHeight - rect.top) + 6, width }
-    : { left, top: Math.round(rect.bottom) + 6, width };
+    ? { left, bottom: Math.max(8, Math.round(window.innerHeight - rect.bottom)), width: 264 }
+    : { left, top: Math.max(8, Math.round(rect.top)), width: 264 };
 };
 
-const SbMenu = ({ menu, side = "down", collapsed, label, testid, children }) => menu.open ? (
-  <>
-    <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); menu.close(); }} />
-    <div className="more-menu sb-menu" role="menu" aria-label={label} style={sbMenuStyle(menu.rect, { collapsed, side })} onClick={(e) => e.stopPropagation()} data-testid={testid}>
-      {children}
-    </div>
-  </>
-) : null;
+// Drawn at the app's root, not inside the sidebar: a phone's drawer is moved by a transform, and a fixed box inside a
+// transformed one is placed and cut off by it, so the sheet stood inside the drawer's 248px, most of it out of sight
+// (Ruben, 7 Oct 2026). The root carries the theme. Where there is no document to draw into (a test's stub), in place.
+const sbMenuRoot = (menu) => {
+  const from = menu.ref.current;
+  const root = from && from.closest ? from.closest(".app-root") : null;
+  return root && typeof ReactDOM !== "undefined" && ReactDOM.createPortal ? root : null;
+};
+const SbMenu = ({ menu, side = "down", label, testid, children }) => {
+  if (!menu.open) return null;
+  const drawn = (
+    <>
+      <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); menu.close(); }} />
+      <div className="more-menu sb-menu" role="menu" aria-label={label} data-sb-place={sbBeside() ? "beside" : "foot"} style={sbMenuStyle(menu.rect, { side })} onClick={(e) => e.stopPropagation()} data-testid={testid}>
+        {children}
+      </div>
+    </>
+  );
+  const root = sbMenuRoot(menu);
+  return root ? ReactDOM.createPortal(drawn, root) : drawn;
+};
 
 // The workspaces this account belongs to, the one being viewed checked, the
 // caller's role beside it, and the door to its settings. Switching goes
@@ -252,22 +274,16 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
   );
 };
 
-// The account: who you are, the doors to your name and your alerts, the
-// theme and the look, the shortcuts sheet, and sign out. Alerts on this device
+// The account: who you are, the doors to Settings, your profile and your notifications (which says where this device is not alerted), the
+// theme and the look, and sign out (the shortcuts sheet opens on ?, and is listed nowhere a pointer must find it). Alerts on this device
 // reuse the bell's own switch (the notifications bridge), not a second one.
 const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, flash }) => {
   const real = !window.__DEMO_MODE && window.__notifs ? window.__notifs : null;
-  const [alerts, setAlerts] = React.useState(() => (real ? real.alerts() : null));
+  // Whether this device is alerted, said beside Notifications where it is not: the switch is the bell's and that page's.
+  const alerts = real ? real.alerts() : null;
   const themes = window.__chrome ? window.__chrome.themes : [];
   // The look is drawn only once the chrome offers it (contracts LOOK_OFFERED); until then there is no Look here.
   const looks = window.__chrome && window.__chrome.lookOffered ? window.__chrome.looks : [];
-  const toggleAlerts = async () => {
-    if (!real) return;
-    await real.setAlerts(!alerts.on);
-    const next = real.alerts();
-    setAlerts(next);
-    flash({ tone: next.permission === "denied" ? "warn" : "info", msg: next.on ? <>This device will be alerted when something needs you</> : next.permission === "denied" ? <>Alerts are blocked in your browser settings</> : <>Alerts off on this device</> });
-  };
   const signOut = () => {
     close();
     if (window.__DEMO_MODE || !window.__shell) { flash({ tone: "info", msg: <>Nothing to sign out of in the demo.</> }); return; }
@@ -284,19 +300,19 @@ const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, fl
         {who.role && <span className="chip sb-role" data-testid="sb-me-role">{who.role}</span>}
       </div>
       <div className="more-divider" />
+      {/* The doors, widest first: the workspace's settings, then the two that are yours. Settings stood in the sidebar's
+          own list as its last place (Ruben, 7 Oct 2026: it is a thing you set, not a place you work in). */}
+      <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin"); }} data-testid="sb-me-settings">
+        <Icon name="cog" size={13} /><span className="more-item-label">Settings</span>
+      </button>
       <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/profile"); }} data-testid="sb-me-name">
-        <Icon name="user" size={13} /><span className="more-item-label">Your name</span>{!who.named && <span className="more-item-meta">Not set</span>}
+        <Icon name="user" size={13} /><span className="more-item-label">Profile</span>{!who.named && <span className="more-item-meta">Add your name</span>}
       </button>
-      <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/notifications"); }}>
-        <Icon name="bell" size={13} /><span className="more-item-label">Notification settings</span>
+      <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/notifications"); }} data-testid="sb-me-notifications">
+        <Icon name="bell" size={13} /><span className="more-item-label">Notifications</span>{alerts && alerts.can && !alerts.on && <span className="more-item-meta" data-testid="sb-me-alerts">Off on this device</span>}
       </button>
-      {alerts && alerts.can && alerts.permission !== "denied" && (
-        <button className="more-item" role="menuitemcheckbox" aria-checked={!!alerts.on} onClick={toggleAlerts} data-testid="sb-me-alerts">
-          <Icon name={alerts.on ? "check" : "dot"} size={13} /><span className="more-item-label">Alert this device</span><span className="more-item-meta">{alerts.on ? "On" : "Off"}</span>
-        </button>
-      )}
       <div className="more-divider" />
-      <div className="more-header">Theme</div>
+      <div className="more-header">Appearance</div>
       <div className="sb-theme-seg" role="radiogroup" aria-label="Theme">
         {themes.map((t) => (
           <button key={t.id} role="radio" aria-checked={themePref === t.id} className={`sb-theme-opt ${themePref === t.id ? "active" : ""}`} onClick={() => onTheme(t.id)} data-testid={`sb-theme-${t.id}`}>
@@ -318,9 +334,6 @@ const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, fl
         </>
       )}
       <div className="more-divider" />
-      <button className="more-item" role="menuitem" onClick={() => { close(); window.dispatchEvent(new CustomEvent("shortcuts:open")); }} data-testid="sb-me-shortcuts">
-        <Icon name="keyboard" size={13} /><span className="more-item-label">Keyboard shortcuts</span>
-      </button>
       <button className="more-item danger" role="menuitem" onClick={signOut} data-testid="sb-signout">
         <Icon name="logout" size={13} /><span className="more-item-label">Sign out</span>
       </button>
@@ -462,7 +475,7 @@ const Sidebar = ({
         </div>
         <Icon name="chevrons" size={14} style={{ color: "var(--ink-dim)" }} />
       </button>
-      <SbMenu menu={wsMenu} side="down" collapsed={collapsed} label="Workspaces" testid="sb-workspace-menu">
+      <SbMenu menu={wsMenu} side="down" label="Workspaces" testid="sb-workspace-menu">
         <WorkspaceMenu onNavigate={onNavigate} close={wsMenu.close} />
       </SbMenu>
 
@@ -471,7 +484,6 @@ const Sidebar = ({
         {renderGroup(NAV_PRIMARY)}
         {renderGroup(NAV_WORK, "Workspace")}
         {renderGroup(window.__DEMO_MODE ? NAV_INTEL : NAV_INTEL.filter((i) => !i.demoOnly), "Intelligence")}
-        {renderGroup(NAV_FOOT)}
       </nav>
 
       {/* Active Agents — demo only. The seeded roster claims eight agents doing
@@ -545,7 +557,7 @@ const Sidebar = ({
           </div>
           {window.__DEMO_MODE && !collapsed && <div className="user-credits mono tabular">{sbCredits()}</div>}
         </button>
-        <SbMenu menu={meMenu} side="up" collapsed={collapsed} label="Account" testid="sb-account-menu">
+        <SbMenu menu={meMenu} side="up" label="Account" testid="sb-account-menu">
           <UserMenu who={who} themePref={themePref} onTheme={onTheme} look={look} onLook={onLook} onNavigate={onNavigate} close={meMenu.close} flash={flash} />
         </SbMenu>
       </div>

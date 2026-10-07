@@ -1197,11 +1197,12 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
   const askCss = readRaw("apps/dashboard/src/legacy/styles/ask.css");
   assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
   // Glass is the one look: the circle's place is the rule after the base one (".phone-ask" at the end of the phone block),
-  // 62px as the tab bar's capsule is tall, 14px in from the edge and from the bottom, over the safe area.
+  // 62px as the tab bar's capsule is tall, 14px in from the edge and at the bar's own rest over the bottom (mobile.css,
+  // --bar-foot: 14px, or nearer the edge than the phone's inset where that is more).
   assert.ok(askCss.includes("position: fixed;"), "fixed to the screen");
   assert.match(
     askCss,
-    /\.phone-ask \{\s*right: 14px;\s*bottom: max\(14px, env\(safe-area-inset-bottom\)\);\s*width: 62px;\s*height: 62px;\s*\}/,
+    /\.phone-ask \{\s*right: 14px;\s*bottom: var\(--bar-foot\);\s*width: 62px;\s*height: 62px;\s*\}/,
     "in the tab bar's own row, at the thumb and over no page: it floated 126px up, over what the page drew there",
   );
   assert.ok(

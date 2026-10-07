@@ -120,6 +120,175 @@ export type Database = {
           },
         ]
       }
+      appointment_notices: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          from_address: string | null
+          hold_reason: string | null
+          id: string
+          notice_id: string
+          outcome: string
+          read_at: string
+          received_at: string
+          subject: string | null
+          tenant_id: string
+          tool: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          from_address?: string | null
+          hold_reason?: string | null
+          id?: string
+          notice_id: string
+          outcome: string
+          read_at?: string
+          received_at: string
+          subject?: string | null
+          tenant_id: string
+          tool: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          from_address?: string | null
+          hold_reason?: string | null
+          id?: string
+          notice_id?: string
+          outcome?: string
+          read_at?: string
+          received_at?: string
+          subject?: string | null
+          tenant_id?: string
+          tool?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_notices_appointment_id_same_workspace"
+            columns: ["tenant_id", "appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_notices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointments: {
+        Row: {
+          all_day: boolean
+          client_email: string | null
+          client_name: string | null
+          client_phone: string | null
+          consultation: boolean
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          external_id: string | null
+          id: string
+          lead_id: string | null
+          note: string | null
+          price: string | null
+          service: string | null
+          source: string
+          staff: string | null
+          starts_at: string
+          status: string
+          tenant_id: string
+          timezone: string
+          title: string | null
+          tool: string | null
+          updated_at: string
+          vanished_at: string | null
+        }
+        Insert: {
+          all_day?: boolean
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          consultation?: boolean
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          external_id?: string | null
+          id?: string
+          lead_id?: string | null
+          note?: string | null
+          price?: string | null
+          service?: string | null
+          source: string
+          staff?: string | null
+          starts_at: string
+          status?: string
+          tenant_id: string
+          timezone: string
+          title?: string | null
+          tool?: string | null
+          updated_at?: string
+          vanished_at?: string | null
+        }
+        Update: {
+          all_day?: boolean
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          consultation?: boolean
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          external_id?: string | null
+          id?: string
+          lead_id?: string | null
+          note?: string | null
+          price?: string | null
+          service?: string | null
+          source?: string
+          staff?: string | null
+          starts_at?: string
+          status?: string
+          tenant_id?: string
+          timezone?: string
+          title?: string | null
+          tool?: string | null
+          updated_at?: string
+          vanished_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_lead_id_same_workspace"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ask_messages: {
         Row: {
           content: Json
@@ -3581,6 +3750,10 @@ export type Database = {
       mailboxes: {
         Row: {
           created_at: string
+          forward_confirm_account: string | null
+          forward_confirm_at: string | null
+          forward_confirm_code: string | null
+          forward_confirm_link: string | null
           from_name: string
           id: string
           last_error: string | null
@@ -3597,6 +3770,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          forward_confirm_account?: string | null
+          forward_confirm_at?: string | null
+          forward_confirm_code?: string | null
+          forward_confirm_link?: string | null
           from_name: string
           id?: string
           last_error?: string | null
@@ -3613,6 +3790,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          forward_confirm_account?: string | null
+          forward_confirm_at?: string | null
+          forward_confirm_code?: string | null
+          forward_confirm_link?: string | null
           from_name?: string
           id?: string
           last_error?: string | null
@@ -4248,6 +4429,64 @@ export type Database = {
           written_through?: string
         }
         Relationships: []
+      }
+      person_doubts: {
+        Row: {
+          contact_id: string
+          created_at: string
+          id: string
+          other_id: string
+          seen: string
+          settled_as: string | null
+          settled_at: string | null
+          settled_by: string | null
+          tenant_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          id?: string
+          other_id: string
+          seen: string
+          settled_as?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          tenant_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          id?: string
+          other_id?: string
+          seen?: string
+          settled_as?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_doubts_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "person_doubts_other_id_same_workspace"
+            columns: ["tenant_id", "other_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "person_doubts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       person_moments: {
         Row: {
@@ -5782,6 +6021,10 @@ export type Database = {
         }[]
       }
       ai_usage_purge: { Args: { p_keep?: string }; Returns: number }
+      appointments_scrub: {
+        Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
+        Returns: number
+      }
       ask_for_tick: { Args: never; Returns: boolean }
       ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
       assemble_broadcast: {
@@ -6530,6 +6773,10 @@ export type Database = {
         Args: { p_message_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      member_has_address: {
+        Args: { p_address: string; p_tenant_id: string }
+        Returns: boolean
+      }
       member_view_set: {
         Args: { p_page: string; p_tenant_id: string; p_view: Json }
         Returns: Json
@@ -6933,6 +7180,7 @@ export type Database = {
           wa_profile_name: string
         }[]
       }
+      person_doubt_dismiss: { Args: { p_doubt_id: string }; Returns: Json }
       person_moments_check: {
         Args: { p_after?: string; p_limit?: number; p_tenant_id: string }
         Returns: {
@@ -7681,14 +7929,15 @@ export type Database = {
       }
       resolve_person: {
         Args: {
-          p_assurance: string
-          p_channel: string
+          p_assurance?: string
+          p_channel?: string
           p_detail?: Json
-          p_email: string
-          p_external: string
-          p_name: string
-          p_phone: string
-          p_source: string
+          p_email?: string
+          p_external?: string
+          p_name?: string
+          p_phone?: string
+          p_seen_at?: string
+          p_source?: string
           p_tenant_id: string
         }
         Returns: Json

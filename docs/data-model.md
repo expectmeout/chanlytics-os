@@ -17,6 +17,8 @@ what the script writes.
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
 | [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
+| [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
+| [`appointments`](#appointments) | `packages/db/src/repositories/calendar/appointments.ts` | on, 1 policy |
 | [`ask_messages`](#ask_messages) | none | on, 4 policies |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
 | [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/ask-voice-session.ts` | on, 4 policies |
@@ -29,7 +31,7 @@ what the script writes.
 | [`calls`](#calls) | `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
 | [`contact_identities`](#contact_identities) | `packages/db/src/repositories/email.ts` | on, 1 policy |
-| [`contacts`](#contacts) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
+| [`contacts`](#contacts) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`decisions`](#decisions) | `packages/db/src/repositories/people.ts` | on, 2 policies |
@@ -76,6 +78,7 @@ what the script writes.
 | [`partner_reversals_waiting`](#partner_reversals_waiting) | none | on, no policy, so only the service role reaches it |
 | [`partner_tenants`](#partner_tenants) | `packages/db/src/repositories/partner.ts` | on, 2 policies |
 | [`partners`](#partners) | `packages/db/src/repositories/partner.ts` | on, 1 policy |
+| [`person_doubts`](#person_doubts) | `packages/db/src/repositories/people.ts` | on, 1 policy |
 | [`person_moments`](#person_moments) | none | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
@@ -147,6 +150,86 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `ai_usage_member_select` | select | authenticated | `((NOT shadow) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid()))))` |  |
+
+### appointment_notices
+
+Every booking tool's notice the workspace's address took in: the delivery, the tool, and what it became or why it is held for a person. Members read; the booking_read job writes.
+
+- Owned by: `packages/db/src/repositories/calendar/notices.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `notice_id` | text | no |  |  |
+| `tool` | text | no |  |  |
+| `from_address` | text | yes |  |  |
+| `subject` | text | yes |  |  |
+| `received_at` | timestamp with time zone | no |  |  |
+| `read_at` | timestamp with time zone | no | `now()` |  |
+| `outcome` | text | no |  |  |
+| `hold_reason` | text | yes |  |  |
+| `appointment_id` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `appointment_id` → [`appointments`](#appointments) (`tenant_id`, `id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `appointment_notices_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### appointments
+
+One visit as a source stated it (decision 0002): a booking tool's notice, the calendar feed, a tool's door or a person; its client, what and with whom, and what became of it. Members read; the service role writes; the product never books.
+
+- Owned by: `packages/db/src/repositories/calendar/appointments.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `contact_id` | uuid | yes |  |  |
+| `lead_id` | uuid | yes |  |  |
+| `source` | text | no |  |  |
+| `tool` | text | yes |  |  |
+| `external_id` | text | yes |  |  |
+| `status` | text | no | `'booked'::text` |  |
+| `starts_at` | timestamp with time zone | no |  |  |
+| `ends_at` | timestamp with time zone | no |  |  |
+| `all_day` | boolean | no | `false` |  |
+| `title` | text | yes |  |  |
+| `service` | text | yes |  |  |
+| `staff` | text | yes |  |  |
+| `price` | text | yes |  |  |
+| `note` | text | yes |  |  |
+| `client_name` | text | yes |  |  |
+| `client_phone` | text | yes |  |  |
+| `client_email` | text | yes |  |  |
+| `consultation` | boolean | no | `false` |  |
+| `timezone` | text | no |  |  |
+| `vanished_at` | timestamp with time zone | yes |  |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `appointments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### ask_messages
 
@@ -550,7 +633,7 @@ Foreign keys:
 
 ### contacts
 
-- Owned by: `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`
+- Owned by: `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1060,7 +1143,7 @@ How many jobs naming a capacity key (scope:key in payload.capacity) may be fired
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `lease_until` | timestamp with time zone | yes |  | While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts. |
 | `dedupe_key` | text | yes |  | What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00333): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed. |
-| `lane` | smallint | yes | `generated: CASE WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 WHEN (kind = 'event_deliver'::text) THEN CASE WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer ELSE 2 END ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription's lane (payload.lane, 00334); null for a kind the case does not name, claimed last. |
+| `lane` | smallint | yes | `generated: CASE WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 WHEN (kind = 'event_deliver'::text) THEN CASE WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer ELSE 2 END ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver row carries its subscription's lane. |
 
 Foreign keys:
 
@@ -1594,6 +1677,10 @@ A workspace's email address on the platform's mail domain, its reply route, and 
 | `offers_paused_at` | timestamp with time zone | yes |  | When a gate paused this workspace's offers by email (complaints or bounces over their limits, contracts' OFFER_GATES), or NULL while they are not paused. Offers hold; reminders and replies by email go on. Cleared by resume_email_offers. |
 | `offers_paused_reason` | text | yes |  | Which gate paused them: complaints or bounces. |
 | `offers_resumed_at` | timestamp with time zone | yes |  | When the back office last turned this workspace's offers by email back on (resume_email_offers), or NULL if it never has. The gates are judged over the offers sent after it, so the offers that paused them are not counted again. |
+| `forward_confirm_account` | text | yes |  |  |
+| `forward_confirm_code` | text | yes |  | Gmail's confirmation code for forwarding from forward_confirm_account to this address, kept by the intake until the first booking notice is read (00345). |
+| `forward_confirm_link` | text | yes |  |  |
+| `forward_confirm_at` | timestamp with time zone | yes |  |  |
 
 Foreign keys:
 
@@ -1964,6 +2051,36 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `partners_self_select` | select | authenticated | `(user_id = auth.uid())` |  |
+
+### person_doubts
+
+The queue in front of merge_people (decision 0034, step 4): two living records one identity could belong to, written by resolve_person once per pair (the lower id first), open until an owner merges them (00326) or a member says they are not the same (person_doubt_dismiss). Never the identity itself: `seen` says which of the three it was. An erasure takes every row that names the person; a merge settles the pair and moves the merged record's other doubts onto the kept one.
+
+- Owned by: `packages/db/src/repositories/people.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `contact_id` | uuid | no |  |  |
+| `other_id` | uuid | no |  |  |
+| `seen` | text | no |  | Which identity either record could own, as the door saw it: name, phone or email. Never the value. |
+| `settled_at` | timestamp with time zone | yes |  |  |
+| `settled_by` | uuid | yes |  |  |
+| `settled_as` | text | yes |  | How the pair was settled: merged (0028's door, through the contacts trigger) or not_the_same (person_doubt_dismiss). Null while open. |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `other_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `person_doubts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### person_moments
 

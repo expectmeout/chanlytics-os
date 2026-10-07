@@ -14,6 +14,78 @@
       "where": null
     },
     {
+      "table": "appointment_notices",
+      "name": "appointment_notices_delivery_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "notice_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "appointment_notices",
+      "name": "appointment_notices_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "appointments",
+      "name": "appointments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "appointments",
+      "name": "appointments_source_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "source"
+        },
+        {
+          "column": "external_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "appointments",
+      "name": "appointments_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "ask_messages",
       "name": "ask_messages_pkey",
       "primary": true,
@@ -1611,6 +1683,36 @@
       "keys": [
         {
           "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "person_doubts",
+      "name": "person_doubts_pair_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "contact_id"
+        },
+        {
+          "column": "other_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "person_doubts",
+      "name": "person_doubts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
         }
       ],
       "where": null

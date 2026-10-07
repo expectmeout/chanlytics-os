@@ -51,7 +51,7 @@ test.describe("Calendar on a real workspace", () => {
     const res = await apiGet(page, "/api/v1/calendar");
     expect(res.status()).toBe(200);
     const cal = (await res.json()).data.calendar as {
-      feed: { present: boolean; state: string };
+      feed: { present: boolean; state: string; notices?: { last_at: string | null } };
       days: Array<{ items: unknown[]; windows: unknown[] }>;
     };
     expect(JSON.stringify(cal)).not.toContain("ical_url");
@@ -65,18 +65,23 @@ test.describe("Calendar on a real workspace", () => {
       /^(Readable|Last good read|Could not be read|Not connected)$/,
     );
 
-    // The blocks and windows are exactly the route's.
+    // The blocks and windows are exactly the route's. With no calendar that reads, the route's items are the bookings
+    // that arrived by email (the appointments record) and nothing else, and no open time is named.
     const items = cal.days.reduce((a, d) => a + d.items.length, 0);
     const windows = cal.days.reduce((a, d) => a + d.windows.length, 0);
     if (cal.feed.state === "ok") {
       expect(await board.getByTestId("cal-window").count()).toBe(windows);
-      expect((await board.getByTestId("cal-block").count()) + (await board.locator(".cal-allday").count())).toBe(items);
     } else {
       await expect(board.getByTestId("cal-feed-card")).toBeVisible();
-      await expect(board.getByTestId("cal-block")).toHaveCount(0);
       await expect(board.getByTestId("cal-window")).toHaveCount(0);
+      if (!items) await expect(board.getByTestId("cal-block")).toHaveCount(0);
     }
-    if (!cal.feed.present) await expect(board.getByTestId("cal-feed-card")).toContainText("No calendar connected");
+    expect((await board.getByTestId("cal-block").count()) + (await board.locator(".cal-allday").count())).toBe(items);
+    // No calendar: the card says so, or, once a booking email has arrived, that bookings arrive by email.
+    if (!cal.feed.present)
+      await expect(board.getByTestId("cal-feed-card")).toContainText(
+        cal.feed.notices?.last_at ? "Bookings arrive by email" : "No calendar connected",
+      );
   });
 
   test("switching views is instant — no read — and Today, the arrows and a date move the anchor; only a far move reads again", async ({

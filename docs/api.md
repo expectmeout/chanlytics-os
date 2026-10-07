@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-217 handlers in 46 domains.
+220 handlers in 46 domains.
 
 ## activity
 
@@ -234,6 +234,18 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | `days` | string | no |  |
 | `fresh` | one of `"1"` | no |  |
 
+### `POST /api/v1/calendar/notices/[id]/dismiss`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/calendar/notices/[id]/dismiss/route.ts`).
+
+### `POST /api/v1/calendar/notices/[id]/read-again`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/calendar/notices/[id]/read-again/route.ts`).
+
 ### `POST /api/v1/calendar/preview`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
@@ -423,6 +435,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `notes` | string | no |  |
 | `email` | string | no | at most 320 characters |
 | `proposal` | string | no | at most 600 characters |
+
+### `POST /api/v1/contacts/[id]/doubts/dismiss`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `doubt_id` | string (uuid) | yes |  |
 
 ### `PUT /api/v1/contacts/[id]/marketing-consent`
 

@@ -1157,6 +1157,10 @@ waiting who is not a customer, then bulk, each workspace taking its turn at bulk
   Resend's receiving side puts at the start of the `Authentication-Results` header (the word before the first
   semicolon), read off one real email received on `EMAIL_DOMAIN`. Blank, no yes by email is recorded (a STOP or an
   UNSUBSCRIBE by email never needs it); a header that names anything else, or two that name it, is no proof.
+  **Bookings by email need it too** (00345): a booking tool's email becomes an appointment only from a proved sender,
+  in a workspace that named that tool, and a forward by hand only from a member whose own address is proved. Blank,
+  none is read: each lands in the Inbox as an automated email, and Settings › Business keeps saying "Waiting for the
+  first booking email".
 - **A statement that hangs.** The service role's statements end at 30 seconds (00283) and the client gives up on a request
   at 40, so a hung statement no longer holds a function until it is killed.
 

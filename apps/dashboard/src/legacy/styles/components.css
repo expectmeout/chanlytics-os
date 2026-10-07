@@ -601,13 +601,21 @@
    ============================================================ */
 
 /* ---------- App root (live product frame) ---------- */
-/* dvh, for the reason .app gives: 100vh runs under a phone browser's toolbar, and the tab bar with it. */
+/* dvh, for the reason .app gives: 100vh runs under a phone browser's toolbar, and the tab bar with it.
+   The room at its top is the phone's own bar (the clock, the battery) where the app is on an iPhone's home screen: the
+   page is drawn from the screen's top there (layout.tsx: black-translucent, viewport-fit cover), and the date, the bell
+   and the page's name stood under that bar (Ruben, 7 Oct 2026). The inset is the bar's height there and nothing in a
+   browser's tab, which keeps the bar's room itself, so a tab is drawn as it was. The page's paint still reaches the
+   screen's top (tokens.css, --surface-page-top). What is fixed to the window keeps the room itself: the drawer
+   (mobile.css), a tablet's notes (below), the Inbox's sending strip (inbox.css), a lead's panel and its photos
+   (leads.css). The inset is added to what a box keeps, never written over it: a tab reads it as 0. */
 .app-root {
   display: grid;
   grid-template-columns: auto 1fr;
   height: 100vh;
   height: 100dvh;
   width: 100vw;
+  padding-top: env(safe-area-inset-top, 0px);
   background: var(--bg);
   color: var(--ink);
   overflow: hidden;
@@ -1061,7 +1069,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
      switch itself is, where the browser can alert. */
   .tbn-foot:has(> .tbn-foot-note) { display: none; }
 }
-@media (max-width: 900px) { .tbn-pop { position: fixed; top: 52px; right: 12px; left: 12px; width: auto; } }
+@media (max-width: 900px) { .tbn-pop { position: fixed; top: calc(52px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; width: auto; } }
 /* On a phone the notes are a sheet from the bottom, as every other sheet there is: edge to edge, a handle, the page
    standing over the page with no wash, pulled down to close (topbar.jsx NotifPopover, data-bits touchSwipe), rising and leaving
    as People's sheets do. It was a 568px popover hung from the top bar, as far from the thumb as the screen allows. */
@@ -1380,11 +1388,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* ---------- The bell's foot: device alerts ---------- */
 .tbn-foot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }
 .tbn-foot-note { display: block; }
-.tbn-alert-switch { appearance: none; background: none; border: 0; padding: 4px 0; font: inherit; font-size: 12px; color: var(--ink-muted); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; text-align: left; }
-.tbn-alert-switch:hover { color: var(--ink); }
-.tbn-alert-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--line-strong); background: transparent; flex: none; }
-.tbn-alert-switch.on { color: var(--ink); }
-.tbn-alert-switch.on .tbn-alert-dot { background: var(--accent); border-color: var(--accent); }
+/* This device's alerts: its words, and the kit's switch beside them, the one Settings > Notifications' This device card
+   draws, which says on or off itself. It was a 9px ring that read as a choice not taken. */
+.tbn-alert { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; color: var(--ink-muted); }
 
 /* ---- Templates hidden from the composers: still listed, under the rest ---- */
 .set-int-row.is-hidden { opacity: 0.55; }
@@ -1402,7 +1408,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .sidebar.collapsed .user-chip .who,
 .sidebar.collapsed .sb-collapse-label { display: none; }
 .sidebar.collapsed .nav-item { justify-content: center; padding: 9px 0; }
-.sidebar.collapsed .sidebar-section { padding: 4px 6px; }
+/* The rail draws no labels, so its groups keep no room over and under them: with 4px each, three pairs of icons stood 11px
+   apart and the rest 3 (Ruben, 7 Oct 2026). */
+.sidebar.collapsed .sidebar-section { padding: 0 6px; }
 .sidebar.collapsed .sb-team { justify-content: center; padding: 14px 0 10px; }
 .sidebar.collapsed .sidebar-foot { padding: 8px 6px; }
 .sidebar.collapsed .user-chip { justify-content: center; padding: 8px 0; }
@@ -1421,6 +1429,43 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 
 /* Menus are drawn on the page, anchored to their trigger, so the rail can open them too. */
 .sb-menu { position: fixed; top: auto; right: auto; max-width: 300px; max-height: min(520px, 84vh); }
+/* On a phone the sidebar is a drawer, and its two menus are the phone's action sheet, as every menu of the kit's is there
+   (kit.css, the Menu under 900px; named by where it is placed, sidebar.jsx `data-sb-place`): from the screen's foot, edge to edge, a handle, each item a thumb tall. Opened over
+   its row, the account's covered the drawer's places, the workspace's hung off a row a thumb had just left, and one
+   placed from a row still sliding in stood off the screen (Ruben, 7 Oct 2026). */
+@media (max-width: 900px) {
+  [data-sb-place="foot"] {
+    inset: auto 0 0 0;
+    width: auto;
+    max-width: none;
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 6px 10px calc(14px + env(safe-area-inset-bottom));
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    border-bottom: 0;
+    animation: more-sheet-in 220ms var(--ease-out);
+  }
+  [data-sb-place="foot"]::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 4px auto 12px;
+    border-radius: var(--radius-full);
+    background: var(--line-strong);
+  }
+  [data-sb-place="foot"][role="menu"] > button {
+    min-height: 52px;
+    padding: 0 12px;
+    gap: 14px;
+    font-size: var(--text-md);
+  }
+}
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  [data-sb-place="foot"] {
+    animation: none;
+  }
+}
 .sb-menu-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
 .sb-menu-head .avatar {
   width: 30px; height: 30px; border-radius: var(--radius-full); flex-shrink: 0;
@@ -2290,6 +2335,48 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     grid-row: 3;
     justify-content: flex-start;
   }
+  /* Where a page names an act and draws no strip of views (Campaigns' Library and New message, Sent's and Today's New), the
+     act stands at the right of the name's row, under the bell, rather than on a row of its own under the name at the left
+     (Ruben, 7 Oct 2026). Its controls are the control layer's 36px, each 44px to a finger by a margin no one sees, as the
+     bell's is. The name's row stands 13px lower, so the act clears the bell (32px on the date's line, its foot 42px from
+     the top) by 8; so does a row under a way back in the date's place (its 36px capsule), the same on Campaigns, Sent and
+     the Library. A person's page draws its own head, so its slot holds no name and stays where it is. */
+  .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)),
+  .main:has(> .pg-dateline-slot > .pg-back) .pg-slot:has(> .pg-head-slot > header) {
+    padding-top: 13px;
+  }
+  .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-2);
+  }
+  .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)) > .pg-head-slot {
+    align-self: center;
+    padding-right: 0;
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot:has(:is(button, a)) {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    justify-content: flex-end;
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > button,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > button,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > a {
+    position: relative;
+    height: var(--control-h-lg);
+    min-height: var(--control-h-lg);
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > button,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > button {
+    padding: 0 14px 0 12px;
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > button::after,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > button::after,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > a::after {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
+  }
   /* On a phone People's three scopes draw their act in their own bar (the Pipeline's + beside its search, canvas
      D-phone-list), so the frame's copy of it leaves. */
   .main:has(> .main-scroll > .clients) .pg-act-slot {
@@ -2358,15 +2445,12 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   /* The period's place is kept from the first paint. The period is the page's act (period-picker.tsx, said through the
      head into #pg-act), and the page draws only once its read lands, a second or two after the strip: with the act's
      place empty the column was 0 wide, the strip spanned the screen, and shrank 52px as the period came (Ruben, 7 Oct
-     2026). Until it comes, the place holds a circle of the same glass with nothing in it (reports.css .rpt-when-open),
-     as the Calendar's options button stands beside its views before the days are read. */
-  .pg-slot[data-strip="reports"] > .pg-act-slot:has(> #pg-act:empty)::before {
-    content: "";
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-circle);
-    background: var(--surface-control-fill);
-    box-shadow: var(--surface-control-depth);
+     2026). The place keeps the period's width and nothing is drawn in it. It held a circle of the period's glass, a
+     pseudo-element taken away by `:has(> #pg-act:empty)`, which an iPhone's Safari did not ask again as the period was
+     drawn into the span: the empty circle stood beside the period for good (Ruben, 7 Oct 2026). */
+  .pg-slot[data-strip="reports"] > .pg-act-slot {
+    min-width: 44px;
+    min-height: 44px;
   }
   /* The Inbox's row of views (Needs you, Conversations, Live) stands on a phone as on a desk (Ruben, 2 Oct 2026: the
      canvas's swipe between them was not found); the buckets' capsule is the list's own, under it. */
@@ -2488,10 +2572,13 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
 }
 
-/* The sidebar as the canvases draw it (E3 and the five after it): the places in one list without the groups' labels,
-   each at the page's reading size, and no Collapse: the sidebar is as tall as its places. */
-.sidebar-label { display: none; }
-.sidebar-section + .sidebar-section { margin-top: 0; }
+/* The sidebar's places at the page's reading size, in their groups, each group under its name (Workspace, Intelligence) in
+   the small capitals; no Collapse: the sidebar is as tall as its places. The canvases (E3) drew one list with no names, and
+   with the names hidden the groups stood 0 apart while the places in one stood 3: Inbox and People, and Campaigns and
+   Reports, touched (Ruben, 7 Oct 2026, who chose the names shown). The rail draws no names (above), and its groups keep
+   the places' own 3px. */
+.sidebar-label { font-size: var(--text-2xs); letter-spacing: 0.06em; padding: 14px 12px 6px; }
+.sidebar-section + .sidebar-section { margin-top: 3px; }
 .sb-collapse { display: none; }
 .nav-item { padding: 0 12px; font-size: var(--text-base); }
 
