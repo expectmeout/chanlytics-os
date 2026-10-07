@@ -515,7 +515,7 @@ function withHold(result) {
 
 /**
  * 6 Oct 2026 (decision 0030): the report says the Campaigns lens beside it, from the lens's own read (readers/
- * campaign-report.ts), the last thing it says: an error in this world, whose database has no campaign_series (a function
+ * campaign-report.ts), said after its deals: an error in this world, whose database has no campaign_series (a function
  * it does not have is no read it counts). The one change to the bytes of a report it answers.
  */
 function withCampaigns(result) {
@@ -524,6 +524,19 @@ function withCampaigns(result) {
     ? result
     : JSON.stringify({ ...said, campaigns: { error: "the campaign numbers could not be read just now" } });
 }
+
+/**
+ * 7 Oct 2026 (Reports phase C, lens 1, T4): the report says the Reviews lens after the Campaigns lens, from the lens's own
+ * read (readers/report.ts reviewsReport: Google as GET google reads it, and the reviews on record where a listing is
+ * linked). This world has no Google listing, so it says `linked: false`, and the read is three reads more: the listing, the
+ * connection and the Autonomy row for reviews (the zone is the turn's, read once). The one change to the bytes and to the
+ * reads of a report it answers.
+ */
+function withReviews(result) {
+  const said = JSON.parse(result);
+  return said.error ? result : JSON.stringify({ ...said, reviews: { linked: false } });
+}
+const withReviewReads = (reads) => [...reads, "google_listings.select", "google_connections.select", "policies.select"];
 
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
@@ -716,7 +729,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     let result = want.result.replaceAll("+19295550100", "+442079460100");
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
-    if (NAMES[old] === "report") result = withCampaigns(withHold(result));
+    if (NAMES[old] === "report") result = withReviews(withCampaigns(withHold(result)));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
@@ -770,10 +783,12 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 6 Oct 2026 (#1431): a person's page reads the decisions recorded about them, not only those on their threads
     // (packages/db personDecisions), so people.get reads `decisions` once even for a person with no thread, or none at all.
     // The one change to its reads; its bytes are unchanged.
-    const reads =
+    const personReads =
       NAMES[old] === "people.get" && !reachReads.includes("decisions.select")
         ? [...reachReads, "decisions.select"]
         : reachReads;
+    // 7 Oct 2026 (Reports phase C, lens 1, T4): the report reads the Reviews lens too: three reads more (withReviewReads).
+    const reads = NAMES[old] === "report" ? withReviewReads(personReads) : personReads;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)

@@ -1000,6 +1000,160 @@ test("report says the Campaigns lens beside the page (0030): its tiles, the read
   );
 });
 
+test("report says the Reviews lens as the page does (Reports phase C, lens 1): the head and the figures from the one fold, the mix and who waits where the Business Profile holds the reviews, the head and four figures from a public listing, linked false with none, and an error where its read failed", async () => {
+  const today = iso(NOW.getTime()).slice(0, 10);
+  const rpcs = {
+    ...RPCS,
+    report_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today,
+      series: [],
+      reasons: {},
+      reply_seconds: [],
+      sentiments: {},
+      voicemail: 0,
+    }),
+  };
+  const review = (n, published, over = {}) => ({
+    id: `ffffffff-ffff-4fff-8fff-ffffffffff0${n}`,
+    tenant_id: A,
+    review_id: `g-0${n}`,
+    origin: "profile",
+    rating: 5,
+    author: "Ana P.",
+    author_uri: null,
+    author_photo_uri: null,
+    body: "Fast, careful, and on time.",
+    language_code: null,
+    published_at: published,
+    reply_text: null,
+    replied_at: null,
+    maps_uri: null,
+    first_seen_at: published,
+    last_seen_at: published,
+    ...over,
+  });
+  const listing = (over = {}) => ({
+    tenant_id: A,
+    place_id: "place-1",
+    name: "Harbor Studio",
+    address: "1 Dock Street",
+    maps_uri: "https://maps.example.com/harbor",
+    business_status: "OPERATIONAL",
+    rating: 4.8,
+    review_count: 4,
+    linked_at: "2026-08-01T12:00:00Z",
+    checked_at: "2026-09-14T12:00:00Z",
+    check_error: null,
+    ...over,
+  });
+  const connection = (over = {}) => ({
+    tenant_id: A,
+    google_email: "owner@example.com",
+    account_title: "Harbor Studio",
+    location_name: "locations/1",
+    location_title: "Harbor Studio",
+    connected_at: "2026-08-01T12:00:00Z",
+    last_synced_at: "2026-09-14T12:00:00Z",
+    sync_error: null,
+    ...over,
+  });
+  // Four reviews on the profile, which is every one Google counts: two written in the last 7 days (one answered by the
+  // receptionist six hours later, one waiting, a reply to it written and held for naming a price), one in the 7 before
+  // (answered by its owner), one older; and a fifth, one of the five the public listing shows, which counts for nothing.
+  const reviews = [
+    review(1, "2026-09-10T14:00:00Z", { reply_text: "Thank you!", replied_at: "2026-09-10T20:00:00Z" }),
+    review(2, "2026-09-12T09:00:00Z", { rating: 2 }),
+    review(3, "2026-09-02T10:00:00Z", { rating: 4, reply_text: "Thanks!", replied_at: "2026-09-03T10:00:00Z" }),
+    review(4, "2026-08-15T10:00:00Z", { reply_text: "Thanks!", replied_at: "2026-08-15T12:00:00Z" }),
+    review(5, "2026-09-13T10:00:00Z", { origin: "places", rating: 1 }),
+  ];
+  const event = (kind, n, data) => ({
+    id: `e-${kind}-${n}`,
+    tenant_id: A,
+    kind,
+    category: "google",
+    subject_type: "review",
+    subject_id: reviews[n - 1].id,
+    data,
+    created_at: "2026-09-10T20:00:00Z",
+  });
+  const profile = tables({
+    google_listings: [listing()],
+    google_connections: [connection()],
+    google_reviews: reviews,
+    events: [
+      event("google.replied", 1, { review_id: "g-01", by: "receptionist" }),
+      event("google.reply_held", 2, { review_id: "g-02", why: "price" }),
+    ],
+  });
+  const run = async (t, faults = {}) => {
+    const tc = newToolContext(ctxFor(t, rpcs, faults), A, "owner", TZ, NOW);
+    const out = await runTool(tc, { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+
+  // The Business Profile holds the reviews: its head, its five figures, the mix, and who waits.
+  assert.deepEqual((await run(profile)).reviews, {
+    head: "4.8 on Google from 4 reviews; 2 new in the last 7 days, 1 answered.",
+    tiles: [
+      { label: "Rating on Google", value: "4.8", meta: "4 reviews · checked 2h ago", change: null },
+      { label: "Reviews on Google", value: "4", meta: "as Google counts them, with or without words", change: null },
+      { label: "New in 7 days", value: "2", meta: "with words or without", change: "up from 1" },
+      { label: "Answered", value: "1 of 2", meta: "1 by the receptionist", change: null },
+      { label: "Time to reply", value: "—", meta: "1 reply so far; the middle needs 3", change: null },
+    ],
+    stars: {
+      line: "1 of the 2 reviews written in the last 7 days are 4 or 5 stars.",
+      rows: ["5 stars: 1 · 50%", "4 stars: 0 · 0%", "3 stars: 0 · 0%", "2 stars: 1 · 50%", "1 star: 0 · 0%"],
+    },
+    waiting: { count: 1, held: 1 },
+  });
+
+  // Only the five Google shows of a public listing: the listing's head and four figures, and nothing that needs the whole set.
+  const publicOnly = tables({
+    google_listings: [listing({ rating: 4.6, review_count: 213 })],
+    google_reviews: reviews.map((r) => ({ ...r, origin: "places" })),
+  });
+  const places = (await run(publicOnly)).reviews;
+  assert.deepEqual(places, {
+    head: "4.6 on Google from 213 reviews; what changed needs a second day of reading.",
+    tiles: [
+      { label: "Rating on Google", value: "4.6", meta: "213 reviews · checked 2h ago", change: null },
+      { label: "Reviews on Google", value: "213", meta: "as Google counts them, with or without words", change: null },
+      { label: "Gained in 7 days", value: "—", meta: "needs a second day of reading", change: null },
+      { label: "Newest review", value: "1d ago", meta: "★☆☆☆☆ · Ana P.", change: null },
+    ],
+  });
+  assert.deepEqual(
+    Object.keys(places),
+    ["head", "tiles"],
+    "no answered, stars or waiting from five reviews that are a sample of nothing",
+  );
+  // A profile connected whose first sync has not yet run holds none of the reviews: it says what the public listing says.
+  const unsynced = tables({
+    ...publicOnly,
+    google_connections: [connection({ last_synced_at: null })],
+  });
+  assert.deepEqual((await run(unsynced)).reviews, places);
+
+  // No listing linked: that, and nothing else, which a person reads as nothing to say, never as no reviews.
+  const unlinked = await run(tables());
+  assert.deepEqual(unlinked.reviews, { linked: false });
+
+  // Its read failed (the ledger's events here): said so, never as no reviews, and the report stands.
+  const failed = await run(profile, { "events.select": { message: "connection refused" } });
+  assert.deepEqual(failed.reviews, { error: "the review numbers could not be read just now" });
+  assert.deepEqual(
+    [failed.range, failed.tiles.length, failed.campaigns.error],
+    ["7 days", (await run(profile)).tiles.length, "the campaign numbers could not be read just now"],
+    "the report's own numbers stand beside it",
+  );
+});
+
 test("a question that names another page's rows reads them before the model is asked, and the read rides in as data, never in system", async () => {
   const s = scripted([ROUND([answer("Quiet week.")])]);
   const t = tables();
@@ -2672,6 +2826,11 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
     const { read, asked, rc, ctx } = await turnOver(world(true));
     assert.deepEqual(asked, [
       "rpc:report_series",
+      // The Reviews lens's own read, beside it (7 Oct 2026, Reports phase C, lens 1): Google as GET google reads it, the
+      // listing, the connection and the Autonomy row for reviews. This workspace has no listing, so no review is read.
+      "google_listings.select",
+      "google_connections.select",
+      "policies.select",
       // Everyone, once, for the booking line and the deals alike.
       "rpc:people_list",
       "policies.select",
