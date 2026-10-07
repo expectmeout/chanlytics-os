@@ -34,7 +34,7 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit             88   of which over 200 lines: 14
+functions over the limit             87   of which over 200 lines: 14
 files over 800 lines                  3
 directories over 20 modules           3
 window globals                      100   names
@@ -44,7 +44,7 @@ as unknown as                       140
 as never                             13
 non-null assertions, x!             111
 index reads the compiler lets pass  476   in 127 files
-table names outside packages/db     480
+table names outside packages/db     477
 SQL functions outside packages/db   129   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files

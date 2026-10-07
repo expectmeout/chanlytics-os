@@ -13,15 +13,15 @@ import {
   emptyAudienceRefusal,
   parseParamSpec,
   proposalChannelsWords,
-  purposeOfTemplate,
   reachSplit,
   type AskedPurpose,
   type CampaignHow,
+  type CampaignMessage,
   type ConsentChannel,
   type ParamSpec,
   type PersonRowVM,
 } from "@chanlytics/contracts";
-import { campaignHowOf, readCampaignMessage } from "@chanlytics/core";
+import { campaignHowOf } from "@chanlytics/core";
 import { archivedListWords, poolList } from "../../../people/audience";
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
@@ -31,18 +31,21 @@ import {
   AUDIENCES_CALL,
   UUID,
   actAction,
+  askedMessage,
   namedChannels,
   propose,
   proposedChannels,
   refuse,
   str,
+  whatsappAloneRefusal,
   whatsappHow,
+  type AskedMessage,
   type ProposalOutcome,
   type ToolContext,
 } from "../context";
 import { cardSays } from "./says";
 
-/** The values a proposal fills the template's slots with: typed text once, or one the job fills per person; or the refusal. */
+/** The values a proposal fills the message's slots with: typed text once, or one the job fills per person; or the refusal. */
 function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: string } {
   const specs: ParamSpec[] = [];
   for (const p of Array.isArray(params) ? (params as unknown[]) : []) {
@@ -69,9 +72,8 @@ function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: st
  */
 async function broadcastBy(
   t: ToolContext,
-  tpl: { id: string },
+  message: CampaignMessage,
   asked: unknown,
-  purpose: AskedPurpose,
 ): Promise<{ how: CampaignHow; channels: ConsentChannel[]; named: boolean } | { refusal: string }> {
   const given = proposedChannels(asked);
   if ("refusal" in given) return given;
@@ -85,12 +87,28 @@ async function broadcastBy(
   }
   try {
     const ports = createBroadcastPorts(t.ctx, t.tenantId, { fresh: false });
-    const message = await readCampaignMessage(ports, tpl.id);
-    return { how: (await campaignHowOf(ports, message, channels, purpose)).how, channels, named };
+    return { how: (await campaignHowOf(ports, message, channels, message.purpose)).how, channels, named };
   } catch (e) {
     if (e instanceof AppError) return { refusal: e.message };
     throw e;
   }
+}
+
+/**
+ * The message a broadcast proposal is made on, from the id the model gave: read as the route reads it (tools/context.ts
+ * askedMessage), and, where the proposal names no channel and the message has no WhatsApp version to go by, refused before
+ * anyone is counted with what it can go by (whatsappAloneRefusal), or the refusal.
+ */
+async function broadcastMessage(
+  t: ToolContext,
+  id: string,
+  channels: unknown,
+): Promise<AskedMessage | { refusal: string }> {
+  const asked = await askedMessage(t, id);
+  if ("refusal" in asked) return asked;
+  // A broadcast is the business's news (contracts MessageAbout, decision D1).
+  const no = channels === undefined || channels === null ? await whatsappAloneRefusal(t, asked.message, "ours") : null;
+  return no ? { refusal: no } : asked;
 }
 
 /**
@@ -113,7 +131,7 @@ function broadcastReach(
   };
 }
 
-/** What a broadcast proposal takes (broadcastAction's input): the template and the audience, its values, when, and the channels it goes by. */
+/** What a broadcast proposal takes (broadcastAction's input): the message and the audience, its values, when, and the channels it goes by. */
 interface BroadcastProposed {
   template_id: string;
   audience_kind: string;
@@ -138,18 +156,12 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   const given = proposedValues(input.params);
   if ("refusal" in given) return refuse(given.refusal);
   const params = given.specs;
-  const { data: tpl } = await t.ctx.supabase
-    .from("templates")
-    .select("id, name, language, meta_status, category, variables, body_preview")
-    .eq("id", templateId)
-    .eq("tenant_id", t.tenantId)
-    .eq("channel", "whatsapp")
-    .maybeSingle();
-  if (!tpl || tpl.meta_status !== "approved")
-    return refuse(`that template is not approved by WhatsApp; ${AUDIENCES_CALL} names the approved ones`);
-  const expected = Array.isArray(tpl.variables) ? tpl.variables.length : 0;
-  if (params.length !== expected)
-    return refuse(`this template takes ${expected} value${expected === 1 ? "" : "s"}, in order`);
+  // The message the route will read, by any of its versions' ids: the same verb, so the same words.
+  const asked = await broadcastMessage(t, templateId, input.channels);
+  if ("refusal" in asked) return refuse(asked.refusal);
+  const { message } = asked;
+  if (params.length !== message.slots)
+    return refuse(`this template takes ${message.slots} value${message.slots === 1 ? "" : "s"}, in order`);
 
   // The audience, counted the way the route will count it.
   // The pool and the list the route will read, so the count here is the count it enrols: once a turn, so a listing of
@@ -179,11 +191,10 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
     label = found.label;
   }
   const rows = members ? pool.rows.filter((r) => members!.has(r.id)) : pool.rows;
-  // The same purpose the route will derive, from the same column of the same
-  // template row this function already read. An assistant that proposes a
-  // broadcast the route then refuses has wasted the operator's approval.
-  const purpose = purposeOfTemplate(tpl.category);
-  const by = await broadcastBy(t, tpl, input.channels, purpose);
+  // The same purpose the route will derive, from the same message this function already read. An assistant that proposes
+  // a broadcast the route then refuses has wasted the operator's approval.
+  const { purpose } = message;
+  const by = await broadcastBy(t, message, input.channels);
   if ("refusal" in by) return refuse(by.refusal);
   const { count, says, kept } = broadcastReach(rows, purpose, by);
   // In the route's words, which say which cause it is -- nobody said this yes, or the ones who did have no number.
@@ -196,18 +207,18 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   // the route refuses it after the person approved the card.
   if (when && (Number.isNaN(Date.parse(when)) || !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(when)))
     return refuse("scheduled_for must be an ISO time with its offset, like 2026-09-20T15:00:00-04:00");
-  const said = await cardSays(t, tpl, params, by, 160);
+  const said = cardSays(asked, params, by, 160);
   if ("refusal" in said) return refuse(said.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it.
-  const name = str(input.name, 80) || broadcastName(tpl.name, t.timezone, t.now);
+  const name = str(input.name, 80) || broadcastName(message.name, t.timezone, t.now);
   const whenWords = when ? clockWhen(Date.parse(when), t.timezone, t.now.getTime()) : "now";
   return propose({
     kind: "broadcast",
     title: `Broadcast to ${label}`,
-    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says} · “${tpl.name}” · ${whenWords}: ${said.says}`,
+    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says} · “${message.name}” · ${whenWords}: ${said.says}`,
     payload: {
-      template_id: tpl.id,
-      template_name: tpl.name,
+      template_id: message.anchor.id,
+      template_name: message.name,
       audience_kind: kind,
       audience_id: audienceId,
       audience_label: label,

@@ -10,6 +10,7 @@ import {
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_VETO_DELAY_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
+  campaignMessagesOf,
   cleanParam,
   dealPaceOf,
   dealsAreOn,
@@ -27,12 +28,13 @@ import {
   triggerOf,
   triggerOffered,
   type CampaignHow,
+  type CampaignMessage,
   type ConsentChannel,
   type ListRef,
   type MessageAbout,
   type ParamSpec,
 } from "@chanlytics/contracts";
-import { campaignHow, readCampaignMessage } from "@chanlytics/core";
+import { campaignHow } from "@chanlytics/core";
 import { listPolicies } from "@chanlytics/db";
 import { archivedListWords, poolList, type AudiencePool } from "../../../people/audience";
 import { dealPaceRead, sellsByOf } from "../../../people/deals";
@@ -42,15 +44,19 @@ import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { zoneAndSettings } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
+import { templates as templatesReader } from "../../../readers/templates";
 import {
   AUDIENCES_CALL,
   UUID,
   actAction,
+  askedMessage,
   namedChannels,
   propose,
   refuse,
   str,
+  whatsappAloneRefusal,
   whatsappHow,
+  type AskedMessage,
   type ProposalOutcome,
   type ToolContext,
 } from "../context";
@@ -114,31 +120,46 @@ function proposedSpecs(
 }
 
 /**
- * The approved row a moment's starter is on file as: the set's starter for the moment, else one it replaced that this
- * workspace still has approved (2 Oct 2026), or the refusal that says neither is.
+ * The message a moment's starter is on file as: the set's starter for the moment, else one it replaced that this workspace
+ * still has (2 Oct 2026), among the messages the composers offer (contracts campaignMessagesOf over the rows they read: not
+ * hidden, and a version in hand that can be sent, whichever channel it is on), its id the message's anchor; or the refusal
+ * that says neither is. Of a starter's languages the first by code is the one held, as the read once ordered them.
  */
 async function heldStarter(
   t: ToolContext,
   trig: { id: string; label: string },
 ): Promise<{ id: string } | { refusal: string }> {
   const written = startersForTrigger(trig.id);
-  const { data: held } = await t.ctx.supabase
-    .from("templates")
-    .select("id, name")
-    .eq("tenant_id", t.tenantId)
-    .eq("channel", "whatsapp")
-    .in(
-      "name",
-      written.map((x) => x.name),
-    )
-    .eq("meta_status", "approved")
-    .is("hidden_at", null)
-    .order("language");
-  const starter = written.map((x) => (held ?? []).find((r) => r.name === x.name)).find(Boolean);
-  if (starter) return { id: starter.id };
+  const rows = (await load(t.rc, templatesReader, { all: false })).data.templates;
+  const offered = campaignMessagesOf(rows)
+    .filter((m) => m.offered)
+    .sort((a, b) => (a.language < b.language ? -1 : a.language > b.language ? 1 : 0));
+  const starter = written.map((x) => offered.find((m) => m.name === x.name)).find(Boolean);
+  if (starter) return { id: starter.anchor.id };
   return {
-    refusal: `the “${written[0]?.title ?? trig.label}” starter is not approved on this workspace yet; say so and suggest adding the starter set under Campaigns › Messages, or name an approved template from ${AUDIENCES_CALL}`,
+    refusal: `the “${written[0]?.title ?? trig.label}” starter has no version this workspace can send yet; say so and suggest adding the starter set under Campaigns › Messages, or name an approved template from ${AUDIENCES_CALL}`,
   };
+}
+
+/**
+ * The message a playbook proposal goes by, from the id a starter or the model gave: read as the route reads it (tools/context.ts
+ * askedMessage), refused where the workspace keeps it out of the composers, and, where the proposal names no channel and the
+ * message has no WhatsApp version to go by, refused with what it can go by (whatsappAloneRefusal), or the refusal.
+ */
+async function proposedMessage(
+  t: ToolContext,
+  id: string,
+  about: MessageAbout,
+  named: boolean,
+): Promise<AskedMessage | { refusal: string }> {
+  const asked = await askedMessage(t, id);
+  if ("refusal" in asked) return asked;
+  if (asked.message.hidden)
+    return {
+      refusal: `that template is one the workspace keeps out of the composers; ${AUDIENCES_CALL} names the ones that may send`,
+    };
+  const no = named ? null : await whatsappAloneRefusal(t, asked.message, about);
+  return no ? { refusal: no } : asked;
 }
 
 /**
@@ -168,14 +189,14 @@ async function listedPeople(
  */
 async function playbookHow(
   t: ToolContext,
-  tpl: { id: string },
+  message: CampaignMessage,
   by: { channels: ConsentChannel[]; named: boolean },
   /** The moment's (contracts messageAboutOfTrigger): a visit's or a follow-up's message is theirs. */
   about: MessageAbout,
 ): Promise<CampaignHow> {
   if (!by.named) return whatsappHow(t, about);
-  const ports = createBroadcastPorts(t.ctx, t.tenantId, { fresh: false });
-  return (await campaignHow(ports, await readCampaignMessage(ports, tpl.id), by.channels, about)).how;
+  return (await campaignHow(createBroadcastPorts(t.ctx, t.tenantId, { fresh: false }), message, by.channels, about))
+    .how;
 }
 
 /**
@@ -246,19 +267,16 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
     if ("refusal" in own) return refuse(own.refusal);
     templateId = own.id;
   }
-  const { data: tpl } = await t.ctx.supabase
-    .from("templates")
-    .select("id, name, language, meta_status, variables, body_preview, hidden_at, category")
-    .eq("id", templateId)
-    .eq("tenant_id", t.tenantId)
-    .eq("channel", "whatsapp")
-    .maybeSingle();
-  if (!tpl || tpl.meta_status !== "approved" || tpl.hidden_at)
-    return refuse(
-      `that template is not approved by WhatsApp, or the workspace keeps it out of the composers; ${AUDIENCES_CALL} names the ones that may send`,
-    );
+  const about = messageAboutOfTrigger(trig.id);
+  const asked = await proposedMessage(t, templateId, about, input.channels !== undefined);
+  if ("refusal" in asked) return refuse(asked.refusal);
+  const { message } = asked;
 
-  const values = proposedSpecs(input.params, tpl);
+  const values = proposedSpecs(input.params, {
+    name: message.name,
+    language: message.language,
+    variables: asked.variables,
+  });
   if ("refusal" in values) return refuse(values.refusal);
   const { specs } = values;
 
@@ -274,7 +292,7 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
         trigger: trig.id,
         ...(listRef ? (listRef.kind === "builtin" ? { list_key: listRef.id } : { list_id: listRef.id }) : {}),
         ...(listRef ? { policy_class: str(input.policy_class, 20) || undefined } : {}),
-        template_id: tpl.id,
+        template_id: message.anchor.id,
         params: specs,
         run_hour: typeof input.run_hour === "number" ? input.run_hour : undefined,
         cap_per_run: typeof input.cap_per_run === "number" ? input.cap_per_run : undefined,
@@ -312,7 +330,7 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
   // now" about a list whose yes had no number to send to. Said in the send screen's words (saidYesWords).
   // By the channels it names, WhatsApp alone when it names none.
   const by = { channels: checked.channels, named: input.channels !== undefined };
-  const how = await playbookHow(t, tpl, by, messageAboutOfTrigger(trig.id));
+  const how = await playbookHow(t, message, by, about);
   const drawn = playbookRunReach(
     pool.rows,
     // The yes its message needs, with its moment's: the check above held the two to agree, so the stricter is either.
@@ -323,7 +341,7 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
       cap_per_run: 100_000,
       gap_days: 0,
       cadence_days: 0,
-      message: { category: tpl.category },
+      message: { category: message.category },
       ...how,
     },
     untouched,
@@ -335,7 +353,7 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel);
   const cls = checked.policy_class;
   const mode = policies.find((r) => r.class === cls)?.mode ?? "ask";
-  const said = await cardSays(t, tpl, specs, by, 140);
+  const said = cardSays(asked, specs, by, 140);
   if ("refusal" in said) return refuse(said.refusal);
   return propose({
     kind: "playbook",
@@ -344,8 +362,8 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
     payload: {
       trigger: trig.id,
       trigger_label: trig.label,
-      template_id: tpl.id,
-      template_name: tpl.name,
+      template_id: message.anchor.id,
+      template_name: message.name,
       params: specs,
       run_hour: checked.run_hour,
       cap_per_run: checked.cap_per_run,

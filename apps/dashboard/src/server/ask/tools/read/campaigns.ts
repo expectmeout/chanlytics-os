@@ -7,12 +7,14 @@ import {
   PLAYBOOK_VETO_DELAY_WORDS,
   REPLY_WINDOW_MS,
   audiencePreview,
+  campaignMessagesOf,
   clockStamp,
   compareTemplates,
   listToken,
   listUnknownWords,
   listsFor,
   membersOf,
+  messageHolds,
   momentOffered,
   nextRunLabel,
   noteRows,
@@ -51,6 +53,38 @@ import {
   whatsappHowOf,
   type ToolContext,
 } from "../context";
+
+/**
+ * The messages a broadcast may be made on, as the composers' read gave them (contracts campaignMessagesOf over its rows: one
+ * message a name and language, with or without a WhatsApp row, and the ones the composers offer), in the library's order,
+ * each as the model reads it: the id a proposal takes (the message's anchor), the channels it can be sent by now (contracts
+ * messageHolds), its values and its words, which are the WhatsApp version's where there is one and the anchor's otherwise.
+ */
+function offeredMessages(tpls: TemplatesRead["templates"]) {
+  const byId = new Map(tpls.map((r) => [r.id, r]));
+  return campaignMessagesOf(tpls)
+    .filter((m) => m.offered)
+    .flatMap((m) => {
+      const row = byId.get(m.anchor.id);
+      return row ? [{ m, row }] : [];
+    })
+    .sort((a, b) => compareTemplates(a.row, b.row))
+    .map(({ m, row }) => ({
+      template_id: m.anchor.id,
+      name: m.name,
+      language: m.language,
+      category: m.category,
+      channels: messageHolds(m),
+      values: Array.isArray(row.variables)
+        ? (row.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({
+            position: v.position,
+            label: v.label,
+            example: v.example ?? null,
+          }))
+        : [],
+      body: row.body_preview,
+    }));
+}
 
 /**
  * The audiences a broadcast may go to, counted by the same contracts
@@ -125,46 +159,34 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
         : { ...head, cannot_count: listUnknownWords(m.reason, pool.listCtx.calendar) };
     }),
   ];
-  // The templates the composer offers (ledger #14): WhatsApp's approved ones as the page hands them over, in the
-  // library's order, split as the Broadcasts composer splits them (broadcasts-real.jsx) -- the ones this product can
-  // put on the wire, and one sentence, the page's, for those it cannot. A card never checks this: a template offered
-  // here that the wire refuses became a card whose send failed for everyone on it. The rows carry `blocked`, the
-  // answer the reader worked out from Meta's array, which the split believes (contracts templateBlocked); its type
-  // names the array they no longer carry.
+  // The messages the composer offers (ledger #14), whatever channels they have versions on: each says the channels it can
+  // be sent by, and the ones with none this product can put on the wire are not listed. WhatsApp's approved versions are
+  // split as the Broadcasts composer splits them (broadcasts-real.jsx): one sentence, the page's, for the ones it cannot
+  // send whole. A card never checks this: a template offered here that the wire refuses became a card whose send failed
+  // for everyone on it. The rows carry `blocked`, the answer the reader worked out from Meta's array, which the split
+  // believes (contracts templateBlocked); its type names the array they no longer carry. Built here from the rows the
+  // composers' read gives, which leave out a WhatsApp version still in review.
+  const offeredList = tpls ? offeredMessages(tpls) : null;
   const split = tpls
     ? sendableTemplates<TemplatesRead["templates"][number] & { components?: unknown }>(
         tpls.filter((x) => x.channel === "whatsapp" && x.meta_status === "approved").sort(compareTemplates),
       )
     : null;
-  // Every template it offers is a row an answer may cite, as the composers' read gave it.
-  const offeredIds = new Set(split?.sendable.map((x) => x.id));
+  // Every message it offers is a row an answer may cite, as the composers' read gave it: by the id it lists.
+  const offeredIds = new Set(offeredList?.map((x) => x.template_id));
   noteRows(
     t.read,
     (tplRead?.rows ?? []).filter((r) => offeredIds.has(r.id)),
   );
   // What could not be read, in words the model says: a null above is not none.
   const couldNotRead = [
-    ...(split ? [] : ["The messages could not be read just now: say so, and propose no broadcast until they can."]),
+    ...(tpls ? [] : ["The messages could not be read just now: say so, and propose no broadcast until they can."]),
     ...(chans ? [] : ["The WhatsApp number's state could not be read just now."]),
   ];
   return {
     route: "broadcasts",
     audiences,
-    templates:
-      split?.sendable.map((x) => ({
-        template_id: x.id,
-        name: x.name,
-        language: x.language,
-        category: x.category,
-        values: Array.isArray(x.variables)
-          ? (x.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({
-              position: v.position,
-              label: v.label,
-              example: v.example ?? null,
-            }))
-          : [],
-        body: x.body_preview,
-      })) ?? null,
+    templates: offeredList,
     cannot_send: split?.why ?? null,
     number: chans
       ? {

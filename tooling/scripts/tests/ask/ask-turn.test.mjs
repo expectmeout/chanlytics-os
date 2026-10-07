@@ -1770,7 +1770,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   // playbooks.test.mjs until PR 3.1).
   assert.match(
     (await p("propose_campaign", { action: "playbook", trigger: "quiet_30" })).result,
-    /starter is not approved on this workspace yet/,
+    /starter has no version this workspace can send yet/,
   );
   // 2 Oct 2026: welcome is no longer a moment a new playbook starts from (it was this case's trigger): the schema says so.
   const welcome = (await p("propose_campaign", { action: "playbook", trigger: "new_week" })).result;
