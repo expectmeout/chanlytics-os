@@ -37,7 +37,8 @@ test.describe("Today on a real workspace", () => {
     await expect(queue.locator(".tq-head .tq-count")).toHaveCount(0);
     if (n === 0) await expect(queue.locator('[data-testid^="today-queue-empty-"]')).toBeVisible();
     await expect(page.getByText("Agent Command")).toHaveCount(0);
-    await expect(page.getByText(/Good (morning|afternoon|evening)/)).toHaveCount(0);
+    // The greeting is the frame head's, over the page (pages/today-head.tsx): nothing inside the page says it.
+    await expect(page.locator(".dash-a-v2").getByText(/Good (morning|afternoon|evening)/)).toHaveCount(0);
     // Nothing invented: no dollar amounts anywhere on a page with no revenue column.
     for (const cell of await page.locator(".today-alert, .today-card, .tsec").allInnerTexts())
       expect(cell).not.toMatch(/\$\d/);
@@ -122,8 +123,9 @@ test.describe("Today on a real workspace", () => {
     // Today draws no band of its own; Ask's face is the top bar's button, and the Stage's.
     await expect(page.getByTestId("today-face")).toHaveCount(0);
     await expect(page.getByTestId("tb-ask").getByTestId("tb-ask-face")).toBeVisible();
-    // The queue is the first thing on the page, or the second under a line that is down, and it has room under the
-    // bar: with the standing line gone nothing else gave it any, and the card's edge sat on the bar's rule.
+    // The queue's column is the first band on the page, under the strip where the day has one (what is on the line,
+    // the next appointment: the bento, pages/today-page.tsx) or a line that is down, and it has room under the bar:
+    // with the standing line gone nothing else gave it any, and the card's edge sat on the bar's rule.
     const { first, gap } = await page.evaluate(() => {
       const el = [...(document.querySelector(".dash-a-v2")?.children ?? [])].find(
         (c) => c.getBoundingClientRect().height > 0,
@@ -131,7 +133,9 @@ test.describe("Today on a real workspace", () => {
       const bar = document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0;
       return { first: el?.className ?? "", gap: el ? el.getBoundingClientRect().top - bar : -1 };
     });
-    expect(first, "nothing stands above the queue but a line that is down").toMatch(/dash-a-v2-core|today-alert/);
+    expect(first, "nothing stands above the queue but the strip or a line that is down").toMatch(
+      /dash-a-v2-work|today-strip|today-alert/,
+    );
     expect(gap, "the first band keeps the page's gap under the top bar").toBeGreaterThanOrEqual(8);
     // A page with no Ask client (the standalone mockup) draws the mockup's palette; a workspace, and the local harness
     // since Ask Rewired's Phase 7, open the real one.

@@ -25,13 +25,19 @@ export const GET_YES_HASH = "#/broadcasts/get-yes";
 export const GET_YES_ROUTE = GET_YES_HASH.replace(/^#\//, "");
 
 /**
- * The WHOLE QR is on screen, under a crumb that says why the person is there.
+ * The WHOLE QR is on screen, under a head that says why the person is there.
  *
  * Not toBeVisible, and not a bare toBeInViewport either -- both pass on the old
  * door, whose section sat ten pixels from the bottom of a phone: visible, and
  * "in the viewport" by a sliver. Checked against that page before this ran
  * anywhere, the bare assertion passed it. A QR you can see ten pixels of cannot
  * be scanned, so the image itself must be entirely in view.
+ *
+ * Since Glass the top bar holds the date and time where the crumbs stood, and the
+ * frame head names the room the section is in (Campaigns' "Sent", its parts/head.tsx:
+ * one name for every address of a room, no way back above it); the section's own
+ * title says why the person is there. This read "Get their yes" off the top bar
+ * until 7 Oct 2026.
  */
 export async function expectQrInView(page: Page): Promise<void> {
   await expect.poll(() => routeOf(page.url())).toBe(GET_YES_ROUTE);
@@ -39,7 +45,7 @@ export async function expectQrInView(page: Page): Promise<void> {
   await expect(section).toBeVisible();
   await expect(section).toContainText("Get their yes");
   await expect(section.locator(".bc-optin-qr")).toBeInViewport({ ratio: 1 });
-  await expect(page.locator(".topbar")).toContainText("Get their yes");
+  await expect(page.locator(".pg-head")).toContainText("Sent");
 }
 
 export interface LeakRow {
