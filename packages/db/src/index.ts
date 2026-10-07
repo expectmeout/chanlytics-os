@@ -213,6 +213,7 @@ export type {
 } from "./repositories/reach-out-sheet";
 export { reportSeries, campaignSeries, reachOutReport } from "./repositories/reports/report-series";
 export { firstReplies } from "./repositories/reports/first-replies";
+export { reviewsLedger } from "./repositories/reports/review-report";
 export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";

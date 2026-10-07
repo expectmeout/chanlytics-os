@@ -2234,6 +2234,130 @@ async function firstReplies(db, tenantId, since) {
   );
 }
 
+// src/repositories/reports/review-report.ts
+import { REVIEWS_WAITING_SHOWN } from "../../contracts/dist/index.js";
+
+// src/paged.ts
+var MAX_ROWS = 1e3;
+var DEFAULT_ROW_CAP = 2e4;
+async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
+  const out = [];
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(out.length, out.length + size - 1);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < size) return out;
+  }
+  onCapped(what, cap);
+  return out;
+}
+async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
+  const out = [];
+  let after = null;
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(after, size);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    const last = rows.at(-1);
+    if (rows.length < size || last === void 0) return out;
+    after = key(last);
+  }
+  onCapped(what, cap);
+  return out;
+}
+
+// src/repositories/reports/review-report.ts
+var LEDGER_REVIEW_COLUMNS = "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, maps_uri, first_seen_at";
+async function ledgerWritten(db, tenantId, sinceIso) {
+  const rows = await readAllRows(
+    "reviewsLedger written",
+    (from, to) => db.from("google_reviews").select("id, rating, published_at, reply_text, replied_at").eq("tenant_id", tenantId).eq("origin", "profile").gte("published_at", sinceIso).order("id").range(from, to)
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    rating: r.rating,
+    published_at: r.published_at,
+    has_reply: r.reply_text !== null,
+    replied_at: r.replied_at
+  }));
+}
+async function ledgerCount(db, tenantId, origin) {
+  const { count, error } = await db.from("google_reviews").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("origin", origin);
+  if (error) throw new Error(`reviewsLedger on record: ${error.message}`);
+  return count ?? 0;
+}
+async function ledgerOldest(db, tenantId) {
+  const { data, error } = await db.from("google_reviews").select("published_at").eq("tenant_id", tenantId).eq("origin", "profile").not("published_at", "is", null).order("published_at", { ascending: true }).limit(1);
+  if (error) throw new Error(`reviewsLedger oldest: ${error.message}`);
+  return (data ?? []).at(0)?.published_at ?? null;
+}
+async function ledgerWaiting(db, tenantId) {
+  const { data, count, error } = await db.from("google_reviews").select(LEDGER_REVIEW_COLUMNS, { count: "exact" }).eq("tenant_id", tenantId).eq("origin", "profile").is("reply_text", null).order("published_at", { ascending: true, nullsFirst: false }).order("id").limit(REVIEWS_WAITING_SHOWN);
+  if (error) throw new Error(`reviewsLedger waiting: ${error.message}`);
+  const rows = (data ?? []).map((r) => ({
+    ...r,
+    origin: r.origin === "profile" ? "profile" : "places"
+  }));
+  return { total: count ?? 0, rows };
+}
+function ledgerTextOf(data, key) {
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return void 0;
+  const value = data[key];
+  return typeof value === "string" ? value : void 0;
+}
+async function ledgerReplies(db, tenantId, sinceIso) {
+  const events = await readAllRows(
+    "reviewsLedger replies",
+    (from, to) => db.from("events").select("subject_id, created_at, data").eq("tenant_id", tenantId).eq("kind", "google.replied").gte("created_at", sinceIso).order("id").range(from, to)
+  );
+  return events.flatMap(
+    (e) => e.subject_id === null ? [] : [
+      {
+        review_id: e.subject_id,
+        by: ledgerTextOf(e.data, "by") === "receptionist" ? "receptionist" : null,
+        at: e.created_at
+      }
+    ]
+  );
+}
+async function ledgerHeld(db, tenantId, waitingIds) {
+  if (!waitingIds.length) return [];
+  const { data, error } = await db.from("events").select("subject_id, data").eq("tenant_id", tenantId).eq("kind", "google.reply_held").in("subject_id", waitingIds).order("created_at").order("id");
+  if (error) throw new Error(`reviewsLedger held: ${error.message}`);
+  return (data ?? []).flatMap((e) => {
+    const why = ledgerTextOf(e.data, "why");
+    return e.subject_id === null || why === void 0 ? [] : [{ review_id: e.subject_id, why }];
+  });
+}
+async function reviewsLedger(db, tenantId, sinceIso) {
+  const [written, profile, places, oldestAt, waiting, replyEvents] = await Promise.all([
+    ledgerWritten(db, tenantId, sinceIso),
+    ledgerCount(db, tenantId, "profile"),
+    ledgerCount(db, tenantId, "places"),
+    ledgerOldest(db, tenantId),
+    ledgerWaiting(db, tenantId),
+    ledgerReplies(db, tenantId, sinceIso)
+  ]);
+  const held = await ledgerHeld(
+    db,
+    tenantId,
+    waiting.rows.map((r) => r.id)
+  );
+  const writtenIds = new Set(written.map((r) => r.id));
+  return {
+    written,
+    on_record: { profile, places, oldest_at: oldestAt },
+    waiting_total: waiting.total,
+    waiting: waiting.rows,
+    replies: replyEvents.filter((e) => writtenIds.has(e.review_id)),
+    held
+  };
+}
+
 // src/repositories/notifications.ts
 async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
@@ -3011,39 +3135,6 @@ async function updatePlaybook(db, id, patch) {
 async function removePlaybook(db, id) {
   const { error, count } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
   return { error, count };
-}
-
-// src/paged.ts
-var MAX_ROWS = 1e3;
-var DEFAULT_ROW_CAP = 2e4;
-async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
-  const out = [];
-  while (out.length < cap) {
-    const size = Math.min(MAX_ROWS, cap - out.length);
-    const { data, error } = await page(out.length, out.length + size - 1);
-    if (error) throw new Error(`${what}: ${error.message}`);
-    const rows = data ?? [];
-    out.push(...rows);
-    if (rows.length < size) return out;
-  }
-  onCapped(what, cap);
-  return out;
-}
-async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
-  const out = [];
-  let after = null;
-  while (out.length < cap) {
-    const size = Math.min(MAX_ROWS, cap - out.length);
-    const { data, error } = await page(after, size);
-    if (error) throw new Error(`${what}: ${error.message}`);
-    const rows = data ?? [];
-    out.push(...rows);
-    const last = rows.at(-1);
-    if (rows.length < size || last === void 0) return out;
-    after = key(last);
-  }
-  onCapped(what, cap);
-  return out;
 }
 
 // src/repositories/lists.ts
@@ -4055,6 +4146,7 @@ export {
   resolveEscalationByReason,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
+  reviewsLedger,
   runGoesByOthers,
   runSending,
   runsWaitingOf,
