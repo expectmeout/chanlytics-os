@@ -67,7 +67,7 @@ export type { PeopleListAction, PeopleAggregates } from "./people-lists";
 export { attentionRow } from "./person-attention";
 export type { AttentionRowVM } from "./person-attention";
 export { filterTimeline, personActs, toPersonVM, TIMELINE_FILTERS } from "./person-profile";
-export type { TimelineFilterId, PersonVM, PersonActVM, OwnMessageVM } from "./person-profile";
+export type { TimelineFilterId, PersonVM, PersonActVM, OwnMessageVM, PersonDoubtVM } from "./person-profile";
 export type { PersonRightNow, PersonFact } from "./person-cards";
 export { consentChangeWords } from "./person-timeline";
 export type { TimelineKind, PersonTimelineItemVM, PersonVisitAheadVM } from "./person-timeline";
@@ -150,3 +150,5 @@ export { legacyErasedPhoneHash, legacyErasedEmailHash, legacyLeadSuppressionHash
 export { CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE, WHATSAPP_CONSENT_SOURCE } from "./person-consent";
 export { MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, mergedAnswers } from "./person-merge";
 export type { MergedAnswers, RecordAnswers } from "./person-merge";
+export { DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS } from "./person-doubts";
+export type { DoubtSeen, DoubtSettledAs, PersonDoubtDto } from "./person-doubts";

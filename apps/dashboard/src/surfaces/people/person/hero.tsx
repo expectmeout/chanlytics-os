@@ -5,23 +5,24 @@
  * `personActs`. What an act does is its hover, never a sentence beside the label, which wrapped and ran past the menu's edge.
  */
 import type { ReactNode } from "react";
-import { MERGE_WORDS, proposalMessage } from "@chanlytics/contracts";
+import { DOUBT_WORDS, MERGE_WORDS, proposalMessage } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Menu } from "../../kit/menu/menu";
 import type { MenuGroup, MenuItem } from "../../kit";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
+import { FieldError } from "../../kit/field-error/field-error";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
 import { Picker } from "../../kit/picker/picker";
 import type { PickerGroup } from "../../kit/picker/picker";
 import { navigate } from "../../legacy-verbs";
-import { deletePerson, mergePerson } from "../people-detail";
+import { deletePerson, mergePerson, settleDoubt } from "../people-detail";
 import { PersonName } from "./name";
 import { digitsOf } from "./ctx";
 import type { PageCtx } from "./ctx";
-import type { PersonRowVM } from "@chanlytics/contracts";
+import type { PersonDoubtVM, PersonRowVM } from "@chanlytics/contracts";
 
 const ACT_ICON: Record<string, string> = {
   booking: "calendar",
@@ -169,6 +170,62 @@ function deleteBox(c: PageCtx) {
   );
 }
 
+/** A record the merge box offers: a People row, or the other record of a doubt. */
+type MergeOption = Pick<PersonRowVM, "id" | "name" | "phone" | "email">;
+
+/**
+ * Same person? (decision 0034, step 4): each open doubt the door raised on them, as a sentence naming the other record,
+ * with its two settlements. Merge opens 0028's box with the other record chosen already (the owner's act); Not the
+ * same settles the pair through its own door, as any acting member, and the page is read again with the row gone.
+ */
+function doubtRows(c: PageCtx) {
+  const { p, isOwner, canRecord, doubt, setDoubt, setDel, setMerge, flash, load } = c;
+  if (!p.doubts.length) return null;
+  const apart = async (d: PersonDoubtVM) => {
+    if (doubt.busy) return;
+    setDoubt({ busy: d.id, error: null });
+    const r = await settleDoubt(p.id, d.id);
+    if (!r.ok) {
+      setDoubt({ busy: null, error: r.message || DOUBT_WORDS.apartFailed });
+      return;
+    }
+    setDoubt({ busy: null, error: null });
+    flash({ msg: DOUBT_WORDS.apartDone(d.other) });
+    load();
+  };
+  const mergeWith = (d: PersonDoubtVM) => {
+    setDel({ open: false, typed: "", busy: false, error: null });
+    setMerge({ open: true, pick: d.otherId, typed: "", busy: false, error: null });
+  };
+  return (
+    <div className="cl-prof-doubts" role="group" aria-label={DOUBT_WORDS.heading} data-testid="doubts">
+      {p.doubts.map((d) => (
+        <div className="cl-prof-doubt" key={d.id} data-testid="doubt">
+          <span>{d.sentence}</span>
+          {isOwner && (
+            <Button size="sm" title={DOUBT_WORDS.mergeHint} onClick={() => mergeWith(d)} data-testid="doubt-merge">
+              {DOUBT_WORDS.merge}
+            </Button>
+          )}
+          {canRecord && (
+            <Button
+              size="sm"
+              variant="quiet"
+              title={DOUBT_WORDS.apartHint}
+              disabled={doubt.busy !== null}
+              onClick={() => void apart(d)}
+              data-testid="doubt-apart"
+            >
+              {doubt.busy === d.id ? DOUBT_WORDS.apartBusy : DOUBT_WORDS.apart}
+            </Button>
+          )}
+        </div>
+      ))}
+      {doubt.error && <FieldError message={doubt.error} testid="doubt-error" />}
+    </div>
+  );
+}
+
 /**
  * Two records of one person become one (0028): the other record chosen from People, then the kept person's name typed,
  * as Delete asks. The door is the database's and cannot be undone; what it answers is said as a toast, and the page is
@@ -176,11 +233,17 @@ function deleteBox(c: PageCtx) {
  */
 function mergeBox(c: PageCtx) {
   const { p, merge, setMerge, others, flash, load } = c;
-  const rows = others ?? [];
+  // People's other rows, and the other record of each doubt (0034 step 4) People has not read or does not list.
+  const rows: MergeOption[] = [
+    ...(others ?? []),
+    ...p.doubts
+      .filter((d) => !(others ?? []).some((o) => o.id === d.otherId))
+      .map((d) => ({ id: d.otherId, name: d.other, phone: d.phone, email: d.email })),
+  ];
   const other = rows.find((r) => r.id === merge.pick) ?? null;
   // Two records of one name are told apart by what else the row says (a number, an address).
-  const said = (r: PersonRowVM) => [r.phone, r.email].filter(Boolean).join(" · ");
-  const nameOf = (r: PersonRowVM) =>
+  const said = (r: MergeOption) => [r.phone, r.email].filter(Boolean).join(" · ");
+  const nameOf = (r: MergeOption) =>
     rows.some((o) => o.id !== r.id && o.name === r.name) && said(r) ? `${r.name} (${said(r)})` : r.name;
   const typedMatches =
     merge.typed.trim() === p.name ||
@@ -337,7 +400,7 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
   );
 }
 
-/** The hero: Back, who they are, the acts, and the delete question while it is asked. */
+/** The hero: Back, who they are, the acts, the doubts the door raised on them, and the delete question while it is asked. */
 export function hero(c: PageCtx, compose: (text?: string | null) => void, phoneOnly: boolean) {
   const more = moreGroups(c, compose);
   return (
@@ -349,6 +412,7 @@ export function hero(c: PageCtx, compose: (text?: string | null) => void, phoneO
       </Button>
       {heroId(c, phoneOnly)}
       {heroActs(c, more)}
+      {doubtRows(c)}
       {c.del.open && deleteBox(c)}
       {c.merge.open && mergeBox(c)}
     </div>

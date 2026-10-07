@@ -136,6 +136,8 @@ export const SCHEMA_SETS = {
   "partner_tenants.origin": ["link", "handover", "invite"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
+  "person_doubts.seen": ["name", "phone", "email"],
+  "person_doubts.settled_as": ["merged", "not_the_same"],
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread", "reach_out"],
   "person_notes.state": ["kept", "suggested"],

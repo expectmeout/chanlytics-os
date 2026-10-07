@@ -76,6 +76,7 @@ what the script writes.
 | [`partner_reversals_waiting`](#partner_reversals_waiting) | none | on, no policy, so only the service role reaches it |
 | [`partner_tenants`](#partner_tenants) | `packages/db/src/repositories/partner.ts` | on, 2 policies |
 | [`partners`](#partners) | `packages/db/src/repositories/partner.ts` | on, 1 policy |
+| [`person_doubts`](#person_doubts) | `packages/db/src/repositories/people.ts` | on, 1 policy |
 | [`person_moments`](#person_moments) | none | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
@@ -1963,6 +1964,36 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `partners_self_select` | select | authenticated | `(user_id = auth.uid())` |  |
+
+### person_doubts
+
+The queue in front of merge_people (decision 0034, step 4): two living records one identity could belong to, written by resolve_person once per pair (the lower id first), open until an owner merges them (00326) or a member says they are not the same (person_doubt_dismiss). Never the identity itself: `seen` says which of the three it was. An erasure takes every row that names the person; a merge settles the pair and moves the merged record's other doubts onto the kept one.
+
+- Owned by: `packages/db/src/repositories/people.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `contact_id` | uuid | no |  |  |
+| `other_id` | uuid | no |  |  |
+| `seen` | text | no |  | Which identity either record could own, as the door saw it: name, phone or email. Never the value. |
+| `settled_at` | timestamp with time zone | yes |  |  |
+| `settled_by` | uuid | yes |  |  |
+| `settled_as` | text | yes |  | How the pair was settled: merged (0028's door, through the contacts trigger) or not_the_same (person_doubt_dismiss). Null while open. |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `other_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `person_doubts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### person_moments
 

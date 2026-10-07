@@ -175,8 +175,8 @@
     "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
-    "lines": 233,
-    "branches": 50,
+    "lines": 228,
+    "branches": 45,
     "depth": 1
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {

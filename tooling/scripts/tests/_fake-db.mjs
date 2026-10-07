@@ -456,6 +456,261 @@ function byWaiting(a, b, ...cols) {
   return 0;
 }
 
+/* ---------------------------------------------------- resolve_person (00342, 00344), from the rows a world holds */
+
+/** How sure the door is of an identity (contact_identities.assurance): a stronger word replaces a weaker one. */
+const ASSURANCE_RANK = { found: 1, asserted: 2, observed: 3 };
+const RESOLVE_CHANNELS = ["whatsapp", "voice", "sms", "email", "instagram"];
+const E164 = /^\+[1-9][0-9]{7,14}$/;
+const AN_ADDRESS = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+const refusal = (code, message) => Object.assign(new Error(message), { code });
+const living = (c) => c.erased_at == null && c.merged_into_contact_id == null;
+const inWorkspace = (tables, tenantId) => (tables.contacts ?? []).filter((c) => c.tenant_id === tenantId);
+
+/** The door's reading of its arguments, refused with its own codes and words: the number as 00342 restates normalizePhone. */
+function resolveArgs(a) {
+  const word = (v) => String(v ?? "").trim();
+  const channel = word(a.p_channel) || null;
+  const external = word(a.p_external) || null;
+  const digits = String(a.p_phone ?? "").replace(/\D/g, "");
+  const email = word(a.p_email).toLowerCase() || null;
+  const name = word(a.p_name).replace(/\s+/g, " ").slice(0, 80) || null;
+  const assurance = word(a.p_assurance) || "observed";
+  if (!(assurance in ASSURANCE_RANK)) throw refusal("22023", "An identity is observed, asserted or found.");
+  if ((channel === null) !== (external === null)) throw refusal("22023", "An identity needs its channel and its id.");
+  if (channel && !RESOLVE_CHANNELS.includes(channel)) throw refusal("22023", "That is not a channel.");
+  const phone =
+    digits === ""
+      ? null
+      : digits.length === 10
+        ? `+1${digits}`
+        : digits.length >= 8 && digits.length <= 15
+          ? `+${digits}`
+          : null;
+  if ((digits !== "" && phone === null) || (phone && !E164.test(phone)))
+    throw refusal("22023", "A phone number in international form is needed.");
+  if (email && (email.length < 3 || email.length > 254 || !AN_ADDRESS.test(email)))
+    throw refusal("22023", "That is not an email address.");
+  if (!external && !phone && !email && !name) throw refusal("22023", "A number or an address is needed.");
+  return {
+    channel,
+    external,
+    phone,
+    email,
+    name,
+    assurance,
+    observed: assurance === "observed",
+    source: word(a.p_source) || "manual",
+    detail: a.p_detail && typeof a.p_detail === "object" ? a.p_detail : {},
+    seen: a.p_seen_at ?? null,
+  };
+}
+
+/** The erased stay erased on the passive paths (00263, 00331): a member's, a feed's or the finder's word; never the wire's. */
+function refusedAsForgotten(tables, tenantId, r) {
+  if (r.observed) return;
+  const digest = (v) => crypto.createHash("sha256").update(`${tenantId}:${v}`, "utf8").digest("hex");
+  const rows = inWorkspace(tables, tenantId);
+  if (
+    (r.phone && rows.some((c) => c.erased_phone_hash === digest(r.phone))) ||
+    (r.email && rows.some((c) => c.erased_email_hash === digest(r.email)))
+  )
+    throw refusal("PE001", "That person asked to be forgotten.");
+}
+
+/** The match, in the door's order: the identity, then the number, then the address (two numbers are two people). */
+function matchPerson(tables, tenantId, r) {
+  const rows = inWorkspace(tables, tenantId);
+  if (r.external) {
+    const i = (tables.contact_identities ?? []).find(
+      (x) => x.tenant_id === tenantId && x.channel === r.channel && x.external_id === r.external,
+    );
+    const c = i && rows.find((x) => x.id === i.contact_id && x.erased_at == null);
+    if (c) return { id: c.merged_into_contact_id ?? c.id, by: "identity" };
+  }
+  if (r.phone) {
+    const c = rows.find((x) => x.phone_e164 === r.phone && living(x));
+    if (c) return { id: c.id, by: "phone" };
+  }
+  if (r.email) {
+    const c = rows.find((x) => x.email === r.email && living(x) && (!r.phone || x.phone_e164 == null));
+    if (c) return { id: c.id, by: "email" };
+  }
+  return null;
+}
+
+/** Nobody: made, with the address only when nobody here holds it; a held address, or a held name, is a doubt beside them. */
+function makePerson(tables, tenantId, r, insertRow, at) {
+  const rows = inWorkspace(tables, tenantId);
+  const held = r.email ? rows.find((c) => c.email === r.email) : null;
+  const out = { email: null, other: null, seenAs: null };
+  if (held) {
+    out.email = "taken";
+    const other = rows.find((c) => c.email === r.email && living(c));
+    if (other) Object.assign(out, { other: other.id, seenAs: "email" });
+  }
+  if (r.name && !out.seenAs) {
+    const other = rows.find(
+      (c) => c.display_name && c.display_name.toLowerCase() === r.name.toLowerCase() && living(c),
+    );
+    if (other) Object.assign(out, { other: other.id, seenAs: "name" });
+  }
+  const row = insertRow("contacts", {
+    tenant_id: tenantId,
+    phone_e164: r.phone,
+    email: held ? null : r.email,
+    display_name: r.observed ? null : r.name,
+    wa_profile_name: r.observed ? r.name : null,
+    last_seen_at: r.seen ?? at,
+  });
+  if (r.email && !held) out.email = "set";
+  // Where they came from, when it was not by writing or calling (00306 says the wire for those).
+  if (!r.observed)
+    insertRow("events", {
+      tenant_id: tenantId,
+      kind: "contact.added",
+      category: "contact",
+      subject_type: "contact",
+      subject_id: row.id,
+      data: { ...r.detail, source: r.source, by: r.detail.by ?? null },
+    });
+  return { id: row.id, ...out };
+}
+
+/** Found: what we did not have is kept, what we have is never overwritten, and a name the wire gave follows the wire. */
+function fillPerson(tables, tenantId, r, id, at) {
+  const rows = inWorkspace(tables, tenantId);
+  const row = rows.find((c) => c.id === id);
+  const filled = [];
+  const out = { email: null, other: null, seenAs: null };
+  const write = (column, value) => {
+    row[column] = value;
+    row.updated_at = at;
+    filled.push(column);
+  };
+  if (r.name) {
+    if (r.observed) {
+      if (row.wa_profile_name !== r.name) write("wa_profile_name", r.name);
+    } else if (row.display_name == null) write("display_name", r.name);
+  }
+  if (r.phone && row.phone_e164 == null) {
+    const other = rows.find((c) => c.phone_e164 === r.phone && c.id !== id);
+    if (other) Object.assign(out, { other: other.id, seenAs: "phone" });
+    else write("phone_e164", r.phone);
+  }
+  if (r.email) {
+    const other = rows.find((c) => c.email === r.email && c.id !== id);
+    if (row.email != null) out.email = "kept";
+    else if (other) {
+      out.email = "taken";
+      if (!out.seenAs && living(other)) Object.assign(out, { other: other.id, seenAs: "email" });
+    } else {
+      write("email", r.email);
+      out.email = "set";
+    }
+  }
+  if (r.observed && (row.last_seen_at == null || row.last_seen_at < (r.seen ?? at))) row.last_seen_at = r.seen ?? at;
+  return { filled, ...out };
+}
+
+/** The identity, with how sure the door was: added, raised (a stronger word), or kept. */
+function keepIdentity(tables, tenantId, r, id, insertRow) {
+  if (!r.external) return null;
+  const have = (tables.contact_identities ?? []).find(
+    (x) => x.tenant_id === tenantId && x.channel === r.channel && x.external_id === r.external,
+  );
+  if (!have) {
+    insertRow("contact_identities", {
+      tenant_id: tenantId,
+      contact_id: id,
+      channel: r.channel,
+      external_id: r.external,
+      assurance: r.assurance,
+    });
+    return "added";
+  }
+  if (have.contact_id === id && ASSURANCE_RANK[r.assurance] > ASSURANCE_RANK[have.assurance ?? "observed"]) {
+    have.assurance = r.assurance;
+    return "raised";
+  }
+  return "kept";
+}
+
+/** The doubt: only a pair 0028's door could join, written once per pair whichever way round, and left alone once settled. */
+function keepDoubt(tables, tenantId, id, other, seenAs, insertRow) {
+  const none = { other: null, seenAs: null, doubtId: null };
+  if (!other) return none;
+  const rows = inWorkspace(tables, tenantId);
+  const [a, b] = [rows.find((c) => c.id === id), rows.find((c) => c.id === other)];
+  const joinable =
+    (a.phone_e164 == null || b.phone_e164 == null || a.phone_e164 === b.phone_e164) &&
+    (a.email == null || b.email == null || a.email === b.email);
+  if (!joinable) return none;
+  const [lo, hi] = id < other ? [id, other] : [other, id];
+  const had = (tables.person_doubts ?? []).find(
+    (d) => d.tenant_id === tenantId && d.contact_id === lo && d.other_id === hi,
+  );
+  if (had) return { other, seenAs, doubtId: null };
+  const row = insertRow("person_doubts", { tenant_id: tenantId, contact_id: lo, other_id: hi, seen: seenAs });
+  return { other, seenAs, doubtId: row.id };
+}
+
+/**
+ * The one door a person is resolved by (resolve_person, 00342 and 00344; decision 0034), over the rows a world holds,
+ * so the sweeps, the booking link and the email intake run their real code over it: the erasure digests first on the
+ * passive paths, then the identity, the number and the address; fills what is empty and never overwrites; never
+ * merges, and writes a doubt instead for a pair the merge could join; contact.added for a new person a member, a feed
+ * or the finder brought, person.resolved for every call. The SQL itself is proved on a stack in
+ * people/doors/resolve-person.db.test.mjs; what this answers is held to the same cases there. Not modelled: the race
+ * two doors run (one world, one caller at a time), and contact.email_set, which set_person_email writes beside the
+ * address.
+ */
+function resolvePersonIn(tables, args, insertRow) {
+  const tenantId = args.p_tenant_id;
+  if (!tenantId) throw refusal("P0002", "Workspace not found.");
+  const r = resolveArgs(args);
+  refusedAsForgotten(tables, tenantId, r);
+  const at = stampOf(tables);
+  const found = matchPerson(tables, tenantId, r);
+  const made = found ? null : makePerson(tables, tenantId, r, insertRow, at);
+  const id = found ? found.id : made.id;
+  const fill = found ? fillPerson(tables, tenantId, r, id, at) : { filled: [], ...made };
+  const outcome = found ? (fill.filled.length ? "filled" : "matched") : "new";
+  const identity = keepIdentity(tables, tenantId, r, id, insertRow);
+  const doubt = keepDoubt(tables, tenantId, id, fill.other, fill.seenAs, insertRow);
+  insertRow("events", {
+    tenant_id: tenantId,
+    kind: "person.resolved",
+    category: "contact",
+    subject_type: "contact",
+    subject_id: id,
+    data: {
+      outcome,
+      matched_by: found?.by ?? null,
+      source: r.source,
+      channel: r.channel,
+      assurance: r.assurance,
+      by: null,
+      filled: fill.filled,
+      identity,
+      doubt: doubt.other,
+      doubt_seen: doubt.seenAs,
+    },
+  });
+  return {
+    contact_id: id,
+    outcome,
+    existed: !!found,
+    matched_by: found?.by ?? null,
+    email: fill.email,
+    filled: fill.filled,
+    identity,
+    doubt: doubt.other,
+    doubt_seen: doubt.seenAs,
+    doubt_id: doubt.doubtId,
+  };
+}
+
 /**
  * @param tables {Record<string, object[]>} mutated in place, so a test can read
  *   back what the code under test actually wrote.
@@ -480,7 +735,23 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
   // on the product's default zone, as one whose row is blank is, and is not paused.
   const tenantOf = (tenantId) => (tables.tenants ?? []).find((x) => x.id === tenantId);
   const zoneOf = (tenantId) => safeZone(tenantOf(tenantId)?.timezone);
+  /**
+   * A row a derived door writes, as an insert through `from` would write it: judged against the relation and the
+   * table's unique keys (a clash is the database's 23505), stamped, and kept. Defined below with `from`; a door runs
+   * long after both are made.
+   */
+  const insertRow = (table, values) => {
+    const bad = refusedRow(SCHEMA, table, values, { insert: true });
+    if (bad) throw Object.assign(new Error(bad.message), { code: bad.code });
+    const fresh = made(table, values, stampOf(tables));
+    const clash = uniqueViolation(keysOf(table), table, [fresh], tables[table] ?? []);
+    if (clash) throw Object.assign(new Error(clash.message), { code: clash.code });
+    (tables[table] ??= []).push(fresh);
+    return fresh;
+  };
   const derived = {
+    // The one door a person is resolved by (00342, 00344): the sweeps, the booking link and the email intake call it.
+    resolve_person: (args) => resolvePersonIn(tables, args, insertRow),
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
       const of = (kind) => {

@@ -9,8 +9,10 @@
  * an hour. Each feed's appointments put the people they name in People: a
  * phone in the event is the key, the name as the event gives it fills only an
  * empty one, a service the workspace lists is never mistaken for a name, and
- * each person created gets an event saying where they came from. The owner
- * hears the good news as a row on the bell, never as a mail.
+ * each person created gets an event saying where they came from. Each row goes
+ * through the one door a person is resolved by (resolve_person, decision 0034),
+ * which the database in memory answers from its rows. The owner hears the good
+ * news as a row on the bell, never as a mail.
  * A read is stamped only on success, so a feed that was briefly unreachable
  * is retried next tick rather than skipped for an hour. What the page could
  * not reach is noted; three ticks of that in a row and the sweep says so with
@@ -227,6 +229,7 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
     const priya = w.tables.contacts.find((c) => c.phone_e164 === "+16465550188");
     assert.deepEqual(
       w.tables.events
+        .filter((e) => e.kind === "contact.added")
         .map((e) => [e.tenant_id, e.kind, e.category, e.subject_type, e.subject_id, e.data.source, e.data.uid])
         .sort(),
       [
@@ -235,6 +238,19 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
         [O, "contact.added", "contact", "contact", priya.id, "calendar", "o2"],
       ].sort(),
       "each person created says where they came from; the one merely named gets none",
+    );
+    assert.deepEqual(
+      w.tables.events
+        .filter((e) => e.kind === "person.resolved")
+        .map((e) => [e.subject_id, e.data.outcome, e.data.source, e.data.assurance])
+        .sort(),
+      [
+        ["c-maria", "filled", "calendar", "found"],
+        [dana.id, "new", "calendar", "found"],
+        [keratin.id, "new", "calendar", "found"],
+        [priya.id, "new", "calendar", "found"],
+      ].sort(),
+      "every appointment went through the door, as the feed's word, and the ledger has each resolution",
     );
     assert.ok(
       w.tables.contacts.every((c) => c.consent === undefined),

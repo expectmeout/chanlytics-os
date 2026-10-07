@@ -3,9 +3,12 @@
 **Status:** Decided on 6 October 2026 (Ruben: "all approved"), with 0031; step 0 (`create_person` refuses a number whose
 person asked to be forgotten, 00331) built with the note; steps 1 and 3, and step 2's first two writers, built on 7
 October 2026 (00342): `resolve_person`, called by `create_person` and `import_person`, with `contact_identities.assurance`
-written by it and `person.resolved` in the catalogue, as evidence the purge takes. Until step 4's queue exists a doubt is
-answered in the door's result (`doubt`, `doubt_seen`) and recorded on its event, not on a row. The other seven writers,
-the queue and the lead link (steps 2, 4 and 5) are not yet built. Proposed the same day. Written against
+written by it and `person.resolved` in the catalogue, as evidence the purge takes; the rest of step 2 and step 4 built
+the same day (00344): every writer matches through the door (`ingest_inbound`, `ingest_call`, `lead_set_stage` and
+`reach_out_person` in SQL; the calendar sweep, the booking link and the email intake through `packages/db`'s
+`resolvePerson`), a doubt is a row on `person_doubts` that the People page shows as "Same person?" with Merge (0028's
+door) and Not the same (`person_doubt_dismiss`), and the two open questions are answered below. Step 5, the lead link on
+every identity, is not yet built. Proposed the same day. Written against
 commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6
 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Where this
 note and the code disagree, the code wins.
@@ -117,15 +120,30 @@ _Both orders:_ a function nothing calls.
 first (members' doors, the smallest; built, 00342: each keeps its signature, its checks and its answer, and asks the
 door for the match as a member's assertion), then the calendar sweep and the board, then `lead_set_stage` and
 `reach_out_person`, then `ingest_call`, then the booking link and the email backfill, and `ingest_inbound` last, with
-`inbound-executed.test.mjs`'s cases green. _Both orders:_ each writer's old path answers an older edge.
+`inbound-executed.test.mjs`'s cases green. Built, 00344, the other seven in one change, each keeping its signature and
+its answer (the board's write, `people-seen.ts`, reaches the door through `create_person` already): an arrival on the
+wire (they wrote, they called: _observed_) writes no `contact.added`, since the message or the call is the record and
+00306's trigger says the wire, and is never refused by the erasure digests, since a person who asked to be forgotten
+and writes again is a new person, as the inbound doors always made them; a name the wire gave follows the wire
+(`wa_profile_name`), a member's or the finder's fills `display_name` only where it is empty; an identity already held
+is written only when its word gets stronger. The door defaults every argument but the workspace; `packages/db`'s
+wrapper still names all nine of 00342's, an empty word for what it did not see, so a database on 00342 answers an
+edge on 00344 with the first cut's match, and the email intake keeps naming a person known by address until 00344 is
+on production. _Both orders:_ each writer's old path answers an older edge.
 
 **3 · Assurance on identities.** The column, written by the door; readers ignore it until step 5. Built, 00342: observed
 by default for every identity the inbound doors wrote before it, and a stronger word replaces a weaker one on the
 door's upsert, never the reverse. _Both orders._
 
 **4 · The doubt queue:** `person_doubts`, written by `resolve_person`, and the People page's "same person?" row with
-Merge (0028's door, `POST /api/v1/contacts/[id]/merge`) and Not the same, which settles the pair. _Both orders:_ a
-table only the door writes and only a newer dashboard reads.
+Merge (0028's door, `POST /api/v1/contacts/[id]/merge`) and Not the same, which settles the pair. Built, 00344: a doubt
+is raised only for a pair 0028's door could join (two numbers, or two addresses, are two people by rule), written once
+per pair whichever way round, never the value itself, only which of the three was seen; the row says who else it could
+be, Merge opens 0028's box with that record chosen (the owner's act), Not the same is any acting member's
+(`person_doubt_dismiss`, `POST /api/v1/contacts/[id]/doubts/dismiss`, idempotent, refused in words for a pair the merge
+joined); the merge settles the pair's own row and carries the merged record's other doubts to the kept one, and an
+erasure takes every doubt naming the person (`contacts_change_settles_doubts`, a leg of the record's own triggers).
+_Both orders:_ a table only the door writes and only a newer dashboard reads.
 
 **5 · Leads link on every identity.** `contacts_link_lead` fires from the door on every identity added, not on insert
 alone, and writes `lead.converted` with a version bump, which `lead_link_contact` never did (00184). _Both orders._
@@ -139,6 +157,14 @@ alone, and writes `lead.converted` with a version bump, which `lead_link_contact
   `retell-webhook-door`, the lead and reach-out suites) through each move.
 - **The merge** is 0028's (`people/merge/merge-people.db.test.mjs`) and is not proved twice here: a doubt settled
   through it leaves the queue, and a pair dismissed is not raised again by the next arrival.
+- **The queue** (`people/doors/person-doubts.db.test.mjs`): a member reads it and nobody but the doors writes it; not the
+  same by an operator, once however often, and by nobody outside the workspace; the next arrival names the pair and
+  reopens nothing; the merge settles the pair's row and carries the merged record's other doubts, once each, to the
+  kept one, and the pair it joined cannot be dismissed; an erasure takes every doubt naming the person. The page's row
+  (`people/person-honest.test.mjs`): the sentence, Merge with the record chosen whether or not People lists it, Not the
+  same through its route and the page read again, and who may press which. The three writers in TypeScript run over
+  the door modelled in `_fake-db.mjs` from the rows a world holds (`cron-calendar-door`, `calendar-counts`,
+  `calendar-people`, `retell-fn-door`, `voice-booking-link`), the SQL itself proved on a stack.
 - **00331** (`people/erasure/create-person-refuses-the-forgotten.db.test.mjs`): an erased number is refused with PE001 by hand
   and from the board, and the board goes on with the next person.
 
@@ -154,5 +180,11 @@ alone, and writes `lead.converted` with a version bump, which `lead_link_contact
 
 ## Open questions
 
-1. Does a doubt reach the bell, or only the People page?
-2. Who settles a doubt: the owner, who alone may merge (0028), or an operator too for "not the same"?
+Answered on 7 October 2026, with step 4:
+
+1. _Does a doubt reach the bell, or only the People page?_ The page only. The bell is for what needs a person today;
+   a pair that might be one person waits with the record, and is seen the next time someone opens it. A count on
+   People's rail is the next step if the queue grows unseen.
+2. _Who settles a doubt?_ Not the same is any acting member's (owner, operator, a partner who showed their second
+   factor), as a note's verdict is: it changes nothing but the queue. The merge stays the owner's (0028), since it
+   cannot be undone.

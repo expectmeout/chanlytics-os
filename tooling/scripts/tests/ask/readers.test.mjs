@@ -1290,6 +1290,7 @@ const PERSON_KEYS = [
   "consent_history",
   "campaigns",
   "lead",
+  "doubts",
   "deals",
   "deals_on",
   "deal_pace",
@@ -1297,7 +1298,10 @@ const PERSON_KEYS = [
   "consult_first",
   "added",
 ];
-/** Every read GET contacts/:id made at origin/main (fad8b7ea) for one person with threads, by table. */
+/**
+ * Every read GET contacts/:id made at origin/main (fad8b7ea) for one person with threads, by table, and since 00344 the
+ * open doubts naming them (person_doubts, decision 0034 step 4), read in the same round.
+ */
 const PERSON_READS = {
   "rpc:people_list": 1,
   "contact_identities.select": 1,
@@ -1316,6 +1320,7 @@ const PERSON_READS = {
   // Their deals, and the workspace's pace.
   "deals.select": 2,
   "broadcast_recipients.select": 1,
+  "person_doubts.select": 1,
   "person_notes.select": 1,
   "messages.select": 1,
   "escalations.select": 1,

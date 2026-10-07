@@ -342,6 +342,13 @@
       "rate": "consent",
       "spend": false
     },
+    "POST contacts/[id]/doubts/dismiss": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "POST contacts/[id]/merge": {
       "kind": "write",
       "fresh": true,
