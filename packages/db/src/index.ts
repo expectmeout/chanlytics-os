@@ -280,12 +280,13 @@ export {
   templatesNamed,
   templateStatusOf,
   messageSlots,
+  messageVersionRowsOf,
   ownVersionsFiled,
   saveTemplateVersion,
   removeTemplateVersion,
   setTemplateQuality,
 } from "./repositories/templates";
-export type { TemplateRow, TemplateToSend, VersionRef } from "./repositories/templates";
+export type { MessageVersionRow, TemplateRow, TemplateToSend, VersionRef } from "./repositories/templates";
 export {
   getTenantConfig,
   putTenantConfig,

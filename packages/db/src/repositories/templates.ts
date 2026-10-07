@@ -7,10 +7,17 @@
  * this workspace send, right now -- so that no caller has to name one by a literal again. An email or a text version
  * (00296) is written and removed through the two doors below, on the member's own session: a member may only read the
  * table, and the doors say who may write it and which rows. The one write Meta's webhook makes between two syncs is here
- * too: a WhatsApp template's quality, as Meta just said it (setTemplateQuality).
+ * too: a WhatsApp template's quality, as Meta just said it (setTemplateQuality). A message's rows, on whatever channel,
+ * are read once (messageVersionRowsOf) for contracts' campaignMessageOf to pick its versions out of.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { OwnVersionChannel } from "@chanlytics/contracts";
+import {
+  isReachOutRow,
+  type CampaignMessageRow,
+  type Holds,
+  type OwnVersionChannel,
+  type Within,
+} from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -31,6 +38,30 @@ export interface TemplateToSend extends TemplateRow {
   /** Meta's component array: what makes a message one this product cannot send whole (contracts templateBlocked). */
   components: unknown;
 }
+
+/**
+ * A template row as a message is read from it, whatever its channel: the columns contracts' campaignMessageOf picks the
+ * versions out of (the status and category, the slots, the title, a refusal's words, the components a WhatsApp row is
+ * judged by) and the ones a page draws a version from (the words an email or a text holds, and who wrote it).
+ */
+export interface MessageVersionRow {
+  id: string;
+  channel: string;
+  name: string;
+  language: string;
+  meta_status: string;
+  category: string | null;
+  variables: unknown;
+  hidden_at: string | null;
+  title: string | null;
+  source: string;
+  components: unknown;
+  body_preview: string | null;
+  rejected_reason: string | null;
+}
+
+// A caller hands these rows to campaignMessageOf as they are, with no mapping: the compiler holds the two shapes together.
+type _MessageVersionRowIsACampaignMessageRow = Holds<Within<MessageVersionRow, CampaignMessageRow>>;
 
 /**
  * Every template this workspace holds on a channel.
@@ -93,6 +124,50 @@ export async function messageSlots(db: Db, tenantId: string, name: string, langu
   });
   const row = rows[0];
   return row ? slotsOf(row.variables) : null;
+}
+
+/** The name and language of the message a version of this workspace's is, or null when it holds no version of that id. */
+async function messageOfVersion(
+  db: Db,
+  tenantId: string,
+  id: string,
+): Promise<{ name: string; language: string } | null> {
+  const { data, error } = await db
+    .from("templates")
+    .select("name, language")
+    .eq("tenant_id", tenantId)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data;
+}
+
+const MESSAGE_COLUMNS =
+  "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
+
+/**
+ * Every row of one message, whatever its channel: the rows of this workspace that share its name and language, which are
+ * its versions on WhatsApp, email and text (and any other channel a row of that name sits on; contracts campaignMessageOf
+ * picks the versions out of them). The message is named by one of its versions' ids, which answers its siblings and the
+ * version itself, or by its name and language. An id the workspace does not hold is no message: `[]`. So is a reach-out's
+ * email (contracts isReachOutRow), which is filed under a name of its own and belongs to no message. A read that fails
+ * THROWS, as `templatesFor` does.
+ */
+export async function messageVersionRowsOf(
+  db: Db,
+  tenantId: string,
+  by: { id: string } | { name: string; language: string },
+): Promise<MessageVersionRow[]> {
+  const message = "id" in by ? await messageOfVersion(db, tenantId, by.id) : by;
+  if (message === null || isReachOutRow(message)) return [];
+  const { data, error } = await db
+    .from("templates")
+    .select(MESSAGE_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("name", message.name)
+    .eq("language", message.language);
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data ?? [];
 }
 
 /** The email and text versions of these messages the workspace holds: each one's channel, name and language. */

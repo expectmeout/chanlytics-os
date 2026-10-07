@@ -2821,6 +2821,9 @@ async function releaseControl(db, p) {
 }
 
 // src/repositories/templates.ts
+import {
+  isReachOutRow
+} from "../../contracts/dist/index.js";
 async function templatesFor(db, tenantId, channel = "whatsapp") {
   const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId).eq("channel", channel);
   if (error) throw new Error(`templatesFor: ${error.message}`);
@@ -2845,6 +2848,19 @@ async function messageSlots(db, tenantId, name, language) {
   });
   const row = rows[0];
   return row ? slotsOf(row.variables) : null;
+}
+async function messageOfVersion(db, tenantId, id) {
+  const { data, error } = await db.from("templates").select("name, language").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data;
+}
+var MESSAGE_COLUMNS = "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
+async function messageVersionRowsOf(db, tenantId, by) {
+  const message = "id" in by ? await messageOfVersion(db, tenantId, by.id) : by;
+  if (message === null || isReachOutRow(message)) return [];
+  const { data, error } = await db.from("templates").select(MESSAGE_COLUMNS).eq("tenant_id", tenantId).eq("name", message.name).eq("language", message.language);
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data ?? [];
 }
 async function ownVersionsFiled(db, tenantId, names) {
   if (names.length === 0) return [];
@@ -3925,6 +3941,7 @@ export {
   messageByExternalId,
   messageSenders,
   messageSlots,
+  messageVersionRowsOf,
   migrationHead,
   monthSent,
   moveSend,
