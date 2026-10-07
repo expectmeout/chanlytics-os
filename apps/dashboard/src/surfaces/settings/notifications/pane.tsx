@@ -12,9 +12,12 @@
 import { useState, type ReactNode } from "react";
 import { NOTIFICATION_KIND_GROUPS, NOTIFICATION_PANE_WORDS, type NotificationsConfig } from "@chanlytics/contracts";
 import { saveSettings } from "@/legacy-bridge/inbox-verbs";
+import type { BellApi } from "@/legacy-bridge/notifications";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { Icon } from "../../kit/icon/icon";
+import { RecordSwitch } from "../../kit/record/field";
 import { canDo, gate, gateTitle, showTip, type GateProps, type LegacyFlash } from "../../legacy-verbs";
+import { object } from "../../shell-doors";
 import { useSurface } from "../../use-surface";
 import { EMAIL_SHAPE } from "../shared";
 
@@ -120,6 +123,53 @@ function recipientsCard(o: Recipients): ReactNode {
   );
 }
 
+/**
+ * This device: the bell's own switch (legacy-bridge/notifications.ts), kept in this browser. It stood only in the bell's popover
+ * and the account menu; the menu now says where it stands and opens this page, so the switch is here (Ruben, 7 Oct 2026). A
+ * browser that refused says so, since only its own settings can let them through again; one that cannot alert draws nothing.
+ */
+function DeviceAlerts({ flash }: { flash: (f: LegacyFlash) => void }) {
+  // The bell as the top bar holds it (`window.__notifs`), read through the surfaces' one door to the shell.
+  const api = object<BellApi>("__notifs") ?? null;
+  const [alerts, setAlerts] = useState(() => api?.alerts() ?? null);
+  if (!api || !alerts?.can) return null;
+  const blocked = alerts.permission === "denied";
+  const set = async (on: boolean) => {
+    await api.setAlerts(on);
+    const next = api.alerts();
+    setAlerts(next);
+    if (on && !next.on) flash({ tone: "warn", msg: <>Alerts are blocked in your browser's settings for this site.</> });
+  };
+  return (
+    <section className="fl-card set-card" data-testid="notif-device">
+      <div className="fl-card-head">
+        <h2 className="fl-card-title">This device</h2>
+      </div>
+      <div className="set-row">
+        <div className="set-row-info">
+          <span className="set-row-label" id="notif-device-label">
+            Alert this device
+          </span>
+          <span className="set-row-hint">
+            {blocked
+              ? "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on."
+              : "A browser alert when something needs you, while Chanlytics is open in a tab. Kept on this device only."}
+          </span>
+        </div>
+        <div className="set-row-control">
+          <RecordSwitch
+            labelledBy="notif-device-label"
+            on={alerts.on}
+            readOnly={blocked}
+            onChange={(on) => void set(on)}
+            testid="notif-device-switch"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** What is sent, in contracts' groups: each kind's name, whether it goes to Chanlytics, and when it is sent as its tip. */
 function kindsCard(): ReactNode {
   return (
@@ -170,7 +220,7 @@ function howCard(from: string | undefined): ReactNode {
             background), so "push notifications are not built" denied a switch one click away (S20). */}
         <li>
           <Icon name="check" size={11} />
-          <span>Your browser can alert you too while Chanlytics is open in it — switch alerts on from the bell.</span>
+          <span>Your browser can alert you too while Chanlytics is open in it: This device, above.</span>
         </li>
         <li>
           <Icon name="check" size={11} />
@@ -268,6 +318,7 @@ export const PaneNotificationsReal = ({ flash }: { flash: (f: LegacyFlash) => vo
   return (
     <>
       {recipientsCard({ emails, may, gated, broken, busy, lockTitle, email, setEmail, add, remove })}
+      <DeviceAlerts flash={flash} />
       {kindsCard()}
       {howCard(notif.from)}
     </>

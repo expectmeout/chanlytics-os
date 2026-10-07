@@ -1402,7 +1402,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .sidebar.collapsed .user-chip .who,
 .sidebar.collapsed .sb-collapse-label { display: none; }
 .sidebar.collapsed .nav-item { justify-content: center; padding: 9px 0; }
-.sidebar.collapsed .sidebar-section { padding: 4px 6px; }
+/* The rail draws no labels, so its groups keep no room over and under them: with 4px each, three pairs of icons stood 11px
+   apart and the rest 3 (Ruben, 7 Oct 2026). */
+.sidebar.collapsed .sidebar-section { padding: 0 6px; }
 .sidebar.collapsed .sb-team { justify-content: center; padding: 14px 0 10px; }
 .sidebar.collapsed .sidebar-foot { padding: 8px 6px; }
 .sidebar.collapsed .user-chip { justify-content: center; padding: 8px 0; }
@@ -1421,6 +1423,43 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 
 /* Menus are drawn on the page, anchored to their trigger, so the rail can open them too. */
 .sb-menu { position: fixed; top: auto; right: auto; max-width: 300px; max-height: min(520px, 84vh); }
+/* On a phone the sidebar is a drawer, and its two menus are the phone's action sheet, as every menu of the kit's is there
+   (kit.css, the Menu under 900px; named by where it is placed, sidebar.jsx `data-sb-place`): from the screen's foot, edge to edge, a handle, each item a thumb tall. Opened over
+   its row, the account's covered the drawer's places, the workspace's hung off a row a thumb had just left, and one
+   placed from a row still sliding in stood off the screen (Ruben, 7 Oct 2026). */
+@media (max-width: 900px) {
+  [data-sb-place="foot"] {
+    inset: auto 0 0 0;
+    width: auto;
+    max-width: none;
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 6px 10px calc(14px + env(safe-area-inset-bottom));
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    border-bottom: 0;
+    animation: more-sheet-in 220ms var(--ease-out);
+  }
+  [data-sb-place="foot"]::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 4px auto 12px;
+    border-radius: var(--radius-full);
+    background: var(--line-strong);
+  }
+  [data-sb-place="foot"][role="menu"] > button {
+    min-height: 52px;
+    padding: 0 12px;
+    gap: 14px;
+    font-size: var(--text-md);
+  }
+}
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  [data-sb-place="foot"] {
+    animation: none;
+  }
+}
 .sb-menu-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
 .sb-menu-head .avatar {
   width: 30px; height: 30px; border-radius: var(--radius-full); flex-shrink: 0;
@@ -2400,15 +2439,12 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   /* The period's place is kept from the first paint. The period is the page's act (period-picker.tsx, said through the
      head into #pg-act), and the page draws only once its read lands, a second or two after the strip: with the act's
      place empty the column was 0 wide, the strip spanned the screen, and shrank 52px as the period came (Ruben, 7 Oct
-     2026). Until it comes, the place holds a circle of the same glass with nothing in it (reports.css .rpt-when-open),
-     as the Calendar's options button stands beside its views before the days are read. */
-  .pg-slot[data-strip="reports"] > .pg-act-slot:has(> #pg-act:empty)::before {
-    content: "";
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-circle);
-    background: var(--surface-control-fill);
-    box-shadow: var(--surface-control-depth);
+     2026). The place keeps the period's width and nothing is drawn in it. It held a circle of the period's glass, a
+     pseudo-element taken away by `:has(> #pg-act:empty)`, which an iPhone's Safari did not ask again as the period was
+     drawn into the span: the empty circle stood beside the period for good (Ruben, 7 Oct 2026). */
+  .pg-slot[data-strip="reports"] > .pg-act-slot {
+    min-width: 44px;
+    min-height: 44px;
   }
   /* The Inbox's row of views (Needs you, Conversations, Live) stands on a phone as on a desk (Ruben, 2 Oct 2026: the
      canvas's swipe between them was not found); the buckets' capsule is the list's own, under it. */
@@ -2530,10 +2566,13 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
 }
 
-/* The sidebar as the canvases draw it (E3 and the five after it): the places in one list without the groups' labels,
-   each at the page's reading size, and no Collapse: the sidebar is as tall as its places. */
-.sidebar-label { display: none; }
-.sidebar-section + .sidebar-section { margin-top: 0; }
+/* The sidebar's places at the page's reading size, in their groups, each group under its name (Workspace, Intelligence) in
+   the small capitals; no Collapse: the sidebar is as tall as its places. The canvases (E3) drew one list with no names, and
+   with the names hidden the groups stood 0 apart while the places in one stood 3: Inbox and People, and Campaigns and
+   Reports, touched (Ruben, 7 Oct 2026, who chose the names shown). The rail draws no names (above), and its groups keep
+   the places' own 3px. */
+.sidebar-label { font-size: var(--text-2xs); letter-spacing: 0.06em; padding: 14px 12px 6px; }
+.sidebar-section + .sidebar-section { margin-top: 3px; }
 .sb-collapse { display: none; }
 .nav-item { padding: 0 12px; font-size: var(--text-base); }
 
