@@ -22,7 +22,7 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
-import { RecordToggleGroup } from "../../kit/record/field";
+import { Segmented } from "../../kit/segmented/segmented";
 import {
   actingRole,
   canDo,
@@ -107,10 +107,10 @@ function viewAs(myRole: string, previewing: boolean): ReactNode {
       <span className="set-viewas-label" id="set-viewas-label">
         View as
       </span>
-      <RecordToggleGroup
+      <Segmented
         labelledBy="set-viewas-label"
         value={myRole}
-        onChange={(r) => setViewAs(r === "owner" ? null : r)}
+        onValueChange={(r) => setViewAs(r === "owner" ? null : r)}
         options={["owner", "operator", "viewer"].map((r) => ({ value: r, label: roleWords(r).label }))}
       />
       {previewing && (
@@ -289,10 +289,10 @@ function inviteRow(o: {
         }}
         autoFocus
       />
-      <RecordToggleGroup
+      <Segmented
         label="Invite as"
         value={o.inviteRole}
-        onChange={o.setInviteRole}
+        onValueChange={o.setInviteRole}
         options={["operator", "viewer"].map((r) => ({ value: r, label: roleWords(r).label }))}
       />
       <button className="btn btn-primary btn-sm" onClick={o.invite} disabled={o.teamBusy}>
