@@ -2297,9 +2297,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
   /* Where a phone draws a strip of views and the page's act (Campaigns' New; canvas C-phone-list), the act stands
      beside the strip at its right as a 44px circle of the primary fill, its mark alone, the words kept for a screen
-     reader. Named with the strip's element, since its class is the kit's. */
+     reader. Named with the strip's element, since its class is the kit's. The two stand 8px apart, as the Calendar's
+     views and its options button do (Ruben, 7 Oct 2026). */
   .pg-slot:has(> nav) {
     grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-2);
   }
   .pg-slot:has(> nav) > .pg-head-slot {
     grid-column: 1 / -1;
@@ -2341,12 +2343,21 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     display: none;
   }
   /* On a phone the strip and the act stand at the boards' 12px from the screen's edges (every phone board draws its
-     row of views at 12 under a head at 16), 4 in from the slot's gutter. */
+     row of views at 12 under a head at 16), 4 in from the slot's gutter, the edge of the capsules under them (the
+     Inbox's and People's search). Reports' panes stand at the gutter, so its strip and its period stand there too, as
+     the Calendar's views and options do over its panes: 4px out, the two stood apart from everything under them
+     (Ruben, 7 Oct 2026). */
   .pg-slot > :nth-child(2):not(.pg-act-slot) {
     margin-left: -4px;
   }
   .pg-slot:has(> nav) > .pg-act-slot {
     margin-right: -4px;
+  }
+  .main:has(> .main-scroll > .rpt) .pg-slot > nav {
+    margin-left: 0;
+  }
+  .main:has(> .main-scroll > .rpt) .pg-slot > .pg-act-slot {
+    margin-right: 0;
   }
   /* The Inbox's row of views (Needs you, Conversations, Live) stands on a phone as on a desk (Ruben, 2 Oct 2026: the
      canvas's swipe between them was not found); the buckets' capsule is the list's own, under it. */

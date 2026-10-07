@@ -409,8 +409,10 @@
   --surface-inset-radius: 14px;
   --surface-row-radius: 18px;
 
-  /* What pops over the page: opaque, and a soft shadow (derived from the canvases' popover). */
-  --surface-pop-fill: oklch(1 0 0 / 0.98);
+  /* What pops over the page: opaque, and a soft shadow (derived from the canvases' popover). Opaque to the last per cent:
+     at the canvases' 98% and the dark side's 97%, with no blur, Reports' headline read through its period's month on a
+     phone (7 Oct 2026). Each is the colour the canvases' fill came to over the page. */
+  --surface-pop-fill: oklch(1 0 0);
   --surface-pop-edge: oklch(0.304 0.046 275 / 0.1);
   --surface-pop-radius: var(--radius-xl);
   --surface-pop-depth:
@@ -541,7 +543,7 @@
   --surface-inset-depth: inset 0 1px 0 oklch(1 0 0 / 0.2);
   --face-fill: oklch(1 0 0 / 0.11);
 
-  --surface-pop-fill: oklch(0.24 0.01 277 / 0.97);
+  --surface-pop-fill: oklch(0.238 0.01 277);
   --surface-pop-edge: oklch(1 0 0 / 0.09);
   --surface-pop-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 24px 48px -16px oklch(0 0 0 / 0.55);
   --surface-scrim: oklch(0.123 0.006 286 / 0.55);

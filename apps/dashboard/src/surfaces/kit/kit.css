@@ -1052,11 +1052,19 @@ a.more-item {
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
-/* Under a thumb a tab is the 44px every button is (legacy-bridge/legacy.css, the touch floor): a link, which that
-   floor does not name, keeps it here. */
+/* Under a thumb a tab is pressed over the 44px every button is (legacy-bridge/legacy.css, the touch floor: a link,
+   which that floor does not name, keeps it here) and drawn 38px tall, as the Calendar's views are: its press area
+   reaches 3px over and under it, inside the strip's 4px. Drawn 44px tall, a tab made its strip 52px, a step taller
+   than the Calendar's capsule of views under the same head (Ruben, 7 Oct 2026). */
 @media (pointer: coarse) {
   .stabs-tab {
-    min-height: 44px;
+    position: relative;
+    min-height: 38px;
+  }
+  .stabs-tab::after {
+    content: "";
+    position: absolute;
+    inset: -3px 0;
   }
 }
 .stabs-tab.active {
@@ -2225,9 +2233,10 @@ textarea.rec-input {
 
 /* ---------- A month of a range: the days a period covers, on a month ---------- */
 /* The date picker's head and weekdays over the same six weeks, with nothing to press but the arrows. The days of the range
-   are one band of the inset's fill across each week, round where the range or the week begins and ends; its first day and
-   its last are the lozenge a picked tab wears. A day of the month before or after is the dim ink, in the band or out of it,
-   and today the accent's ink. */
+   are one band across each week, round where the range or the week begins and ends, in the hairline's colour, the quiet
+   track a switch at rest and a meter's rest are drawn in: the inset's fill was white on the light side's white pop, and no
+   band was drawn there (7 Oct 2026). Its first day and its last are the lozenge a picked tab wears. A day of the month
+   before or after is the dim ink, in the band or out of it, and today the accent's ink. */
 .date-pick-month {
   display: flex;
   flex-direction: column;
@@ -2239,7 +2248,7 @@ textarea.rec-input {
   height: 36px;
 }
 .date-pick-cell[data-in] {
-  background: var(--surface-inset-fill);
+  background: var(--line);
 }
 .date-pick-cell[data-in]:first-child,
 .date-pick-cell[data-start] {
@@ -3305,6 +3314,13 @@ a.list-row {
   border-radius: var(--radius-full);
   font-size: var(--text-base);
   color: var(--ink-muted);
+}
+/* On a phone the strip is the Calendar's capsule of views: a tab is the large control's height, so the strip stands
+   44px tall, the height of the act beside it (Reports' period) and of the Calendar's views and options. */
+@media (max-width: 900px) {
+  .stabs-tab {
+    height: var(--control-h-lg);
+  }
 }
 /* A tab's count is the canvases' neutral figure beside the word (I1: "Needs you 4", 12.5 at 500 in the dim ink), never
    an amber disc: the amber is the row's wait, said once there. */
