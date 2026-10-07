@@ -146,3 +146,61 @@ test("a booking read whole is a visit and a ledger row that names it", async () 
   assert.equal(w.tables.appointment_notices[0].appointment_id, visit.id);
   assert.deepEqual(w.told, []);
 });
+
+test("the intake reads the tool the workspace named off its stored config: a proved notice from that tool is one read scheduled, and with another named, or none, no read is", async () => {
+  // The wiring the core test fakes (packages/jobs handlers.ts, `bookingTool`): config.bookings.tool, read where it is
+  // stored. A name read from the wrong place would be no tool for every workspace, and nothing would ever be read.
+  const MAILBOX = "22222222-2222-4222-8222-222222222222";
+  const received = {
+    ...DELIVERY,
+    to: ["salon@mail.example.com"],
+    cc: [],
+    headers: {},
+    messageId: "<b1@notices.example>",
+    attachments: [],
+    // The receiving side's own header (its name is the deployment's EMAIL_AUTHSERV_ID): the tool's signature holds.
+    authResults: ["mx.example.net; dkim=pass header.d=booksy.com; dmarc=pass header.from=booksy.com"],
+  };
+  const intake = async (config, email = received) => {
+    const scheduled = [];
+    const tables = {
+      tenants: [{ id: T, timezone: "America/New_York" }],
+      mailboxes: [{ id: MAILBOX, tenant_id: T, local_part: "salon" }],
+      tenant_config: config === undefined ? [] : [{ tenant_id: T, config, version: 1 }],
+    };
+    const ctx = {
+      db: fakeDb(tables),
+      deadline: Date.now() + 60_000,
+      email: {
+        domain: "mail.example.com",
+        authservId: "mx.example.net",
+        fetch: async () => email,
+        erasedBefore: async () => false,
+        tell: async () => {},
+      },
+      schedule: async () => {},
+      scheduleOnce: async (kind, _dueAt, payload) => {
+        scheduled.push([kind, payload]);
+        return "scheduled";
+      },
+    };
+    // What a notice that is not read goes on to (kept as an email for a person) is the intake's own tests'; here only
+    // whether a read was scheduled is asked, so a run that goes on past this fixture's tables is let end as it will.
+    await dispatchJob(ctx, {
+      id: "j2",
+      tenant_id: T,
+      kind: "email_ingest",
+      payload: { mailbox_id: MAILBOX, received_id: "rcv_1" },
+    }).catch(() => undefined);
+    return scheduled.filter(([kind]) => kind === "booking_read");
+  };
+  assert.deepEqual(await intake({ bookings: { tool: "booksy" } }), [
+    ["booking_read", { received_id: "rcv_1", mailbox_id: MAILBOX, tool: "booksy" }],
+  ]);
+  assert.deepEqual(await intake({ bookings: { tool: "calendly" } }), [], "another tool named");
+  assert.deepEqual(await intake({ calendar: { ical_url: "https://calendar.example.com/a.ics" } }), [], "none named");
+  assert.deepEqual(await intake(undefined), [], "no config at all");
+  assert.deepEqual(await intake({ bookings: { tool: "not-a-tool" } }), [], "a value the list does not know");
+  // And the named tool's notice with nothing to prove its sender is not read either.
+  assert.deepEqual(await intake({ bookings: { tool: "booksy" } }, { ...received, authResults: [] }), []);
+});
