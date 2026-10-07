@@ -2,7 +2,7 @@
 
 **The People family, the receptionist on email, and the gaps between the charter and the build: a PRD.**
 
-**Date:** 24 September 2026 · **Owner:** Ruben · **Status:** draft, waiting on the decisions in §7 ·
+**Date:** 24 September 2026 · **Owner:** Ruben · **Status:** draft, waiting on the decisions in §7 (seven still open, Appendix D) ·
 **Written against:** `origin/main` at `11584033` (#998), and the open branch `design/campaign-channels` at
 `a12a4ee5` (#999, "Capture emails 1 of 2", with its spec `docs/superpowers/specs/2026-09-24-campaigns-on-every-channel-design.md`).
 Every fact below was read from those trees on 24 September, with the file and line beside it. Where this document and the
@@ -11,6 +11,16 @@ code disagree, the code wins and this document is corrected.
 **Follows:** `docs/decisions/0001` (channel-neutral inbound), `0004`/`0008` (deals), `0009` (one idea of a list), the
 lead-finder PRD (`docs/plans/2026-09-17-people-table-and-lead-finder.md`), the email plan
 (`docs/plans/2026-09-17-email-channel.md`), the takeover checklist (`docs/takeover.md`), and the campaigns spec named above.
+
+> **Status as of 6 October 2026**, read at `origin/main` `c6dba6909` (#1443). It reads the code, not the plans.
+>
+> - **Built:** W0, and W4 (versions per channel, offers by email, the chained playbook `after_step`). Step 1 of decision 0001 is built too.
+> - **Partial:** W1 (contracts and server are split by domain; People, Pipeline and Leads left the shell as TSX; table names, the 14 seams, the stores, the text pins and the stale docs are still open). W5 and W6 (a lead becomes an email-only person on a reply or a first send; there is no person card and no hand-add by email).
+> - **Superseded:** W1 R4, by decision 0015; the order in section 4, by the Reach out spec of 25 September 2026.
+> - **Not built:** W2 steps 2 to 5, W3a, W3b, W6 answering and availability, W7, W8 and W9.
+> - **Decisions in section 7:** three answered as recommended (4, 5, 12), one holding by default (7), two overtaken (13, 15), two partly answered (2, 8), seven open (1, 3, 6, 9, 10, 11, 14).
+>
+> Appendix D has the evidence for every item. Where a file, a line, a count or an order in this document differs from the code, the plan sections are history and the code wins; re-derive every count before quoting it.
 
 ---
 
@@ -569,3 +579,179 @@ Five read-only audits over a detached worktree at `95cd0b27`, then re-read at `1
 data model and the onboarding root; the per-channel capabilities; the People family's surfaces; the send path and email
 as built; the framework's recipes; and the plans' status lines and the bodies of #940 to #1001. Counts were taken with
 `rg -c` and `wc -l` on that day and are worth re-deriving.
+
+## Appendix D · Status against the code, 6 October 2026
+
+Of the ten workstreams, W0 and W4 are built, W1 is partly built, and W2 to W9 have not started in the form the PRD describes. W0's four send-path hazards and five dead doors shipped on 25 and 27 September 2026 (#1018, #1020, #1168). W4's three additions shipped as part of the Reach out program (#1102, #1112 for `after_step`; #1374 for versions per channel and one message on every channel). The Reach out spec of 25 September 2026 says it "re-sequences steps 2 to 11" of the PRD's order, and it did: Parts 1 to 7 of Reach out (#1018 to #1325, 00174 to 00242) replaced the PRD's order for W4 and the cold-email half of the campaigns spec. W1's file splits were overtaken by the code-health program (#1161, #1241, #1260) and by the shell exit of decision 0015: People, Pipeline and Leads are TSX surfaces now, and `clients-a.jsx` is gone. W1's rules (table names in `packages/db`, the 14 seams, the stores, the text pins, the stale docs) are mostly open. Decision 0001 stands at step 1 of 8 (the extraction), so W2 and the receptionist answering email (W3a) are not built; the email intake still "never answers" and no composer writes a first email (W3b). A lead is still only a place (W5), a person still cannot be added by hand without a phone and has no company or title (W6), a service has no mode (W7), a deal has no renewal date (W8), and there are no webhooks out (W9), although the events outbox of decisions 0031 and 0032 (00334) is the substrate W9 would stand on. Of the 15 decisions in section 7, three are answered as recommended (4, 5, 12), one holds by default (7), two were overtaken by events (13, 15), two are partly answered (2, 8) and seven are open (1, 3, 6, 9, 10, 11, 14).
+
+How to read the tables. Status is one of BUILT, PARTIAL, NOT BUILT, SUPERSEDED (by what). Evidence is a path on `origin/main`, a migration number, a PR number or a test name, all read in code unless the cell starts with "Inferred". "PRD day" means 24 September 2026.
+
+### Workstreams
+
+#### W0 · Fix first: four send-path hazards, and the dead doors
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W0 #1 `recordOutbound` mints the row id after the send; receipts answer `no_such_row` | BUILT | `packages/db/src/repositories/ingest.ts` `recordOutbound` throws for `channel: "email"` ("an email's row is written before it is sent, never after"). `packages/core/src/deliver-email.ts` `assertFrozenFor` refuses an email that did not leave from its queued row. #1020 (`05fd44650`, 25 September 2026) |
+| W0 #2 `sendQueued` hardcodes `proactive: false` and takes purpose from the template | BUILT | `packages/core/src/messages/send.ts`: purpose is `outreach` or `marketing` when the job says so (a payload may only tighten), `proactive: p.proactive === true`. #1020 |
+| W0 #3 `alreadySent` sees only sent rows; a lost run cannot be retried | BUILT, by other means | `packages/jobs/src/broadcast-send.ts:283` `alreadySent` still reads `sent`, `delivered`, `read`, and `ledger.ts:128` `SPEAKS_TO_A_PERSON` is unchanged. The failure it guarded is closed for email: the queued row's id is derived from run, person and attempt (`core/src/messages/broadcast-channels.ts` `emailDelivery`, `queueEmailRow`) and is the request's `idempotency_key` (`channels/src/email/request.ts:237`). The recipient claim is a compare-and-set (00182, #1100) |
+| W0 #4 `buildEmailRequest` requires a parent | BUILT | `packages/channels/src/email/request.ts`: `parent: EmailParent \| null`, a first email names its subject, `Auto-Submitted: auto-generated` for a campaign or a first email the receptionist wrote, `List-Unsubscribe` and `List-Unsubscribe-Post` from `campaign`, footer as argument. #1018 (`d53f2293c`) |
+| W0 dead door: `__leadFindEmail` called and never installed | BUILT (call removed) | No reference to `__leadFindEmail` anywhere on `origin/main`. #1168 (`3e78edccb`, 27 September 2026): "Nothing offers to find an email" |
+| W0 dead door: `__leadErase` installed and never called | BUILT | `apps/dashboard/src/surfaces/leads/peek/acts.tsx:20, 48` calls it; owner only (`roleAtLeast`, `contracts/src/config/roles.ts`). #1168 |
+| W0 dead door: `lead_searches` not in the realtime publication | BUILT, then SUPERSEDED | 00212 adds it (#1168). Then decision 0019 step 3 (00324) takes tables out of `postgres_changes`, and 00265 tells each workspace what changed |
+| W0 dead door: the peek cannot open a lead past the loaded page | BUILT | `apps/dashboard/app/api/v1/leads/[id]/route.ts` exports `GET` (a member may read one lead); 00212 `lead_member_of`, `lead_member_shown`. #1168 |
+| W0 dead door: the judge's per-criterion reads are never shown | BUILT | `apps/dashboard/src/server/leads/lead-page.ts` `checksOf` reports every key the judge answered by (`judgedBy`), not only three fixed keys. #1168 |
+
+#### W1 · The People family, refactored before it carries more
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W1 R1 contracts by domain (`people/`, `leads/`, `deals/`) | BUILT, in other file names | `packages/contracts/src/people/` (22 files), `leads/` (25), `deals/` with `pipeline/` and `sheet/` (19). #1161 (`519724e9c`, 27 September 2026), #1260 (People's row, 28 September), #1241 (deals, 28 September). The PRD's `{rows,person,actions,words}.ts` names were not used |
+| W1 R2 `src/server` by domain | BUILT, in substance | `apps/dashboard/src/server/{people,leads,campaigns,calendar,connections,workspace,readers,ask}/`. Differences: no `server/deals/` or `server/lists/` (`deals.ts`, `lists.ts` live in `server/people/`); `campaign-ports.ts` sits in `server/ports/`, and the audience in `server/people/audience.ts`. #1161 |
+| W1 R3 table names back into `packages/db` (one `personRead`, a `leads` repository) | PARTIAL | The person GET moved to a reader, `server/readers/person.ts` (11 `.from("…")` calls, not in `packages/db`). Still typed outside `packages/db`: 203 `.from("…")` calls in 68 dashboard files (PRD day: 61 files) and 240 in 56 edge files (PRD day: 49), counted at the tip without tests and dist; 52 of them in `server/people`, `server/leads`, `server/campaigns` and the contacts and leads routes. Held, not cut: `tooling/scripts/tests/baselines/tables.json` (484 names, may only fall; `repo/code-health-ratchets.test.mjs`; `docs/debt.md`). The PRD's per-directory rule in `hygiene.test.mjs` was not added (that file and `ops-hygiene.test.mjs` have no `.from` rule) |
+| W1 R4 `clients-a.jsx` split | SUPERSEDED by the shell exit, decision 0015 | `clients-a.jsx` deleted in #1161. `client-profile.jsx` and `pipeline-scope.jsx` deleted in #1351 (30 September 2026); `leads-peek.jsx` in #1354; `leads-real.jsx` in #1373 (4 October 2026). People, Pipeline and Leads are now TSX under `apps/dashboard/src/surfaces/{people,leads}/` (`page`, `rail`, `hooks`, `bulk`, `table`, `person`, `pipeline`, `lists`, `deal-sheet`, `import`). `legacy/pages` holds no People, Leads or Pipeline file. 0015 steps 1 to 11 built; Ask (step 12) is last |
+| W1 R5 #1 `personSecondLine` | NOT BUILT | No such name on `origin/main`. A row's second line is `attentionWordsOf` in `surfaces/people/cells/columns.tsx:185`. Inferred: the duplicate may be gone with the rewrite; not checked |
+| W1 R5 #2 `CONSENT_WORDS` (one wording of consent) | NOT BUILT | No such name. The wording is still spelled in `contracts/src/consent/consent-page.ts:217` ("Messages about your visit") and the person page's own cards. Text pins on it remain (`consent-door.test.mjs`) |
+| W1 R5 #3 `__composeIn`, `bookingLinkMessage` | NOT BUILT | `sessionStorage "chanlytics-compose"` is still written in four places: `surfaces/calendar/panel.tsx:200`, `surfaces/people/cells/columns.tsx:76`, `surfaces/people/person/hero.tsx:47`, `surfaces/people/pipeline/scope-bits.ts:49`; read at `surfaces/inbox/thread/composer.tsx:294` |
+| W1 R5 #4 `record` permission in `ROLE_PERMS` | PARTIAL | No `record` key (`contracts/src/config/workspace-config/role-perms.ts`). The person page asks one helper, `canRecord: mayAtLeast("operator")` (`surfaces/people/person/person-real.tsx:199`) |
+| W1 R5 #5 one table for who may work leads | NOT BUILT | Routes still differ by act: `leads/[id]/stage`, `draft`, `bulk` are `operator`; `keep`, `exclude`, `put-back`, `check-again` and most search doors are `partner` (search stop and chosen are `operator`); erase and export `owner` (`apps/dashboard/app/api/v1/leads/**/route.ts`). `ROLE_PERMS.find` stays. Inferred: the UI gate was not compared |
+| W1 R5 #6 `usePeekAddress` | PARTIAL | `useLeadPeekAddress` exists for Leads (`surfaces/leads/page/peek-hooks.ts:83`); the Pipeline keeps its own (`surfaces/people/pipeline/scope-hook.ts`). Not one hook |
+| W1 R5 #7 `__deal.run(personId, act, deal)` | PARTIAL | One door, `openDealSheet({personId, mode, dealId})` (`surfaces/inbox/shell.ts:135`, called from the Inbox header and the Calendar). No `__deal.run`. Inferred: the four menus' deal-id rules were not compared |
+| W1 R5 #8 list-need checks and `listToken` | PARTIAL | The `needs*` flags are gone from `origin/main`. `listToken`, `parseListToken` are published and used by the export route and Ask (`contacts/export/route.ts:35`, `server/ask/tools/act/playbook.ts:222`). `PEOPLE_LISTS` branches remain in Ask and the Broadcasts and Playbooks surfaces |
+| W1 R5 #9 the "current deal" rule in SQL and in `pickCurrentDeal` | NOT BUILT, then changed by 0029 | `pickCurrentDeal` still in `contracts/src/deals/` and used at `server/people/deals.ts:82`, `server/ask/tools/act/deal.ts:94`. Decision 0029 (#1441, 00328, 6 October 2026) put every open deal on the People read, so the rule itself moved |
+| W1 R5 #10 `peopleSorted` in contracts | NOT BUILT | No such name on `origin/main` |
+| W1 R5 #11 `leadStrip` in contracts | PARTIAL | `leadStrip` is a pure module, `surfaces/leads/finder/strip.ts:188` (moved out of JSX by 0015); its sentences are contracts' (`leadEndingLine`). It is not in contracts |
+| W1 R5 #12 Pipeline views are the built-in deal lists | NOT BUILT | `PipelineView` is still its own set: `all`, group, `waiting`, `lapsed`, `steps`, `svc:` (`contracts/src/deals/pipeline/pipeline-views.ts`); `proposal_out`, `deal_passed`, `deal_ended` stay People lists (`people/lists/lists.ts:156-180`) |
+| W1 R5 #13 old doors: `PUT details` takes `notes` and `proposal`; wrong comment | PARTIAL | The comment at `contacts/notes/route.ts:18` is right now. `contacts/[id]/details/route.ts:11-17` still accepts `notes` and `proposal`; decision 0008 step 7 (retire `contacts.proposal_url`) is open |
+| W1 R5 #14 `window.copyOut` | NOT BUILT | Clipboard code is still local to each surface (`surfaces/people/person/hero.tsx:59` `copyOut`, `leads/peek/acts.tsx:136`, `leads/page/acts.tsx:29`, `calendar/acts.tsx:19`, and others) |
+| W1 R6 the state rule, and the family's stores | PARTIAL | `docs/takeover.md` row 9 states the rule (server state in the seam, per-tab in the page, cross-surface in named stores) and scores it Partial. Gone: `__clBulkTimer`, `PIPE_COLUMNS`, `__peopleMore`, `__peopleSearch`, `PL_VIEW_KEYS`. Still there: `PK_STILL`, `pkWarmed` (`surfaces/leads/peek/hint.tsx:120`, `seams.ts:82`) and `PD_STEP_PRESSED` (`surfaces/people/deal/person-deal.tsx:81`). Window globals: 100 names held by `baselines/window-globals.json` (PRD day: 148) |
+| W1 R7 text pins to behaviour | PARTIAL | `tooling/scripts/tests/source-scan-baseline.json`: 767 source reads in 104 files. The five named files fell but none is clear: `calendar-people` 45 to 32, `saved-lists` 14 to 12, `marketing-consent` 15 to 14, `consent-door` 7 to 4, `threads-people` 6 to 5 |
+| W1 R8 stale text | PARTIAL | Fixed: `docs/decisions/0009` status says built; `docs/glossary.md` has Deal and Pipeline; `surface-registry.ts` no longer says Leads and Lists "stay demo"; `__LEAD_VM` gone. Still stale: `docs/system-prd.md:180` says `middleware.ts` (it is `proxy.ts`); `docs/runbook.md:63, 236, 1175` still say `supabase db reset`; `docs/system-map.md:113` says "Four job kinds exist" (`JOB_KINDS` in `contracts/src/shared/enums.ts` lists eleven; the PRD counted eight); `docs/system-prd.md` is the 16 September edition (#580) |
+
+#### W2 · The inbound pipeline finishes decision 0001 (steps 2 to 5)
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W2 step 1 (given: the extraction into core) | BUILT | `packages/core/src/inbound/answer.ts` and its phase modules; #843 (22 September 2026); `docs/decisions/0001` status: "Built, step 1 ... steps 2 to 8 to come"; `docs/takeover.md` row 7 |
+| W2 step 2 `InboundMessage`, `inboundFromWhatsapp`, `inboundFromSms` | NOT BUILT | `git grep` finds no `InboundMessage`, `inboundFromWhatsapp` or `inboundFromSms`. `InboundChannel` is still `"whatsapp" or "sms"` (`packages/core/src/inbound/ports.ts:38`) |
+| W2 step 3 the doors become adapters; `ChannelCapabilities` | NOT BUILT | No `ChannelCapabilities` anywhere. 0001 as written is unchanged |
+| W2 step 4 `conversation_channel_state` | NOT BUILT | No such table in `supabase/migrations` (00001 to 00341) |
+| W2 step 5 readers move behind one accessor | NOT BUILT | `last_wa_inbound_at` is still read directly by `core/src/conversations/reply.ts:312`, `contracts/src/conversations/inbox-thread.ts:178`, `today/today-facts.ts`, `server/ask/tools/act/reply.ts:67`, `server/dto.ts`, `server/verbs.ts`. 00320 changed `people_list.last_inbound_channel` to the newest own words, which is not this step |
+
+#### W3 · The receptionist answers email; an owner writes a new one
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W3a contracts: `resolveSystemPrompt(channel: "email")` | NOT BUILT | `packages/contracts/src/config/workspace-config/resolve.ts:111`: channel is `"whatsapp" or "voice"`. 0017 names the same gap ("There is no email style") |
+| W3a contracts: `escalations.reason` gains `email_draft` | NOT BUILT | No `email_draft` anywhere (`shared/enums.ts:468` has `email_review`). `schema-sets.generated.ts` likewise |
+| W3a contracts: `effectiveReplyMode` takes the mailbox cap | NOT BUILT | `mailboxes.reply_mode` (00126) has no reader in TypeScript (`git grep` finds none outside the generated types); `effectiveReplyMode` takes workspace and person modes only (`packages/core/src/inbound/gates.ts:34`) |
+| W3a core: `ingestEmail` gains an `answer` port | NOT BUILT | `packages/core/src/messages/email-ingest.ts` header: "It never answers". `packages/contracts/src/email/mailbox.ts:118`: "The receptionist does not answer email yet: every email waits for you in the Inbox." |
+| W3a core: lead context read by contact, not by e164 | NOT BUILT | Inferred: no email answer path exists, so nothing needs it |
+| W3a core: an email opt-out reader over quote-stripped text | BUILT | `email-ingest.ts` `asksToStop`, `asksToUnsubscribe`, `saysYesToOffers`, `asksToStart` over `replyTextOf`; `set_email_marketing` (00174, #1024); "no thanks" on a reach-out reply is read by `reply_read` (00222, #1216) |
+| W3a db: CHECK on `escalations.reason` widened; `mailbox_set_reply_mode` door | NOT BUILT | No such function in `supabase/migrations` |
+| W3a edge: the four unions widened together; `INLINE_INTAKE` unchanged | NOT BUILT (the unchanged part holds) | `apps/edge/lib/receptionist/unfinished.ts:61` `INLINE_INTAKE = ["whatsapp", "sms"]`; `core/inbound/ports.ts:38` unchanged |
+| W3a dashboard: "Drafted for you" under the state bar; Send uses the reply route | PARTIAL | Only for a reach-out lead's thread: `reach_out_replies.draft` seeds the composer (decision 0017; #1197, #1242, #1245). Not a draft for any inbound email. 0017 step 3 "waits on 0001's step 6" |
+| W3a dashboard: the person page's Email row says the mailbox's mode | NOT BUILT | No mailbox mode exists to say |
+| W3a tests: `email-draft.test.mjs`, `email-optout.test.mjs` | NOT BUILT | Neither file in `tooling/scripts/tests`. Opt-out cases live in the email intake tests |
+| W3b core: `composeEmail` | NOT BUILT | No such verb. `packages/core/src/conversations/reply.ts:244-245` still refuses with "There is no email from this person on this thread to reply to." |
+| W3b dashboard: `POST conversations/[id]/email`, `POST contacts/[id]/email` | NOT BUILT | `app/api/v1/conversations/[id]/` holds archive, export, hand-back, reply, snooze, take-over, wake; `contacts/[id]/` holds consent, deal, details, marketing-consent, merge, notes, receptionist. No `email` route |
+| W3b: "New email" in the composer and on the person page | NOT BUILT | Follows from the missing routes |
+| W3b events and tests (`reply {channel:"email", new:true}`, `email-compose.test.mjs`) | NOT BUILT | Not present. Note: `buildEmailRequest` does take `parent: null` (W0 #4), and campaigns and reach-outs use it; an owner's one-off first email has no caller |
+
+#### W4 · Campaigns on every channel, with three additions
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W4 #1 W0 precedes the sender (Part 1 PR 2) | BUILT | W0 shipped 25 September 2026 (#1018, #1020); the per-channel sender shipped 3 October 2026 (#1374, 00298) |
+| W4 #2 the email version has its own validator (subject up to 60) | BUILT | `packages/contracts/src/templates/message-versions.ts`: `validateOwnVersion`, `EMAIL_SUBJECT_MAX = 60`, `EMAIL_BODY_MAX = 2000`; 00296 `save_template_version` (#1374) |
+| W4 #3 `after_step` (`after_playbook_id`, `after_days`, CHECK, chain in the sheet) | BUILT, pulled forward | 00183 (#1102, 26 September 2026): `playbooks.after_playbook_id`, `after_days`, trigger `after_step`, shape CHECK; 00184 (#1112) `reach_out_followers`; `contracts/src/playbooks/playbook-triggers.ts:105`. Reach out spec decision 1: "the PRD's decision 12, pulled forward". It came after Part 2, as the PRD asked |
+| W4 context: campaigns spec Part 0 (import, addresses customers give) | BUILT | #999 (00170), #1005 (00171), 24 September 2026. The nightly import spec the spec names is not checked |
+| W4 context: Part 1 (consent learns its channel, versions, `channels[]`, `reachFor`, metering) | BUILT | #1374 (3 October 2026): 00296 versions, 00297 `contacts.consent_channels`/`marketing_channels`, 00298 `playbooks.channels`/`broadcasts.channels`/`broadcast_recipients.channel`; `contracts/src/broadcasts/reach-for.ts`. Review fixes #1385. Metering: 00314 (a sending domain's day counters) and 00319 (what a message cost to send), in #1393 (5 October 2026) |
+| W4 context: Part 2 (unsubscribe, offers by email, own domains, lead audience) | BUILT | 00174 (#1024), 00175 to 00181 (#1028, #1032, #1036, #1040, hardening #1046 to #1080), 00299 offers by email under the rule of 4.1 (#1374). The lead audience became Reach out's `lead_first` and `after_step` (00183) |
+| W4 context: Part 3 (appointment messages by text) | PARTIAL | `reachFor` asks `textLine.sms_state === "active"` (`reach-for.ts:129-143`); `server/campaigns/channels-ready.ts` reads `textLineFacts`; 00296 has text versions. Inferred: the composer's text version was not checked |
+| W4 context: 0030 counts a campaign by channel | BUILT | 00329 `campaign_series` by channel, #1444 (6 October 2026) |
+
+#### W5 · A lead that is a person at a business
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W5 db: `leads.kind`, `source`, `source_key`; unique `(tenant_id, source, source_key)`; person columns | NOT BUILT | `supabase/schema.sql` `CREATE TABLE public.leads` (line 20353) has none of them; it still has `place_id`, `business_name`, `leads_tenant_place_uq` |
+| W5 db: `lead_suppressions.kind` gains `profile` | NOT BUILT | `lead_suppressions_kind_check`: `email`, `place`, `phone`, `domain` |
+| W5 db: commit and re-judge skip on `source_key`; `lead_search_create` accepts any approved card; `lead_plan_check` | NOT BUILT | No `source_key` in any migration; `LeadCardBrief.id` is the literal `"local_businesses"` |
+| W5 contracts: `LeadSearchPlan.card` union; `area` optional for the person card; `LEAD_CARDS` brief; `planLeadSearch` refuses only "people at home" | NOT BUILT | `contracts/src/leads/search/cards.ts` has one card; `lead-plan-schema.ts:254` still refuses `not_businesses`; area is US only (`outside_us`, `lead-plan-schema.ts:252-258`) |
+| W5 contracts: `JUDGE_FACT_KEYS` gains `title`, `company`, `company_kind`; `LeadRowVM`/`LeadPeekVM` carry `kind` | NOT BUILT | `contracts/src/leads/lead-judge.ts:37` lists listing facts only |
+| W5 core: person runner, `cleanPerson`, dedupe by `source_key`, scouted actor | NOT BUILT | No `PersonProspect`, `cleanPerson` or second card in `packages/core/src/leads/cards.ts`. No actor probe on record |
+| W5 dashboard: person layout in the peek, `LEAD_COLUMNS` per kind, map hidden | NOT BUILT | No `kind` on the lead VMs |
+| W5 dashboard: "Add to People" as an explicit verb (`lead_convert`) | PARTIAL | A lead becomes an email-only person on Interested, on a reply and on the first send: `lead_convert_by` (00220, #1204), `reach_out_person` (00184), `lead_set_stage` (00220). There is no explicit verb and no `leads/[id]/convert` route (`app/api/v1/leads/**`) |
+| W5 Ask: `propose_lead_search` `looking_for` gains "people at businesses" | NOT BUILT | `server/ask/tools/act/lead-search.ts:23`: `local_businesses`, `people`, `online_sellers`, `other`; only the first is proposed |
+| W5 events: `lead.converted{by:"person"}` | PARTIAL | `lead.converted` exists (`contracts/src/shared/enums.ts:282`, `workspace/activity.ts:209`), shaped by `how` (call, reply), not `by` |
+| W5 tests: `lead-search` union, two uniqueness rules, person actor replay, `tooling/evals/lead-cases.json` | NOT BUILT | `tooling/evals/` holds `ask-cases.json`, `nightly-cases.json`, `whatsapp-cases.json` and others; no `lead-cases.json` |
+
+#### W6 · The onboarding root, and the person model
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W6 `create_person` takes a phone or an email | NOT BUILT | Latest definition, 00331: "A phone number in international form is needed." (`22023`). Email-only people arrive by other doors: `import_person` (00170, #999; 00263), inbound email, `reach_out_person` (00184), `lead_set_stage` (00220); decision 0034's table lists the nine writers |
+| W6 `POST contacts` takes a phone or an email | NOT BUILT | `app/api/v1/contacts/route.ts`: "add a person by phone" |
+| W6 `contacts.company`, `job_title`, `profile_url` via `set_person_details` | NOT BUILT | `supabase/schema.sql` contacts block has no such columns; `git grep` finds `job_title` only in an unrelated notification regex |
+| W6 `PersonRowVM.sub` shows company; search covers company; Add sheet gains Email, Company, Title | NOT BUILT | `contracts/src/people/person-row.ts` header still says a sales CRM's contact is "a form: name, company, title"; no company field exists to show |
+| W6 #999's column matcher gains Company and Title | NOT BUILT | `surfaces/people/import/plan.ts:25` reports "Columns: name, mobile, email" and nothing else |
+| W6 no identity channel for LinkedIn | BUILT (holds) | Nothing was added to `contact_identities`; `leads.linkedin_url` stays a stored link |
+| W6 answering counts a mailbox; the sentence says what each channel does | NOT BUILT | `packages/contracts/src/setup/setup.ts:523` `const answering = waReady \|\| voiceReady`; `setup/first-run.ts` heading "Your receptionist is answering"; `setup/first-run-live.ts:32, 50`; the email row is an optional Live row (`setup-rows.ts:311`) |
+| W6 the phone step can wait; no number to give out demanded | NOT BUILT | `FIRST_RUN_STEPS` phone step `needs: ["billing", "line"]` (`first-run.ts:69-75`); the phone rows are `required: !answering` (`setup-rows-phone.ts`), and a required row "cannot be put off for later" (`setup.ts:281`). Related, built: `bookingLinkOptional(sellsBy)` lets a proposal workspace skip the booking link (`deals/sells-by.ts`) |
+| W6 `profile.availability: 'hours' or 'scheduler'` | NOT BUILT | `BusinessProfileSchema` (`config/workspace-config/business-profile.ts:149`) has no `availability` key |
+
+#### W7 · Service mode, meetings, and the words
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W7 `ServiceSchema.mode` (in person, video, phone) and `meeting_url` | NOT BUILT | `ServiceSchema` (`business-profile.ts:78`) has `name`, `duration_min`, `price_note` only; `git grep` finds no `meeting_url` anywhere on `origin/main` |
+| W7 the prompt names the mode | NOT BUILT | Follows from no mode |
+| W7 `wordsFor(sellsBy, mode)` in `contracts/src/words.ts` and its readers | NOT BUILT | No `words.ts`. The one `wordsFor` on `origin/main` is a broadcast-failure helper (`broadcasts/broadcast-failure-words.ts:51`). `sells_by` is `booking` or `proposal`, null until asked (`deals/sells-by.ts`), not a words switch |
+| W7 `trade-neutral.test.mjs`: regex gains beauty terms, scope gains `auth`, neutral examples | NOT BUILT | `tooling/scripts/tests/repo/trade-neutral.test.mjs` regex unchanged; scope lists `surfaces/campaigns` and `surfaces/live`, not `apps/dashboard/src/auth`. Still in code: "gloss and trim" (`src/auth/AuthShell.tsx:72`), "No chemical services after 4 PM", "Bridal parties" (`surfaces/settings/business/offer.tsx:298`), "Gel manicure" (`server/calendar/filler-calendar.ts:49`, `surfaces/calendar/sample-day.ts`) |
+
+#### W8 · A deal knows when it renews
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W8 `deals.renews_at` set on won when `per` is month or year | NOT BUILT | `supabase/schema.sql` `CREATE TABLE public.deals` (line 19544) has `proposal_url`, `valid_until`, `lost_reason`, no `renews_at`; no migration mentions it |
+| W8 Pipeline view "Renewing" | NOT BUILT | `PipelineView` has no such view (`pipeline-views.ts`) |
+| W8 Today leak "N renew this month" | NOT BUILT | `today/today-leaks.ts` has no renewal leak |
+| W8 `propose_deal` gains the field; Reports counts renewals | NOT BUILT | No `renew` in `ask-proposals` or `reports` (only demo seed data in `legacy/demo/data/pipeline-data.jsx`) |
+
+#### W9 · Events out to other tools
+
+| Workstream / item | Status | Evidence |
+| --- | --- | --- |
+| W9 `webhook_subscriptions` table with a Vault secret | NOT BUILT | No such table. Nearby, built: `event_subscriptions`, `event_outbox`, `event_deliveries`, `relay_events` (00334, decision 0032, #1447), for internal subscribers |
+| W9 a sweep and a new job kind `webhook_deliver`, HMAC-signed | NOT BUILT | `JOB_KINDS` has eleven kinds, none for a webhook; the closest is `event_deliver` (internal, 00334, #1447). No signing code |
+| W9 a Connections row "Send what happens to your tools"; owner routes | NOT BUILT | No route or row. Decision 0032 says the first real subscriber "is Phase 2's" |
+| W9 its own decision note, against the commit where W8 lands | NOT BUILT | No note. `docs/decisions` runs 0001 to 0036 (0025 and 0037 are absent); 0031 and 0032 are the framework, not this |
+
+### The 15 decisions in section 7
+
+| # | Decision | Answered? | How / where |
+| --- | --- | --- | --- |
+| 1 | The words follow "How customers buy" through one `wordsFor` | Open | W7 is not built: no `words.ts`, `ServiceSchema` unchanged, `trade-neutral.test.mjs` unchanged. `sells_by` stayed `booking` or `proposal` and is now null until asked (`deals/sells-by.ts`). No decision note takes it |
+| 2 | Email answered in draft mode first; veto and auto after the trust evidence and an own domain | Partly | The shape is applied to lead replies only: decision 0017 (#1197, #1242, #1245) drafts a reach-out reply on its reading and "the owner sends" (reach-out spec decision 6). Email from any other person is still not answered (`email-ingest.ts` "never answers"; `mailbox.ts:118`). 0001 step 6 not built; `mailboxes.reply_mode` has no reader |
+| 3 | A new email is a verb through the one door, owner and operator | Open | No `composeEmail`, no `email` routes (W3b). `reply.ts:245` still needs a parent. The reach-out sheet sends first emails, but only to leads and only on a chain |
+| 4 | The deadman sweep never owns email; the mailbox's health does | Answered, as recommended | `apps/edge/lib/receptionist/unfinished.ts:44-61`: `INLINE_INTAKE` leaves email out, with the reason; an unfinished `email_ingest` job marks the mailbox (`noteMailboxTrouble`) and raises `email_review` in words about the email (`packages/jobs/src/settle.ts:263-276`) |
+| 5 | A reply goes back where they last wrote; no preferred-channel setting | Answered, as recommended | `replyChannelOf` unchanged (`contracts/src/conversations/thread-channel.ts`); 00320 makes "where they last wrote" the wire of their own words. Reach-out spec decision 10 lists "a preferred-channel setting" as out; no setting exists |
+| 6 | A second lead card, "people at businesses", with the source-rights record extended | Open | W5 not built (one card, `local_businesses`). Nothing in `docs/decisions` or the source-rights plan answers it. Related but different: Reach out Part 7 imports the owner's own list of businesses (00242) |
+| 7 | No organization entity until two people at one company share a deal | Holds by default | No `organizations`, `companies` or `accounts` table in any migration; no person has a company field, so the trigger cannot have fired. Not confirmed in a note |
+| 8 | A person by email alone, with company and title on the person | Partly | Email-only people exist through import (00170), inbound email, `reach_out_person` (00184) and lead conversion (00220); decision 0034 lists them. The hand-add door (`create_person`, `POST contacts`) still needs a phone, and company, title and profile link do not exist |
+| 9 | Answering counts a mailbox; the phone step can wait; availability gains "the scheduler decides" | Open | `setup.ts:523` answering is WhatsApp or voice; the phone rows are required; no `profile.availability`. The one related change: a business that quotes may have no booking link (`bookingLinkOptional`) |
+| 10 | A service has a mode and may carry a meeting link | Open | No `mode` or `meeting_url` in `ServiceSchema` |
+| 11 | `renews_at` on a deal, a Renewing view | Open | No `renews_at`; decision 0005 (a payment writes won) is still "decided, not built" |
+| 12 | Sequences as chained playbooks (`after_step`), after Part 2 | Answered and built | Reach out spec decision 1; 00183 and 00184 (#1102, #1112, 26 September 2026), after Part 2 (00174 to 00181). The sequence engine and "never" options were not taken |
+| 13 | Refactors precede features on the same files (W1 before W3 to W7) | Overtaken | Not followed as written. Reach out Parts 3 to 7 (26 to 29 September) landed on the Leads files (#1168 edits `leads-peek.jsx` on 27 September) alongside #1161's moves and while they were still JSX; the People family was then rewritten as TSX under decision 0015 (#1351, #1354, #1373). W3, W5, W6 and W7 are not started, so the order question did not recur |
+| 14 | Events out as its own decision note after W8 | Open | No note and no W8. The internal events framework (0031, 0032, 0033, 00333 to 00337, 6 October 2026) is built or begun and does not cover webhooks out |
+| 15 | The order in section 4 | Overtaken | The Reach out spec "re-sequences steps 2 to 11". Actual order: Part 0 (#999, #1005, 24 September), W0 (#1018, #1020, 25 September), Reach out Parts 2 to 7 (#1024 to #1325, 25 to 29 September), code-health and shell exit (#1161, 27 September; 0015 to 4 October), campaigns Part 1 (#1374, 3 October), then decisions 0028 to 0036 (5 to 6 October). Of the PRD's 15 steps, 1, 2, 3, 5, 11 and 12 are done (3 and 11 in other shapes), 4 and 14 are partial, and 6 to 10, 13 and 15 have not run |
+
+### Method and limits
+
+- Not on `origin/main`: the PRD itself (it lives on `origin/docs/every-business-every-channel`, commit `f1db37607`), `docs/2026-10-02-one-message-every-channel.md` (named in the headers of 00297, 00298, 00299, so W4's Part 1 evidence is the migrations, `reach-for.ts` and #1374, not that plan), and decision notes 0025 and 0037.
+- Counts for `.from("…")` calls and files were taken with `git grep` at the tip, excluding tests, `dist` and generated types. They are mine, not the debt register's. The register's own figure (484 table names outside `packages/db`) is in `tooling/scripts/tests/baselines/tables.json` and the measured block of `docs/takeover.md`.
+- `docs/system-prd.md` is the 16 September 2026 edition (commit `576891d2`, #580) and cannot say what the PRD's workstreams changed; it was used only for stale-text checks.
+- Four cells (W1 R5 #1, #5 and #7, and W3a's lead context) mark places where the named symbol or the route table was searched and the behaviour behind it was not compared. They are marked "Inferred" in the cell.
+- The migration head is `00341` (added by #1451, `77c941a16`); `supabase/migrations` holds 302 files, 136 of them numbered 00170 or higher.
