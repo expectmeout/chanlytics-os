@@ -76,9 +76,12 @@ export async function reachOutAudience(
 
 export type PersonForSend =
   | { ok: true; contactId: string; conversationId: string; made: boolean }
-  | { ok: false; refused: "lead_gone" | "lead_closed" | "no_address" | "already_yours" };
+  | { ok: false; refused: "lead_gone" | "lead_closed" | "no_address" | "already_yours" | "erased" };
 
-/** The person a first send needs, made once (00184 reach_out_person): never a lead converted by it. */
+/**
+ * The person a first send needs, made once (00184 reach_out_person, through resolve_person since 00343): never a lead
+ * converted by it, and never a person who asked to be forgotten (`erased`: the door's PE001, said in the door's answer).
+ */
 export async function reachOutPerson(db: Db, tenantId: string, leadId: string): Promise<PersonForSend> {
   const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new Error(`cannot make the person this send is for: ${error.message}`);
@@ -87,7 +90,8 @@ export async function reachOutPerson(db: Db, tenantId: string, leadId: string): 
     r.refused === "lead_gone" ||
     r.refused === "lead_closed" ||
     r.refused === "no_address" ||
-    r.refused === "already_yours"
+    r.refused === "already_yours" ||
+    r.refused === "erased"
   )
     return { ok: false, refused: r.refused };
   if (!r.contact_id || !r.conversation_id)

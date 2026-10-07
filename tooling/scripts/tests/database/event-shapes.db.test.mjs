@@ -7,10 +7,10 @@
  * Before this the declared shape was the calendar sweep's alone while a dozen functions wrote something else under the
  * same version (scorecard defect A:0), so a reader could not tell an old row from a new one. The shapes are now the
  * union of what the writers write, told apart by their own field; what this holds:
- *   - contact.added <- resolve_person (00342, decision 0034: the one door create_person and import_person match
- *     through, so a person added by hand, a calendar guest, a lead and an imported line are its rows), lead_set_stage
- *     (a lead converted with a phone reaches it through create_person; one without writes its own), the lead-insert
- *     trigger lead_link_contact, reach_out_person;
+ *   - contact.added <- resolve_person (00342 and 00343, decision 0034: the one door every writer matches through, so a
+ *     person added by hand, a calendar guest, a lead converted with or without a number, an imported line and the
+ *     person a reach-out is written to are its rows; a person who wrote or called is not, 00306's trigger says their
+ *     wire), and the lead-insert trigger lead_link_contact;
  *   - contact.consent_changed <- ingest_inbound (a STOP and a START), note_yes_on_channel (a START by text from
  *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
  *     no taken back), set_email_offers_yes (a yes to offers by email, 00299), stop_all_messages (the unsubscribe page's
@@ -59,7 +59,7 @@ const skip =
 
 /** Every SQL writer of each shared kind, by function name: what the catalog must answer, and what the tests run. */
 const WRITERS = {
-  "contact.added": ["lead_link_contact", "lead_set_stage", "reach_out_person", "resolve_person"],
+  "contact.added": ["lead_link_contact", "resolve_person"],
   "contact.consent_changed": [
     "contact_stop_ends_offers_yes",
     "ingest_inbound",
@@ -259,10 +259,10 @@ test("lead_set_stage: a lead converted, with a number and without one", { skip }
   const withPhone = await convert({ phone_e164: phone(), email: `lead-a-${RUN}@example.com` });
   const [a] = holds("contact.added", "resolve_person", withPhone.rows, 1);
   assert.equal(a.source, "lead");
-  // Without one, lead_set_stage writes the row itself.
+  // Without one, lead_set_stage asks the door itself (00343), the finder's word, with the lead on the row.
   const withoutPhone = await convert({ phone_e164: null, email: `lead-b-${RUN}@example.com` });
-  const [b] = holds("contact.added", "lead_set_stage", withoutPhone.rows, 1);
-  assert.deepEqual([b.source, b.by], ["lead", w.owner.id]);
+  const [b] = holds("contact.added", "resolve_person", withoutPhone.rows, 1);
+  assert.deepEqual([b.source, b.by, typeof b.lead_id], ["lead", w.owner.id, "string"]);
 });
 
 test("lead_link_contact: a person who arrives with a lead's number is that lead, and says so", { skip }, async () => {
@@ -282,7 +282,8 @@ test("reach_out_person: the person a reach-out email is written to", { skip }, a
     ok(await db.rpc("reach_out_person", { p_tenant_id: w.t, p_lead_id: id }), "reach_out_person"),
   );
   assert.equal(answered.made, true, "the person was made");
-  const [data] = holds("contact.added", "reach_out_person", rows, 1);
+  // Through the door since 00343, with its own word for `by` and the lead on the row.
+  const [data] = holds("contact.added", "resolve_person", rows, 1);
   assert.deepEqual([data.source, data.by, data.lead_id], ["lead", "reach_out", id]);
 });
 

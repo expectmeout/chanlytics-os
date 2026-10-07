@@ -1616,6 +1616,36 @@
       "where": null
     },
     {
+      "table": "person_doubts",
+      "name": "person_doubts_pair_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "contact_id"
+        },
+        {
+          "column": "other_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "person_doubts",
+      "name": "person_doubts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "person_moments",
       "name": "person_moments_pkey",
       "primary": true,

@@ -3,10 +3,12 @@
  * made by the database, 00263 erasure_digests), so the passive doors leave them
  * erased.
  *
- * Passive: the calendar import, which makes people from appointments; a call
- * event for a call that began before the deletion request, which would make
- * the person again with the call's data. Active -- a new message, a new call
- * -- is the person coming back, and is not this file's business.
+ * Passive: a call event for a call that began before the deletion request,
+ * which would make the person again with the call's data. The calendar import,
+ * which was this file's other caller, asks the one door a person is resolved by
+ * (resolve_person, decision 0034), which checks the digests itself. Active -- a
+ * new message, a new call -- is the person coming back, and is not this file's
+ * business.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { erasureDigests, type Database } from "./packages/db.js";
@@ -19,7 +21,7 @@ interface Tombstone {
 }
 
 /** The tombstones among these numbers, by number. A read that fails throws: "we could not check" is not "nobody". */
-export async function erasedTombstones(db: Db, tenantId: string, phones: string[]): Promise<Map<string, Tombstone>> {
+async function erasedTombstones(db: Db, tenantId: string, phones: string[]): Promise<Map<string, Tombstone>> {
   const out = new Map<string, Tombstone>();
   const unique = [...new Set(phones.filter(Boolean))];
   if (!unique.length) return out;

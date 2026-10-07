@@ -4246,6 +4246,64 @@ export type Database = {
         }
         Relationships: []
       }
+      person_doubts: {
+        Row: {
+          contact_id: string
+          created_at: string
+          id: string
+          other_id: string
+          seen: string
+          settled_as: string | null
+          settled_at: string | null
+          settled_by: string | null
+          tenant_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          id?: string
+          other_id: string
+          seen: string
+          settled_as?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          tenant_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          id?: string
+          other_id?: string
+          seen?: string
+          settled_as?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_doubts_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "person_doubts_other_id_same_workspace"
+            columns: ["tenant_id", "other_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "person_doubts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       person_moments: {
         Row: {
           added_at: string
@@ -6915,6 +6973,7 @@ export type Database = {
           wa_profile_name: string
         }[]
       }
+      person_doubt_dismiss: { Args: { p_doubt_id: string }; Returns: Json }
       person_moments_check: {
         Args: { p_after?: string; p_limit?: number; p_tenant_id: string }
         Returns: {
@@ -7663,14 +7722,15 @@ export type Database = {
       }
       resolve_person: {
         Args: {
-          p_assurance: string
-          p_channel: string
+          p_assurance?: string
+          p_channel?: string
           p_detail?: Json
-          p_email: string
-          p_external: string
-          p_name: string
-          p_phone: string
-          p_source: string
+          p_email?: string
+          p_external?: string
+          p_name?: string
+          p_phone?: string
+          p_seen_at?: string
+          p_source?: string
           p_tenant_id: string
         }
         Returns: Json

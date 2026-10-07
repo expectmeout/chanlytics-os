@@ -775,7 +775,240 @@ const SOURCES = {
 };
 
 /** The migration that re-creates a function last, after 00220, whose own suite holds it to the body before it. */
-const LATER = { outreach_lead_facts: "00241" };
+const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00343" };
+
+/**
+ * 00343 (decision 0034, step 2) re-creates four doors whole, each its last body but for the person's block, which the
+ * one door (resolve_person) resolves now: the body it was re-created from last, and the lines it meant to change as
+ * [was, is] blocks, each found once in that body. lead_set_stage's last is 00220's (held above to 00142's); the
+ * inbound door's 00110's, the call door's 00164's, the reach-out person's 00184's. The test below the next holds each
+ * to it, and the database to 00343's.
+ */
+const RECREATED_00343 = {
+  ingest_inbound: [
+    "00110",
+    [
+      [
+        [
+          "begin",
+          "  -- serialize per identity: closes the NULL-phone concurrent-first-message race",
+          "  perform pg_advisory_xact_lock(",
+          "    hashtextextended(p_tenant_id::text || '|' || p_channel || '|' || p_identity_external_id, 42));",
+          "",
+          "  select contact_id into v_contact_id",
+          "    from contact_identities",
+          "   where tenant_id = p_tenant_id and channel = p_channel and external_id = p_identity_external_id;",
+          "",
+          "  if v_contact_id is null and p_phone_e164 is not null then",
+          "    select id into v_contact_id from contacts",
+          "     where tenant_id = p_tenant_id and phone_e164 = p_phone_e164;",
+          "  end if;",
+          "",
+          "  if v_contact_id is null then",
+          "    insert into contacts (tenant_id, phone_e164, wa_profile_name, last_seen_at)",
+          "    values (p_tenant_id, p_phone_e164, p_wa_profile_name, now())",
+          "    on conflict (tenant_id, phone_e164) where phone_e164 is not null",
+          "      do update set last_seen_at = now(),",
+          "                    wa_profile_name = coalesce(excluded.wa_profile_name, contacts.wa_profile_name)",
+          "    returning id into v_contact_id;",
+          "  else",
+          "    update contacts",
+          "       set last_seen_at = now(),",
+          "           wa_profile_name = coalesce(p_wa_profile_name, wa_profile_name)",
+          "     where id = v_contact_id;",
+          "  end if;",
+        ],
+        [
+          "  v_person          jsonb;",
+          "begin",
+          "  -- The person, through the one door (00342, 00343): the wire's identity, the number, and the address when the wire",
+          "  -- is email; what they called themselves follows the wire; seen now. The door takes the identity's lock this door",
+          "  -- took before it, so two first messages still make one person, and keeps the identity.",
+          "  v_person := public.resolve_person(",
+          "    p_tenant_id, p_channel, p_identity_external_id, p_phone_e164,",
+          "    case when p_channel = 'email'",
+          "          and char_length(p_identity_external_id) between 3 and 254",
+          "          and p_identity_external_id ~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\\.[^[:space:]@<>]+$'",
+          "         then p_identity_external_id end,",
+          "    p_wa_profile_name, 'observed', 'inbound', '{}'::jsonb, now());",
+          "  v_contact_id := (v_person->>'contact_id')::uuid;",
+        ],
+      ],
+      [
+        [
+          "  select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;",
+          "",
+          "  insert into contact_identities (tenant_id, contact_id, channel, external_id)",
+          "  values (p_tenant_id, v_contact_id, p_channel, p_identity_external_id)",
+          "  on conflict (tenant_id, channel, external_id) do nothing;",
+        ],
+        ["  select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;"],
+      ],
+    ],
+  ],
+  ingest_call: [
+    "00164",
+    [
+      [
+        [
+          "  v_analysis        jsonb := case when jsonb_typeof(p_analysis) = 'object' and p_analysis <> '{}'::jsonb then p_analysis end;",
+        ],
+        [
+          "  v_analysis        jsonb := case when jsonb_typeof(p_analysis) = 'object' and p_analysis <> '{}'::jsonb then p_analysis end;",
+          "  v_person          jsonb;",
+        ],
+      ],
+      [
+        [
+          "    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|voice|' || p_from_e164, 42));",
+          "",
+          "    select contact_id into v_contact_id from contact_identities",
+          "     where tenant_id = p_tenant_id and channel = 'voice' and external_id = p_from_e164;",
+          "",
+          "    if v_contact_id is null then",
+          "      select id into v_contact_id from contacts",
+          "       where tenant_id = p_tenant_id and phone_e164 = p_from_e164;",
+          "    end if;",
+          "",
+          "    if v_contact_id is null then",
+          "      insert into contacts (tenant_id, phone_e164, last_seen_at)",
+          "      values (p_tenant_id, p_from_e164, greatest(v_ts, now() - interval '10 years'))",
+          "      on conflict (tenant_id, phone_e164) where phone_e164 is not null",
+          "        do update set last_seen_at = greatest(contacts.last_seen_at, excluded.last_seen_at)",
+          "      returning id into v_contact_id;",
+          "    end if;",
+          "",
+          "    insert into contact_identities (tenant_id, contact_id, channel, external_id)",
+          "    values (p_tenant_id, v_contact_id, 'voice', p_from_e164)",
+          "    on conflict (tenant_id, channel, external_id) do nothing;",
+        ],
+        [
+          "    -- The caller, through the one door (00342, 00343), once per call: a row that already names them is read, not",
+          "    -- resolved again, so a live call's every transcript turn writes nothing of the person. The door takes the voice",
+          "    -- identity's lock this door took before it, keeps the identity, and moves last_seen_at to the call's start only",
+          "    -- forward.",
+          "    if v_had_row then",
+          "      select contact_id into v_contact_id from calls",
+          "       where tenant_id = p_tenant_id and retell_call_id = p_retell_call_id;",
+          "    end if;",
+          "    if v_contact_id is null then",
+          "      v_person := public.resolve_person(p_tenant_id, 'voice', p_from_e164, p_from_e164, null, null, 'observed', 'call',",
+          "                                        '{}'::jsonb, greatest(v_ts, now() - interval '10 years'));",
+          "      v_contact_id := (v_person->>'contact_id')::uuid;",
+          "    end if;",
+        ],
+      ],
+    ],
+  ],
+  lead_set_stage: [
+    "00220",
+    [
+      [
+        [
+          "    elsif v_lead.phone_e164 ~ '^\\+[1-9][0-9]{7,14}$' then",
+          "      -- create_person is get-or-create by number (00053), so the workspace",
+          "      -- never gets a second person for a number it already has (25), and its",
+          "      -- contact.added event with source 'lead' is what People reads back as",
+          '      -- "A lead you found" (00138).',
+          "      v_made    := public.create_person(v_lead.tenant_id, v_lead.phone_e164, left(nullif(v_lead.business_name, ''), 80), 'lead');",
+          "      v_contact := (v_made->>'contact_id')::uuid;",
+          "      v_existed := coalesce((v_made->>'existed')::boolean, false);",
+          "      -- 00125's door adds the address to a person created by phone, but only",
+          "      -- when they have none and nobody else here holds it: a unique violation",
+          "      -- inside this door would lose the whole act.",
+          "      if v_lead.email is not null",
+          "         and not exists (select 1 from public.contacts c where c.id = v_contact and c.email is not null)",
+          "         and not exists (select 1 from public.contacts c where c.tenant_id = v_lead.tenant_id and c.email = lower(btrim(v_lead.email))) then",
+          "        perform public.set_person_email(v_contact, v_lead.email);",
+          "      end if;",
+          "    else",
+          "      -- A lead with no number converts the way an email-only person arrives:",
+          "      -- the address is the identity, and the same contact.added event says",
+          "      -- where they came from.",
+          "      select c.id into v_contact from public.contacts c",
+          "       where c.tenant_id = v_lead.tenant_id and c.email = lower(btrim(coalesce(v_lead.email, '')))",
+          "         and c.erased_at is null and c.merged_into_contact_id is null",
+          "       limit 1;",
+          "      v_existed := v_contact is not null;",
+          "      if v_contact is null then",
+          "        insert into public.contacts (tenant_id, display_name, email)",
+          "        values (v_lead.tenant_id, left(nullif(v_lead.business_name, ''), 80), nullif(lower(btrim(coalesce(v_lead.email, ''))), ''))",
+          "        returning id into v_contact;",
+          "        insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)",
+          "        values (v_lead.tenant_id, 'contact.added', 'contact', 'contact', v_contact,",
+          "                jsonb_build_object('source', 'lead', 'title', null, 'by', v_user));",
+          "      end if;",
+        ],
+        [
+          "    else",
+          "      -- The person, through the one door (00342, 00343): whose number this is, else whose address, else a new one",
+          "      -- named for the business, as the finder's word (found), with the lead on the added event (what People reads",
+          '      -- back as "A lead you found", 00138), the address filled where nobody here holds it, and a person who asked to',
+          "      -- be forgotten refused (PE001). A number not in international form is no number.",
+          "      v_made := public.resolve_person(",
+          "        v_lead.tenant_id, null, null,",
+          "        case when v_lead.phone_e164 ~ '^\\+[1-9][0-9]{7,14}$' then v_lead.phone_e164 end,",
+          "        v_lead.email, left(nullif(v_lead.business_name, ''), 80), 'found', 'lead',",
+          "        jsonb_build_object('lead_id', p_lead_id));",
+          "      v_contact := (v_made->>'contact_id')::uuid;",
+          "      v_existed := coalesce((v_made->>'existed')::boolean, false);",
+        ],
+      ],
+    ],
+  ],
+  reach_out_person: [
+    "00184",
+    [
+      [["  v_made boolean := false;"], ["  v_made boolean := false;", "  v_person jsonb;"]],
+      [
+        [
+          "    -- The person, made with the lead-link trigger told this insert is not a lead converting. A person with the address",
+          "    -- made meanwhile (another lead's claim, an email in) is somebody's already; an address People cannot hold is none.",
+          "    -- Either refuses, and the switch goes back with the failed insert.",
+          "    begin",
+          "      perform set_config('chanlytics.link_lead', 'off', true);",
+          "      insert into public.contacts (tenant_id, display_name, email)",
+          "      values (p_tenant_id, left(nullif(v_lead.business_name, ''), 80), v_email)",
+          "      returning id into v_contact;",
+          "      perform set_config('chanlytics.link_lead', 'on', true);",
+          "    exception",
+          "      when unique_violation then return jsonb_build_object('refused', 'already_yours');",
+          "      when check_violation then return jsonb_build_object('refused', 'no_address');",
+          "    end;",
+          "    insert into public.contact_identities (tenant_id, contact_id, channel, external_id)",
+          "    values (p_tenant_id, v_contact, 'email', v_email)",
+          "    on conflict (tenant_id, channel, external_id) do nothing;",
+          "    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)",
+          "    values (p_tenant_id, 'contact.added', 'contact', 'contact', v_contact,",
+          "            jsonb_build_object('source', 'lead', 'lead_id', p_lead_id, 'by', 'reach_out'));",
+        ],
+        [
+          "    -- The person, through the one door (00342, 00343), with the lead-link trigger told this is not a lead converting:",
+          "    -- the address as the identity, the finder's word (found), the lead on the added event, `by` the sender. A person",
+          "    -- the door finds instead of making (another lead's claim, an email in, between the look above and here) is",
+          "    -- somebody's already; an address People cannot hold is none; a person who asked to be forgotten is left alone.",
+          "    -- Each refuses, and the door's writes go back with the refusal (the block is its own transaction).",
+          "    begin",
+          "      perform set_config('chanlytics.link_lead', 'off', true);",
+          "      v_person := public.resolve_person(p_tenant_id, 'email', v_email, null, v_email,",
+          "                                        left(nullif(v_lead.business_name, ''), 80), 'found', 'lead',",
+          "                                        jsonb_build_object('lead_id', p_lead_id, 'by', 'reach_out'));",
+          "      perform set_config('chanlytics.link_lead', 'on', true);",
+          "      if coalesce((v_person->>'existed')::boolean, false) then",
+          "        raise exception 'already_yours' using errcode = 'P0003';",
+          "      end if;",
+          "      v_contact := (v_person->>'contact_id')::uuid;",
+          "    exception",
+          "      when sqlstate 'P0003' then return jsonb_build_object('refused', 'already_yours');",
+          "      when sqlstate 'PE001' then return jsonb_build_object('refused', 'erased');",
+          "      when unique_violation then return jsonb_build_object('refused', 'already_yours');",
+          "      when check_violation or sqlstate '22023' then return jsonb_build_object('refused', 'no_address');",
+          "    end;",
+        ],
+      ],
+    ],
+  ],
+};
 
 test("every function re-created whole is its source's body but for the lines it meant to change", { skip }, () => {
   const now = migration("00220");
@@ -805,6 +1038,36 @@ test("every function re-created whole is its source's body but for the lines it 
     assert.equal(lf(live.prosrc), later ? bodyIn(migration(later), header) : want, `${name}: the database runs it`);
   }
 });
+
+test(
+  "00343 re-creates four doors whole, each its last body but for the person's block, and the database runs them",
+  { skip },
+  () => {
+    const now = migration("00343");
+    for (const [name, [from, changes]] of Object.entries(RECREATED_00343)) {
+      const header = `create or replace function public.${name}(`;
+      const source = bodyIn(migration(from), header);
+      const at = changes.map(([was, is]) => {
+        const block = was.join("\n");
+        assert.equal(source.split(block).length, 2, `${name}: its last body says this once:\n${block}`);
+        return { from: source.indexOf(block), to: source.indexOf(block) + block.length, is: is.join("\n") };
+      });
+      let want = "";
+      let cut = 0;
+      for (const c of at.sort((x, y) => x.from - y.from)) {
+        assert.ok(c.from >= cut, `${name}: the changes stand apart`);
+        want += source.slice(cut, c.from) + c.is;
+        cut = c.to;
+      }
+      want += source.slice(cut);
+      assert.equal(bodyIn(now, header), want, `${name}: 00343 writes its last body with these changes only`);
+      const [live] = query(
+        `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
+      );
+      assert.equal(lf(live.prosrc), want, `${name}: the database runs it`);
+    }
+  },
+);
 
 test("every function re-created whole keeps its source's volatility, rights, search path and grants", { skip }, () => {
   // As main's replay has them before 00220: grantees beside the owner.

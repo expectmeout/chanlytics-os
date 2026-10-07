@@ -8,11 +8,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   openDealsFromJson,
+  type DoubtSeen,
   type NameableContact,
   type PersonDecisionDto,
+  type PersonDoubtDto,
   type PersonRowDto,
 } from "@chanlytics/contracts";
-import type { Database } from "../database.types";
+import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
 
@@ -252,5 +254,145 @@ function mergedOf(v: unknown): MergedPeople {
     marketing_consent: word("marketing_consent"),
     email_marketing: word("email_marketing"),
     counts: out,
+  };
+}
+
+/** What a door hands resolve_person (00342, 00343): the identity as it saw it, and how sure it is of it. */
+export interface ResolvePersonInput {
+  tenantId: string;
+  /** The provider's identity: its channel and id, both or neither. */
+  channel?: "whatsapp" | "voice" | "sms" | "email" | "instagram" | null;
+  external?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  name?: string | null;
+  /** observed: they wrote to us on that wire; asserted: a member typed it; found: the finder or a feed named it. */
+  assurance: "observed" | "asserted" | "found";
+  /** Where they came from, on contact.added when the door makes them: calendar, lead, import, manual, call, inbound. */
+  source: string;
+  /** The caller's own words for contact.added: a calendar guest's title, uid and start; a lead's id. */
+  detail?: Json;
+}
+
+/** What the door answers. */
+export interface ResolvedPerson {
+  contact_id: string;
+  outcome: "new" | "matched" | "filled";
+  existed: boolean;
+  matched_by: "identity" | "phone" | "email" | "race" | null;
+  email: "set" | "kept" | "taken" | null;
+  filled: string[];
+  identity: "added" | "raised" | "kept" | null;
+  /** The other record one of the identities names, when the pair could be one person; written on person_doubts. */
+  doubt: string | null;
+  doubt_seen: DoubtSeen | null;
+}
+
+/**
+ * A person, resolved by the one door (decision 0034): the erasure digests first on the passive paths, then the identity,
+ * the number and the address; fills what is empty and never overwrites; never merges, and writes a doubt instead. The
+ * service role calls it (the edge's sweeps and doors, the dashboard's server); a session is refused, so a member's
+ * door is create_person or import_person. A person who asked to be forgotten refuses with the door's own code, PE001,
+ * which a caller counts as one person refused, never everyone: the error's code is kept on the thrown error.
+ */
+export async function resolvePerson(db: Db, p: ResolvePersonInput): Promise<ResolvedPerson> {
+  // Every argument of 00342's signature is named, an empty word for what the caller did not see (the door reads it as
+  // none), so a database still on 00342 answers the call as one on 00343 does: either deploy order. p_seen_at, which
+  // 00343 added with a default, is never named.
+  const { data, error } = await db.rpc("resolve_person", {
+    p_tenant_id: p.tenantId,
+    p_channel: p.channel ?? "",
+    p_external: p.external ?? "",
+    p_phone: p.phone ?? "",
+    p_email: p.email ?? "",
+    p_name: p.name ?? "",
+    p_assurance: p.assurance,
+    p_source: p.source,
+    p_detail: p.detail ?? {},
+  });
+  if (error) throw Object.assign(new Error(`resolve_person: ${error.message}`), { code: error.code });
+  const o = (data ?? {}) as Record<string, unknown>;
+  if (typeof o.contact_id !== "string") throw new Error("resolve_person answered without a person");
+  return {
+    contact_id: o.contact_id,
+    outcome: o.outcome === "new" || o.outcome === "filled" ? o.outcome : "matched",
+    existed: o.existed === true,
+    matched_by: typeof o.matched_by === "string" ? (o.matched_by as ResolvedPerson["matched_by"]) : null,
+    email: typeof o.email === "string" ? (o.email as ResolvedPerson["email"]) : null,
+    filled: Array.isArray(o.filled) ? o.filled.filter((x): x is string => typeof x === "string") : [],
+    identity: typeof o.identity === "string" ? (o.identity as ResolvedPerson["identity"]) : null,
+    doubt: typeof o.doubt === "string" ? o.doubt : null,
+    doubt_seen: typeof o.doubt_seen === "string" ? (o.doubt_seen as DoubtSeen) : null,
+  };
+}
+
+/** A person's code at the door: this person asked to be forgotten (00263, 00331). */
+export const PERSON_FORGOTTEN = "PE001";
+
+/**
+ * The open doubts naming a person (00343 person_doubts, decision 0034 step 4), oldest first, each with the other
+ * record as People names a row. Read under the caller's row security. A database before the table answers none, so
+ * either deploy order shows a page.
+ */
+export async function openDoubtsOf(db: Db, tenantId: string, contactId: string): Promise<PersonDoubtDto[]> {
+  const { data, error } = await db
+    .from("person_doubts")
+    .select("id, contact_id, other_id, seen, created_at")
+    .eq("tenant_id", tenantId)
+    .is("settled_at", null)
+    .or(`contact_id.eq.${contactId},other_id.eq.${contactId}`)
+    .order("created_at");
+  if (error && (error.code === "PGRST205" || error.code === "42P01")) return [];
+  if (error) throw new Error(`person_doubts: ${error.message}`);
+  const rows = data ?? [];
+  if (!rows.length) return [];
+  const otherIds = [...new Set(rows.map((r) => (r.contact_id === contactId ? r.other_id : r.contact_id)))];
+  const others = await db
+    .from("contacts")
+    .select("id, display_name, wa_profile_name, phone_e164, email")
+    .eq("tenant_id", tenantId)
+    .in("id", otherIds.slice(0, IDS_PER_READ))
+    .is("erased_at", null)
+    .is("merged_into_contact_id", null);
+  if (others.error) throw new Error(`person_doubts: ${others.error.message}`);
+  const byId = new Map((others.data ?? []).map((c) => [c.id, c]));
+  const out: PersonDoubtDto[] = [];
+  for (const r of rows) {
+    const other = byId.get(r.contact_id === contactId ? r.other_id : r.contact_id);
+    if (!other) continue;
+    out.push({ id: r.id, seen: r.seen as DoubtSeen, created_at: r.created_at, other });
+  }
+  return out;
+}
+
+/** A doubt by id, when it names this person on either side (read under the caller's row security); null when it does not. */
+export async function doubtOn(
+  db: Db,
+  tenantId: string,
+  contactId: string,
+  doubtId: string,
+): Promise<{ id: string; contact_id: string; other_id: string; settled_as: string | null } | null> {
+  const { data, error } = await db
+    .from("person_doubts")
+    .select("id, contact_id, other_id, settled_as")
+    .eq("tenant_id", tenantId)
+    .eq("id", doubtId)
+    .or(`contact_id.eq.${contactId},other_id.eq.${contactId}`)
+    .maybeSingle();
+  if (error) throw new Error(`person_doubts: ${error.message}`);
+  return data;
+}
+
+/** Not the same (person_doubt_dismiss, 00343): the member settles the pair, as themselves. The door's refusals are thrown as they came. */
+export async function dismissPersonDoubt(
+  db: Db,
+  doubtId: string,
+): Promise<{ doubt_id: string; settled_as: string | null }> {
+  const { data, error } = await db.rpc("person_doubt_dismiss", { p_doubt_id: doubtId });
+  if (error) throw error;
+  const o = (data ?? {}) as Record<string, unknown>;
+  return {
+    doubt_id: typeof o.doubt_id === "string" ? o.doubt_id : doubtId,
+    settled_as: typeof o.settled_as === "string" ? o.settled_as : null,
   };
 }

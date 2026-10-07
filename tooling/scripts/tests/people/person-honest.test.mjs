@@ -3237,6 +3237,115 @@ test("Merge with another record (0028): the owner's act opens the picker over Pe
   }
 });
 
+test("Same person? (0034 step 4): each doubt the door raised is a row saying who else it could be; Merge opens 0028's box with that record chosen, read or not by People; Not the same settles the pair through its door and the page is read again; an operator may say not the same and not merge", async () => {
+  const { DOUBT_WORDS, MERGE_WORDS, toPersonRowVM } = contracts;
+  const dto = {
+    ...detail(),
+    doubts: [
+      {
+        id: "d1",
+        seen: "email",
+        created_at: iso(2 * H),
+        other: {
+          id: "p2",
+          display_name: "Daniela by email",
+          wa_profile_name: null,
+          phone_e164: null,
+          email: "daniela@example.com",
+        },
+      },
+      {
+        id: "d2",
+        seen: "name",
+        created_at: iso(H),
+        other: { id: "p3", display_name: null, wa_profile_name: null, phone_e164: "+17865550182", email: null },
+      },
+    ],
+  };
+  const vm = toPersonVM(dto, ZONE, new Date(NOW));
+  assert.deepEqual(
+    vm.doubts.map((d) => [d.id, d.otherId, d.other, d.phone, d.email, d.sentence]),
+    [
+      ["d1", "p2", "Daniela by email", null, "daniela@example.com", DOUBT_WORDS.seen.email("Daniela by email")],
+      ["d2", "p3", "+1 (786) 555-0182", "+1 (786) 555-0182", null, DOUBT_WORDS.seen.name("+1 (786) 555-0182")],
+    ],
+    "each doubt as the page says it: the other record as People names them, and the sentence for what was seen",
+  );
+  assert.deepEqual(toPersonVM(detail(), ZONE, new Date(NOW)).doubts, [], "none from a server before the table");
+  const saved = surfaceValue("people");
+  const me = globalThis.window.__ME;
+  const rowsIn = (tree) => all(tree, (n) => n.props?.["data-testid"] === "doubt");
+  try {
+    globalThis.window.fetch = worldFetch;
+    world.holding.clear();
+    // People as the tab holds it: this person alone, so neither other record is among People's rows.
+    globalThis.window.__ME = { role: "owner" };
+    setSurfaceValue("people", {
+      ...(saved ?? {}),
+      lists: saved?.lists ?? [],
+      rows: [toPersonRowVM(row(), ZONE, new Date(NOW))],
+    });
+    let draw = await profile(vm);
+    await settle();
+    let rows = rowsIn(draw());
+    assert.equal(rows.length, 2, "a row per open doubt");
+    assert.ok(textOf(rows[0]).includes(DOUBT_WORDS.seen.email("Daniela by email")), "the sentence");
+    assert.equal(byTestId(draw(), "merge"), null, "nothing is drawn until a settlement is pressed");
+
+    // Merge: 0028's box, the doubt's record chosen already, offered even though People does not list it.
+    byTestId(rows[0], "doubt-merge").props.onClick();
+    const box = byTestId(draw(), "merge");
+    assert.ok(box, "the merge box");
+    const picker = find(box, (n) => n.type === Picker);
+    assert.equal(picker.props.value, "p2", "the doubt's record is the one chosen");
+    assert.deepEqual(
+      picker.props.groups.flatMap((g) => g.options).map((o) => [o.value, o.label, o.sub]),
+      [
+        ["p2", "Daniela by email", "daniela@example.com"],
+        ["p3", "+1 (786) 555-0182", "+1 (786) 555-0182"],
+      ],
+      "the doubts' records, beside what People holds",
+    );
+    const confirm = find(box, (n) => n.type === KitConfirm);
+    assert.equal(textOf(confirm.props.question), MERGE_WORDS.question(vm.name, "Daniela by email"));
+
+    // Not the same: the pair's own door, then the page read again.
+    const before = world.seen.length;
+    byTestId(rows[1], "doubt-apart").props.onClick();
+    await settle();
+    const sent = world.seen.slice(before).find((r) => r.method === "POST");
+    assert.deepEqual(
+      [sent?.path, sent?.body],
+      ["/api/v1/contacts/p1/doubts/dismiss", { doubt_id: "d2" }],
+      "this person's route, the doubt in the body",
+    );
+    assert.ok(
+      world.seen.slice(before).some((r) => r.method === "GET" && r.path === "/api/v1/contacts/p1"),
+      "and the page is read again, whole",
+    );
+
+    // An operator: Not the same is theirs; the merge is the owner's.
+    globalThis.window.__ME = { role: "operator" };
+    draw = await profile(vm);
+    await settle();
+    rows = rowsIn(draw());
+    assert.equal(rows.length, 2);
+    assert.equal(byTestId(rows[0], "doubt-merge"), null, "no merge for an operator");
+    assert.ok(byTestId(rows[0], "doubt-apart"), "not the same is any acting member's");
+    // A viewer: the rows say it, and settle nothing.
+    globalThis.window.__ME = { role: "viewer" };
+    draw = await profile(vm);
+    await settle();
+    rows = rowsIn(draw());
+    assert.equal(rows.length, 2);
+    assert.equal(byTestId(rows[0], "doubt-merge"), null);
+    assert.equal(byTestId(rows[0], "doubt-apart"), null);
+  } finally {
+    globalThis.window.__ME = me;
+    setSurfaceValue("people", saved);
+  }
+});
+
 test("the merge is the owner's: an operator's menu does not offer it; the picker leaves out a record the door would refuse, and says when People is not read", async () => {
   const { MERGE_WORDS } = contracts;
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));

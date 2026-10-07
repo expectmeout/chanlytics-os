@@ -1,13 +1,17 @@
 /**
- * A person is resolved by one door, on a real database (00342, decision 0034 steps 1 to 3).
+ * A person is resolved by one door, on a real database (00342 and 00343, decision 0034 steps 1 to 4).
  *
  * Nine writers each matched a person their own way, and nothing merged or said when two records might be one person.
- * resolve_person is the door they move onto: the erasure digests first, then the identity, the number and the address
- * in that order, two numbers being two people; it fills what is empty and never overwrites, keeps the identity with how
- * sure the door was of it, never merges, and answers a doubt instead; contact.added for a new person, person.resolved
- * for every call, in the same transaction. A definer door with locks and unique keys is what reading source cannot
- * prove. Runs against Postgres in the database workflow; skipped without a local database. The service role calls it,
- * as the doors do; a session is refused, which the last case holds.
+ * resolve_person is the door they all go through now: the erasure digests first on the passive paths (a member's, a
+ * feed's, the finder's word; a person writing or calling again is a new person, as the inbound doors always made them),
+ * then the identity, the number and the address in that order, two numbers being two people; it fills what is empty and
+ * never overwrites, a name the wire gave following the wire; keeps the identity with how sure the door was of it, and
+ * raises that word, never lowers it; never merges, and writes a doubt instead, once per pair the merge could join;
+ * contact.added for a new person a member, a feed or the finder brought, person.resolved for every call, in the same
+ * transaction. A definer door with locks and unique keys is what reading source cannot prove. Runs against Postgres in
+ * the database workflow; skipped without a local database. The service role calls it, as the doors do; a session is
+ * refused, which the last case holds. The queue's own doors (dismiss, the merge's and the erasure's legs) are
+ * person-doubts.db.test.mjs beside this.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -90,6 +94,18 @@ const identitiesOf = async (id) =>
     await db.from("contact_identities").select("channel, external_id, assurance").eq("contact_id", id).order("channel"),
     "identities",
   );
+/** The doubts naming a record, either way round, oldest first: the queue the People page reads (00343). */
+const doubtsOf = async (id) =>
+  ok(
+    await db
+      .from("person_doubts")
+      .select("contact_id, other_id, seen, settled_as")
+      .eq("tenant_id", tenantId)
+      .or(`contact_id.eq.${id},other_id.eq.${id}`)
+      .order("created_at"),
+    "doubts",
+  );
+const pair = (a, b) => (a < b ? [a, b] : [b, a]);
 const eventsOf = async (kind, subjectId) => {
   let q = db.from("events").select("subject_id, data").eq("tenant_id", tenantId).eq("kind", kind).order("created_at");
   if (subjectId) q = q.eq("subject_id", subjectId);
@@ -145,11 +161,10 @@ test(
       ],
       "three identities, each as sure as the wire it came on",
     );
-    const added = await eventsOf("contact.added", wa.contact_id);
     assert.deepEqual(
-      added.map((e) => [e.data.source, e.data.by]),
-      [["inbound", null]],
-      "one added event, from the door that made them, with no member behind it",
+      await eventsOf("contact.added", wa.contact_id),
+      [],
+      "no added event: they wrote to us, so the message is the record, and the first-touch trigger says the wire (00306)",
     );
     const resolved = await eventsOf("person.resolved", wa.contact_id);
     assert.deepEqual(
@@ -176,7 +191,7 @@ test(
 );
 
 test(
-  "a number or an address whose person asked to be forgotten is refused on every path, and nothing is made",
+  "a number or an address whose person asked to be forgotten is refused on every passive path, and nothing is made; writing or calling again, they are a new person",
   { skip },
   async () => {
     const phone = "+16465550142";
@@ -195,19 +210,26 @@ test(
     assert.equal(gone.error, null, gone.error?.message);
     const before = (await living()).length;
     const paths = [
-      { p_channel: "whatsapp", p_external: "16465550142", p_phone: phone },
-      { p_channel: "voice", p_external: phone, p_phone: phone },
       { p_phone: "(646) 555-0142", p_assurance: "asserted", p_source: "manual" },
       { p_email: email, p_assurance: "asserted", p_source: "import" },
       { p_phone: "+16465550143", p_email: email, p_assurance: "found", p_source: "lead" },
+      { p_phone: phone, p_name: "Gone Person", p_assurance: "found", p_source: "calendar" },
     ];
     for (const path of paths) {
       const r = await door(path);
       assert.equal(r.error?.code, "PE001", `${JSON.stringify(path)}: ${r.error?.message}`);
       assert.match(r.error?.message ?? "", /forgotten/);
     }
-    assert.equal((await living()).length, before, "nothing was made on any path");
+    assert.equal((await living()).length, before, "nothing was made on any passive path");
     assert.deepEqual(await eventsOf("person.resolved", gone.data.id), [], "and the tombstone was not resolved to");
+    // They write again: a new person, with nothing of the old one, as the inbound door has always made them.
+    const back = ok(await door({ p_channel: "whatsapp", p_external: "16465550142", p_phone: phone }), "back");
+    assert.deepEqual([back.outcome, back.existed], ["new", false]);
+    assert.notEqual(back.contact_id, gone.data.id);
+    const [row] = (await living()).filter((r) => r.id === back.contact_id);
+    assert.deepEqual([row.phone_e164, row.email, row.display_name], [phone, null, null], "nothing of the old record");
+    const call = ok(await door({ p_channel: "voice", p_external: phone, p_phone: phone }), "call");
+    assert.deepEqual([call.contact_id, call.matched_by], [back.contact_id, "phone"], "and their call finds them");
   },
 );
 
@@ -220,16 +242,23 @@ test(
       "dee",
     );
     assert.equal(dee.outcome, "new");
-    const again = ok(
-      await door({ p_phone: "+16465550152", p_name: "dee alvarez", p_assurance: "asserted", p_source: "manual" }),
-      "again",
-    );
+    // The finder names them, with neither number nor address: a second record, and a doubt beside the first.
+    const again = ok(await door({ p_name: "dee alvarez", p_assurance: "found", p_source: "lead" }), "again");
     assert.deepEqual(
       [again.outcome, again.existed, again.doubt, again.doubt_seen],
       ["new", false, dee.contact_id, "name"],
       "a second record, and the answer names the first as the doubt",
     );
     assert.notEqual(again.contact_id, dee.contact_id);
+    assert.ok(again.doubt_id, "the doubt is a row");
+    assert.deepEqual(
+      (await doubtsOf(again.contact_id)).map((d) => [d.contact_id, d.other_id, d.seen, d.settled_as]),
+      [[...pair(dee.contact_id, again.contact_id), "name", null]],
+      "one open doubt, the lower id first",
+    );
+    // A name alone never matches, and another name is nobody's doubt.
+    const other = ok(await door({ p_name: "Dee Alvares", p_assurance: "found", p_source: "lead" }), "other");
+    assert.deepEqual([other.outcome, other.doubt], ["new", null]);
     const rows = (await living("id, phone_e164, display_name")).filter((r) =>
       /dee alvarez/i.test(r.display_name ?? ""),
     );
@@ -249,7 +278,7 @@ test(
 );
 
 test(
-  "two numbers are two people: an address another number holds is taken, and the pair is a doubt",
+  "two numbers are two people: an address another number holds is taken, and no doubt is raised where the merge could not join them",
   { skip },
   async () => {
     const email = `shared-${RUN}@example.com`;
@@ -263,11 +292,12 @@ test(
       "b",
     );
     assert.deepEqual(
-      [b.outcome, b.email, b.doubt, b.doubt_seen],
-      ["new", "taken", a.contact_id, "email"],
-      "a second person without the address, and the first named as the doubt",
+      [b.outcome, b.email, b.doubt, b.doubt_seen, b.doubt_id],
+      ["new", "taken", null, null, null],
+      "a second person without the address, and no doubt: two numbers are two people, which 0028's door would refuse",
     );
     assert.notEqual(b.contact_id, a.contact_id);
+    assert.deepEqual(await doubtsOf(b.contact_id), [], "nothing on the queue");
     const rows = await living("id, phone_e164, email");
     assert.deepEqual(rows.find((r) => r.id === a.contact_id).email, email, "the address stays where it was");
     assert.equal(rows.find((r) => r.id === b.contact_id).email, null);
@@ -283,8 +313,58 @@ test(
       "moved",
     );
     assert.deepEqual(
-      [moved.contact_id, moved.matched_by, moved.doubt, moved.doubt_seen],
-      [b.contact_id, "phone", a.contact_id, "email"],
+      [moved.contact_id, moved.matched_by, moved.email, moved.doubt],
+      [b.contact_id, "phone", "taken", null],
+    );
+  },
+);
+
+test(
+  "a number known on its own, arriving with an address another record holds, is a doubt the merge could settle: written once per pair, whichever way round",
+  { skip },
+  async () => {
+    const email = `held-${RUN}@example.com`;
+    const number = "+16465550163";
+    // One record by address alone, one by number alone; then the number arrives with that address. The number is
+    // matched first; the address stays where it was (taken), and the pair, which has one number and one address
+    // between them, is a doubt. (A number arriving with the address of a record that has no number is that record,
+    // matched by the address, as the case above holds.)
+    const a = ok(
+      await door({ p_email: email, p_name: "Held Address", p_assurance: "asserted", p_source: "import" }),
+      "a",
+    );
+    assert.deepEqual([a.outcome, a.email], ["new", "set"]);
+    const b = ok(await door({ p_phone: number, p_assurance: "asserted", p_source: "manual" }), "b");
+    assert.deepEqual([b.outcome, b.doubt], ["new", null]);
+    const both = ok(
+      await door({ p_phone: number, p_email: email, p_assurance: "asserted", p_source: "import" }),
+      "both",
+    );
+    assert.deepEqual(
+      [both.contact_id, both.matched_by, both.outcome, both.email, both.doubt, both.doubt_seen],
+      [b.contact_id, "phone", "matched", "taken", a.contact_id, "email"],
+    );
+    assert.ok(both.doubt_id, "the doubt is a row");
+    const expected = [[...pair(a.contact_id, b.contact_id), "email", null]];
+    const rowsOf = async (id) => (await doubtsOf(id)).map((d) => [d.contact_id, d.other_id, d.seen, d.settled_as]);
+    assert.deepEqual(await rowsOf(a.contact_id), expected, "the pair, the lower id first, open");
+    assert.deepEqual(await rowsOf(b.contact_id), expected, "the same row from the other side");
+    // The same arrival again: named in the answer, and not a second row.
+    const again = ok(
+      await door({ p_phone: number, p_email: email, p_assurance: "found", p_source: "calendar" }),
+      "again",
+    );
+    assert.deepEqual(
+      [again.contact_id, again.email, again.doubt, again.doubt_seen, again.doubt_id],
+      [b.contact_id, "taken", a.contact_id, "email", null],
+      "named in the answer, written once",
+    );
+    assert.deepEqual(await rowsOf(a.contact_id), expected);
+    const [resolved] = (await eventsOf("person.resolved", b.contact_id)).slice(-1);
+    assert.deepEqual(
+      [resolved.data.doubt, resolved.data.doubt_seen],
+      [a.contact_id, "email"],
+      "the ledger says so too",
     );
   },
 );
@@ -335,7 +415,9 @@ test(
       ["found"],
     );
     const wrote = ok(await door({ p_channel: "sms", p_external: "+16465550172", p_phone: "+16465550172" }), "wrote");
-    assert.deepEqual([wrote.contact_id, wrote.identity], [named.contact_id, "kept"]);
+    assert.deepEqual([wrote.contact_id, wrote.identity], [named.contact_id, "raised"], "the word got stronger");
+    const same = ok(await door({ p_channel: "sms", p_external: "+16465550172", p_phone: "+16465550172" }), "same");
+    assert.deepEqual([same.contact_id, same.identity], [named.contact_id, "kept"], "and is kept from then on");
     assert.deepEqual(
       (await identitiesOf(named.contact_id)).map((i) => i.assurance),
       ["observed"],

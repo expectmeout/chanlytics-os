@@ -492,14 +492,6 @@ function platformWide(db) {
   return db;
 }
 
-// src/repositories/ingest.ts
-import {
-  CARRIER_CONSENT_SOURCE,
-  conversationPatch,
-  normalizePhone,
-  HOUR_MS
-} from "../../contracts/dist/index.js";
-
 // src/repositories/people.ts
 import {
   openDealsFromJson
@@ -605,6 +597,74 @@ function mergedOf(v) {
     counts: out
   };
 }
+async function resolvePerson(db, p) {
+  const { data, error } = await db.rpc("resolve_person", {
+    p_tenant_id: p.tenantId,
+    p_channel: p.channel ?? "",
+    p_external: p.external ?? "",
+    p_phone: p.phone ?? "",
+    p_email: p.email ?? "",
+    p_name: p.name ?? "",
+    p_assurance: p.assurance,
+    p_source: p.source,
+    p_detail: p.detail ?? {}
+  });
+  if (error) throw Object.assign(new Error(`resolve_person: ${error.message}`), { code: error.code });
+  const o = data ?? {};
+  if (typeof o.contact_id !== "string") throw new Error("resolve_person answered without a person");
+  return {
+    contact_id: o.contact_id,
+    outcome: o.outcome === "new" || o.outcome === "filled" ? o.outcome : "matched",
+    existed: o.existed === true,
+    matched_by: typeof o.matched_by === "string" ? o.matched_by : null,
+    email: typeof o.email === "string" ? o.email : null,
+    filled: Array.isArray(o.filled) ? o.filled.filter((x) => typeof x === "string") : [],
+    identity: typeof o.identity === "string" ? o.identity : null,
+    doubt: typeof o.doubt === "string" ? o.doubt : null,
+    doubt_seen: typeof o.doubt_seen === "string" ? o.doubt_seen : null
+  };
+}
+var PERSON_FORGOTTEN = "PE001";
+async function openDoubtsOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("person_doubts").select("id, contact_id, other_id, seen, created_at").eq("tenant_id", tenantId).is("settled_at", null).or(`contact_id.eq.${contactId},other_id.eq.${contactId}`).order("created_at");
+  if (error && (error.code === "PGRST205" || error.code === "42P01")) return [];
+  if (error) throw new Error(`person_doubts: ${error.message}`);
+  const rows = data ?? [];
+  if (!rows.length) return [];
+  const otherIds = [...new Set(rows.map((r) => r.contact_id === contactId ? r.other_id : r.contact_id))];
+  const others = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", otherIds.slice(0, IDS_PER_READ)).is("erased_at", null).is("merged_into_contact_id", null);
+  if (others.error) throw new Error(`person_doubts: ${others.error.message}`);
+  const byId = new Map((others.data ?? []).map((c) => [c.id, c]));
+  const out = [];
+  for (const r of rows) {
+    const other = byId.get(r.contact_id === contactId ? r.other_id : r.contact_id);
+    if (!other) continue;
+    out.push({ id: r.id, seen: r.seen, created_at: r.created_at, other });
+  }
+  return out;
+}
+async function doubtOn(db, tenantId, contactId, doubtId) {
+  const { data, error } = await db.from("person_doubts").select("id, contact_id, other_id, settled_as").eq("tenant_id", tenantId).eq("id", doubtId).or(`contact_id.eq.${contactId},other_id.eq.${contactId}`).maybeSingle();
+  if (error) throw new Error(`person_doubts: ${error.message}`);
+  return data;
+}
+async function dismissPersonDoubt(db, doubtId) {
+  const { data, error } = await db.rpc("person_doubt_dismiss", { p_doubt_id: doubtId });
+  if (error) throw error;
+  const o = data ?? {};
+  return {
+    doubt_id: typeof o.doubt_id === "string" ? o.doubt_id : doubtId,
+    settled_as: typeof o.settled_as === "string" ? o.settled_as : null
+  };
+}
+
+// src/repositories/ingest.ts
+import {
+  CARRIER_CONSENT_SOURCE,
+  conversationPatch,
+  normalizePhone,
+  HOUR_MS
+} from "../../contracts/dist/index.js";
 
 // src/repositories/campaigns/campaign-channels.ts
 async function whatsappChannelFacts(db, tenantId) {
@@ -797,12 +857,17 @@ async function recordOutbound(db, p) {
   return data.id;
 }
 async function getOrCreateContact(db, tenantId, phoneE164) {
-  const { data, error } = await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: phoneE164, last_seen_at: (/* @__PURE__ */ new Date()).toISOString() }).select("id, consent, dnc, marketing_consent").single();
-  if (!error && data) return data;
-  if (error && error.code !== "23505") throw new Error(`get_or_create_contact: ${error.message}`);
-  const { data: raced, error: reErr } = await db.from("contacts").select("id, consent, dnc, marketing_consent").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).single();
-  if (reErr || !raced) throw new Error(`get_or_create_contact reselect: ${reErr?.message}`);
-  return raced;
+  const made = await resolvePerson(db, {
+    tenantId,
+    channel: "voice",
+    external: phoneE164,
+    phone: phoneE164,
+    assurance: "observed",
+    source: "call"
+  });
+  const { data, error } = await db.from("contacts").select("id, consent, dnc, marketing_consent").eq("tenant_id", tenantId).eq("id", made.contact_id).single();
+  if (error || !data) throw new Error(`get_or_create_contact reselect: ${error?.message}`);
+  return data;
 }
 async function resolveOutboundTarget(db, p) {
   const phone = normalizePhone(p.phoneE164);
@@ -1101,7 +1166,7 @@ async function ingestInboundEmail(db, p) {
     optOut: p.optOut ?? false,
     optIn
   });
-  if (!known.data) {
+  {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
@@ -1861,7 +1926,7 @@ async function reachOutPerson(db, tenantId, leadId) {
   const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new Error(`cannot make the person this send is for: ${error.message}`);
   const r = data ?? {};
-  if (r.refused === "lead_gone" || r.refused === "lead_closed" || r.refused === "no_address" || r.refused === "already_yours")
+  if (r.refused === "lead_gone" || r.refused === "lead_closed" || r.refused === "no_address" || r.refused === "already_yours" || r.refused === "erased")
     return { ok: false, refused: r.refused };
   if (!r.contact_id || !r.conversation_id)
     throw new Error("cannot make the person this send is for: no person came back");
@@ -3802,6 +3867,7 @@ export {
   IDS_PER_READ,
   MAX_ROWS,
   PEOPLE_PAGE,
+  PERSON_FORGOTTEN,
   acceptHandover,
   acceptPartnerInvite,
   activityTokensOf,
@@ -3846,8 +3912,10 @@ export {
   deleteSendingDomainAsRead,
   deliveryOf,
   describeLead,
+  dismissPersonDoubt,
   domainCapacityOf,
   domainHeldSince,
+  doubtOn,
   dropFromList,
   dueCalendars,
   dueDomains,
@@ -3940,6 +4008,7 @@ export {
   offerLanguageOf,
   offersAnswerOf,
   offersEmailReach,
+  openDoubtsOf,
   outreachFactsOf,
   outreachModeOf,
   ownLineOf,
@@ -4018,6 +4087,7 @@ export {
   resolveEscalationByReason,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
+  resolvePerson,
   runGoesByOthers,
   runSending,
   runsWaitingOf,

@@ -321,8 +321,13 @@ export {
   erasureDigests,
   scrubPersonNotes,
   mergePeople,
+  resolvePerson,
+  PERSON_FORGOTTEN,
+  openDoubtsOf,
+  doubtOn,
+  dismissPersonDoubt,
 } from "./repositories/people";
-export type { PeopleCursor } from "./repositories/people";
+export type { PeopleCursor, ResolvePersonInput, ResolvedPerson } from "./repositories/people";
 export {
   savedListsFor,
   listMemberIds,

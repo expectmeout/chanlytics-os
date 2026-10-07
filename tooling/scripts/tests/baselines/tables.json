@@ -120,7 +120,6 @@
   "apps/edge/lib/ask-gateway.ts::rpc": 1,
   "apps/edge/lib/billing/billing-admin.ts": 2,
   "apps/edge/lib/billing/billing.ts": 14,
-  "apps/edge/lib/calendar/calendar-people.ts": 4,
   "apps/edge/lib/calendar/reach-out-booked.ts::rpc": 1,
   "apps/edge/lib/cron-auth.ts::rpc": 1,
   "apps/edge/lib/erased.ts": 2,

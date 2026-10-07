@@ -14,6 +14,7 @@ import type { DealPaceDto } from "../deals/deal-waits";
 import type { RecipientState } from "../broadcasts/broadcasts";
 import type { PersonNoteDto, PersonNoteTeamDto } from "../notes/person-notes";
 import type { ReachOutLeadTimelineDto } from "../reach-out/reach-out-leads";
+import type { PersonDoubtDto } from "./person-doubts";
 
 /* --------------------------------- DTOs ---------------------------------- */
 
@@ -215,6 +216,8 @@ export interface PersonDetailDto {
   campaigns?: PersonCampaignDto[];
   /** The lead this person was found as, when they were one (leads.contact_id). */
   lead?: PersonLeadDto | null;
+  /** The open doubts naming this person (0034 step 4, 00343): another record one identity could belong to, each. Absent from a server before the table. */
+  doubts?: PersonDoubtDto[];
 }
 
 /** One run that named a person: what went, when, and what became of it at the wire. */

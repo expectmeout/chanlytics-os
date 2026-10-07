@@ -54,6 +54,7 @@ import type { CALL_OUTCOMES } from "../voice/call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
 import type { SELLS_BY } from "../deals/sells-by";
+import type { DOUBT_SEEN, DOUBT_SETTLED_AS } from "../people/person-doubts";
 import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../playbooks/playbooks";
 import type { TEMPLATE_CATEGORIES } from "../templates/templates";
@@ -129,6 +130,9 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"contact_identities.channel">>>,
   // How sure a door was of an identity (00342, decision 0034).
   Holds<Exactly<Of<typeof IDENTITY_ASSURANCES>, SchemaSet<"contact_identities.assurance">>>,
+  // A doubt the door raised (00343, decision 0034 step 4): which identity was seen, and how the pair was settled.
+  Holds<Exactly<Of<typeof DOUBT_SEEN>, SchemaSet<"person_doubts.seen">>>,
+  Holds<Exactly<Of<typeof DOUBT_SETTLED_AS>, SchemaSet<"person_doubts.settled_as">>>,
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"templates.channel">>>,
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.consent">>>,
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.marketing_consent">>>,

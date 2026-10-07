@@ -27,6 +27,12 @@ export interface MergeState {
   error: string | null;
 }
 
+/** A doubt being settled as two people (0034 step 4): which one is out, and what went wrong. */
+export interface DoubtState {
+  busy: string | null;
+  error: string | null;
+}
+
 /** The receptionist's mode being set: whether it is out, and what went wrong. */
 export interface RmState {
   busy: boolean;
@@ -60,6 +66,8 @@ export interface PageCtx {
    * number or address, which it refuses as two people). Null while People has not been read.
    */
   others: PersonRowVM[] | null;
+  doubt: DoubtState;
+  setDoubt: Dispatch<SetStateAction<DoubtState>>;
   rm: RmState;
   setRm: Dispatch<SetStateAction<RmState>>;
   tlFilter: string;
