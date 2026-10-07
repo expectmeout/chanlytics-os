@@ -80,7 +80,9 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
         from: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>>;
     calendar: z.ZodOptional<z.ZodObject<{
-        ical_url: z.ZodOptional<z.ZodString>;
+        ical_url: z.ZodString;
+    }, z.core.$strip>>;
+    bookings: z.ZodOptional<z.ZodObject<{
         tool: z.ZodOptional<z.ZodEnum<{
             booksy: "booksy";
             acuity: "acuity";

@@ -23,6 +23,7 @@ import {
   scrubErasedJobs,
   beginErasure,
   erasureKeys,
+  visitNeedles,
   FINISHED_JOB_STATES,
 } from "@/server/people/erasure";
 import type { RouteContext } from "@/server/with-route";
@@ -376,7 +377,12 @@ async function scrubOthersNotesBestEffort(contact: ErasedContact, needles: reado
  */
 async function scrubAppointmentsBestEffort(contact: ErasedContact, needles: readonly string[]): Promise<void> {
   try {
-    await appointmentsScrub(serviceDb(), { tenantId: contact.tenant_id, contactId: contact.id, needles });
+    await appointmentsScrub(serviceDb(), {
+      tenantId: contact.tenant_id,
+      contactId: contact.id,
+      // A visit keeps the number as E.164, a spelling the needles do not carry (erasure.ts visitNeedles).
+      needles: visitNeedles(needles),
+    });
   } catch (e) {
     log.error("erase_appointments_scrub_failed", { contact: contact.id, error: e });
   }

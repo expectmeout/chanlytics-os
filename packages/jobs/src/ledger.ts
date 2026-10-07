@@ -205,6 +205,11 @@ export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   // (its claim goes stale with the lease, before either wait ends). A thrown read or write, or a notice whose mail
   // failed, lands here: two minutes, then ten, each outlasting the lease.
   reply_read: [2 * MIN_MS, 10 * MIN_MS],
+  // A booking tool's notice, read (00345). Written to be run again: the ledger's row is kept last and a visit is found
+  // by its key, so a try that died after the write restates the row it wrote. A model's bad minute or a failed write
+  // throws and lands here: two minutes, then ten, each outlasting the lease. The third try holds the notice for a
+  // person before it fails (booking-read.ts), so the delivery is never only a failed job.
+  booking_read: [2 * MIN_MS, 10 * MIN_MS],
   // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
   // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
   event_deliver: [2 * MIN_MS, 10 * MIN_MS],

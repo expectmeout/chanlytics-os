@@ -158,6 +158,7 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
               tenant_id: job.tenant_id,
               kind: job.kind,
               payload: (job.payload ?? {}) as Record<string, unknown>,
+              attempts: job.attempts,
             },
           );
         },

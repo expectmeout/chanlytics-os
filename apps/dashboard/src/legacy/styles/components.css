@@ -601,13 +601,21 @@
    ============================================================ */
 
 /* ---------- App root (live product frame) ---------- */
-/* dvh, for the reason .app gives: 100vh runs under a phone browser's toolbar, and the tab bar with it. */
+/* dvh, for the reason .app gives: 100vh runs under a phone browser's toolbar, and the tab bar with it.
+   The room at its top is the phone's own bar (the clock, the battery) where the app is on an iPhone's home screen: the
+   page is drawn from the screen's top there (layout.tsx: black-translucent, viewport-fit cover), and the date, the bell
+   and the page's name stood under that bar (Ruben, 7 Oct 2026). The inset is the bar's height there and nothing in a
+   browser's tab, which keeps the bar's room itself, so a tab is drawn as it was. The page's paint still reaches the
+   screen's top (tokens.css, --surface-page-top). What is fixed to the window keeps the room itself: the drawer
+   (mobile.css), a tablet's notes (below), the Inbox's sending strip (inbox.css), a lead's panel and its photos
+   (leads.css). The inset is added to what a box keeps, never written over it: a tab reads it as 0. */
 .app-root {
   display: grid;
   grid-template-columns: auto 1fr;
   height: 100vh;
   height: 100dvh;
   width: 100vw;
+  padding-top: env(safe-area-inset-top, 0px);
   background: var(--bg);
   color: var(--ink);
   overflow: hidden;
@@ -1061,7 +1069,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
      switch itself is, where the browser can alert. */
   .tbn-foot:has(> .tbn-foot-note) { display: none; }
 }
-@media (max-width: 900px) { .tbn-pop { position: fixed; top: 52px; right: 12px; left: 12px; width: auto; } }
+@media (max-width: 900px) { .tbn-pop { position: fixed; top: calc(52px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; width: auto; } }
 /* On a phone the notes are a sheet from the bottom, as every other sheet there is: edge to edge, a handle, the page
    standing over the page with no wash, pulled down to close (topbar.jsx NotifPopover, data-bits touchSwipe), rising and leaving
    as People's sheets do. It was a 568px popover hung from the top bar, as far from the thumb as the screen allows. */

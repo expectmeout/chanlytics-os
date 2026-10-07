@@ -3967,7 +3967,8 @@ async function appointmentByClientStart(db, tenantId, client, startMs, withinMs)
 }
 async function insertAppointment(db, row) {
   const { data, error } = await db.from("appointments").insert(row).select("id").single();
-  if (error || !data) throw new Error(`appointment_insert: ${error?.message ?? "no row"}`);
+  if (error || !data)
+    throw Object.assign(new Error(`appointment_insert: ${error?.message ?? "no row"}`), { code: error?.code ?? null });
   return { id: data.id };
 }
 async function updateAppointment(db, tenantId, id, patch) {
@@ -4019,7 +4020,7 @@ async function keepAppointmentNotice(db, row) {
   if (error) throw new Error(`appointment_notice_keep: ${error.message}`);
 }
 async function appointmentNoticesOf(db, tenantId) {
-  const latest = await db.from("appointment_notices").select("tool, received_at").eq("tenant_id", tenantId).order("received_at", { ascending: false }).limit(1).maybeSingle();
+  const latest = await db.from("appointment_notices").select("tool, received_at").eq("tenant_id", tenantId).in("outcome", ["booked", "changed", "cancelled"]).order("received_at", { ascending: false }).limit(1).maybeSingle();
   if (latest.error) throw new Error(`appointment_notices_latest: ${latest.error.message}`);
   const held = await db.from("appointment_notices").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("outcome", "held");
   if (held.error) throw new Error(`appointment_notices_held: ${held.error.message}`);

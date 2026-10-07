@@ -77,7 +77,15 @@ export interface EmailIngestPorts {
    * 2026-10-07-bookings-arrive-by-email.md): one booking_read for the delivery, however often this intake runs.
    */
   readBooking(tenantId: string, mailboxId: string, receivedId: string, tool: BookingTool): Promise<void>;
-  /** Is this address a member's of the workspace: how a notice a person forwarded by hand is trusted (00345). */
+  /**
+   * The booking tool the workspace named as its own (config bookings.tool), or null for none: only that tool's notices
+   * are read as bookings. A workspace that named none keeps every tool's email as the automated email it is.
+   */
+  bookingTool(tenantId: string): Promise<BookingTool | null>;
+  /**
+   * Is this address a member's of the workspace: the second thing a notice forwarded by hand must be, after its
+   * sender is proved (00345).
+   */
   memberAddress(tenantId: string, address: string): Promise<boolean>;
   /**
    * Gmail's confirmation that it may forward to this mailbox (contracts forwardingConfirmationOf), kept on the mailbox
@@ -264,8 +272,14 @@ export async function ingestEmail(
  *
  * A booking tool's notice: the booking it states becomes an appointment row (booking_read), never a thread with the
  * tool's no-reply address. Scheduled once per delivery, so this intake run again schedules nothing twice; the mailbox
- * is stamped as for any email it took in. Trusted first: a tool's own mail must be proved its own by the receiving
- * side (a From anyone can forge writes no visit), and a forward by hand must come from a member of the workspace.
+ * is stamped as for any email it took in. Trusted first, on three things, each of which a stranger cannot supply:
+ *
+ *   - the sender is PROVED by the receiving side (senderAuthenticated), whichever way the notice came. A From line
+ *     anyone can write proves nothing: a tool's, or a member's address on a forward. Until the deployment can prove a
+ *     sender (EMAIL_AUTHSERV_ID), no notice is read at all, and each is kept for a person as before;
+ *   - the tool is the one this workspace named (bookingTool): a workspace that set nothing up reads nothing, and
+ *     another tool's mail, which anyone may cause to be sent here, is not this business's bookings;
+ *   - a forward by hand comes from a member of the workspace (memberAddress), their own address now proved.
  *
  * Gmail asking whether it may forward here (contracts forwardingConfirmationOf): the code and the link are kept on
  * the mailbox for Settings to show. Trusted only from Google's own proved sender, since a forged one would put a
@@ -281,9 +295,10 @@ async function keptAside(
   const words = { from: email.from, subject: email.subject, text: email.text };
   const notice = email.claim === "booking_notice" ? bookingNoticeOf(words) : null;
   if (notice) {
-    const trusted = notice.forwarded
-      ? await ports.memberAddress(mailbox.tenant_id, address)
-      : email.senderAuthenticated;
+    const trusted =
+      email.senderAuthenticated &&
+      (await ports.bookingTool(mailbox.tenant_id)) === notice.tool &&
+      (!notice.forwarded || (await ports.memberAddress(mailbox.tenant_id, address)));
     if (trusted) {
       await ports.readBooking(mailbox.tenant_id, mailbox.id, email.id, notice.tool);
       await ports.received(mailbox.id, at);

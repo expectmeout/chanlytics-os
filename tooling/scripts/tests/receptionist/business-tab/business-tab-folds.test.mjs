@@ -236,10 +236,14 @@ const EDITS = {
     () => " webcal://calendar.example.com/marisa/new.ics ",
     (next) => assert.deepEqual(next.calendar, { ical_url: "webcal://calendar.example.com/marisa/new.ics" }),
   ],
-  // The same section's other key (00345): the tool, trimmed, beside the feed address, which it leaves alone.
+  // A section of its own (00345): the tool, trimmed. The calendar's section is left exactly as it was, since a
+  // calendar section a build from before this cannot read (a tool, no address) would mute that build's receptionist.
   bookings: [
     (d) => ({ ...d, tool: " booksy " }),
-    (next) => assert.deepEqual(next.calendar, { ...STORED.calendar, tool: "booksy" }),
+    (next) => {
+      assert.deepEqual(next.bookings, { tool: "booksy" });
+      assert.deepEqual(next.calendar, STORED.calendar);
+    },
   ],
   // The create fold, drawn only where there is no receptionist; on a stored brain it writes the three it asks for, a
   // different number where one is typed, and keeps the brain's own prompt and messages.

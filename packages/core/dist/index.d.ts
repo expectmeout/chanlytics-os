@@ -1205,7 +1205,15 @@ interface EmailIngestPorts {
      * 2026-10-07-bookings-arrive-by-email.md): one booking_read for the delivery, however often this intake runs.
      */
     readBooking(tenantId: string, mailboxId: string, receivedId: string, tool: BookingTool): Promise<void>;
-    /** Is this address a member's of the workspace: how a notice a person forwarded by hand is trusted (00345). */
+    /**
+     * The booking tool the workspace named as its own (config bookings.tool), or null for none: only that tool's notices
+     * are read as bookings. A workspace that named none keeps every tool's email as the automated email it is.
+     */
+    bookingTool(tenantId: string): Promise<BookingTool | null>;
+    /**
+     * Is this address a member's of the workspace: the second thing a notice forwarded by hand must be, after its
+     * sender is proved (00345).
+     */
     memberAddress(tenantId: string, address: string): Promise<boolean>;
     /**
      * Gmail's confirmation that it may forward to this mailbox (contracts forwardingConfirmationOf), kept on the mailbox
@@ -1643,8 +1651,11 @@ interface AppointmentPatch {
     client?: NoticeClient;
     contactId?: string | null;
 }
-/** What became of a notice, as the ledger keeps it (appointment_notices.outcome). */
-type NoticeOutcome = "booked" | "changed" | "cancelled" | "held";
+/**
+ * What became of a notice, as the ledger keeps it (appointment_notices.outcome). `dismissed` is one set aside: by a
+ * person, from the held list, or by the read itself, for a tool's email that is about no booking.
+ */
+type NoticeOutcome = "booked" | "changed" | "cancelled" | "held" | "dismissed";
 interface NoticeLedgerRow {
     outcome: NoticeOutcome;
     holdReason: NoticeHold | null;
@@ -1702,13 +1713,20 @@ interface BookingNoticePorts {
  * (contracts NOTICE_SCHEMA), the answer is held to that shape strictly (noticeAnswerOf), and the booking it states is
  * written under the one key a repeat meets (appointmentKey): a booking is a row, a change moves the row the old time
  * named, a cancellation ends the row the time names. A notice that cannot be read whole is kept on the ledger with the
- * reason and held for a person; nothing is dropped and nothing is invented. The receptionist is not a source: a notice
- * is the tool's word about a booking the tool made.
+ * reason and held for a person; nothing is dropped and nothing is invented. A tool's email that is about no booking (a
+ * receipt, a digest, its newsletter, a confirmation written to a client about a visit somewhere else) is kept on the
+ * ledger and set aside: nobody is asked to look at one. The receptionist is not a source: a notice is the tool's word
+ * about a booking the tool made.
  *
  * It resumes. The ledger's row is written last, so a run that died after the appointment was written finds the row by
  * its key on the next try and writes it again in place; a run that died before writes it then. A delivery the ledger
  * already holds as read is answered `already` and pays nothing; one it holds as held is read again, since a held read
  * may have been the model's absence rather than the notice's shape.
+ *
+ * A time that was withdrawn and is booked again. A visit's key is its tool, its client and its start, so a client who
+ * cancels Thursday at three and books Thursday at three again states the key of a row that has ended, and a row that
+ * has ended does not come back (the table's guard). The ended row leaves the key (asideKey) and the visit is written
+ * anew under it, for a time still ahead: left as it was, the time would be offered to someone else.
  */
 
 interface ReadBookingNoticeCommand {
@@ -1719,7 +1737,7 @@ interface ReadBookingNoticeCommand {
     email: NoticeEmail;
 }
 /** What one run came to, for the log. */
-type ReadBookingNoticeOutcome = "already" | "booked" | "booked_again" | "changed" | "changed_unknown" | "cancelled" | "cancelled_unknown" | "cancel_refused" | `held:${NoticeHold}`;
+type ReadBookingNoticeOutcome = "already" | "booked" | "booked_again" | "changed" | "changed_unknown" | "cancelled" | "cancelled_unknown" | "cancel_refused" | "set_aside" | `held:${NoticeHold}`;
 declare function readBookingNotice(ports: BookingNoticePorts, cmd: ReadBookingNoticeCommand): Promise<ReadBookingNoticeOutcome>;
 
 /**

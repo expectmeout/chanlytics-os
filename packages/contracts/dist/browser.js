@@ -11377,7 +11377,7 @@ var NOTICE_READ_MAX_TOKENS = 600;
 function noticePrompt(p) {
   const system = [
     "You read one email a booking tool sent a business about one of its appointments, and answer in the JSON shape asked.",
-    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing).`,
+    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing), and other when it is written TO THE CLIENT about a booking of their own at a business ('Your appointment at Harbor Studio is confirmed', 'See you tomorrow at 3'): the business's notice names its client as someone else, it never speaks to them.`,
     "client_name, client_phone, client_email: the CLIENT's, as written; never the business's, the staff member's or the tool's own.",
     "service: the service booked, as written (with its category if the tool writes one: 'Hair Color: Partial highlight'). staff: who it is with, as written.",
     "starts_at, ends_at: the appointment's start and end on the business's own clock as YYYY-MM-DDTHH:MM, from the date and the time range the email states. For a change, the NEW time; previous_starts_at is the old one. ends_at null when no end is stated.",
@@ -11406,6 +11406,8 @@ var NOTICE_HOLDS = [
 ];
 var isNoticeHold = (v) => NOTICE_HOLDS.includes(v);
 var NOTICE_DEFAULT_LENGTH_MS = HOUR_MS;
+var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
+var E1642 = /^\+[1-9][0-9]{6,14}$/;
 var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
 var NOTICE_FIELD_MAX = 200;
 var NOTICE_NOTE_MAX = 1e3;
@@ -11420,6 +11422,8 @@ function localMs(tz, v) {
   const hh = part(4);
   const mm = part(5);
   if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
+  const day = new Date(Date.UTC(y, mo - 1, d));
+  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
   const ms2 = localToUtcMs(tz, y, mo, d, hh, mm);
   return Number.isFinite(ms2) ? ms2 : null;
 }
@@ -11437,10 +11441,11 @@ function noticeAnswerOf(answer, tz, nowMs) {
   const start = localMs(tz, a.starts_at);
   if (start === null || Math.abs(start - nowMs) > NOTICE_TIME_REACH_MS) return { reading: null, hold: "no_time" };
   const endRead = localMs(tz, a.ends_at);
-  const end = endRead !== null && endRead > start ? endRead : start + NOTICE_DEFAULT_LENGTH_MS;
+  const end = endRead !== null && endRead > start && endRead - start <= NOTICE_LENGTH_MAX_MS ? endRead : start + NOTICE_DEFAULT_LENGTH_MS;
+  const phone = normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null);
   const client = {
     name: trimmedText(a.client_name, NOTICE_FIELD_MAX),
-    phone: normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null),
+    phone: phone && E1642.test(phone) ? phone : null,
     email: normalizeEmail(typeof a.client_email === "string" ? a.client_email : null)
   };
   if (!client.name && !client.phone && !client.email) return { reading: null, hold: "no_client" };
@@ -11557,6 +11562,7 @@ var NOTICE_HOLD_WORDS = {
   no_model: "The reader was unavailable. Press Read again.",
   may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
   unreadable: "It could not be read as a booking.",
+  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
   not_a_booking: "It is from your booking tool, but not about one booking.",
   no_time: "No appointment time could be read from it.",
   no_client: "No client could be read from it.",
@@ -12087,6 +12093,7 @@ function feedLineOf(state, feedDetail, noticesLine) {
   if (state === "unavailable") return `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}`;
   return noticesLine || "No calendar connected";
 }
+var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
 function noticesVM(n, now) {
   const tool = n?.tool ? bookingToolName(n.tool) : null;
   const lastAgo = readAgoLabel(n?.last_at ?? null, now);
@@ -12101,7 +12108,8 @@ function noticesVM(n, now) {
     receivedAgo: readAgoLabel(h.received_at, now),
     reason: NOTICE_HOLD_WORDS[h.reason]
   }));
-  const forwarding = n?.forwarding ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link } : null;
+  const asked = n?.forwarding ? now.getTime() - Date.parse(n.forwarding.at) : Number.NaN;
+  const forwarding = n?.forwarding && asked <= FORWARD_CONFIRM_SHOWN_MS ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link } : null;
   const address = n?.address ?? null;
   const row2 = noticeRowOf({ state, address, forwarding: !!forwarding, lastAgo, held });
   return { tool, address, lastAgo, count: n?.count ?? 0, held, line, state, heldList, forwarding, row: row2 };
@@ -12111,7 +12119,8 @@ function noticeRowOf(s) {
   const needsYou = (words2) => ({ tone: "warn", label: "Needs you", words: words2 });
   if (!s.address) return needsYou("Needs a workspace email address");
   if (s.forwarding) return needsYou("Confirm the forward in Gmail");
-  if (s.state === "waiting") return { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
+  if (s.state === "waiting")
+    return s.held ? needsYou(`${s.held} booking ${s.held === 1 ? "email" : "emails"} to look at`) : { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
   const last = `Last booking email ${s.lastAgo ?? "just now"}`;
   return s.held ? needsYou(`${last} \xB7 ${s.held} to look at`) : { tone: "ok", label: "Working", words: last };
 }
@@ -13229,6 +13238,7 @@ function changedConfigFields(before, after) {
       ...rest,
       ...profile ?? {},
       calendar: cfg.calendar ?? null,
+      bookings: cfg.bookings ?? null,
       notifications: cfg.notifications ?? null,
       features: cfg.features ?? null
     };

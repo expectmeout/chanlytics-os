@@ -14,6 +14,7 @@ import {
   REACH_OUT_REPLY_DAYS,
   EVENT_SUBSCRIBERS,
   type EventSubscriber,
+  isBookingTool,
 } from "@chanlytics/contracts";
 import {
   classifyReceived,
@@ -50,6 +51,7 @@ import {
   settleDelivery,
   memberHasAddress,
   keepForwardingConfirmation,
+  getTenantConfig,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
@@ -182,7 +184,14 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
       readBooking: async (_tenantId, mailboxId, receivedId, tool) => {
         await ctx.scheduleOnce("booking_read", new Date(), { received_id: receivedId, mailbox_id: mailboxId, tool });
       },
-      // A forward by hand is trusted from a member of the workspace (member_has_address, 00345).
+      // Only the tool the workspace named is read as its bookings (config bookings.tool), read off what is stored: a
+      // workspace that named none reads none, and a value the list does not know is none.
+      bookingTool: async (tenantId) => {
+        const stored = (await getTenantConfig(db, tenantId))?.config;
+        const named = (stored as { bookings?: { tool?: unknown } | null } | null | undefined)?.bookings?.tool;
+        return isBookingTool(named) ? named : null;
+      },
+      // A forward by hand is trusted from a member of the workspace, once its sender is proved (member_has_address, 00345).
       memberAddress: (tenantId, address) => memberHasAddress(db, tenantId, address),
       // Gmail's confirmation of a forward here, kept on the mailbox for Settings to show (00345).
       keepForwarding: (mailboxId, p) => keepForwardingConfirmation(db, mailboxId, p),

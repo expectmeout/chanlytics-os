@@ -39188,6 +39188,10 @@ declare function appointmentByClientStart(db: Db$1, tenantId: string, client: {
     phone: string | null;
     email: string | null;
 }, startMs: number, withinMs: number): Promise<AppointmentRow | null>;
+/**
+ * A visit written. A failure throws with the database's own code on it (`code`): 23514 is a row one of the table's
+ * checks refuses, which no second try will write, where anything else may be a bad minute.
+ */
 declare function insertAppointment(db: Db$1, row: AppointmentInsert): Promise<{
     id: string;
 }>;
@@ -39238,7 +39242,11 @@ type AppointmentNoticeInsert = Database["public"]["Tables"]["appointment_notices
 declare function appointmentNoticeOf(db: Db, tenantId: string, noticeId: string): Promise<AppointmentNoticeRow | null>;
 /** What became of a delivery, kept once: the same delivery kept again replaces the row. */
 declare function keepAppointmentNotice(db: Db, row: AppointmentNoticeInsert): Promise<void>;
-/** The health line's facts: the latest notice (its tool and when), and how many are held for a person. */
+/**
+ * The health line's facts: the latest notice that became a visit (booked, moved or cancelled: its tool and when), and
+ * how many are held for a person. A tool's receipt set aside, a notice held and one dismissed are none of them "the
+ * last booking email": a workspace whose only mail was those is not working yet.
+ */
 declare function appointmentNoticesOf(db: Db, tenantId: string): Promise<{
     tool: string | null;
     last_at: string | null;

@@ -105,6 +105,7 @@ import { fallbackDefaults, instructionsDraft, receptionistDefaults, unknownDetai
  *   extra_instructions  extra_instructions
  *   fallbacks           greeting, error, non_text: the draft's own keys
  *   calendar            ical_url
+ *   bookings            tool
  *   receptionist        name, number, link (the number's sentence is the create card's own check, which knows the line)
  * The old form's sentences are word for word, which the settings tests pin; where one was JSX only for its fragment or
  * its braces, it is a plain string here. The rest are new: the save's schema (contracts BusinessProfileSchema) refuses
@@ -183,7 +184,7 @@ const BT_DRAFT_OF: { [F in FoldName]: (p: Profile, brain: Brain, config: Config)
   fallbacks: (p, brain) => ({ ...(brain.fallbacks || fallbackDefaults()) }),
   calendar: (p, brain, config) => (config.calendar && config.calendar.ical_url) || "",
   // The booking tool the owner named (00345), "" for none yet.
-  bookings: (p, brain, config) => ({ tool: (config.calendar && config.calendar.tool) || "" }),
+  bookings: (p, brain, config) => ({ tool: (config.bookings && config.bookings.tool) || "" }),
   // The name, the number it gives out as the Who you are row holds it (the line it answers, `own`, unless a different
   // number is typed), and the booking link: the old form's create path.
   receptionist: (p, brain) => ({
@@ -417,15 +418,16 @@ const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
     if (Object.keys(section).length) next.calendar = section;
     else delete next.calendar;
   },
-  // The same section, its other key (00345): the tool is written onto what the section holds, and none removes it,
-  // and the section with it once nothing else is in it.
+  // A top-level section of its own (00345), never a key of the calendar's: a calendar section with a tool and no
+  // address is one a build from before this could not read, and its whole config with it. The tool is written onto
+  // what the section holds, and none removes it, and the section with it once nothing else is in it.
   bookings: (next, draft) => {
     btWhole("bookings", draft, ["tool"], "string");
     const tool = trimmed((draft as Record<string, string>).tool);
-    const section = { ...(next.calendar || {}) };
+    const section = { ...(next.bookings || {}) };
     btPut(section, "tool", tool || undefined);
-    if (Object.keys(section).length) next.calendar = section;
-    else delete next.calendar;
+    if (Object.keys(section).length) next.bookings = section;
+    else delete next.bookings;
   },
   receptionist: btWriteReceptionist,
 };

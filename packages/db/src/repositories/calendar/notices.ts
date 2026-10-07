@@ -40,7 +40,11 @@ export async function keepAppointmentNotice(db: Db, row: AppointmentNoticeInsert
   if (error) throw new Error(`appointment_notice_keep: ${error.message}`);
 }
 
-/** The health line's facts: the latest notice (its tool and when), and how many are held for a person. */
+/**
+ * The health line's facts: the latest notice that became a visit (booked, moved or cancelled: its tool and when), and
+ * how many are held for a person. A tool's receipt set aside, a notice held and one dismissed are none of them "the
+ * last booking email": a workspace whose only mail was those is not working yet.
+ */
 export async function appointmentNoticesOf(
   db: Db,
   tenantId: string,
@@ -49,6 +53,7 @@ export async function appointmentNoticesOf(
     .from("appointment_notices")
     .select("tool, received_at")
     .eq("tenant_id", tenantId)
+    .in("outcome", ["booked", "changed", "cancelled"])
     .order("received_at", { ascending: false })
     .limit(1)
     .maybeSingle();

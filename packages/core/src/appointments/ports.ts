@@ -69,8 +69,11 @@ export interface AppointmentPatch {
   contactId?: string | null;
 }
 
-/** What became of a notice, as the ledger keeps it (appointment_notices.outcome). */
-export type NoticeOutcome = "booked" | "changed" | "cancelled" | "held";
+/**
+ * What became of a notice, as the ledger keeps it (appointment_notices.outcome). `dismissed` is one set aside: by a
+ * person, from the held list, or by the read itself, for a tool's email that is about no booking.
+ */
+export type NoticeOutcome = "booked" | "changed" | "cancelled" | "held" | "dismissed";
 
 export interface NoticeLedgerRow {
   outcome: NoticeOutcome;

@@ -352,7 +352,7 @@ export const BtOpenCard = ({
   saver,
 }: {
   brain: Brain;
-  config?: { calendar?: { ical_url?: string | null; tool?: string | null } } | null;
+  config?: { calendar?: { ical_url?: string | null } | null; bookings?: { tool?: string | null } | null } | null;
   prompt?: Pick<PromptPreviewDto, "tz"> | null;
   canEdit: boolean;
   flash: Flash;
@@ -370,7 +370,7 @@ export const BtOpenCard = ({
     ? tab.closuresAheadWords(profile.closures as ClosuresIn, wsZone, new Date())
     : { count: 0, line: null };
   const feed = (config && config.calendar && config.calendar.ical_url) || "";
-  const bookingTool = (config && config.calendar && config.calendar.tool) || "";
+  const bookingTool = (config && config.bookings && config.bookings.tool) || "";
 
   return (
     <section className="rec-card" data-testid="rec-card-open" aria-labelledby="bt-open-title">

@@ -37,10 +37,11 @@ import {
   type AppointmentUpdate,
 } from "@chanlytics/db";
 import type { ClaimedJob, JobContext } from "./context";
+import { MAX_ATTEMPTS } from "./ledger";
 
 /** The closed sets as the tables hold them (00345): a row the verb cannot read as one is a failed read, not a missing one. */
 const STATUSES: readonly AppointmentStatus[] = ["proposed", "booked", "kept", "missed", "cancelled"];
-const OUTCOMES: readonly NoticeOutcome[] = ["booked", "changed", "cancelled", "held"];
+const OUTCOMES: readonly NoticeOutcome[] = ["booked", "changed", "cancelled", "held", "dismissed"];
 const isStatus = (v: string): v is AppointmentStatus => (STATUSES as readonly string[]).includes(v);
 const isOutcome = (v: string): v is NoticeOutcome => (OUTCOMES as readonly string[]).includes(v);
 
@@ -184,7 +185,34 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
       tool: notice.tool,
       email: { id: e.id, from: e.from, subject: e.subject, text, receivedAt: e.createdAt },
     },
-  );
+  ).catch(async (err: unknown) => {
+    // A read that threw. A row the table refuses (a check, 23514) will be refused again, and the last try has no next:
+    // either way the delivery is kept on the ledger as held, so a person sees a booking email that went unread and
+    // can press Read again, where a failed job alone would be all there was of it. Any other throw is the next try's.
+    const refused = (err as { code?: unknown } | null)?.code === "23514";
+    if (!refused && (job.attempts ?? 1) < MAX_ATTEMPTS) throw err;
+    const reason = refused ? "unreadable" : "no_model";
+    await keepAppointmentNotice(db, {
+      tenant_id: job.tenant_id,
+      notice_id: receivedId,
+      tool: notice.tool,
+      from_address: e.from?.address ?? null,
+      subject: e.subject,
+      received_at: e.createdAt ?? new Date().toISOString(),
+      outcome: "held",
+      hold_reason: reason,
+      appointment_id: null,
+    });
+    log.error("booking_notice_held", {
+      job: job.id,
+      received_id: receivedId,
+      tool: notice.tool,
+      outcome: refused ? "refused" : "failed",
+      attempts: job.attempts ?? 1,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return `held:${reason}` as const;
+  });
   log.info(outcome.startsWith("held:") ? "booking_notice_held" : "booking_notice_read", {
     job: job.id,
     received_id: receivedId,

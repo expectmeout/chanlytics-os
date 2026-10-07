@@ -92,14 +92,15 @@ export interface HeldNoticeDto {
 
 /**
  * Where the workspace's bookings come from, as the card states it (00345): the tool the owner named, the address its
- * emails go to (null until the workspace has one), the latest notice, the ones held for a person, and Gmail's pending
- * confirmation of a forward here, when there is one.
+ * emails go to (null until the workspace has one), the latest notice that became a visit, the ones held for a person,
+ * and Gmail's pending confirmation of a forward here, when there is one.
  */
 export interface CalendarNoticesDto {
-  /** The tool the owner named in Settings (config.calendar.tool), else the latest notice's; null for neither. */
+  /** The tool the owner named in Settings (config.bookings.tool), else the latest notice's; null for neither. */
   tool: string | null;
   /** The workspace's address, as the tool is to send to; null when it has none yet. */
   address: string | null;
+  /** When the latest notice that became a visit arrived; null until one has. */
   last_at: string | null;
   count: number;
   held: number;
