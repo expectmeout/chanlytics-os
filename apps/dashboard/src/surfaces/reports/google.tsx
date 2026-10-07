@@ -13,14 +13,7 @@
  */
 import { useState } from "react";
 import { lensEmpty } from "@chanlytics/contracts";
-import type {
-  GoogleReviewVM,
-  GoogleVM,
-  LensRange,
-  ReviewWaitingVM,
-  ReviewsReportDto,
-  ReviewsReportVM,
-} from "@chanlytics/contracts";
+import type { GoogleReviewVM, GoogleVM, LensRange, ReviewWaitingVM, ReviewsReportVM } from "@chanlytics/contracts";
 import { draftReply, replyToReview } from "@/legacy-bridge/google";
 import { canDo, useLegacyToast, type LegacyFlash } from "../legacy-verbs";
 import { BarChart, BarList } from "../kit/charts/bar";
@@ -142,7 +135,12 @@ function ReviewReply({ r, mode, flash }: { r: GoogleReviewVM; mode: ReplyMode; f
  * One review: its stars, who and when, its words (or that there are none), the reply the receptionist wrote and held back
  * (`held`, which a row that waits carries), and the reply, or the door to write one.
  */
-function reviewRow(r: GoogleReviewVM | ReviewWaitingVM, vm: GoogleVM, operator: boolean, flash: Flash) {
+function reviewRow(
+  r: GoogleReviewVM | ReviewWaitingVM,
+  vm: ReviewsReportVM["google"],
+  operator: boolean,
+  flash: Flash,
+) {
   const held = "held" in r ? r.held : null;
   return (
     <div key={r.id} className={"rp2-review" + (r.isNew ? " is-new" : "")} data-testid="google-review">
@@ -179,14 +177,15 @@ function reviewRow(r: GoogleReviewVM | ReviewWaitingVM, vm: GoogleVM, operator: 
 }
 
 /** Ratings gained, day by day: the count is the tiles'; the card draws its days, with their table. */
-function gainedCard(vm: GoogleVM, days: number) {
+function gainedCard(V: ReviewsReportVM) {
+  const vm = V.google;
   return (
     <ChartCard
       className="rpt-span-12"
       title="Ratings gained, day by day"
       testid="chart-google-gained"
       config={RPT_GAINED}
-      takeaway={vm.gained.total === null ? "Needs a second day of reading." : null}
+      takeaway={V.lines.gained}
       twin={{ data: vm.gained.points, keys: ["gained"], first: "Day" }}
     >
       {vm.gained.points.length && vm.gained.total !== null ? (
@@ -196,15 +195,12 @@ function gainedCard(vm: GoogleVM, days: number) {
           config={RPT_GAINED}
           height={150}
           yTicks={2}
-          animKey={days}
+          animKey={V.days}
           ariaLabel="Ratings gained per day, by Google's count. The arrow keys read each day."
           describe={(d) => `${d.label}: ${d.gained} ${d.gained === 1 ? "rating" : "ratings"} gained`}
         />
       ) : (
-        <EmptyState
-          kind="line"
-          title="The count is read once a day; the first difference shows after the second read."
-        />
+        <EmptyState kind="line" title={V.lines.gainedEmpty} />
       )}
     </ChartCard>
   );
@@ -268,12 +264,12 @@ function waitingCard(V: ReviewsReportVM, operator: boolean, flash: Flash) {
       className="rpt-span-12"
       title={`Waiting for a reply (${total})`}
       testid="reviews-waiting"
-      takeaway={total > rows.length ? `Showing the oldest ${rows.length}.` : null}
+      takeaway={V.lines.waiting}
     >
       {rows.length ? (
         <div className="rp2-reviews">{rows.map((r) => reviewRow(r, V.google, operator, flash))}</div>
       ) : (
-        <EmptyState kind="line" title="Nothing is waiting for a reply." />
+        <EmptyState kind="line" title={V.lines.waitingEmpty} />
       )}
     </ChartCard>
   );
@@ -305,14 +301,7 @@ function latestCard(V: ReviewsReportVM, mapsUri: string | null, operator: boolea
       {V.latest.length ? (
         <div className="rp2-reviews">{V.latest.map((r) => reviewRow(r, G, operator, flash))}</div>
       ) : (
-        <EmptyState
-          kind="line"
-          title={
-            G.latest.length
-              ? "The latest reviews are the ones waiting for a reply, above."
-              : "Google shows no written reviews for this listing yet."
-          }
-        />
+        <EmptyState kind="line" title={V.lines.latestEmpty} />
       )}
       {/* The card shows what Google hands back, which is never the whole listing: the rest are on Google, and the
           listing's own address is the one place that has all of them. Google's `maps_uri`, as Setup links it. */}
@@ -327,9 +316,6 @@ function latestCard(V: ReviewsReportVM, mapsUri: string | null, operator: boolea
     </ChartCard>
   );
 }
-
-/** Whether Reviews has anything to draw: the read says so (the reader asks what this deployment can do only where no listing is kept). */
-export const googleReadable = (dto: ReviewsReportDto): boolean => dto.readable;
 
 /** What the section says of where its figures come from: the listing and when Google was read, the Business Profile's own words, and where the history on record starts. */
 function sectionMeta(V: ReviewsReportVM, L: NonNullable<GoogleVM["listing"]>): string {
@@ -380,7 +366,7 @@ export function GoogleSection({ V, range }: { V: ReviewsReportVM; range: LensRan
           </>
         ) : (
           <>
-            {gainedCard(V.google, V.days)}
+            {gainedCard(V)}
             {connectCard(V)}
           </>
         )}

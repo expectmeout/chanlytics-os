@@ -861,7 +861,7 @@ test("Google's reviews under the period, from the Business Profile: five figures
     assert.equal(takeaway(tree, "chart-reviews-stars"), V.lines.mix);
     assert.equal(V.lines.mix, "1 of the 1 review written in the last 7 days is 4 or 5 stars.");
     assert.ok(plot(tree, "chart-reviews-weekly"), "the weeks, on the kit");
-    assert.equal(takeaway(tree, "chart-reviews-weekly"), "1 written over 2 weeks");
+    assert.equal(takeaway(tree, "chart-reviews-weekly"), V.lines.weekly);
     // Who waits: Ana, with the reply the receptionist wrote and held, and the door to answer her.
     const waiting = card(tree, "reviews-waiting");
     assert.equal(textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))), "Waiting for a reply (1)");
@@ -1057,6 +1057,13 @@ test("Google's reviews from the five it shows first: four figures, the ratings g
     assert.ok(sectionMeta(pending).includes("Connected as owner@example.com · choose the location to finish"));
     assert.ok(textOf(card(pending, "reviews-connect")).includes("choose the location to finish"));
     assert.deepEqual(figureIds(pending), ["rating", "reviews", "ratings_gained", "newest_review"]);
+    // One reading of Google's count is no difference: the card says so in the fold's words, with no days to draw.
+    const first = holdReviews({ ...places, days: places.days.slice(-1) }, null);
+    const young = page();
+    assert.equal(first.lines.gained, "Needs a second day of reading.");
+    assert.equal(takeaway(young, "chart-google-gained"), first.lines.gained);
+    assert.ok(textOf(card(young, "chart-google-gained")).includes(first.lines.gainedEmpty));
+    assert.equal(plot(young, "chart-google-gained"), null, "nothing to plot");
   } finally {
     setSurfaceValue("reports_reviews", undefined);
   }

@@ -33,8 +33,8 @@ export interface GoogleSurface {
 }
 
 export interface GoogleApi {
-  /** The view model for a period, from the surface's rows. */
-  vm(dto: GoogleDto, periodDays: number, nowMs?: number): GoogleVM;
+  /** The view model for a period, from the surface's rows, said at `nowMs` in the workspace's zone. */
+  vm(dto: GoogleDto, periodDays: number, nowMs: number, tz: string): GoogleVM;
   /** What Google finds: for the facts on record, or for the words given. Owners only; the route says so. */
   find(
     query?: string,
@@ -134,7 +134,7 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
 
 /** Google's verbs, each through its door. */
 export const googleVerbs: GoogleApi = {
-  vm: (dto, periodDays, nowMs) => toGoogleVM(dto, periodDays, nowMs),
+  vm: (dto, periodDays, nowMs, tz) => toGoogleVM(dto, periodDays, nowMs, tz),
   async find(query) {
     const r = await api()("POST google/search", { body: query ? { query } : {} });
     if (!r.ok) return { ok: false, candidates: [], query: query ?? "", fromFacts: false, message: r.message };

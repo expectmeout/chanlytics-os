@@ -575,6 +575,7 @@ test("the connection in words, and the view model that says replies are possible
     { ready: { places: true, profile: true }, listing, connection: conn(), reviews: [review], days: [], role: "owner" },
     30,
     NOW,
+    "UTC",
   );
   assert.equal(vm.canReply, true);
   assert.equal(vm.source, "every review, from your Business Profile");
@@ -599,6 +600,7 @@ test("the connection in words, and the view model that says replies are possible
     },
     30,
     NOW,
+    "UTC",
   );
   assert.equal(pending.canReply, false);
   assert.equal(pending.connection.pending, true);
@@ -613,6 +615,7 @@ test("the connection in words, and the view model that says replies are possible
     },
     30,
     NOW,
+    "UTC",
   );
   assert.equal(unsynced.canReply, true, "a location is chosen: a reply can go out");
   assert.equal(
@@ -631,6 +634,7 @@ test("the connection in words, and the view model that says replies are possible
     },
     30,
     NOW,
+    "UTC",
   );
   assert.equal(publicOnly.canReply, false);
   assert.equal(publicOnly.source, "the one Google shows first");

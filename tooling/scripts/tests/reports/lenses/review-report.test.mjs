@@ -1,8 +1,9 @@
 /**
- * Reviews, drawn from what is stored (contracts reports/review-report.ts): the window the counts are made over, which reviews
- * are the Business Profile's, the counts of a period and the one before it, the mix, who answered and how fast, what waits,
- * and every sentence the lens, its head and Ask say, character for character. EXECUTED over the ledger the database answers
- * (reviews_ledger: the world's Harbor Studio, Fri Sep 4, 2026, New York): the real functions, no page.
+ * Reviews, drawn from what is stored (contracts reports/review-report.ts and review-record.ts): the window the counts are made
+ * over, which reviews are the Business Profile's, the counts of a period and the one before it, the mix, who answered and how
+ * fast, what waits, and the sentences that say them, character for character. EXECUTED over the ledger the database answers
+ * (reviews_ledger: the world's Harbor Studio, Fri Sep 4, 2026, New York): the real functions, no page. The sentences the
+ * fold has to say in every state, its properties and the cases the counts leave open are in review-report-words.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -29,9 +30,27 @@ import {
 } from "../_report-world.mjs";
 
 const vmOf = (dto) => toReviewsReportVM(dto, { nowMs: REVIEWS_NOW });
+/** The listing's own view model, as the fold makes it for a read. */
+const googleOf = (dto) => toGoogleVM(dto.google, dto.days, REVIEWS_NOW, dto.timezone);
 /** A figure as a person reads it, by its id. */
 const tile = (vm, id) => vm.tiles.find((t) => t.id === id);
 const said = (t) => ({ value: t.value, meta: t.meta, compare: t.compare });
+/** Every line the fold has, none said: a state sets the ones it says. */
+const lines = (over) => ({
+  head: null,
+  mix: null,
+  weekly: null,
+  history: null,
+  historyTitle: null,
+  connect: null,
+  empty: null,
+  gained: null,
+  gainedEmpty: null,
+  waiting: null,
+  waitingEmpty: null,
+  latestEmpty: null,
+  ...over,
+});
 /** The profile's reviews of one period, the whole record on hand: `written` rows, each also waiting when it has no reply. */
 const ledgerOf = (written, over = {}) => {
   const waiting = written.filter((r) => !r.replied).map((r) => waitingReview(r.id, at(r.d), { rating: r.rating }));
@@ -74,16 +93,20 @@ test("the Business Profile's reviews are the source only once a sync has stored 
   const places = [googleReview("p1", at("2026-09-03"), { origin: "places" })];
   const before = { connection: googleConnection({ last_synced_at: null }), reviews: places };
   assert.equal(
-    toGoogleVM(reviewsGoogle(before), 30, REVIEWS_NOW).source,
+    googleOf(reviewsDto({ google: reviewsGoogle(before) })).source,
     "the one Google shows first",
     "a location is chosen, nothing synced: the rows are still the public five",
   );
   const pending = { connection: googleConnection({ location_name: null, last_synced_at: null }), reviews: places };
-  assert.equal(toGoogleVM(reviewsGoogle(pending), 30, REVIEWS_NOW).source, "the one Google shows first");
-  assert.equal(toGoogleVM(reviewsGoogle(), 30, REVIEWS_NOW).source, "every review, from your Business Profile");
+  assert.equal(googleOf(reviewsDto({ google: reviewsGoogle(pending) })).source, "the one Google shows first");
+  assert.equal(googleOf(reviewsDto()).source, "every review, from your Business Profile");
   const early = vmOf(reviewsDto({ google: reviewsGoogle(before) }));
   assert.equal(early.source, "places", "the report draws no count over five reviews Google picked");
-  assert.equal(early.figures, null);
+  assert.deepEqual(
+    early.tiles.map((t) => t.id),
+    ["rating", "reviews", "gained", "newest"],
+    "four figures, none a count of the five",
+  );
   assert.equal(early.google.source, "the one Google shows first");
   assert.equal(vmOf(reviewsDto()).source, "profile");
   assert.equal(vmOf(reviewsDto()).google.source, "every review, from your Business Profile");
@@ -125,14 +148,7 @@ test("a synced profile with some reviews answered: the counts, the mix, the spee
   );
   for (const t of vm.tiles)
     assert.equal(t.delta, null, `${t.id}: a count against the period before, never a percentage`);
-  assert.deepEqual(vm.figures, {
-    written: 6,
-    prior: 3,
-    answered: 3,
-    receptionist: 1,
-    timed: 3,
-    replySeconds: 21_600,
-  });
+  assert.ok(!("figures" in vm), "the counts are the figures and the lines; there is no second spelling of them");
   assert.deepEqual(vm.stars.rows, [
     { id: "5", label: "5 stars", value: 3, display: "3 · 50%" },
     { id: "4", label: "4 stars", value: 2, display: "2 · 33%" },
@@ -162,16 +178,22 @@ test("a synced profile with some reviews answered: the counts, the mix, the spee
     ],
     "Monday to Sunday, the first week from the period's first day and the last up to today",
   );
-  assert.equal(vm.weekly.total, 6);
-  assert.equal(vm.weekly.max, 2);
-  assert.deepEqual(vm.lines, {
-    head: "4.8 on Google from 213 reviews; 6 new in the last 30 days, 3 answered.",
-    mix: "5 of the 6 reviews written in the last 30 days are 4 or 5 stars.",
-    weekly: "6 written over 5 weeks",
-    history: null,
-    connect: null,
-  });
-  assert.equal(vm.empty, false);
+  assert.deepEqual(Object.keys(vm.weekly), ["points"], "the weeks, and no total or peak the chart does not read");
+  assert.deepEqual(
+    vm.lines,
+    lines({
+      head: "4.8 on Google from 213 reviews; 6 new in the last 30 days, 3 answered.",
+      mix: "5 of the 6 reviews written in the last 30 days are 4 or 5 stars.",
+      weekly: "6 written in the last 30 days",
+      waitingEmpty: null,
+    }),
+  );
+  assert.deepEqual([vm.state, vm.empty], ["linked", false]);
+  assert.deepEqual(
+    Object.keys(vm.google).sort(),
+    ["canReply", "connection", "gained", "listing", "reply", "source"],
+    "the listing's own figures as the lens reads them, and nothing of its latest reviews, table or Today line",
+  );
   assert.ok(!/NaN|undefined|null\./.test(JSON.stringify(vm)), "no sentence reads a missing value aloud");
 });
 
@@ -185,7 +207,7 @@ test("the period asked for is the period said: seven days, and Month's one day o
   assert.equal(tile(week, "written").label, "New in 7 days");
   assert.equal(week.lines.head, "4.8 on Google from 213 reviews; 2 new in the last 7 days, all answered.");
   assert.equal(week.lines.mix, "2 of the 2 reviews written in the last 7 days are 4 or 5 stars.");
-  assert.equal(week.lines.weekly, "2 written over 2 weeks");
+  assert.equal(week.lines.weekly, "2 written in the last 7 days");
   assert.deepEqual(
     week.weekly.points.map((w) => [w.day, w.written]),
     [
@@ -198,6 +220,11 @@ test("the period asked for is the period said: seven days, and Month's one day o
   assert.equal(tile(day, "written").label, "New in 1 day");
   assert.equal(day.lines.head, "4.8 on Google from 213 reviews; none new today.");
   assert.equal(day.lines.mix, "No review written in this period.");
+  assert.equal(
+    tile(day, "written").compare,
+    "down from 1",
+    "the day before had one (a); the day itself, none: counts, never a percentage",
+  );
 });
 
 test("what waits: the oldest reviews with no reply, the reply the receptionist held, and none drawn twice", () => {
@@ -223,7 +250,7 @@ test("what waits: the oldest reviews with no reply, the reply the receptionist h
   assert.equal(vm.latestTable.rows.length, vm.latest.length);
   assert.equal(
     vm.latestTable.rows.length,
-    vm.google.table.rows.length - vm.waiting.rows.length,
+    googleOf(reviewsDto()).table.rows.length - vm.waiting.rows.length,
     "Google's own table lists the waiting ones too: the newest twenty",
   );
   for (const [row, r] of vm.latestTable.rows.map((row, i) => [row, vm.latest[i]]))
@@ -237,13 +264,14 @@ test("what waits: the oldest reviews with no reply, the reply the receptionist h
   assert.equal(rows[3].held, "The receptionist wrote a reply and held it: it named money.");
   assert.equal(rows[2].held, null, "a reason this set does not hold is never guessed");
   const many = Array.from({ length: 7 }, (_, i) => waitingReview(`w${i}`, at(`2026-05-0${i + 1}`)));
-  const capped = vmOf(reviewsDto({ ledger: reviewsLedger({ waiting: many, waiting_total: 9 }) })).waiting;
-  assert.equal(capped.total, 9, "how many wait is the read's count");
-  assert.equal(capped.rows.length, REVIEWS_WAITING_SHOWN, "the list shows the oldest few");
+  const capped = vmOf(reviewsDto({ ledger: reviewsLedger({ waiting: many, waiting_total: 9 }) }));
+  assert.equal(capped.waiting.total, 9, "how many wait is the read's count");
+  assert.equal(capped.waiting.rows.length, REVIEWS_WAITING_SHOWN, "the list shows the oldest few");
   assert.deepEqual(
-    capped.rows.map((r) => r.id),
+    capped.waiting.rows.map((r) => r.id),
     ["w0", "w1", "w2", "w3", "w4"],
   );
+  assert.equal(capped.lines.waiting, "Showing the oldest 5.");
 });
 
 test("a profile review none of which was answered", () => {
@@ -260,16 +288,15 @@ test("a profile review none of which was answered", () => {
   });
   assert.deepEqual(said(tile(vm, "answered")), { value: "0 of 3", meta: "none answered yet", compare: null });
   assert.deepEqual(said(tile(vm, "reply_time")), { value: "—", meta: "no replies yet", compare: null });
-  assert.deepEqual(vm.lines, {
-    head: "4.8 on Google from 213 reviews; 3 new in the last 30 days, none answered yet.",
-    mix: "3 of the 3 reviews written in the last 30 days are 4 or 5 stars.",
-    weekly: "3 written over 5 weeks",
-    history: null,
-    connect: null,
-  });
+  assert.deepEqual(
+    vm.lines,
+    lines({
+      head: "4.8 on Google from 213 reviews; 3 new in the last 30 days, none answered yet.",
+      mix: "3 of the 3 reviews written in the last 30 days are 4 or 5 stars.",
+      weekly: "3 written in the last 30 days",
+    }),
+  );
   assert.equal(vm.waiting.total, 3);
-  assert.deepEqual(vm.figures.receptionist, 0);
-  assert.equal(vm.figures.replySeconds, null);
 });
 
 test("two replies say how many there are; the third gives the middle", () => {
@@ -282,8 +309,6 @@ test("two replies say how many there are; the third gives the middle", () => {
     compare: null,
   });
   assert.equal(two.lines.head, "4.8 on Google from 213 reviews; 2 new in the last 30 days, all answered.");
-  assert.equal(two.figures.timed, 2);
-  assert.equal(two.figures.replySeconds, null, "under three, no middle");
   const one = vmOf(dtoOf(ledgerOf([answered("x1", "2026-09-03", 1), writtenReview("x2", at("2026-08-30"), 5)])));
   assert.equal(tile(one, "reply_time").meta, "1 reply so far; the middle needs 3");
   const three = vmOf(
@@ -307,7 +332,8 @@ test("two replies say how many there are; the third gives the middle", () => {
 
 test("who answered: the reply the database says is the receptionist's, and every other reply is the owner's", () => {
   // Which reply is whose is the database's (reviews_ledger, held by google-reviews-ledger.db.test.mjs): the last reply
-  // Chanlytics recorded under the review, if it is the automatic mode's and is the one on Google. The fold counts what it says.
+  // Chanlytics recorded under the review, if it is the automatic mode's and is the one on Google (an owner rewriting it on
+  // Google moves its time past the event's slack, and the row then names no one). The fold counts what the row says.
   const reply = (id, day, by) => writtenReview(id, at(day, 10), 5, at(day, 16), { by });
   const written = [
     reply("r1", "2026-09-03", "receptionist"),
@@ -317,14 +343,16 @@ test("who answered: the reply the database says is the receptionist's, and every
   ];
   const vm = vmOf(dtoOf(ledgerOf(written)));
   assert.equal(tile(vm, "answered").meta, "2 by the receptionist, 2 by you");
-  assert.equal(vm.figures.receptionist, 2);
   const none = vmOf(dtoOf(ledgerOf(written.map((r) => ({ ...r, by: null })))));
   assert.equal(tile(none, "answered").meta, "4 by you");
   const all = vmOf(dtoOf(ledgerOf(written.map((r) => ({ ...r, by: "receptionist" })))));
   assert.equal(tile(all, "answered").meta, "4 by the receptionist");
   // a review with no reply has no writer to count, whatever the row says
   const unanswered = vmOf(dtoOf(ledgerOf([writtenReview("u", at("2026-09-03"), 5, null, { by: "receptionist" })])));
-  assert.equal(unanswered.figures.receptionist, 0);
+  assert.deepEqual(said(tile(unanswered, "answered")), { value: "0 of 1", meta: "none answered yet", compare: null });
+  // the owner's rewrite of the receptionist's reply on Google: the row names no one, and the reply is the owner's
+  const rewritten = vmOf(dtoOf(ledgerOf([reply("w1", "2026-09-03", "receptionist"), reply("w2", "2026-09-02", null)])));
+  assert.equal(tile(rewritten, "answered").meta, "1 by the receptionist, 1 by you");
 });
 
 test("a period with no review in it: a real zero where the history is known, and the period before beside it", () => {
@@ -333,16 +361,16 @@ test("a period with no review in it: a real zero where the history is known, and
   assert.deepEqual(said(tile(vm, "written")), { value: "0", meta: "none in this period", compare: "down from 2" });
   assert.deepEqual(said(tile(vm, "answered")), { value: "—", meta: "nothing to answer", compare: null });
   assert.deepEqual(said(tile(vm, "reply_time")), { value: "—", meta: "nothing to answer", compare: null });
-  assert.deepEqual(vm.lines, {
-    head: "4.8 on Google from 213 reviews; none new in the last 30 days.",
-    mix: "No review written in this period.",
-    weekly: "No review written in this period.",
-    history: null,
-    connect: null,
-  });
+  assert.deepEqual(
+    vm.lines,
+    lines({
+      head: "4.8 on Google from 213 reviews; none new in the last 30 days.",
+      mix: "No review written in this period.",
+      weekly: "No review written in this period.",
+    }),
+  );
   assert.equal(vm.stars, null);
   assert.equal(vm.weekly, null);
-  assert.equal(vm.figures.written, 0);
   const quiet = vmOf(dtoOf(ledgerOf([])));
   assert.equal(tile(quiet, "written").compare, null, "nothing against nothing says nothing");
 });
@@ -359,8 +387,11 @@ test("the day the database gives a review decides which period it is in, at the 
     writtenReview("ba", "2026-07-07T03:59:00Z", 5), // Jul 6, 23:59: before both
   ];
   const vm = vmOf(dtoOf(ledgerOf(written)));
-  assert.equal(vm.figures.written, 2);
-  assert.equal(vm.figures.prior, 2);
+  assert.deepEqual(
+    said(tile(vm, "written")),
+    { value: "2", meta: "with words or without", compare: "same as the 30 days before" },
+    "two in the period and two in the one before it: the edges are in the periods they belong to",
+  );
   assert.deepEqual(
     vm.weekly.points.map((w) => [w.day, w.written]),
     [
@@ -381,14 +412,14 @@ test("a review with no stars is in no mix, and a reply with no time answers with
     writtenReview("d5", at("2026-09-01"), 0),
   ];
   const vm = vmOf(dtoOf(ledgerOf(written)));
-  assert.equal(vm.figures.written, 3, "d1, d2 and d5");
+  assert.equal(tile(vm, "written").value, "3", "d1, d2 and d5");
   assert.equal(vm.stars.rated, 1, "only d1 has one of the five stars");
   assert.equal(
     vm.lines.mix,
     "1 of the 1 rated review written in the last 30 days is 4 or 5 stars.",
     "a review of one is said in the singular",
   );
-  assert.equal(vm.figures.answered, 1);
+  assert.equal(tile(vm, "answered").value, "1 of 3");
   const mixed = [
     writtenReview("m1", at("2026-09-03"), 5),
     writtenReview("m2", at("2026-09-02"), null),
@@ -408,8 +439,7 @@ test("a review with no stars is in no mix, and a reply with no time answers with
     writtenReview("o2", at("2026-09-02", 12), 5, at("2026-09-02", 8)),
   ];
   const timed = vmOf(dtoOf(ledgerOf(odd)));
-  assert.equal(timed.figures.answered, 2);
-  assert.equal(timed.figures.timed, 0);
+  assert.equal(tile(timed, "answered").value, "2 of 2");
   assert.equal(tile(timed, "reply_time").meta, "no reply has a time on record");
 });
 
@@ -428,32 +458,25 @@ test("history that does not reach the period is a dash and says where it starts,
   for (const id of ["written", "answered", "reply_time"]) {
     assert.deepEqual(said(tile(short, id)), { value: "—", meta: startsAug20, compare: null }, id);
   }
-  assert.deepEqual(short.figures, {
-    written: null,
-    prior: null,
-    answered: null,
-    receptionist: null,
-    timed: null,
-    replySeconds: null,
-  });
+  assert.deepEqual(tile(short, "written").spark, [], "no spark of a period the record does not cover");
   assert.equal(short.stars, null, "a mix of the part of a period on record is no mix of the period");
-  assert.deepEqual(short.lines, {
-    head: `4.8 on Google from 213 reviews; ${startsAug20}.`,
-    mix: null,
-    weekly: "3 written over 2 weeks",
-    history: startsAug20,
-    connect: null,
-  });
+  assert.deepEqual(
+    short.lines,
+    lines({
+      head: `4.8 on Google from 213 reviews; ${startsAug20}.`,
+      weekly: "3 written since Aug 24",
+      history: startsAug20,
+      historyTitle: "History on record starts Aug 20.",
+    }),
+  );
   assert.deepEqual(
     short.weekly.points.map((w) => w.day),
     ["2026-08-24", "2026-08-31"],
     "only the weeks the record covers from their first day: Aug 20 is mid-week in the week of Aug 17",
   );
-  assert.equal(short.weekly.total, 3);
   // the record reaches the period but not the one before it: the count is exact, its comparison is not made
   const reaches = vmOf(dtoOf(ledgerOf(written, { on_record: partial }), began("2026-07-30")));
   assert.deepEqual(said(tile(reaches, "written")), { value: "4", meta: "with words or without", compare: null });
-  assert.equal(reaches.figures.prior, null);
   assert.equal(reaches.lines.history, "history on record starts Jul 30");
   assert.equal(reaches.lines.head, "4.8 on Google from 213 reviews; 4 new in the last 30 days, 1 answered.");
   assert.equal(reaches.lines.mix, "3 of the 4 reviews written in the last 30 days are 4 or 5 stars.");
@@ -474,10 +497,20 @@ test("history that does not reach the period is a dash and says where it starts,
   const whole = vmOf(
     dtoOf(ledgerOf(written, { on_record: { profile: 40, places: 0, oldest_day: "2026-08-20", complete: true } })),
   );
-  assert.equal(whole.figures.written, 4);
+  assert.equal(tile(whole, "written").value, "4");
   assert.equal(whole.lines.history, null);
   const counted = vmOf(dtoOf(ledgerOf(written, { on_record: { ...partial, profile: 214 } }), began("2026-08-20")));
   assert.equal(counted.lines.history, startsAug20, "as many as Google counts is no proof of a whole record");
+  // a count Google left out is unknown, not none: the record's history is the sync's and the connection's, not the count's
+  const unknownCount = vmOf(
+    dtoOf(ledgerOf(written, { on_record: partial }), {
+      ...began("2026-08-20"),
+      listing: googleListing({ review_count: null }),
+    }),
+  );
+  assert.equal(unknownCount.lines.history, startsAug20);
+  assert.equal(unknownCount.lines.head, `4.8 on Google; ${startsAug20}.`);
+  assert.equal(tile(unknownCount, "reviews").value, "—", "…and the count is a dash, never 0");
 });
 
 test("with no review on Google the sentence says so, and the figures are the listing's", () => {
@@ -486,7 +519,7 @@ test("with no review on Google the sentence says so, and the figures are the lis
     written: [],
     waiting: [],
     waiting_total: 0,
-    on_record: { profile: 0, places: 0, oldest_day: null, complete: true },
+    on_record: { profile: 0, places: 0, complete: true },
   };
   const vm = vmOf(dtoOf(reviewsLedger(empty), none));
   assert.equal(vm.lines.head, "No reviews on Google yet.");
@@ -543,13 +576,12 @@ const placesOnly = (days, over = {}) =>
   });
 
 test("a listing with the five public reviews: Google's four figures with the period before beside them, and what the profile adds", () => {
-  const vm = vmOf(
-    placesOnly([
-      { day: "2026-07-06", rating: 4.6, review_count: 190 },
-      { day: "2026-08-05", rating: 4.7, review_count: 205 },
-      { day: "2026-09-04", rating: 4.8, review_count: 213 },
-    ]),
-  );
+  const dto = placesOnly([
+    { day: "2026-07-06", rating: 4.6, review_count: 190 },
+    { day: "2026-08-05", rating: 4.7, review_count: 205 },
+    { day: "2026-09-04", rating: 4.8, review_count: 213 },
+  ]);
+  const vm = vmOf(dto);
   assert.equal(vm.source, "places");
   assert.deepEqual(
     vm.tiles.map((t) => [t.id, t.metric, t.value]),
@@ -564,19 +596,18 @@ test("a listing with the five public reviews: Google's four figures with the per
   assert.equal(tile(vm, "reviews").compare, null);
   assert.equal(tile(vm, "gained").compare, "down from 15");
   for (const t of vm.tiles) assert.equal(t.delta, null, `${t.id}: the percentage the house took out`);
-  assert.deepEqual(vm.lines, {
-    head: "4.8 on Google from 213 reviews; 8 ratings gained in the last 30 days.",
-    mix: null,
-    weekly: null,
-    history: null,
-    connect: "Connect your Business Profile to see every review, who answered, and how fast.",
-  });
-  assert.equal(vm.figures, null, "no count, no mix, no answered share, no weeks from five reviews Google picked");
+  assert.deepEqual(
+    vm.lines,
+    lines({
+      head: "4.8 on Google from 213 reviews; 8 ratings gained in the last 30 days.",
+      connect: "Connect your Business Profile to see every review, who answered, and how fast.",
+    }),
+  );
   assert.equal(vm.stars, null);
   assert.equal(vm.weekly, null);
   assert.deepEqual(vm.waiting, { total: 0, rows: [] });
-  assert.deepEqual(vm.latest, vm.google.latest);
-  assert.deepEqual(vm.latestTable, vm.google.table, "from the five public reviews, the listing's own table");
+  assert.deepEqual(vm.latest, googleOf(dto).latest);
+  assert.deepEqual(vm.latestTable, googleOf(dto).table, "from the five public reviews, the listing's own table");
   assert.equal(vm.latest.length, 1);
   assert.equal(vm.latest[0].author, "Ben R.");
   const same = vmOf(
@@ -596,27 +627,6 @@ test("a listing with the five public reviews: Google's four figures with the per
   );
   assert.equal(tile(down, "rating").compare, "down from 4.9");
   assert.equal(down.lines.head, "4.8 on Google from 213 reviews; 1 rating gained in the last 30 days.");
-  // a count that fell says so, and is measured against the period before only where that one held a count to measure by
-  const fell = vmOf(
-    placesOnly([
-      { day: "2026-07-06", rating: 4.8, review_count: 190 },
-      { day: "2026-08-05", rating: 4.8, review_count: 205 },
-      { day: "2026-09-04", rating: 4.8, review_count: 201 },
-    ]),
-  );
-  assert.equal(tile(fell, "gained").value, "-4");
-  assert.equal(tile(fell, "gained").compare, "down from 15");
-  assert.equal(fell.lines.head, "4.8 on Google from 213 reviews; down 4 ratings in the last 30 days.");
-  const fellAgain = vmOf(
-    placesOnly([
-      { day: "2026-07-06", rating: 4.8, review_count: 210 },
-      { day: "2026-08-05", rating: 4.8, review_count: 205 },
-      { day: "2026-09-04", rating: 4.8, review_count: 204 },
-    ]),
-  );
-  assert.equal(tile(fellAgain, "gained").value, "-1");
-  assert.equal(tile(fellAgain, "gained").compare, null, "the period before fell too: no count to say 'up from' by");
-  assert.equal(fellAgain.lines.head, "4.8 on Google from 213 reviews; down 1 rating in the last 30 days.");
   const one = vmOf(placesOnly([{ day: "2026-09-04", rating: 4.8, review_count: 213 }]));
   assert.equal(one.lines.head, "4.8 on Google from 213 reviews; what changed needs a second day of reading.");
   assert.equal(tile(one, "gained").value, "—");
@@ -627,14 +637,10 @@ test("a listing with the five public reviews: Google's four figures with the per
   );
   assert.equal(
     vmOf(
-      placesOnly(
-        [
-          { day: "2026-09-03", rating: null, review_count: 200 },
-          { day: "2026-09-04", rating: 4.8, review_count: 213 },
-        ],
-        {},
-      ),
-      7,
+      placesOnly([
+        { day: "2026-09-03", rating: null, review_count: 200 },
+        { day: "2026-09-04", rating: 4.8, review_count: 213 },
+      ]),
     ).tiles[0].spark.length,
     1,
     "a day with no rating is no point on the line, not a zero",
@@ -669,11 +675,12 @@ test("no listing: nothing is drawn but the door, and the head says nothing", () 
   });
   const vm = vmOf(dto);
   assert.equal(vm.empty, true);
+  assert.equal(vm.state, "unlinked");
   assert.deepEqual(vm.tiles, []);
   assert.deepEqual(vm.waiting, { total: 0, rows: [] });
   assert.deepEqual(vm.latest, []);
   assert.deepEqual(vm.latestTable, { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] });
-  assert.deepEqual(vm.lines, { head: null, mix: null, weekly: null, history: null, connect: null });
+  assert.deepEqual(vm.lines, lines({ empty: "Find your business on Google once." }));
   assert.equal(lensAnswerOf("reviews", { vm: null, campaigns: null, deals: null, reviews: vm }), undefined);
 });
 

@@ -9,7 +9,7 @@
  */
 import { FailedRead } from "../../kit/empty/empty";
 import { useSurface, useSurfaceDegraded, useSurfaceFailed } from "../../use-surface";
-import { GoogleSection, googleReadable } from "../google";
+import { GoogleSection } from "../google";
 import type { ReportsSurface } from "../surface";
 import { LensEmpty, type LensProps } from "./shared";
 
@@ -36,6 +36,6 @@ export function ReviewsLens({ R }: LensProps) {
   const lag = useReviewsLag(R);
   if (!V) return failed ? readFailed() : null;
   if (lag === "failed") return readFailed();
-  if (!googleReadable(V.dto)) return <LensEmpty lens="reviews" vm={R.vm} />;
+  if (V.vm.state === "unavailable") return <LensEmpty lens="reviews" vm={R.vm} />;
   return <GoogleSection V={V.vm} range={{ since: R.vm.since, until: R.vm.until }} />;
 }

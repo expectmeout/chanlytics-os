@@ -215,7 +215,7 @@ test("the words beside the source, and the view model carrying the mode", () => 
     reply_mode: "ask",
     role: "owner",
   };
-  assert.deepEqual(toGoogleVM(dto, 30, NOW).reply, { mode: "ask", words: "" });
+  assert.deepEqual(toGoogleVM(dto, 30, NOW, "UTC").reply, { mode: "ask", words: "" });
   const conn = {
     google_email: "o@x.com",
     account_title: "A",
@@ -225,7 +225,7 @@ test("the words beside the source, and the view model carrying the mode", () => 
     last_synced_at: "2026-09-07T14:00:00Z",
     sync_error: null,
   };
-  assert.deepEqual(toGoogleVM({ ...dto, connection: conn, reply_mode: "auto" }, 30, NOW).reply, {
+  assert.deepEqual(toGoogleVM({ ...dto, connection: conn, reply_mode: "auto" }, 30, NOW, "UTC").reply, {
     mode: "auto",
     words: "new ones are answered by the receptionist within the hour",
   });

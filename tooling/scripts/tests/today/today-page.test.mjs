@@ -89,7 +89,7 @@ Object.assign(globalThis, {
   gate: () => ({}),
   useHotkey: () => {},
   refusalToast: (res, lead) => ({ msg: `${lead}: ${res.error}`, tone: "danger" }),
-  __clock: { dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
+  __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 // A verb the queue asks of the Inbox goes through the typed client to `fetch`: the workspace it names is this tab's, and
 // the refresh a landed write runs reads through the runner (nothing to boot). Any read is refused unless a test holds it.

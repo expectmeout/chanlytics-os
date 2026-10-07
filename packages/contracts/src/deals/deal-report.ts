@@ -5,6 +5,7 @@
  */
 import { leadAnd } from "../leads/leads";
 import { plural } from "../shared/words";
+import { periodWords } from "../reports/reports";
 import type { PersonCameFrom } from "../people/person-words";
 import { isDealLostReason, type DealLostReason } from "./deal-words";
 import { amountTotalsWords, amountWords, type AmountFact } from "./deal-amount";
@@ -167,10 +168,11 @@ function openLine(open: DealReportDto["open"]): string | null {
 
 export function toDealReportVM(dto: DealReportDto | null | undefined, rangeLabel: string): DealReportVM {
   if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
+  const { within } = periodWords(rangeLabel);
   const headline =
     dto.sent === 0
-      ? `No proposals went out in the last ${rangeLabel}.`
-      : `${plural(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
+      ? `No proposals went out ${within}.`
+      : `${plural(dto.sent, "proposal", "proposals")} went out ${within}.`;
   const monthly = dto.monthly_cents > 0 ? amountWords(dto.monthly_cents, "month") : null;
   const stock =
     dto.clients === 0

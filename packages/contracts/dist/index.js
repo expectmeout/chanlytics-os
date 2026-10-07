@@ -207,6 +207,11 @@ function numberFormat(locales, options) {
   );
 }
 var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
+function isoMs(iso) {
+  if (!iso) return null;
+  const ms2 = Date.parse(iso);
+  return Number.isNaN(ms2) ? null : ms2;
+}
 function spanUnits(ms2) {
   const gap = Math.max(0, ms2);
   if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
@@ -11984,6 +11989,10 @@ function finishedRunHeldWhy(emailHeld) {
   return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
 }
 
+// src/shared/numbers.ts
+var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
+var pct = (n, of) => of > 0 ? Math.round(n / of * 100) : null;
+
 // src/broadcasts/run-report.ts
 var RUN_REPORT_STEPS = 8;
 var RUN_REPORT_SPANS_H = [1, 2, 4, 8, 12, 24, 48, 72];
@@ -12101,7 +12110,7 @@ function barsOf({ start, step: step2 }, stamps) {
   }
   return out;
 }
-var pctOf = ({ sent: sent2 }, n) => sent2 > 0 && n > 0 ? Math.round(n / sent2 * 100) : null;
+var pctOf = ({ sent: sent2 }, n) => n > 0 ? pct(n, sent2) : null;
 var PERSON_PILLS = [
   (r2, { out }) => r2.consent_after === "opted_out" && out ? { label: "Asked to stop", tone: "warn" } : null,
   (r2, { out }) => r2.replied && out ? { label: "Replied", tone: "ok" } : null,
@@ -13901,16 +13910,16 @@ function toBookingReportVM(dto) {
       unbooked: 0,
       rest: ""
     };
-  const pct3 = Math.round(dto.booked / dto.asked * 100);
+  const pct2 = Math.round(dto.booked / dto.asked * 100);
   const words3 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
   const unbooked = dto.asked - dto.booked;
   return {
     present: true,
     calendar: "ok",
     headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct3}% ${words3}`,
+    sub: `${pct2}% ${words3}`,
     words: words3,
-    pct: pct3,
+    pct: pct2,
     asked: dto.asked,
     booked: dto.booked,
     unbooked,
@@ -16406,10 +16415,10 @@ function fmtSeconds(s) {
 }
 function deltaOf(current, previous, upIsGood, noun) {
   if (!previous) return null;
-  const pct3 = Math.round((current - previous) / previous * 100);
-  if (pct3 === 0) return { text: `same as the prior ${noun}`, tone: "" };
-  const up = pct3 > 0;
-  return { text: `${up ? "+" : ""}${pct3}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
+  const pct2 = Math.round((current - previous) / previous * 100);
+  if (pct2 === 0) return { text: `same as the prior ${noun}`, tone: "" };
+  const up = pct2 > 0;
+  return { text: `${up ? "+" : ""}${pct2}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
 }
 function pointsDelta(current, previous, noun) {
   if (current === null || previous === null) return null;
@@ -16417,10 +16426,11 @@ function pointsDelta(current, previous, noun) {
   if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
   return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
 }
+var beforeWords = (rangeLabel) => `the ${rangeLabel === plural(1, "day") ? "day" : rangeLabel} before`;
 function compareWords(current, previous, rangeLabel, priorHadAny) {
   if (!priorHadAny || current === 0 && previous === 0) return null;
-  if (previous === 0) return `none the ${rangeLabel} before`;
-  if (current === previous) return `same as the ${rangeLabel} before`;
+  if (previous === 0) return `none ${beforeWords(rangeLabel)}`;
+  if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
 }
 var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
@@ -16509,9 +16519,6 @@ function bookedTileOf(booking) {
   };
 }
 
-// src/shared/numbers.ts
-var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
-
 // src/reports/reports.ts
 var REPORT_CHANNELS = [
   { key: "whatsapp", label: "WhatsApp" },
@@ -16531,6 +16538,9 @@ function dayDate(day) {
 }
 function fmtDay(day) {
   return DATE_FMT.format(dayDate(day));
+}
+function dayPointOf(day) {
+  return { day, label: fmtDay(day), short: String(dayDate(day).getDate()) };
 }
 function quantile(sorted, q) {
   if (!sorted.length) return null;
@@ -16641,7 +16651,7 @@ function channelsLine(channels, rangeLabel) {
   const before = channels.reduce((s, c) => s + c.prior, 0);
   if (!before) return `${lead}.`;
   const wasTop = channels.reduce((a, c) => c.prior > a.prior ? c : a);
-  if (wasTop.key === top.key) return `${lead}, as the ${rangeLabel} before.`;
+  if (wasTop.key === top.key) return `${lead}, as ${beforeWords(rangeLabel)}.`;
   return `${capitalize(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
 }
 function rhythmLine(week) {
@@ -16661,17 +16671,17 @@ function rhythmLine(week) {
 var rangeLabelOf = (days) => REPORT_RANGES.find((r2) => r2.days === days)?.label ?? plural(days, "day");
 var periodWords = (rangeLabel) => ({
   now: `Last ${rangeLabel}`,
-  before: `The ${rangeLabel} before`
+  before: capitalize(beforeWords(rangeLabel)),
+  within: `in the last ${rangeLabel}`
 });
+var withinWords = (days) => days === 1 ? "today" : periodWords(rangeLabelOf(days)).within;
 function periodFactsOf(dto) {
   const days = dto.days;
   const series = dto.series ?? [];
   const current = series.slice(-days);
   const previous = series.slice(0, Math.max(0, series.length - days));
   const points = current.map((d) => ({
-    day: d.day,
-    label: fmtDay(d.day),
-    short: String(dayDate(d.day).getDate()),
+    ...dayPointOf(d.day),
     in: d.messages_in,
     ai: d.answered_ai,
     you: d.answered_you,
@@ -16719,9 +16729,9 @@ function periodFactsOf(dto) {
     /** Nobody wrote or called in the period: no customer message and no call. */
     empty: tot.in === 0 && tot.calls === 0,
     answeredTotal,
-    aiShare: answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null,
+    aiShare: pct(tot.ai, answeredTotal),
     prevAnsweredTotal,
-    prevShare: prevAnsweredTotal ? Math.round(prev.ai / prevAnsweredTotal * 100) : null,
+    prevShare: pct(prev.ai, prevAnsweredTotal),
     sortedReply,
     median: quantile(sortedReply, 0.5),
     p90: quantile(sortedReply, 0.9),
@@ -16805,7 +16815,7 @@ function linesOf(f, week, channels) {
   const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
   return {
     hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}` : "No customer wrote in this period.",
-    heroBefore: prevAnsweredTotal ? `${Math.round(prev.ai / prevAnsweredTotal * 100)}% the ${rangeLabel} before` : null,
+    heroBefore: prevAnsweredTotal ? `${pct(prev.ai, prevAnsweredTotal)}% ${beforeWords(rangeLabel)}` : null,
     answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
     reply: replyLine(f),
     calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
@@ -16989,38 +16999,29 @@ function reviewSnippet(body, max = 90) {
 function ratingCompareWords(rating, before, rangeLabel) {
   const now = Math.round(rating * 10);
   const was = Math.round(before * 10);
-  if (now === was) return `same as the ${rangeLabel} before`;
+  if (now === was) return `same as ${beforeWords(rangeLabel)}`;
   return `${now > was ? "up" : "down"} from ${(was / 10).toFixed(1)}`;
 }
-function whenWords(iso, nowMs) {
-  if (!iso) return "";
-  const at3 = Date.parse(iso);
-  if (Number.isNaN(at3)) return "";
-  return agoWords(at3, nowMs, { dateAfterMs: WEEK_MS, date: (ms2) => DATE_FMT.format(new Date(ms2)) });
-}
-function shiftDay2(day, n) {
-  const d = dayDate(day);
-  d.setDate(d.getDate() + n);
-  const p = (x) => String(x).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+function whenWords(iso, tz, nowMs) {
+  const at3 = isoMs(iso);
+  if (at3 === null) return "";
+  return agoWords(at3, nowMs, { dateAfterMs: WEEK_MS, date: (ms2) => clockDate(ms2, tz, nowMs) });
 }
 function reviewIsNew(r2, linkedAt, nowMs) {
-  const seen = Date.parse(r2.first_seen_at);
-  const linked = Date.parse(linkedAt);
-  if (Number.isNaN(seen)) return false;
-  if (nowMs - seen > REVIEW_NEWS_MS) return false;
-  if (!Number.isNaN(linked) && seen - linked < BOOTSTRAP_MS) return false;
-  const written = r2.published_at ? Date.parse(r2.published_at) : NaN;
-  if (Number.isNaN(written)) return false;
-  return nowMs - written <= REVIEW_NEWS_MAX_AGE_MS;
+  const seen = isoMs(r2.first_seen_at);
+  if (seen === null || nowMs - seen > REVIEW_NEWS_MS) return false;
+  const linked = isoMs(linkedAt);
+  if (linked !== null && seen - linked < BOOTSTRAP_MS) return false;
+  const written = isoMs(r2.published_at);
+  return written !== null && nowMs - written <= REVIEW_NEWS_MAX_AGE_MS;
 }
-function toGoogleReviewVM(r2, linkedAt, nowMs) {
+function toGoogleReviewVM(r2, linkedAt, tz, nowMs) {
   return {
     id: r2.id,
     stars: starsOf(r2.rating),
     rating: r2.rating,
     author: r2.author?.trim() || "A customer",
-    when: whenWords(r2.published_at, nowMs),
+    when: whenWords(r2.published_at, tz, nowMs),
     text: (r2.body ?? "").replace(/\s+/g, " ").trim(),
     replied: !!r2.reply_text,
     replyText: (r2.reply_text ?? "").replace(/\s+/g, " ").trim(),
@@ -17035,12 +17036,33 @@ function googleReviewsTable(rows) {
     rows: rows.map((r2) => [r2.author, r2.rating ?? "\u2014", r2.when || "\u2014", r2.text || "\u2014"])
   };
 }
-var EMPTY_GAINED = { points: [], max: 0, total: null, sinceLabel: null };
+var NEEDS_SECOND_READING = "needs a second day of reading";
+var noGainYet = () => ({
+  value: "\u2014",
+  meta: NEEDS_SECOND_READING,
+  head: `what changed ${NEEDS_SECOND_READING}`
+});
+var noGained = () => ({ points: [], max: 0, total: null, sinceLabel: null });
+function gainedScope(g, days, last, behind) {
+  if (g.sinceLabel) return `since ${g.sinceLabel}`;
+  if (!behind) return withinWords(days);
+  return days === 1 ? `on ${fmtDay(last)}` : `in the ${rangeLabelOf(days)} to ${fmtDay(last)}`;
+}
+function gainedWords(g, days, today) {
+  const { total, sinceLabel } = g;
+  if (total === null) return noGainYet();
+  const last = g.points.at(-1)?.day ?? today;
+  const behind = last < shiftKey(today, -1);
+  const scope = gainedScope(g, days, last, behind);
+  const head = total < 0 ? `down ${plural(-total, "rating")} ${scope}` : `${total ? `${plural(total, "rating")} gained` : "none gained"} ${scope}`;
+  const meta = sinceLabel ? `since ${sinceLabel}, the first day on record` : total < 0 ? "Google's count fell" : `new ratings${behind ? ` to ${fmtDay(last)}` : ""}, words or not`;
+  return { value: total < 0 ? `down ${-total}` : String(total), meta, head };
+}
 function gainedOver(days, periodDays) {
   const sorted = [...days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
-  if (sorted.length < 2) return { current: EMPTY_GAINED, previous: null };
+  if (sorted.length < 2) return { current: noGained(), previous: null };
   const last = sorted[sorted.length - 1];
-  const since = shiftDay2(last.day, -(periodDays - 1));
+  const since = shiftKey(last.day, -(periodDays - 1));
   const before = sorted.filter((d) => d.day < since);
   const inside = sorted.filter((d) => d.day >= since);
   const baseline = before.length ? before[before.length - 1] : inside[0];
@@ -17049,20 +17071,20 @@ function gainedOver(days, periodDays) {
   const byDay = new Map(sorted.map((d) => [d.day, d.review_count]));
   const points = [];
   let prev = before.length ? baseline.review_count : null;
-  for (let day = since; day <= last.day; day = shiftDay2(day, 1)) {
+  for (let day = since; day <= last.day; day = shiftKey(day, 1)) {
     const count2 = byDay.get(day);
     const gained = count2 !== void 0 && prev !== null ? Math.max(0, count2 - prev) : 0;
     if (count2 !== void 0) prev = count2;
-    points.push({ day, label: fmtDay(day), short: String(dayDate(day).getDate()), gained });
+    points.push({ ...dayPointOf(day), gained });
   }
   const max = Math.max(0, ...points.map((p) => p.gained));
-  const prevSince = shiftDay2(since, -periodDays);
+  const prevSince = shiftKey(since, -periodDays);
   const prevBefore = sorted.filter((d) => d.day < prevSince);
   const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since);
   const previous = prevBefore.length && prevInside.length ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count : null;
   return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
 }
-function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
+function toGoogleVM(dto, periodDays, nowMs, tz) {
   const l = dto.listing;
   const c = dto.connection ?? null;
   const connection = c ? {
@@ -17081,23 +17103,24 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       canReply,
       reply,
       tiles: [],
-      gained: EMPTY_GAINED,
+      gained: { ...noGained(), words: noGainYet() },
       latest: [],
       source: "",
       table: googleReviewsTable([]),
       todayLine: null
     };
-  const latest = [...dto.reviews].sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0)).map((r2) => toGoogleReviewVM(r2, l.linked_at, nowMs));
+  const latest = [...dto.reviews].sort((a, b) => (isoMs(b.published_at) ?? 0) - (isoMs(a.published_at) ?? 0)).map((r2) => toGoogleReviewVM(r2, l.linked_at, tz, nowMs));
   const source = reviewsFromProfile(c) ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
   const days = [...dto.days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
-  const { current: gained, previous } = gainedOver(days, periodDays);
+  const { current, previous } = gainedOver(days, periodDays);
+  const gained = { ...current, words: gainedWords(current, periodDays, zoneDayKey(nowMs, tz)) };
   const noun = plural(periodDays, "day");
-  const inPeriod = days.length ? days.filter((d) => d.day >= shiftDay2(days[days.length - 1].day, -(periodDays - 1))) : [];
+  const inPeriod = days.length ? days.filter((d) => d.day >= shiftKey(days[days.length - 1].day, -(periodDays - 1))) : [];
   const ratingSpark = inPeriod.flatMap((d) => d.rating === null ? [] : [d.rating]);
   const countSpark = inPeriod.map((d) => d.review_count);
   const baselineRating = (() => {
     if (!days.length) return null;
-    const since = shiftDay2(days[days.length - 1].day, -(periodDays - 1));
+    const since = shiftKey(days[days.length - 1].day, -(periodDays - 1));
     const before = days.filter((d) => d.day < since);
     return before.length ? before[before.length - 1].rating : null;
   })();
@@ -17130,8 +17153,8 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       id: "gained",
       metric: "ratings_gained",
       label: `Gained in ${noun}`,
-      value: gained.total === null ? "\u2014" : String(gained.total),
-      meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
+      value: gained.words.value,
+      meta: gained.words.meta,
       delta: null,
       spark: gained.points.map((p) => p.gained),
       // A count that fell in the period before is no figure to measure against ("up from -2").
@@ -18923,7 +18946,8 @@ function openLine(open) {
 }
 function toDealReportVM(dto, rangeLabel) {
   if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
-  const headline = dto.sent === 0 ? `No proposals went out in the last ${rangeLabel}.` : `${plural(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
+  const { within: within2 } = periodWords(rangeLabel);
+  const headline = dto.sent === 0 ? `No proposals went out ${within2}.` : `${plural(dto.sent, "proposal", "proposals")} went out ${within2}.`;
   const monthly = dto.monthly_cents > 0 ? amountWords(dto.monthly_cents, "month") : null;
   const stock = dto.clients === 0 ? "No clients right now." : `${plural(dto.clients, "client", "clients")} now${monthly ? ` \xB7 ${monthly}` : ""}.`;
   const outcomes = dto.sent === 0 ? null : {
@@ -21305,9 +21329,9 @@ function sendingDomainDtoOf(r2) {
 }
 function domainStatsWords(d) {
   if (!d.sent_recent) return null;
-  const pct3 = Math.round((d.bounced_recent ?? 0) / d.sent_recent * 1e3) / 10;
+  const pct2 = Math.round((d.bounced_recent ?? 0) / d.sent_recent * 1e3) / 10;
   const spam = d.complaints ? `${d.complaints} marked as spam` : "none marked as spam";
-  return `${pct3}% bounced \xB7 ${spam}`;
+  return `${pct2}% bounced \xB7 ${spam}`;
 }
 var HOLD_WORDS = {
   verification: "it stopped verifying",
@@ -24574,13 +24598,12 @@ var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
 function isReachOutRefusal(message) {
   return REFUSAL_SET.has(message ?? "");
 }
-var pct = (n, of) => of > 0 ? Math.round(n / of * 100) : 0;
 function reachLineOf(r2, includeUnconfirmed) {
   const unconfirmed = Math.max(0, r2.with_unconfirmed - r2.ready);
   const count2 = includeUnconfirmed ? r2.with_unconfirmed : r2.ready;
   const held = includeUnconfirmed ? 0 : unconfirmed;
-  const will = pct(count2, r2.of);
-  const heldPct = pct(held, r2.of);
+  const will = pct(count2, r2.of) ?? 0;
+  const heldPct = pct(held, r2.of) ?? 0;
   const why = [];
   if (unconfirmed > 0)
     why.push(
@@ -24794,8 +24817,8 @@ function reportRowOf(s, step2) {
     label,
     when,
     String(s.written),
-    `${s.delivered} (${pct(s.delivered, s.written)}%)`,
-    `${s.wrote_back} (${pct(s.wrote_back, s.written)}%)`,
+    `${s.delivered} (${pct(s.delivered, s.written) ?? 0}%)`,
+    `${s.wrote_back} (${pct(s.wrote_back, s.written) ?? 0}%)`,
     // Interested and booked (Part 6, H7): absent from a report read before 00241, and then unknown, never a zero.
     s.interested === void 0 ? "\u2014" : String(s.interested),
     s.booked === void 0 ? "\u2014" : String(s.booked),
@@ -27803,14 +27826,13 @@ function bookedSeenOf(items, own) {
 var CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
   (c) => c.key !== "voice"
 );
-var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
 var WHEN2 = formatterOnUse([], { month: "short", day: "numeric" });
 function campaignChannelsOf(rows) {
   return (rows ?? []).flatMap((r2) => {
     const known = CAMPAIGN_CHANNELS.find((c) => c.key === r2.channel);
     if (!known || !(r2.sent > 0)) return [];
     const whatsapp = known.key === "whatsapp";
-    const deliveredPct = pct2(r2.delivered, r2.sent);
+    const deliveredPct = pct(r2.delivered, r2.sent);
     return [
       {
         channel: known.key,
@@ -27819,9 +27841,9 @@ function campaignChannelsOf(rows) {
         delivered: r2.delivered,
         deliveredPct,
         read: whatsapp ? r2.read : null,
-        readPct: whatsapp ? pct2(r2.read, r2.sent) : null,
+        readPct: whatsapp ? pct(r2.read, r2.sent) : null,
         replied: r2.replied,
-        repliedPct: pct2(r2.replied, r2.sent),
+        repliedPct: pct(r2.replied, r2.sent),
         display: `${r2.sent} \xB7 ${deliveredPct === null ? "\u2014" : `${deliveredPct}%`} delivered`
       }
     ];
@@ -27838,9 +27860,7 @@ function toCampaignReportVM(dto) {
   const current = series.slice(-days);
   const previous = series.slice(0, Math.max(0, series.length - days));
   const points = current.map((d) => ({
-    day: d.day,
-    label: fmtDay(d.day),
-    short: String(dayDate(d.day).getDate()),
+    ...dayPointOf(d.day),
     sent: d.sent,
     delivered: d.delivered,
     replied: d.replied,
@@ -27884,8 +27904,8 @@ function toCampaignReportVM(dto) {
     delivered: s.delivered,
     read: s.read,
     replied: s.replied,
-    deliveredPct: pct2(s.delivered, s.sent),
-    repliedPct: pct2(s.replied, s.sent),
+    deliveredPct: pct(s.delivered, s.sent),
+    repliedPct: pct(s.replied, s.sent),
     lastLabel: s.last_at ? WHEN2.format(new Date(s.last_at)) : "",
     share: s.sent / maxSent
   }));
@@ -27904,9 +27924,9 @@ function toCampaignReportVM(dto) {
       id: "delivered",
       metric: "delivered_share",
       label: "Delivered",
-      value: pct2(tot.delivered, tot.sent) === null ? "\u2014" : `${pct2(tot.delivered, tot.sent)}%`,
+      value: pct(tot.delivered, tot.sent) === null ? "\u2014" : `${pct(tot.delivered, tot.sent)}%`,
       meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
-      delta: pointsDelta(pct2(tot.delivered, tot.sent), pct2(prev.delivered, prev.sent), noun),
+      delta: pointsDelta(pct(tot.delivered, tot.sent), pct(prev.delivered, prev.sent), noun),
       spark: points.map((p) => p.delivered),
       compare: null
     },
@@ -27914,9 +27934,9 @@ function toCampaignReportVM(dto) {
       id: "replied",
       metric: "replied_share",
       label: "Replied",
-      value: pct2(tot.replied, tot.sent) === null ? "\u2014" : `${pct2(tot.replied, tot.sent)}%`,
+      value: pct(tot.replied, tot.sent) === null ? "\u2014" : `${pct(tot.replied, tot.sent)}%`,
       meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
-      delta: pointsDelta(pct2(tot.replied, tot.sent), pct2(prev.replied, prev.sent), noun),
+      delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
       spark: points.map((p) => p.replied),
       compare: null
     },
@@ -27987,8 +28007,38 @@ function lensAnswerOf(lens, parts2) {
   }
 }
 
-// src/reports/review-report.ts
-var REVIEWS_WAITING_SHOWN = 5;
+// src/reports/report-periods.ts
+var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
+var REPORT_PERIOD_DEFAULT = "30d";
+var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
+var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
+var fixedDaysOf = (period) => REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
+var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
+var periodSince = (today, days) => shiftKey(today, -(days - 1));
+function reportPeriodOf(asked) {
+  if (asked.period !== void 0) return isReportPeriod(asked.period) ? asked.period : null;
+  if (asked.days !== void 0)
+    return REPORT_RANGES.find((r2) => r2.days !== null && r2.days === Number(asked.days))?.id ?? null;
+  return REPORT_PERIOD_DEFAULT;
+}
+function reportDaysAsked(view) {
+  const asked = Number(view);
+  return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
+}
+function reportWindowOf(period, today) {
+  const fixed = fixedDaysOf(period);
+  const from = periodSince(today, fixed ?? monthDaysAt(today));
+  const label = REPORT_RANGES.find((r2) => r2.id === period)?.label ?? "";
+  return {
+    period,
+    from,
+    to: today,
+    range: from === today ? fmtDay(today) : `${fmtDay(from)} \u2013 ${fmtDay(today)}`,
+    said: fixed === null ? "This month so far" : `Last ${label}`
+  };
+}
+
+// src/reports/review-record.ts
 var REVIEW_REPLY_TIME_MIN = 3;
 function isReviewsLedgerDto(answer) {
   return typeof answer === "object" && answer !== null && "timezone" in answer && typeof answer.timezone === "string" && "today" in answer && typeof answer.today === "string" && "days" in answer && typeof answer.days === "number" && "on_record" in answer && typeof answer.on_record === "object" && "written" in answer && Array.isArray(answer.written) && "waiting" in answer && Array.isArray(answer.waiting);
@@ -27997,77 +28047,111 @@ function reviewsAreOnRecord(google) {
   return google.listing !== null && reviewsFromProfile(google.connection);
 }
 function reviewsWindowOf(today, days) {
-  const since = shiftKey(today, -(days - 1));
-  return { since, priorSince: shiftKey(since, -days) };
+  const since = periodSince(today, days);
+  return { since, priorSince: periodSince(shiftKey(since, -1), days) };
 }
-function reviewsHistoryOf(dto, ledger) {
+function reviewsHistoryOf(ledger, connection, tz) {
   if (ledger.on_record.complete) return { complete: true, from: null };
-  const began = dto.google.connection ? Date.parse(dto.google.connection.connected_at) : NaN;
-  return { complete: false, from: Number.isNaN(began) ? null : zoneDayKey(began, dto.timezone) };
+  const began = isoMs(connection?.connected_at);
+  return { complete: false, from: began === null ? null : zoneDayKey(began, tz) };
 }
 var historyReaches = (h, day) => h.complete || h.from !== null && h.from <= day;
 var historyWords = (h) => h.complete ? null : h.from ? `history on record starts ${fmtDay(h.from)}` : "no review history on record yet";
-function reviewsDatedOf(rows) {
-  return rows.map((r2) => ({
-    id: r2.id,
-    rating: r2.rating,
-    day: r2.d,
-    hasReply: r2.replied,
-    replySeconds: r2.secs,
-    by: r2.by
-  }));
-}
-function reviewsAnswersOf(current) {
-  const answered = current.filter((r2) => r2.hasReply);
-  const waits = answered.flatMap((r2) => r2.replySeconds === null ? [] : [r2.replySeconds]).sort((a, b) => a - b);
-  return {
-    answered: answered.length,
-    receptionist: answered.filter((r2) => r2.by === "receptionist").length,
-    timed: waits.length,
-    replySeconds: waits.length >= REVIEW_REPLY_TIME_MIN ? quantile(waits, 0.5) : null
-  };
-}
+var STARS = [5, 4, 3, 2, 1];
 function reviewsStarMixOf(current) {
-  const counts = [5, 4, 3, 2, 1].map((n) => ({ n, value: current.filter((r2) => r2.rating === n).length }));
+  const counts = STARS.map((n) => ({ n, value: current.filter((r2) => r2.rating === n).length }));
   const rated = sumOf(counts.map((c) => c.value));
-  const share = (value) => `${rated ? Math.round(value / rated * 100) : 0}%`;
-  const rows = counts.map(({ n, value }) => ({
-    id: String(n),
-    label: plural(n, "star"),
-    value,
-    display: `${value} \xB7 ${share(value)}`
-  }));
-  const good = sumOf(counts.filter((c) => c.n >= 4).map((c) => c.value));
-  const table = {
-    columns: ["Stars", "Reviews", "Share"],
-    rows: counts.map((c) => [plural(c.n, "star"), c.value, share(c.value)])
+  const share = (value) => `${pct(value, rated) ?? 0}%`;
+  return {
+    rated,
+    good: sumOf(counts.filter((c) => c.n >= 4).map((c) => c.value)),
+    rows: counts.map(({ n, value }) => ({
+      id: String(n),
+      label: plural(n, "star"),
+      value,
+      display: `${value} \xB7 ${share(value)}`
+    })),
+    table: {
+      columns: ["Stars", "Reviews", "Share"],
+      rows: counts.map((c) => [plural(c.n, "star"), c.value, share(c.value)])
+    }
   };
-  return { rated, good, rows, table };
 }
-function reviewsWeeksOf(current, since, today, h) {
+function reviewsWeeksOf(perDay, since, today, h) {
   const weeks = [];
   for (let monday = mondayOf(since); monday <= today; monday = shiftKey(monday, 7)) {
     const first = monday < since ? since : monday;
+    if (!historyReaches(h, first)) continue;
     const sunday = shiftKey(monday, 6);
     const last = sunday > today ? today : sunday;
-    if (!historyReaches(h, first)) continue;
-    weeks.push({
-      day: first,
-      label: fmtDay(first),
-      short: String(dayDate(first).getDate()),
-      written: current.filter((r2) => r2.day >= first && r2.day <= last).length
-    });
+    let written = 0;
+    for (let day = first; day <= last; day = shiftKey(day, 1)) written += perDay.get(day) ?? 0;
+    weeks.push({ ...dayPointOf(first), written });
   }
   return weeks;
 }
-function reviewsDailyOf(current, since, days) {
-  return Array.from({ length: days }, (_, i) => {
-    const day = shiftKey(since, i);
-    return current.filter((r2) => r2.day === day).length;
-  });
+function reviewsPeriodOf(ledger, history, today, days) {
+  const { since, priorSince } = reviewsWindowOf(today, days);
+  const current = ledger.written.filter((r2) => r2.d >= since && r2.d <= today);
+  const perDay = /* @__PURE__ */ new Map();
+  for (const r2 of current) perDay.set(r2.d, (perDay.get(r2.d) ?? 0) + 1);
+  const weeks = reviewsWeeksOf(perDay, since, today, history);
+  if (!historyReaches(history, since)) return { period: { exact: false, days, history }, weeks };
+  const answered = current.filter((r2) => r2.replied);
+  const waits = answered.flatMap((r2) => r2.secs === null ? [] : [r2.secs]).sort((a, b) => a - b);
+  const mix = reviewsStarMixOf(current);
+  return {
+    period: {
+      exact: true,
+      days,
+      history,
+      written: current.length,
+      prior: historyReaches(history, priorSince) ? ledger.written.filter((r2) => r2.d >= priorSince && r2.d < since).length : null,
+      answered: answered.length,
+      receptionist: answered.filter((r2) => r2.by === "receptionist").length,
+      timed: waits.length,
+      replySeconds: waits.length >= REVIEW_REPLY_TIME_MIN ? quantile(waits, 0.5) : null,
+      rated: mix.rated,
+      good: mix.good,
+      mix,
+      daily: Array.from({ length: days }, (_, i) => perDay.get(shiftKey(since, i)) ?? 0)
+    },
+    weeks
+  };
 }
-var withinWords = (days) => days === 1 ? "today" : `in the last ${rangeLabelOf(days)}`;
+
+// src/reports/review-report.ts
+var REVIEWS_WAITING_SHOWN = 5;
+var CONNECT_WORDS = "Connect your Business Profile to see every review, who answered, and how fast.";
+var UNAVAILABLE_WORDS = "Google reviews are not available here yet.";
 var NOTHING_WRITTEN = "No review written in this period.";
+var GAINED_EMPTY_WORDS = "The count is read once a day; the first difference shows after the second read.";
+var WAITING_EMPTY_WORDS = "Nothing is waiting for a reply.";
+var LATEST_ALL_WAIT_WORDS = "The latest reviews are the ones waiting for a reply, above.";
+var LATEST_NONE_WORDS = "Google shows no written reviews for this listing yet.";
+var noLines = () => ({
+  head: null,
+  mix: null,
+  weekly: null,
+  history: null,
+  historyTitle: null,
+  connect: null,
+  empty: null,
+  gained: null,
+  gainedEmpty: null,
+  waiting: null,
+  waitingEmpty: null,
+  latestEmpty: null
+});
+var googleSaid = (g) => ({
+  listing: g.listing,
+  connection: g.connection,
+  canReply: g.canReply,
+  reply: g.reply,
+  gained: g.gained,
+  source: g.source
+});
+var figureOf = (id, metric, label, said) => ({ id, metric, label, delta: null, spark: [], compare: null, ...said });
 function whoAnsweredWords(answered, receptionist) {
   if (!answered) return "none answered yet";
   const you = answered - receptionist;
@@ -28078,42 +28162,35 @@ function replyTimeMeta(p) {
   if (p.timed > 0) return `${plural(p.timed, "reply", "replies")} so far; the middle needs ${REVIEW_REPLY_TIME_MIN}`;
   return p.answered ? "no reply has a time on record" : "no replies yet";
 }
-function reviewsProfileTiles(google, p, daily) {
-  const rangeLabel = rangeLabelOf(p.days);
-  const lost = historyWords(p.history) ?? "";
-  const counted2 = p.exact && p.written > 0;
+function reviewsProfileTiles(google, p) {
+  const own = google.tiles.filter((t) => t.metric === "rating" || t.metric === "reviews");
+  const label = `New in ${plural(p.days, "day")}`;
+  if (!p.exact) {
+    const meta = historyWords(p.history) ?? "";
+    return [
+      ...own,
+      figureOf("written", "reviews_written", label, { value: "\u2014", meta }),
+      figureOf("answered", "reviews_answered", "Answered", { value: "\u2014", meta }),
+      figureOf("reply_time", "review_reply_time", "Time to reply", { value: "\u2014", meta })
+    ];
+  }
+  const counted2 = p.written > 0;
   return [
-    ...google.tiles.filter((t) => t.metric === "rating" || t.metric === "reviews"),
-    {
-      id: "written",
-      metric: "reviews_written",
-      label: `New in ${plural(p.days, "day")}`,
-      value: p.exact ? String(p.written) : "\u2014",
-      meta: !p.exact ? lost : p.written ? "with words or without" : "none in this period",
-      delta: null,
-      spark: daily,
-      compare: p.exact && p.priorExact ? compareWords(p.written, p.prior, rangeLabel, true) : null
-    },
-    {
-      id: "answered",
-      metric: "reviews_answered",
-      label: "Answered",
+    ...own,
+    figureOf("written", "reviews_written", label, {
+      value: String(p.written),
+      meta: p.written ? "with words or without" : "none in this period",
+      spark: p.daily,
+      compare: p.prior === null ? null : compareWords(p.written, p.prior, rangeLabelOf(p.days), true)
+    }),
+    figureOf("answered", "reviews_answered", "Answered", {
       value: counted2 ? `${p.answered} of ${p.written}` : "\u2014",
-      meta: !p.exact ? lost : p.written ? whoAnsweredWords(p.answered, p.receptionist) : "nothing to answer",
-      delta: null,
-      spark: [],
-      compare: null
-    },
-    {
-      id: "reply_time",
-      metric: "review_reply_time",
-      label: "Time to reply",
+      meta: counted2 ? whoAnsweredWords(p.answered, p.receptionist) : "nothing to answer"
+    }),
+    figureOf("reply_time", "review_reply_time", "Time to reply", {
       value: counted2 ? fmtSeconds(p.replySeconds) : "\u2014",
-      meta: !p.exact ? lost : p.written ? replyTimeMeta(p) : "nothing to answer",
-      delta: null,
-      spark: [],
-      compare: null
-    }
+      meta: counted2 ? replyTimeMeta(p) : "nothing to answer"
+    })
   ];
 }
 function reviewsStandingWords(l) {
@@ -28128,133 +28205,123 @@ function reviewsNoneHead(l, onRecord, nowMs) {
 }
 function profileHeadTail(p) {
   if (!p.exact) return historyWords(p.history) ?? "";
-  if (!p.written) return `none new ${withinWords(p.days)}`;
+  const within2 = withinWords(p.days);
+  if (!p.written) return `none new ${within2}`;
   const answered = p.answered === p.written ? "all answered" : p.answered ? `${p.answered} answered` : "none answered yet";
-  return `${p.written} new ${withinWords(p.days)}, ${answered}`;
-}
-function placesHeadTail(google, days) {
-  const gained = google.gained.total;
-  if (gained === null) return "what changed needs a second day of reading";
-  if (gained < 0) return `down ${plural(-gained, "rating")} ${withinWords(days)}`;
-  return `${gained ? `${plural(gained, "rating")} gained` : "none gained"} ${withinWords(days)}`;
+  return `${p.written} new ${within2}, ${answered}`;
 }
 function reviewsMixLine(p) {
   if (!p.exact) return null;
   if (!p.written) return NOTHING_WRITTEN;
-  if (!p.rated) return `No star rating among the reviews written ${withinWords(p.days)}.`;
+  const within2 = withinWords(p.days);
+  if (!p.rated) return `No star rating among the reviews written ${within2}.`;
   const of = p.rated === p.written ? plural(p.rated, "review") : plural(p.rated, "rated review");
-  return `${p.good} of the ${of} written ${withinWords(p.days)} ${p.rated === 1 ? "is" : "are"} 4 or 5 stars.`;
+  return `${p.good} of the ${of} written ${within2} ${p.rated === 1 ? "is" : "are"} 4 or 5 stars.`;
 }
-function reviewsWeeklyLine(p, weeks) {
-  if (p.exact && !p.written) return NOTHING_WRITTEN;
-  if (!weeks.length) return null;
-  return `${sumOf(weeks.map((w) => w.written))} written over ${plural(weeks.length, "week")}`;
+function reviewsWeeklyLine(p, weeks, since) {
+  const total = sumOf(weeks.map((w) => w.written));
+  if (total) {
+    const first = weeks.at(0);
+    const over = first && first.day > since ? `since ${first.label}` : withinWords(p.days);
+    return `${total} written ${over}`;
+  }
+  return p.exact && !p.written ? NOTHING_WRITTEN : null;
 }
-var CONNECT_WORDS = "Connect your Business Profile to see every review, who answered, and how fast.";
-var NO_LINES = {
-  head: null,
-  mix: null,
-  weekly: null,
-  history: null,
-  connect: null
-};
-function reviewsPeriodOf(dto, ledger, days) {
-  const { since, priorSince } = reviewsWindowOf(dto.today, days);
-  const dated = reviewsDatedOf(ledger.written);
-  const current = dated.filter((r2) => r2.day >= since && r2.day <= dto.today);
-  const history = reviewsHistoryOf(dto, ledger);
-  const mix = reviewsStarMixOf(current);
-  const period = {
-    days,
-    exact: historyReaches(history, since),
-    priorExact: historyReaches(history, priorSince),
-    written: current.length,
-    prior: dated.filter((r2) => r2.day >= priorSince && r2.day < since).length,
-    ...reviewsAnswersOf(current),
-    rated: mix.rated,
-    good: mix.good,
-    history
-  };
-  return { period, current, mix, since };
-}
-function reviewsWaitingOf(ledger, linkedAt, nowMs) {
+function reviewsWaitingOf(ledger, linkedAt, tz, nowMs) {
   const rows = ledger.waiting.slice(0, REVIEWS_WAITING_SHOWN).map((r2) => {
     const why = reviewHeldWords(r2.held);
     return {
-      ...toGoogleReviewVM(r2, linkedAt, nowMs),
+      ...toGoogleReviewVM(r2, linkedAt, tz, nowMs),
       held: why ? `The receptionist wrote a reply and held it: ${why}.` : null
     };
   });
   return { total: ledger.waiting_total, rows };
 }
-function reviewsFromLedger({ dto, ledger, google, l, days, nowMs }) {
-  const { period: p, current, mix, since } = reviewsPeriodOf(dto, ledger, days);
-  const points = reviewsWeeksOf(current, since, dto.today, p.history);
-  const total = sumOf(points.map((w) => w.written));
-  const waiting = reviewsWaitingOf(ledger, l.linked_at, nowMs);
+var latestEmptyWords = (google, latest) => latest.length ? null : google.latest.length ? LATEST_ALL_WAIT_WORDS : LATEST_NONE_WORDS;
+function reviewsFromLedger({ dto, google, l, nowMs }, ledger) {
+  const { days, today, timezone } = dto;
+  const history = reviewsHistoryOf(ledger, dto.google.connection, timezone);
+  const { period: p, weeks } = reviewsPeriodOf(ledger, history, today, days);
+  const weekly = sumOf(weeks.map((w) => w.written)) ? { points: weeks } : null;
+  const waiting = reviewsWaitingOf(ledger, l.linked_at, timezone, nowMs);
   const waitingIds = new Set(waiting.rows.map((r2) => r2.id));
   const latest = google.latest.filter((r2) => !waitingIds.has(r2.id));
   const onRecord = ledger.on_record.profile + ledger.on_record.places;
+  const startsAt = p.exact && p.prior !== null ? null : historyWords(history);
   return {
     days,
+    state: "linked",
     empty: false,
     source: "profile",
-    google,
-    tiles: reviewsProfileTiles(google, p, p.exact ? reviewsDailyOf(current, since, days) : []),
-    figures: {
-      written: p.exact ? p.written : null,
-      prior: p.exact && p.priorExact ? p.prior : null,
-      answered: p.exact ? p.answered : null,
-      receptionist: p.exact ? p.receptionist : null,
-      timed: p.exact ? p.timed : null,
-      replySeconds: p.exact ? p.replySeconds : null
-    },
-    stars: p.exact && mix.rated ? { rated: mix.rated, rows: mix.rows, table: mix.table } : null,
-    weekly: total ? { points, max: Math.max(1, ...points.map((w) => w.written)), total } : null,
+    google: googleSaid(google),
+    tiles: reviewsProfileTiles(google, p),
+    stars: p.exact && p.mix.rated ? { rated: p.mix.rated, rows: p.mix.rows, table: p.mix.table } : null,
+    weekly,
     waiting,
     latest,
     latestTable: googleReviewsTable(latest),
     lines: {
+      ...noLines(),
       head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${profileHeadTail(p)}.`,
       mix: reviewsMixLine(p),
-      weekly: reviewsWeeklyLine(p, points),
-      history: p.exact && p.priorExact ? null : historyWords(p.history),
-      connect: null
+      weekly: reviewsWeeklyLine(p, weeks, periodSince(today, days)),
+      history: startsAt,
+      historyTitle: startsAt ? `${capitalize(startsAt)}.` : null,
+      waiting: waiting.total > waiting.rows.length ? `Showing the oldest ${waiting.rows.length}.` : null,
+      waitingEmpty: waiting.rows.length ? null : WAITING_EMPTY_WORDS,
+      latestEmpty: latestEmptyWords(google, latest)
     }
   };
 }
-function toReviewsReportVM(dto, opts) {
-  const { days } = dto;
-  const nowMs = opts.nowMs ?? Date.now();
-  const google = toGoogleVM(dto.google, days, nowMs);
-  const l = dto.google.listing;
-  const ledger = dto.ledger;
-  const base = { days, google, figures: null, stars: null, weekly: null, waiting: { total: 0, rows: [] } };
-  if (!l)
-    return {
-      ...base,
-      empty: true,
-      source: "places",
-      tiles: [],
-      latest: [],
-      latestTable: googleReviewsTable([]),
-      lines: NO_LINES
-    };
-  if (ledger && reviewsAreOnRecord(dto.google)) return reviewsFromLedger({ dto, ledger, google, l, days, nowMs });
-  const onRecord = ledger ? ledger.on_record.profile + ledger.on_record.places : dto.google.reviews.length;
+function reviewsFromPlaces({ dto, google, l, nowMs }) {
+  const onRecord = dto.ledger ? dto.ledger.on_record.profile + dto.ledger.on_record.places : dto.google.reviews.length;
+  const noDays = google.gained.total === null;
   return {
-    ...base,
+    days: dto.days,
+    state: "linked",
     empty: false,
     source: "places",
+    google: googleSaid(google),
     tiles: google.tiles,
+    stars: null,
+    weekly: null,
+    waiting: { total: 0, rows: [] },
     latest: google.latest,
     latestTable: googleReviewsTable(google.latest),
     lines: {
-      ...NO_LINES,
-      head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${placesHeadTail(google, days)}.`,
-      connect: dto.google.connection ? null : CONNECT_WORDS
+      ...noLines(),
+      head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${google.gained.words.head}.`,
+      connect: dto.google.connection ? null : CONNECT_WORDS,
+      gained: noDays ? `${capitalize(google.gained.words.meta)}.` : null,
+      gainedEmpty: noDays ? GAINED_EMPTY_WORDS : null,
+      latestEmpty: latestEmptyWords(google, google.latest)
     }
   };
+}
+function reviewsNotLinked(dto, google) {
+  const found = lensEmpty("reviews", { since: periodSince(dto.today, dto.days), until: dto.today }).title;
+  return {
+    days: dto.days,
+    state: dto.readable ? "unlinked" : "unavailable",
+    empty: true,
+    source: "places",
+    google: googleSaid(google),
+    tiles: [],
+    stars: null,
+    weekly: null,
+    waiting: { total: 0, rows: [] },
+    latest: [],
+    latestTable: googleReviewsTable([]),
+    lines: { ...noLines(), empty: dto.readable ? found : UNAVAILABLE_WORDS }
+  };
+}
+function toReviewsReportVM(dto, opts) {
+  const { nowMs } = opts;
+  const google = toGoogleVM(dto.google, dto.days, nowMs, dto.timezone);
+  const l = dto.google.listing;
+  if (!l) return reviewsNotLinked(dto, google);
+  const build = { dto, google, l, nowMs };
+  return dto.ledger && reviewsAreOnRecord(dto.google) ? reviewsFromLedger(build, dto.ledger) : reviewsFromPlaces(build);
 }
 
 // src/reports/report-metrics.ts
@@ -28280,36 +28347,6 @@ var METRIC_WORDS = {
   review_reply_time: "The middle time from a review being written to its reply, over this period's reviews that have one. A reply you changed later counts from the change. It needs three replies to be said."
 };
 var metricWordsOf = (metric) => METRIC_WORDS[metric];
-
-// src/reports/report-periods.ts
-var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
-var REPORT_PERIOD_DEFAULT = "30d";
-var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
-var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
-var fixedDaysOf = (period) => REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
-var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
-function reportPeriodOf(asked) {
-  if (asked.period !== void 0) return isReportPeriod(asked.period) ? asked.period : null;
-  if (asked.days !== void 0)
-    return REPORT_RANGES.find((r2) => r2.days !== null && r2.days === Number(asked.days))?.id ?? null;
-  return REPORT_PERIOD_DEFAULT;
-}
-function reportDaysAsked(view) {
-  const asked = Number(view);
-  return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
-}
-function reportWindowOf(period, today) {
-  const fixed = fixedDaysOf(period);
-  const from = shiftKey(today, -((fixed ?? monthDaysAt(today)) - 1));
-  const label = REPORT_RANGES.find((r2) => r2.id === period)?.label ?? "";
-  return {
-    period,
-    from,
-    to: today,
-    range: from === today ? fmtDay(today) : `${fmtDay(from)} \u2013 ${fmtDay(today)}`,
-    said: fixed === null ? "This month so far" : `Last ${label}`
-  };
-}
 
 // src/reports/report-headline.ts
 function isReportDto(answer) {
@@ -28417,7 +28454,7 @@ function reportFacts(vm, campaigns) {
           tone: "",
           icon: "chat",
           text: `${moved.c.label} ${moved.delta > 0 ? "grew" : "fell"} to ${moved.share}% of messages and calls`,
-          sub: `from ${moved.before}% the ${vm.rangeLabel} before`,
+          sub: `from ${moved.before}% ${beforeWords(vm.rangeLabel)}`,
           door: null
         });
       }
@@ -28427,7 +28464,10 @@ function reportFacts(vm, campaigns) {
 }
 
 // src/reports/reach-out-report.ts
-var pctText = (n, d) => d ? `${pct(n, d)}%` : "\u2014";
+var pctText = (n, d) => {
+  const share = pct(n, d);
+  return share === null ? "\u2014" : `${share}%`;
+};
 var rateText = (n, d) => d ? `${Math.round(n / d * 1e3) / 10}%` : "\u2014";
 function funnelOf(t) {
   const row2 = (id, label, value, color) => ({
@@ -28454,7 +28494,7 @@ function anglesOf(dto) {
   const rows = dto.angles.map((a) => ({
     id: a.angle,
     label: a.angle,
-    value: pct(a.wrote_back, a.written),
+    value: pct(a.wrote_back, a.written) ?? 0,
     display: `${a.wrote_back} of ${a.written}  ${pctText(a.wrote_back, a.written)}`
   }));
   const o = dto.other_angles;
@@ -28462,7 +28502,7 @@ function anglesOf(dto) {
     rows.push({
       id: "other",
       label: "Other angles",
-      value: pct(o.wrote_back, o.written),
+      value: pct(o.wrote_back, o.written) ?? 0,
       display: `${o.wrote_back} of ${o.written}  ${pctText(o.wrote_back, o.written)}`
     });
   return { rows, max: Math.max(1, ...rows.map((r2) => r2.value)) };
@@ -28489,7 +28529,10 @@ function domainsOf(dto, nowMs) {
     complained: rateText(d.complained, d.sent)
   }));
 }
-var shareOf = (n, of) => of ? `${pct(n, of)}% (${n})` : String(n);
+var shareOf = (n, of) => {
+  const share = pct(n, of);
+  return share === null ? String(n) : `${share}% (${n})`;
+};
 function chainLineOf(c, nowMs, tz) {
   const sum2 = (k) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
   const written = sum2("written");
@@ -28558,7 +28601,7 @@ function linesOf2(dto) {
     angles: angled ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}` : "No email in these days had an opening, so there is no angle to compare.",
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote in the last ${plural(dto.days, "day")}.`
+    empty: `No reach-out wrote ${periodWords(rangeLabelOf(dto.days)).within}.`
   };
 }
 var NO_COUNTS = {
@@ -28589,12 +28632,7 @@ function wholeOf(raw) {
 }
 function toReachOutReportVM(raw, nowMs = Date.now()) {
   const dto = wholeOf(raw);
-  const points = dto.series.map((d) => ({
-    day: d.day,
-    label: fmtDay(d.day),
-    short: String(dayDate(d.day).getDate()),
-    written: d.written
-  }));
+  const points = dto.series.map((d) => ({ ...dayPointOf(d.day), written: d.written }));
   const sources = [];
   for (const c of dto.chains) {
     sources.push(chainLineOf(c, nowMs, dto.timezone));
@@ -33922,8 +33960,8 @@ var PARTNER_WORDS = {
   lettersFailed: "your email setting"
 };
 function shareWords(shareBp) {
-  const pct3 = shareBp / 100;
-  const shown = Number.isInteger(pct3) ? String(pct3) : pct3.toFixed(1).replace(/\.0$/, "");
+  const pct2 = shareBp / 100;
+  const shown = Number.isInteger(pct2) ? String(pct2) : pct2.toFixed(1).replace(/\.0$/, "");
   return `${shown}% of what it pays for its plan`;
 }
 function broughtWords(count2) {
@@ -34058,12 +34096,12 @@ function platformPartnerRows(rows) {
     const first = !seen.has(r2.partner_id);
     seen.add(r2.partner_id);
     const cur = r2.currency ?? "usd";
-    const pct3 = r2.share_bp / 100;
+    const pct2 = r2.share_bp / 100;
     const who = [
       r2.email ?? "no address on file",
       `${r2.workspaces} workspace${r2.workspaces === 1 ? "" : "s"}`,
       r2.under_review ? `${r2.under_review} under review` : null,
-      `${Number.isInteger(pct3) ? pct3 : pct3.toFixed(1).replace(/\.0$/, "")}% of what each pays`,
+      `${Number.isInteger(pct2) ? pct2 : pct2.toFixed(1).replace(/\.0$/, "")}% of what each pays`,
       r2.status === "active" ? null : r2.status
     ].filter(Boolean);
     const payable = r2.payable_cents;
@@ -36270,7 +36308,6 @@ export {
   customerWords,
   dailyLimit,
   dataSentences,
-  dayDate,
   dayFromQuestion,
   dayInZone,
   dayIntervals,

@@ -29,6 +29,9 @@ export const fixedDaysOf = (period: ReportPeriodId): number | null =>
 /** Month to date at a business day ("2026-10-05" is 5): the day of the month, today included. */
 export const monthDaysAt = (dayKey: string): number => Number(dayKey.slice(8, 10));
 
+/** The first day of a period of `days` days that ends on `today`, today included: 30 days to "2026-10-06" start on "2026-09-07". */
+export const periodSince = (today: string, days: number): string => shiftKey(today, -(days - 1));
+
 /**
  * The period a request names: `period`, else (until its day) the `days` a page sent before there was a Month, else the
  * default. Null when what it names is none of ours.
@@ -68,7 +71,7 @@ export interface ReportWindowVM {
  */
 export function reportWindowOf(period: ReportPeriodId, today: string): ReportWindowVM {
   const fixed = fixedDaysOf(period);
-  const from = shiftKey(today, -((fixed ?? monthDaysAt(today)) - 1));
+  const from = periodSince(today, fixed ?? monthDaysAt(today));
   const label = REPORT_RANGES.find((r) => r.id === period)?.label ?? "";
   return {
     period,

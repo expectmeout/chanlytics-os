@@ -8,6 +8,7 @@ import type { BroadcastRecipientDto } from "./broadcasts";
 import { HELD_REASONS } from "./run-words";
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
 import type { ParamSpec } from "../templates/templates";
+import { pct } from "../shared/numbers";
 import { HOUR_MS } from "../shared/time";
 
 /* ------------------------------ a run's report ------------------------------ */
@@ -298,8 +299,7 @@ function barsOf({ start, step }: RunFacts, stamps: (string | null)[]): number[] 
 }
 
 /** Of what the run sent, rounded; null for none, and for a run that reached nobody. */
-const pctOf = ({ sent }: RunFacts, n: number): number | null =>
-  sent > 0 && n > 0 ? Math.round((n / sent) * 100) : null;
+const pctOf = ({ sent }: RunFacts, n: number): number | null => (n > 0 ? pct(n, sent) : null);
 
 /** One person as their line decides it: reached or not, greeted "Hi there" or not, their answer and their quote. */
 interface PersonCase {

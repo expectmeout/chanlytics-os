@@ -28,7 +28,7 @@ const PROFILE_FIGURES: ReadonlyArray<[string, RegExp]> = [
 const PLACES_FIGURES: ReadonlyArray<[string, RegExp]> = [
   ["rating", /^(\d\.\d|—)$/],
   ["reviews", /^(\d+|—)$/],
-  ["ratings_gained", /^(-?\d+|—)$/],
+  ["ratings_gained", /^(\d+|down \d+|—)$/],
   ["newest_review", /^(just now|\d+[smhd] ago|[A-Z][a-z]{2} \d{1,2}|—)$/],
 ];
 /** The period before beside a number, in counts (compareWords, and the rating's own): never a percentage. */

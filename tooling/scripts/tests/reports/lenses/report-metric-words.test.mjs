@@ -106,7 +106,7 @@ test("every figure the reports build names a metric that has words, and no two m
     ...R.vm.tiles,
     bookedTileOf(R.booking),
     ...R.campaigns.tiles,
-    ...toGoogleVM(GOOGLE, 7, NOW).tiles,
+    ...toGoogleVM(GOOGLE, 7, NOW, "UTC").tiles,
     ...reviews.tiles,
   ];
   const metrics = [...new Set(tiles.map((t) => t.metric))];
