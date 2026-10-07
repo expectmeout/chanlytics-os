@@ -241,14 +241,16 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
     border-radius: 50%; border: 0; padding: 0; cursor: pointer;
     background: none; color: var(--ink); z-index: 121;
   }
-  /* The three in the ✦ (components/ask-face.jsx, on the raised ground), over the disc: the canvas is the disc's width
-     and the tile is set (`side`, app-shell.jsx, 12.5px), not fitted, so the mark fills the disc and the ring, at its
-     widest, just reaches the rim. The engine draws the mark 0.225 of a tile above the canvas's middle (character.ts
-     CENTRE_Y) so that the ink and the shadow it casts balance; at this size the shadow is a hair, and the ink is what
-     reads as centred, so the canvas sits that much lower in the disc. */
+  /* The three in the ✦ (components/ask-face.jsx, on the raised ground), over the disc: the tile is set (`side`,
+     app-shell.jsx, 14px), not fitted, and the canvas is 3.2 tiles by 2.72, the room everything the three do needs
+     round them. The tile was 12.5px on a canvas of 40 by 34, the 40px disc's own; in the 62px circle the mark stood
+     small with empty glass round it, so it is a tile's eighth larger and the circle is as it was (Ruben, 7 Oct 2026).
+     The engine draws the mark 0.225 of a tile above the canvas's middle (character.ts CENTRE_Y) so that the ink and the
+     shadow it casts balance; at this size the shadow is a hair, and the ink is what reads as centred, so the canvas
+     sits that much lower in the disc. */
   .phone-ask .phone-ask-face {
-    display: block; width: 40px; height: 34px; position: relative; z-index: 1;
-    translate: 0 calc(0.225 * 12.5px);
+    display: block; width: 45px; height: 38px; position: relative; z-index: 1;
+    translate: 0 calc(0.225 * 14px);
   }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .phone-ask:active { transform: scale(0.96); }

@@ -1369,6 +1369,44 @@ test("on a phone the Line is the screen: focus on the dialog, not the field, the
     await later(Palette, CLOSED);
     assert.deepEqual(ph.log.slice(1), [["push", null, "https://app.chanlytics.com/w/studio#/today"], ["back"]]);
     assert.equal(closed, 2, "the entry taken back is not a second close");
+    // A thumb lets go of it across, to either side, as it does down (Ruben, 7 Oct 2026): the dialog's own touch
+    // handlers, with the screen taken past a third of its width. Never from the left edge, which is the phone's own
+    // back, and a short move settles it where it stood. Each answer is how many closes that touch made.
+    const screen = () => ({
+      style: {},
+      offsetWidth: 375,
+      offsetHeight: 700,
+      scrollWidth: 375,
+      clientWidth: 375,
+      scrollHeight: 700,
+      clientHeight: 700,
+      scrollTop: 0,
+      parentElement: null,
+      previousElementSibling: null,
+      isConnected: true,
+      getClientRects: () => [1],
+      matches: () => false,
+    });
+    const across = async (fromX, toX) => {
+      draw(Palette, props);
+      tree = await later(Palette, props);
+      const h = byTestId(tree, "ask-real").props;
+      const el = screen();
+      const before = closed;
+      h.onTouchStart({ touches: [{ clientX: fromX, clientY: 300 }], currentTarget: el, target: el });
+      h.onTouchMove({ touches: [{ clientX: (fromX + toX) / 2, clientY: 302 }], currentTarget: el });
+      h.onTouchMove({ touches: [{ clientX: toX, clientY: 302 }], currentTarget: el });
+      h.onTouchEnd({ changedTouches: [{ clientX: toX, clientY: 302 }], currentTarget: el });
+      await new Promise((r) => setTimeout(r, 260));
+      const made = closed - before;
+      draw(Palette, CLOSED);
+      await later(Palette, CLOSED);
+      return made;
+    };
+    assert.equal(await across(300, 100), 1, "taken across to the left, it closes");
+    assert.equal(await across(80, 290), 1, "and to the right");
+    assert.equal(await across(10, 220), 0, "never from the left edge");
+    assert.equal(await across(200, 182), 0, "and a short move across settles it back");
   } finally {
     await closes();
     ph.restore();
