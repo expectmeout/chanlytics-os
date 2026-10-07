@@ -144,4 +144,5 @@ export {
   offersPausedLine,
 } from "./email-offers";
 export type { EmailOffers, OfferCounts, OfferFacts, OfferPause, OfferPauseReason } from "./email-offers";
+export { whatsappOffersOpen } from "./whatsapp-offers";
 export { SEND_WHEN_WORDS } from "./send-when-words";

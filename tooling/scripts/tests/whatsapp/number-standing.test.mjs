@@ -387,19 +387,25 @@ test("a number that turns BLOCKED is told to the owner, once: the bell row and t
     [{ p_tenant_id: A, p_channel_id: "ch-1", p_standing: BLOCKED }],
     "kept whole, for this workspace's channel",
   );
+  // The account has no payment method (Meta's funding answer): the notice says what Meta stops, and where to mend it, in
+  // contracts' words, not Meta's.
   const body =
-    "WhatsApp can't send from +1 (305) 555-0142: A payment method is required to send messages. Add a payment method in WhatsApp Manager.";
+    "WhatsApp can't start conversations from +1 (305) 555-0142: Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns. Add one in Meta Business Suite › Billing.";
+  const subject = "WhatsApp can't start conversations from your number";
   assert.deepEqual(
     w.tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title, n.body]),
-    [[A, "number", "admin/integrations", "WhatsApp can't send from your number", body]],
+    [[A, "number", "admin/integrations", subject, body]],
     "the workspace's bell, on the path the restricted-account alert uses",
   );
   const mail = mailSent();
-  assert.deepEqual([mail.length, mail[0].to, mail[0].subject], [1, [OWNER], "WhatsApp can't send from your number"]);
+  assert.deepEqual([mail.length, mail[0].to, mail[0].subject], [1, [OWNER], subject]);
   assert.ok(mail[0].text.includes(body), mail[0].text);
   assert.deepEqual(
     said.map(([level, event]) => [level, event]),
-    [["info", "wa_standing_told"]],
+    [
+      ["info", "wa_standing_read"],
+      ["info", "wa_standing_told"],
+    ],
   );
 
   // Still BLOCKED at the next read: nothing is said again.
@@ -458,7 +464,10 @@ test("every way the work can fail is an outcome and a line, never a throw: Meta 
   });
   assert.deepEqual(
     said.said.map(([level, event]) => [level, event]),
-    [["error", "wa_standing_keep_failed"]],
+    [
+      ["info", "wa_standing_read"],
+      ["error", "wa_standing_keep_failed"],
+    ],
   );
   assert.equal(w.tables.notifications.length, 0, "a standing that was not kept is not told");
   // The owner cannot be told: the standing is kept all the same, and the outcome says so.
@@ -478,7 +487,10 @@ test("every way the work can fail is an outcome and a line, never a throw: Meta 
   assert.deepEqual([read.outcome, read.told], ["first", false]);
   assert.deepEqual(
     said.said.map(([level, event]) => [level, event]),
-    [["error", "wa_standing_tell_failed"]],
+    [
+      ["info", "wa_standing_read"],
+      ["error", "wa_standing_tell_failed"],
+    ],
   );
   // A notice whose mail did not go (notify answers false) is still the bell row the owner reads, and the line says the mail
   // did not go, so it is seen (the final review of 6 October: notify's answer was dropped).
@@ -486,8 +498,13 @@ test("every way the work can fail is an outcome and a line, never a throw: Meta 
   const quiet = lines();
   const unsent = await readAndKeepStanding({ db: w.db, log: quiet.log, tell: async () => false }, TOKEN, NUMBER);
   assert.deepEqual([unsent.outcome, unsent.told], ["first", true]);
-  assert.deepEqual(quiet.said, [["info", "wa_standing_told", { tenant_id: A, channel_id: "ch-1", mailed: false }]]);
+  // Every read that answered is a line: the word for whether the number may send, and each problem by its entity and Meta's
+  // code (how the codes of Meta's calling problems are learned), never Meta's words.
+  assert.deepEqual(quiet.said, [
+    ["info", "wa_standing_read", { tenant_id: A, channel_id: "ch-1", can_send: "BLOCKED", problems: ["WABA:141006"] }],
+    ["info", "wa_standing_told", { tenant_id: A, channel_id: "ch-1", mailed: false }],
+  ]);
   // A line carries the workspace and the channel, never the token, a number or Meta's own words.
-  const text = JSON.stringify(said.said);
+  const text = JSON.stringify([...said.said, ...quiet.said]);
   assert.doesNotMatch(text, /EAAB|Bearer|10654000000000|3055550142|payment/);
 });

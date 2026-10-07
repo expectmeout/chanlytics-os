@@ -681,3 +681,82 @@ test("the note under an offer says which channels carry offers, as the workspace
       channelRefuses("email", "marketing", "ours", ready) === null,
     );
 });
+
+test("offers on WhatsApp from a US number are held while Meta's pause holds: the tick says so, the pick goes another way or holds, the note says email; the channel itself stays ready, and a read without the number judges nothing", () => {
+  const withNumber = (number, offers) =>
+    channelsReady({
+      whatsapp: { canSend: true, refusal: null, number },
+      textLine: { sms_state: "active", reg_mock: false },
+      email: { mailbox: true, domain: true, ...(offers ? { offers } : {}) },
+    });
+  const us = withNumber("+13055550188");
+  const US_PAUSED = us.whatsapp.offers?.why;
+  assert.match(
+    US_PAUSED,
+    /^Meta isn't delivering marketing messages on WhatsApp to US numbers right now \(paused since April 2025\)\. Appointment messages and replies on WhatsApp are unaffected\.$/,
+  );
+  assert.deepEqual(us.whatsapp, { ready: true, why: null, offers: { ok: false, why: US_PAUSED, paused: null } });
+  assert.equal(channelRefuses("whatsapp", "marketing", "ours", us), US_PAUSED);
+  assert.equal(channelRefuses("whatsapp", "conversational", "theirs", us), null, "a visit's message goes");
+  assert.equal(
+    channelRefuses("whatsapp", "conversational", "ours", us),
+    null,
+    "news on WhatsApp is the message it always was",
+  );
+  assert.deepEqual(
+    channelChoices(us, "marketing", "ours").map((x) => [x.channel, x.ok, x.why]),
+    [
+      ["whatsapp", false, US_PAUSED],
+      ["sms", false, CHANNEL_WORDS.noOffersByText],
+      ["email", false, CHANNEL_WORDS.noOffersByEmailYet],
+    ],
+  );
+  // The pick: a person with a yes on WhatsApp alone is held on an offer, since no ticked channel can carry it here; one
+  // whose workspace can send offers by email is reached there.
+  assert.deepEqual(reachFor(person(), "marketing", { channels: ["whatsapp"], ready: us, about: "ours" }), {
+    channel: null,
+    held: "no_channel",
+  });
+  const usOpen = withNumber("+13055550188", OPEN);
+  assert.deepEqual(
+    reachFor(person({ consent: { emailMarketing: "opted_in" } }), "marketing", {
+      channels: ALL,
+      ready: usOpen,
+      about: "ours",
+    }),
+    { channel: "email", held: null },
+    "their yes to marketing email, and a workspace that can send offers by email: reached there, never on WhatsApp",
+  );
+  // A number of another country, a number not known, and a read without the number: offers on WhatsApp go as they went.
+  const uk = withNumber("+442079460958");
+  assert.equal(channelRefuses("whatsapp", "marketing", "ours", uk), null);
+  assert.deepEqual(uk.whatsapp.offers, { ok: true, why: null, paused: null });
+  assert.deepEqual(
+    withNumber(null).whatsapp.offers,
+    { ok: true, why: null, paused: null },
+    "a number not known is not a US one",
+  );
+  assert.equal("offers" in READY.whatsapp, false, "a read without the number judges nothing of them");
+  assert.equal(channelRefuses("whatsapp", "marketing", "ours", READY), null);
+  // The note under an offer: email only while the pause holds, with the pause said; no channel at all where email cannot carry offers either.
+  const emailOnly = offersNote(usOpen);
+  assert.match(
+    emailOnly,
+    /^Offers and news go by email only for now\. Meta isn't delivering marketing messages on WhatsApp to US numbers/,
+  );
+  assert.match(emailOnly, /nothing promotional is sent by text/);
+  assert.match(emailOnly, /by email if you have their address/);
+  const none = offersNote(us);
+  assert.match(
+    none,
+    /^Offers and news have no channel right now\. Meta isn't delivering marketing messages on WhatsApp to US numbers/,
+  );
+  assert.match(none, /offers by email wait until email is set up for them\.$/);
+  // The note leads with WhatsApp exactly where the WhatsApp tick is open for an offer: the ticks' own question, not a second reading.
+  for (const ready of [us, usOpen, uk, READY, READY_OPEN])
+    assert.equal(
+      /^Offers and news go by WhatsApp/.test(offersNote(ready)),
+      channelRefuses("whatsapp", "marketing", "ours", ready) === null,
+      ready.whatsapp.offers?.why ?? "open",
+    );
+});

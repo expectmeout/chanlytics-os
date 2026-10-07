@@ -1,18 +1,23 @@
 /**
  * What Meta holds about a connected WhatsApp number, in the owner's words (contracts lines/number-standing.ts): the kept
- * answer read back from a channel's config without trusting it, the WhatsApp row for a number Meta will not let send, one
- * it limits and one it has said nothing about, whether the account has a payment method and what that means (said from what the
- * account holds, else from what Meta's problems name, with the way to add one), how to try a number nobody has written to yet from a
- * phone (and the digits a wa.me link takes), what WhatsApp costs, said last under every connected row, the owner's alert, and when
- * a page that opens should ask Meta again. Run on the real functions, over the shape the edge keeps
- * (apps/edge/lib/whatsapp/meta-graph.ts numberStanding writes it; the database door channel_keep_standing keeps it whole). The
- * Activity log's words for a change are held in workspace/activity.test.mjs.
+ * answer read back from a channel's config without trusting it; the WhatsApp row for a number whose account's payment method
+ * is missing or failing ("Waiting on you", with Meta's billing page as the row's one act), for one Meta has stopped for
+ * anything else ("Needs attention", Meta's first problem about messaging, WhatsApp Manager), for one it limits and for one it
+ * has said nothing about; the two notes a row may carry (a declined or lapsed display name; an unverified business, with
+ * Meta's page to verify on) and the silence on everything else (Meta's own notes, its calling problems, a verified business,
+ * a name in review, what WhatsApp costs); how to try a number nobody has written to yet from a phone (and the digits a wa.me
+ * link takes); the owner's alert; a campaign's readiness read from the same standing; and when a page that opens should ask
+ * Meta again. Run on the real functions, over the shape the edge keeps (apps/edge/lib/whatsapp/meta-graph.ts numberStanding
+ * writes it; the database door channel_keep_standing keeps it whole). The Activity log's words for a change are held in
+ * workspace/activity.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   connectionRows,
   nameDecisionWords,
+  numberHealth,
+  numberHealthWithStanding,
   standingAfterNameDecision,
   standingAlertWords,
   standingFromConfig,
@@ -25,35 +30,58 @@ const NOW = Date.parse("2026-10-06T15:00:00Z");
 const MIN = 60_000;
 const ago = (ms) => new Date(NOW - ms).toISOString();
 
-/** What WhatsApp costs, said last under every connected row in one line: Meta bills it, to the card on the WhatsApp account. */
-const COST = [
-  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.",
-];
-const PRICES = {
-  label: "Meta's current prices",
-  href: "https://business.whatsapp.com/products/platform-pricing#rates",
-};
-/** The same, as the row's notes: the last carries the link to Meta's rates (no rate is written in Chanlytics). */
-const COST_NOTES = COST.map((text, at) => (at === COST.length - 1 ? { text, link: PRICES } : { text }));
-/** What a row says beyond what WhatsApp costs: its notes' words, one to a note. */
-const said = (r) => r.notes.slice(0, -COST.length).map((n) => n.text);
+/** What a row says under its sentence: its notes' words, one to a note. */
+const said = (r) => r.notes.map((n) => n.text);
 
-/** What a payment method is for: Meta delivers replies to a customer who wrote first without one, and not the messages the business starts. */
-const PAYMENT_NOTE =
-  "Without a payment method, Meta still delivers replies to customers who write first; it does not deliver the messages your business starts, like reminders and campaigns.";
-/** What a number whose account has no payment method says: replies go out, what the business starts does not. */
-const NO_PAYMENT =
-  "No payment method on your WhatsApp account yet: replies still go out, but reminders and campaigns will not be delivered.";
-/** The business that owns the WhatsApp account and the account (made up), and the page Meta opens to add a payment method to it. */
+/** The business that owns the WhatsApp account and the account (made up), and Meta's pages for each. */
 const BUSINESS = "410540000000001";
 const ACCOUNT = "205540000000001";
-const ADD_ONE = {
-  label: "Add one in Meta",
-  href: `https://business.facebook.com/billing_hub/accounts/details/?business_id=${BUSINESS}&asset_id=${ACCOUNT}&wizard_name=ADD_PM&account_type=whatsapp-business-account`,
-};
-const VERIFIED_2K = "Your business is verified with Meta: you can start conversations with up to 2,000 people a day.";
+const ADD_CARD = `https://business.facebook.com/billing_hub/accounts/details/?business_id=${BUSINESS}&asset_id=${ACCOUNT}&wizard_name=ADD_PM&account_type=whatsapp-business-account`;
+const SECURITY_CENTER = `https://business.facebook.com/settings/security?business_id=${BUSINESS}`;
+const SECURITY_CENTER_ANYWHERE = "https://business.facebook.com/settings/security";
+const MANAGER = `https://business.facebook.com/wa/manage/phone-numbers/?business_id=${BUSINESS}&waba_id=${ACCOUNT}`;
+const MANAGER_ANYWHERE = "https://business.facebook.com/wa/manage/";
+/** The row's one act, a page of Meta's, as the verb carries it. */
+const act = (label, href) => ({ label, to: href, href, who: "owner" });
+const LIBRARY = { label: "Library", to: "messages", who: "operator" };
 
-/** What the edge keeps for a number Meta reports BLOCKED: the account's missing payment method, in Meta's words, and the app's own trouble. */
+/** The row's sentences for the account's payment method: none on file, and one Meta reports a problem with. */
+const NEEDS_CARD = "Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns.";
+const CARD_FAILING =
+  "Meta reports a problem with the payment method on your WhatsApp account: reminders and campaigns are not delivered until it is fixed.";
+const REPLIES_STILL_GO = "Replies to customers who write first still go out.";
+const IN_SUITE = "Add one in Meta Business Suite › Billing.";
+const BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
+/** The verification's note: not verified, the day's cap where the sentence does not say it, and Meta's page to verify on. */
+const notVerified = (cap, href = SECURITY_CENTER) => ({
+  text: `Not verified with Meta: customers see your number instead of your name${cap ? `, and you can start conversations with up to ${cap} people a day` : ""}. Verify when you need more.`,
+  link: { label: "Verify in Meta", href },
+});
+
+/** Meta's problem for a card on file that fails, in its words (a live account, 6 October). */
+const CARD_ERROR = {
+  entity: "WABA",
+  code: 141006,
+  said: "There is an error with the payment method. This will block business initiated conversations.",
+  fix: "Please add a new payment method to the account.",
+};
+/** Meta's problems about WhatsApp calling, as its health answers them on the phone and on the app (the same account; Meta's codes not kept). */
+const SIP = [
+  {
+    entity: "PHONE_NUMBER",
+    code: null,
+    said: "WhatsApp Business calling cannot use SIP because it is not enabled",
+    fix: "Configure SIP using {PHONE_NUMBER_ID}/settings API",
+  },
+  {
+    entity: "APP",
+    code: null,
+    said: "This app cannot use SIP for WhatsApp Business calling because it has not configured a SIP server for this business phone number",
+    fix: "Configure SIP server using {PHONE_NUMBER_ID}/settings API",
+  },
+];
+
+/** What the edge keeps for a number Meta reports BLOCKED over the account's payment method (Meta's words), with the app's own trouble beside it. */
 const BLOCKED = {
   can_send: "BLOCKED",
   problems: [
@@ -87,8 +115,19 @@ const LIMITED = {
   owner_business_id: BUSINESS,
   waba_id: ACCOUNT,
 };
-/** A number with nothing in the way and nothing to say about its name: what a row says of it is the account's and the business's. */
+/** A number with nothing in the way and nothing to say about its name. */
 const AVAILABLE = { ...LIMITED, can_send: "AVAILABLE", notes: [], name_status: "APPROVED" };
+/** A number Meta has stopped for something that is not the payment method, with its calling problems in front. */
+const RESTRICTED = {
+  ...BLOCKED,
+  has_payment_method: true,
+  owner_business_id: BUSINESS,
+  waba_id: ACCOUNT,
+  problems: [
+    ...SIP,
+    { entity: "WABA", code: 131031, said: "Account has been restricted", fix: "Appeal in WhatsApp Manager" },
+  ],
+};
 
 const channel = (standing, over = {}) =>
   toChannelVM(
@@ -115,21 +154,23 @@ const base = () => ({
 });
 const whatsappRow = (ch) => connectionRows({ ...base(), channels: [ch] }, NOW).find((r) => r.kind === "whatsapp");
 
-test("a number Meta will not let send needs attention, says Meta's first problem in Meta's words, and gives the fix and the rest as notes", () => {
+test("a number whose account's payment method Meta reports a problem with waits on the owner: the sentence says what Meta stops, and nothing of Meta's prose is repeated", () => {
   const r = whatsappRow(channel(BLOCKED));
-  assert.deepEqual([r.state, r.stateWords, r.group], ["attention", "Needs attention", "connected"]);
-  assert.equal(r.sentence, "Meta: A payment method is required to send messages.");
-  assert.deepEqual(said(r), [
-    "Add a payment method in WhatsApp Manager.",
-    "The app is in development mode.",
-    // No "replies still go out" here: a number Meta will not let send sends nothing (the final review of 6 October).
-    "Your business isn't verified with Meta: you can start conversations with up to 250 people a day. Replies to customers who write first are not limited.",
-  ]);
-  assert.deepEqual(r.verb, { label: "Library", to: "messages", who: "operator" }, "the row's own verb stays");
+  assert.deepEqual([r.state, r.stateWords, r.group], ["attention", "Waiting on you", "connected"]);
+  assert.equal(
+    r.sentence,
+    `${CARD_FAILING} ${IN_SUITE}`,
+    "BLOCKED: nothing of replies still going; no business or account known: Business Suite, and no page to open",
+  );
+  assert.equal(r.verb, null);
+  assert.deepEqual(r.notes, [notVerified("250", SECURITY_CENTER_ANYWHERE)]);
+  const drawn = JSON.stringify(r);
+  assert.ok(!drawn.includes("development mode"), "Meta's other problem is not repeated");
+  assert.ok(!drawn.includes("required to send") && !drawn.includes("WhatsApp Manager"), "nor its words, nor its fix");
 });
 
-test("a number Meta will not let send, whose account has no payment method, says only that it has none, with the way to add one", () => {
-  const r = whatsappRow(
+test("the account's payment method: none on file is Add a card on Meta's own page for this business and this account; one Meta names a problem with is Fix the card; one on file and unnamed is nothing", () => {
+  const none = whatsappRow(
     channel({
       ...BLOCKED,
       problems: [BLOCKED.problems[0]],
@@ -138,78 +179,142 @@ test("a number Meta will not let send, whose account has no payment method, says
       waba_id: ACCOUNT,
     }),
   );
-  assert.equal(r.sentence, "Meta: A payment method is required to send messages.");
   assert.deepEqual(
-    r.notes.filter((n) => n.link?.label === "Add one in Meta"),
-    [{ text: "No payment method on your WhatsApp account yet.", link: ADD_ONE }],
+    [none.stateWords, none.sentence, none.verb],
+    ["Waiting on you", NEEDS_CARD, act("Add a card", ADD_CARD)],
   );
-  assert.ok(!said(r).some((n) => /replies still go out|still delivers replies/.test(n)), JSON.stringify(said(r)));
+  assert.deepEqual(none.notes, [notVerified("250")]);
+  // A number Meta lets send with none on file: Meta's own word that it may send, so the replies are said to go.
+  const open = whatsappRow(channel({ ...AVAILABLE, has_payment_method: false }));
+  assert.deepEqual(
+    [open.state, open.stateWords, open.sentence, open.verb],
+    ["attention", "Waiting on you", `${NEEDS_CARD} ${REPLIES_STILL_GO}`, act("Add a card", ADD_CARD)],
+  );
+  assert.deepEqual(open.notes, [], "a verified business says nothing of itself");
+  // The business, or the account, not known (or an id that is not digits): no page that would open on nothing; Business Suite instead.
+  for (const over of [{ owner_business_id: null }, { waba_id: null }, { owner_business_id: "41054 x&y=1" }]) {
+    const r = whatsappRow(channel({ ...AVAILABLE, has_payment_method: false, ...over }));
+    assert.equal(r.sentence, `${NEEDS_CARD} ${REPLIES_STILL_GO} ${IN_SUITE}`, JSON.stringify(over));
+    assert.equal(r.verb, null, JSON.stringify(over));
+  }
+  // One on file that Meta names a problem with (a declined card, no timezone or currency on the account): Fix the card.
+  const failing = whatsappRow(channel({ ...AVAILABLE, has_payment_method: true, problems: [CARD_ERROR] }));
+  assert.deepEqual(
+    [failing.stateWords, failing.sentence, failing.verb],
+    ["Waiting on you", `${CARD_FAILING} ${REPLIES_STILL_GO}`, act("Fix the card", ADD_CARD)],
+  );
+  // One on file and nothing named: nothing of it; a problem that is not about payment, on a number Meta lets send: nothing of it either.
+  assert.equal(whatsappRow(channel({ ...AVAILABLE, has_payment_method: true })).stateWords, "On");
+  const other = whatsappRow(channel({ ...AVAILABLE, has_payment_method: null, problems: [BLOCKED.problems[1]] }));
+  assert.deepEqual([other.stateWords, other.verb, said(other)], ["On", LIBRARY, []]);
 });
 
-test("the row's sentence and its notes say one daily limit: the quality webhook's once Meta has sent one, else the tier the standing read", () => {
-  const unverified = { ...AVAILABLE, verification: "not_verified", limit: "TIER_250" };
-  const before = whatsappRow(channel(unverified, { quality: "GREEN" }));
-  assert.match(before.sentence, /up to 250 new conversations a day/, before.sentence);
+test("a number Meta has stopped for anything else needs attention: Meta's first problem about messaging, in its words, and WhatsApp Manager; its calling problems are never shown, and the payment method outranks the rest", () => {
+  const r = whatsappRow(channel(RESTRICTED));
+  assert.deepEqual([r.state, r.stateWords], ["attention", "Needs attention"]);
+  assert.equal(r.sentence, "Meta has stopped this number from sending: Account has been restricted.");
+  assert.deepEqual(r.verb, act("Open WhatsApp Manager", MANAGER));
+  assert.deepEqual(r.notes, [notVerified("250")]);
   assert.ok(
-    said(before).some((n) => n.includes("up to 250 people a day")),
-    JSON.stringify(said(before)),
+    !JSON.stringify(r).includes("SIP"),
+    "Chanlytics does not use WhatsApp calling: its problems are nobody's to fix here",
   );
-  const moved = whatsappRow(channel(unverified, { quality: "GREEN", messaging_limit: "TIER_1K" }));
-  assert.match(moved.sentence, /up to 1,000 new conversations a day/, moved.sentence);
-  assert.ok(
-    said(moved).some((n) => n.includes("up to 1,000 people a day")),
-    JSON.stringify(said(moved)),
+  // Calling problems alone: Meta stopped it, and gave no reason the row can give.
+  const quiet = whatsappRow(channel({ ...RESTRICTED, problems: SIP }));
+  assert.equal(quiet.sentence, BLOCKED_SENTENCE);
+  assert.ok(!JSON.stringify(quiet).includes("SIP"));
+  // The live row of 6 October: two calling problems, then the payment method, then the verification. It led with SIP; it waits on the card.
+  const live = whatsappRow(
+    channel({
+      ...RESTRICTED,
+      problems: [
+        ...SIP,
+        CARD_ERROR,
+        {
+          entity: "BUSINESS",
+          code: null,
+          said: "The Business has not passed business verification.",
+          fix: "Visit business settings and start or resolve the business verification request.",
+        },
+      ],
+      notes: [
+        "Your display name has not been approved yet. Your message limit will increase after the display name is approved.",
+      ],
+      name_status: "PENDING_REVIEW",
+    }),
   );
-  assert.ok(!said(moved).some((n) => n.includes("250")), "never the older tier beside the newer one");
+  assert.deepEqual(
+    [live.stateWords, live.sentence, live.verb],
+    ["Waiting on you", CARD_FAILING, act("Fix the card", ADD_CARD)],
+  );
+  assert.deepEqual(
+    live.notes,
+    [notVerified("250")],
+    "one line for the verification, with Meta's page; nothing of a name in review",
+  );
+  assert.ok(!JSON.stringify(live).includes("display name"), "Meta's own note is not repeated");
 });
 
 test("a number Meta blocks without saying why says that much and nothing it did not say", () => {
   const r = whatsappRow(channel({ ...BLOCKED, problems: [], verification: null, limit: null }));
-  assert.equal(r.state, "attention");
-  assert.equal(r.sentence, "Meta says WhatsApp cannot send from this number right now.");
-  assert.deepEqual(said(r), [], "no problem, no note, no verification read: nothing is invented");
+  assert.deepEqual([r.state, r.stateWords, r.sentence], ["attention", "Needs attention", BLOCKED_SENTENCE]);
+  assert.deepEqual(
+    r.verb,
+    act("Open WhatsApp Manager", MANAGER_ANYWHERE),
+    "Meta's own page, on no account in particular",
+  );
+  assert.deepEqual(said(r), [], "no problem, no verification read: nothing is invented");
 });
 
-test("a number Meta limits stays On with what Meta said, the name's review and the tier, each as a note", () => {
+test("a number Meta limits stays On: Meta's own note, a name in review and a verified business say nothing, since none changes what the owner can do", () => {
   const plain = whatsappRow(channel(null));
   const r = whatsappRow(channel(LIMITED));
-  assert.deepEqual([r.state, r.stateWords], ["connected", "On"]);
+  assert.deepEqual([r.state, r.stateWords, r.verb], ["connected", "On", LIBRARY]);
   assert.equal(r.sentence, plain.sentence, "the sentence is the row's own: receiving, and its rating");
-  assert.deepEqual(said(r), [
-    "Your display name has not been approved yet. Messages are limited until it is.",
-    "Meta is reviewing the display name “Harbor Moving”; until then customers see the number.",
-    VERIFIED_2K,
-  ]);
+  assert.deepEqual(r.notes, []);
 });
 
-test("a declined name and a business with no daily limit are said; a name Meta approved, and a number it has said nothing about, say nothing of themselves", () => {
+test("a declined or lapsed name is said, with where to change it; a name Meta approved, a business with no daily limit, and a number it has said nothing about say nothing of themselves", () => {
   const declined = whatsappRow(channel({ ...AVAILABLE, name_status: "DECLINED", limit: "TIER_UNLIMITED" }));
-  assert.deepEqual(said(declined), [
-    "Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager.",
-    "Your business is verified with Meta and has no daily limit on starting conversations.",
-  ]);
+  assert.deepEqual(said(declined), ["Meta declined the display name “Harbor Moving” — change it in WhatsApp Manager."]);
   assert.equal(declined.state, "connected");
   const expired = whatsappRow(channel({ ...AVAILABLE, name: null, name_status: "EXPIRED", verification: null }));
   assert.deepEqual(said(expired), ["The request for your display name expired — submit it again in WhatsApp Manager."]);
-  assert.deepEqual(said(whatsappRow(channel(AVAILABLE))), [VERIFIED_2K]);
+  assert.deepEqual(said(whatsappRow(channel(AVAILABLE))), []);
   const unread = whatsappRow(channel(null));
   assert.deepEqual(said(unread), [], "nothing read yet: as it was, its quality and its last message");
   assert.match(unread.sentence, /^Receiving · last message 2h ago/);
 });
 
-test("an unverified business is said at the tier Meta gave, else at the start Meta gives a new business; a pending one is unverified too", () => {
-  const at = (over) => said(whatsappRow(channel({ ...AVAILABLE, ...over })));
+test("a row says one daily limit: in the sentence once the rating is known (the quality webhook's tier, else the standing's), and in the verification's note until then", () => {
+  const unverified = { ...AVAILABLE, verification: "not_verified", limit: "TIER_250" };
+  const before = whatsappRow(channel(unverified, { quality: "GREEN" }));
+  assert.match(before.sentence, /up to 250 new conversations a day/, before.sentence);
+  assert.deepEqual(before.notes, [notVerified(null)], "the note does not say the cap the sentence says");
+  const moved = whatsappRow(channel(unverified, { quality: "GREEN", messaging_limit: "TIER_1K" }));
+  assert.match(moved.sentence, /up to 1,000 new conversations a day/, moved.sentence);
+  assert.ok(!JSON.stringify(moved).includes("250"), "never the older tier beside the newer one");
+  const unknown = whatsappRow(channel(unverified));
+  assert.doesNotMatch(unknown.sentence, /conversations a day/, "no rating yet: the sentence says nothing of a limit");
+  assert.deepEqual(unknown.notes, [notVerified("250")], "so the note does");
+  assert.deepEqual(whatsappRow(channel(unverified, { messaging_limit: "TIER_1K" })).notes, [notVerified("1,000")]);
+});
+
+test("an unverified business is said at the tier Meta gave, else at the start Meta gives a new business; one in Meta's review is said so; a verified one says nothing", () => {
+  const at = (over) => whatsappRow(channel({ ...AVAILABLE, ...over })).notes;
   assert.deepEqual(at({ verification: "pending", limit: "TIER_50" }), [
-    "Your business isn't verified with Meta: you can start conversations with up to 50 people a day. Replies to customers who write first are not limited.",
+    {
+      text: "Meta is reviewing your business's verification: until then customers see your number instead of your name, and you can start conversations with up to 50 people a day.",
+      link: { label: "See it in Meta", href: SECURITY_CENTER },
+    },
   ]);
-  assert.deepEqual(at({ verification: "not_verified", limit: "UNTIERED" }), [
-    "Your business isn't verified with Meta: you can start conversations with up to 250 people a day. Replies to customers who write first are not limited.",
-  ]);
+  assert.deepEqual(at({ verification: "not_verified", limit: "UNTIERED" }), [notVerified("250")]);
   assert.deepEqual(
     at({ verification: "not_verified", limit: null }),
     at({ verification: "rejected", limit: "UNTIERED" }),
   );
-  assert.deepEqual(at({ verification: "verified", limit: "UNTIERED" }), ["Your business is verified with Meta."]);
+  assert.deepEqual(at({ verification: "verified", limit: "UNTIERED" }), []);
+  assert.deepEqual(at({ verification: null }), [], "nothing read of the business: nothing said of it");
 });
 
 test("a word of Meta's that is not one of the three is kept and not guessed: the row neither flags it nor calls it fine", () => {
@@ -218,11 +323,11 @@ test("a word of Meta's that is not one of the three is kept and not guessed: the
   assert.equal(r.sentence, whatsappRow(channel(null)).sentence);
 });
 
-test("a switched-off number says nothing of what Meta holds or of what WhatsApp costs, and a flagged one is still flagged", () => {
+test("a switched-off number says nothing of what Meta holds, and a flagged one is still flagged", () => {
   const off = whatsappRow(channel(BLOCKED, { status: "disabled" }));
   assert.deepEqual([off.state, off.stateWords, off.notes], ["off", "Off", []]);
   const flagged = whatsappRow(channel(LIMITED, { quality: "RED", quality_event: "FLAGGED" }));
-  assert.equal(flagged.state, "attention", "Meta's rating still counts");
+  assert.deepEqual([flagged.state, flagged.stateWords], ["attention", "Needs attention"], "Meta's rating still counts");
   assert.match(flagged.sentence, /WhatsApp flagged this number's quality/);
 });
 
@@ -305,21 +410,49 @@ test("a page that opens asks Meta again when nothing was kept, or when what was 
   );
 });
 
-test("the owner's alert says which number, Meta's first problem and Meta's fix, in Meta's words", () => {
+test("the owner's alert: a payment method missing or failing says what Meta stops and where to mend it; anything else says Meta's first problem about messaging and its fix, never a calling problem", () => {
   assert.deepEqual(standingAlertWords("+13055550188", BLOCKED), {
-    subject: "WhatsApp can't send from your number",
-    body: "WhatsApp can't send from +1 (305) 555-0188: A payment method is required to send messages. Add a payment method in WhatsApp Manager.",
+    subject: "WhatsApp can't start conversations from your number",
+    body: `WhatsApp can't start conversations from +1 (305) 555-0188: ${CARD_FAILING} Fix it in Meta Business Suite › Billing.`,
   });
   assert.equal(
+    standingAlertWords("+13055550188", { ...BLOCKED, has_payment_method: false }).body,
+    `WhatsApp can't start conversations from +1 (305) 555-0188: ${NEEDS_CARD} ${IN_SUITE}`,
+  );
+  assert.deepEqual(
     standingAlertWords("+13055550188", {
-      ...BLOCKED,
-      problems: [{ entity: "WABA", code: null, said: "Account restricted.", fix: null }],
-    }).body,
-    "WhatsApp can't send from +1 (305) 555-0188: Account restricted.",
+      ...RESTRICTED,
+      problems: [...SIP, { entity: "WABA", code: null, said: "Account restricted.", fix: null }],
+    }),
+    {
+      subject: "WhatsApp can't send from your number",
+      body: "WhatsApp can't send from +1 (305) 555-0188: Account restricted.",
+    },
   );
   assert.equal(
-    standingAlertWords(null, { ...BLOCKED, problems: [] }).body,
+    standingAlertWords("+13055550188", RESTRICTED).body,
+    "WhatsApp can't send from +1 (305) 555-0188: Account has been restricted. Appeal in WhatsApp Manager.",
+  );
+  assert.equal(
+    standingAlertWords(null, { ...RESTRICTED, problems: [] }).body,
     "WhatsApp can't send from your number. Meta did not say why; open Connections to read what it holds.",
+  );
+});
+
+test("a campaign's readiness reads the same standing as the row: a number whose row waits on the owner or needs attention carries no campaign, refused in the row's sentence; any other standing, or none, leaves the rating's reading", () => {
+  const good = numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" });
+  const unpaid = { ...AVAILABLE, has_payment_method: false };
+  const held = numberHealthWithStanding(good, unpaid);
+  assert.deepEqual([held.canSend, held.tone, held.refusal], [false, "danger", whatsappRow(channel(unpaid)).sentence]);
+  assert.deepEqual([held.label, held.limitPerDay], [good.label, good.limitPerDay], "the rating's own words stay");
+  assert.equal(numberHealthWithStanding(good, BLOCKED).refusal, whatsappRow(channel(BLOCKED)).sentence);
+  assert.equal(numberHealthWithStanding(good, RESTRICTED).refusal, whatsappRow(channel(RESTRICTED)).sentence);
+  assert.equal(numberHealthWithStanding(good, LIMITED), good, "limited: Meta lets it send, and the row is On");
+  assert.equal(numberHealthWithStanding(good, null), good, "nothing read: nothing changes");
+  assert.equal(
+    numberHealthWithStanding(good, { ...RESTRICTED, can_send: "RESTRICTED", problems: [] }),
+    good,
+    "a word that is none of the three is not taken for BLOCKED",
   );
 });
 
@@ -382,54 +515,12 @@ test("a decision on the display name corrects the kept standing and nothing else
   );
   assert.deepEqual(
     said(whatsappRow(channel({ ...kept, notes: [] }))),
-    [VERIFIED_2K],
+    [],
     "an approved name leaves the row's review note: it says nothing of a name that is fine",
   );
 });
 
-test("whether the account has a payment method is said where it matters, with the way to add one; where it could not be read, what a payment method is for is said wherever Meta's own problem names one", () => {
-  const notes = (over) => whatsappRow(channel({ ...AVAILABLE, ...over })).notes.slice(0, -COST.length);
-  const named = { entity: "WABA", code: 141006, said: "A payment method is required to send messages", fix: null };
-  const NAMED = { text: "A payment method is required to send messages." };
-  // None on file: said plainly, with the page Meta opens to add one for this business and this account.
-  assert.deepEqual(notes({ has_payment_method: false }), [{ text: NO_PAYMENT, link: ADD_ONE }, { text: VERIFIED_2K }]);
-  // The business, or the account, not known (or an id that is not digits): no link that would open on nothing; Business Suite instead.
-  const SUITE = { text: `${NO_PAYMENT} Add one in Meta Business Suite › Billing.` };
-  assert.deepEqual(notes({ has_payment_method: false, owner_business_id: null }), [SUITE, { text: VERIFIED_2K }]);
-  assert.deepEqual(notes({ has_payment_method: false, waba_id: null }), [SUITE, { text: VERIFIED_2K }]);
-  assert.deepEqual(notes({ has_payment_method: false, owner_business_id: "41054 x&y=1" }), [
-    SUITE,
-    { text: VERIFIED_2K },
-  ]);
-  // One on file: nothing of it, even where Meta's own problem names a payment.
-  assert.deepEqual(notes({ has_payment_method: true }), [{ text: VERIFIED_2K }]);
-  assert.deepEqual(notes({ has_payment_method: true, problems: [named] }), [NAMED, { text: VERIFIED_2K }]);
-  // None on file and Meta's problem names it too: the account's own word says it once, after Meta's.
-  assert.deepEqual(notes({ has_payment_method: false, problems: [named] }), [
-    NAMED,
-    { text: NO_PAYMENT, link: ADD_ONE },
-    { text: VERIFIED_2K },
-  ]);
-  // Not read: Meta's problem is what there is to go on, and a payment method's use is said once, however many problems name a payment.
-  assert.deepEqual(notes({ has_payment_method: null, problems: [named] }), [
-    NAMED,
-    { text: PAYMENT_NOTE },
-    { text: VERIFIED_2K },
-  ]);
-  const twice = [named, { entity: "BUSINESS", code: null, said: "The payment method on file was declined", fix: null }];
-  assert.equal(notes({ has_payment_method: null, problems: twice }).filter((n) => n.text === PAYMENT_NOTE).length, 1);
-  assert.deepEqual(
-    notes({ has_payment_method: null, problems: [{ ...named, said: "The app is in development mode" }] }),
-    [{ text: "The app is in development mode." }, { text: VERIFIED_2K }],
-  );
-  assert.deepEqual(
-    notes({ has_payment_method: null }),
-    [{ text: VERIFIED_2K }],
-    "nothing named, nothing known: nothing said",
-  );
-});
-
-test("every connected WhatsApp row says what WhatsApp costs, last: who bills it, what is free, what is charged, and Meta's own page for the prices; a switched-off number and every other row say none of it", () => {
+test("a connected WhatsApp row says nothing of what WhatsApp costs (the Connect row and Billing do); every other row has no notes", () => {
   for (const ch of [
     channel(null),
     channel(LIMITED),
@@ -437,40 +528,36 @@ test("every connected WhatsApp row says what WhatsApp costs, last: who bills it,
     channel(null, { quality: "RED", quality_event: "FLAGGED" }),
   ]) {
     const r = whatsappRow(ch);
-    assert.deepEqual(r.notes.slice(-COST.length), COST_NOTES, `${r.state}: the one line, with its link`);
+    assert.ok(!said(r).some((n) => /bills|charged|free/.test(n)), `${r.stateWords}: a price stands in nobody's way`);
   }
-  assert.deepEqual(whatsappRow(channel(null, { status: "disabled" })).notes, []);
   const rows = connectionRows({ ...base(), channels: [channel(null)] }, NOW);
   for (const r of rows.filter((x) => x.kind !== "whatsapp")) assert.deepEqual(r.notes, [], r.kind);
 });
 
-test("a connected number nobody has written to yet says how to try it from a phone, built from its number; once a message has arrived, or when the row is off, needs attention or has no number, it says nothing of the kind", () => {
+test("a connected number nobody has written to yet says how to try it from a phone, built from its number; once a message has arrived, or when the row is off, waits on the owner, needs attention or has no number, it says nothing of the kind", () => {
   const TRY = {
     text: "Try it from your phone: wa.me/13055550188 — if WhatsApp says the number isn't on WhatsApp yet, open this link instead of searching your contacts.",
   };
   const unwritten = { last_inbound_at: null };
-  assert.deepEqual(whatsappRow(channel(null, unwritten)).notes, [TRY, ...COST_NOTES]);
+  assert.deepEqual(whatsappRow(channel(null, unwritten)).notes, [TRY]);
+  assert.deepEqual(whatsappRow(channel(AVAILABLE, unwritten)).notes, [TRY], "a verified business adds nothing");
   assert.deepEqual(
-    whatsappRow(channel(AVAILABLE, unwritten)).notes,
-    [TRY, { text: VERIFIED_2K }, ...COST_NOTES],
-    "the way to try it first, then what Meta holds, then what it costs",
+    whatsappRow(channel({ ...AVAILABLE, verification: "not_verified" }, unwritten)).notes,
+    [TRY, notVerified("2,000")],
+    "the way to try it first, then what Meta holds (the tier Meta gave, no rating read yet)",
   );
-  assert.deepEqual(whatsappRow(channel(null)).notes, COST_NOTES, "a message has arrived");
+  assert.deepEqual(whatsappRow(channel(null)).notes, [], "a message has arrived");
   assert.deepEqual(whatsappRow(channel(null, { ...unwritten, status: "disabled" })).notes, [], "off");
   assert.ok(
     !whatsappRow(channel(BLOCKED, unwritten)).notes.some((n) => n.text === TRY.text),
-    "needing attention: Meta's words come first",
+    "waiting on the owner: the row says the one thing to do",
   );
   assert.deepEqual(
     whatsappRow(channel(null, { ...unwritten, quality: "RED", quality_event: "FLAGGED" })).notes,
-    COST_NOTES,
-    "flagged: needs attention too",
+    [],
+    "flagged: needs attention",
   );
-  assert.deepEqual(
-    whatsappRow(channel(null, { ...unwritten, number_e164: null })).notes,
-    COST_NOTES,
-    "no number, no link",
-  );
+  assert.deepEqual(whatsappRow(channel(null, { ...unwritten, number_e164: null })).notes, [], "no number, no link");
   assert.match(
     whatsappRow(channel(null, { ...unwritten, number_e164: "+442079460958" })).notes[0].text,
     /^Try it from your phone: wa\.me\/442079460958 — /,

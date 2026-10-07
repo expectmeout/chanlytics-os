@@ -215,7 +215,7 @@ export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens 
 export { workspacePaused } from "./repositories/campaigns/workspace";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
 export {
-  whatsappChannelConfig,
+  whatsappChannelFacts,
   textLineFacts,
   playbookChannels,
   queuedRecipients,

@@ -17,6 +17,7 @@ import {
   nextRunLabel,
   noteRows,
   numberHealth,
+  numberHealthWithStanding,
   playbookListRef,
   policyClassOffered,
   resolveList,
@@ -83,11 +84,18 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active
   // WhatsApp row, and its health from the quality Meta assigned it.
   const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
-  const health = numberHealth({
-    quality: wa?.quality ?? null,
-    event: wa?.quality_event ?? null,
-    limit: wa?.messaging_limit ?? null,
-  });
+  // With what Meta holds against the number and the number itself, as campaigns/channels-ready.ts reads them: one judgement.
+  const health = {
+    ...numberHealthWithStanding(
+      numberHealth({
+        quality: wa?.quality ?? null,
+        event: wa?.quality_event ?? null,
+        limit: wa?.messaging_limit ?? null,
+      }),
+      wa?.standing ?? null,
+    ),
+    number: wa?.number_e164 ?? null,
+  };
   // Counted by WhatsApp, as a proposal names no other channel, the workspace ready on it or not (the composer counts by
   // the same): no number is none, and channels that could not be read count as the pages count them, WhatsApp able.
   const how = whatsappHowOf(chans === null ? undefined : wa ? health : null, "ours");

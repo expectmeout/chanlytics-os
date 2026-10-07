@@ -59,7 +59,7 @@ const WHATSAPP_FAILURES: Readonly<Record<number, string>> = {
   131048:
     "WhatsApp is limiting how many messages your number can send, because earlier ones were blocked or flagged as spam",
   131049:
-    "WhatsApp chose not to deliver it, to maintain healthy engagement, and advises waiting at least 24 hours before sending again",
+    "WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now",
   131050: "They've chosen to stop receiving marketing messages from your business on WhatsApp",
   131053: "WhatsApp couldn't upload the attachment, for a reason such as a file type it doesn't support",
   131056:
