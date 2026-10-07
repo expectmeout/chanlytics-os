@@ -569,8 +569,8 @@ test("beside each rating the sweep asks what Meta holds about the number, with t
     assert.deepEqual(
       w.tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title]).sort(),
       [
-        [T(1), "number", "admin/integrations", "WhatsApp can't send from your number"],
-        [T(4), "number", "admin/integrations", "WhatsApp can't send from your number"],
+        [T(1), "number", "admin/integrations", "WhatsApp can't start conversations from your number"],
+        [T(4), "number", "admin/integrations", "WhatsApp can't start conversations from your number"],
       ],
       "the owners of the two numbers that turned BLOCKED are told, on the bell; the one that stayed BLOCKED is not",
     );

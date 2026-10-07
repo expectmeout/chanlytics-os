@@ -20,7 +20,7 @@ import {
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { canDo, gate, gateTitle, routeDoor, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, gateTitle, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { billingVerbs as api } from "./surface";
 
@@ -219,13 +219,20 @@ function planCard(o: {
           </div>
         </div>
       )}
-      {/* Meta bills the WhatsApp messages the business starts, to the card on its own WhatsApp account: said where a bill is read. */}
+      {/* Meta bills the WhatsApp messages the business starts, to the card on its own WhatsApp account: said where a bill is
+          read, with Meta's own page of prices after it (no rate is written in Chanlytics). A new tab, and nothing of this
+          page's passes with it. */}
       <div className="set-row" data-testid="billing-whatsapp">
         <div className="set-row-info">
           <span className="set-row-hint">
             <span data-testid="billing-whatsapp-line">{WHATSAPP_COST_WORDS.billingLine}</span>{" "}
-            <LinkButton {...routeDoor("admin/integrations")} data-testid="billing-whatsapp-link">
-              {WHATSAPP_COST_WORDS.title}
+            <LinkButton
+              href={WHATSAPP_COST_WORDS.ratesUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="billing-whatsapp-link"
+            >
+              {WHATSAPP_COST_WORDS.pricesLink}
             </LinkButton>
           </span>
         </div>

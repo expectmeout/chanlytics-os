@@ -1204,7 +1204,7 @@ var WHATSAPP_FAILURES = {
   131042: "WhatsApp reports a problem with your payment method",
   131047: "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now",
   131048: "WhatsApp is limiting how many messages your number can send, because earlier ones were blocked or flagged as spam",
-  131049: "WhatsApp chose not to deliver it, to maintain healthy engagement, and advises waiting at least 24 hours before sending again",
+  131049: "WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now",
   131050: "They've chosen to stop receiving marketing messages from your business on WhatsApp",
   131053: "WhatsApp couldn't upload the attachment, for a reason such as a file type it doesn't support",
   131056: "Your number sent them too many messages in a short while, and WhatsApp asks you to wait before sending more to them",
@@ -11258,6 +11258,16 @@ function offersPausedLine(offers) {
   return offers?.paused ? OFFERS_PAUSED_WORDS.head(offers.paused.reason) : null;
 }
 
+// src/broadcasts/whatsapp-offers.ts
+var PLUS_ONE = /^\+1\d{10}$/;
+var US_PAUSED = "Meta isn't delivering marketing messages on WhatsApp to US numbers right now (paused since April 2025). Appointment messages and replies on WhatsApp are unaffected.";
+function whatsappOffersPaused(e164) {
+  return typeof e164 === "string" && PLUS_ONE.test(e164.trim());
+}
+function whatsappOffersOpen(e164) {
+  return whatsappOffersPaused(e164) ? { ok: false, why: US_PAUSED, paused: null } : { ok: true, why: null, paused: null };
+}
+
 // src/broadcasts/reach-for.ts
 var DEFAULT_CAMPAIGN_CHANNELS = ["whatsapp"];
 var CHANNEL_WORDS = {
@@ -11282,17 +11292,30 @@ function channelNeverCarries(channel, purpose) {
 function channelRefuses(channel, purpose, about, ready) {
   const never = channelNeverCarries(channel, purpose);
   if (never) return never;
+  if (channel === "whatsapp" && purpose === "marketing") {
+    const offers2 = ready.whatsapp.offers;
+    return offers2 && !offers2.ok ? offers2.why : null;
+  }
   if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
   const offers = ready.email.offers;
   return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet;
 }
 function offersNote(ready) {
+  const byWhatsApp = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
   const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
   const noText = "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
-  return byEmail ? `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.` : `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+  const paused = ready.whatsapp.offers?.why ?? "";
+  if (byWhatsApp && byEmail)
+    return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
+  if (byWhatsApp)
+    return `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+  if (byEmail)
+    return `Offers and news go by email only for now. ${paused} ${noText}; someone hears about offers by email if you have their address and they have not said no.`;
+  return `Offers and news have no channel right now. ${paused} ${noText}, and offers by email wait until email is set up for them.`;
 }
 function channelsReady(f) {
-  const wa = !f.whatsapp ? { ready: false, why: CHANNEL_WORDS.noWhatsApp } : f.whatsapp.canSend ? { ready: true, why: null } : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
+  const waNow = !f.whatsapp ? { ready: false, why: CHANNEL_WORDS.noWhatsApp } : f.whatsapp.canSend ? { ready: true, why: null } : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
+  const wa = f.whatsapp && f.whatsapp.number !== void 0 ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
   const sms = !f.textLine ? { ready: false, why: CHANNEL_WORDS.noTextLine } : f.textLine.reg_mock ? { ready: false, why: CHANNEL_WORDS.textLineMock } : f.textLine.sms_state === "active" ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
   const emailNow = f.email.domain === null ? { ready: false, why: CHANNEL_WORDS.unchecked } : !f.email.domain ? { ready: false, why: CHANNEL_WORDS.noEmailDomain } : f.email.mailbox ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.noMailbox };
   const email = f.email.offers ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) } : emailNow;
@@ -12339,6 +12362,12 @@ function toBroadcastVM(d, tz, now = /* @__PURE__ */ new Date()) {
 var OUTCOME_UNKNOWN = "outcome_unknown";
 function emptyAudienceRefusal(purpose, label, pool, how) {
   const ticked = CONSENT_CHANNELS.filter((c) => how.channels.includes(c));
+  const ready = how.ready;
+  if (ready) {
+    const refused = ticked.map((c) => channelRefuses(c, purpose, how.about, ready));
+    const first = refused[0];
+    if (first && refused.every((why) => why !== null)) return `Nobody on \u201C${label}\u201D can be sent this: ${first}`;
+  }
   if (ticked.includes("email"))
     return `Nobody on \u201C${label}\u201D can be sent this yet. ${consentGuardWords(ticked, purpose, how.about).join(" ")}`;
   if (pool.some((r2) => answeredYes(r2, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
@@ -23135,15 +23164,15 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
 // src/lines/whatsapp-cost.ts
 var RATES_URL = "https://business.whatsapp.com/products/platform-pricing#rates";
 var WHATSAPP_COST_WORDS = {
-  /** What the explainer is called where a page links to it. */
-  title: "What WhatsApp costs",
   /**
-   * Who bills it, what is free and what is charged, in one line an owner reads under the row: a row says one thing at a time, and
-   * the rates themselves are Meta's page (pricesLink), which says them by country and category.
+   * Who bills it, that a card is asked for, what is free and what is charged, in one line an owner reads under the Connect row:
+   * a row says one thing at a time, and the rates themselves are Meta's page (pricesLink), which says them by country and category.
    */
-  summary: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.",
+  summary: "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill, so add one when Meta asks: replies within 24 hours of a customer's message are free; reminders sent after that, and campaigns, are charged for each one Meta delivers.",
   pricesLink: "Meta's current prices",
-  /** The one line Settings > Billing says, with `title` as the link to the explainer on Connections. */
+  /** Meta's page of current rates: what the Billing line and the Connect row's note link. */
+  ratesUrl: RATES_URL,
+  /** The one line Settings > Billing says, with `pricesLink` to Meta's own page after it. */
   billingLine: "WhatsApp messages your business starts are billed by Meta to the card on your WhatsApp account, not on this bill."
 };
 function whatsappCostNotes() {
@@ -23208,30 +23237,54 @@ var withStop = (text) => {
 };
 var problemWords = (p) => p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
 var BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
-var NO_PAYMENT_METHOD = "No payment method on your WhatsApp account yet: replies still go out, but reminders and campaigns will not be delivered.";
-var NO_PAYMENT_METHOD_BLOCKED = "No payment method on your WhatsApp account yet.";
-var PAYMENT_NOTE = "Without a payment method, Meta still delivers replies to customers who write first; it does not deliver the messages your business starts, like reminders and campaigns.";
+var CALLING_PROBLEM = /\bSIP\b|\bcalling\b/i;
+var messagingProblems = (s) => s.problems.filter((p) => !CALLING_PROBLEM.test(p.said) && !(p.fix !== null && CALLING_PROBLEM.test(p.fix)));
 var PAYMENT_PROBLEM = /\bpayment\b/i;
-function paymentNotes(s) {
-  const blocked = s.can_send === "BLOCKED";
-  if (s.has_payment_method === false) {
-    const text = blocked ? NO_PAYMENT_METHOD_BLOCKED : NO_PAYMENT_METHOD;
-    const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
-    return href ? [{ text, link: { label: "Add one in Meta", href } }] : [{ text: `${text} Add one in Meta Business Suite \u203A Billing.` }];
-  }
-  const named = !blocked && s.has_payment_method === null && s.problems.some((p) => PAYMENT_PROBLEM.test(p.said));
-  return named ? [{ text: PAYMENT_NOTE }] : [];
+function paymentTrouble(s) {
+  if (s.has_payment_method === false) return "missing";
+  return messagingProblems(s).some((p) => PAYMENT_PROBLEM.test(p.said)) ? "failing" : null;
 }
-function standingSentence(s) {
-  const first = s.problems.at(0);
-  return first ? `Meta: ${withStop(first.said)}` : BLOCKED_SENTENCE;
+var META_ID = /^\d+$/;
+function securityCenterLink(ownerBusinessId) {
+  return ownerBusinessId && META_ID.test(ownerBusinessId) ? `https://business.facebook.com/settings/security?business_id=${ownerBusinessId}` : "https://business.facebook.com/settings/security";
+}
+function whatsappManagerLink(ownerBusinessId, wabaId) {
+  return ownerBusinessId && wabaId && META_ID.test(ownerBusinessId) && META_ID.test(wabaId) ? `https://business.facebook.com/wa/manage/phone-numbers/?business_id=${ownerBusinessId}&waba_id=${wabaId}` : "https://business.facebook.com/wa/manage/";
+}
+var PAYMENT_SENTENCE = {
+  missing: "Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns.",
+  failing: "Meta reports a problem with the payment method on your WhatsApp account: reminders and campaigns are not delivered until it is fixed."
+};
+var REPLIES_STILL_GO = "Replies to customers who write first still go out.";
+var ADD_ONE_IN_SUITE = "Add one in Meta Business Suite \u203A Billing.";
+var PAYMENT_ACT = { missing: "Add a card", failing: "Fix the card" };
+function standingRow(s) {
+  const payment = paymentTrouble(s);
+  if (payment) {
+    const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
+    const words3 = [
+      PAYMENT_SENTENCE[payment],
+      ...s.can_send === "BLOCKED" ? [] : [REPLIES_STILL_GO],
+      ...href ? [] : [ADD_ONE_IN_SUITE]
+    ];
+    return {
+      stateWords: "Waiting on you",
+      sentence: words3.join(" "),
+      act: href ? { label: PAYMENT_ACT[payment], href } : null
+    };
+  }
+  if (s.can_send !== "BLOCKED") return null;
+  const first = messagingProblems(s).at(0);
+  return {
+    stateWords: "Needs attention",
+    sentence: first ? `Meta has stopped this number from sending: ${withStop(first.said)}` : BLOCKED_SENTENCE,
+    act: { label: "Open WhatsApp Manager", href: whatsappManagerLink(s.owner_business_id, s.waba_id) }
+  };
 }
 var displayNameWords = (name) => name ? `the display name \u201C${name}\u201D` : "your display name";
 function nameWords(status, name) {
   const who = displayNameWords(name);
   switch (status) {
-    case "PENDING_REVIEW":
-      return `Meta is reviewing ${who}; until then customers see the number.`;
     case "DECLINED":
       return `Meta declined ${who} \u2014 change it in WhatsApp Manager.`;
     case "EXPIRED":
@@ -23269,40 +23322,48 @@ function nameDecisionWords(decision, requestedName, reason) {
   return { subject: "WhatsApp display name declined", body: `${declined}${said}`, alert: true };
 }
 var peopleADay = (n) => `up to ${n.toLocaleString("en-US")} people a day`;
-function verificationNote(s) {
+function verificationNote(s, limitSaid) {
   if (s.verification === null) return null;
+  const word = s.verification.toLowerCase();
+  if (word === "verified") return null;
   const tier = dailyLimit(s.limit);
-  if (s.verification.toLowerCase() === "verified") {
-    if (tier === Number.POSITIVE_INFINITY)
-      return "Your business is verified with Meta and has no daily limit on starting conversations.";
-    return tier === null ? "Your business is verified with Meta." : `Your business is verified with Meta: you can start conversations with ${peopleADay(tier)}.`;
-  }
   const cap2 = tier === null || tier === Number.POSITIVE_INFINITY ? NEW_BUSINESS_LIMIT : tier;
-  return `Your business isn't verified with Meta: you can start conversations with ${peopleADay(cap2)}. Replies to customers who write first are not limited.`;
+  const capWords = limitSaid ? "" : `, and you can start conversations with ${peopleADay(cap2)}`;
+  const link = { label: "Verify in Meta", href: securityCenterLink(s.owner_business_id) };
+  return word.startsWith("pending") ? {
+    text: `Meta is reviewing your business's verification: until then customers see your number instead of your name${capWords}.`,
+    link: { ...link, label: "See it in Meta" }
+  } : {
+    text: `Not verified with Meta: customers see your number instead of your name${capWords}. Verify when you need more.`,
+    link
+  };
 }
-function standingNotes(s) {
+function standingNotes(s, o) {
   if (!s) return [];
   const out = [];
-  const first = s.problems.at(0);
-  if (s.can_send === "BLOCKED") {
-    if (first?.fix) out.push({ text: withStop(first.fix) });
-    for (const p of s.problems.slice(1)) out.push({ text: problemWords(p) });
-  } else {
-    for (const p of s.problems) out.push({ text: problemWords(p) });
-  }
-  out.push(...paymentNotes(s));
-  for (const n of s.notes) out.push({ text: withStop(n) });
   const name = nameWords(s.name_status, s.name);
   if (name) out.push({ text: name });
-  const verification = verificationNote(s);
-  if (verification) out.push({ text: verification });
-  return out.filter((n, at3) => out.findIndex((m) => m.text === n.text) === at3);
+  const verification = verificationNote(s, o.limitSaid);
+  if (verification) out.push(verification);
+  return out;
 }
 function standingAlertWords(number2, s) {
   const which = formatPhoneDisplay(number2) ?? "your number";
-  const first = s.problems.at(0);
+  const payment = paymentTrouble(s);
+  if (payment) {
+    const where = payment === "missing" ? ADD_ONE_IN_SUITE : "Fix it in Meta Business Suite \u203A Billing.";
+    return {
+      subject: "WhatsApp can't start conversations from your number",
+      body: `WhatsApp can't start conversations from ${which}: ${PAYMENT_SENTENCE[payment]} ${where}`
+    };
+  }
+  const first = messagingProblems(s).at(0);
   const body = first ? `WhatsApp can't send from ${which}: ${problemWords(first)}` : `WhatsApp can't send from ${which}. Meta did not say why; open Connections to read what it holds.`;
   return { subject: "WhatsApp can't send from your number", body };
+}
+function numberHealthWithStanding(health, standing) {
+  const row2 = standing ? standingRow(standing) : null;
+  return row2 ? { ...health, canSend: false, tone: "danger", refusal: row2.sentence } : health;
 }
 var CAN_SEND_WORDS = {
   AVAILABLE: "can send",
@@ -29229,13 +29290,7 @@ function whatsappConnectNotes(own) {
   return [
     { text: "Meta asks you to sign in with Facebook and choose or create your business." },
     signupCodeNote(own),
-    ...whatsappCostNotes(),
-    {
-      text: "Add a payment method when Meta asks for one: without it, replies still go out, but reminders and campaigns are not delivered."
-    },
-    {
-      text: `Until Meta verifies your business, it can start conversations with ${NEW_BUSINESS_LIMIT} people a day; replies to customers who write first are not limited.`
-    }
+    ...whatsappCostNotes()
   ];
 }
 var SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
@@ -29253,32 +29308,43 @@ function tryItNotes(wa) {
     }
   ];
 }
+var LIBRARY = { label: "Library", to: "messages", who: "operator" };
+function whatsappNumberRow(base, wa) {
+  const row2 = { ...base, detail: wa.number };
+  if (!wa.on) return { ...row2, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };
+  const limit = wa.messagingLimit ?? wa.standing?.limit ?? null;
+  const standing = wa.standing && { ...wa.standing, limit };
+  if (standing) {
+    const stood = standingRow(standing);
+    if (stood)
+      return {
+        ...row2,
+        state: "attention",
+        stateWords: stood.stateWords,
+        sentence: stood.sentence,
+        verb: stood.act ? { label: stood.act.label, to: stood.act.href, href: stood.act.href, who: "owner" } : null,
+        notes: standingNotes(standing, { limitSaid: false })
+      };
+  }
+  const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
+  const flagged = h.tone === "danger";
+  const health = h.tone !== "unknown" ? ` \xB7 ${h.label}` : "";
+  return {
+    ...row2,
+    state: flagged ? "attention" : "connected",
+    stateWords: flagged ? "Needs attention" : "On",
+    sentence: `${wa.healthLabel}${health}`,
+    verb: LIBRARY,
+    // How to try it from a phone, first, on a row nobody has written to yet; then what Meta holds that the owner can act on.
+    notes: [
+      ...flagged ? [] : tryItNotes(wa),
+      ...standingNotes(standing, { limitSaid: h.tone !== "unknown" && h.limitPerDay !== null })
+    ]
+  };
+}
 function whatsappRow2(i, { wa, own, nowMs }) {
   const base = { kind: "whatsapp", icon: "chat", title: "WhatsApp Business" };
-  if (wa) {
-    const standing = wa.on ? wa.standing : null;
-    const limit = wa.messagingLimit ?? standing?.limit ?? null;
-    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
-    const flagged = wa.on && h.tone === "danger";
-    const health = wa.on && h.tone !== "unknown" ? ` \xB7 ${h.label}` : "";
-    const blocked = standing?.can_send === "BLOCKED";
-    const attention = flagged || blocked;
-    return {
-      ...base,
-      detail: wa.number,
-      state: !wa.on ? "off" : attention ? "attention" : "connected",
-      stateWords: !wa.on ? "Off" : attention ? "Needs attention" : "On",
-      sentence: standing && blocked ? standingSentence(standing) : `${wa.healthLabel}${health}`,
-      verb: { label: "Library", to: "messages", who: "operator" },
-      // How to try it from a phone, first, on a connected row nobody has written to yet; then what Meta holds; and last what
-      // WhatsApp costs, on every row that is on.
-      notes: [
-        ...wa.on && !attention ? tryItNotes(wa) : [],
-        ...standingNotes(standing && { ...standing, limit }),
-        ...wa.on ? whatsappCostNotes() : []
-      ]
-    };
-  }
+  if (wa) return whatsappNumberRow(base, wa);
   if (i.whatsapp === void 0) {
     return {
       ...base,
@@ -36139,6 +36205,7 @@ export {
   noteSuggestUserContent,
   notesWords,
   numberHealth,
+  numberHealthWithStanding,
   numberedSlots,
   offerFor,
   offerGate,
@@ -36752,6 +36819,7 @@ export {
   websiteHostOf,
   weekHoursOf,
   weekOf,
+  whatsappOffersOpen,
   whenLabel,
   whisperText,
   wholeDaysSince,

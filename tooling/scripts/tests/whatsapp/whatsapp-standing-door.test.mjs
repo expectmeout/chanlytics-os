@@ -294,12 +294,12 @@ test("an answer is kept whole and told to the owner once: BLOCKED and new is a n
   ]);
   assert.deepEqual(
     tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title]),
-    [[A, "number", "admin/integrations", "WhatsApp can't send from your number"]],
+    [[A, "number", "admin/integrations", "WhatsApp can't start conversations from your number"]],
     "told once: the second read was the same word, the third was gone",
   );
   assert.deepEqual(
     w.mail().map((m) => [m.to, m.subject]),
-    [[[OWNER_MAIL], "WhatsApp can't send from your number"]],
+    [[[OWNER_MAIL], "WhatsApp can't start conversations from your number"]],
   );
   for (const res of [first, same, gone])
     assert.ok(!JSON.stringify(res).includes("payment"), "nothing of what Meta said");
