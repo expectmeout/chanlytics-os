@@ -260,7 +260,7 @@ landed. It runs with `--retries=0`, where the config retries once locally: a
 mutation run asks whether the journey went red, and a retry that passes turns a
 caught mutant into a flake.
 
-Four records. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
+The records are `nightly`, `salon`, `pipeline`, `email-only` and `kit`. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
 `tooling/scripts/ops/e2e-workspace.mjs` -- the config it writes, the line it
 provisions, the clock it sets -- so it changes when the seed changes rather than
 drifting from it; `e2e-harness.test.mjs` holds the two together. `salon` is a
@@ -273,6 +273,14 @@ For it alone the server answers People's reads and the fixture runs the app's
 People surface, courier and route gate over them, so People, the Pipeline and a
 person's page are real there; a route whose surface the harness does not serve
 (Today, the Inbox, Leads) waits on it and then says it could not be read.
+`email-only` is the nightly's record with no WhatsApp number, for what a message that needs no WhatsApp row looks like:
+a mailbox the campaigns send from (`ready`, by contracts' `channelsReady`), two messages with no WhatsApp version (the
+starter "How did it go" as an email and a text, and an offer as an email alone, both as the table's rows) and three people
+who wrote by email, on a saved list. The server answers GET templates from it as the route does
+(`tooling/scripts/e2e-harness/templates-read.mjs`, held to the reader's own answer), GET channels, and People's reads. The
+Campaigns pages are App Router pages that the mockup does not draw, so no spec of them runs on a record here: what the
+Library and the two composers draw of this one is run in `tooling/scripts/tests/e2e/e2e-harness-campaigns.test.mjs`, over
+the real pages and against what the three specs expect.
 `kit` is the nightly's record with the kit's gallery for its page in place of
 the mockup (below, "See the kit").
 

@@ -1,14 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
-import {
-  EVERYONE_LABEL,
-  compareTemplates,
-  groupTemplates,
-  sendableTemplates,
-  templateSlots,
-} from "../../packages/contracts/src/index";
+import { EVERYONE_LABEL } from "../../packages/contracts/src/index";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { apiGet } from "../workspace";
+import { broadcastSlots, messagesOffered, type TemplatesRead } from "./offered";
 
 /**
  * Campaigns › Broadcasts on a real workspace.
@@ -28,15 +23,6 @@ import { apiGet } from "../workspace";
 const INVENTED = ["credits", "Booked from broadcasts", "April win-back", "Serenity"];
 /** The finished runs the ledger shows before "All N sent" (broadcasts-real.jsx, `recent`). */
 const LATEST_SHOWN = 5;
-
-type TemplateRow = {
-  name: string;
-  language: string;
-  channel: string;
-  meta_status: string;
-  variables: unknown;
-  blocked?: string | null;
-};
 
 /**
  * The composer is the home's sheet at `campaigns/new` (its foot and its Cancel are the send screen's own): New message, on the
@@ -65,19 +51,23 @@ test.describe("Broadcasts on a real workspace", () => {
     const real = page.getByTestId("broadcasts-real");
     await expect(real).toBeVisible();
 
-    const [bc, tpl, cfg] = await Promise.all([
+    const [bc, tpl, cfg, ch] = await Promise.all([
       apiGet(page, "/api/v1/broadcasts"),
       apiGet(page, "/api/v1/templates"),
       apiGet(page, "/api/v1/settings"),
+      apiGet(page, "/api/v1/channels"),
     ]);
     expect(bc.status()).toBe(200);
     expect(tpl.status()).toBe(200);
     expect(cfg.status()).toBe(200);
+    expect(ch.status()).toBe(200);
     const broadcasts = (await bc.json()).data.broadcasts as { state: string }[];
-    const approved = ((await tpl.json()).data.templates as TemplateRow[]).filter(
-      (t) => t.channel === "whatsapp" && t.meta_status === "approved",
-    );
+    const read = (await tpl.json()).data as TemplatesRead;
     const bookingLink = !!(await cfg.json()).data.config?.brain?.booking_link;
+    // Whether there is a number to send from, as the page reads it (broadcasts/surface.ts): an active WhatsApp channel.
+    const hasNumber = ((await ch.json()).data.channels as { kind: string; status: string }[]).some(
+      (c) => c.kind === "whatsapp" && c.status === "active",
+    );
 
     // The ledger: every run still to go out, then the latest that went.
     // Open = still to go out: scheduled, sending, or a playbook run held for a person (the page's own rule).
@@ -98,12 +88,13 @@ test.describe("Broadcasts on a real workspace", () => {
     await expect(composer.getByTestId("bc-audience")).toContainText(EVERYONE_LABEL);
     await expect(composer.getByTestId("bc-who-count")).toContainText("can hear it");
 
-    // Templates: one option per message the page can send, by contracts' own rules
-    // over the route's rows -- a message in two languages is one option, one the
-    // wire cannot carry is left out and said so, and one a broadcast cannot fill
-    // (the visit reminder) is left out -- or the honest line.
-    const { sendable, why } = sendableTemplates(approved.slice().sort(compareTemplates));
-    const offered = groupTemplates(sendable.filter((t) => templateSlots(t, { visits: false, bookingLink }) !== null));
+    // Messages: one option per message the page can send, by contracts' own rules over what the route answers
+    // (messagesOffered: its `messages`, which the page lists from, and which hold a message's WhatsApp version's
+    // standing where the list of rows leaves it out) -- a message with a version on any of WhatsApp, email and text is
+    // one option, in two languages still one; one the wire cannot carry is left out and said so, and one a broadcast
+    // cannot fill (the visit reminder) is left out -- or the honest line. Nothing here assumes a channel, so a workspace
+    // with no WhatsApp number offers the messages it has written, as one with a number does.
+    const { groups: offered, why } = messagesOffered(read, broadcastSlots(bookingLink));
     if (offered.length === 0) {
       await expect(composer.getByTestId("bc-no-template")).toBeVisible();
       await expect(composer.getByTestId("bc-template")).toHaveCount(0);
@@ -123,17 +114,20 @@ test.describe("Broadcasts on a real workspace", () => {
     if (offered.length === 0 && why) await expect(composer.getByTestId("bc-blocked")).toHaveText(why);
     else await expect(composer.getByTestId("bc-blocked")).toHaveCount(0);
 
-    // The number a broadcast goes out on, and what WhatsApp has said about it (in the composer's When column).
+    // The number a broadcast goes out on, and what WhatsApp has said about it (in the composer's When column), where the
+    // send goes by WhatsApp. The composer opens on the first channel the workspace can send on and the message holds, so a
+    // workspace with no number, or a message written for email alone, opens on another, which has no number to say.
     const number = composer.getByTestId("bc-number");
-    await expect(number).toBeVisible();
-    await expect(number).toContainText(/quality|No WhatsApp number/);
-    const numberLine = await number.innerText();
+    if ((await composer.getByTestId("bc-via-whatsapp").getAttribute("data-on")) === "true") {
+      await expect(number).toBeVisible();
+      await expect(number).toContainText(/quality|No WhatsApp number/);
+    } else await expect(number).toHaveCount(0);
 
     const words = await composer.innerText();
     for (const s of INVENTED) expect(words, `invented in the composer: "${s}"`).not.toContain(s);
 
-    // A template can be written here: the composer opens, and nothing is submitted.
-    if (/WhatsApp \+/.test(numberLine)) {
+    // A template can be written here, to a number's account: the composer opens, and nothing is submitted.
+    if (hasNumber) {
       await composer.getByTestId("bc-new-template").click();
       await expect(composer.getByTestId("tpl-composer")).toBeVisible();
       await expect(composer.getByTestId("tpl-submit")).toBeDisabled();
@@ -150,7 +144,7 @@ test.describe("Broadcasts on a real workspace", () => {
     await expect(page).toHaveURL(atRoute(/^campaigns$/));
     await page.goto("/#/broadcasts");
     await expect(real).toBeVisible();
-    if (/WhatsApp \+/.test(numberLine)) {
+    if (hasNumber) {
       await expect(real.getByTestId("bc-optin")).toBeVisible();
       await expect(real.getByTestId("bc-optin")).toContainText("YES OFFERS");
       const qr = await apiGet(page, "/api/v1/consent/qr");

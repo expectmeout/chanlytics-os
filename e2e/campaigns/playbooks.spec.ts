@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { apiGet } from "../workspace";
+import { messagesOffered, momentSlots, type TemplatesRead } from "./offered";
 
 /**
  * Campaigns' home (canvas A, "Lifecycle") on a real workspace: the page that replaced the Playbooks list.
@@ -35,13 +36,17 @@ test.describe("Campaigns' home on a real workspace", () => {
     const home = page.getByTestId("campaigns-home");
     await expect(home).toBeVisible();
 
-    const [pb, tpl] = await Promise.all([apiGet(page, "/api/v1/playbooks"), apiGet(page, "/api/v1/templates")]);
+    const [pb, tpl, cfg] = await Promise.all([
+      apiGet(page, "/api/v1/playbooks"),
+      apiGet(page, "/api/v1/templates"),
+      apiGet(page, "/api/v1/settings"),
+    ]);
     expect(pb.status()).toBe(200);
     expect(tpl.status()).toBe(200);
+    expect(cfg.status()).toBe(200);
     const body = (await pb.json()).data as { playbooks: { id: string; state: string }[]; deals_on: boolean };
-    const approved = ((await tpl.json()).data.templates as { channel: string; meta_status: string }[]).filter(
-      (t) => t.channel === "whatsapp" && t.meta_status === "approved",
-    );
+    const read = (await tpl.json()).data as TemplatesRead;
+    const bookingLink = !!(await cfg.json()).data.config?.brain?.booking_link;
 
     // The rail is the five moments around a customer (four where deals are off, 0006), each covered or not.
     await expect(home.getByTestId("cmh-stage")).toHaveCount(body.deals_on ? 5 : 4);
@@ -53,8 +58,8 @@ test.describe("Campaigns' home on a real workspace", () => {
     await expect(home.getByTestId("cmh-results")).toBeVisible();
 
     // New message opens the composer in a sheet from the side, on Send once; Every time a moment comes is the playbook
-    // composer: the moments behind its moment, each with who it reaches today; the approved messages that fit it, or the
-    // honest line; the clock in the business's zone. Cancelled -- nothing is saved. (In Glass, the default look, the page's act
+    // composer: the moments behind its moment, each with who it reaches today; the messages that fit it, or the honest
+    // line; the clock in the business's zone. Cancelled -- nothing is saved. (In Glass, the default look, the page's act
     // is drawn in the frame's head, outside the page's own element, so it is found on the page.)
     await page.getByTestId("cmh-new").click();
     await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
@@ -78,10 +83,19 @@ test.describe("Campaigns' home on a real workspace", () => {
     await expect(page.locator(".rec-combo-pop")).toBeHidden();
     await expect(composer).toBeVisible();
     await expect(composer.getByTestId("pb-guard")).toBeVisible();
-    if (approved.length === 0) {
+    // The messages it may offer are the ones a send by any of WhatsApp, email and text can carry (messagesOffered: what the
+    // route answers, by contracts' rules), left with those whose every slot the moment it opened on can fill -- a visit's
+    // time on a visit moment, a proposal's link on the follow-up -- which the picker says by its label. None of it assumes
+    // a channel, so a workspace with no WhatsApp number is offered the messages it has written.
+    const { groups: usable } = messagesOffered(
+      read,
+      momentSlots((await composer.getByTestId("pb-moment").innerText()).trim(), bookingLink),
+    );
+    await expect(composer.getByTestId("pb-message")).toBeVisible();
+    if (usable.length === 0) {
       await expect(composer.getByTestId("pb-no-template")).toBeVisible();
     } else {
-      await expect(composer.getByTestId("pb-message")).toBeVisible();
+      await expect(composer.getByTestId("pb-no-template")).toHaveCount(0);
     }
     await expect(composer.getByTestId("pb-hour")).toBeVisible();
     await composer.getByTestId("pb-cancel").click();
