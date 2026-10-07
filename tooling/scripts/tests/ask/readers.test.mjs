@@ -2410,6 +2410,12 @@ const peopleWorld = () => {
   };
 };
 /**
+ * 7 Oct 2026: the follow-up's template is read as its message, whatever its channels (db messageVersionRowsOf: the rows of its
+ * name and language, which contracts campaignMessageOf picks the versions out of), where it was Meta's row alone.
+ */
+const MESSAGE_ROWS_ASKED =
+  "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
+/**
  * Every query GET contacts asked at origin/main (e3184cff) for peopleWorld's first page, in order, with the columns it
  * selected (and, since 3 Oct 2026, the two reads of what the workspace can send on). The workspace's door. The first stage at once: the page and how many match, then the page's reply modes.
  * The second at once: how the workspace's customers buy, the calendar's zone and settings (the feed itself is fetched,
@@ -2439,7 +2445,7 @@ const PEOPLE_ASKED_AT_MAIN = [
   // 3 Oct 2026: the channels the follow-up ticks (db playbookChannels), beside its template: the number and Meta's
   // approval stop only a follow-up that goes by WhatsApp.
   ["playbooks.select", "channels"],
-  ["templates.select", "meta_status, category"],
+  ["templates.select", MESSAGE_ROWS_ASKED],
   ["tenants.select", "timezone"],
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
@@ -2478,7 +2484,7 @@ const PEOPLE_ASKED_NOW = [
   ["deals.select", "id, contact_id, proposed_at"],
   ["rpc:team_roster", null],
   ["playbooks.select", "channels"],
-  ["templates.select", "meta_status, category"],
+  ["templates.select", MESSAGE_ROWS_ASKED],
   ["tenants.select", "timezone"],
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
@@ -3212,7 +3218,9 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     want.splice(
       want.findIndex(([k]) => k === "segments.select"),
       0,
-      ["templates.select", "name, language, category, meta_status, body_preview, title, variables"],
+      // 7 Oct 2026: over every channel, with each row's id and channel, so a message with no WhatsApp row is counted by its own
+      // rows' category (campaignMessagesOf).
+      ["templates.select", "id, channel, name, language, category, meta_status, body_preview, title, variables"],
     );
     // 3 Oct 2026: the playbooks' rows name the channels column, and the page asks whether each channel can send now
     // (server/campaigns/channels-ready.ts) with its first reads: the WhatsApp number's config and the texting line (no email

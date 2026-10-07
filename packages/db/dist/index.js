@@ -2825,7 +2825,8 @@ import {
   isReachOutRow
 } from "../../contracts/dist/index.js";
 async function templatesFor(db, tenantId, channel = "whatsapp") {
-  const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId).eq("channel", channel);
+  const ofTenant = db.from("templates").select("id, channel, name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId);
+  const { data, error } = await (channel === null ? ofTenant : ofTenant.eq("channel", channel));
   if (error) throw new Error(`templatesFor: ${error.message}`);
   return data ?? [];
 }

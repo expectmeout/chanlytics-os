@@ -424,6 +424,104 @@ test("a playbook whose message is stricter than its moment's class is counted by
   assert.ok(out.pools[playbookPoolKey("pb-offer")], "counted, not unread");
 });
 
+test("a playbook whose message has no WhatsApp row is counted by the category its own rows carry (lane 1): a marketing email makes an After-the-visit playbook an offer; a utility one, one that names none (an offer, as a send reads it), Meta's word over an email's, and a message that is gone are each counted as they should be", async () => {
+  const url = "https://cal.example/yesterday-email.ics";
+  const visit = (uid, n) =>
+    [
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `SUMMARY:Person ${n} · Cut`,
+      `DESCRIPTION:+1 917 555 000${n}`,
+      "DTSTART;TZID=America/New_York:20260907T140000",
+      "DTEND;TZID=America/New_York:20260907T150000",
+      "END:VEVENT",
+    ].join("\r\n");
+  answers.set(url, { body: ["BEGIN:VCALENDAR", visit("v1", 1), visit("v2", 2), "END:VCALENDAR"].join("\r\n") });
+  // Both came yesterday and said yes to texts; only the first said yes to offers.
+  const all = [person(1), person(2, { marketing_consent: "unknown" }), person(3)];
+  const row = (channel, name, category) => ({
+    id: `tpl-${channel}-${name}`,
+    tenant_id: T,
+    channel,
+    name,
+    language: "en_US",
+    category,
+    meta_status: "approved",
+    body_preview: "Hi",
+    title: null,
+    variables: [],
+  });
+  const templates = [
+    row("email", "winter_offer", "marketing"), // a message with an email and no WhatsApp row, filed as an offer
+    row("sms", "winter_check", "utility"), // one about the visit, a text alone
+    row("email", "winter_unfiled", null), // one whose row names no category
+    row("whatsapp", "visit_note", "utility"), // Meta's utility, with an offer's email beside it
+    row("email", "visit_note", "marketing"),
+  ];
+  const playbook = (id, name) => ({ id, trigger: "visited", template_name: name, template_language: "en_US" });
+  const playbooks = [
+    playbook("pb-offer", "winter_offer"),
+    playbook("pb-check", "winter_check"),
+    playbook("pb-unfiled", "winter_unfiled"),
+    playbook("pb-meta", "visit_note"),
+    playbook("pb-gone", "no_such_message"),
+  ];
+  const { pools } = await triggerPools(
+    ctxFor(tables(url, "owner", { templates }), { people_list: pagedList(all) }),
+    T,
+    {},
+    TZ,
+    NOW,
+    NO_DEALS,
+    { playbooks },
+  );
+  const own = pools[playbookPoolKey("pb-offer")];
+  assert.deepEqual(
+    [own.pool, own.candidates, own.saidYes, own.noYes],
+    [2, 1, 1, 1],
+    "an email filed as an offer, with no WhatsApp row: only who said yes to offers",
+  );
+  assert.deepEqual(
+    Object.keys(pools).filter((k) => k.startsWith("playbook:")),
+    [playbookPoolKey("pb-offer"), playbookPoolKey("pb-unfiled")],
+    "a text about the visit, Meta's utility over an offer's email, and a message that is gone are the moment's own count",
+  );
+  const unfiled = pools[playbookPoolKey("pb-unfiled")];
+  assert.deepEqual(
+    [unfiled.candidates, unfiled.noYes],
+    [1, 1],
+    "a row that names no category is an offer, as a send reads it",
+  );
+  // The reads: every channel's rows, once, with each row's id and channel, which the message is picked out of them by.
+  const asked = ctxFor(tables(url, "owner", { templates }), { people_list: pagedList(all) });
+  await triggerPools(asked, T, {}, TZ, NOW, NO_DEALS, { playbooks });
+  assert.deepEqual(
+    asked.supabase.seen.filter((q) => q.table === "templates").map((q) => q.columns),
+    ["id, channel, name, language, category, meta_status, body_preview, title, variables"],
+    "read once, over every channel",
+  );
+  // The rows unread: each is uncounted (null), as before.
+  const blind = await triggerPools(
+    {
+      supabase: fakeDb(
+        tables(url, "owner", { templates }),
+        { "templates.select": { message: "down" } },
+        { people_list: pagedList(all) },
+      ),
+      userId: "u1",
+      email: "ada@example.com",
+      params: {},
+    },
+    T,
+    {},
+    TZ,
+    NOW,
+    NO_DEALS,
+    { playbooks },
+  );
+  assert.equal(blind.pools[playbookPoolKey("pb-offer")], null);
+});
+
 test("the runner's own read of People pages the same way, and a refused page is an error, not a short pool", async () => {
   const all = Array.from({ length: 1000 + 2 }, (_, i) => person(i + 1));
   const calls = [];

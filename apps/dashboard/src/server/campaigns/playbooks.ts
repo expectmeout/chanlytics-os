@@ -2,6 +2,8 @@ import "server-only";
 import {
   AppError,
   audienceTrigger,
+  campaignMessageOf,
+  campaignMessagesOf,
   FOLLOW_UP_ONE,
   parseParamSpecs,
   PLAYBOOK_BREATH_MS,
@@ -41,6 +43,7 @@ import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
 import {
   followUpTouchesSince,
   listRow,
+  messageVersionRowsOf,
   playbookChannels,
   readAllRows,
   savedListsFor,
@@ -174,9 +177,12 @@ export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now
 /**
  * Whether the number or Meta's approval stops a follow-up before it draws anyone: the run's own stop (contracts
  * playbookStopBy, the one core's run-playbook asks) over the channels it ticks (null, a database before 00298, is WhatsApp
- * alone) and the number as the send screen reads it (none cannot send). So a follow-up that also goes by email or text is
- * not stopped by Meta not approving its WhatsApp template, as its run is not, and one that does not tick WhatsApp is not
- * stopped by the number at all.
+ * alone), the WhatsApp version's status (null: the message has none) and the number as the send screen reads it. A
+ * workspace with no number reads as the edge's run reads it: numberHealth of a number that reported nothing, which cannot
+ * be flagged, so it can send (contracts broadcast-number.ts). Who goes by WhatsApp on a workspace with none is
+ * channelsReady's, person by person (contracts followUpStandOf), never this stop's. So a follow-up that also goes by email
+ * or text is not stopped by Meta not approving its WhatsApp version, or by there being none, as its run is not, and one
+ * that does not tick WhatsApp is not stopped by the number at all.
  */
 function whatsappStops(
   channels: readonly string[] | null,
@@ -187,7 +193,7 @@ function whatsappStops(
     playbookStopBy({
       channels: channels ?? DEFAULT_CAMPAIGN_CHANNELS,
       templateStatus,
-      numberCanSend: !!number?.canSend,
+      numberCanSend: number?.canSend ?? true,
     }) !== null
   );
 }
@@ -197,7 +203,8 @@ function whatsappStops(
  * whether its class asks, what its template is for, and, of the people who hold a proposal out, who had theirs, who
  * is in a run on its way or waiting for a person, and whom the week's breath holds. Null wherever the run itself
  * would send nothing before drawing anyone -- none made, paused, its class set to never, the workspace paused by
- * billing, no WhatsApp number, its template not one Meta approved, its number flagged (contracts playbookRunStop) --
+ * billing, its WhatsApp version not one Meta approved where WhatsApp is all it goes by, its number flagged (contracts
+ * playbookStopBy) --
  * and where no proposal is out: every row then says what it said. A class with no row runs as ask, as the run reads
  * it (core run-playbook). A read that fails throws.
  */
@@ -230,19 +237,13 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   if (!p.template_name || !p.template_language) return null;
   // The channels it ticks (step 3; null on a database before 00298, WhatsApp alone): the number and Meta's approval stop
   // only a follow-up that goes by WhatsApp, as the run's own stop does (core run-playbook).
-  const [channels, tpl] = await Promise.all([
+  // Its message, read once from its rows (contracts campaignMessageOf), with or without a WhatsApp version.
+  const [channels, rows] = await Promise.all([
     playbookChannels(ctx.supabase, p.id),
-    ctx.supabase
-      .from("templates")
-      .select("meta_status, category")
-      .eq("tenant_id", tenantId)
-      .eq("channel", "whatsapp")
-      .eq("name", p.template_name)
-      .eq("language", p.template_language)
-      .maybeSingle(),
+    messageVersionRowsOf(ctx.supabase, tenantId, { name: p.template_name, language: p.template_language }),
   ]);
-  if (tpl.error) throw new Error(tpl.error.message);
-  if (whatsappStops(channels, number, tpl.data?.meta_status ?? null)) return null;
+  const message = campaignMessageOf(rows, p.template_name, p.template_language);
+  if (whatsappStops(channels, number, message?.versions.whatsapp?.status ?? null)) return null;
   const [followUps, recent] = await Promise.all([
     followUpTouchesFor(ctx, tenantId, now, out),
     touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now),
@@ -261,7 +262,7 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
     run_hour: p.run_hour,
     last_run_for: p.last_run_for,
     asks: mode === "ask",
-    purpose: purposeOfTemplate(tpl.data?.category),
+    purpose: message?.purpose ?? purposeOfTemplate(undefined),
     had,
     queued,
     held,
@@ -318,9 +319,12 @@ export interface TriggerPool extends PoolCounts {
 /**
  * The playbooks whose message is stricter than their moment's class (contracts enrolPurpose): an After-the-visit playbook
  * made when that moment was a re-engagement and still sending its offer, or a reminder whose template Meta has since
- * filed as marketing. A run enrols them by the message's yes, so each is counted by it, under playbookPoolKey, beside its
- * moment's own count. Only a playbook on a moment whose class is not marketing can be stricter, so the templates are read
- * only when there is one; a read that fails leaves each uncounted (null), never counted by a yes its run does not use.
+ * filed as marketing, or a visit reminder that has only an email, written as an offer. A run enrols them by the message's
+ * yes, so each is counted by it, under playbookPoolKey, beside its moment's own count. The message's category is the one
+ * contracts campaignMessagesOf reads from every row of the workspace (Meta's where it has a WhatsApp version, else the
+ * strictest of its own rows'). Only a playbook on a moment whose class is not marketing can be stricter, so the templates
+ * are read only when there is one; a read that fails leaves each uncounted (null), never counted by a yes its run does
+ * not use.
  */
 async function strictMessagePools(
   ctx: RouteContext,
@@ -334,8 +338,8 @@ async function strictMessagePools(
   });
   const pools: Record<string, TriggerPool | null> = {};
   if (!mine.length) return pools;
-  const categories = await templatesFor(ctx.supabase, tenantId).then(
-    (rows) => new Map(rows.map((r) => [`${r.name}/${r.language}`, r.category])),
+  const categories = await templatesFor(ctx.supabase, tenantId, null).then(
+    (rows) => new Map(campaignMessagesOf(rows).map((m) => [`${m.name}/${m.language}`, m.category])),
     (e: unknown) => {
       log.error("playbook_pools_templates_failed", { tenant_id: tenantId, error: e });
       return null;
@@ -343,7 +347,7 @@ async function strictMessagePools(
   );
   for (const p of mine) {
     const category = categories?.get(`${p.template_name}/${p.template_language}`);
-    // A template that is gone is a run that is off, counted as its moment is; one filed as an offer is counted as one.
+    // A message that is gone is a run that is off, counted as its moment is; one filed as an offer is counted as one.
     if (categories === null) pools[playbookPoolKey(p.id)] = null;
     else if (category !== undefined && enrolPurpose(triggerOf(p.trigger)?.cls, { category }) === "marketing")
       pools[playbookPoolKey(p.id)] = count(p.trigger, { category });

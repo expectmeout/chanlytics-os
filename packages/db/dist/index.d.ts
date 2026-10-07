@@ -36693,14 +36693,16 @@ interface MessageVersionRow {
     rejected_reason: string | null;
 }
 /**
- * Every template this workspace holds on a channel.
+ * Every template this workspace holds on a channel, or on every channel when `channel` is null: the rows of all its
+ * messages' versions, each with its id and channel so that contracts' campaignMessagesOf can pick the messages out of them
+ * (a message with no WhatsApp row among them).
  *
  * A read that fails THROWS. "We could not read the templates" is not "this
  * workspace has none": the second is an answer a caller can be told, and
  * telling them it when we simply could not look is how a working feature reads
  * as a missing one.
  */
-declare function templatesFor(db: Db$8, tenantId: string, channel?: string): Promise<TemplateRow[]>;
+declare function templatesFor(db: Db$8, tenantId: string, channel?: string | null): Promise<Array<TemplateRow & Pick<MessageVersionRow, "id" | "channel">>>;
 /**
  * Every template this workspace holds on a channel, with the components Meta holds for each: for the caller that
  * chooses one to send (the receptionist's booking link), which must not choose a message WhatsApp will refuse

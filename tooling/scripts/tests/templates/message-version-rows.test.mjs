@@ -11,13 +11,23 @@
  * two trips, naming the function. The columns are the ones campaignMessageOf reads, and a refused WhatsApp version's
  * words reach it.
  *
+ * And the workspace's whole list of them (templatesFor with no channel, which the Playbooks page's pools read the messages out
+ * of, campaignMessagesOf): every channel's rows with each one's id and channel, the default still WhatsApp's alone, and
+ * only the asking workspace's.
+ *
  * Rows are made by a local factory: `_rows.mjs` has none for templates, so this one fills every column the table has,
  * and a column a migration adds fails it by name, as `_rows.mjs` does.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { campaignMessageOf, messageHolds, reachOutRowName, versionComponents } from "@chanlytics/contracts";
-import { messageVersionRowsOf } from "@chanlytics/db";
+import {
+  campaignMessageOf,
+  campaignMessagesOf,
+  messageHolds,
+  reachOutRowName,
+  versionComponents,
+} from "@chanlytics/contracts";
+import { messageVersionRowsOf, templatesFor } from "@chanlytics/db";
 import { fakeDb } from "../_fake-db.mjs";
 import { AT, TENANT, uuid } from "../_rows.mjs";
 import { schemaOf } from "../_schema.mjs";
@@ -232,6 +242,51 @@ test("an id nobody holds is no message", async () => {
   const db = world([own.w, own.e]);
   assert.deepEqual(await messageVersionRowsOf(db, A, { id: "99999999-9999-4999-8999-999999999999" }), []);
   assert.deepEqual(await messageVersionRowsOf(world([]), A, { id: own.e.id }), [], "nor in an empty table");
+});
+
+test("the workspace's whole list, on every channel, answers the messages it holds: a message with no WhatsApp row among them, each row with its id and channel; the default is WhatsApp's alone; another workspace's rows never", async () => {
+  const own = versions();
+  const onlyEmail = template({ channel: "email", name: "winter_note", category: "marketing" });
+  const reachOut = template({ channel: "email", name: reachOutRowName("11111111-2222-4333-8444-555555555555") });
+  const voice = template({ channel: "voice", name: "winter_note" });
+  const theirs = versions({ tenant_id: B, name: "their_message" });
+  const db = world([own.w, own.e, own.t, onlyEmail, reachOut, voice, theirs.w, theirs.e]);
+
+  const all = await templatesFor(db, A, null);
+  assert.deepEqual(
+    idsOf(all),
+    idsOf([own.w, own.e, own.t, onlyEmail, reachOut, voice]),
+    "every channel's rows, and only ours",
+  );
+  for (const row of all)
+    assert.deepEqual(
+      Object.keys(row).sort(),
+      ["body_preview", "category", "channel", "id", "language", "meta_status", "name", "title", "variables"],
+      "the columns the messages are picked out by: its id and channel with the row's own",
+    );
+  // The rows go to campaignMessagesOf as they are: one message a name and language, the one with no WhatsApp row among them,
+  // its category its own rows' (the reach-out's email and the voice row are no version of any message).
+  assert.deepEqual(
+    campaignMessagesOf(all).map((m) => [m.name, m.anchor.channel, m.category]),
+    [
+      [NAME, "whatsapp", "utility"],
+      ["winter_note", "email", "marketing"],
+    ],
+  );
+  assert.deepEqual(
+    all.map((r) => r.channel).filter((c) => c === "voice"),
+    ["voice"],
+    "whatever channel a row sits on comes back; the message ignores the ones it has no version on",
+  );
+
+  assert.deepEqual(idsOf(await templatesFor(db, A)), idsOf([own.w]), "the default is WhatsApp's rows");
+  assert.deepEqual(idsOf(await templatesFor(db, A, "email")), idsOf([own.e, onlyEmail, reachOut]), "one named channel");
+  assert.deepEqual(await templatesFor(world([theirs.w]), A, null), [], "a workspace with none has none");
+  await assert.rejects(
+    templatesFor(world([own.w], { "templates.select": { message: "the database is down" } }), A, null),
+    { message: "templatesFor: the database is down" },
+    "a read that fails throws",
+  );
 });
 
 test("a read that fails throws, naming the function, on either trip", async () => {

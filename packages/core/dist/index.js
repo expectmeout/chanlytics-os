@@ -2079,8 +2079,10 @@ async function assembleRun(ports, cmd) {
 
 // src/campaigns/run-playbook.ts
 import {
+  campaignMessageOf as campaignMessageOf2,
   clockWhen,
   localDate,
+  messageHolds as messageHolds2,
   nextOpenMoment as nextOpenMoment3,
   parseParamSpecs as parseParamSpecs2,
   listToken,
@@ -2147,22 +2149,25 @@ function refuseTicks(how, purpose) {
 async function readMessage(r) {
   const { ports, p } = r;
   try {
-    const row = await ports.template(p.template_name, p.template_language);
-    const own = r.channels.some((c) => c !== "whatsapp") ? await ports.versions(p.template_name, p.template_language) : [];
-    return { row, own, approved: row?.meta_status === "approved" };
+    const m = campaignMessageOf2(
+      await ports.message(p.template_name, p.template_language),
+      p.template_name,
+      p.template_language
+    );
+    return { m, held: m ? messageHolds2(m) : { whatsapp: false, email: false, sms: false } };
   } catch (e) {
     return { error: `template: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
-var templateHolds = (r, m, drawn) => drawn === 0 && !m.approved && r.channels.includes("whatsapp");
+var templateHolds = (r, m, drawn) => drawn === 0 && !m.held.whatsapp && r.channels.includes("whatsapp");
 async function withoutCalendar(r) {
   return r.ctx.calendar === "unavailable" ? { outcome: "failed", error: PLAYBOOK_CALENDAR_UNREAD } : r.off("no_calendar");
 }
-async function allowed(r, tpl) {
+async function allowed(r, message) {
   const { p, ctx } = r;
   const stop = playbookStopBy({
     channels: r.channels,
-    templateStatus: tpl?.meta_status ?? null,
+    templateStatus: message.m?.versions.whatsapp?.status ?? null,
     numberCanSend: ctx.health.canSend
   });
   if (stop) return { ended: await r.off(stop) };
@@ -2313,21 +2318,21 @@ async function runPlaybook(ports, cmd) {
   const run = { ports, p, ctx, by, runFor, mode, channels, record, off };
   const message = await readMessage(run);
   if ("error" in message) return { outcome: "failed", error: message.error };
-  const gate = await allowed(run, message.row);
+  const gate = await allowed(run, message);
   if (gate.ended) return gate.ended;
   const how = {
     channels,
-    ready: readyForMessage(ctx.ready, versionsHeld(message.own, message.approved)),
+    ready: readyForMessage(ctx.ready, message.held),
     // A visit's or a follow-up's message is theirs; any other moment's, the business's news (decision D1).
     about: messageAboutOfTrigger3(p.trigger)
   };
-  const { eligible, reach, channelOf: channelOf2, dropped } = draw(run, message.row, how, gate.listIds);
+  const { eligible, reach, channelOf: channelOf2, dropped } = draw(run, message.m, how, gate.listIds);
   if (templateHolds(run, message, eligible.length)) return off("template_not_approved");
   if (eligible.length === 0) {
     await record({ mode, eligible: 0, reach, ...dropped ? { dropped } : {} });
     return { outcome: "empty", eligible: 0, mode };
   }
-  const past = await pastTheRoom(run, message.row, { eligible, channelOf: channelOf2 }, goesAt);
+  const past = await pastTheRoom(run, message.m, { eligible, channelOf: channelOf2 }, goesAt);
   if ("error" in past) return { outcome: "failed", error: past.error };
   const specs = parseParamSpecs2(p.params);
   const facts = recipientFacts(run, goesAt);

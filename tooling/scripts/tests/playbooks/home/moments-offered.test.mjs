@@ -368,7 +368,24 @@ const run = async (playbook, ctx, category) => {
   const assembled = [];
   const outcome = await runPlaybook(
     {
-      template: async () => ({ meta_status: "approved", category }),
+      // The message's rows (db messageVersionRowsOf): Meta's approved row, filed as `category`.
+      message: async (name, language) => [
+        {
+          id: "tpl-1",
+          channel: "whatsapp",
+          name,
+          language,
+          meta_status: "approved",
+          category,
+          variables: [],
+          hidden_at: null,
+          title: null,
+          source: "meta",
+          components: [],
+          body_preview: null,
+          rejected_reason: null,
+        },
+      ],
       alreadyRan: async () => false,
       record: async () => {},
       assemble: async (_run, recipients) => {

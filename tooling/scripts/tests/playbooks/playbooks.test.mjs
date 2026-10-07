@@ -1040,6 +1040,16 @@ test("where one person stands with the follow-up (0006): by its run's own rules,
     null,
     "no mailbox set up: the workspace cannot send by email",
   );
+  // A workspace with no WhatsApp number is no stop of the follow-up's facts (followUpFacts reads it as the edge's run does),
+  // so who is promised one is decided here, person by person, against what the workspace can send on: nobody by WhatsApp
+  // alone, and whoever has an address where it also ticks email.
+  const noNumber = channelsReady({ whatsapp: null, textLine: null, email: { mailbox: true, domain: true } });
+  assert.equal(stand(out("a"), facts(), noNumber), null, "WhatsApp alone, and no number: nobody is promised one");
+  assert.equal(
+    stand(byEmail, facts({ channels: ["whatsapp", "email"] }), noNumber).kind,
+    "will",
+    "WhatsApp and email, and no number: the person with an address is, by email",
+  );
   assert.equal(
     stand(
       out("n", { phone: null, email: "n@example.com", emailSuppressed: true }),

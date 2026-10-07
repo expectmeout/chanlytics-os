@@ -411,7 +411,23 @@ const { checkPlaybook } = await import(at("packages/core/src/campaigns/check-pla
 
 function runPorts() {
   const log = [];
-  const answer = { template: { meta_status: "approved" }, alreadyRan: false, create: "b1" };
+  // The message's rows (db messageVersionRowsOf): the approved WhatsApp row of the playbook's message, pbRow's.
+  const row = {
+    id: "tpl-1",
+    channel: "whatsapp",
+    name: "offer",
+    language: "en_US",
+    meta_status: "approved",
+    category: null,
+    variables: [],
+    hidden_at: null,
+    title: null,
+    source: "meta",
+    components: [],
+    body_preview: null,
+    rejected_reason: null,
+  };
+  const answer = { message: [row], alreadyRan: false, create: "b1" };
   const ports = new Proxy(
     {},
     {
