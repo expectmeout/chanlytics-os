@@ -271,11 +271,11 @@ test("what a message claims to be: a report and an automatic reply before the ge
 
 test("a yes is taken only from a sender the receiving side PROVED: the provider's own verdict says DMARC passed, or DKIM passed by the From domain; every other verdict, and none at all, is no proof (fails closed)", () => {
   const proved = (authentication, from = "ana@example.com") =>
-    senderAuthenticated({ from: from === null ? null : { address: from, name: null }, authentication });
+    senderAuthenticated({ from: from === null ? null : { address: from, name: null }, headers: {}, authentication });
   const said = (spf, dkim, dmarc) => ({ spf, dkim, dmarc });
 
   // Proof. DMARC passed: an SPF or a DKIM pass aligned with the From domain, by definition. Or DKIM passed, which the
-  // provider says only of a signature by the From domain (one by another domain it calls gray): how a sender whose
+  // provider documents as a signature by the From domain (one by another domain it calls gray): how a sender whose
   // domain publishes no policy is proved, a person's own mailbox among them.
   assert.equal(proved(said("pass", "pass", "pass")), true, "everything holds");
   assert.equal(
@@ -299,9 +299,50 @@ test("a yes is taken only from a sender the receiving side PROVED: the provider'
   // Only the provider's own word for a pass is one: a word this does not know, and one spelled another way, is not.
   for (const word of ["processing_failed", "unknown", "", "PASS", "Pass", " pass", "passed", "true", "ok"])
     assert.equal(proved(said("pass", word, word)), false, `not the provider's pass: ${JSON.stringify(word)}`);
+  // A DKIM pass stands by itself only where DMARC said nothing against it, in a word this knows: beside one it does
+  // not know (a failure spelled another way, a word the provider adds one day, none at all) it is no proof.
+  for (const dmarc of ["gray", "unknown", "processing_failed"])
+    assert.equal(proved(said("gray", "pass", dmarc)), true, `DMARC said nothing: ${dmarc}`);
+  for (const dmarc of ["FAIL", "Fail", "reject", "quarantine", "temperror", "permerror", "none", "", " gray"])
+    assert.equal(proved(said("pass", "pass", dmarc)), false, `DMARC in a word not known: ${JSON.stringify(dmarc)}`);
   // No From, no proof: there is nobody for the verdict to be about.
   assert.equal(proved(said("pass", "pass", "pass"), null), false);
   assert.equal(proved(said("pass", "pass", "pass"), ""), false);
+});
+
+test("a verdict proves one mailbox, plainly: a From that names more than one, or whose own line names another than the provider does, is nobody's proof", () => {
+  // A From line may list several mailboxes, and the intake reads the last. Which of them the provider reached its
+  // verdict about is the provider's to choose: a yes signed by the first would be written down for the last.
+  const PASS = { spf: "pass", dkim: "pass", dmarc: "pass" };
+  const proved = (from, headers = {}) =>
+    senderAuthenticated(receivedEmailFrom({ id: "rcv_4", from, headers, authentication: PASS }));
+
+  assert.equal(proved("ana@example.com"), true, "an address");
+  assert.equal(proved("Ana Reyes <ana@example.com>"), true, "a phrase and an address");
+  assert.equal(proved('"Reyes, Ana" <ana@example.com>'), true, "a comma in a name is a name");
+  assert.equal(proved('"ana@example.com" <ana@example.com>'), true, "the address written again as its own name");
+  assert.equal(proved("'Ana@Example.com' <ana@example.com>"), true, "and as some clients quote it");
+
+  assert.equal(proved('"A" <mallory@attacker.example>, "V" <ana@example.com>'), false, "two mailboxes");
+  assert.equal(proved('mallory@attacker.example, "V" <ana@example.com>'), false, "the first one bare");
+  assert.equal(proved("mallory@attacker.example, ana@example.com"), false, "both bare: no From at all");
+  assert.equal(proved('"mallory@attacker.example" <ana@example.com>'), false, "another address as the name");
+  assert.equal(proved('"Ana <ana@example.com>" <ana@example.com>'), false, "an angle bracket in the name");
+
+  // The message's own From line, where the provider lists it, is one mailbox too, and the same one.
+  assert.equal(proved("Ana <ana@example.com>", { From: "Ana Reyes <ana@example.com>" }), true, "the same mailbox");
+  assert.equal(proved("Ana <ANA@example.com>", [{ name: "from", value: "ana@Example.com" }]), true, "in any case");
+  assert.equal(
+    proved("V <ana@example.com>", { From: '"A" <mallory@attacker.example>, "V" <ana@example.com>' }),
+    false,
+    "the provider names one of two the line lists",
+  );
+  assert.equal(
+    proved("ana@example.com", { From: "mallory@attacker.example" }),
+    false,
+    "the line names another than the provider does",
+  );
+  assert.equal(proved("ana@example.com", { From: "not an address" }), false, "a line this cannot read is not a yes");
 });
 
 test("REGRESSION: what a message says of itself proves nothing -- an Authentication-Results header a sender wrote is not read, whatever it says and whichever name it carries; the provider's verdict alone decides", () => {

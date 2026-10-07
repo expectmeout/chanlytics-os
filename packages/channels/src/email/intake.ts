@@ -179,24 +179,44 @@ export type EmailClaim =
   "report" | "auto_reply" | "automated" | "person" | "booking_notice" | "forwarding_confirmation";
 
 /**
+ * One mailbox, plainly: an address, and a phrase beside it that could not be a second one. A From line may list several
+ * mailboxes (RFC 5322) and `addressOf` reads the last, while which of them a verdict was reached about is the
+ * provider's to choose: a line that names more than one is nobody's proof. A phrase with an angle bracket in it, or an
+ * @ that is not the address itself written again as its own name, is read as naming another.
+ */
+function oneMailbox(m: { address: string; name: string | null } | null): m is { address: string; name: string | null } {
+  if (!m?.address.includes("@")) return false;
+  const name = (m.name ?? "").replace(/^'(.*)'$/, "$1").toLowerCase();
+  return !/[<>]/.test(name) && (!name.includes("@") || name === m.address);
+}
+
+/**
+ * What DMARC may say beside a DKIM pass that stands by itself: that there was no policy to pass (`gray`), or that it
+ * was not worked out. A list of what is known, so a word the provider adds one day is not read as a yes.
+ */
+const DMARC_SAID_NOTHING: ReadonlySet<string> = new Set(["gray", "unknown", "processing_failed"]);
+
+/**
  * Whether the receiving side PROVES the sender is who the From line says, from the provider's own verdict on the email
  * (`authentication`, above): DMARC passed, which is by definition an SPF or a DKIM pass aligned with the From domain; or
- * DKIM passed, which the provider says only of a signature by the From domain (one by another domain it calls `gray`),
- * and which is how a sender whose domain publishes no policy is proved. Anything else is no proof: no verdict, an SPF
- * pass alone (SPF speaks for the envelope, not the From), a word this does not know, a DMARC failure whatever stands
- * beside it, a mail with no From.
+ * DKIM passed and DMARC said nothing against it. The provider documents a DKIM pass as a signature by the From domain
+ * (one by another domain it calls `gray`), and it is how a sender whose domain publishes no policy is proved. Anything
+ * else is no proof: no verdict, an SPF pass alone (SPF speaks for the envelope, not the From), a DKIM pass beside a
+ * DMARC failure or beside a word this does not know, and a From that is not one mailbox, plainly (`oneMailbox`): the
+ * one the provider names, and the message's own From line where the provider lists it, which must name the same.
  * FAILS CLOSED, which is the point: a yes to offers widens what may be sent, and a From line is one anyone can write.
  * A no (STOP, UNSUBSCRIBE) never asks it, since a no only narrows.
  *
- * Nothing in the message is read for it. An `Authentication-Results` header is words: a sender can write one into its own
+ * No header is read for the verdict. An `Authentication-Results` header is words: a sender can write one into its own
  * mail, under any name and anywhere among the headers, so reading it meant knowing which one the receiver wrote, by a
  * name each deployment had to be told by hand (EMAIL_AUTHSERV_ID). Production was never told, and so proved no sender at
  * all. The verdict is not in the message, and needs nothing set.
  */
-export function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "authentication">): boolean {
+export function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "headers" | "authentication">): boolean {
   const said = e.authentication;
-  if (!e.from?.address.includes("@") || !said || said.dmarc === "fail") return false;
-  return said.dmarc === "pass" || said.dkim === "pass";
+  const own = e.headers.from === undefined ? e.from : addressOf(e.headers.from);
+  if (!said || !oneMailbox(e.from) || !oneMailbox(own) || own.address !== e.from.address) return false;
+  return said.dmarc === "pass" || (said.dkim === "pass" && DMARC_SAID_NOTHING.has(said.dmarc));
 }
 
 export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">): EmailClaim {

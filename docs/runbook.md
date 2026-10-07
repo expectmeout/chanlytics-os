@@ -1161,7 +1161,9 @@ waiting who is not a customer, then bulk, each workspace taking its turn at bulk
   appointment only from a proved sender, in a workspace that named that tool, and a forward by hand only from a member
   whose own address is proved. Unproved, none is read: each lands in the Inbox as an automated email, and Settings ›
   Business keeps saying "Waiting for the first booking email". What the provider said is on the intake's own log line
-  (`email_ingested`, its `sender_checks`): `null` there on every email is the provider handing no verdict over.
+  (`email_ingested`, its `sender_checks`): `null` there on every email is the provider handing no verdict over (on
+  one email it is also what an email the provider no longer had reads as). A yes that was refused is
+  `email_yes_unauthenticated`, the same request's line (`request_id`).
 - **A statement that hangs.** The service role's statements end at 30 seconds (00283) and the client gives up on a request
   at 40, so a hung statement no longer holds a function until it is killed.
 

@@ -3001,10 +3001,17 @@ function receivedEmailFrom(body) {
 function messageIdsIn(header) {
   return (header ?? "").split(/\s+/).map(messageIdHeader).filter((x) => x !== null);
 }
+function oneMailbox(m) {
+  if (!m?.address.includes("@")) return false;
+  const name = (m.name ?? "").replace(/^'(.*)'$/, "$1").toLowerCase();
+  return !/[<>]/.test(name) && (!name.includes("@") || name === m.address);
+}
+var DMARC_SAID_NOTHING = /* @__PURE__ */ new Set(["gray", "unknown", "processing_failed"]);
 function senderAuthenticated(e) {
   const said = e.authentication;
-  if (!e.from?.address.includes("@") || !said || said.dmarc === "fail") return false;
-  return said.dmarc === "pass" || said.dkim === "pass";
+  const own = e.headers.from === void 0 ? e.from : addressOf(e.headers.from);
+  if (!said || !oneMailbox(e.from) || !oneMailbox(own) || own.address !== e.from.address) return false;
+  return said.dmarc === "pass" || said.dkim === "pass" && DMARC_SAID_NOTHING.has(said.dmarc);
 }
 function classifyReceived(e) {
   const h = e.headers;
