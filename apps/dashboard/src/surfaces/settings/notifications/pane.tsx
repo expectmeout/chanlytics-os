@@ -12,11 +12,12 @@
 import { useState, type ReactNode } from "react";
 import { NOTIFICATION_KIND_GROUPS, NOTIFICATION_PANE_WORDS, type NotificationsConfig } from "@chanlytics/contracts";
 import { saveSettings } from "@/legacy-bridge/inbox-verbs";
+import type { BellApi } from "@/legacy-bridge/notifications";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { Icon } from "../../kit/icon/icon";
-import { Switch } from "../../kit/switch/switch";
+import { RecordSwitch } from "../../kit/record/field";
 import { canDo, gate, gateTitle, showTip, type GateProps, type LegacyFlash } from "../../legacy-verbs";
-import { bell } from "../../today/shell";
+import { object } from "../../shell-doors";
 import { useSurface } from "../../use-surface";
 import { EMAIL_SHAPE } from "../shared";
 
@@ -128,7 +129,8 @@ function recipientsCard(o: Recipients): ReactNode {
  * browser that refused says so, since only its own settings can let them through again; one that cannot alert draws nothing.
  */
 function DeviceAlerts({ flash }: { flash: (f: LegacyFlash) => void }) {
-  const api = bell() ?? null;
+  // The bell as the top bar holds it (`window.__notifs`), read through the surfaces' one door to the shell.
+  const api = object<BellApi>("__notifs") ?? null;
   const [alerts, setAlerts] = useState(() => api?.alerts() ?? null);
   if (!api || !alerts?.can) return null;
   const blocked = alerts.permission === "denied";
@@ -155,12 +157,12 @@ function DeviceAlerts({ flash }: { flash: (f: LegacyFlash) => void }) {
           </span>
         </div>
         <div className="set-row-control">
-          <Switch
+          <RecordSwitch
             labelledBy="notif-device-label"
-            checked={alerts.on}
+            on={alerts.on}
             readOnly={blocked}
-            onCheckedChange={(on) => void set(on)}
-            data-testid="notif-device-switch"
+            onChange={(on) => void set(on)}
+            testid="notif-device-switch"
           />
         </div>
       </div>
