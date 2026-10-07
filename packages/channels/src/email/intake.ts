@@ -88,11 +88,13 @@ export interface ReceivedEmail {
   /** Lower-cased names; a header that repeats keeps its first value. */
   headers: Record<string, string>;
   /**
-   * Every Authentication-Results header the provider listed, in the order it listed them: the one place a repeated header
-   * keeps all its values (`headers` keeps the first), because which of them the receiving side wrote is decided by the
-   * name each carries (`senderAuthenticated`), never by where it sits. Absent reads as none.
+   * What the provider's receiving side concluded about the sender as the email arrived (Resend's `authentication`): SPF,
+   * DKIM and DMARC, each in the provider's own word (`pass`, `fail`, `gray`, `processing_failed`, `unknown`). The server
+   * that took the email in computes it; it is a field of the provider's answer, never a line of the message, so nothing
+   * a sender writes reaches it. Null when the provider handed none over (it gives none for an email from before it kept
+   * one), or handed over something that is not one: no proof, either way (`senderAuthenticated`).
    */
-  authResults?: string[];
+  authentication: { spf: string; dkim: string; dmarc: string } | null;
   messageId: string | null;
   createdAt: string | null;
   attachments: Array<{ filename: string | null; contentType: string | null; size: number | null }>;
@@ -109,16 +111,15 @@ function headersOf(v: unknown): Record<string, string> {
   return out;
 }
 
-/** Every value of one header (by its lower-cased name), in the order listed, where `headersOf` keeps the first. */
-function allValuesOf(v: unknown, name: string): string[] {
-  const out: string[] = [];
-  const take = (k: unknown, val: unknown) => {
-    if (typeof k !== "string" || k.toLowerCase() !== name) return;
-    for (const x of Array.isArray(val) ? val : [val]) if (typeof x === "string") out.push(x);
-  };
-  if (Array.isArray(v)) for (const h of v) take((h as { name?: unknown })?.name, (h as { value?: unknown })?.value);
-  else if (v && typeof v === "object") for (const [k, val] of Object.entries(v)) take(k, val);
-  return out;
+/**
+ * The provider's verdict on a sender, or null for anything that is not one. Each check is the word the provider gave,
+ * exactly as it gave it; a check it left out, or gave as anything but a word, reads as "", which passes nothing.
+ */
+function senderChecksOf(v: unknown): ReceivedEmail["authentication"] {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const said = v as Record<string, unknown>;
+  const word = (x: unknown): string => (typeof x === "string" ? x : "");
+  return { spf: word(said.spf), dkim: word(said.dkim), dmarc: word(said.dmarc) };
 }
 
 /** The fetched email, or null when the answer is not one. Headers as a map or as a list of pairs, whichever the provider sends. */
@@ -136,7 +137,7 @@ export function receivedEmailFrom(body: unknown): ReceivedEmail | null {
     text: str(b.text),
     html: str(b.html),
     headers,
-    authResults: allValuesOf(b.headers, "authentication-results"),
+    authentication: senderChecksOf(b.authentication),
     messageId: messageIdHeader(str(b.message_id) ?? headers["message-id"]),
     createdAt: str(b.created_at),
     attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
@@ -177,98 +178,25 @@ export function messageIdsIn(header: string | null | undefined): string[] {
 export type EmailClaim =
   "report" | "auto_reply" | "automated" | "person" | "booking_notice" | "forwarding_confirmation";
 
-/** One result of an Authentication-Results header (RFC 8601): `method=result` and its `ptype.property=value` pairs. */
-interface AuthResult {
-  method: string;
-  result: string;
-  props: Map<string, string>;
-}
-
 /**
- * A header's words as the rest of this file reads them: lower-cased, with quoted strings and comments dropped (they are
- * where a sender's own words reach a receiver's header, and they decide nothing).
- */
-function withoutComments(header: string): string {
-  let said = header.toLowerCase().replace(/"[^"]*"/g, '""');
-  // Comments nest in RFC 5322: drop the innermost until none is left.
-  for (let before = ""; before !== said;) {
-    before = said;
-    said = said.replace(/\([^()]*\)/g, " ");
-  }
-  return said;
-}
-
-/** The name that opens an Authentication-Results header, lower-cased: the server that wrote it (its optional version after it is left). */
-function authservIdOf(header: string): string {
-  return withoutComments(header).split(";")[0]?.trim().split(/\s+/)[0] ?? "";
-}
-
-/**
- * The results an Authentication-Results header carries, lower-cased: its authserv-id is skipped (`senderAuthenticated` has
- * already judged whose it is), and each `;`-separated clause is read as `method=result` and the first value of each property
- * it names.
- */
-function authResultsOf(header: string): AuthResult[] {
-  return withoutComments(header)
-    .split(";")
-    .slice(1)
-    .flatMap((clause) => {
-      const [head, ...rest] = clause.trim().split(/\s+/);
-      const m = /^([a-z0-9-]+)(?:\/\d+)?=([a-z]+)$/.exec(head ?? "");
-      if (!m) return [];
-      const props = new Map<string, string>();
-      for (const pair of rest) {
-        const eq = pair.indexOf("=");
-        if (eq > 0 && !props.has(pair.slice(0, eq))) props.set(pair.slice(0, eq), pair.slice(eq + 1));
-      }
-      return [{ method: m[1] ?? "", result: m[2] ?? "", props }];
-    });
-}
-
-/** The domain of an identity a header names: `example.com`, `@example.com` or `user@example.com`. */
-const domainOf = (identity: string | undefined): string | null => {
-  const d = identity?.slice(identity.lastIndexOf("@") + 1).trim();
-  return d || null;
-};
-
-/**
- * Whether the receiving side PROVES the sender is who the From line says, from the Authentication-Results header it
- * writes (RFC 8601), as the fetched email carries it: an aligned DMARC pass for the From domain (`dmarc=pass` with
- * `header.from` that domain), or a DKIM pass signed by it (`dkim=pass` with `header.d` that domain, or, where the verifier
- * says only the signing identity, `header.i` on it). Anything else is no proof: no header, an SPF result alone (SPF
- * speaks for the envelope, not the From), a pass for another domain, a failure, a DMARC failure beside a DKIM pass.
- * FAILS CLOSED, which is the point: a yes to offers widens what may be sent, and a From line is one anyone can write, so
- * a header this cannot read as a proof is not one. A no (STOP, UNSUBSCRIBE) never asks it, since a no only narrows.
+ * Whether the receiving side PROVES the sender is who the From line says, from the provider's own verdict on the email
+ * (`authentication`, above): DMARC passed, which is by definition an SPF or a DKIM pass aligned with the From domain; or
+ * DKIM passed, which the provider says only of a signature by the From domain (one by another domain it calls `gray`),
+ * and which is how a sender whose domain publishes no policy is proved. Anything else is no proof: no verdict, an SPF
+ * pass alone (SPF speaks for the envelope, not the From), a word this does not know, a DMARC failure whatever stands
+ * beside it, a mail with no From.
+ * FAILS CLOSED, which is the point: a yes to offers widens what may be sent, and a From line is one anyone can write.
+ * A no (STOP, UNSUBSCRIBE) never asks it, since a no only narrows.
  *
- * Which party wrote a header is decided by its authserv-id, the name that opens it (RFC 8601, on the trust boundary): the
- * header is evidence only so far as the provider's own receiving side is the one that wrote it, and a sender can put any
- * Authentication-Results line it likes into its own mail, with any name and in any place among the headers. So only a header
- * that names `authservId`, the name the provider's receiving side writes (configuration: EMAIL_AUTHSERV_ID, to be read off a
- * real received email), is read at all. With none given, nothing is proof: no yes by email is recorded until it is. And
- * exactly one such header is believed: the provider writes its own once, so a second that carries its name is somebody's
- * copy of it, and a mail with two is read as proving nothing rather than as whichever sits on top.
+ * Nothing in the message is read for it. An `Authentication-Results` header is words: a sender can write one into its own
+ * mail, under any name and anywhere among the headers, so reading it meant knowing which one the receiver wrote, by a
+ * name each deployment had to be told by hand (EMAIL_AUTHSERV_ID). Production was never told, and so proved no sender at
+ * all. The verdict is not in the message, and needs nothing set.
  */
-export function senderAuthenticated(
-  e: Pick<ReceivedEmail, "from" | "authResults">,
-  authservId: string | null,
-): boolean {
-  const expected = authservId?.trim().toLowerCase();
-  if (!expected) return false;
-  const from = domainOf(e.from?.address.toLowerCase());
-  if (!from) return false;
-  const own = (e.authResults ?? []).filter((h) => authservIdOf(h) === expected);
-  if (own.length !== 1) return false;
-  const results = authResultsOf(own[0] ?? "");
-  const dmarc = results.filter((r) => r.method === "dmarc");
-  if (dmarc.some((r) => r.result === "fail")) return false;
-  const alignedDmarc = dmarc.some((r) => r.result === "pass" && domainOf(r.props.get("header.from")) === from);
-  const signedByFrom = results.some(
-    (r) =>
-      r.method === "dkim" &&
-      r.result === "pass" &&
-      (r.props.has("header.d") ? r.props.get("header.d") === from : domainOf(r.props.get("header.i")) === from),
-  );
-  return alignedDmarc || signedByFrom;
+export function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "authentication">): boolean {
+  const said = e.authentication;
+  if (!e.from?.address.includes("@") || !said || said.dmarc === "fail") return false;
+  return said.dmarc === "pass" || said.dkim === "pass";
 }
 
 export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">): EmailClaim {

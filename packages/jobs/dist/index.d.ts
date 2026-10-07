@@ -370,12 +370,6 @@ interface JobContext {
          * goes). An offer's run waits and asks again (core BroadcastBatchPorts.offersUnread). Absent: nothing of the kind.
          */
         campaignsUnread?: string | null;
-        /**
-         * The name the provider's own receiving side writes into the Authentication-Results header of every email it hands over
-         * (RFC 8601's authserv-id: channels senderAuthenticated). A yes by email is believed only from a header that names it, so
-         * one a sender wrote into its own mail, which names anything else, proves nothing. Absent: no yes by email is recorded.
-         */
-        authservId?: string | null;
         /** One received email by the provider's id; null when the provider has none such. Throws when it cannot be asked. */
         fetch: (receivedId: string) => Promise<ReceivedEmail | null>;
         /** Was this email received before a person with this address asked to be forgotten (00125's digest)? */
@@ -483,11 +477,10 @@ interface ClaimedJob {
 /**
  * The provider's email, as the verb takes it: what it claims to be, its words
  * as plain text, and its thread ids read out of its headers. The parsing is
- * here, in the adapter, so the verb knows no provider (hygiene.test.mjs). `authservId` is the name the provider's receiving
- * side writes into the Authentication-Results header it adds (channels senderAuthenticated); null where none is configured,
- * and then no sender is proved.
+ * here, in the adapter, so the verb knows no provider (hygiene.test.mjs). Whether its sender is proved is the provider's
+ * own verdict on it (channels senderAuthenticated), which nothing in the message can write.
  */
-declare function incomingEmailOf(e: ReceivedEmail, authservId: string | null): IncomingEmail;
+declare function incomingEmailOf(e: ReceivedEmail): IncomingEmail;
 declare function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind">;
 
 interface TerminalJob {

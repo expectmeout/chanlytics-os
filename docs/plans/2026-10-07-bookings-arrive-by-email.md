@@ -271,3 +271,19 @@ new time and the old row stays until it passes (moving the client's only other v
 taken hour when wrong); a cancellation that names its client differently from the booking is kept as the fact and
 ends nothing; a tool's notice proves the tool, and with the tool named and the sender proved, a notice the same tool
 sends about another business's booking is told apart by its words alone (the reader's "written to the client" rule).
+
+**After the merge (7 October): the proof needs nothing set, and what the pilot's tool really sends.**
+
+- **A sender is proved by the provider's verdict, not by a header.** The proof above was read out of the message's own
+  `Authentication-Results` lines, the receiver's told from a sender's copy by a name each deployment was given by hand
+  (`EMAIL_AUTHSERV_ID`). Production was never given one, so no notice could be read there. Resend's answer about a
+  received email carries its own verdict (`authentication`: SPF, DKIM and DMARC as its receiving server worked them
+  out), which nothing in the message can write. `senderAuthenticated` reads that and nothing else: DMARC passed, or
+  DKIM passed by the From domain. The setting is gone, and the three things a stranger cannot supply are as they were.
+- **Booksy's notices, read for their shape** (no person's details kept): all from its no-reply address, written to
+  the business's own account address. A new booking's subject is "<client>: new booking <day and time>". A
+  cancellation's is "<client>: cancelled appointment on: <day and time>", with the client's whole block under it
+  (name, number, address, the hours, the service, with whom). A move's is "<client>: changed his/her booking", and
+  its words state the earlier day and time before the new block. So two of the three things left for the pilot do not
+  arise with this tool: a change names its old time, and a cancellation names its client as the booking did. The
+  third stands: a notice proves the tool, not the business.

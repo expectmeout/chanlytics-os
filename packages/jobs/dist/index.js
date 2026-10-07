@@ -954,7 +954,7 @@ async function lineProvision(ctx, job) {
     { payload: job.payload }
   );
 }
-function incomingEmailOf(e, authservId) {
+function incomingEmailOf(e) {
   return {
     id: e.id,
     from: e.from,
@@ -968,13 +968,14 @@ function incomingEmailOf(e, authservId) {
     receivedAt: e.createdAt,
     claim: classifyReceived(e),
     attachments: e.attachments,
-    senderAuthenticated: senderAuthenticated(e, authservId)
+    senderAuthenticated: senderAuthenticated(e)
   };
 }
 async function emailIngest(ctx, job) {
   const email = ctx.email;
   if (!email) throw new Error("email_ingest: this runtime holds no email provider");
   const { db } = ctx;
+  let senderChecks = null;
   const outcome = await ingestEmail(
     {
       mailbox: async (id) => {
@@ -983,7 +984,8 @@ async function emailIngest(ctx, job) {
       },
       fetch: async (receivedId) => {
         const e = await email.fetch(receivedId);
-        return e ? incomingEmailOf(e, email.authservId ?? null) : null;
+        senderChecks = e?.authentication ?? null;
+        return e ? incomingEmailOf(e) : null;
       },
       // A booking tool's notice is read into an appointment by its own job, once per delivery (dedupe_key), as this
       // job's own tenant: the intake run again finds it already on the ledger. The tool rides along, so a delivery the
@@ -1019,7 +1021,7 @@ async function emailIngest(ctx, job) {
     },
     { payload: job.payload }
   );
-  logger6().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome });
+  logger6().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome, sender_checks: senderChecks });
 }
 async function leadRoundStart(ctx, job) {
   if (!ctx.leads) throw new Error("lead_round_start: this runtime holds no lead pipeline");

@@ -158,8 +158,8 @@ test("the intake reads the tool the workspace named off its stored config: a pro
     headers: {},
     messageId: "<b1@notices.example>",
     attachments: [],
-    // The receiving side's own header (its name is the deployment's EMAIL_AUTHSERV_ID): the tool's signature holds.
-    authResults: ["mx.example.net; dkim=pass header.d=booksy.com; dmarc=pass header.from=booksy.com"],
+    // The receiving side's own verdict, as the provider hands it over: a forward, and the tool's signature holds.
+    authentication: { spf: "fail", dkim: "pass", dmarc: "pass" },
   };
   const intake = async (config, email = received) => {
     const scheduled = [];
@@ -173,7 +173,6 @@ test("the intake reads the tool the workspace named off its stored config: a pro
       deadline: Date.now() + 60_000,
       email: {
         domain: "mail.example.com",
-        authservId: "mx.example.net",
         fetch: async () => email,
         erasedBefore: async () => false,
         tell: async () => {},
@@ -202,5 +201,13 @@ test("the intake reads the tool the workspace named off its stored config: a pro
   assert.deepEqual(await intake(undefined), [], "no config at all");
   assert.deepEqual(await intake({ bookings: { tool: "not-a-tool" } }), [], "a value the list does not know");
   // And the named tool's notice with nothing to prove its sender is not read either.
-  assert.deepEqual(await intake({ bookings: { tool: "booksy" } }, { ...received, authResults: [] }), []);
+  assert.deepEqual(await intake({ bookings: { tool: "booksy" } }, { ...received, authentication: null }), []);
+  assert.deepEqual(
+    await intake(
+      { bookings: { tool: "booksy" } },
+      { ...received, authentication: { spf: "pass", dkim: "gray", dmarc: "fail" } },
+    ),
+    [],
+    "nor one the receiving side says is not the tool's",
+  );
 });

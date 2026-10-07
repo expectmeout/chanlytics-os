@@ -43,8 +43,8 @@ export function loadFixtures(file = FIXTURES) {
 
 /** What the reader is asked about one reply: the claim, the system prompt and the fenced user content. */
 export function readerInputOf(reply, set) {
-  // No authserv-id: the reader is asked about the reply's claim and its words, never about whether its sender is proved.
-  const e = incomingEmailOf(reply.email, null);
+  // The reader is asked about the reply's claim and its words, never about whether its sender is proved.
+  const e = incomingEmailOf(reply.email);
   const claim = e.claim;
   const user = replyUserContent({
     text: replyTextOf(e.text),
