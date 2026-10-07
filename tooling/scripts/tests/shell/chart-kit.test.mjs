@@ -462,22 +462,29 @@ test("a donut told to fill is sized from its width, never from the height it is 
       }),
       (n) => classes(n).includes("ck-pie-figure"),
     ).props.style;
+  // The ring's size, and beside it the hole its middle words keep inside (charts.css, --ck-hole).
+  const size = (props) => {
+    const { width, height } = ring(props);
+    return { width, height };
+  };
   assert.deepEqual(
-    ring({ size: "fill", floor: 138, ceiling: 208 }),
+    size({ size: "fill", floor: 138, ceiling: 208 }),
     { width: 208, height: 208 },
     "600 * 0.45 is over the ceiling",
   );
   assert.deepEqual(
-    ring({ size: "fill", floor: 138, ceiling: 500 }),
+    size({ size: "fill", floor: 138, ceiling: 500 }),
     { width: 270, height: 270 },
     "under it, the share of the width",
   );
   assert.deepEqual(
-    ring({ size: "fill", floor: 320, ceiling: 500 }),
+    size({ size: "fill", floor: 320, ceiling: 500 }),
     { width: 320, height: 320 },
     "never under the floor",
   );
-  assert.deepEqual(ring({ size: 138 }), { width: 138, height: 138 }, "a number is the size");
+  assert.deepEqual(size({ size: 138 }), { width: 138, height: 138 }, "a number is the size");
+  // A 138px ring is 4px in from its box and its band 16px wide: its hole is 138 - 8 - 32 = 98px across.
+  assert.equal(ring({ size: 138 })["--ck-hole"], "98px", "the figure says its hole");
 });
 
 test("a bar list: label and value on one line, the bar under them sized against the largest, a row with a door is a button", () => {

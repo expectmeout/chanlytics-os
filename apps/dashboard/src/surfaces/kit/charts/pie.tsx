@@ -129,7 +129,7 @@ export function PieChart({
         aria-roledescription="chart"
         aria-label={ariaLabel}
         {...nav}
-        style={{ width: S, height: S }}
+        style={{ width: S, height: S, "--ck-hole": `${Math.round(2 * r0)}px` } as CSSProperties}
       >
         <svg width={S} height={S} className="ck-svg" aria-hidden="true">
           {arcs.map((s, i) => (

@@ -53,6 +53,11 @@ test("script-src is the app's own origin, Meta's SDK host and inline by name (th
   assert.deepEqual(p["default-src"], ["'self'"]);
 });
 
+test("a local stack's Supabase over http is allowed over ws for Realtime, and named once", () => {
+  const p = directives(contentSecurityPolicy({ supabaseUrl: "http://127.0.0.1:54321" }));
+  assert.deepEqual(p["connect-src"].slice(0, 3), ["'self'", "http://127.0.0.1:54321", "ws://127.0.0.1:54321"]);
+});
+
 test("the workspace's Supabase origin is allowed over https and wss, and for the signed media it serves; Meta's origins for the sign-up SDK; the voice agent's socket and its WebRTC signalling (0026); nothing else", () => {
   const p = directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co/" }));
   assert.deepEqual(p["connect-src"], [

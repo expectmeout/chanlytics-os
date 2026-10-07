@@ -5199,6 +5199,21 @@ test("a message with an approved WhatsApp version opens on WhatsApp, as every br
   assert.equal(viaOf(tree).email.props.readOnly, false);
 });
 
+test("a message changed to one with no WhatsApp version keeps WhatsApp ticked and off, and the number it goes from is not said under When", () => {
+  const rows = [versionRow("whatsapp"), versionRow("email", { id: "v-email-news", name: "news_note" })];
+  let tree = openVia({ templates: offeredOf(...rows) });
+  assert.equal(pickerOf(tree, "bc-template").props.value, "hours_note", "it opens on the WhatsApp message");
+  assert.deepEqual(ticksOf(tree), [true, false, false]);
+  assert.ok(byTestId(tree, "bc-number"), "a send by WhatsApp says the number it goes from");
+  pickerOf(tree, "bc-template").props.onValueChange("news_note");
+  tree = viaAgain();
+  assert.equal(pickerOf(tree, "bc-template").props.value, "news_note");
+  assert.deepEqual(ticksOf(tree), [false, false, false], "WhatsApp stays ticked, and this message cannot go by it");
+  assert.equal(reasonsOf(tree).whatsapp, "This message has no WhatsApp version.");
+  assert.equal(byTestId(tree, "bc-number"), null, "the number is nothing to a message WhatsApp does not carry");
+  assert.equal(byTestId(tree, "bc-number-refusal"), null);
+});
+
 test("a WhatsApp version still in review with an email beside it is offered, and WhatsApp's tick says it is being reviewed; a message with only that version is not offered", () => {
   const rows = [versionRow("whatsapp", { meta_status: "pending" }), versionRow("email")];
   const tree = openVia({ templates: offeredOf(...rows) });

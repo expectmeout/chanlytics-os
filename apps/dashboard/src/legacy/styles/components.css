@@ -1388,11 +1388,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* ---------- The bell's foot: device alerts ---------- */
 .tbn-foot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }
 .tbn-foot-note { display: block; }
-.tbn-alert-switch { appearance: none; background: none; border: 0; padding: 4px 0; font: inherit; font-size: 12px; color: var(--ink-muted); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; text-align: left; }
-.tbn-alert-switch:hover { color: var(--ink); }
-.tbn-alert-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--line-strong); background: transparent; flex: none; }
-.tbn-alert-switch.on { color: var(--ink); }
-.tbn-alert-switch.on .tbn-alert-dot { background: var(--accent); border-color: var(--accent); }
+/* This device's alerts: its words, and the kit's switch beside them, the one Settings > Notifications' This device card
+   draws, which says on or off itself. It was a 9px ring that read as a choice not taken. */
+.tbn-alert { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; color: var(--ink-muted); }
 
 /* ---- Templates hidden from the composers: still listed, under the rest ---- */
 .set-int-row.is-hidden { opacity: 0.55; }
