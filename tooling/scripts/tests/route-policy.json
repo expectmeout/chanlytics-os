@@ -882,6 +882,20 @@
       "rate": "settings",
       "spend": false
     },
+    "POST calendar/notices/[id]/dismiss": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST calendar/notices/[id]/read-again": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
     "POST mailboxes": {
       "kind": "write",
       "scope": "workspace",

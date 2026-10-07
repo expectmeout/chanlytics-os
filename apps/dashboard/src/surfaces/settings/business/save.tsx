@@ -99,6 +99,8 @@ export interface Config {
   brain?: Brain;
   features?: { [key: string]: unknown; vision?: boolean };
   calendar?: { [key: string]: unknown; ical_url?: string };
+  /** The booking tool the owner named (00345, contracts BOOKING_TOOL_IDS), in a section of its own. */
+  bookings?: { [key: string]: unknown; tool?: string };
 }
 
 /** A row's change: a function of the brain and its profile that returns the brain. */

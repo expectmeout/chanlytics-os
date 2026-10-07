@@ -266,7 +266,10 @@ function askSetup(supabase: SupabaseClient<Database>, tenantId: string, viewer: 
     lastWhatsAppIn(supabase, tenantId),
     lastInboundCall(supabase, tenantId),
     templateVerdicts(supabase, tenantId),
-    calendarWeek({ supabase }, tenantId, { from: null, days: 7 }, now, { canAct: false }).catch(() => null),
+    // Setup's row says whether the feed reads, and no more: nothing of the record is read for it (feedOnly).
+    calendarWeek({ supabase }, tenantId, { from: null, days: 7 }, now, { canAct: false, feedOnly: true }).catch(
+      () => null,
+    ),
     viewer.kind === "member" ? teamRoster(supabase, tenantId) : teamCounts(supabase, tenantId),
     saidYesCount(supabase, tenantId),
     offersSaidYesCount(supabase, tenantId),

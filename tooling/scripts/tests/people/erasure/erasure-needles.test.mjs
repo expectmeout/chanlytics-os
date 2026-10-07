@@ -15,7 +15,7 @@ import { formatPhoneDisplay } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { erasureKeys } = await import(at("apps/dashboard/src/server/people/erasure.ts"));
+const { erasureKeys, visitNeedles } = await import(at("apps/dashboard/src/server/people/erasure.ts"));
 
 const NATIONAL = ["5550100123", "(555) 010-0123", "555-010-0123", "555.010.0123", "555 010 0123"];
 
@@ -85,4 +85,18 @@ test("no needle is empty or said twice", () => {
   ]);
   assert.equal(new Set(needles).size, needles.length);
   assert.ok(needles.every((n) => typeof n === "string" && n.length > 0));
+});
+
+test("a visit is found by the number as a visit keeps it: E.164, which no sentence writes and the needles did not carry", () => {
+  // appointments.client_phone is `+15550100123` (00345's check), and appointments_scrub compares it with the needles
+  // whole. The needles hold the digits and the display forms, so the number of a visit the read never linked to the
+  // person (a doubt, a notice with no match) was never found: the visit kept it after the erasure.
+  const { needles } = erasureKeys({ phone_e164: "+15550100123", email: "rosa@example.com" }, ["447700900123"]);
+  const forVisits = visitNeedles(needles);
+  assert.ok(forVisits.includes("+15550100123"), "the number as the row holds it");
+  assert.ok(forVisits.includes("+447700900123"), "and an identity's");
+  for (const n of needles) assert.ok(forVisits.includes(n), `${n}: every needle of the erasure's own is still there`);
+  assert.equal(new Set(forVisits).size, forVisits.length, "none said twice");
+  assert.ok(!forVisits.includes("+rosa@example.com"), "an address is not a number");
+  assert.deepEqual(visitNeedles([]), []);
 });

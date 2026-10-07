@@ -8,11 +8,13 @@ import {
   resolveSystemPrompt,
   seasonHorizon,
   type BrainConfig,
+  type BusyBlock,
   type KnownFacts,
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { loadFeed } from "@/server/ask/openings";
+import { recordBusy } from "@/server/calendar/record-busy";
 import { log } from "@/server/log";
 
 /**
@@ -73,14 +75,20 @@ export function composePromptPreview(brain: BrainConfig, facts: PromptFacts, now
 
 /**
  * The openings block as the edge composes it (apps/edge/lib/calendar/availability.ts,
- * openingsFor): the feed's busy blocks against the hours, closures and
- * booking rules, in the business's zone. Null when there is no feed, no
+ * openingsFor): the feed's busy blocks, and the record's taken time beside them
+ * (`taken`, the caller's read: calendar/record-busy.ts, 00345), against the hours,
+ * closures and booking rules, in the business's zone. Null when there is no feed, no
  * profile or no zone, and when the feed cannot be read -- the receptionist
  * then says nothing about open times, and so does the preview.
  */
 export async function openingsBlock(
   tenantId: string,
-  cfg: { url: string | null; brain: BrainConfig | null; tz: string | null },
+  cfg: {
+    url: string | null;
+    brain: BrainConfig | null;
+    tz: string | null;
+    taken: (daysAhead: number) => Promise<BusyBlock[]>;
+  },
   now = new Date(),
 ): Promise<string | null> {
   const profile = cfg.brain?.profile;
@@ -98,7 +106,7 @@ export async function openingsBlock(
       hours: profile.hours,
       closures: profile.closures,
       tz: cfg.tz,
-      busy: parsed.busy,
+      busy: [...parsed.busy, ...(await cfg.taken(daysAhead))],
       rules,
       now,
     });
@@ -139,7 +147,8 @@ export async function promptPreview(
     });
     return null;
   }
-  const openings = await openingsBlock(tenantId, { url: cfg.calendarUrl, brain, tz }, now);
+  const taken = (daysAhead: number) => recordBusy(ctx, tenantId, now, daysAhead);
+  const openings = await openingsBlock(tenantId, { url: cfg.calendarUrl, brain, tz, taken }, now);
   try {
     return composePromptPreview(brain, { tz, policy, known, openings }, now);
   } catch (e) {

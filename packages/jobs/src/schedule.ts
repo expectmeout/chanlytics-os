@@ -47,6 +47,10 @@ function dedupeKeyOf(kind: JobKind, payload: Json): string | null {
       return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
     case "reply_read":
       return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
+    // One read per delivery (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again, or the
+    // provider's webhook replayed, finds the read already on the ledger.
+    case "booking_read":
+      return field("received_id") ? `booking_read:${field("received_id")}` : null;
     default:
       return null;
   }

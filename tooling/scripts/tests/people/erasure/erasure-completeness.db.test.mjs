@@ -225,6 +225,34 @@ async function seed() {
     evidence: { words: WORDS },
     proposal_url: URL_WITH,
   });
+  // A visit their booking tool emailed (00345): the client as the notice named them, the calendar's own words, and
+  // the notice that made it, whose subject names them. Scrubbed by appointments_scrub, the route's best-effort leg.
+  const visit = await insert("appointments", {
+    tenant_id: T,
+    contact_id: A,
+    source: "booking_email",
+    tool: "booksy",
+    external_id: `visit-${DIGITS}-${RUN}`,
+    starts_at: new Date(Date.now() + 86_400_000).toISOString(),
+    ends_at: new Date(Date.now() + 90_000_000).toISOString(),
+    title: WORDS,
+    service: "Trim",
+    note: WORDS,
+    client_name: `Ada ${DIGITS}`,
+    client_phone: PHONE,
+    client_email: EMAIL,
+    timezone: "America/New_York",
+  });
+  await insert("appointment_notices", {
+    tenant_id: T,
+    notice_id: `rcv-${DIGITS}-${RUN}`,
+    tool: "booksy",
+    from_address: "no-reply@booksy.com",
+    subject: WORDS,
+    received_at: new Date().toISOString(),
+    outcome: "booked",
+    appointment_id: visit,
+  });
   await insert("decisions", {
     tenant_id: T,
     subject_type: "contact",

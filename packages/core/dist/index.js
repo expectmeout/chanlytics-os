@@ -970,7 +970,9 @@ import {
   EMAIL_UNSUBSCRIBE_PATTERN,
   MARKETING_OPT_IN_PATTERN,
   normalizeEmail as normalizeEmail2,
-  replyTextOf
+  replyTextOf,
+  bookingNoticeOf,
+  forwardingConfirmationOf
 } from "../../contracts/dist/index.js";
 import { logger as logger2 } from "../../channels/dist/index.js";
 var emailLog = logger2();
@@ -998,6 +1000,9 @@ async function ingestEmail(ports, cmd) {
   if (await ports.erasedBefore(mailbox.tenant_id, address, email.receivedAt ?? at)) return "erased_person";
   const { claim } = email;
   if (claim === "report") return "not_a_conversation";
+  const aside = await keptAside(ports, mailbox, email, { address, at });
+  if (aside) return aside;
+  const taken = claim === "booking_notice" || claim === "forwarding_confirmation" ? "automated" : claim;
   const said = answersOf(email);
   const kept = await ports.record({
     tenantId: mailbox.tenant_id,
@@ -1017,19 +1022,38 @@ async function ingestEmail(ports, cmd) {
   if (said.unproven)
     emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
   const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
-  if (claim !== "auto_reply")
+  if (taken !== "auto_reply")
     await flagForAPerson(ports, email, {
       tenantId: mailbox.tenant_id,
       conversationId: kept.conversation_id,
       address,
-      claim,
+      claim: taken,
       reachOut
     });
   if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
   await ports.markProcessed(mailbox.tenant_id, kept.message_id);
   await ports.received(mailbox.id, at);
   if (reachOut) return "kept_for_the_reading";
-  return claim === "auto_reply" ? "kept_quietly" : "kept_for_a_person";
+  return taken === "auto_reply" ? "kept_quietly" : "kept_for_a_person";
+}
+async function keptAside(ports, mailbox, email, { address, at }) {
+  const words = { from: email.from, subject: email.subject, text: email.text };
+  const notice = email.claim === "booking_notice" ? bookingNoticeOf(words) : null;
+  if (notice) {
+    const trusted = email.senderAuthenticated && await ports.bookingTool(mailbox.tenant_id) === notice.tool && (!notice.forwarded || await ports.memberAddress(mailbox.tenant_id, address));
+    if (trusted) {
+      await ports.readBooking(mailbox.tenant_id, mailbox.id, email.id, notice.tool);
+      await ports.received(mailbox.id, at);
+      return "kept_as_booking";
+    }
+  }
+  const forwarding = email.claim === "forwarding_confirmation" && email.senderAuthenticated ? forwardingConfirmationOf(words) : null;
+  if (forwarding) {
+    await ports.keepForwarding(mailbox.id, forwarding);
+    await ports.received(mailbox.id, at);
+    return "kept_as_confirmation";
+  }
+  return null;
 }
 async function flagForAPerson(ports, email, p) {
   const { tenantId, conversationId, claim, reachOut } = p;
@@ -2032,6 +2056,147 @@ function refusalScript(refusal, phoneDisplay) {
     case "daily_cap":
       return "I have already sent that number several WhatsApp messages today, so I will not send another. Tell the caller to check their WhatsApp for the earlier message.";
   }
+}
+
+// src/appointments/notice-read.ts
+import {
+  appointmentKey,
+  appointmentTitle,
+  noticeAnswerOf,
+  noticePrompt,
+  SAME_VISIT_MS
+} from "../../contracts/dist/index.js";
+var stillAhead = (row) => row && (row.status === "proposed" || row.status === "booked") ? row : null;
+var asideKey = (key, row) => `${key}|ended:${row.id}`;
+async function readBookingNotice(ports, cmd) {
+  const { tenantId, tz, tool, email } = cmd;
+  const nowMs = ports.now();
+  const receivedAt = email.receivedAt ?? new Date(nowMs).toISOString();
+  const ledger = {
+    tenantId,
+    noticeId: email.id,
+    tool,
+    fromAddress: email.from?.address ?? null,
+    subject: email.subject,
+    receivedAt
+  };
+  const hold = async (reason) => {
+    await ports.keepNotice({ ...ledger, outcome: "held", holdReason: reason, appointmentId: null });
+    return `held:${reason}`;
+  };
+  const seen = await ports.noticeOf(tenantId, email.id);
+  if (seen && seen.outcome !== "held") return "already";
+  const may = await ports.mayRead(tenantId, nowMs);
+  if (may) return hold(may);
+  const words = noticePrompt({
+    tool,
+    subject: email.subject,
+    text: email.text ?? "",
+    tz,
+    receivedAtMs: Date.parse(receivedAt) || nowMs
+  });
+  const answer = await ports.ask(words.system, words.user);
+  const read = noticeAnswerOf(answer, tz, nowMs);
+  if (read.hold === "not_a_booking") {
+    await ports.keepNotice({ ...ledger, outcome: "dismissed", holdReason: "not_a_booking", appointmentId: null });
+    return "set_aside";
+  }
+  if (read.hold) return hold(read.hold);
+  const r = read.reading;
+  const key = appointmentKey(tool, r.client, r.start);
+  const title = appointmentTitle({ title: null, service: r.service, client_name: r.client.name });
+  const contactId = await ports.personFor(tenantId, r.client, { title, uid: `notice:${email.id}`, startMs: r.start });
+  const stated = {
+    service: r.service,
+    staff: r.staff,
+    price: r.price,
+    note: r.note,
+    client: r.client,
+    contactId
+  };
+  const fresh = (status) => ({
+    tenantId,
+    tool,
+    externalId: key,
+    status,
+    startsAt: new Date(r.start).toISOString(),
+    endsAt: new Date(r.end).toISOString(),
+    timezone: tz,
+    ...stated
+  });
+  const keep = async (outcome, id) => {
+    await ports.keepNotice({
+      ...ledger,
+      outcome: outcome.startsWith("booked") ? "booked" : outcome.startsWith("changed") ? "changed" : "cancelled",
+      holdReason: null,
+      appointmentId: id
+    });
+    return outcome;
+  };
+  const visit = { tenantId, key, r, fresh, stated, ahead: r.start > nowMs };
+  if (r.kind === "booked") return keep(...await booked(ports, visit));
+  if (r.kind === "changed") return keep(...await changed(ports, visit));
+  return keep(...await cancelled(ports, visit));
+}
+async function bookedAgainOver(ports, { tenantId, key, fresh }, ended) {
+  await ports.update(tenantId, ended.id, { externalId: asideKey(key, ended) });
+  return (await ports.insert(fresh("booked"))).id;
+}
+async function booked(ports, visit) {
+  const { tenantId, key, r, fresh, stated } = visit;
+  const have = await ports.byKey(tenantId, key);
+  if (have && have.status === "cancelled" && visit.ahead) return ["booked", await bookedAgainOver(ports, visit, have)];
+  if (have) {
+    await ports.update(tenantId, have.id, {
+      ...stated,
+      endsAt: new Date(r.end).toISOString(),
+      ...have.status === "proposed" ? { status: "booked" } : {}
+    });
+    return ["booked_again", have.id];
+  }
+  const made = await ports.insert(fresh("booked"));
+  return ["booked", made.id];
+}
+async function changed(ports, visit) {
+  const { tenantId, key, r, fresh, stated } = visit;
+  const at = { startsAt: new Date(r.start).toISOString(), endsAt: new Date(r.end).toISOString() };
+  const moved = r.previousStart !== null ? stillAhead(await ports.byClientStart(tenantId, r.client, r.previousStart, SAME_VISIT_MS)) : null;
+  if (moved) {
+    const already = await ports.byKey(tenantId, key);
+    if (already && already.id !== moved.id) {
+      if (stillAhead(already)) {
+        await ports.update(tenantId, already.id, { ...stated, ...at, status: "booked" });
+        await ports.update(tenantId, moved.id, { status: "cancelled" });
+        return ["changed", already.id];
+      }
+      await ports.update(tenantId, already.id, { externalId: asideKey(key, already) });
+    }
+    await ports.update(tenantId, moved.id, { ...stated, ...at, externalId: key, status: "booked" });
+    return ["changed", moved.id];
+  }
+  const have = await ports.byKey(tenantId, key);
+  if (have && have.status === "cancelled" && visit.ahead)
+    return ["changed_unknown", await bookedAgainOver(ports, visit, have)];
+  if (have) {
+    await ports.update(tenantId, have.id, {
+      ...stated,
+      ...at,
+      ...have.status === "proposed" ? { status: "booked" } : {}
+    });
+    return ["changed_unknown", have.id];
+  }
+  const made = await ports.insert(fresh("booked"));
+  return ["changed_unknown", made.id];
+}
+async function cancelled(ports, { tenantId, key, r, fresh }) {
+  const have = await ports.byKey(tenantId, key) ?? await ports.byClientStart(tenantId, r.client, r.start, SAME_VISIT_MS);
+  if (have) {
+    if (have.status === "cancelled") return ["cancelled", have.id];
+    const done = await ports.update(tenantId, have.id, { status: "cancelled" });
+    return done === "refused" ? ["cancel_refused", have.id] : ["cancelled", have.id];
+  }
+  const made = await ports.insert(fresh("cancelled"));
+  return ["cancelled_unknown", made.id];
 }
 
 // src/campaigns/assemble.ts
@@ -38725,6 +38890,7 @@ export {
   radiusFromSpread,
   raiseLateFailure,
   reachOutRunIdFor,
+  readBookingNotice,
   readCampaignMessage,
   readReply,
   reconcileUnknownRuns,

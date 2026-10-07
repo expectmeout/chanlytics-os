@@ -136,10 +136,13 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
     if (String(url).includes("broken")) return new Response("nope", { status: 500 });
     return new Response(ics, { status: 200, headers: { "content-type": "text/calendar" } });
   };
+  // The record's taken time over the days on offer, as the settings read hands it in (calendar/record-busy.ts): none,
+  // until a booking arrives by email.
+  const none = async () => [];
   try {
     const got = await openingsBlock(
       "t-preview-1",
-      { url: "webcal://cal.example/harbor.ics", brain: BRAIN, tz: TZ },
+      { url: "webcal://cal.example/harbor.ics", brain: BRAIN, tz: TZ, taken: none },
       NOW,
     );
     const parsed = parseIcs(ics, TZ, {
@@ -164,24 +167,69 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
     );
     assert.equal(fetched[0], "https://cal.example/harbor.ics", "webcal is https in a hat, as on the edge");
 
-    assert.equal(await openingsBlock("t-preview-2", { url: null, brain: BRAIN, tz: TZ }, NOW), null, "no feed");
+    // A booking that arrived by email took its hours too (00345): the block leaves them out beside the feed's, as the
+    // edge's does, asked for with the days the rules offer. Tuesday afternoon, three to five, New York.
+    const emailed = [{ start: Date.parse("2026-09-15T19:00:00.000Z"), end: Date.parse("2026-09-15T21:00:00.000Z") }];
+    const askedFor = [];
+    const withEmailed = await openingsBlock(
+      "t-preview-1",
+      {
+        url: "webcal://cal.example/harbor.ics",
+        brain: BRAIN,
+        tz: TZ,
+        taken: async (daysAhead) => (askedFor.push(daysAhead), emailed),
+      },
+      NOW,
+    );
+    assert.deepEqual(askedFor, [14], "the record is asked once, for the days the rules offer");
+    assert.equal(
+      withEmailed,
+      describeOpenings(
+        freeWindows({
+          hours: BRAIN.profile.hours,
+          closures: BRAIN.profile.closures,
+          tz: TZ,
+          busy: [...parsed.busy, ...emailed],
+          rules: null,
+          now: NOW,
+        }),
+        TZ,
+        { daysAhead: 14, hasBookingLink: true },
+      ),
+    );
+    assert.notEqual(withEmailed, got, "the emailed hours are left out of what the receptionist is told");
+
+    const refused = async () => assert.fail("nothing is offered, so nothing of the record is read");
+    assert.equal(
+      await openingsBlock("t-preview-2", { url: null, brain: BRAIN, tz: TZ, taken: refused }, NOW),
+      null,
+      "no feed",
+    );
     assert.equal(
       await openingsBlock(
         "t-preview-3",
-        { url: "https://cal.example/x.ics", brain: { ...BRAIN, profile: undefined }, tz: TZ },
+        { url: "https://cal.example/x.ics", brain: { ...BRAIN, profile: undefined }, tz: TZ, taken: refused },
         NOW,
       ),
       null,
       "no profile",
     );
     assert.equal(
-      await openingsBlock("t-preview-4", { url: "https://cal.example/x.ics", brain: BRAIN, tz: null }, NOW),
+      await openingsBlock(
+        "t-preview-4",
+        { url: "https://cal.example/x.ics", brain: BRAIN, tz: null, taken: refused },
+        NOW,
+      ),
       null,
       "no zone",
     );
     assert.equal(fetched.length, 1, "none of those reached for the feed");
     assert.equal(
-      await openingsBlock("t-preview-5", { url: "https://cal.example/broken.ics", brain: BRAIN, tz: TZ }, NOW),
+      await openingsBlock(
+        "t-preview-5",
+        { url: "https://cal.example/broken.ics", brain: BRAIN, tz: TZ, taken: refused },
+        NOW,
+      ),
       null,
       "a feed that cannot be read: the receptionist says nothing about open times, and so does the preview",
     );

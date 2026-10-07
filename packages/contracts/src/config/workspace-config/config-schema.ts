@@ -9,6 +9,7 @@
  * business-profile.ts and brain-config.ts beside it, and the numbers they are built from config-rules.ts.
  */
 import { feedProblemWords, feedUrlOk } from "../../calendar/feed-url";
+import { BOOKING_TOOL_IDS } from "../../calendar/booking-notice";
 import { normalizeEmail } from "../../shared/email-address";
 import { z } from "zod";
 import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-keys";
@@ -62,6 +63,14 @@ export const CalendarConfigSchema = z
 export type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
 
 /**
+ * Where the bookings come from (00345): the booking tool the owner named (contracts BOOKING_TOOLS), whose emails the
+ * intake then reads as bookings. A section of its own, never a key of `calendar`: a build from before it leaves out a
+ * section it has never heard of and keeps answering, where a calendar section with no address would have failed its
+ * whole parse and muted the receptionist (the note above; either deploy order, and a rollback).
+ */
+const BookingsConfigSchema = z.object({ tool: z.enum(BOOKING_TOOL_IDS).optional() }).strip();
+
+/**
  * Opt-in abilities, off unless the workspace turns them on.
  *
  * `vision`: the receptionist looks at photos customers send over WhatsApp and
@@ -75,6 +84,7 @@ export const TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
+  bookings: BookingsConfigSchema.optional(),
   features: FeaturesConfigSchema.optional(),
 });
 export type TenantConfig = z.infer<typeof TenantConfigSchema>;

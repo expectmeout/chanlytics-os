@@ -19,13 +19,14 @@
  * hold the rest: the route's DTO (calendar-dto.ts), day keys (day-keys.ts), the words (calendar-words.ts), and
  * the views and the window loaded around them (calendar-views.ts).
  */
-import { timezoneCity } from "../shared/time";
+import { DAY_MS, timezoneCity } from "../shared/time";
 import { waWindow } from "../config/policy";
 import { formatPhoneDisplay } from "../shared/phone";
 import { BOOKING_DEFAULTS, closedOn, dayIntervals } from "./availability";
 import { clockInZone, dayInZone, dayPlusInZone } from "./zone-math";
 import { offerFor } from "./service-offer";
 import { DAY_SHORT, DOW, keyParts, monthLabelOf, shiftKey, zoneMidnight } from "./day-keys";
+import { bookingToolName, NOTICE_HOLD_WORDS } from "./booking-notice";
 import {
   clockLabel,
   closureDatesLabel,
@@ -49,7 +50,7 @@ import type {
   CalendarVM,
   CalendarWindowVM,
 } from "./calendar-vm";
-import type { CalendarItemDto, CalendarWeekDto } from "./calendar-dto";
+import type { CalendarFeedDto, CalendarItemDto, CalendarWeekDto } from "./calendar-dto";
 
 function hoursOf(tz: string, ms: number): number {
   const c = clockInZone(tz, ms);
@@ -100,6 +101,90 @@ export function serviceOf(title: string, personName: string | null | undefined):
   return cut.replace(/[-–—·|,:\s]/gu, "") ? cut : whole;
 }
 
+/**
+ * What a booking that arrived by email states and a feed's event does not (docs/plans/2026-10-07-bookings-arrive-by-email.md):
+ * the tool, who it is with and the price. All null for a feed's event.
+ */
+function noticeFacts(item: CalendarItemDto): Pick<CalendarBlockVM, "tool" | "staff" | "price"> {
+  if (item.source !== "notice") return { tool: null, staff: null, price: null };
+  return { tool: item.tool ?? null, staff: item.staff ?? null, price: item.price ?? null };
+}
+
+/** What the block is for: the service a notice stated; else the title with the person's name taken out (serviceOf). */
+function serviceWordsOf(item: CalendarItemDto): string {
+  if (item.source === "notice" && item.service) return item.service;
+  return serviceOf(item.title || "Busy", item.person?.name ?? null);
+}
+
+/**
+ * The feed's whole sentence, by its state: what was read, why it could not be, or, with no calendar, the bookings that
+ * arrive by email when any have (the notices' line), else that none is connected.
+ */
+function feedLineOf(state: CalendarFeedDto["state"], feedDetail: string, noticesLine: string): string {
+  if (state === "ok") return feedDetail;
+  if (state === "unavailable") return `Your calendar could not be read${feedDetail ? ` · ${feedDetail}` : ""}`;
+  return noticesLine || "No calendar connected";
+}
+
+/**
+ * How long Gmail's confirmation of a forward is shown. Google's link is good for about that long, and a code nobody
+ * confirmed in three days is one nobody is looking for: it is another account's, or an old try.
+ */
+const FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
+
+/** The bookings that arrived by email, as the board's card, Settings' row and Ask say them: one line, said once. */
+function noticesVM(n: CalendarFeedDto["notices"], now: Date): CalendarVM["feed"]["notices"] {
+  const tool = n?.tool ? bookingToolName(n.tool) : null;
+  const lastAgo = readAgoLabel(n?.last_at ?? null, now);
+  const held = n?.held ?? 0;
+  const line = n?.last_at
+    ? `Bookings arrive by email from ${tool ?? "your booking tool"} · last ${lastAgo ?? "just now"}${held ? ` · ${held} to look at` : ""}`
+    : "";
+  // Working once a notice has become a visit; waiting from the moment the owner named a tool; nothing before that.
+  const state = n?.last_at ? "working" : n?.tool ? "waiting" : "none";
+  const heldList = (n?.held_list ?? []).map((h) => ({
+    id: h.id,
+    tool: bookingToolName(h.tool),
+    from: h.from,
+    subject: h.subject,
+    receivedAgo: readAgoLabel(h.received_at, now),
+    reason: NOTICE_HOLD_WORDS[h.reason],
+  }));
+  const asked = n?.forwarding ? now.getTime() - Date.parse(n.forwarding.at) : Number.NaN;
+  const forwarding =
+    n?.forwarding && asked <= FORWARD_CONFIRM_SHOWN_MS
+      ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link }
+      : null;
+  const address = n?.address ?? null;
+  const row = noticeRowOf({ state, address, forwarding: !!forwarding, lastAgo, held });
+  return { tool, address, lastAgo, count: n?.count ?? 0, held, line, state, heldList, forwarding, row };
+}
+
+/**
+ * The Business row's phrase: the next thing to do, first. A tool named with no address to send to, then a forward
+ * Gmail waits on, are the owner's to fix (warn); emails held for a look are too; otherwise the last email's age (ok),
+ * or waiting for the first (plain).
+ */
+function noticeRowOf(s: {
+  state: "none" | "waiting" | "working";
+  address: string | null;
+  forwarding: boolean;
+  lastAgo: string | null;
+  held: number;
+}): CalendarVM["feed"]["notices"]["row"] {
+  if (s.state === "none") return null;
+  const needsYou = (words: string) => ({ tone: "warn" as const, label: "Needs you", words });
+  if (!s.address) return needsYou("Needs a workspace email address");
+  if (s.forwarding) return needsYou("Confirm the forward in Gmail");
+  // Emails held for a look are the owner's to see whether or not one has become a visit yet.
+  if (s.state === "waiting")
+    return s.held
+      ? needsYou(`${s.held} booking ${s.held === 1 ? "email" : "emails"} to look at`)
+      : { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
+  const last = `Last booking email ${s.lastAgo ?? "just now"}`;
+  return s.held ? needsYou(`${last} · ${s.held} to look at`) : { tone: "ok", label: "Working", words: last };
+}
+
 function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs: number, now: Date): CalendarBlockVM {
   const s = Math.max(Date.parse(item.start), dayStartMs);
   const e = Math.min(Date.parse(item.end), dayEndMs);
@@ -110,7 +195,7 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
     t,
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
-    service: serviceOf(item.title || "Busy", item.person?.name ?? null),
+    service: serviceWordsOf(item),
     time: spanLabel(t, tEnd),
     person: item.person
       ? {
@@ -131,6 +216,7 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
     guess: item.guess ?? null,
     consultation: !!item.consultation,
     consultService: item.consultation ? (item.consult_service ?? null) : null,
+    ...noticeFacts(item),
     start: item.start,
     end: item.end,
     lane: 0,
@@ -289,13 +375,10 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       : dto.feed.state === "unavailable"
         ? [tried ? `tried ${tried}` : "", ago ? `last read ${ago}` : ""].filter(Boolean).join(" · ")
         : "";
+  // The bookings that arrived by email (00345): said whole once, for the board's card, Settings' row and Ask alike.
+  const notices = noticesVM(dto.feed.notices, now);
   // The whole sentence, for whoever reads the line without the pill: Ask's calendar.week.
-  const feedLine =
-    dto.feed.state === "ok"
-      ? feedDetail
-      : dto.feed.state === "unavailable"
-        ? `Your calendar could not be read${feedDetail ? ` · ${feedDetail}` : ""}`
-        : "No calendar connected";
+  const feedLine = feedLineOf(dto.feed.state, feedDetail, notices.line);
   // When it was read, on its own: a row that says only that is saying the one part an owner acts on ("is it current?").
   const feedRead =
     dto.feed.state === "ok"
@@ -346,6 +429,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       skippedRecurring: dto.feed.skipped_recurring || 0,
       dropped: dto.feed.dropped || 0,
       notes: feedNotes(dto.feed),
+      notices,
     },
     stats: { events, windows: windowCount, next },
     offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },

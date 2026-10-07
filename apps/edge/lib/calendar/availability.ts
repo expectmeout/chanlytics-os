@@ -1,9 +1,10 @@
 /**
  * The openings a receptionist can state, from the workspace's calendar feed.
  *
- * The feed is the owner's appointments as iCal — what Booksy Biz, Calendly,
- * Square and the rest write into a Google or Apple calendar, read back by
- * its private address. It is fetched here, on the edge, with a short cache:
+ * The feed is the owner's appointments as iCal — the Google calendar Square,
+ * Vagaro, Acuity or Fresha write into, read back by its private address, or
+ * the feed a tool offers of its own. (Booksy writes no calendar: its bookings
+ * arrive by email, 00345.) It is fetched here, on the edge, with a short cache:
  * a busy line asks many times a minute and the calendar does not change that
  * fast. Everything else — parsing, the opening hours, the buffer and lead
  * rules, the words — is the pure contracts module, so it is tested without
@@ -12,6 +13,9 @@
  * Never throws and never blocks a reply: a feed that cannot be read means
  * the receptionist says nothing about open times (the link still works),
  * and the failure is logged where the diagnostic can find it.
+ *
+ * Beside a feed that reads, the record's rows are taken time too (recordBusy,
+ * below): the bookings a tool emailed are subtracted from what is offered.
  */
 import {
   parseIcs,
@@ -22,15 +26,22 @@ import {
   fetchPublic,
   feedBodyProblem,
   seasonHorizon,
+  offeringHorizon,
   visitsOf,
   ownAddressesOf,
   offersBookingLink,
+  feedItemOfAppointment,
+  busyOfAppointments,
+  type BusyBlock,
   type FeedItem,
   type Opening,
   type ParsedFeed,
+  DAY_MS,
   MIN_MS,
 } from "../packages/contracts.js";
 import { publicFetcher } from "../packages/channels.js";
+import { appointmentsBetween, appointmentsForClient } from "../packages/db.js";
+import { pg } from "../pg.js";
 import type { TenantRuntime } from "../tenant-runtime.js";
 import { logger, errField } from "../log.js";
 
@@ -183,7 +194,8 @@ export async function openingsData(rt: TenantRuntime, now = new Date()): Promise
       hours: profile.hours,
       closures: profile.closures,
       tz: rt.timezone,
-      busy: feed.busy,
+      // The feed's taken time, and the record's beside it (00345): a booking that arrived by email took its slot too.
+      busy: [...feed.busy, ...(await recordBusy(rt.tenantId, now, daysAhead))],
       rules,
       now,
     });
@@ -192,6 +204,32 @@ export async function openingsData(rt: TenantRuntime, now = new Date()): Promise
   } catch (e) {
     L.error("availability_compute_failed", { error: errField(e) });
     return null;
+  }
+}
+
+/**
+ * The record's taken time over the days the receptionist may offer (00345): a booking that arrived by email took its
+ * slot even where the tool writes no calendar, so it is subtracted beside the feed's, as the board, Ask and the
+ * prompt's preview subtract it (the dashboard's server/calendar/record-busy.ts; one rule, contracts
+ * busyOfAppointments, over one span, offeringHorizon). A runtime with no database has no record. A read that fails is
+ * none, logged where the diagnostic finds it: the feed's openings are still said, as they were before the record, and
+ * a reply is never held for it.
+ */
+async function recordBusy(tenantId: string, now: Date, daysAhead: number): Promise<BusyBlock[]> {
+  const db = pg();
+  if (!db) return [];
+  const span = offeringHorizon(now, daysAhead);
+  try {
+    const rows = await appointmentsBetween(
+      db,
+      tenantId,
+      new Date(span.from).toISOString(),
+      new Date(span.to).toISOString(),
+    );
+    return busyOfAppointments(rows);
+  } catch (e) {
+    logger({ tenant_id: tenantId }).error("availability_record_failed", { error: errField(e) });
+    return [];
   }
 }
 
@@ -227,16 +265,20 @@ export async function visitsFor(
 ): Promise<string | null> {
   const L = logger({ tenant_id: rt.tenantId });
   const url = rt.calendar?.ical_url;
-  if (!url || !rt.timezone || (!who.phone && !who.name)) return null;
+  if (!rt.timezone || (!who.phone && !who.name)) return null;
   try {
-    const feed = await parsedFeed(rt, url, now);
-    if (!feed) return null;
+    // The feed's events, when there is a feed, and beside them the record's rows for this caller (00345): a booking
+    // that arrived by email is theirs by their number, so a workspace with no calendar still knows their next visit.
+    const feed = url ? await parsedFeed(rt, url, now) : null;
+    const rows = await rowsFor(rt.tenantId, who, now);
+    const items = [...(feed?.items ?? []), ...rows];
+    if (!items.length) return null;
     // The caller is known by their number, so the business's own ADDRESSES
     // cannot be theirs -- but they still come off every event, so an owner's
     // address on an appointment never makes it read as somebody else's.
     const own = ownAddressesOf({ notifications: rt.notifications, calendar: rt.calendar });
     return describeVisits(
-      visitsOf(feed.items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own),
+      visitsOf(items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own),
       rt.timezone,
       now.getTime(),
       { hasBookingLink: offersBookingLink(rt.brain) },
@@ -246,3 +288,28 @@ export async function visitsFor(
     return null;
   }
 }
+
+/**
+ * The record's rows for one caller, as the visits index reads them: by their number (a name alone names no row). A
+ * month back, so a last visit is said too. A runtime with no database, or a read that fails, is none: the feed's
+ * visits are still said, and the failure is logged where the diagnostic finds it.
+ */
+async function rowsFor(tenantId: string, who: { phone: string | null }, now: Date): Promise<FeedItem[]> {
+  const db = pg();
+  if (!db || !who.phone) return [];
+  try {
+    const rows = await appointmentsForClient(
+      db,
+      tenantId,
+      { phone: who.phone, email: null },
+      new Date(now.getTime() - VISITS_BACK_MS).toISOString(),
+    );
+    return rows.map(feedItemOfAppointment);
+  } catch (e) {
+    logger({ tenant_id: tenantId }).error("availability_visits_failed", { error: errField(e), source: "record" });
+    return [];
+  }
+}
+
+/** How far back a caller's record is read for their last visit. */
+const VISITS_BACK_MS = 31 * DAY_MS;

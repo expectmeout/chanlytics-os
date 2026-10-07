@@ -49,6 +49,11 @@ var RETRY_WAITS_MS = {
   // (its claim goes stale with the lease, before either wait ends). A thrown read or write, or a notice whose mail
   // failed, lands here: two minutes, then ten, each outlasting the lease.
   reply_read: [2 * MIN_MS, 10 * MIN_MS],
+  // A booking tool's notice, read (00345). Written to be run again: the ledger's row is kept last and a visit is found
+  // by its key, so a try that died after the write restates the row it wrote. A model's bad minute or a failed write
+  // throws and lands here: two minutes, then ten, each outlasting the lease. The third try holds the notice for a
+  // person before it fails (booking-read.ts), so the delivery is never only a failed job.
+  booking_read: [2 * MIN_MS, 10 * MIN_MS],
   // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
   // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
   event_deliver: [2 * MIN_MS, 10 * MIN_MS]
@@ -103,6 +108,10 @@ function dedupeKeyOf(kind, payload) {
       return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
     case "reply_read":
       return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
+    // One read per delivery (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again, or the
+    // provider's webhook replayed, finds the read already on the ledger.
+    case "booking_read":
+      return field("received_id") ? `booking_read:${field("received_id")}` : null;
     default:
       return null;
   }
@@ -160,14 +169,15 @@ import {
   PUSH_RECEIPTS_AFTER_MS,
   BELL_WINDOW_DAYS,
   REACH_OUT_REPLY_DAYS as REACH_OUT_REPLY_DAYS2,
-  EVENT_SUBSCRIBERS
+  EVENT_SUBSCRIBERS,
+  isBookingTool
 } from "../../contracts/dist/index.js";
 import {
   classifyReceived,
   senderAuthenticated,
-  emailPlainText,
+  emailPlainText as emailPlainText2,
   isEmailRequest,
-  logger as logger5,
+  logger as logger6,
   messageIdsIn,
   requestIdShaped,
   withRequestId
@@ -190,7 +200,10 @@ import {
   eventOfDelivery,
   subscriptionPaused,
   deliveryOf,
-  settleDelivery
+  settleDelivery,
+  memberHasAddress,
+  keepForwardingConfirmation,
+  getTenantConfig
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -686,6 +699,203 @@ async function replyRead(ctx, job) {
   logger4().info("reply_read", { tenant_id: job.tenant_id, job: job.id, outcome });
 }
 
+// src/booking-read.ts
+import {
+  DEFAULT_TIMEZONE as DEFAULT_TIMEZONE2,
+  NOTICE_HOLD_WORDS,
+  bookingNoticeOf,
+  bookingToolName,
+  isNoticeHold
+} from "../../contracts/dist/index.js";
+import {
+  readBookingNotice
+} from "../../core/dist/index.js";
+import { emailPlainText, logger as logger5 } from "../../channels/dist/index.js";
+import {
+  appointmentByClientStart,
+  appointmentByKey,
+  appointmentNoticeOf,
+  insertAppointment,
+  keepAppointmentNotice,
+  tenantZoneOf,
+  updateAppointment,
+  clearForwardingConfirmation
+} from "../../db/dist/index.js";
+var STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"];
+var OUTCOMES = ["booked", "changed", "cancelled", "held", "dismissed"];
+var isStatus = (v) => STATUSES.includes(v);
+var isOutcome = (v) => OUTCOMES.includes(v);
+function stored(r) {
+  if (!isStatus(r.status)) throw new Error(`booking_read: an appointment is ${r.status}`);
+  return {
+    id: r.id,
+    status: r.status,
+    starts_at: r.starts_at,
+    ends_at: r.ends_at,
+    external_id: r.external_id,
+    contact_id: r.contact_id
+  };
+}
+function ledgerOf(row) {
+  if (!isOutcome(row.outcome)) throw new Error(`booking_read: a notice became ${row.outcome}`);
+  if (row.hold_reason !== null && !isNoticeHold(row.hold_reason))
+    throw new Error(`booking_read: a notice is held for ${row.hold_reason}`);
+  return { outcome: row.outcome, holdReason: row.hold_reason, appointmentId: row.appointment_id };
+}
+function appointmentRowOf(a) {
+  return {
+    tenant_id: a.tenantId,
+    source: "booking_email",
+    tool: a.tool,
+    external_id: a.externalId,
+    status: a.status,
+    starts_at: a.startsAt,
+    ends_at: a.endsAt,
+    service: a.service,
+    staff: a.staff,
+    price: a.price,
+    note: a.note,
+    client_name: a.client.name,
+    client_phone: a.client.phone,
+    client_email: a.client.email,
+    contact_id: a.contactId,
+    timezone: a.timezone
+  };
+}
+function patchOf(p) {
+  return {
+    ...p.externalId !== void 0 ? { external_id: p.externalId } : {},
+    ...p.status !== void 0 ? { status: p.status } : {},
+    ...p.startsAt !== void 0 ? { starts_at: p.startsAt } : {},
+    ...p.endsAt !== void 0 ? { ends_at: p.endsAt } : {},
+    ...p.service !== void 0 ? { service: p.service } : {},
+    ...p.staff !== void 0 ? { staff: p.staff } : {},
+    ...p.price !== void 0 ? { price: p.price } : {},
+    ...p.note !== void 0 ? { note: p.note } : {},
+    ...p.client !== void 0 ? { client_name: p.client.name, client_phone: p.client.phone, client_email: p.client.email } : {},
+    ...p.contactId !== void 0 ? { contact_id: p.contactId } : {}
+  };
+}
+async function bookingRead(ctx, job) {
+  const bookings = ctx.bookings;
+  if (!bookings) throw new Error("booking_read: this runtime holds no reader");
+  const email = ctx.email;
+  if (!email) throw new Error("booking_read: this runtime holds no email provider");
+  const receivedId = typeof job.payload.received_id === "string" ? job.payload.received_id : "";
+  if (!receivedId) throw new Error("booking_read: payload.received_id is required");
+  const { db } = ctx;
+  const log = logger5({ tenant_id: job.tenant_id });
+  const e = await email.fetch(receivedId);
+  if (!e) {
+    const tool = typeof job.payload.tool === "string" ? job.payload.tool : null;
+    if (tool)
+      await keepAppointmentNotice(db, {
+        tenant_id: job.tenant_id,
+        notice_id: receivedId,
+        tool,
+        from_address: null,
+        subject: null,
+        received_at: (/* @__PURE__ */ new Date()).toISOString(),
+        outcome: "held",
+        hold_reason: "gone",
+        appointment_id: null
+      });
+    log.warn("booking_notice_held", { job: job.id, received_id: receivedId, tool, outcome: "gone" });
+    return;
+  }
+  const text = emailPlainText(e);
+  const notice = bookingNoticeOf({ from: e.from, subject: e.subject, text });
+  if (!notice) {
+    log.warn("booking_notice_held", { job: job.id, received_id: receivedId, outcome: "not_a_notice" });
+    return;
+  }
+  const tz = await tenantZoneOf(db, job.tenant_id) ?? DEFAULT_TIMEZONE2;
+  const outcome = await readBookingNotice(
+    {
+      mayRead: (tenantId, at) => bookings.mayRead(tenantId, new Date(at)),
+      ask: (system, user) => bookings.ask(system, user, ctx.deadline, { tenantId: job.tenant_id, subjectId: receivedId }),
+      noticeOf: async (tenantId, noticeId) => {
+        const row = await appointmentNoticeOf(db, tenantId, noticeId);
+        return row ? ledgerOf(row) : null;
+      },
+      keepNotice: (p) => keepAppointmentNotice(db, {
+        tenant_id: p.tenantId,
+        notice_id: p.noticeId,
+        tool: p.tool,
+        from_address: p.fromAddress,
+        subject: p.subject,
+        received_at: p.receivedAt,
+        outcome: p.outcome,
+        hold_reason: p.holdReason,
+        appointment_id: p.appointmentId
+      }),
+      byKey: async (tenantId, key) => {
+        const r = await appointmentByKey(db, tenantId, "booking_email", key);
+        return r ? stored(r) : null;
+      },
+      byClientStart: async (tenantId, client, startMs, withinMs) => {
+        const r = await appointmentByClientStart(db, tenantId, client, startMs, withinMs);
+        return r ? stored(r) : null;
+      },
+      insert: (a) => insertAppointment(db, appointmentRowOf(a)),
+      update: (tenantId, id, patch) => updateAppointment(db, tenantId, id, patchOf(patch)),
+      personFor: bookings.personFor,
+      now: Date.now
+    },
+    {
+      tenantId: job.tenant_id,
+      tz,
+      tool: notice.tool,
+      email: { id: e.id, from: e.from, subject: e.subject, text, receivedAt: e.createdAt }
+    }
+  ).catch(async (err) => {
+    const refused = err?.code === "23514";
+    if (!refused && (job.attempts ?? 1) < MAX_ATTEMPTS) throw err;
+    const reason = refused ? "unreadable" : "no_model";
+    await keepAppointmentNotice(db, {
+      tenant_id: job.tenant_id,
+      notice_id: receivedId,
+      tool: notice.tool,
+      from_address: e.from?.address ?? null,
+      subject: e.subject,
+      received_at: e.createdAt ?? (/* @__PURE__ */ new Date()).toISOString(),
+      outcome: "held",
+      hold_reason: reason,
+      appointment_id: null
+    });
+    log.error("booking_notice_held", {
+      job: job.id,
+      received_id: receivedId,
+      tool: notice.tool,
+      outcome: refused ? "refused" : "failed",
+      attempts: job.attempts ?? 1,
+      error: err instanceof Error ? err.message : String(err)
+    });
+    return `held:${reason}`;
+  });
+  log.info(outcome.startsWith("held:") ? "booking_notice_held" : "booking_notice_read", {
+    job: job.id,
+    received_id: receivedId,
+    tool: notice.tool,
+    forwarded: notice.forwarded,
+    outcome
+  });
+  if (outcome.startsWith("held:")) {
+    const reason = outcome.slice("held:".length);
+    if (reason !== "no_model" && reason !== "may_not_spend")
+      await bookings.tell(job.tenant_id, {
+        noticeId: receivedId,
+        // The tool as the product says it ("Booksy"), the words the bell shows.
+        tool: bookingToolName(notice.tool) ?? notice.tool,
+        subject: e.subject,
+        reason: NOTICE_HOLD_WORDS[isNoticeHold(reason) ? reason : "unreadable"]
+      });
+  } else if (outcome !== "already") {
+    const mailboxId = typeof job.payload.mailbox_id === "string" ? job.payload.mailbox_id : null;
+    if (mailboxId) await clearForwardingConfirmation(db, mailboxId).catch(() => void 0);
+  }
+}
+
 // src/handlers.ts
 async function outboundSend(ctx, job) {
   await sendQueued(
@@ -720,7 +930,7 @@ async function outboundSend(ctx, job) {
       // the ledger claims the new one when it is due. Said in the log, since the tick sees only a job done.
       retry: async (dueAt, payload) => {
         await ctx.schedule("outbound_send", dueAt, payload);
-        logger5().warn("outbound_send_rescheduled", {
+        logger6().warn("outbound_send_rescheduled", {
           tenant_id: job.tenant_id,
           job: job.id,
           message_id: payload.message_id,
@@ -751,7 +961,7 @@ function incomingEmailOf(e, authservId) {
     to: e.to,
     cc: e.cc,
     subject: e.subject,
-    text: emailPlainText(e),
+    text: emailPlainText2(e),
     messageId: e.messageId,
     inReplyTo: messageIdsIn(e.headers["in-reply-to"])[0] ?? null,
     references: messageIdsIn(e.headers.references),
@@ -775,6 +985,23 @@ async function emailIngest(ctx, job) {
         const e = await email.fetch(receivedId);
         return e ? incomingEmailOf(e, email.authservId ?? null) : null;
       },
+      // A booking tool's notice is read into an appointment by its own job, once per delivery (dedupe_key), as this
+      // job's own tenant: the intake run again finds it already on the ledger. The tool rides along, so a delivery the
+      // provider no longer has when the read runs is still kept on the ledger as the tool's.
+      readBooking: async (_tenantId, mailboxId, receivedId, tool) => {
+        await ctx.scheduleOnce("booking_read", /* @__PURE__ */ new Date(), { received_id: receivedId, mailbox_id: mailboxId, tool });
+      },
+      // Only the tool the workspace named is read as its bookings (config bookings.tool), read off what is stored: a
+      // workspace that named none reads none, and a value the list does not know is none.
+      bookingTool: async (tenantId) => {
+        const stored2 = (await getTenantConfig(db, tenantId))?.config;
+        const named2 = stored2?.bookings?.tool;
+        return isBookingTool(named2) ? named2 : null;
+      },
+      // A forward by hand is trusted from a member of the workspace, once its sender is proved (member_has_address, 00345).
+      memberAddress: (tenantId, address) => memberHasAddress(db, tenantId, address),
+      // Gmail's confirmation of a forward here, kept on the mailbox for Settings to show (00345).
+      keepForwarding: (mailboxId, p) => keepForwardingConfirmation(db, mailboxId, p),
       erasedBefore: email.erasedBefore,
       ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
       record: (p) => ingestInboundEmail(db, p),
@@ -792,7 +1019,7 @@ async function emailIngest(ctx, job) {
     },
     { payload: job.payload }
   );
-  logger5().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome });
+  logger6().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome });
 }
 async function leadRoundStart(ctx, job) {
   if (!ctx.leads) throw new Error("lead_round_start: this runtime holds no lead pipeline");
@@ -951,7 +1178,8 @@ var HANDLERS = {
   push_send: pushSend,
   push_receipts: pushReceipts,
   reply_read: replyRead,
-  event_deliver: eventDeliver
+  event_deliver: eventDeliver,
+  booking_read: bookingRead
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];
@@ -963,7 +1191,7 @@ async function dispatchJob(ctx, job) {
 
 // src/settle.ts
 import { isCampaignEmail } from "../../contracts/dist/index.js";
-import { logger as logger6 } from "../../channels/dist/index.js";
+import { logger as logger7 } from "../../channels/dist/index.js";
 import { emitEvent as emitEvent2 } from "../../db/dist/index.js";
 var NEVER_SENT = "the job that would have sent this never ran";
 var EMAIL_UNFINISHED = "An email arrived and could not be taken in \u2014 the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
@@ -978,7 +1206,7 @@ async function noteMailboxTrouble(db, tenantId, mailboxId) {
   if (!mailboxId) return {};
   const { data, error } = await db.from("mailboxes").update({ last_error: MAILBOX_INTAKE_FAILED }).eq("id", mailboxId).eq("tenant_id", tenantId).select("id");
   if (error) {
-    logger6().error("mailbox_trouble_not_marked", { tenant_id: tenantId, mailbox_id: mailboxId, error: error.message });
+    logger7().error("mailbox_trouble_not_marked", { tenant_id: tenantId, mailbox_id: mailboxId, error: error.message });
     return { mailbox: "failed" };
   }
   return { mailbox: data && data.length > 0 ? "marked" : "gone" };

@@ -233,6 +233,13 @@ export function CrPanel({
           </div>
           {whenLine({ b, day, when })}
           {whoLine({ b, person, deal, e164, found })}
+          {/* A booking that arrived by email states what the calendar's title only hints at: the service, who with, the price. */}
+          {b.tool && (
+            <div className="cal-ev-detail" data-testid="cal-panel-booked">
+              <span className="cal-ev-detail-key">Booked</span>
+              <span>{[b.service, b.staff ? `with ${b.staff}` : null, b.price].filter(Boolean).join(" · ")}</span>
+            </div>
+          )}
           {b.location && (
             <div className="cal-ev-detail" data-testid="cal-panel-where">
               <span className="cal-ev-detail-key">Where</span>
@@ -246,7 +253,9 @@ export function CrPanel({
             </div>
           )}
           <div className="cal-ev-note">
-            From {source}. The receptionist treats this time as taken; to change or cancel it, edit it there.
+            {b.tool
+              ? `Booked in ${b.tool} and emailed here. The receptionist treats this time as taken; to change or cancel it, do it in ${b.tool}.`
+              : `From ${source}. The receptionist treats this time as taken; to change or cancel it, edit it there.`}
           </div>
         </section>
         {panelFoot({ person, bookingLink, start, textLink, startProposal, onCopyLink, onClose })}

@@ -144,11 +144,6 @@
     "branches": 34,
     "depth": 2
   },
-  "apps/dashboard/src/server/calendar/calendar-week.ts::calendarSources#1": {
-    "lines": 99,
-    "branches": 35,
-    "depth": 2
-  },
   "apps/dashboard/src/server/campaigns/broadcasts.ts::getBroadcast/map(fn)#1": {
     "lines": 23,
     "branches": 35,
@@ -285,8 +280,8 @@
     "depth": 3
   },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
-    "lines": 186,
-    "branches": 53,
+    "lines": 184,
+    "branches": 50,
     "depth": 3
   },
   "packages/contracts/src/calendar/feed.ts::parseIcs#1": {

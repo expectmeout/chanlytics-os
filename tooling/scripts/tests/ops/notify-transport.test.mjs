@@ -605,9 +605,10 @@ test("notify mails exactly the kinds contracts lists as emailed, and the pane's 
   ];
   assert.deepEqual([...EMAILED_NOTIFICATION_KINDS].sort(), EMAILED, "the closed list");
   const BELL = SERVER_NOTIFICATION_KINDS.filter((k) => !EMAILED.includes(k)).sort();
+  // A booking email held for a look (00345) is the bell's alone: it waits in Settings › Business, and no mail follows.
   assert.deepEqual(
     BELL,
-    ["calendar_people", "leads_ready", "note_for_you", "review", "reach_out_day"].sort(),
+    ["booking_notice", "calendar_people", "leads_ready", "note_for_you", "review", "reach_out_day"].sort(),
     "the rest are the bell's: written by the edge or a database function, and no mail follows",
   );
 

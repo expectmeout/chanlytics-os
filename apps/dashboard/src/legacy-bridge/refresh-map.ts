@@ -198,6 +198,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     setupOverride,
     ...readiness(),
   ],
+  // A booking email held for a look, read again or dismissed (00345): the Calendar's read carries the held list and its
+  // count, which the Business tab's fold and the board's card both draw from, so the list says what is left at once.
+  "POST calendar/notices/[id]/read-again": () => [calendarOverride],
+  "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
   // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006).
   "PUT policies": () => [settingsOverride, peopleOverride],
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview

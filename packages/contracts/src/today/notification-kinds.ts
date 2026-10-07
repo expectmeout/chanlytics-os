@@ -32,6 +32,7 @@ const NOTIFICATION_DELIVERY = {
   job_failed: "email",
   playbook: "email",
   calendar_people: "bell",
+  booking_notice: "bell",
   alert: "email",
   review: "bell",
   billing: "email",
