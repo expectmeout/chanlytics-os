@@ -785,10 +785,18 @@
   box-shadow: var(--surface-control-depth);
   color: var(--ink-muted);
 }
-.main-scroll > .calendar .cal-options:hover,
 .main-scroll > .calendar .cal-options[aria-expanded="true"] {
   background: var(--selected-fill);
   color: var(--ink);
+}
+/* The picked fill under a pointer that hovers, and only there: a touch screen keeps :hover on the last thing tapped,
+   so the button wore the picked fill after its menu closed until something else was tapped (7 Oct 2026, found on
+   Reports' period, which is this button). */
+@media (hover: hover) {
+  .main-scroll > .calendar .cal-options:hover {
+    background: var(--selected-fill);
+    color: var(--ink);
+  }
 }
 
 /* ---- The blocks, the open times, the days ---- */

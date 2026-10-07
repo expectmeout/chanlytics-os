@@ -53,7 +53,9 @@ function lensViews(picked: LensId): SurfaceViews {
     to: lensRoute(l.id),
     testid: `lens-${l.id}`,
   }));
-  return { name: "reports", label: "Which report", testid: "reports-lenses", picked, tabs };
+  // One mount across the lenses (reportsChrome below), so the page stays as the lens changes: a swipe on a phone brings
+  // the next lens into the page on screen, never a new page beside it.
+  return { name: "reports", label: "Which report", testid: "reports-lenses", picked, stays: true, tabs };
 }
 
 /**
