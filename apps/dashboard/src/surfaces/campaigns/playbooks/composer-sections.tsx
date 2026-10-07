@@ -19,7 +19,7 @@ import {
   type ConsentChannel,
 } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { navigate } from "../../legacy-verbs";
+import { routeDoor } from "../../legacy-verbs";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -291,12 +291,16 @@ function messageEmpty(x: SectionCtx) {
         )}
         {starterLine(x)}
         {templatesRead && usable.length === 0 && (
+          // One sentence, the Library a link inside it: the line is a row for a glyph beside its words (the starter's), and
+          // its words, the link and the stop stood as three columns of it.
           <p className="pb-empty-line" data-testid="pb-no-template">
-            {none.lead}{" "}
-            <LinkButton onClick={() => navigate("messages")} data-testid="pb-no-template-open">
-              {none.link}
-            </LinkButton>
-            .
+            <span>
+              {none.lead}{" "}
+              <LinkButton {...routeDoor("messages")} data-testid="pb-no-template-open">
+                {none.link}
+              </LinkButton>
+              .
+            </span>
           </p>
         )}
       </div>

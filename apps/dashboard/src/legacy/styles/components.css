@@ -2290,6 +2290,48 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     grid-row: 3;
     justify-content: flex-start;
   }
+  /* Where a page names an act and draws no strip of views (Campaigns' Library and New message, Sent's and Today's New), the
+     act stands at the right of the name's row, under the bell, rather than on a row of its own under the name at the left
+     (Ruben, 7 Oct 2026). Its controls are the control layer's 36px, each 44px to a finger by a margin no one sees, as the
+     bell's is. The name's row stands 13px lower, so the act clears the bell (32px on the date's line, its foot 42px from
+     the top) by 8; so does a row under a way back in the date's place (its 36px capsule), the same on Campaigns, Sent and
+     the Library. A person's page draws its own head, so its slot holds no name and stays where it is. */
+  .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)),
+  .main:has(> .pg-dateline-slot > .pg-back) .pg-slot:has(> .pg-head-slot > header) {
+    padding-top: 13px;
+  }
+  .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-2);
+  }
+  .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)) > .pg-head-slot {
+    align-self: center;
+    padding-right: 0;
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot:has(:is(button, a)) {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    justify-content: flex-end;
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > button,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > button,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > a {
+    position: relative;
+    height: var(--control-h-lg);
+    min-height: var(--control-h-lg);
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > button,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > button {
+    padding: 0 14px 0 12px;
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > button::after,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > button::after,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > a::after {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
+  }
   /* On a phone People's three scopes draw their act in their own bar (the Pipeline's + beside its search, canvas
      D-phone-list), so the frame's copy of it leaves. */
   .main:has(> .main-scroll > .clients) .pg-act-slot {

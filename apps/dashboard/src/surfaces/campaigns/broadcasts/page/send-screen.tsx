@@ -26,7 +26,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Picker } from "../../../kit/picker/picker";
 import { UnsavedAsk } from "../../../kit/record/work";
-import { gate, gateTitle, navigate } from "../../../legacy-verbs";
+import { gate, gateTitle, routeDoor } from "../../../legacy-verbs";
 import { MessagePreview, PreviewStepper } from "../../parts/message-preview";
 import { CM_VIA_WORDS, cmReadyOf, cmTick } from "../../parts/channels";
 import { CmLangGlyph } from "../../parts/picker";
@@ -267,7 +267,7 @@ function bcNoMessage({ starterPending, addingStarters, addStarters }: BcV) {
         ) : (
           <>
             {NO_TEMPLATE_WORDS.lead}{" "}
-            <LinkButton onClick={() => navigate("messages")} data-testid="bc-no-template-open">
+            <LinkButton {...routeDoor("messages")} data-testid="bc-no-template-open">
               {NO_TEMPLATE_WORDS.link}
             </LinkButton>
             .

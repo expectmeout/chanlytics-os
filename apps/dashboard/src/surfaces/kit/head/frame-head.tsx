@@ -9,7 +9,7 @@
  * Drawn beside the shell by LegacyApp, in the same React tree, so the head's parts are the kit's TSX and the places
  * are the shell's markup: the shell draws no kit component of its own, and the kit knows nothing of the shell.
  */
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { knownZone } from "@/legacy-bridge/zone";
 import { pageDatelineParts, useMinute } from "./dateline";
@@ -37,44 +37,30 @@ const stillThere = (p: Places): boolean => !!p.head && document.contains(p.head)
 /** How often the head asks for the business's zone while the workspace's read has not landed. */
 const ZONE_ASK_MS = 250;
 
-/**
- * "Friday, October 2 · 4:02 PM" in the business's zone, in the top bar's row; the hour is a span of its own, which a
- * phone's head leaves out (kit.css: the phone boards say "FRIDAY, OCTOBER 2"). The zone is the workspace's, known once
- * its read lands (legacy-bridge/zone.ts); before that the head says the time in UTC and asks again until it is known,
- * so a page that opens before the read never keeps the wrong hour. A page that draws its own head (a person's hero,
- * canvas P3) and says a way back puts that way back here, where the date would stand.
- */
-function PageDateline() {
-  const said = useStandingSaid();
-  const now = useMinute();
-  const [zone, setZone] = useState<string | null>(() => knownZone());
-  useEffect(() => {
-    if (zone) return undefined;
-    const ask = setInterval(() => {
-      const known = knownZone();
-      if (known) setZone(known);
-    }, ZONE_ASK_MS);
-    return () => clearInterval(ask);
-  }, [zone]);
-  if (said?.title === null && said.back) {
-    const { label, go } = said.back;
-    return (
-      <button type="button" className="pg-back" onClick={go}>
-        <span className="pg-back-glyph" aria-hidden="true">
-          ‹
-        </span>
-        {label}
-      </button>
-    );
-  }
-  const { day, time } = pageDatelineParts(now, zone ?? "UTC");
-  return (
-    <p className="pg-dateline">
-      {day}
-      <span className="pg-dateline-time"> · {time}</span>
-    </p>
+/** The kit's one breakpoint (kit.css): under it the frame's head is a phone's. */
+const PHONE_HEAD_QUERY = "(max-width: 900px)";
+
+/** The query's list, asked for once: the store's snapshot reads it on every draw. */
+let phoneHeadList: MediaQueryList | null | undefined;
+const phoneHeadQuery = (): MediaQueryList | null => {
+  if (phoneHeadList === undefined)
+    phoneHeadList = typeof window.matchMedia === "function" ? window.matchMedia(PHONE_HEAD_QUERY) : null;
+  return phoneHeadList;
+};
+
+const watchPhoneHead = (fn: () => void): (() => void) => {
+  const q = phoneHeadQuery();
+  q?.addEventListener?.("change", fn);
+  return () => q?.removeEventListener?.("change", fn);
+};
+
+/** Whether the frame wears a phone's head, kept current as the window changes size. */
+const usePhoneHead = (): boolean =>
+  useSyncExternalStore(
+    watchPhoneHead,
+    () => !!phoneHeadQuery()?.matches,
+    () => false,
   );
-}
 
 /** The way back a crumb offers: the page's own move where it has one, else the route it names. */
 function backOf(crumb: ShownCrumb): BackWay | null {
@@ -85,26 +71,74 @@ function backOf(crumb: ShownCrumb): BackWay | null {
   return null;
 }
 
-/** The page's name and its sentence, and the way back above them: what the page said, else what the crumbs say. */
+/**
+ * The way back the head offers, and where: in the date's place where the page draws its own head (a person's hero, canvas
+ * P3) and on every page a phone draws, so a phone's head is two rows, the date's or the way back with the bell, then the
+ * name (Ruben, 7 Oct 2026: Sent's ‹ Campaigns stood on a row of its own); above the name on a desk. The way is what the
+ * page said, else the crumb before the last; a page that draws its own head says its own or none.
+ */
+function useBackWay(): { back: BackWay | null; inDate: boolean } {
+  const said = useStandingSaid();
+  const crumbs = useCrumbsShown();
+  const phone = usePhoneHead();
+  if (said?.title === null) return { back: said.back ?? null, inDate: true };
+  const before = crumbs.length > 1 ? crumbs[crumbs.length - 2] : undefined;
+  const back = said?.back === undefined ? (before ? backOf(before) : null) : said.back;
+  return { back, inDate: phone };
+}
+
+function BackButton({ back }: { back: BackWay }) {
+  return (
+    <button type="button" className="pg-back" onClick={back.go}>
+      <span className="pg-back-glyph" aria-hidden="true">
+        ‹
+      </span>
+      {back.label}
+    </button>
+  );
+}
+
+/**
+ * "Friday, October 2 · 4:02 PM" in the business's zone, in the top bar's row; the hour is a span of its own, which a
+ * phone's head leaves out (kit.css: the phone boards say "FRIDAY, OCTOBER 2"). The zone is the workspace's, known once
+ * its read lands (legacy-bridge/zone.ts); before that the head says the time in UTC and asks again until it is known,
+ * so a page that opens before the read never keeps the wrong hour. Where the way back stands in the date's place
+ * (useBackWay), it is drawn here instead.
+ */
+function PageDateline() {
+  const { back, inDate } = useBackWay();
+  const now = useMinute();
+  const [zone, setZone] = useState<string | null>(() => knownZone());
+  useEffect(() => {
+    if (zone) return undefined;
+    const ask = setInterval(() => {
+      const known = knownZone();
+      if (known) setZone(known);
+    }, ZONE_ASK_MS);
+    return () => clearInterval(ask);
+  }, [zone]);
+  if (back && inDate) return <BackButton back={back} />;
+  const { day, time } = pageDatelineParts(now, zone ?? "UTC");
+  return (
+    <p className="pg-dateline">
+      {day}
+      <span className="pg-dateline-time"> · {time}</span>
+    </p>
+  );
+}
+
+/** The page's name and its sentence, and on a desk the way back above them: what the page said, else what the crumbs say. */
 function GlassHead() {
   const said = useStandingSaid();
   const crumbs = useCrumbsShown();
+  const { back, inDate } = useBackWay();
   // The page draws its own head (a person's hero): the frame's place stays empty.
   if (said?.title === null) return null;
   const last = crumbs.length ? crumbs[crumbs.length - 1] : undefined;
-  const before = crumbs.length > 1 ? crumbs[crumbs.length - 2] : undefined;
   const title = said?.title ?? (last ? crumbLabel(last) : "");
-  const back = said?.back === undefined ? (before ? backOf(before) : null) : said.back;
   return (
     <>
-      {back && (
-        <button type="button" className="pg-back" onClick={back.go}>
-          <span className="pg-back-glyph" aria-hidden="true">
-            ‹
-          </span>
-          {back.label}
-        </button>
-      )}
+      {back && !inDate && <BackButton back={back} />}
       <PageHead title={title} sentence={said?.sentence} stacked={said?.stacked} />
     </>
   );
