@@ -329,6 +329,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/reach-out",
   "packages/contracts/src/reports",
   "packages/contracts/src/shared",
+  "packages/core/src/appointments",
   "packages/core/src/campaigns",
   "packages/core/src/inbound",
   "packages/core/src/messages",
@@ -341,6 +342,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/legacy-bridge/reach-out",
   "apps/dashboard/src/legacy-bridge/surfaces",
   "apps/dashboard/src/server/auth",
+  "apps/dashboard/src/server/calendar",
   "apps/dashboard/src/server/connections",
   "apps/dashboard/src/server/conversations",
   "apps/dashboard/src/server/export",
@@ -368,7 +370,7 @@ export const LIMITED_TREES = [
 /**
  * The held trees where a function still takes more than four parameters (measured 28 September 2026: 48 functions,
  * db's widest at 7 and today-sample's at 11; Reach out's timetable and the partners' ledger joined on 29 September). `max-params` waits in these; a tree leaves this list when its last one
- * takes an object instead.
+ * takes an object instead. The dashboard's calendar reader joined on 7 October 2026, the day its tree was held.
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -377,6 +379,7 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/playbooks",
   "packages/contracts/src/reach-out",
   "apps/dashboard/src/legacy-bridge/mascot",
+  "apps/dashboard/src/server/calendar",
   "apps/dashboard/src/server/platform",
   "apps/dashboard/src/server/ports",
   "apps/dashboard/src/server/receptionist",

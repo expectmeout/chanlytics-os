@@ -246,7 +246,8 @@ var ERASURE_LEGS = {
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
-  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)"
+  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
+  appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
 var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
@@ -345,6 +346,27 @@ var ERASURE_STRATEGIES = {
     ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id")
   },
+  // A visit is the business's fact; the client in it is the person's (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md).
+  appointments: {
+    ...all(
+      scrubbedBy("appointments_scrub"),
+      "client_name",
+      "client_phone",
+      "client_email",
+      "note",
+      "title",
+      "external_id"
+    ),
+    ...all(NOT_PERSONAL, "tool", "service", "staff", "price", "timezone")
+  },
+  appointment_notices: {
+    subject: scrubbedBy("appointments_scrub"),
+    // The tool's own sender and its id for the delivery: nobody's.
+    ...all(NOT_PERSONAL, "notice_id", "tool", "from_address")
+  },
+  // Gmail's pending confirmation of a forward to the workspace's address (00345): the owner's own account, and
+  // Google's code and link for it. The workspace's, never a person's.
+  mailboxes: all(NOT_PERSONAL, "forward_confirm_account", "forward_confirm_code", "forward_confirm_link"),
   person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
   platform_metrics: all(
     NOT_PERSONAL,
@@ -1245,6 +1267,24 @@ async function mailboxOfTenant(db, tenantId) {
   const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`mailbox: ${error.message}`);
   return data;
+}
+async function keepForwardingConfirmation(db, mailboxId, p) {
+  const { error } = await db.from("mailboxes").update({
+    forward_confirm_account: p.account,
+    forward_confirm_code: p.code,
+    forward_confirm_link: p.link,
+    forward_confirm_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", mailboxId);
+  if (error) throw new Error(`forwarding_confirmation_keep: ${error.message}`);
+}
+async function clearForwardingConfirmation(db, mailboxId) {
+  const { error } = await db.from("mailboxes").update({
+    forward_confirm_account: null,
+    forward_confirm_code: null,
+    forward_confirm_link: null,
+    forward_confirm_at: null
+  }).eq("id", mailboxId).not("forward_confirm_code", "is", null);
+  if (error) throw new Error(`forwarding_confirmation_clear: ${error.message}`);
 }
 async function lastInboundEmail(db, tenantId, conversationId) {
   const { data, error } = await db.from("messages").select("id, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", "email").eq("direction", "inbound").order("channel_ts", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
@@ -3734,7 +3774,9 @@ var WATCHED = [
   { table: "reach_out_replies", events: EVERY },
   // a run made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
   // repaint (00321). Its people are not watched: a run's page reads them when it opens.
-  { table: "broadcasts", events: EVERY }
+  { table: "broadcasts", events: EVERY },
+  // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
+  { table: "appointments", events: EVERY }
 ];
 function watchedTables() {
   return WATCHED.map((w) => w.table);
@@ -3912,6 +3954,113 @@ async function keepChannelStanding(db, tenantId, channelId, standing) {
   if (kept === void 0) throw new Error(`channel_keep_standing: answered ${JSON.stringify(data)}`);
   return kept;
 }
+
+// src/repositories/calendar/appointments.ts
+var LIVE_STATUSES = ["proposed", "booked"];
+var SPAN_MAX = 2e3;
+function clientFilter(client) {
+  const parts = [
+    client.phone ? `client_phone.eq.${client.phone}` : "",
+    client.email ? `client_email.eq.${client.email}` : ""
+  ].filter(Boolean);
+  return parts.length ? parts.join(",") : null;
+}
+async function appointmentByKey(db, tenantId, source, externalId) {
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).eq("source", source).eq("external_id", externalId).maybeSingle();
+  if (error) throw new Error(`appointment_by_key: ${error.message}`);
+  return data;
+}
+async function appointmentByClientStart(db, tenantId, client, startMs, withinMs) {
+  const who = clientFilter(client);
+  if (!who) return null;
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).gte("starts_at", new Date(startMs - withinMs).toISOString()).lte("starts_at", new Date(startMs + withinMs).toISOString()).or(who).order("starts_at", { ascending: true }).limit(10);
+  if (error) throw new Error(`appointment_by_client_start: ${error.message}`);
+  const rows = data ?? [];
+  rows.sort((a, b) => Math.abs(Date.parse(a.starts_at) - startMs) - Math.abs(Date.parse(b.starts_at) - startMs));
+  return rows[0] ?? null;
+}
+async function insertAppointment(db, row) {
+  const { data, error } = await db.from("appointments").insert(row).select("id").single();
+  if (error || !data)
+    throw Object.assign(new Error(`appointment_insert: ${error?.message ?? "no row"}`), { code: error?.code ?? null });
+  return { id: data.id };
+}
+async function updateAppointment(db, tenantId, id, patch) {
+  const { error } = await db.from("appointments").update(patch).eq("tenant_id", tenantId).eq("id", id);
+  if (!error) return "updated";
+  if (error.code === "23514") return "refused";
+  throw new Error(`appointment_update: ${error.message}`);
+}
+async function appointmentsBetween(db, tenantId, fromIso, toIso) {
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX);
+  if (error) throw new Error(`appointments_between: ${error.message}`);
+  return data ?? [];
+}
+async function appointmentsForClient(db, tenantId, who, fromIso) {
+  const or = clientFilter(who);
+  if (!or) return [];
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).gt("ends_at", fromIso).or(or).order("starts_at", { ascending: true }).limit(50);
+  if (error) throw new Error(`appointments_for_client: ${error.message}`);
+  return data ?? [];
+}
+async function appointmentsScrub(db, p) {
+  const { data, error } = await db.rpc("appointments_scrub", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_needles: [...p.needles]
+  });
+  if (error) throw new Error(`appointments_scrub: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+async function contactIdByPhone(db, tenantId, phone) {
+  const { data, error } = await db.from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", phone).is("erased_at", null).is("merged_into_contact_id", null).limit(1).maybeSingle();
+  if (error) throw new Error(`contact_by_phone: ${error.message}`);
+  return data?.id ?? null;
+}
+async function contactIdByEmail(db, tenantId, email) {
+  const { data, error } = await db.from("contacts").select("id").eq("tenant_id", tenantId).eq("email", email).is("erased_at", null).is("merged_into_contact_id", null).limit(1).maybeSingle();
+  if (error) throw new Error(`contact_by_email: ${error.message}`);
+  return data?.id ?? null;
+}
+
+// src/repositories/calendar/notices.ts
+async function appointmentNoticeOf(db, tenantId, noticeId) {
+  const { data, error } = await db.from("appointment_notices").select("*").eq("tenant_id", tenantId).eq("notice_id", noticeId).maybeSingle();
+  if (error) throw new Error(`appointment_notice: ${error.message}`);
+  return data;
+}
+async function keepAppointmentNotice(db, row) {
+  const { error } = await db.from("appointment_notices").upsert({ ...row, read_at: (/* @__PURE__ */ new Date()).toISOString() }, { onConflict: "tenant_id,notice_id" });
+  if (error) throw new Error(`appointment_notice_keep: ${error.message}`);
+}
+async function appointmentNoticesOf(db, tenantId) {
+  const latest = await db.from("appointment_notices").select("tool, received_at").eq("tenant_id", tenantId).in("outcome", ["booked", "changed", "cancelled"]).order("received_at", { ascending: false }).limit(1).maybeSingle();
+  if (latest.error) throw new Error(`appointment_notices_latest: ${latest.error.message}`);
+  const held = await db.from("appointment_notices").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("outcome", "held");
+  if (held.error) throw new Error(`appointment_notices_held: ${held.error.message}`);
+  return { tool: latest.data?.tool ?? null, last_at: latest.data?.received_at ?? null, held: held.count ?? 0 };
+}
+async function memberHasAddress(db, tenantId, address) {
+  const { data, error } = await db.rpc("member_has_address", { p_tenant_id: tenantId, p_address: address });
+  if (error) throw new Error(`member_has_address: ${error.message}`);
+  return data === true;
+}
+var HELD_MAX = 20;
+async function heldNoticesOf(db, tenantId) {
+  const { data, error } = await db.from("appointment_notices").select("*").eq("tenant_id", tenantId).eq("outcome", "held").order("received_at", { ascending: false }).limit(HELD_MAX);
+  if (error) throw new Error(`appointment_notices_held_list: ${error.message}`);
+  return data ?? [];
+}
+async function appointmentNoticeById(db, tenantId, id) {
+  const { data, error } = await db.from("appointment_notices").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
+  if (error) throw new Error(`appointment_notice_by_id: ${error.message}`);
+  return data;
+}
+async function dismissAppointmentNotice(db, tenantId, id) {
+  const { data, error } = await db.from("appointment_notices").update({ outcome: "dismissed" }).eq("tenant_id", tenantId).eq("id", id).eq("outcome", "held").select("id");
+  if (error) throw new Error(`appointment_notice_dismiss: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
 export {
   CALL_CONTROL_S,
   DB_REQUEST_HEADER,
@@ -3933,6 +4082,14 @@ export {
   answeredReachOutEmail,
   applyDomainCheck,
   applyReplyReading,
+  appointmentByClientStart,
+  appointmentByKey,
+  appointmentNoticeById,
+  appointmentNoticeOf,
+  appointmentNoticesOf,
+  appointmentsBetween,
+  appointmentsForClient,
+  appointmentsScrub,
   archiveConversation,
   archiveList,
   assembleBroadcast,
@@ -3950,9 +4107,12 @@ export {
   claimReplyTurn,
   claimSends,
   claimVoiceTurn,
+  clearForwardingConfirmation,
   closedRunSends,
   coldReceiptsOwed,
   contactEmailOf,
+  contactIdByEmail,
+  contactIdByPhone,
   contactSeen,
   countSendingDomains,
   countSentToday,
@@ -3969,6 +4129,7 @@ export {
   deleteSendingDomainAsRead,
   deliveryOf,
   describeLead,
+  dismissAppointmentNotice,
   dismissPersonDoubt,
   domainCapacityOf,
   domainHeldSince,
@@ -4011,20 +4172,24 @@ export {
   handRun,
   hasNewerCopy,
   heldNoticeDue,
+  heldNoticesOf,
   heldStale,
   holdRecipients,
   holdsReplyTurn,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
+  insertAppointment,
   insertQueuedEmail,
   insertVoiceSession,
   invitePartner,
   inviteUserByEmail,
   isMissingDoor,
   isWorkspaceCall,
+  keepAppointmentNotice,
   keepChannelQuality,
   keepChannelStanding,
+  keepForwardingConfirmation,
   keepIdempotencyReceipt,
   keepInvoiceAmount,
   keepMessageCost,
@@ -4050,6 +4215,7 @@ export {
   markReplyDraft,
   markReplyTold,
   markWaitlistInvited,
+  memberHasAddress,
   membershipCountOf,
   mergePeople,
   messageByExternalId,
@@ -4213,6 +4379,7 @@ export {
   uncheckedSends,
   uncheckedWaiting,
   undoReplyReading,
+  updateAppointment,
   updatePlaybook,
   usageMonth,
   waitlistWaiting,

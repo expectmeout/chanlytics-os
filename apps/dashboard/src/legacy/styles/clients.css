@@ -3487,12 +3487,12 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
 .cl-prof-note-body {
   font-size: var(--text-base);
 }
+/* The hero is the head (canvas P3), and its own way back is drawn at no width: on a desk the sidebar's People is the way,
+   and to 900px the frame's ‹ People stands in the date's place (frame-head.tsx), where a tablet drew both. */
+.cl-prof-hero > .cl-prof-back {
+  display: none;
+}
 @media (width > 900px) {
-  /* The hero is the head (canvas P3): the frame draws no name and no way back over it, and the page's own way back goes
-     too, the sidebar's People being the way; a phone keeps it. */
-  .cl-prof-hero > .cl-prof-back {
-    display: none;
-  }
   .cl-prof-page {
     padding: 0 var(--gutter-page) 48px;
   }

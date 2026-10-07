@@ -895,8 +895,21 @@ html.in-app .auth-or {
 }
 .auth-card .hint {
   color: var(--auth-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   margin-top: 12px;
+}
+/* A finger's 44px round the doors' small words (the code door and the way back from it, Forgot your password?, Create
+   your workspace, Sign in, Back to sign-in, Privacy and Terms), which stood 15 to 19px tall: an invisible margin, so
+   nothing on the page moves. */
+@media (pointer: coarse) {
+  .auth-colinner :is(a, .auth-linkbtn) {
+    position: relative;
+  }
+  .auth-colinner :is(a, .auth-linkbtn)::after {
+    content: "";
+    position: absolute;
+    inset: -12px -6px;
+  }
 }
 .os-shell {
   max-width: 760px;

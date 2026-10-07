@@ -648,7 +648,8 @@
 .set-viewas-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--set-hint); color: var(--accent); }
 
 .set-invite { display: flex; align-items: center; gap: 8px; padding: var(--set-row-y) 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
-.set-invite .sd-input { flex: 1; min-width: 180px; margin: 0; }
+/* The invitation's address is the kit's box (team.tsx), and takes what the row leaves. */
+.set-invite-email { flex: 1; min-width: 180px; margin: 0; }
 
 /* What each role may do: a word and its sentence, in two columns. */
 .set-roles-legend { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 16px; align-items: baseline; margin-bottom: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
@@ -1314,6 +1315,12 @@ html.legacy-on .bt-link { position: relative; }
 .bt-feed-guide { display: grid; gap: 4px; margin-top: 10px; }
 .bt-feed-guide b { color: var(--ink); font-weight: 500; }
 .bt-feed-guide ol { margin: 0; padding-left: 18px; display: grid; gap: 2px; line-height: var(--leading-normal); }
+/* Where the bookings come from: the address, which breaks anywhere on a phone and sits in the note's own size; the
+   notices held for a look, each its lines and its two presses side by side. */
+.bt-bookings-address { overflow-wrap: anywhere; }
+.bt-bookings-held { display: grid; gap: 8px; }
+.bt-bookings-notice { display: grid; gap: 2px; }
+.bt-bookings-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* The closed days: from, until, why, and the press that removes one. */
 .bt-closures { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
@@ -1337,6 +1344,9 @@ html.legacy-on .bt-link { position: relative; }
 .bt-feed-dot[data-tone="warn"] { background: var(--warn); }
 .bt-feed-dot[data-tone="danger"] { background: var(--danger); }
 .bt-feed-when { color: var(--ink-dim); }
+/* The bookings row's phrase is a sentence, not a stamp: it stays on the mark's line and wraps inside itself, where a
+   phrase too wide for the column would otherwise move whole to the next line and leave the mark alone on its own. */
+.bt-feed[data-tone] > .bt-feed-when { flex: 1 1 0; min-width: 0; }
 .bt-feed { flex: 1 1 100%; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 7px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
 .bt-feed-problem { flex: 1 1 100%; color: var(--ink-muted); text-wrap: pretty; }
 /* A new read is on its way: the last one stays where it is, dimmed (spec 9: a read in flight dims the last value; no

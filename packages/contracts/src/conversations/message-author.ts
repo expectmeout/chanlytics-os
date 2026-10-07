@@ -36,7 +36,7 @@ export function isAutomatedSend(meta: unknown): boolean {
 }
 
 /** What the email intake read a message as when it is not a person writing (channels email/intake.ts EmailClaim). */
-const NOT_A_PERSONS_CLAIMS: readonly string[] = ["automated", "auto_reply", "report"];
+const NOT_A_PERSONS_CLAIMS: readonly string[] = ["automated", "auto_reply", "report", "booking_notice"];
 
 /**
  * Whether an inbound message's words are a person's own. The intake keeps what an email CLAIMS to be beside it

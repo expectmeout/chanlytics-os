@@ -63,18 +63,21 @@ function CrBlock({
       className="cal-appt feed"
       style={{ top: y, height: h, ...laned }}
       onClick={() => onOpen(b)}
-      title={`${b.title} · ${b.time}`}
-      aria-label={`${b.title}, ${b.time}, ${dayLong}`}
+      title={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}`}
+      aria-label={`${b.title}, ${b.time}, ${dayLong}${b.tool ? `, booked through ${b.tool}` : ""}`}
       data-testid="cal-block"
       data-phase={phase}
       data-lane={b.lanes > 1 ? `${b.lane + 1}/${b.lanes}` : undefined}
+      data-tool={b.tool ?? undefined}
     >
       <span className="cal-appt-line1">
         <span className="cal-appt-who">{b.title}</span>
       </span>
+      {/* A booking that arrived by email names its tool on the second line: subtle, and said in the panel too. */}
       <span className="cal-appt-service">
         {b.time}
         {wide && b.person ? ` · ${b.person.name}` : ""}
+        {b.tool ? ` · ${b.tool}` : ""}
       </span>
     </button>
   );
@@ -402,7 +405,7 @@ function agendaDay(p: {
               key={b.id}
               time={allDay ? "All day" : calendar.clockLabel(b.t)}
               name={b.person ? b.person.name : b.service}
-              service={b.person ? b.service : null}
+              service={[b.person ? b.service : null, b.tool].filter(Boolean).join(" · ") || null}
               dur={allDay ? null : calendar.durationLabel(b.dur)}
               onOpen={() => onOpen(b)}
               hint={b.time}

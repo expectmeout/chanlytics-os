@@ -236,6 +236,15 @@ const EDITS = {
     () => " webcal://calendar.example.com/marisa/new.ics ",
     (next) => assert.deepEqual(next.calendar, { ical_url: "webcal://calendar.example.com/marisa/new.ics" }),
   ],
+  // A section of its own (00345): the tool, trimmed. The calendar's section is left exactly as it was, since a
+  // calendar section a build from before this cannot read (a tool, no address) would mute that build's receptionist.
+  bookings: [
+    (d) => ({ ...d, tool: " booksy " }),
+    (next) => {
+      assert.deepEqual(next.bookings, { tool: "booksy" });
+      assert.deepEqual(next.calendar, STORED.calendar);
+    },
+  ],
   // The create fold, drawn only where there is no receptionist; on a stored brain it writes the three it asks for, a
   // different number where one is typed, and keeps the brain's own prompt and messages.
   receptionist: [
@@ -299,6 +308,7 @@ test("every fold is named once, owns exactly its paths, and is a fold the bridge
     extra_instructions: ["extra_instructions"],
     fallbacks: [],
     calendar: [],
+    bookings: [],
     receptionist: [],
   });
   for (const fold of FOLDS) {
@@ -537,6 +547,7 @@ test("each fold opens with its stored values, as the form it replaces opened the
       ["extra_instructions", { text: "", carried: false }],
       ["fallbacks", FALLBACK_DEFAULTS],
       ["calendar", ""],
+      ["bookings", { tool: "" }],
       ["receptionist", { name: "Bella Nails", own: true, typed: "", link: "https://bella.example/book" }],
     ],
   );

@@ -362,7 +362,7 @@ export function toInboxThreadVM(
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     ...(escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {}),
-    // The dot is the reader's own (standing.ts isUnseen, 00345; inbox-thread-vm.ts says what it meant before).
+    // The dot is the reader's own (standing.ts isUnseen, 00346; inbox-thread-vm.ts says what it meant before).
     unread: isUnseen(dto.last_inbound_at, dto),
     heardAtMs: heardMs(dto.last_inbound_at),
     pinned: false,

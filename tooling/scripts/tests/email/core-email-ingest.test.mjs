@@ -48,6 +48,13 @@ function world(over = {}) {
     readReply: undefined,
     markProcessed: undefined,
     received: undefined,
+    // A booking tool's notice (00345): the read scheduled once per delivery, the tool the workspace named as its own
+    // (none, until a case names one), and whether a forward's sender is a member.
+    readBooking: undefined,
+    bookingTool: null,
+    memberAddress: false,
+    // Gmail's confirmation of a forward here, kept on the mailbox for Settings to show.
+    keepForwarding: undefined,
     ...over,
   };
   const ports = { now: () => NOW };
@@ -128,6 +135,108 @@ test("a claim decides how LITTLE is done: an automatic reply is kept and never f
     bounce.ops().includes("record"),
     false,
     "nothing is kept as a person's words, and nothing here suppresses an address: that is the provider's signed receipt",
+  );
+});
+
+test("a booking tool's notice is read into an appointment, never kept as a thread: only from a proved sender, only the tool the workspace named, and a forward by hand only from a member; anything else is the automated email it looks like", async () => {
+  const notice = (over = {}) =>
+    email({
+      from: { address: "no-reply@booksy.com", name: "Booksy" },
+      subject: "Dana Rivera: new booking Thursday, October 8, 2026 3:00 PM",
+      text: "Dana Rivera\n(305) 555-0144\nThursday, October 8, 2026, 3:00 PM - 5:00 PM\nHair Color: Partial highlight\nwith Sam Ortiz",
+      claim: "booking_notice",
+      ...over,
+    });
+  const keptForAPerson = async (w, why) => {
+    assert.equal(await run(w), "kept_for_a_person", why);
+    assert.equal(w.ops().includes("readBooking"), false, `${why}: no read is scheduled`);
+    assert.equal(w.call("escalate")[4], EMAIL_REVIEW_WORDS.automated, why);
+    assert.equal(w.call("record")[1].meta.email.claim, "booking_notice", "what it claimed is kept beside it");
+  };
+  // The tool's own sender, proved by the receiving side, in a workspace that named that tool: one read scheduled for
+  // the delivery, the mailbox stamped, no row.
+  const direct = world({ fetch: notice(), bookingTool: "booksy" });
+  assert.equal(await run(direct), "kept_as_booking");
+  assert.deepEqual(direct.ops(), [
+    "mailbox",
+    "fetch",
+    "ours",
+    "erasedBefore",
+    "bookingTool",
+    "readBooking",
+    "received",
+  ]);
+  assert.deepEqual(direct.call("bookingTool"), ["bookingTool", T]);
+  assert.deepEqual(direct.call("readBooking"), ["readBooking", T, "mb1", "rcv_1", "booksy"]);
+  // The same From, unproved: a forged "booking" writes no visit, and the workspace is not even asked what it named.
+  const forged = world({ fetch: notice({ senderAuthenticated: false }), bookingTool: "booksy" });
+  await keptForAPerson(forged, "a From anyone can write");
+  assert.equal(forged.ops().includes("bookingTool"), false);
+  // Proved, in a workspace that set nothing up: its email is what it was before any of this, for a person to read.
+  await keptForAPerson(world({ fetch: notice() }), "a workspace that named no tool");
+  // Proved, and another tool's: anyone may cause a tool to write here, and only the business's own is its bookings.
+  await keptForAPerson(world({ fetch: notice(), bookingTool: "calendly" }), "a tool the workspace did not name");
+
+  // A forward by hand: the sender proved AND a member of the workspace, both.
+  const forwarded = (over = {}) =>
+    notice({
+      from: { address: "owner@example.com", name: "Owner" },
+      subject: "Fwd: Dana Rivera: new booking Thursday, October 8, 2026 3:00 PM",
+      text: "---------- Forwarded message ---------\nFrom: Booksy <no-reply@booksy.com>\nDate: Tue, Oct 6, 2026\n\nDana Rivera\n(305) 555-0144\nThursday, October 8, 2026, 3:00 PM - 5:00 PM",
+      ...over,
+    });
+  const member = world({ fetch: forwarded(), bookingTool: "booksy", memberAddress: true });
+  assert.equal(await run(member), "kept_as_booking");
+  assert.deepEqual(member.call("memberAddress"), ["memberAddress", T, "owner@example.com"]);
+  // REGRESSION: a member's address on a From line nobody proved. The forward was trusted on the address alone, and
+  // an owner's address is no secret: anyone could write it over a quoted "From: Booksy" and book, move or cancel a
+  // visit. Unproved, it is not the member's word, and the workspace is not asked whether the address is one of theirs.
+  const spoofed = world({
+    fetch: forwarded({ senderAuthenticated: false }),
+    bookingTool: "booksy",
+    memberAddress: true,
+  });
+  await keptForAPerson(spoofed, "a member's address, unproved");
+  assert.equal(spoofed.ops().includes("memberAddress"), false);
+  // Proved, and nobody of the workspace's.
+  const stranger = world({
+    fetch: forwarded({ from: { address: "someone@example.net", name: null } }),
+    bookingTool: "booksy",
+    memberAddress: false,
+  });
+  await keptForAPerson(stranger, "a stranger's forward");
+});
+
+test("Gmail asking whether it may forward here is kept on the mailbox for Settings to show, never as a thread: from Google's own proved sender only", async () => {
+  const confirmation = (over = {}) =>
+    email({
+      from: { address: "forwarding-noreply@google.com", name: "Gmail Team" },
+      subject: "(#4815162) Gmail Forwarding Confirmation - Receive Mail from owner@example.com",
+      text: "owner@example.com has requested to automatically forward mail to your email address salon@mail.example.com.\nConfirmation code: 4815162\n\nhttps://mail-settings.google.com/mail/vf-%5BANGjdJ8%5D-abc",
+      claim: "forwarding_confirmation",
+      ...over,
+    });
+  const proved = world({ fetch: confirmation() });
+  assert.equal(await run(proved), "kept_as_confirmation");
+  assert.deepEqual(proved.ops(), ["mailbox", "fetch", "ours", "erasedBefore", "keepForwarding", "received"]);
+  assert.deepEqual(proved.call("keepForwarding"), [
+    "keepForwarding",
+    "mb1",
+    {
+      account: "owner@example.com",
+      code: "4815162",
+      link: "https://mail-settings.google.com/mail/vf-%5BANGjdJ8%5D-abc",
+    },
+  ]);
+  // Unproved, a forged one would put a stranger's code in front of the owner: taken in as an automated email instead.
+  const forged = world({ fetch: confirmation({ senderAuthenticated: false }) });
+  assert.equal(await run(forged), "kept_for_a_person");
+  assert.equal(forged.ops().includes("keepForwarding"), false);
+  assert.equal(forged.call("escalate")[4], EMAIL_REVIEW_WORDS.automated);
+  assert.equal(
+    forged.call("record")[1].meta.email.claim,
+    "forwarding_confirmation",
+    "what it claimed is kept beside it",
   );
 });
 

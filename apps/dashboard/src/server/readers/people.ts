@@ -112,7 +112,7 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
     // not a stage. Never fatal to the list, and said from the calendar's last good read while a newer one is fetched
     // behind it, as a person's page says them (person-visits.ts): what was booked, never an opening offered. And who
     // each next step is for (00166), from the team, read only when a step is for someone. And what the member asking
-    // has seen of each (00345, people/person-seen.ts): the row says who is new to them, as the Inbox's does.
+    // has seen of each (00346, people/person-seen.ts): the row says who is new to them, as the Inbox's does.
     const [out, sellsBy, nameSteps, seenOf] = await Promise.all([
       withVisits(ctx, tenantId, rows, rc.now, () => zone, { stale: true }),
       buys,

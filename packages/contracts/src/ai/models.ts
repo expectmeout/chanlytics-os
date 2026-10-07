@@ -60,6 +60,7 @@ export const MODEL_PURPOSES = [
   "note_suggest",
   "reach_out_check",
   "reply_read",
+  "booking_read",
 ] as const;
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
@@ -135,6 +136,9 @@ export const MODEL_ROUTES = {
     maxTokens: 400,
     shadow: "typesafe",
   },
+  // A booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): a short
+  // email into a fixed shape, as the reply's reading is; an overload is the ledger's retry, as there.
+  booking_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 600 },
 } as const satisfies Record<ModelPurpose, ModelRoute>;
 
 /** A purpose's route. */

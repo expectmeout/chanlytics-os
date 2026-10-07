@@ -29,7 +29,8 @@ var MODEL_PURPOSES = [
   "lead_judge",
   "note_suggest",
   "reach_out_check",
-  "reply_read"
+  "reply_read",
+  "booking_read"
 ];
 var MODEL_PORTS = ["anthropic", "typesafe"];
 var RECEPTIONIST_TRY_MS = 2e4;
@@ -72,7 +73,10 @@ var MODEL_ROUTES = {
     retries: 0,
     maxTokens: 400,
     shadow: "typesafe"
-  }
+  },
+  // A booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): a short
+  // email into a fixed shape, as the reply's reading is; an overload is the ledger's retry, as there.
+  booking_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 600 }
 };
 function modelRoute(purpose) {
   return MODEL_ROUTES[purpose];
@@ -1103,7 +1107,7 @@ function isAutomatedSend(meta) {
   const source = metaKey(meta, "source");
   return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
 }
-var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report"];
+var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report", "booking_notice"];
 function isPersonsWords(meta) {
   const claim = metaKey(metaKey(meta, "email"), "claim");
   return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
@@ -13186,397 +13190,312 @@ function previewHorizon(now) {
   return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
 }
 
-// src/config/workspace-config/prompt-hours.ts
-var DAY_LABEL = DAY_NAMES;
-function dayIntervals2(h) {
-  return dayIntervals(h).map(([open, close]) => ({ open, close }));
+// src/calendar/booking-notice.ts
+var BOOKING_TOOL_IDS = [
+  "booksy",
+  "acuity",
+  "fresha",
+  "square",
+  "vagaro",
+  "glossgenius",
+  "calendly",
+  "setmore",
+  "mindbody",
+  "simplybook",
+  "schedulicity",
+  "styleseat"
+];
+var BOOKING_TOOLS = [
+  { tool: "booksy", name: "Booksy", domains: ["booksy.com"] },
+  { tool: "acuity", name: "Acuity", domains: ["acuityscheduling.com", "squarespacescheduling.com"] },
+  { tool: "fresha", name: "Fresha", domains: ["fresha.com"] },
+  { tool: "square", name: "Square", domains: ["squareup.com", "square.com"] },
+  { tool: "vagaro", name: "Vagaro", domains: ["vagaro.com"] },
+  { tool: "glossgenius", name: "GlossGenius", domains: ["glossgenius.com"] },
+  { tool: "calendly", name: "Calendly", domains: ["calendly.com"] },
+  { tool: "setmore", name: "Setmore", domains: ["setmore.com"] },
+  { tool: "mindbody", name: "Mindbody", domains: ["mindbodyonline.com"] },
+  { tool: "simplybook", name: "SimplyBook", domains: ["simplybook.me"] },
+  { tool: "schedulicity", name: "Schedulicity", domains: ["schedulicity.com"] },
+  { tool: "styleseat", name: "StyleSeat", domains: ["styleseat.com"] }
+];
+var isBookingTool = (v) => BOOKING_TOOLS.some((t) => t.tool === v);
+function bookingToolName(tool) {
+  if (!tool) return null;
+  return BOOKING_TOOLS.find((t) => t.tool === tool)?.name ?? tool;
 }
-function joinList(parts2) {
-  if (parts2.length < 3) return parts2.join(" and ");
-  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+function bookingToolOfAddress(address) {
+  const a = (address ?? "").trim().toLowerCase();
+  const at3 = a.lastIndexOf("@");
+  if (at3 < 1) return null;
+  const host = a.slice(at3 + 1);
+  for (const t of BOOKING_TOOLS) for (const d of t.domains) if (host === d || host.endsWith(`.${d}`)) return t.tool;
+  return null;
 }
-function dayText(h) {
-  const spans = dayIntervals2(h);
-  if (spans.length) {
-    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
-    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
-    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+var FORWARD_SUBJECT = /^\s*(fwd?|fw|tr|wg|rv)\s*:/i;
+function bookingNoticeOf(e) {
+  const direct = bookingToolOfAddress(e.from?.address);
+  if (direct) return { tool: direct, forwarded: false };
+  if (!e.from || !FORWARD_SUBJECT.test(e.subject ?? "") || !e.text) return null;
+  const head = e.text.slice(0, 4e3);
+  const m = /^\s*(?:>\s*)?(?:from|de|von)\s*:\s*(?:"?[^<\n]*"?\s*<)?([^\s<>]+@[^\s<>]+)>?/im.exec(head);
+  const quoted = m ? bookingToolOfAddress(m[1]) : null;
+  return quoted ? { tool: quoted, forwarded: true } : null;
+}
+var NOTICE_KINDS = ["booked", "changed", "cancelled", "other"];
+var LOCAL_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+var NOTICE_SCHEMA = /* @__PURE__ */ (() => ({
+  type: "object",
+  properties: {
+    kind: { type: "string", enum: [...NOTICE_KINDS] },
+    client_name: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_email: { anyOf: [{ type: "string" }, { type: "null" }] },
+    service: { anyOf: [{ type: "string" }, { type: "null" }] },
+    staff: { anyOf: [{ type: "string" }, { type: "null" }] },
+    starts_at: {
+      anyOf: [
+        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
+        { type: "null" }
+      ]
+    },
+    ends_at: {
+      anyOf: [
+        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
+        { type: "null" }
+      ]
+    },
+    previous_starts_at: {
+      anyOf: [
+        { type: "string", description: "For a change only: the time it was before, YYYY-MM-DDTHH:MM." },
+        { type: "null" }
+      ]
+    },
+    price: { anyOf: [{ type: "string" }, { type: "null" }] },
+    note: { anyOf: [{ type: "string" }, { type: "null" }] }
+  },
+  required: [
+    "kind",
+    "client_name",
+    "client_phone",
+    "client_email",
+    "service",
+    "staff",
+    "starts_at",
+    "ends_at",
+    "previous_starts_at",
+    "price",
+    "note"
+  ],
+  additionalProperties: false
+}))();
+var NOTICE_TEXT_MAX = 6e3;
+var NOTICE_READ_MAX_TOKENS = 600;
+function noticePrompt(p) {
+  const system = [
+    "You read one email a booking tool sent a business about one of its appointments, and answer in the JSON shape asked.",
+    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing), and other when it is written TO THE CLIENT about a booking of their own at a business ('Your appointment at Harbor Studio is confirmed', 'See you tomorrow at 3'): the business's notice names its client as someone else, it never speaks to them.`,
+    "client_name, client_phone, client_email: the CLIENT's, as written; never the business's, the staff member's or the tool's own.",
+    "service: the service booked, as written (with its category if the tool writes one: 'Hair Color: Partial highlight'). staff: who it is with, as written.",
+    "starts_at, ends_at: the appointment's start and end on the business's own clock as YYYY-MM-DDTHH:MM, from the date and the time range the email states. For a change, the NEW time; previous_starts_at is the old one. ends_at null when no end is stated.",
+    "price: as written ('$55.00+', 'Varies'), null when none. note: the client's own note, null when none.",
+    "Take only what the email states. Invent nothing; a field the email does not state is null."
+  ].join("\n");
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: p.tz, year: "numeric", month: "2-digit", day: "2-digit" });
+  const user = [
+    `Booking tool: ${bookingToolName(p.tool)}.`,
+    `Received on ${day.format(new Date(p.receivedAtMs))}; the business's zone is ${p.tz}.`,
+    `Subject: ${p.subject ?? "(none)"}`,
+    "",
+    p.text.slice(0, NOTICE_TEXT_MAX)
+  ].join("\n");
+  return { system, user };
+}
+var NOTICE_HOLDS = [
+  "no_model",
+  "may_not_spend",
+  "unreadable",
+  "not_a_booking",
+  "no_time",
+  "no_client",
+  // The provider no longer had the email when the read ran: nothing could be read, and the delivery is still on the ledger.
+  "gone"
+];
+var isNoticeHold = (v) => NOTICE_HOLDS.includes(v);
+var NOTICE_DEFAULT_LENGTH_MS = HOUR_MS;
+var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
+var E1642 = /^\+[1-9][0-9]{6,14}$/;
+var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
+var NOTICE_FIELD_MAX = 200;
+var NOTICE_NOTE_MAX = 1e3;
+function localMs(tz, v) {
+  if (typeof v !== "string") return null;
+  const m = LOCAL_TIME.exec(v.trim());
+  if (!m) return null;
+  const part = (i) => Number(m[i]);
+  const y = part(1);
+  const mo = part(2);
+  const d = part(3);
+  const hh = part(4);
+  const mm = part(5);
+  if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
+  const day = new Date(Date.UTC(y, mo - 1, d));
+  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
+  const ms2 = localToUtcMs(tz, y, mo, d, hh, mm);
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function trimmedText(v, max) {
+  if (typeof v !== "string") return null;
+  const t = v.replace(/\s+/g, " ").trim();
+  return t ? t.slice(0, max) : null;
+}
+function noticeAnswerOf(answer, tz, nowMs) {
+  if (!answer || typeof answer !== "object" || Array.isArray(answer)) return { reading: null, hold: "unreadable" };
+  const a = answer;
+  const kind = a.kind;
+  if (kind === "other") return { reading: null, hold: "not_a_booking" };
+  if (kind !== "booked" && kind !== "changed" && kind !== "cancelled") return { reading: null, hold: "unreadable" };
+  const start = localMs(tz, a.starts_at);
+  if (start === null || Math.abs(start - nowMs) > NOTICE_TIME_REACH_MS) return { reading: null, hold: "no_time" };
+  const endRead = localMs(tz, a.ends_at);
+  const end = endRead !== null && endRead > start && endRead - start <= NOTICE_LENGTH_MAX_MS ? endRead : start + NOTICE_DEFAULT_LENGTH_MS;
+  const phone = normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null);
+  const client = {
+    name: trimmedText(a.client_name, NOTICE_FIELD_MAX),
+    phone: phone && E1642.test(phone) ? phone : null,
+    email: normalizeEmail(typeof a.client_email === "string" ? a.client_email : null)
+  };
+  if (!client.name && !client.phone && !client.email) return { reading: null, hold: "no_client" };
+  const previous = kind === "changed" ? localMs(tz, a.previous_starts_at) : null;
+  return {
+    reading: {
+      kind,
+      client,
+      service: trimmedText(a.service, NOTICE_FIELD_MAX),
+      staff: trimmedText(a.staff, NOTICE_FIELD_MAX),
+      start,
+      end,
+      previousStart: previous !== null && Math.abs(previous - nowMs) <= NOTICE_TIME_REACH_MS ? previous : null,
+      price: trimmedText(a.price, NOTICE_FIELD_MAX),
+      note: trimmedText(a.note, NOTICE_NOTE_MAX)
+    },
+    hold: null
+  };
+}
+function clientKeyOf(client) {
+  if (client.phone) return client.phone;
+  if (client.email) return client.email.toLowerCase();
+  return (client.name ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+function appointmentKey(tool, client, startMs) {
+  return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
+}
+var SAME_VISIT_MS = 15 * MIN_MS;
+function bookingToolOptions() {
+  return BOOKING_TOOLS.map((t) => ({ value: t.tool, label: t.name }));
+}
+var BOOKING_TOOL_STEPS = {
+  acuity: {
+    way: "recipient",
+    steps: [
+      "In Acuity, open the calendar your appointments land on, then Calendar notifications.",
+      "Under \u201CSend booking notifications to\u201D, add the address above beside your own."
+    ]
+  },
+  fresha: {
+    way: "recipient",
+    steps: [
+      "In Fresha, open Settings \u203A Scheduling \u203A Online bookings \u203A Notifications, then Edit.",
+      "Add the address above to the emails that get booked, rescheduled and cancelled bookings."
+    ]
+  },
+  booksy: {
+    way: "forward",
+    steps: [
+      "Open the inbox your Booksy account emails: its booking emails arrive there.",
+      "Make a filter for mail from no-reply@booksy.com that forwards to the address above."
+    ]
+  },
+  square: {
+    way: "forward",
+    steps: [
+      "In Square, under Team members \u203A your name \u203A Booking notifications, keep email on.",
+      "In that inbox, make a filter for Square's booking emails that forwards to the address above."
+    ]
+  },
+  vagaro: {
+    way: "forward",
+    steps: [
+      "In Vagaro, under Settings \u203A Booking \u203A Email & Text Notifications, keep employee email notifications on.",
+      "In that inbox, make a filter for mail from vagaro.com that forwards to the address above."
+    ]
+  },
+  glossgenius: {
+    way: "forward",
+    steps: [
+      "In GlossGenius, under your personal notifications, keep booking emails on (they go to whoever is booked).",
+      "In that inbox, make a filter for mail from glossgenius.com that forwards to the address above."
+    ]
+  },
+  calendly: {
+    way: "forward",
+    steps: [
+      "Open the inbox Calendly emails your bookings to (each host gets their own).",
+      "Make a filter for mail from calendly.com that forwards to the address above."
+    ]
+  },
+  setmore: {
+    way: "forward",
+    steps: ["In the inbox Setmore emails, make a filter for mail from setmore.com that forwards to the address above."]
+  },
+  mindbody: {
+    way: "forward",
+    steps: [
+      "In the inbox Mindbody emails, make a filter for mail from mindbodyonline.com that forwards to the address above."
+    ]
+  },
+  simplybook: {
+    way: "forward",
+    steps: [
+      "In the inbox SimplyBook emails, make a filter for mail from simplybook.me that forwards to the address above."
+    ]
+  },
+  schedulicity: {
+    way: "forward",
+    steps: [
+      "In the inbox Schedulicity emails, make a filter for mail from schedulicity.com that forwards to the address above."
+    ]
+  },
+  styleseat: {
+    way: "forward",
+    steps: [
+      "In the inbox StyleSeat emails, make a filter for mail from styleseat.com that forwards to the address above."
+    ]
   }
-  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
-  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
-}
-function hoursRuns(hours) {
-  if (!hours) return [];
-  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
-  const out = [];
-  let i = 0;
-  while (i < spans.length) {
-    let j = i;
-    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
-    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
-    i = j + 1;
-  }
-  return out;
-}
-function hoursLines(hours) {
-  return hoursRuns(hours).map((r2) => {
-    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
-    return `${label}: ${r2.text}`;
-  });
-}
-
-// src/calendar/calendar-words.ts
-function clockLabel(t) {
-  const h = Math.floor(t);
-  const m = Math.round((t - h) * 60);
-  const ap = h >= 12 && h < 24 ? "PM" : "AM";
-  const hh = (h + 11) % 12 + 1;
-  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
-}
-var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
-var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
-function shortDate(key) {
-  const { y, m, d } = keyParts(key);
-  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function longDate(key) {
-  const { y, m, d } = keyParts(key);
-  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function closureDatesLabel(c) {
-  if (!(c.until && c.until > c.date)) return shortDate(c.date);
-  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
-}
-function closuresFrom(closures, todayKey) {
-  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
-}
-function readAgoLabel(iso, now) {
-  if (!iso) return null;
-  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
-}
-function ruleParts(rules) {
-  const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
-  const parts2 = [`at least ${r2.lead_hours}h notice`];
-  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
-  parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
-  if (rules?.party_max)
-    parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
-  return parts2;
-}
-function rulesLine(rules) {
-  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
-}
-function feedNotes(feed) {
-  if (feed.state !== "ok") return [];
-  const notes = [];
-  const repeats = feed.skipped_recurring || 0;
-  if (repeats > 0) {
-    const one = repeats === 1;
-    notes.push({
-      id: "repeats",
-      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
-      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`
-    });
-  }
-  const undrawn = feed.dropped || 0;
-  if (undrawn > 0) {
-    const one = undrawn === 1;
-    notes.push({
-      id: "undrawn",
-      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
-      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`
-    });
-  }
-  return notes;
-}
-function hoursLines2(hours) {
-  if (!hours) return [];
-  const clean3 = {};
-  for (const d of DAYS) if (hours[d]) clean3[d] = hours[d];
-  return hoursRuns(clean3).map(
-    (r2) => `${DAY_SHORT[r2.from] ?? r2.from}${r2.to !== r2.from ? `\u2013${DAY_SHORT[r2.to] ?? r2.to}` : ""} ${dayHoursWords(clean3[r2.from])}`
-  );
-}
-function dayHoursWords(h) {
-  const at3 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
-  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at3(o), at3(c)));
-  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
-  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-var CALENDAR_FEED_WORDS = {
-  ok: "Readable",
-  stale: "Last good read",
-  unavailable: "Could not be read",
-  none: "Not connected"
 };
-function spanLabel2(t1, t2) {
-  const a = clockLabel(t1);
-  const b = clockLabel(t2);
-  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
-  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
-}
-
-// src/calendar/calendar.ts
-function hoursOf(tz, ms2) {
-  const c = clockInZone(tz, ms2);
-  return c.hh + c.mm / 60;
-}
-function nextOpenWords(startIso, tz, todayKey) {
-  const ms2 = startIso ? Date.parse(startIso) : Number.NaN;
-  if (!Number.isFinite(ms2)) return "\u2014";
-  const day = dayInZone(tz, ms2);
-  const clock3 = clockLabel(hoursOf(tz, ms2));
-  if (day.key === todayKey) return `today ${clock3}`;
-  if (day.key === shiftKey(todayKey, 1)) return `tomorrow ${clock3}`;
-  if (day.key <= shiftKey(todayKey, 6)) return `${DAY_SHORT[day.weekday] ?? day.weekday} ${clock3}`;
-  return `${shortDate(day.key)}, ${clock3}`;
-}
-function serviceOf2(title, personName2) {
-  const whole = (title || "").trim();
-  const name = (personName2 || "").trim();
-  if (!whole || !name) return whole;
-  const quoted = name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-  const gap = String.raw`\s*(?:[-–—·|,:]|\bwith\b|\bfor\b)?\s*`;
-  const edge = String.raw`(?![\p{L}\p{N}])`;
-  const cut = whole.replace(new RegExp(`^${gap}${quoted}${edge}${gap}`, "iu"), "").replace(new RegExp(`${gap}(?<![\\p{L}\\p{N}])${quoted}${gap}$`, "iu"), "").trim();
-  return cut.replace(/[-–—·|,:\s]/gu, "") ? cut : whole;
-}
-function toBlock(item, tz, dayStartMs, dayEndMs, now) {
-  const s = Math.max(Date.parse(item.start), dayStartMs);
-  const e = Math.min(Date.parse(item.end), dayEndMs);
-  const t = s === dayStartMs ? 0 : hoursOf(tz, s);
-  const tEnd = e === dayEndMs ? 24 : hoursOf(tz, e);
-  return {
-    id: item.id,
-    t,
-    dur: Math.max(15, Math.round((tEnd - t) * 60)),
-    title: item.title || "Busy",
-    service: serviceOf2(item.title || "Busy", item.person?.name ?? null),
-    time: spanLabel2(t, tEnd),
-    person: item.person ? {
-      id: item.person.id,
-      name: item.person.name,
-      via: item.person.via ?? null,
-      threadId: item.person.thread ? `th-${item.person.thread}` : null,
-      replyOpen: item.person.thread ? waWindow(item.person.wa_inbound_at ?? null, now).open : false
-    } : null,
-    description: item.description ?? null,
-    location: item.location ?? null,
-    contacts: {
-      phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p),
-      e164: item.contacts?.phones ?? [],
-      emails: item.contacts?.emails ?? []
-    },
-    guess: item.guess ?? null,
-    consultation: !!item.consultation,
-    consultService: item.consultation ? item.consult_service ?? null : null,
-    start: item.start,
-    end: item.end,
-    lane: 0,
-    lanes: 1
-  };
-}
-function assignLanes(timed) {
-  let cluster = [];
-  let clusterEnd = -1;
-  let laneEnds = [];
-  const close = () => {
-    for (const b of cluster) b.lanes = laneEnds.length;
-  };
-  for (const b of timed) {
-    const end = b.t + b.dur / 60;
-    if (b.t >= clusterEnd - 1e-9 && cluster.length) {
-      close();
-      cluster = [];
-      laneEnds = [];
-    }
-    let lane = laneEnds.findIndex((e) => e <= b.t + 1e-9);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(end);
-    } else laneEnds[lane] = end;
-    b.lane = lane;
-    cluster.push(b);
-    clusterEnd = Math.max(clusterEnd, end);
-  }
-  close();
-}
-function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
-  const tz = dto.timezone;
-  const todayKey = dayInZone(tz, now.getTime()).key;
-  const nowMs = now.getTime();
-  const offerDays = { ...BOOKING_DEFAULTS, ...dto.rules ?? {} }.max_days_ahead;
-  const offerUntil = dayPlusInZone(tz, nowMs, offerDays - 1).key;
-  let start = 24;
-  let end = 0;
-  for (const h of Object.values(dto.hours ?? {})) {
-    for (const [o, c] of dayIntervals(h)) {
-      const oh = Number(o.split(":")[0]);
-      const ch = Number(c.split(":")[0]) + (Number(c.split(":")[1]) > 0 ? 1 : 0);
-      if (Number.isFinite(oh)) start = Math.min(start, oh);
-      if (Number.isFinite(ch)) end = Math.max(end, ch);
-    }
-  }
-  if (start >= end) {
-    start = 8;
-    end = 20;
-  }
-  start = Math.max(0, start - 1);
-  end = Math.min(24, end + 1);
-  for (const d of dto.days) {
-    const ds = zoneMidnight(tz, d.key);
-    const de = zoneMidnight(tz, shiftKey(d.key, 1));
-    for (const item of d.items) {
-      const s = Date.parse(item.start);
-      const e = Date.parse(item.end);
-      if (item.all_day || !(e > ds && s < de) || s <= ds && e >= de) continue;
-      const b = toBlock(item, tz, ds, de, now);
-      start = Math.min(start, Math.max(0, Math.floor(b.t)));
-      end = Math.max(end, Math.min(24, Math.ceil(b.t + b.dur / 60)));
-    }
-  }
-  const days = dto.days.map((d) => {
-    const { y, m, d: dd } = keyParts(d.key);
-    const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
-    const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
-    const intervals = dayIntervals(dto.hours?.[weekday]);
-    const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
-    const bands = [];
-    if (closedDay) {
-      bands.push({ from: start, to: end, label: closure?.note ? `Closed \xB7 ${closure.note}` : "Closed" });
-    } else {
-      let cursor = start;
-      for (const [o, c] of intervals) {
-        const oh = Number(o.split(":")[0]) + Number(o.split(":")[1]) / 60;
-        const ch = Number(c.split(":")[0]) + Number(c.split(":")[1]) / 60;
-        if (oh > cursor) bands.push({ from: cursor, to: oh, label: null });
-        cursor = Math.max(cursor, ch);
-      }
-      if (cursor < end) bands.push({ from: cursor, to: end, label: null });
-    }
-    const zoneDayStart = zoneMidnight(tz, d.key);
-    const zoneDayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
-    const timed = [];
-    const allDay = [];
-    for (const item of d.items) {
-      const s = Date.parse(item.start);
-      const e = Date.parse(item.end);
-      if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
-      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd, now);
-      if (item.all_day || s <= zoneDayStart && e >= zoneDayEnd)
-        allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
-      else timed.push(block);
-    }
-    timed.sort((a, b) => a.t - b.t || b.dur - a.dur);
-    assignLanes(timed);
-    const windows = d.windows.map((w) => {
-      const t = hoursOf(tz, Date.parse(w.start));
-      const tEnd = hoursOf(tz, Date.parse(w.end));
-      return { t, dur: Math.round((tEnd - t) * 60), label: spanLabel2(t, tEnd) };
-    });
-    return {
-      key: d.key,
-      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
-      date: shortDate(d.key),
-      long: longDate(d.key),
-      dayNum: String(dd),
-      today: d.key === todayKey,
-      past: d.key < todayKey,
-      closed: { yes: closedDay, note: closure?.note ?? null },
-      bands,
-      blocks: timed,
-      allDay,
-      windows,
-      beyondOffer: d.key > offerUntil
-    };
-  });
-  const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
-  const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
-  const next = dto.feed.state === "ok" ? nextOpenWords(dto.next_opening?.start ?? null, tz, todayKey) : "\u2014";
-  const ago3 = readAgoLabel(dto.feed.read_at, now);
-  const stale = dto.feed.state === "ok" && !!dto.feed.stale;
-  const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
-  const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago3 ? `last read ${ago3}` : ""].filter(Boolean).join(" \xB7 ") : "";
-  const feedLine = dto.feed.state === "ok" ? feedDetail : dto.feed.state === "unavailable" ? `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}` : "No calendar connected";
-  const feedRead = dto.feed.state === "ok" ? `read ${ago3 ?? "just now"}` : dto.feed.state === "unavailable" && ago3 ? `last read ${ago3}` : "";
-  const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
-  const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
-  const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
-  const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
-  const ahead = closuresFrom(dto.closures, todayKey);
-  const closuresAhead = ahead.slice(0, 6).map((c) => ({ key: c.date, label: closureDatesLabel(c), note: c.note ?? null }));
-  const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? void 0 }));
-  const services = (dto.services ?? []).map((s) => ({
-    name: s.name,
-    duration: s.duration_min,
-    consultFirst: s.consult_first,
-    offerMinutes: offerFor(listed, dto.rules, s.name)?.minMinutes ?? null,
-    label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consultation first" : ""}`
-  }));
-  return {
-    timezone: tz,
-    zoneCity: timezoneCity(tz),
-    from: dto.from,
-    to: last,
-    rangeLabel: `${shortDate(dto.from)} \u2013 ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
-    monthLabel: monthLabelOf(dto.days.length >= 28 ? shiftKey(dto.from, 7) : dto.from),
-    hours: { start, end },
-    days,
-    today: todayKey,
-    now: nowIn,
-    feed: {
-      present: dto.feed.present,
-      state: dto.feed.state,
-      health: feedHealth,
-      line: feedLine,
-      detail: feedDetail,
-      read: feedRead,
-      events: dto.feed.events,
-      source: dto.feed.source ?? "your calendar",
-      problem: dto.feed.problem ?? null,
-      stale,
-      skippedRecurring: dto.feed.skipped_recurring || 0,
-      dropped: dto.feed.dropped || 0,
-      notes: feedNotes(dto.feed)
-    },
-    stats: { events, windows: windowCount, next },
-    offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
-    rules: rulesLine(dto.rules),
-    ruleParts: ruleParts(dto.rules),
-    hoursLines: hoursLines2(dto.hours),
-    closuresAhead,
-    // Past the six the bar names, counted: a seventh closure used to vanish without a word (C1).
-    closuresMore: Math.max(0, ahead.length - closuresAhead.length),
-    consultFirst: (dto.rules?.consult_first ?? []).map((s) => s.trim()).filter(Boolean),
-    services,
-    bookingLink: dto.booking_link
-  };
-}
-
-// src/calendar/calendar-views.ts
-function spanForView(view, anchor) {
-  if (view === "month") return monthSpan(anchor);
-  if (view === "agenda") return { from: anchor, days: 14 };
-  return { from: mondayOf(anchor), days: 7 };
-}
-function windowFor(anchor) {
-  return { from: shiftKey(mondayOf(`${anchor.slice(0, 7)}-01`), -7), days: 63 };
-}
-function coversSpan(days, from, count2) {
-  if (!days.length || count2 < 1) return false;
-  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count2 - 1);
-}
-function frameOf(key, todayKey) {
-  const { y, m, d } = keyParts(key);
-  return {
-    key,
-    dow: DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
-    date: shortDate(key),
-    long: longDate(key),
-    dayNum: String(d),
-    today: key === todayKey,
-    past: key < todayKey
-  };
+var GMAIL_FORWARD_NOTE = "If that inbox is Gmail, it asks once to confirm the forward: the code and a one-press confirm appear here.";
+var BOOKING_TRY_NOTE = "To try it now, forward any past booking email to the address above, from the email you sign in with.";
+var NOTICE_HOLD_WORDS = {
+  no_model: "The reader was unavailable. Press Read again.",
+  may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
+  unreadable: "It could not be read as a booking.",
+  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
+  not_a_booking: "It is from your booking tool, but not about one booking.",
+  no_time: "No appointment time could be read from it.",
+  no_client: "No client could be read from it.",
+  gone: "The email was gone before it could be read."
+};
+var GMAIL_FORWARDING_SENDER = /^forwarding-noreply@google\.com$/i;
+function forwardingConfirmationOf(e) {
+  if (!e.from || !GMAIL_FORWARDING_SENDER.test(e.from.address.trim())) return null;
+  const subject = e.subject ?? "";
+  if (!/forwarding confirmation/i.test(subject)) return null;
+  const text = e.text ?? "";
+  const code2 = /\(#(\d{5,12})\)/.exec(subject)?.[1] ?? /confirmation code:\s*(\d{5,12})/i.exec(text)?.[1] ?? null;
+  const account = /receive mail from\s+([^\s<>]+@[^\s<>]+)/i.exec(subject)?.[1] ?? /([^\s<>]+@[^\s<>]+)\s+has requested to automatically forward/i.exec(text)?.[1] ?? null;
+  if (!code2 || !account) return null;
+  const link = /https:\/\/[a-z0-9.-]*\.google\.com\/mail\/vf-[^\s<>")]+/i.exec(text)?.[0] ?? null;
+  return { account: account.toLowerCase(), code: code2, link };
 }
 
 // src/calendar/calendar-people.ts
@@ -13951,6 +13870,536 @@ function toBookingReportVM(dto) {
   };
 }
 
+// src/calendar/appointment-item.ts
+var APPOINTMENT_UNTITLED = "Booked";
+function appointmentTitle(row2) {
+  if (row2.title?.trim()) return row2.title.trim();
+  const parts2 = [row2.service, row2.client_name].map((s) => s?.trim()).filter((s) => !!s);
+  return parts2.length ? parts2.join(" \xB7 ") : APPOINTMENT_UNTITLED;
+}
+function busyOfAppointments(rows) {
+  return rows.map((r2) => ({ start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) }));
+}
+function feedItemOfAppointment(row2) {
+  return {
+    start: Date.parse(row2.starts_at),
+    end: Date.parse(row2.ends_at),
+    title: appointmentTitle(row2),
+    allDay: row2.all_day,
+    uid: `appt:${row2.id}`,
+    description: row2.note,
+    location: null,
+    // The client as a guest, so the one visits index (indexFeed) finds the row by their address as it finds an event.
+    attendees: row2.client_email ? [{ name: row2.client_name, email: row2.client_email }] : [],
+    organizer: null
+  };
+}
+function personOfAppointment(row2, people) {
+  const found = row2.contact_id && people.find((p) => p.id === row2.contact_id) || row2.client_phone && people.find((p) => p.phone === row2.client_phone) || row2.client_email && people.find((p) => p.email === row2.client_email);
+  if (!found) return null;
+  const via = found.phone && found.phone === row2.client_phone ? "phone" : found.email ? "email" : "phone";
+  return {
+    id: found.id,
+    name: found.name || row2.client_name || "",
+    via,
+    ...found.thread !== void 0 ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null } : {}
+  };
+}
+function itemOfAppointment(row2, people) {
+  return {
+    id: `appt:${row2.id}`,
+    start: new Date(Date.parse(row2.starts_at)).toISOString(),
+    end: new Date(Date.parse(row2.ends_at)).toISOString(),
+    title: appointmentTitle(row2),
+    all_day: row2.all_day,
+    person: personOfAppointment(row2, people),
+    description: row2.note,
+    location: null,
+    contacts: {
+      phones: row2.client_phone ? [row2.client_phone] : [],
+      emails: row2.client_email ? [row2.client_email] : []
+    },
+    guess: row2.client_name,
+    source: "notice",
+    tool: bookingToolName(row2.tool),
+    service: row2.service,
+    staff: row2.staff,
+    price: row2.price
+  };
+}
+function withoutVisitsRowsDraw(items, rows, own) {
+  if (!rows.length) return items;
+  const byPhone = /* @__PURE__ */ new Map();
+  const byEmail = /* @__PURE__ */ new Map();
+  for (const r2 of rows) {
+    const at3 = Date.parse(r2.starts_at);
+    if (r2.client_phone) byPhone.set(r2.client_phone, [...byPhone.get(r2.client_phone) ?? [], at3]);
+    if (r2.client_email) byEmail.set(r2.client_email.toLowerCase(), [...byEmail.get(r2.client_email) ?? [], at3]);
+  }
+  if (!byPhone.size && !byEmail.size) return items;
+  const near2 = (starts, at3) => !!starts?.some((s) => Math.abs(s - at3) <= SAME_VISIT_MS);
+  return items.filter((it) => {
+    const c = extractContacts(it, own);
+    const same2 = c.phones.some((p) => near2(byPhone.get(p), it.start)) || c.emails.some((e) => near2(byEmail.get(e.toLowerCase()), it.start));
+    return !same2;
+  });
+}
+function daysWithAppointments(days, rows, tz, people) {
+  if (!rows.length) return days;
+  const items = rows.map((r2) => ({
+    at: { start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) },
+    item: itemOfAppointment(r2, people)
+  }));
+  return days.map((d) => {
+    const dayStart = zoneMidnight(tz, d.key);
+    const dayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
+    const here = items.filter(({ at: at3 }) => at3.end > dayStart && at3.start < dayEnd).map(({ item }) => item);
+    if (!here.length) return d;
+    const merged = [...d.items, ...here].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    return { ...d, items: merged };
+  });
+}
+
+// src/config/workspace-config/prompt-hours.ts
+var DAY_LABEL = DAY_NAMES;
+function dayIntervals2(h) {
+  return dayIntervals(h).map(([open, close]) => ({ open, close }));
+}
+function joinList(parts2) {
+  if (parts2.length < 3) return parts2.join(" and ");
+  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function dayText(h) {
+  const spans = dayIntervals2(h);
+  if (spans.length) {
+    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
+    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
+    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+  }
+  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
+  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
+}
+function hoursRuns(hours) {
+  if (!hours) return [];
+  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
+  const out = [];
+  let i = 0;
+  while (i < spans.length) {
+    let j = i;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
+    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
+    i = j + 1;
+  }
+  return out;
+}
+function hoursLines(hours) {
+  return hoursRuns(hours).map((r2) => {
+    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
+    return `${label}: ${r2.text}`;
+  });
+}
+
+// src/calendar/calendar-words.ts
+function clockLabel(t) {
+  const h = Math.floor(t);
+  const m = Math.round((t - h) * 60);
+  const ap = h >= 12 && h < 24 ? "PM" : "AM";
+  const hh = (h + 11) % 12 + 1;
+  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
+}
+var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+function shortDate(key) {
+  const { y, m, d } = keyParts(key);
+  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function longDate(key) {
+  const { y, m, d } = keyParts(key);
+  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function closureDatesLabel(c) {
+  if (!(c.until && c.until > c.date)) return shortDate(c.date);
+  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
+}
+function closuresFrom(closures, todayKey) {
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
+}
+function readAgoLabel(iso, now) {
+  if (!iso) return null;
+  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
+}
+function ruleParts(rules) {
+  const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
+  const parts2 = [`at least ${r2.lead_hours}h notice`];
+  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
+  parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
+  if (rules?.party_max)
+    parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
+  return parts2;
+}
+function rulesLine(rules) {
+  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
+}
+function feedNotes(feed) {
+  if (feed.state !== "ok") return [];
+  const notes = [];
+  const repeats = feed.skipped_recurring || 0;
+  if (repeats > 0) {
+    const one = repeats === 1;
+    notes.push({
+      id: "repeats",
+      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
+      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`
+    });
+  }
+  const undrawn = feed.dropped || 0;
+  if (undrawn > 0) {
+    const one = undrawn === 1;
+    notes.push({
+      id: "undrawn",
+      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
+      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`
+    });
+  }
+  return notes;
+}
+function hoursLines2(hours) {
+  if (!hours) return [];
+  const clean3 = {};
+  for (const d of DAYS) if (hours[d]) clean3[d] = hours[d];
+  return hoursRuns(clean3).map(
+    (r2) => `${DAY_SHORT[r2.from] ?? r2.from}${r2.to !== r2.from ? `\u2013${DAY_SHORT[r2.to] ?? r2.to}` : ""} ${dayHoursWords(clean3[r2.from])}`
+  );
+}
+function dayHoursWords(h) {
+  const at3 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
+  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at3(o), at3(c)));
+  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
+  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+var CALENDAR_FEED_WORDS = {
+  ok: "Readable",
+  stale: "Last good read",
+  unavailable: "Could not be read",
+  none: "Not connected"
+};
+function spanLabel2(t1, t2) {
+  const a = clockLabel(t1);
+  const b = clockLabel(t2);
+  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+
+// src/calendar/calendar.ts
+function hoursOf(tz, ms2) {
+  const c = clockInZone(tz, ms2);
+  return c.hh + c.mm / 60;
+}
+function nextOpenWords(startIso, tz, todayKey) {
+  const ms2 = startIso ? Date.parse(startIso) : Number.NaN;
+  if (!Number.isFinite(ms2)) return "\u2014";
+  const day = dayInZone(tz, ms2);
+  const clock3 = clockLabel(hoursOf(tz, ms2));
+  if (day.key === todayKey) return `today ${clock3}`;
+  if (day.key === shiftKey(todayKey, 1)) return `tomorrow ${clock3}`;
+  if (day.key <= shiftKey(todayKey, 6)) return `${DAY_SHORT[day.weekday] ?? day.weekday} ${clock3}`;
+  return `${shortDate(day.key)}, ${clock3}`;
+}
+function serviceOf2(title, personName2) {
+  const whole = (title || "").trim();
+  const name = (personName2 || "").trim();
+  if (!whole || !name) return whole;
+  const quoted = name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const gap = String.raw`\s*(?:[-–—·|,:]|\bwith\b|\bfor\b)?\s*`;
+  const edge = String.raw`(?![\p{L}\p{N}])`;
+  const cut = whole.replace(new RegExp(`^${gap}${quoted}${edge}${gap}`, "iu"), "").replace(new RegExp(`${gap}(?<![\\p{L}\\p{N}])${quoted}${gap}$`, "iu"), "").trim();
+  return cut.replace(/[-–—·|,:\s]/gu, "") ? cut : whole;
+}
+function noticeFacts(item) {
+  if (item.source !== "notice") return { tool: null, staff: null, price: null };
+  return { tool: item.tool ?? null, staff: item.staff ?? null, price: item.price ?? null };
+}
+function serviceWordsOf(item) {
+  if (item.source === "notice" && item.service) return item.service;
+  return serviceOf2(item.title || "Busy", item.person?.name ?? null);
+}
+function feedLineOf(state, feedDetail, noticesLine) {
+  if (state === "ok") return feedDetail;
+  if (state === "unavailable") return `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}`;
+  return noticesLine || "No calendar connected";
+}
+var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
+function noticesVM(n, now) {
+  const tool = n?.tool ? bookingToolName(n.tool) : null;
+  const lastAgo = readAgoLabel(n?.last_at ?? null, now);
+  const held = n?.held ?? 0;
+  const line = n?.last_at ? `Bookings arrive by email from ${tool ?? "your booking tool"} \xB7 last ${lastAgo ?? "just now"}${held ? ` \xB7 ${held} to look at` : ""}` : "";
+  const state = n?.last_at ? "working" : n?.tool ? "waiting" : "none";
+  const heldList = (n?.held_list ?? []).map((h) => ({
+    id: h.id,
+    tool: bookingToolName(h.tool),
+    from: h.from,
+    subject: h.subject,
+    receivedAgo: readAgoLabel(h.received_at, now),
+    reason: NOTICE_HOLD_WORDS[h.reason]
+  }));
+  const asked = n?.forwarding ? now.getTime() - Date.parse(n.forwarding.at) : Number.NaN;
+  const forwarding = n?.forwarding && asked <= FORWARD_CONFIRM_SHOWN_MS ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link } : null;
+  const address = n?.address ?? null;
+  const row2 = noticeRowOf({ state, address, forwarding: !!forwarding, lastAgo, held });
+  return { tool, address, lastAgo, count: n?.count ?? 0, held, line, state, heldList, forwarding, row: row2 };
+}
+function noticeRowOf(s) {
+  if (s.state === "none") return null;
+  const needsYou = (words3) => ({ tone: "warn", label: "Needs you", words: words3 });
+  if (!s.address) return needsYou("Needs a workspace email address");
+  if (s.forwarding) return needsYou("Confirm the forward in Gmail");
+  if (s.state === "waiting")
+    return s.held ? needsYou(`${s.held} booking ${s.held === 1 ? "email" : "emails"} to look at`) : { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
+  const last = `Last booking email ${s.lastAgo ?? "just now"}`;
+  return s.held ? needsYou(`${last} \xB7 ${s.held} to look at`) : { tone: "ok", label: "Working", words: last };
+}
+function toBlock(item, tz, dayStartMs, dayEndMs, now) {
+  const s = Math.max(Date.parse(item.start), dayStartMs);
+  const e = Math.min(Date.parse(item.end), dayEndMs);
+  const t = s === dayStartMs ? 0 : hoursOf(tz, s);
+  const tEnd = e === dayEndMs ? 24 : hoursOf(tz, e);
+  return {
+    id: item.id,
+    t,
+    dur: Math.max(15, Math.round((tEnd - t) * 60)),
+    title: item.title || "Busy",
+    service: serviceWordsOf(item),
+    time: spanLabel2(t, tEnd),
+    person: item.person ? {
+      id: item.person.id,
+      name: item.person.name,
+      via: item.person.via ?? null,
+      threadId: item.person.thread ? `th-${item.person.thread}` : null,
+      replyOpen: item.person.thread ? waWindow(item.person.wa_inbound_at ?? null, now).open : false
+    } : null,
+    description: item.description ?? null,
+    location: item.location ?? null,
+    contacts: {
+      phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p),
+      e164: item.contacts?.phones ?? [],
+      emails: item.contacts?.emails ?? []
+    },
+    guess: item.guess ?? null,
+    consultation: !!item.consultation,
+    consultService: item.consultation ? item.consult_service ?? null : null,
+    ...noticeFacts(item),
+    start: item.start,
+    end: item.end,
+    lane: 0,
+    lanes: 1
+  };
+}
+function assignLanes(timed) {
+  let cluster = [];
+  let clusterEnd = -1;
+  let laneEnds = [];
+  const close = () => {
+    for (const b of cluster) b.lanes = laneEnds.length;
+  };
+  for (const b of timed) {
+    const end = b.t + b.dur / 60;
+    if (b.t >= clusterEnd - 1e-9 && cluster.length) {
+      close();
+      cluster = [];
+      laneEnds = [];
+    }
+    let lane = laneEnds.findIndex((e) => e <= b.t + 1e-9);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(end);
+    } else laneEnds[lane] = end;
+    b.lane = lane;
+    cluster.push(b);
+    clusterEnd = Math.max(clusterEnd, end);
+  }
+  close();
+}
+function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
+  const tz = dto.timezone;
+  const todayKey = dayInZone(tz, now.getTime()).key;
+  const nowMs = now.getTime();
+  const offerDays = { ...BOOKING_DEFAULTS, ...dto.rules ?? {} }.max_days_ahead;
+  const offerUntil = dayPlusInZone(tz, nowMs, offerDays - 1).key;
+  let start = 24;
+  let end = 0;
+  for (const h of Object.values(dto.hours ?? {})) {
+    for (const [o, c] of dayIntervals(h)) {
+      const oh = Number(o.split(":")[0]);
+      const ch = Number(c.split(":")[0]) + (Number(c.split(":")[1]) > 0 ? 1 : 0);
+      if (Number.isFinite(oh)) start = Math.min(start, oh);
+      if (Number.isFinite(ch)) end = Math.max(end, ch);
+    }
+  }
+  if (start >= end) {
+    start = 8;
+    end = 20;
+  }
+  start = Math.max(0, start - 1);
+  end = Math.min(24, end + 1);
+  for (const d of dto.days) {
+    const ds = zoneMidnight(tz, d.key);
+    const de = zoneMidnight(tz, shiftKey(d.key, 1));
+    for (const item of d.items) {
+      const s = Date.parse(item.start);
+      const e = Date.parse(item.end);
+      if (item.all_day || !(e > ds && s < de) || s <= ds && e >= de) continue;
+      const b = toBlock(item, tz, ds, de, now);
+      start = Math.min(start, Math.max(0, Math.floor(b.t)));
+      end = Math.max(end, Math.min(24, Math.ceil(b.t + b.dur / 60)));
+    }
+  }
+  const days = dto.days.map((d) => {
+    const { y, m, d: dd } = keyParts(d.key);
+    const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
+    const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
+    const intervals = dayIntervals(dto.hours?.[weekday]);
+    const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
+    const bands = [];
+    if (closedDay) {
+      bands.push({ from: start, to: end, label: closure?.note ? `Closed \xB7 ${closure.note}` : "Closed" });
+    } else {
+      let cursor = start;
+      for (const [o, c] of intervals) {
+        const oh = Number(o.split(":")[0]) + Number(o.split(":")[1]) / 60;
+        const ch = Number(c.split(":")[0]) + Number(c.split(":")[1]) / 60;
+        if (oh > cursor) bands.push({ from: cursor, to: oh, label: null });
+        cursor = Math.max(cursor, ch);
+      }
+      if (cursor < end) bands.push({ from: cursor, to: end, label: null });
+    }
+    const zoneDayStart = zoneMidnight(tz, d.key);
+    const zoneDayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
+    const timed = [];
+    const allDay = [];
+    for (const item of d.items) {
+      const s = Date.parse(item.start);
+      const e = Date.parse(item.end);
+      if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
+      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd, now);
+      if (item.all_day || s <= zoneDayStart && e >= zoneDayEnd)
+        allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
+      else timed.push(block);
+    }
+    timed.sort((a, b) => a.t - b.t || b.dur - a.dur);
+    assignLanes(timed);
+    const windows = d.windows.map((w) => {
+      const t = hoursOf(tz, Date.parse(w.start));
+      const tEnd = hoursOf(tz, Date.parse(w.end));
+      return { t, dur: Math.round((tEnd - t) * 60), label: spanLabel2(t, tEnd) };
+    });
+    return {
+      key: d.key,
+      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
+      date: shortDate(d.key),
+      long: longDate(d.key),
+      dayNum: String(dd),
+      today: d.key === todayKey,
+      past: d.key < todayKey,
+      closed: { yes: closedDay, note: closure?.note ?? null },
+      bands,
+      blocks: timed,
+      allDay,
+      windows,
+      beyondOffer: d.key > offerUntil
+    };
+  });
+  const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
+  const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
+  const next = dto.feed.state === "ok" ? nextOpenWords(dto.next_opening?.start ?? null, tz, todayKey) : "\u2014";
+  const ago3 = readAgoLabel(dto.feed.read_at, now);
+  const stale = dto.feed.state === "ok" && !!dto.feed.stale;
+  const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
+  const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago3 ? `last read ${ago3}` : ""].filter(Boolean).join(" \xB7 ") : "";
+  const notices = noticesVM(dto.feed.notices, now);
+  const feedLine = feedLineOf(dto.feed.state, feedDetail, notices.line);
+  const feedRead = dto.feed.state === "ok" ? `read ${ago3 ?? "just now"}` : dto.feed.state === "unavailable" && ago3 ? `last read ${ago3}` : "";
+  const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
+  const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
+  const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
+  const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
+  const ahead = closuresFrom(dto.closures, todayKey);
+  const closuresAhead = ahead.slice(0, 6).map((c) => ({ key: c.date, label: closureDatesLabel(c), note: c.note ?? null }));
+  const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? void 0 }));
+  const services = (dto.services ?? []).map((s) => ({
+    name: s.name,
+    duration: s.duration_min,
+    consultFirst: s.consult_first,
+    offerMinutes: offerFor(listed, dto.rules, s.name)?.minMinutes ?? null,
+    label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consultation first" : ""}`
+  }));
+  return {
+    timezone: tz,
+    zoneCity: timezoneCity(tz),
+    from: dto.from,
+    to: last,
+    rangeLabel: `${shortDate(dto.from)} \u2013 ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
+    monthLabel: monthLabelOf(dto.days.length >= 28 ? shiftKey(dto.from, 7) : dto.from),
+    hours: { start, end },
+    days,
+    today: todayKey,
+    now: nowIn,
+    feed: {
+      present: dto.feed.present,
+      state: dto.feed.state,
+      health: feedHealth,
+      line: feedLine,
+      detail: feedDetail,
+      read: feedRead,
+      events: dto.feed.events,
+      source: dto.feed.source ?? "your calendar",
+      problem: dto.feed.problem ?? null,
+      stale,
+      skippedRecurring: dto.feed.skipped_recurring || 0,
+      dropped: dto.feed.dropped || 0,
+      notes: feedNotes(dto.feed),
+      notices
+    },
+    stats: { events, windows: windowCount, next },
+    offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
+    rules: rulesLine(dto.rules),
+    ruleParts: ruleParts(dto.rules),
+    hoursLines: hoursLines2(dto.hours),
+    closuresAhead,
+    // Past the six the bar names, counted: a seventh closure used to vanish without a word (C1).
+    closuresMore: Math.max(0, ahead.length - closuresAhead.length),
+    consultFirst: (dto.rules?.consult_first ?? []).map((s) => s.trim()).filter(Boolean),
+    services,
+    bookingLink: dto.booking_link
+  };
+}
+
+// src/calendar/calendar-views.ts
+function spanForView(view, anchor) {
+  if (view === "month") return monthSpan(anchor);
+  if (view === "agenda") return { from: anchor, days: 14 };
+  return { from: mondayOf(anchor), days: 7 };
+}
+function windowFor(anchor) {
+  return { from: shiftKey(mondayOf(`${anchor.slice(0, 7)}-01`), -7), days: 63 };
+}
+function coversSpan(days, from, count2) {
+  if (!days.length || count2 < 1) return false;
+  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count2 - 1);
+}
+function frameOf(key, todayKey) {
+  const { y, m, d } = keyParts(key);
+  return {
+    key,
+    dow: DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
+    date: shortDate(key),
+    long: longDate(key),
+    dayNum: String(d),
+    today: key === todayKey,
+    past: key < todayKey
+  };
+}
+
 // src/shared/enums.ts
 var TENANT_STATUSES = ["active", "paused", "test"];
 var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
@@ -14012,6 +14461,13 @@ var JOB_KINDS = [
    * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
    */
   "reply_read",
+  /**
+   * One booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
+   * email_ingest that recognised it schedules one per delivery (payload { received_id, mailbox_id }, keyed on the
+   * delivery), the handler fetches the email again, asks the model and writes the row. Internal work written to be run
+   * again: a second claim finds the row by the delivery's id and pays nothing.
+   */
+  "booking_read",
   /**
    * One event's delivery to one subscriber (00334, decision 0032): the relay writes it beside the event_deliveries row,
    * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
@@ -14743,6 +15199,7 @@ function changedConfigFields(before, after) {
       ...rest,
       ...profile ?? {},
       calendar: cfg.calendar ?? null,
+      bookings: cfg.bookings ?? null,
       notifications: cfg.notifications ?? null,
       features: cfg.features ?? null
     };
@@ -14939,11 +15396,13 @@ var NotificationsConfigSchema = z8.object({
 var CalendarConfigSchema = z8.object({
   ical_url: z8.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strip();
+var BookingsConfigSchema = z8.object({ tool: z8.enum(BOOKING_TOOL_IDS).optional() }).strip();
 var FeaturesConfigSchema = z8.object({ vision: z8.boolean().optional() }).strip();
 var TenantConfigSchema = z8.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
+  bookings: BookingsConfigSchema.optional(),
   features: FeaturesConfigSchema.optional()
 });
 function checkDay(h, day, ctx) {
@@ -18434,7 +18893,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
-    // The dot is the reader's own (standing.ts isUnseen, 00345; inbox-thread-vm.ts says what it meant before).
+    // The dot is the reader's own (standing.ts isUnseen, 00346; inbox-thread-vm.ts says what it meant before).
     unread: isUnseen(dto.last_inbound_at, dto),
     heardAtMs: heardMs(dto.last_inbound_at),
     pinned: false,
@@ -29664,7 +30123,7 @@ function calendarRow2(i) {
       detail: "iCal feed",
       state: "connected",
       stateWords: CALENDAR_FEED_WORDS.ok,
-      sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
+      sentence: "The receptionist offers times from it. Booking emails from your tool add the client and the service.",
       verb: { label: "Open Calendar", to: "calendar", who: "operator" }
     };
   }
@@ -29683,7 +30142,7 @@ function calendarRow2(i) {
     detail: null,
     state: "none",
     stateWords: CALENDAR_FEED_WORDS.none,
-    sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
+    sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Booking emails from your tool can fill the board too.",
     verb: { label: "Paste the address", to: "admin/workspace", who: "owner" }
   };
 }
@@ -30049,8 +30508,21 @@ var SCHEMA_SETS = {
     "lead_judge",
     "note_suggest",
     "reach_out_check",
-    "reply_read"
+    "reply_read",
+    "booking_read"
   ],
+  "appointment_notices.hold_reason": [
+    "no_model",
+    "may_not_spend",
+    "unreadable",
+    "not_a_booking",
+    "no_time",
+    "no_client",
+    "gone"
+  ],
+  "appointment_notices.outcome": ["booked", "changed", "cancelled", "held", "dismissed"],
+  "appointments.source": ["calendar_feed", "booking_email", "booking_tool", "person"],
+  "appointments.status": ["proposed", "booked", "kept", "missed", "cancelled"],
   "ask_messages.role": ["user", "assistant"],
   "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
   "ask_voice_sessions.language": ["en", "es", "other"],
@@ -30193,7 +30665,8 @@ var SCHEMA_SETS = {
     "push_send",
     "push_receipts",
     "reply_read",
-    "event_deliver"
+    "event_deliver",
+    "booking_read"
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -30301,7 +30774,8 @@ var SCHEMA_SETS = {
     "leads_question",
     "note_for_you",
     "reach_out_replied",
-    "reach_out_day"
+    "reach_out_day",
+    "booking_notice"
   ],
   "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB"],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
@@ -30471,6 +30945,8 @@ var ROUTE_KEYS = [
   "POST broadcasts/[id]/approve",
   "POST broadcasts/[id]/cancel",
   "POST broadcasts/[id]/recheck",
+  "POST calendar/notices/[id]/dismiss",
+  "POST calendar/notices/[id]/read-again",
   "POST calendar/preview",
   "POST calls/[id]/end",
   "POST calls/[id]/hand-over",
@@ -32640,6 +33116,7 @@ var SERVER_NOTIFICATION_KINDS = [
   "job_failed",
   "playbook",
   "calendar_people",
+  "booking_notice",
   "alert",
   "review",
   "billing",
@@ -32668,6 +33145,9 @@ var JOB_WORK = {
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
   reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
+  // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
+  // visit would be, and Settings › Business where the notices are counted.
+  booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
   // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
   // did not get there, and the activity log is where the fact is.
   event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" }
@@ -32722,6 +33202,8 @@ var SERVER_LOOK = {
   broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sent", to: "broadcasts" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Campaigns", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+  /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Business. */
+  booking_notice: { icon: "calendar", tone: "warn", action: "Open Settings", to: "admin/workspace" },
   /** A search that finished: good news, on the page the leads are on. */
   leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
   /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
@@ -32848,6 +33330,7 @@ var AWAY_NOUN = {
   job_failed: ["job did not finish", "jobs did not finish"],
   review: ["new rating on Google", "new ratings on Google"],
   calendar_people: ["person added from your calendar", "people added from your calendar"],
+  booking_notice: ["booking email needs a look", "booking emails need a look"],
   handoff: ["conversation needs you", "conversations need you"],
   playbook: ["playbook is ready", "playbooks are ready"],
   // One sync can approve several at once, and several rejections read as one
@@ -33014,6 +33497,7 @@ var NOTIFICATION_DELIVERY = {
   job_failed: "email",
   playbook: "email",
   calendar_people: "bell",
+  booking_notice: "bell",
   alert: "email",
   review: "bell",
   billing: "email",
@@ -35066,6 +35550,9 @@ export {
   BOOKING_LINK_NEEDED,
   BOOKING_PLATFORM_HOSTS,
   BOOKING_RULE_HINTS,
+  BOOKING_TOOL_IDS,
+  BOOKING_TOOL_STEPS,
+  BOOKING_TRY_NOTE,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
@@ -35243,6 +35730,7 @@ export {
   FREE_MAIL_DOMAINS,
   FeaturesConfigSchema,
   GET_YES_ROUTE,
+  GMAIL_FORWARD_NOTE,
   GOOGLE_SHOWN_REVIEWS,
   GREETING_DEFAULT,
   GUARDRAIL_KEYS,
@@ -35466,6 +35954,10 @@ export {
   NOTE_SUGGEST_MODEL,
   NOTE_SUGGEST_SCHEMA,
   NOTE_WORDS,
+  NOTICE_DEFAULT_LENGTH_MS,
+  NOTICE_HOLD_WORDS,
+  NOTICE_READ_MAX_TOKENS,
+  NOTICE_SCHEMA,
   NOTIFICATION_KIND_GROUPS,
   NOTIFICATION_PANE_WORDS,
   NO_CHANNEL_REACH,
@@ -35716,6 +36208,7 @@ export {
   ReachOutStepSchema,
   RenameLeadSearchSchema,
   SAME_SITTING_MS,
+  SAME_VISIT_MS,
   SCHEMA_SETS,
   SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
@@ -35862,6 +36355,8 @@ export {
   answeredYes,
   applyReadState,
   applySettingsChange,
+  appointmentKey,
+  appointmentTitle,
   approvalWordsOf,
   areaCodeOf,
   asContactId,
@@ -35898,12 +36393,16 @@ export {
   bookingLinkAction,
   bookingLinkOptional,
   bookingLinkRowWords,
+  bookingNoticeOf,
   bookingPageKept,
   bookingPageOf,
   bookingPageOffered,
   bookingRuleRefusal,
   bookingRulesWords,
   bookingTemplate,
+  bookingToolName,
+  bookingToolOfAddress,
+  bookingToolOptions,
   brainMetaOf,
   breathEndsAt,
   breathHolds,
@@ -35923,6 +36422,7 @@ export {
   businessRecordLine,
   businessRecordProblems,
   businessTypeOf,
+  busyOfAppointments,
   cacheHitOf,
   calendarOwnerOf,
   calendarPeekDeal,
@@ -35984,6 +36484,7 @@ export {
   cleanPartnerCode,
   cleanTimezone,
   clientErrorOf,
+  clientKeyOf,
   clip,
   clipAtWord,
   clockDate,
@@ -36044,6 +36545,7 @@ export {
   dayProblems,
   dayWords,
   daysToSunset,
+  daysWithAppointments,
   dealCardsOf,
   dealFactsOf,
   dealIsOpen,
@@ -36139,6 +36641,7 @@ export {
   fallbackModel,
   fallbacksWords,
   feedBodyProblem,
+  feedItemOfAppointment,
   feedNotes,
   feedProblemWords,
   feedSourceLabel,
@@ -36183,6 +36686,7 @@ export {
   forwardedLineOf,
   forwardingCarrierOf,
   forwardingCodes,
+  forwardingConfirmationOf,
   forwardingDialLabel,
   forwardingMatch,
   forwardingProof,
@@ -36261,6 +36765,7 @@ export {
   isActivityNoise,
   isAutomatedSend,
   isBaselinePrompt,
+  isBookingTool,
   isCampaignEmail,
   isCarrier,
   isChatMessage,
@@ -36286,6 +36791,7 @@ export {
   isLiveCall,
   isLookPref,
   isModelId,
+  isNoticeHold,
   isOfferByEmail,
   isOpeningFactKey,
   isOpeningProblem,
@@ -36324,6 +36830,7 @@ export {
   isWinBack,
   isYes,
   itemFocus,
+  itemOfAppointment,
   jittered,
   jobNewsWords,
   judgeAsked,
@@ -36526,6 +37033,8 @@ export {
   noteSuggestUserContent,
   noteWhose,
   notesWords,
+  noticeAnswerOf,
+  noticePrompt,
   numberHealth,
   numberHealthWithStanding,
   numberedSlots,
@@ -36628,6 +37137,7 @@ export {
   personLikeOf,
   personName,
   personNotesVM,
+  personOfAppointment,
   personReachOf,
   personStanding,
   personStateFor,
@@ -37169,6 +37679,7 @@ export {
   withReplies,
   withStoredKeysKept,
   withVisitsOf,
+  withoutVisitsRowsDraw,
   withoutWrongPerson,
   wordCount,
   wordsIssueWords,

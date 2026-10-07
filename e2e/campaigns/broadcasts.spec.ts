@@ -115,13 +115,16 @@ test.describe("Broadcasts on a real workspace", () => {
     else await expect(composer.getByTestId("bc-blocked")).toHaveCount(0);
 
     // The number a broadcast goes out on, and what WhatsApp has said about it (in the composer's When column), where the
-    // send goes by WhatsApp. The composer opens on the first channel the workspace can send on and the message holds, so a
-    // workspace with no number, or a message written for email alone, opens on another, which has no number to say.
+    // send goes by WhatsApp, and where WhatsApp is ticked for a message it carries and the number is what holds it off: the
+    // line then says why (broadcasts-honest.test.mjs, "the number's own words stand"). The nightly's number has no
+    // credentials, and a workspace ready on nothing opens ticked on WhatsApp, so its tick is off and the line stands. The
+    // composer opens on the first channel the workspace can send on and the message holds, so a message written for email
+    // alone opens on Email, with no number to say.
     const number = composer.getByTestId("bc-number");
     if ((await composer.getByTestId("bc-via-whatsapp").getAttribute("data-on")) === "true") {
       await expect(number).toBeVisible();
       await expect(number).toContainText(/quality|No WhatsApp number/);
-    } else await expect(number).toHaveCount(0);
+    } else if ((await number.count()) > 0) await expect(number).toContainText(/quality|No WhatsApp number/);
 
     const words = await composer.innerText();
     for (const s of INVENTED) expect(words, `invented in the composer: "${s}"`).not.toContain(s);

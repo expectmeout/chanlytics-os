@@ -53,7 +53,7 @@ test("the thread menu on a real workspace offers only verbs that act", () => {
     page
       .replace(/\s+/g, " ")
       .includes('...(demoSession() || (thread.real && thread.clientId) ? [{ label: "Mark as unread"'),
-    "Mark as unread acts now (the reader's own mark, 00345): offered on a real thread where there is a person to mark",
+    "Mark as unread acts now (the reader's own mark, 00346): offered on a real thread where there is a person to mark",
   );
   assert.ok(/label: "Block sender",\s*glyph: ixGlyph\("x"\),\s*tone: "danger"/.test(page), "the demo keeps its item");
   const block = page.indexOf('label: "Block sender"');

@@ -557,7 +557,7 @@ textarea.ld-line-box { height: auto; min-height: 112px; padding: 12px 14px; line
   /* The why list carries .pl-peek because PL_OVERLAY judges its role="menu" by
      that class. The full-screen rule above is the peek's own; the list stays
      the popover it is on a desktop, inside the peek that is now the screen. */
-  .pk .pk-nf.pl-peek { position: absolute; inset: auto; right: 14px; top: 118px; width: 268px; background: var(--bg-raised); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
+  .pk .pk-nf.pl-peek { position: absolute; inset: auto; right: 14px; top: calc(118px + env(safe-area-inset-top, 0px)); width: 268px; background: var(--bg-raised); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
 
   /* The plan panel opens as a sheet from the bottom. Two things wear .pl-plan, the name PL_OVERLAY knows the panel
      by: the sheet and the panel inside it, so the sheet's box names the sheet. The sheet is the pane, edge to edge on
@@ -918,7 +918,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-lb-fact { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; font-size: var(--text-sm); margin-top: 5px; }
 .ld-lb-fact .k { color: var(--ink-dim); }
 @media (max-width: 900px) {
-  .ld-lightbox { inset: 0; border-radius: 0; border: 0; }
+  /* Its head starts under the phone's own bar where the app is on the home screen (components.css, .app-root). */
+  .ld-lightbox { inset: 0; border-radius: 0; border: 0; padding-top: env(safe-area-inset-top, 0px); }
   .ld-lb-body { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 45%) minmax(0, 1fr); }
   .ld-lb-side { border-left: 0; border-top: 1px solid var(--line); }
   .pk-band { height: 150px; }
@@ -1021,7 +1022,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
      127, the stage 73, then 505 that scrolled, and Call 69 -- where the screen gave it 786 above the tab bar, and the
      tab bar was drawn over Call, the one act the peek pins (z-index 120 over 40). Now it is the screen, as a thread
      is: over the tab bar and the ✦, and what it says, it says once, in about 630px (an iPhone SE's 667 holds it). */
-  .pl-peek:not(.pk-nf):not(.ld-lightbox) { z-index: 130; }
+  /* The screen it takes starts under the phone's own bar where the app is on the home screen (components.css,
+     .app-root): the paper holds through the bar and the band, its mark and its two circles begin under it. The list of
+     reasons hangs from the same edge (above), and neither it nor the photos wear this room twice. */
+  .pl-peek:not(.pk-nf):not(.ld-lightbox) { z-index: 130; padding-top: env(safe-area-inset-top, 0px); }
   .ld-lightbox-backdrop { z-index: 140; }
   .ld-lightbox { z-index: 141; }
   .pl-peek .pk-band { height: 128px; }

@@ -3,6 +3,8 @@ import { config } from "zod/v4/core";
 config({ jitless: true });
 
 // src/shared/time.ts
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 function formatterOnUse(locales, options) {
@@ -53,6 +55,25 @@ function feedProblemWords(reason, status) {
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+
+// src/calendar/booking-notice.ts
+var BOOKING_TOOL_IDS = [
+  "booksy",
+  "acuity",
+  "fresha",
+  "square",
+  "vagaro",
+  "glossgenius",
+  "calendly",
+  "setmore",
+  "mindbody",
+  "simplybook",
+  "schedulicity",
+  "styleseat"
+];
+var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
+var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
+var SAME_VISIT_MS = 15 * MIN_MS;
 
 // src/config/workspace-config/config-schema.ts
 import { z as z3 } from "zod";
@@ -335,11 +356,13 @@ var NotificationsConfigSchema = z3.object({
 var CalendarConfigSchema = z3.object({
   ical_url: z3.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strip();
+var BookingsConfigSchema = z3.object({ tool: z3.enum(BOOKING_TOOL_IDS).optional() }).strip();
 var FeaturesConfigSchema = z3.object({ vision: z3.boolean().optional() }).strip();
 var TenantConfigSchema = z3.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
+  bookings: BookingsConfigSchema.optional(),
   features: FeaturesConfigSchema.optional()
 });
 function checkDay(h, day, ctx) {

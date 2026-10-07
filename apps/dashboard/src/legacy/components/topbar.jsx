@@ -221,16 +221,10 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
             ) : alerts.permission === "denied" ? (
               <span className="tbn-foot-note">Alerts are blocked in your browser settings.</span>
             ) : (
-              <button
-                type="button"
-                className={`tbn-alert-switch ${alerts.on ? "on" : ""}`}
-                role="switch"
-                aria-checked={alerts.on}
-                onClick={() => onAlerts(!alerts.on)}
-              >
-                <span className="tbn-alert-dot" aria-hidden="true" />
-                {alerts.on ? "Alerting this device when something needs you" : "Alert this device when something needs you"}
-              </button>
+              <div className="tbn-alert">
+                <span className="tbn-alert-words" id="tbn-alert-words">Alert this device when something needs you</span>
+                <RecordSwitch labelledBy="tbn-alert-words" on={!!alerts.on} onChange={(on) => onAlerts(on)} />
+              </div>
             )}
           </footer>
         )}

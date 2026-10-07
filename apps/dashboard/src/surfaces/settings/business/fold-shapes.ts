@@ -22,6 +22,7 @@ export type FoldName =
   | "extra_instructions"
   | "fallbacks"
   | "calendar"
+  | "bookings"
   | "receptionist";
 
 /** Every problem with a draft at once, by the field it is under. */
@@ -90,7 +91,13 @@ export interface DraftOf {
   extra_instructions: InstructionsDraft;
   fallbacks: Record<string, string>;
   calendar: string;
+  bookings: BookingsDraft;
   receptionist: ReceptionistDraft;
+}
+
+/** The bookings fold's draft: the tool the owner names (contracts BOOKING_TOOL_IDS), "" for none. */
+export interface BookingsDraft {
+  tool: string;
 }
 
 // The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
@@ -197,6 +204,8 @@ export const BT_PATHS_OF: Record<FoldName, string[]> = {
   extra_instructions: ["brain.profile.extra_instructions", "brain.system_prompt"],
   fallbacks: BT_FALLBACKS.map((key) => `brain.fallbacks.${key}`),
   calendar: ["calendar.ical_url"],
+  // The tool the owner named (00345): a section of its own, which a build from before it leaves out and reads on.
+  bookings: ["bookings.tool"],
   // The first save a workspace makes, where it has no receptionist (create.tsx): the three things it
   // cannot answer anyone without, and the product's own prompt and messages, which the schema needs and nobody should
   // have to write (contracts newReceptionistDefaults), written only where none is stored.

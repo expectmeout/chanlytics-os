@@ -17,13 +17,13 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
         profile: z.ZodOptional<z.ZodObject<{
             address: z.ZodOptional<z.ZodString>;
             hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                sun: "sun";
                 mon: "mon";
                 tue: "tue";
                 wed: "wed";
                 thu: "thu";
                 fri: "fri";
                 sat: "sat";
-                sun: "sun";
             }> & z.core.$partial, z.ZodObject<{
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -81,6 +81,22 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
     }, z.core.$strip>>;
     calendar: z.ZodOptional<z.ZodObject<{
         ical_url: z.ZodString;
+    }, z.core.$strip>>;
+    bookings: z.ZodOptional<z.ZodObject<{
+        tool: z.ZodOptional<z.ZodEnum<{
+            booksy: "booksy";
+            acuity: "acuity";
+            fresha: "fresha";
+            square: "square";
+            vagaro: "vagaro";
+            glossgenius: "glossgenius";
+            calendly: "calendly";
+            setmore: "setmore";
+            mindbody: "mindbody";
+            simplybook: "simplybook";
+            schedulicity: "schedulicity";
+            styleseat: "styleseat";
+        }>>;
     }, z.core.$strip>>;
     features: z.ZodOptional<z.ZodObject<{
         vision: z.ZodOptional<z.ZodBoolean>;

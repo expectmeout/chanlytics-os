@@ -245,19 +245,41 @@ export function consultNote(p: Pick<CardProps, "vm" | "service">) {
   );
 }
 
+/**
+ * The feed card's one door, to Settings › Business, in the words of what is next there: the address to paste or to
+ * check; with bookings arriving by email instead, the emails held for a look, or a calendar as the quiet extra it is.
+ */
+function feedDoorOf(feed: CalendarVM["feed"]): { words: string; quiet: boolean } {
+  if (feed.state !== "none") return { words: "Check the address", quiet: false };
+  if (!feed.notices.lastAgo) return { words: "Paste the address", quiet: false };
+  if (feed.notices.held) return { words: "Look at them", quiet: false };
+  return { words: "Add a calendar", quiet: true };
+}
+
 /** A calendar that is not connected, or could not be read: what it means for the receptionist, and the way to fix it. */
 export function feedCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">) {
   const { vm, refreshing, refreshNow } = p;
+  const door = feedDoorOf(vm.feed);
   return (
     vm.feed.state !== "ok" && (
       <div className="cal-feed-card" data-testid="cal-feed-card">
         <Icon name="calendar" size={14} />
-        {vm.feed.state === "none" ? (
+        {vm.feed.state === "none" && vm.feed.notices.lastAgo ? (
+          // Bookings arrive by email and no calendar reads: the board draws what was emailed, and says what it cannot.
+          <span data-testid="cal-feed-notices">
+            <b>Bookings arrive by email{vm.feed.notices.tool ? ` from ${vm.feed.notices.tool}` : ""}.</b> With no
+            calendar connected, this board shows those bookings and your hours, and the receptionist{" "}
+            {vm.bookingLink ? "sends the booking link but " : ""}never names an open time.
+            {vm.feed.notices.held
+              ? ` ${vm.feed.notices.held} booking ${vm.feed.notices.held === 1 ? "email needs" : "emails need"} a look.`
+              : ""}
+          </span>
+        ) : vm.feed.state === "none" ? (
           <span>
-            <b>No calendar connected.</b> Paste the private iCal address of the calendar your appointments land in —
-            Google, Apple or Outlook; Booksy, Calendly and the rest sync into one — under Settings › Business. Until
-            then the receptionist {vm.bookingLink ? "sends the booking link but " : ""}never names an open time, and
-            this board shows only your hours and closures.
+            <b>No calendar connected.</b> Paste your calendar&apos;s private iCal address under Settings › Business:
+            Google, Apple, Outlook, or the feed your booking tool offers. Until then the receptionist{" "}
+            {vm.bookingLink ? "sends the booking link but " : ""}never names an open time, and this board shows only
+            your hours and closures. Booking emails from your tool can fill the board too.
           </span>
         ) : (
           <span>
@@ -273,8 +295,13 @@ export function feedCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">)
             {refreshing ? "Retrying…" : "Retry"}
           </Button>
         )}
-        <Button variant="primary" size="sm" onClick={() => navigate(routeTo.admin("workspace"))}>
-          {vm.feed.state === "none" ? "Paste the address" : "Check the address"}
+        <Button
+          variant={door.quiet ? "quiet" : "primary"}
+          size="sm"
+          onClick={() => navigate(routeTo.admin("workspace"))}
+          data-testid="cal-feed-door"
+        >
+          {door.words}
         </Button>
       </div>
     )
@@ -503,7 +530,7 @@ export function calendarFoot(p: FootProps) {
       <div className="cal-foot-row">
         <div className="cal-legend" data-testid="cal-legend">
           <span>
-            <i className="cal-legend-swatch taken" /> Taken, from your calendar
+            <i className="cal-legend-swatch taken" /> Taken, from your calendar or your booking tool
           </span>
           <span>
             <i className="cal-legend-swatch open" /> Open — the receptionist would offer it

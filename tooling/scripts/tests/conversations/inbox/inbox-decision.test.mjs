@@ -98,7 +98,7 @@ test("a thread a teammate is answering is theirs: not Needs you, and the claim c
     "the reason stays on its row, and the pill says whose it is: the row said 'A teammate is answering this'",
   );
 
-  // The dot was needs you, the only thing known of a reader. It is their own mark now (00345, people/seen/new-to-the-reader.test.mjs):
+  // The dot was needs you, the only thing known of a reader. It is their own mark now (00346, people/seen/new-to-the-reader.test.mjs):
   // whose the thread is does not move it, either way.
   const open = toInboxThreadVM(conv(), asked(), ZONE, NOW);
   assert.deepEqual([open.claimedByOther, open.assigneeUserId, open.needsYou, open.unread], [false, null, true, false]);

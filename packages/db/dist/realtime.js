@@ -47,7 +47,9 @@ var WATCHED = [
   { table: "reach_out_replies", events: EVERY },
   // a run made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
   // repaint (00321). Its people are not watched: a run's page reads them when it opens.
-  { table: "broadcasts", events: EVERY }
+  { table: "broadcasts", events: EVERY },
+  // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
+  { table: "appointments", events: EVERY }
 ];
 function watchedTables() {
   return WATCHED.map((w) => w.table);

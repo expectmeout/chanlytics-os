@@ -10,7 +10,7 @@ const Body = z
 /**
  * PUT /api/v1/contacts/:id/seen — { seen }
  *
- * The signed-in member's own mark on a person (00345): true as they open the person (their thread or their page), so
+ * The signed-in member's own mark on a person (00346): true as they open the person (their thread or their page), so
  * the row stops reading as new to them; false to put it back as unread. Any member's, a viewer's too, as a bell's mark
  * is: it changes nothing but their own reading. The person is read under RLS first (contactScope), so one not theirs
  * is a 404. The handle is markPersonSeen in src/server/people/person-seen.ts.

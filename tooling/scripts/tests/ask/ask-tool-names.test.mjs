@@ -777,12 +777,26 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 7 Oct 2026 (00344, decision 0034 step 4): a person's page reads the open doubts naming them (person_doubts) in the
     // same round, so people.get makes that one read more; its bytes are unchanged, the tool not saying them yet.
     const withDoubts = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
-    // 7 Oct 2026 (00345): the Inbox's read and a page of People say what the member asking has seen of each person they
+    // 7 Oct 2026 (00345, bookings arrive by email): the calendar's reader reads the record beside the feed -- the
+    // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
+    // -- so calendar.week makes those four reads more. Its bytes are unchanged: this workspace has no calendar and no
+    // booking has arrived, and with no feed to read nothing of the record's taken time is asked.
+    const withCalendar =
+      NAMES[old] === "calendar.week"
+        ? [
+            ...withDoubts,
+            "appointments.select",
+            "appointment_notices.select",
+            "appointment_notices.select",
+            "mailboxes.select",
+          ]
+        : withDoubts;
+    // 7 Oct 2026 (00346): the Inbox's read and a page of People say what the member asking has seen of each person they
     // hold (server/people/person-seen.ts), for the rows that say who is new to them: one call to the door more, where
     // the read holds anyone. The old tools that read through the Inbox's hundred make it, and a search of People with
     // no list (a list is counted over the pool, which is not a page). Their bytes are unchanged: no tool says it.
     const readsSeen = THROUGH_THE_HUNDRED.has(old) || (old === "search_people" && !input.list);
-    const reads = readsSeen ? [...withDoubts, "rpc:contact_seen"] : withDoubts;
+    const reads = readsSeen ? [...withCalendar, "rpc:contact_seen"] : withCalendar;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)

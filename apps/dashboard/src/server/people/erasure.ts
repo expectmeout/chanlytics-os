@@ -54,6 +54,17 @@ export function erasureKeys(
 }
 
 /**
+ * The needles a visit is found by (appointments_scrub, 00345): the erasure's own, and each number's E.164 spelling,
+ * `+15550100123`. That is how a visit keeps its client's number, and it is a spelling no sentence writes, so the
+ * needles do not carry it (they hold a number's digits and the forms a page or a person writes it in): without it a
+ * visit the read never linked to the person kept their number after they were erased.
+ */
+export function visitNeedles(needles: readonly string[]): string[] {
+  const e164 = needles.filter((n) => /^[1-9]\d{6,14}$/.test(n)).map((n) => `+${n}`);
+  return [...new Set([...needles, ...e164])];
+}
+
+/**
  * Remove private objects from the `media` bucket.
  *
  * storage.objects has no RLS policies at all — service-role is the only door,

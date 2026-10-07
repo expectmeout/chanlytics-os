@@ -5,6 +5,9 @@ import {
   MARKETING_OPT_IN_PATTERN,
   normalizeEmail,
   replyTextOf,
+  bookingNoticeOf,
+  forwardingConfirmationOf,
+  type BookingTool,
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/channels";
 import type { Json } from "@chanlytics/db";
@@ -31,7 +34,8 @@ const emailLog = logger();
  * a lost customer email is the worse outcome.)
  */
 /** What an email claims to be, from headers anyone can write (the adapter decides it: channels classifyReceived). */
-export type EmailClaim = "report" | "auto_reply" | "automated" | "person";
+export type EmailClaim =
+  "report" | "auto_reply" | "automated" | "person" | "booking_notice" | "forwarding_confirmation";
 
 /**
  * One received email as this verb needs it: the provider's shape and the
@@ -68,6 +72,26 @@ export interface EmailIngestPorts {
   mailbox(id: string): Promise<{ id: string; tenant_id: string; address: string } | null>;
   /** The email, by the provider's id; null when the provider no longer has it. Throws when it cannot be asked. */
   fetch(receivedId: string): Promise<IncomingEmail | null>;
+  /**
+   * A booking tool's notice is read into an appointment, not kept as a conversation (docs/plans/
+   * 2026-10-07-bookings-arrive-by-email.md): one booking_read for the delivery, however often this intake runs.
+   */
+  readBooking(tenantId: string, mailboxId: string, receivedId: string, tool: BookingTool): Promise<void>;
+  /**
+   * The booking tool the workspace named as its own (config bookings.tool), or null for none: only that tool's notices
+   * are read as bookings. A workspace that named none keeps every tool's email as the automated email it is.
+   */
+  bookingTool(tenantId: string): Promise<BookingTool | null>;
+  /**
+   * Is this address a member's of the workspace: the second thing a notice forwarded by hand must be, after its
+   * sender is proved (00345).
+   */
+  memberAddress(tenantId: string, address: string): Promise<boolean>;
+  /**
+   * Gmail's confirmation that it may forward to this mailbox (contracts forwardingConfirmationOf), kept on the mailbox
+   * for Settings to show with one press, never as a thread (00345).
+   */
+  keepForwarding(mailboxId: string, p: { account: string; code: string; link: string | null }): Promise<void>;
   /**
    * Does this email belong to an erasure? True when the address left a digest (00125) AND the email was received
    * before the person asked to be forgotten: taking it in late would make them again from data they asked us to
@@ -140,6 +164,8 @@ export type EmailIngestOutcome =
   | "kept_for_a_person"
   | "kept_for_the_reading"
   | "kept_quietly"
+  | "kept_as_booking"
+  | "kept_as_confirmation"
   | "already_handled"
   | "not_a_conversation"
   | "our_own"
@@ -188,6 +214,13 @@ export async function ingestEmail(
   // A bounce or a delivery report, by email: not a conversation. What stops
   // sends to an address is the provider's signed receipt, never this.
   if (claim === "report") return "not_a_conversation";
+  // What never becomes a thread: a tool's notice, read into an appointment, or Gmail's confirmation of a forward here.
+  // One that is claimed but not trusted is taken in as the automated email it looks like, for a person to read:
+  // nothing is lost, and nothing is booked on a stranger's word.
+  const aside = await keptAside(ports, mailbox, email, { address, at });
+  if (aside) return aside;
+  const taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation"> =
+    claim === "booking_notice" || claim === "forwarding_confirmation" ? "automated" : claim;
 
   const said = answersOf(email);
   const kept = await ports.record({
@@ -214,12 +247,12 @@ export async function ingestEmail(
   // so a failed read or a failed schedule is the job's to try again, and the next try finds the reading scheduled.
   const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
 
-  if (claim !== "auto_reply")
+  if (taken !== "auto_reply")
     await flagForAPerson(ports, email, {
       tenantId: mailbox.tenant_id,
       conversationId: kept.conversation_id,
       address,
-      claim,
+      claim: taken,
       reachOut,
     });
   // After the flag: the reading closes what the intake opened (reply-read.ts closeWhatTheIntakeOpened), so it must find
@@ -231,7 +264,55 @@ export async function ingestEmail(
   await ports.markProcessed(mailbox.tenant_id, kept.message_id);
   await ports.received(mailbox.id, at);
   if (reachOut) return "kept_for_the_reading";
-  return claim === "auto_reply" ? "kept_quietly" : "kept_for_a_person";
+  return taken === "auto_reply" ? "kept_quietly" : "kept_for_a_person";
+}
+
+/**
+ * What is taken in but never becomes a thread, or null for an email the intake keeps as usual.
+ *
+ * A booking tool's notice: the booking it states becomes an appointment row (booking_read), never a thread with the
+ * tool's no-reply address. Scheduled once per delivery, so this intake run again schedules nothing twice; the mailbox
+ * is stamped as for any email it took in. Trusted first, on three things, each of which a stranger cannot supply:
+ *
+ *   - the sender is PROVED by the receiving side (senderAuthenticated), whichever way the notice came. A From line
+ *     anyone can write proves nothing: a tool's, or a member's address on a forward. Until the deployment can prove a
+ *     sender (EMAIL_AUTHSERV_ID), no notice is read at all, and each is kept for a person as before;
+ *   - the tool is the one this workspace named (bookingTool): a workspace that set nothing up reads nothing, and
+ *     another tool's mail, which anyone may cause to be sent here, is not this business's bookings;
+ *   - a forward by hand comes from a member of the workspace (memberAddress), their own address now proved.
+ *
+ * Gmail asking whether it may forward here (contracts forwardingConfirmationOf): the code and the link are kept on
+ * the mailbox for Settings to show. Trusted only from Google's own proved sender, since a forged one would put a
+ * stranger's code in front of the owner.
+ */
+async function keptAside(
+  ports: EmailIngestPorts,
+  mailbox: { id: string; tenant_id: string },
+  email: IncomingEmail,
+  // The sender in the one spelling a person is stored under, and the moment the intake runs.
+  { address, at }: { address: string; at: string },
+): Promise<Extract<EmailIngestOutcome, "kept_as_booking" | "kept_as_confirmation"> | null> {
+  const words = { from: email.from, subject: email.subject, text: email.text };
+  const notice = email.claim === "booking_notice" ? bookingNoticeOf(words) : null;
+  if (notice) {
+    const trusted =
+      email.senderAuthenticated &&
+      (await ports.bookingTool(mailbox.tenant_id)) === notice.tool &&
+      (!notice.forwarded || (await ports.memberAddress(mailbox.tenant_id, address)));
+    if (trusted) {
+      await ports.readBooking(mailbox.tenant_id, mailbox.id, email.id, notice.tool);
+      await ports.received(mailbox.id, at);
+      return "kept_as_booking";
+    }
+  }
+  const forwarding =
+    email.claim === "forwarding_confirmation" && email.senderAuthenticated ? forwardingConfirmationOf(words) : null;
+  if (forwarding) {
+    await ports.keepForwarding(mailbox.id, forwarding);
+    await ports.received(mailbox.id, at);
+    return "kept_as_confirmation";
+  }
+  return null;
 }
 
 /**

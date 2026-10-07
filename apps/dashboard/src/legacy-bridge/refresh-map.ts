@@ -198,6 +198,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     setupOverride,
     ...readiness(),
   ],
+  // A booking email held for a look, read again or dismissed (00345): the Calendar's read carries the held list and its
+  // count, which the Business tab's fold and the board's card both draw from, so the list says what is left at once.
+  "POST calendar/notices/[id]/read-again": () => [calendarOverride],
+  "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
   // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006).
   "PUT policies": () => [settingsOverride, peopleOverride],
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
@@ -270,7 +274,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST ask/voice/end": "the end of a conversation, kept on its row; the Line already shows the mic at rest",
   "POST ask/messages/[id]/proposals/[pid]": "a card's outcome, kept on Ask's own message; the card's call refreshed",
   "DELETE ask/threads/[id]": "one of Ask's own threads, which Ask's list drops itself",
-  // The reader's own mark on a person (00345). The rows that say it are drawn from the tab's own word at once
+  // The reader's own mark on a person (00346). The rows that say it are drawn from the tab's own word at once
   // (surfaces/seen.ts), and the next read of each list carries the mark: three lists read again on every thread
   // opened would be three requests to say what the screen already does.
   "PUT contacts/[id]/seen": "the reader's own mark; the tab already draws it, and the next read carries it",

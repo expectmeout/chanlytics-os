@@ -135,7 +135,9 @@ export const env = {
    * The name Resend's receiving side writes at the start of the Authentication-Results header it adds to every email it
    * hands over (RFC 8601's authserv-id), read off a real received email. A yes by email is recorded only when the header
    * that proves the sender carries this name, so a header a sender wrote into its own mail proves nothing. Blank: no yes
-   * by email is recorded at all (the check fails closed); a no (STOP, UNSUBSCRIBE) never asks it.
+   * by email is recorded at all (the check fails closed); a no (STOP, UNSUBSCRIBE) never asks it. A booking tool's
+   * email is read as a booking on the same proof (00345), and Gmail's forwarding confirmation is kept on it: blank,
+   * neither happens, and each such email is kept for a person to read, as before.
    */
   get EMAIL_AUTHSERV_ID() {
     return trimmedEnv(process.env.EMAIL_AUTHSERV_ID);

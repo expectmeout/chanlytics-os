@@ -28,10 +28,45 @@ export {
   FEED_MAX_BYTES,
 } from "./feed-url";
 export type { FeedFailure, FeedHorizon } from "./feed-url";
+export {
+  isBookingTool,
+  bookingToolName,
+  bookingToolOfAddress,
+  bookingNoticeOf,
+  NOTICE_SCHEMA,
+  NOTICE_READ_MAX_TOKENS,
+  noticePrompt,
+  isNoticeHold,
+  NOTICE_DEFAULT_LENGTH_MS,
+  noticeAnswerOf,
+  clientKeyOf,
+  appointmentKey,
+  SAME_VISIT_MS,
+  BOOKING_TOOL_IDS,
+  bookingToolOptions,
+  BOOKING_TOOL_STEPS,
+  GMAIL_FORWARD_NOTE,
+  BOOKING_TRY_NOTE,
+  NOTICE_HOLD_WORDS,
+  forwardingConfirmationOf,
+} from "./booking-notice";
+export type { BookingTool, BookingToolWay, NoticeKind, NoticeHold, NoticeReading } from "./booking-notice";
+export {
+  appointmentTitle,
+  busyOfAppointments,
+  feedItemOfAppointment,
+  personOfAppointment,
+  itemOfAppointment,
+  withoutVisitsRowsDraw,
+  daysWithAppointments,
+} from "./appointment-item";
+export type { AppointmentLike } from "./appointment-item";
 export type {
   CalendarItemDto,
   CalendarDayDto,
   CalendarFeedDto,
+  CalendarNoticesDto,
+  HeldNoticeDto,
   CalendarServiceDto,
   CalendarWeekDto,
 } from "./calendar-dto";

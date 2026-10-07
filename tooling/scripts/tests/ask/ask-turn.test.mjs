@@ -2484,8 +2484,19 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
     );
     assert.deepEqual(
       ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
-      ["rpc:people_list", "policies.select"],
-      "everyone to match the appointments to, and nothing the turn already read: no tenants, no tenant_config",
+      // Since 00345 the board's read holds the record too: the bookings that arrived by email over the span, the
+      // notices' health line (two reads) and the workspace's mailbox, before everyone; and, once the feed has read,
+      // the record's taken time over the days on offer, which a week alone does not cover.
+      [
+        "appointments.select",
+        "appointment_notices.select",
+        "appointment_notices.select",
+        "mailboxes.select",
+        "rpc:people_list",
+        "policies.select",
+        "appointments.select",
+      ],
+      "the record, everyone to match the appointments to, and nothing the turn already read: no tenants, no tenant_config",
     );
     assert.deepEqual(made, [], "nobody put in People: Ask never writes");
     assert.ok(

@@ -75,6 +75,8 @@ if (!tenantId || !expectName) {
  */
 const TABLES = [
   "ai_usage",
+  "appointment_notices",
+  "appointments",
   "ask_messages",
   "ask_threads",
   "ask_voice_sessions",
@@ -87,6 +89,8 @@ const TABLES = [
   "calls",
   "capability_activations",
   "contact_identities",
+  "contact_marks",
+  "contact_reads",
   "contacts",
   "conversations",
   "deals",

@@ -55,7 +55,7 @@ export const conversations: Reader<{ ids: string[] | null }, { conversations: Co
         for (const list of byConv.values()) for (const m of list) if (said.has(m.id)) m.error = said.get(m.id);
       }
     }
-    // The reader's own reading of each person here (00345), so a row can say it is new to them.
+    // The reader's own reading of each person here (00346), so a row can say it is new to them.
     const seenOf = await seenOfPeople(
       rc.ctx,
       tenantId,

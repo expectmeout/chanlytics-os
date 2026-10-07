@@ -1,4 +1,4 @@
--- 00345 · Each member keeps what they have seen of a person.
+-- 00346 · Each member keeps what they have seen of a person.
 --
 -- A thread never went from unread to read. The Inbox's dot meant "needs you" (a person is needed and nobody has it),
 -- Conversations and People drew every row at one weight, and nothing recorded that a member had opened anyone
@@ -15,8 +15,12 @@
 --   contact_seen    reads a member's own floor and their marks for the people named, in one answer.
 --   contact_mark    writes one mark for the caller: seen (opened), or unread (put back).
 --
+-- Any member's, a viewer's included: it is their own reading. A partner's seat opens the doors as it opens every
+-- other, once the session has shown its second factor (00261, 00280).
+--
 -- The bell's own pair is the shape (00057: notification_reads, notification_marks; their definer doors write only the
--- caller's rows). A person erased takes their marks with them (contacts on delete cascade), and so does a workspace.
+-- caller's rows). A person deleted takes their marks with them (the key to contacts cascades), and so does a workspace;
+-- the tables hold ids and moments alone, no word of a person's, so an erasure has nothing in them to scrub.
 --
 -- Either deploy order: nothing reads or writes these before the dashboard that ships with them, and that dashboard
 -- reads a workspace without them as one where nothing is unread. Re-runnable: tables and policies if not there, the
@@ -39,15 +43,19 @@ revoke all on public.contact_reads from anon, authenticated;
 grant select on public.contact_reads to authenticated;
 grant all on public.contact_reads to service_role;
 comment on table public.contact_reads is
-  'Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00345). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.';
+  'Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00346). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.';
 
 create table if not exists public.contact_marks (
   tenant_id  uuid not null references public.tenants (id) on delete cascade,
-  contact_id uuid not null references public.contacts (id) on delete cascade,
+  contact_id uuid not null,
   user_id    uuid not null,
   seen_at    timestamptz,
   unread_at  timestamptz,
-  primary key (contact_id, user_id)
+  primary key (contact_id, user_id),
+  -- The person named with their workspace (the fence every child keeps, 00279; database/fences): a mark cannot name
+  -- another workspace's person, whoever writes it.
+  constraint contact_marks_contact_id_same_workspace
+    foreign key (tenant_id, contact_id) references public.contacts (tenant_id, id) on delete cascade
 );
 create index if not exists contact_marks_member on public.contact_marks (tenant_id, user_id);
 alter table public.contact_marks enable row level security;
@@ -59,7 +67,7 @@ revoke all on public.contact_marks from anon, authenticated;
 grant select on public.contact_marks to authenticated;
 grant all on public.contact_marks to service_role;
 comment on table public.contact_marks is
-  'Per member per person: seen_at is when the member last opened the person (their thread or their page), unread_at when they put it back as unread, cleared by the next opening (00345). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
+  'Per member per person: seen_at is when the member last opened the person (their thread or their page), unread_at when they put it back as unread, cleared by the next opening (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
 
 -- Every member there is has seen everything up to now: the lists start quiet.
 insert into public.contact_reads (tenant_id, user_id, seen_at)
@@ -82,7 +90,11 @@ begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
-  select m.created_at into v_joined from memberships m where m.user_id = v_user and m.tenant_id = p_tenant_id;
+  -- The caller's seat, as every door reads it (00261, 00280): a partner's counts once the session has shown its code.
+  select m.created_at into v_joined
+    from memberships m
+   where m.user_id = v_user and m.tenant_id = p_tenant_id
+     and (m.role <> 'partner' or public.session_shows_second_factor());
   if v_joined is null then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
@@ -119,7 +131,10 @@ begin
     raise exception 'Say seen or unread.' using errcode = '22023';
   end if;
   select c.tenant_id into v_tenant from contacts c where c.id = p_contact_id;
-  if v_tenant is null or not exists (select 1 from memberships m where m.user_id = v_user and m.tenant_id = v_tenant) then
+  if v_tenant is null or not exists (
+       select 1 from memberships m
+        where m.user_id = v_user and m.tenant_id = v_tenant
+          and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Person not found.' using errcode = 'P0002';
   end if;
   insert into contact_marks (tenant_id, contact_id, user_id, seen_at, unread_at)

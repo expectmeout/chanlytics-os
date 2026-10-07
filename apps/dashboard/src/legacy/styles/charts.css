@@ -167,6 +167,10 @@
 .ck-pie-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
 .ck-pie-value { font-size: 24px; font-weight: 500; color: var(--ink); letter-spacing: -0.02em; line-height: 1.1; }
 .ck-pie-label { font-size: 11.5px; color: var(--ink-dim); text-align: center; }
+/* The words in the ring's middle stay in its hole (--ck-hole, the ring's inner width, pie.tsx), on two lines where one is
+   wider: a phone's ring is 105px across its middle and narrower under it, where the words sit, and "messages and
+   calls" was 106, so the words ran over the ring. */
+.ck-pie-center .ck-pie-label { max-width: calc(var(--ck-hole, 100%) * 0.72); text-wrap: balance; }
 .ck-slice { stroke: var(--bg-raised); stroke-width: 2; stroke-linejoin: round; transition: opacity var(--duration-fast) var(--ease-out); }
 .ck-slice.dim { opacity: 0.38; }
 .ck-pie-legend { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 9px; }

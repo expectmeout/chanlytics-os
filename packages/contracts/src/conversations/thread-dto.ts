@@ -75,7 +75,7 @@ export interface ConversationDto {
   /** When the customer last wrote or called (conversations.last_inbound_at). Absent on payloads read without it. */
   last_inbound_at?: string | null;
   /**
-   * The reader's own reading of this person (00345, standing.ts SeenOf): everything before `seen_at` they have seen,
+   * The reader's own reading of this person (00346, standing.ts SeenOf): everything before `seen_at` they have seen,
    * and whether they put the thread back as unread. Absent where the marks were not read; nothing is then new.
    */
   seen_at?: string | null;

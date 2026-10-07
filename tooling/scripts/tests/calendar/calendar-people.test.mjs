@@ -845,7 +845,8 @@ test("the wiring: the board and the profile read one match; both receptionists a
     /export async function visitsFor\(\s*rt: TenantRuntime,\s*who: \{ phone: string \| null; name: string \| null \}/.test(
       edge,
     ) &&
-      /return describeVisits\(\s*visitsOf\(feed\.items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
+      // The feed's events and the record's rows for the caller (00345), read by the one index.
+      /return describeVisits\(\s*visitsOf\(items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
         edge,
       ),
   );
@@ -861,7 +862,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   for (const id of ["cal-panel-person", "cal-panel-contact", "cal-panel-where", "cal-panel-desc"])
     assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(
-    page.includes("From {source}. The receptionist treats this time as taken; to change or cancel it, edit it there."),
+    page.includes("From ${source}. The receptionist treats this time as taken; to change or cancel it, edit it there."),
     "one line, no feed counts",
   );
   assert.ok(!page.includes("read just now") && !page.includes("feedLine"), "the chip's sentence stays on the chip");
@@ -1156,7 +1157,8 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
     .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
     .join("\n");
   assert.ok(
-    /if \(opts\.canAct\)\s*people\.push\(\s*\.\.\.\(await addPeopleSeen\(/.test(svc) &&
+    // Only a feed adds people here (00345): a notice's person was put in People when it was read.
+    /if \(opts\.canAct && s\.parsed\)\s*people\.push\(\s*\.\.\.\(await addPeopleSeen\(/.test(svc) &&
       /ctx\.supabase\.rpc\("create_person", \{\s*p_tenant_id: tenantId,\s*p_phone_e164: r\.phone,\s*p_display_name: r\.name \?\? "",\s*p_source: "calendar",\s*p_title: r\.title,?\s*\}\)/.test(
         svc,
       ),

@@ -164,6 +164,110 @@ COMMENT ON FUNCTION public.ai_usage_purge(p_keep interval) IS 'Drops ledger rows
 
 
 --
+-- Name: appointments_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if NEW.status is distinct from OLD.status then
+    if OLD.status in ('kept', 'missed', 'cancelled') then
+      raise exception 'appointments.status is terminal (% -> % refused)', OLD.status, NEW.status
+        using errcode = 'check_violation';
+    end if;
+    if OLD.status = 'proposed' and NEW.status not in ('booked', 'cancelled') then
+      raise exception 'a proposed appointment may only be booked or cancelled (% refused)', NEW.status
+        using errcode = 'check_violation';
+    end if;
+  end if;
+  return NEW;
+end $$;
+
+
+--
+-- Name: appointments_scrub(uuid, uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_needles  text[];
+  v_patterns text[];
+  v_needle   text;
+  v_subject  text;
+  v_changed  integer := 0;
+  v_ids      uuid[];
+  r          record;
+begin
+  select coalesce(array_agg(n order by char_length(n) desc, n), '{}')
+    into v_needles
+    from (select distinct lower(btrim(x)) as n from unnest(coalesce(p_needles, '{}'::text[])) x) d
+   where char_length(n) >= 6;
+
+  -- The visits that are theirs: by the person the read linked, or by a number or an address the notice named.
+  with theirs as (
+    update public.appointments a
+       set client_name  = null,
+           client_phone = null,
+           client_email = null,
+           note         = null,
+           title        = null,
+           external_id  = 'erased:' || a.id::text
+     where a.tenant_id = p_tenant_id
+       and (a.contact_id = p_contact_id
+            or (a.client_phone is not null and lower(a.client_phone) = any (v_needles))
+            or (a.client_email is not null and lower(a.client_email) = any (v_needles)))
+       and a.external_id is distinct from 'erased:' || a.id::text
+    returning a.id
+  )
+  select coalesce(array_agg(id), '{}') into v_ids from theirs;
+  v_changed := cardinality(v_ids);
+
+  -- The notices that made those visits say nothing of who: the subject carries the name.
+  update public.appointment_notices n
+     set subject = null
+   where n.tenant_id = p_tenant_id
+     and n.appointment_id = any (v_ids)
+     and n.subject is not null;
+
+  -- Any other notice whose subject names them, as other people's notes are scrubbed (00341).
+  if cardinality(v_needles) > 0 then
+    select array_agg('%' || replace(replace(replace(n, '\', '\\'), '%', '\%'), '_', '\_') || '%')
+      into v_patterns
+      from unnest(v_needles) n;
+    for r in
+      select n.id, n.subject
+        from public.appointment_notices n
+       where n.tenant_id = p_tenant_id
+         and n.subject is not null
+         and lower(n.subject) like any (v_patterns)
+         for update
+    loop
+      v_subject := r.subject;
+      foreach v_needle in array v_needles loop
+        v_subject := regexp_replace(v_subject, regexp_replace(v_needle, '([^[:alnum:]])', '\\\1', 'g'), '[erased]', 'gi');
+      end loop;
+      if v_subject is distinct from r.subject then
+        update public.appointment_notices set subject = v_subject where id = r.id;
+      end if;
+    end loop;
+  end if;
+  return v_changed;
+end $$;
+
+
+--
+-- Name: FUNCTION appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'An erasure''s hand in the appointments (decision 0036): the person''s visits keep their time and service and lose the client''s name, number, address and note; the notices that made them, and any whose subject names them, lose the name. Answers how many visits changed. Service role only.';
+
+
+--
 -- Name: ask_for_tick(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -983,7 +1087,7 @@ CREATE TABLE public.jobs (
     lane smallint GENERATED ALWAYS AS (
 CASE
     WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0
-    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1
+    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text])) THEN 1
     WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2
     WHEN (kind = 'event_deliver'::text) THEN
     CASE
@@ -992,7 +1096,7 @@ CASE
     END
     ELSE NULL::integer
 END) STORED,
-    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text]))),
+    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
 
@@ -1015,7 +1119,7 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 -- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334); null for a kind the case does not name, claimed last.';
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver row carries its subscription''s lane.';
 
 
 --
@@ -1380,7 +1484,10 @@ begin
     raise exception 'Say seen or unread.' using errcode = '22023';
   end if;
   select c.tenant_id into v_tenant from contacts c where c.id = p_contact_id;
-  if v_tenant is null or not exists (select 1 from memberships m where m.user_id = v_user and m.tenant_id = v_tenant) then
+  if v_tenant is null or not exists (
+       select 1 from memberships m
+        where m.user_id = v_user and m.tenant_id = v_tenant
+          and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Person not found.' using errcode = 'P0002';
   end if;
   insert into contact_marks (tenant_id, contact_id, user_id, seen_at, unread_at)
@@ -1432,7 +1539,11 @@ begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
-  select m.created_at into v_joined from memberships m where m.user_id = v_user and m.tenant_id = p_tenant_id;
+  -- The caller's seat, as every door reads it (00261, 00280): a partner's counts once the session has shown its code.
+  select m.created_at into v_joined
+    from memberships m
+   where m.user_id = v_user and m.tenant_id = p_tenant_id
+     and (m.role <> 'partner' or public.session_shows_second_factor());
   if v_joined is null then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
@@ -7914,6 +8025,31 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: member_has_address(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists (
+    select 1
+      from public.memberships m
+      join auth.users u on u.id = m.user_id
+     where m.tenant_id = p_tenant_id
+       and lower(u.email) = lower(btrim(p_address))
+  );
+$$;
+
+
+--
+-- Name: FUNCTION member_has_address(p_tenant_id uuid, p_address text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) IS 'Is this address a member''s of the workspace: how the intake trusts a booking notice a person forwarded by hand (00345). Service role only.';
 
 
 --
@@ -19409,7 +19545,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -19463,6 +19599,81 @@ ALTER TABLE public.ai_usage ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     NO MAXVALUE
     CACHE 1
 );
+
+
+--
+-- Name: appointment_notices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.appointment_notices (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    notice_id text NOT NULL,
+    tool text NOT NULL,
+    from_address text,
+    subject text,
+    received_at timestamp with time zone NOT NULL,
+    read_at timestamp with time zone DEFAULT now() NOT NULL,
+    outcome text NOT NULL,
+    hold_reason text,
+    appointment_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT appointment_notices_check CHECK (((outcome = ANY (ARRAY['held'::text, 'dismissed'::text])) = (hold_reason IS NOT NULL))),
+    CONSTRAINT appointment_notices_hold_reason_check CHECK (((hold_reason IS NULL) OR (hold_reason = ANY (ARRAY['no_model'::text, 'may_not_spend'::text, 'unreadable'::text, 'not_a_booking'::text, 'no_time'::text, 'no_client'::text, 'gone'::text])))),
+    CONSTRAINT appointment_notices_outcome_check CHECK ((outcome = ANY (ARRAY['booked'::text, 'changed'::text, 'cancelled'::text, 'held'::text, 'dismissed'::text])))
+);
+
+
+--
+-- Name: TABLE appointment_notices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.appointment_notices IS 'Every booking tool''s notice the workspace''s address took in: the delivery, the tool, and what it became or why it is held for a person. Members read; the booking_read job writes.';
+
+
+--
+-- Name: appointments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.appointments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    contact_id uuid,
+    lead_id uuid,
+    source text NOT NULL,
+    tool text,
+    external_id text,
+    status text DEFAULT 'booked'::text NOT NULL,
+    starts_at timestamp with time zone NOT NULL,
+    ends_at timestamp with time zone NOT NULL,
+    all_day boolean DEFAULT false NOT NULL,
+    title text,
+    service text,
+    staff text,
+    price text,
+    note text,
+    client_name text,
+    client_phone text,
+    client_email text,
+    consultation boolean DEFAULT false NOT NULL,
+    timezone text NOT NULL,
+    vanished_at timestamp with time zone,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT appointments_check CHECK ((ends_at > starts_at)),
+    CONSTRAINT appointments_client_phone_check CHECK (((client_phone IS NULL) OR (client_phone ~ '^\+[1-9][0-9]{6,14}$'::text))),
+    CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_email'::text, 'booking_tool'::text, 'person'::text]))),
+    CONSTRAINT appointments_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'booked'::text, 'kept'::text, 'missed'::text, 'cancelled'::text])))
+);
+
+
+--
+-- Name: TABLE appointments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.appointments IS 'One visit as a source stated it (decision 0002): a booking tool''s notice, the calendar feed, a tool''s door or a person; its client, what and with whom, and what became of it. Members read; the service role writes; the product never books.';
 
 
 --
@@ -19938,7 +20149,7 @@ CREATE TABLE public.contact_marks (
 -- Name: TABLE contact_marks; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.contact_marks IS 'Per member per person: seen_at is when the member last opened the person (their thread or their page), unread_at when they put it back as unread, cleared by the next opening (00345). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
+COMMENT ON TABLE public.contact_marks IS 'Per member per person: seen_at is when the member last opened the person (their thread or their page), unread_at when they put it back as unread, cleared by the next opening (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
 
 
 --
@@ -19956,7 +20167,7 @@ CREATE TABLE public.contact_reads (
 -- Name: TABLE contact_reads; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.contact_reads IS 'Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00345). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.';
+COMMENT ON TABLE public.contact_reads IS 'Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00346). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.';
 
 
 --
@@ -21210,6 +21421,10 @@ CREATE TABLE public.mailboxes (
     offers_paused_at timestamp with time zone,
     offers_paused_reason text,
     offers_resumed_at timestamp with time zone,
+    forward_confirm_account text,
+    forward_confirm_code text,
+    forward_confirm_link text,
+    forward_confirm_at timestamp with time zone,
     CONSTRAINT mailboxes_from_name_check CHECK (((char_length(btrim(from_name)) >= 1) AND (char_length(btrim(from_name)) <= 80))),
     CONSTRAINT mailboxes_local_part_check CHECK ((local_part ~ '^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$'::text)),
     CONSTRAINT mailboxes_local_part_check1 CHECK ((local_part <> ALL (ARRAY['r'::text, 'postmaster'::text, 'abuse'::text, 'mailer-daemon'::text, 'noreply'::text, 'no-reply'::text, 'admin'::text, 'administrator'::text, 'support'::text, 'security'::text, 'billing'::text, 'hello'::text, 'hi'::text]))),
@@ -21246,6 +21461,13 @@ COMMENT ON COLUMN public.mailboxes.offers_paused_reason IS 'Which gate paused th
 --
 
 COMMENT ON COLUMN public.mailboxes.offers_resumed_at IS 'When the back office last turned this workspace''s offers by email back on (resume_email_offers), or NULL if it never has. The gates are judged over the offers sent after it, so the offers that paused them are not counted again.';
+
+
+--
+-- Name: COLUMN mailboxes.forward_confirm_code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailboxes.forward_confirm_code IS 'Gmail''s confirmation code for forwarding from forward_confirm_account to this address, kept by the intake until the first booking notice is read (00345).';
 
 
 --
@@ -21343,7 +21565,7 @@ CREATE TABLE public.notifications (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     recipient_user_id uuid,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -22716,6 +22938,30 @@ ALTER TABLE ONLY public.ai_usage
 
 
 --
+-- Name: appointment_notices appointment_notices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointment_notices
+    ADD CONSTRAINT appointment_notices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: appointments appointments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: appointments appointments_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: ask_messages ask_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -23734,6 +23980,76 @@ CREATE INDEX ai_usage_shadow_at ON public.ai_usage USING btree (created_at) WHER
 --
 
 CREATE INDEX ai_usage_tenant_at ON public.ai_usage USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: appointment_notices_appointment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointment_notices_appointment ON public.appointment_notices USING btree (tenant_id, appointment_id) WHERE (appointment_id IS NOT NULL);
+
+
+--
+-- Name: appointment_notices_delivery_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX appointment_notices_delivery_uq ON public.appointment_notices USING btree (tenant_id, notice_id);
+
+
+--
+-- Name: appointment_notices_held; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointment_notices_held ON public.appointment_notices USING btree (tenant_id) WHERE (outcome = 'held'::text);
+
+
+--
+-- Name: appointment_notices_tenant_received; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointment_notices_tenant_received ON public.appointment_notices USING btree (tenant_id, received_at DESC);
+
+
+--
+-- Name: appointments_client_email; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_client_email ON public.appointments USING btree (tenant_id, client_email, starts_at) WHERE (client_email IS NOT NULL);
+
+
+--
+-- Name: appointments_client_phone; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_client_phone ON public.appointments USING btree (tenant_id, client_phone, starts_at) WHERE (client_phone IS NOT NULL);
+
+
+--
+-- Name: appointments_contact; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_contact ON public.appointments USING btree (tenant_id, contact_id, starts_at);
+
+
+--
+-- Name: appointments_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_lead ON public.appointments USING btree (tenant_id, lead_id) WHERE (lead_id IS NOT NULL);
+
+
+--
+-- Name: appointments_source_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX appointments_source_uq ON public.appointments USING btree (tenant_id, source, external_id);
+
+
+--
+-- Name: appointments_tenant_start; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_tenant_start ON public.appointments USING btree (tenant_id, starts_at);
 
 
 --
@@ -24962,6 +25278,27 @@ ALTER INDEX public.events_tenant_subject ATTACH PARTITION public.events_default_
 
 
 --
+-- Name: appointment_notices appointment_notices_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointment_notices_set_updated_at BEFORE UPDATE ON public.appointment_notices FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: appointments appointments_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_guard BEFORE UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.appointments_guard();
+
+
+--
+-- Name: appointments appointments_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
 -- Name: billing_accounts billing_accounts_moddatetime; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -25592,6 +25929,13 @@ CREATE TRIGGER tenants_set_updated_at BEFORE UPDATE ON public.tenants FOR EACH R
 
 
 --
+-- Name: appointments workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.appointments REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: billing_accounts workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -25736,6 +26080,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.sending_domains REFE
 --
 
 CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.tenant_channels REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: appointments workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.appointments REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -25907,6 +26258,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.tenant_channels REFE
 
 
 --
+-- Name: appointments workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.appointments REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: billing_accounts workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -26074,6 +26432,54 @@ ALTER TABLE ONLY public.ai_usage
 
 ALTER TABLE ONLY public.ai_usage
     ADD CONSTRAINT ai_usage_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: appointment_notices appointment_notices_appointment_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointment_notices
+    ADD CONSTRAINT appointment_notices_appointment_id_same_workspace FOREIGN KEY (tenant_id, appointment_id) REFERENCES public.appointments(tenant_id, id) ON DELETE SET NULL (appointment_id);
+
+
+--
+-- Name: appointment_notices appointment_notices_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointment_notices
+    ADD CONSTRAINT appointment_notices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: appointments appointments_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
+
+
+--
+-- Name: appointments appointments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: appointments appointments_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id);
+
+
+--
+-- Name: appointments appointments_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -26301,11 +26707,11 @@ ALTER TABLE ONLY public.contact_identities
 
 
 --
--- Name: contact_marks contact_marks_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: contact_marks contact_marks_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.contact_marks
-    ADD CONSTRAINT contact_marks_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT contact_marks_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27433,6 +27839,36 @@ ALTER TABLE public.ai_usage ENABLE ROW LEVEL SECURITY;
 CREATE POLICY ai_usage_member_select ON public.ai_usage FOR SELECT TO authenticated USING (((NOT shadow) AND (tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
+-- Name: appointment_notices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.appointment_notices ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: appointment_notices appointment_notices_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY appointment_notices_member_select ON public.appointment_notices FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: appointments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: appointments appointments_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY appointments_member_select ON public.appointments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -28842,6 +29278,22 @@ GRANT ALL ON FUNCTION public.ai_usage_purge(p_keep interval) TO service_role;
 
 
 --
+-- Name: FUNCTION appointments_guard(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_guard() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION ask_for_tick(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -30247,6 +30699,14 @@ GRANT ALL ON FUNCTION public.mark_processed(p_tenant_id uuid, p_message_id uuid)
 
 REVOKE ALL ON FUNCTION public.marketing_consent_on_erase() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.marketing_consent_on_erase() TO service_role;
+
+
+--
+-- Name: FUNCTION member_has_address(p_tenant_id uuid, p_address text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) TO service_role;
 
 
 --
@@ -32117,6 +32577,22 @@ GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO service_role;
 
 
 --
+-- Name: TABLE appointment_notices; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.appointment_notices TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointment_notices TO service_role;
+
+
+--
+-- Name: TABLE appointments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.appointments TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointments TO service_role;
+
+
+--
 -- Name: TABLE ask_messages; Type: ACL; Schema: public; Owner: -
 --
 
@@ -32550,16 +33026,16 @@ GRANT ALL ON TABLE public.contact_identities TO service_role;
 -- Name: TABLE contact_marks; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT ON TABLE public.contact_marks TO authenticated;
 GRANT ALL ON TABLE public.contact_marks TO service_role;
+GRANT SELECT ON TABLE public.contact_marks TO authenticated;
 
 
 --
 -- Name: TABLE contact_reads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT ON TABLE public.contact_reads TO authenticated;
 GRANT ALL ON TABLE public.contact_reads TO service_role;
+GRANT SELECT ON TABLE public.contact_reads TO authenticated;
 
 
 --

@@ -14,6 +14,7 @@ import {
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
   heldBackWords,
+  messageHolds,
   monthSentAt,
   offersNote,
 } from "@chanlytics/contracts";
@@ -28,7 +29,7 @@ import { Picker } from "../../../kit/picker/picker";
 import { UnsavedAsk } from "../../../kit/record/work";
 import { gate, gateTitle, routeDoor } from "../../../legacy-verbs";
 import { MessagePreview, PreviewStepper } from "../../parts/message-preview";
-import { CM_VIA_WORDS, cmReadyOf, cmTick } from "../../parts/channels";
+import { CM_NO_MESSAGE_YET, CM_VIA_WORDS, cmReadyOf, cmTick } from "../../parts/channels";
 import { CmLangGlyph } from "../../parts/picker";
 import { cmChevron, cmGroups, cmSearch } from "../../parts/picks";
 import { CmVia } from "../../parts/send-by";
@@ -399,9 +400,11 @@ function bcColVia({ ticks, on, setChannels }: BcV) {
 }
 
 // When: now, or a day and a time by the business's clock, what that means, and the number it goes from -- where the send
-// goes by WhatsApp, the only channel that has one.
-function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number, channels }: BcV) {
-  const byWhatsApp = channels.includes("whatsapp");
+// goes by WhatsApp, the only channel that has one, or would but for the number, which is then what says why. Never under a
+// message with no WhatsApp version: the tick stays ticked when the message is changed to one, and the number is nothing to
+// it there.
+function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number, channels, tpl }: BcV) {
+  const byWhatsApp = channels.includes("whatsapp") && messageHolds(tpl?.message ?? CM_NO_MESSAGE_YET).whatsapp;
   return (
     <div className="bc-col" data-testid="bc-col-when">
       <span className="bc-col-label">When</span>

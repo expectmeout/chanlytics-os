@@ -1,6 +1,12 @@
 # 0002 · An appointments record
 
-**Status:** decided, not built. Written against commit `b729bdf` (21 September 2026) and refreshed against `e3d9dc6c` (PR #885, 23 September 2026): every file
+**Status:** built in part, 7 October 2026 (`docs/plans/2026-10-07-bookings-arrive-by-email.md`, migration 00345):
+the table (step 1, with a `booking_email` source and the client's name, number and address on the row), its first
+writer (a booking tool's notice, read by the `booking_read` job: the `booking_tool` door of step 7, arriving by email
+rather than a signed webhook), the board drawing its rows, and a caller's own visit said from them. Still owed to the
+readers lane: the feed written into the table (step 2), the backfill (3), Reports and People reading rows (4), the
+playbooks (5), `kept` and `missed` (8). The paths below are the ones at `e3d9dc6c`; `packages/contracts/src/calendar/`
+holds what `availability.ts` and `calendar-people.ts` held. Written against commit `b729bdf` (21 September 2026) and refreshed against `e3d9dc6c` (PR #885, 23 September 2026): every file
 and line below was re-read at that commit, with deals (0004), the proposal link
 and smart lists on main. _What has changed since it was written_ says what moved
 around it. Where this note and the code disagree, the code wins.

@@ -3140,11 +3140,16 @@ a.list-row {
     border-bottom: 0;
     font-size: var(--text-sm);
   }
-  /* A thumb's 44px, as an invisible margin round the 34px tab. */
+  /* A thumb's 44px, as an invisible margin round the 34px tab, and 44px across a tab of one short word ("All", 15px):
+     the margin stands centred on the tab, as wide as the tab and 6px either side, or 44px where that is less. */
   .subtab::before {
     content: "";
     position: absolute;
-    inset: -5px -6px;
+    top: -5px;
+    bottom: -5px;
+    left: 50%;
+    width: max(calc(100% + 12px), 44px);
+    translate: -50% 0;
   }
   .subtab-bar {
     bottom: 5px;
