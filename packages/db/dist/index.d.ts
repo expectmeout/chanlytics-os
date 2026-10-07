@@ -863,6 +863,7 @@ type Database = {
             };
             contact_identities: {
                 Row: {
+                    assurance: string;
                     channel: string;
                     contact_id: string;
                     created_at: string;
@@ -872,6 +873,7 @@ type Database = {
                     tenant_id: string;
                 };
                 Insert: {
+                    assurance?: string;
                     channel: string;
                     contact_id: string;
                     created_at?: string;
@@ -881,6 +883,7 @@ type Database = {
                     tenant_id: string;
                 };
                 Update: {
+                    assurance?: string;
                     channel?: string;
                     contact_id?: string;
                     created_at?: string;
@@ -8366,6 +8369,20 @@ type Database = {
                 };
                 Returns: number;
             };
+            resolve_person: {
+                Args: {
+                    p_assurance: string;
+                    p_channel: string;
+                    p_detail?: Json;
+                    p_email: string;
+                    p_external: string;
+                    p_name: string;
+                    p_phone: string;
+                    p_source: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             resume_email_offers: {
                 Args: {
                     p_tenant_id: string;
@@ -10173,6 +10190,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
         };
         contact_identities: {
             Row: {
+                assurance: string;
                 channel: string;
                 contact_id: string;
                 created_at: string;
@@ -10182,6 +10200,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
                 tenant_id: string;
             };
             Insert: {
+                assurance?: string;
                 channel: string;
                 contact_id: string;
                 created_at?: string;
@@ -10191,6 +10210,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
                 tenant_id: string;
             };
             Update: {
+                assurance?: string;
                 channel?: string;
                 contact_id?: string;
                 created_at?: string;
@@ -17511,6 +17531,20 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             };
             Returns: number;
         };
+        resolve_person: {
+            Args: {
+                p_assurance: string;
+                p_channel: string;
+                p_detail?: Json;
+                p_email: string;
+                p_external: string;
+                p_name: string;
+                p_phone: string;
+                p_source: string;
+                p_tenant_id: string;
+            };
+            Returns: Json;
+        };
         resume_email_offers: {
             Args: {
                 p_tenant_id: string;
@@ -18768,6 +18802,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
     };
     contact_identities: {
         Row: {
+            assurance: string;
             channel: string;
             contact_id: string;
             created_at: string;
@@ -18777,6 +18812,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             tenant_id: string;
         };
         Insert: {
+            assurance?: string;
             channel: string;
             contact_id: string;
             created_at?: string;
@@ -18786,6 +18822,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             tenant_id: string;
         };
         Update: {
+            assurance?: string;
             channel?: string;
             contact_id?: string;
             created_at?: string;
@@ -24196,6 +24233,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
     };
     contact_identities: {
         Row: {
+            assurance: string;
             channel: string;
             contact_id: string;
             created_at: string;
@@ -24205,6 +24243,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             tenant_id: string;
         };
         Insert: {
+            assurance?: string;
             channel: string;
             contact_id: string;
             created_at?: string;
@@ -24214,6 +24253,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             tenant_id: string;
         };
         Update: {
+            assurance?: string;
             channel?: string;
             contact_id?: string;
             created_at?: string;
@@ -29624,6 +29664,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
     };
     contact_identities: {
         Row: {
+            assurance: string;
             channel: string;
             contact_id: string;
             created_at: string;
@@ -29633,6 +29674,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             tenant_id: string;
         };
         Insert: {
+            assurance?: string;
             channel: string;
             contact_id: string;
             created_at?: string;
@@ -29642,6 +29684,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             tenant_id: string;
         };
         Update: {
+            assurance?: string;
             channel?: string;
             contact_id?: string;
             created_at?: string;
