@@ -4340,6 +4340,14 @@ html.legacy-on .cm-pane-sub .bc-run-link {
     width: auto;
     padding-top: 0;
   }
+  /* What to tell customers takes the row's width, five lines tall: at the column's start the box was as wide as its
+     own twenty characters, two lines of a sentence with an example in it. */
+  .tpl-compose .tpl-brief {
+    align-self: stretch;
+  }
+  .tpl-compose .tpl-brief > textarea {
+    min-height: calc(5lh + 2 * var(--space-2) + 2px);
+  }
 }
 /* The kind comes first, as the canvas asks it (Kind, then what it says): the rows are From, Say, Kind in the markup. */
 .tpl-compose > .tpl-row:nth-child(3) {

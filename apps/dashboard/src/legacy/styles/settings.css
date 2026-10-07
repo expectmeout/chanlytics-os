@@ -648,7 +648,8 @@
 .set-viewas-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--set-hint); color: var(--accent); }
 
 .set-invite { display: flex; align-items: center; gap: 8px; padding: var(--set-row-y) 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
-.set-invite .sd-input { flex: 1; min-width: 180px; margin: 0; }
+/* The invitation's address is the kit's box (team.tsx), and takes what the row leaves. */
+.set-invite-email { flex: 1; min-width: 180px; margin: 0; }
 
 /* What each role may do: a word and its sentence, in two columns. */
 .set-roles-legend { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 16px; align-items: baseline; margin-bottom: 12px; padding-top: 16px; border-top: 1px solid var(--line); }

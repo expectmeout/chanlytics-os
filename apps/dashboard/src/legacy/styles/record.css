@@ -166,3 +166,14 @@ html.legacy-on .rec-row-act { min-height: 0; }
   flex-direction: column;
   gap: var(--space-3);
 }
+/* On a phone the row's word gives way to its fields' own labels, and the fields take the sheet's width: in its 48px
+   column the word stood beside a label that says the same thing closer (Value over Value), and the fields kept what
+   the column left them. */
+@media (max-width: 720px) {
+  .ds-grow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ds-grow-word {
+    display: none;
+  }
+}

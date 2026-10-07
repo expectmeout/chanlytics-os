@@ -125,15 +125,15 @@
      indent (--beat-door-indent: the brief's, dashboard-a-v2.css) instead of a second rule over the door. */
   :where(.dash-a-v2) .tc-beats .brief-beat-text { flex-basis: calc(100% - 34px); }
   :where(.dash-a-v2) .tc-beats .brief-beat-text ~ .brief-chip { margin-left: var(--beat-door-indent, 28px); }
-  /* What is left to set up, on a phone (canvas P9): the card is one row, the next thing -- its dot, its name over one
-     line of its words with how many are left, and its button beside them. The head, the other rows, Skip and Hide
-     wait for a wider screen. */
+  /* What is left to set up, on a phone (canvas P9): the card is one row, the next thing -- its dot, its name over its
+     words with how many are left at their end, and its button beside them. The words take the lines they need: held
+     to one, the step was "What your receptionist ..." on every phone. The head, the other rows, Skip and Hide wait
+     for a wider screen. */
   .today-setup { padding: 12px 14px; gap: 0; }
   .today-setup .setup-card-head { display: none; }
   .today-setup .tq-list > :not(:first-child) { display: none; }
   .today-setup .setup-card-row { gap: 10px; padding: 0; border-top: 0; }
-  .today-setup .setup-card-said { display: flex; min-width: 0; font-size: 12px; }
-  .today-setup .setup-card-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .today-setup .setup-card-said { display: block; min-width: 0; font-size: 12px; }
   .today-setup .setup-card-aside { display: inline; flex: none; white-space: nowrap; }
   .today-setup .setup-card-skip { display: none; }
   .today-setup .setup-card-long { display: none; }
@@ -391,13 +391,12 @@
      ‹ People. The arrow stood in a column of its own beside the avatar, so every line under the name began 102px in
      and wrapped, and the head had three left edges. Now it starts at the page's edge, the avatar a mark beside the name. */
   .cl-prof-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "id" "acts"; gap: 14px; }
-  .cl-prof-hero > .cl-prof-back { display: none; }
   .cl-prof-id { align-items: flex-start; gap: 10px; }
   .cl-prof-name { font-size: var(--text-xl); }
   /* The acts take the row under who they are, the page's full width, a thumb's height each: the thread and a send
      share it, and the ⋯ keeps a thumb's width at its end. */
   .cl-prof-hero > .cl-prof-queue-actions { justify-content: stretch; }
-  .cl-prof-hero > .cl-prof-queue-actions > [data-testid="person-open-thread"] { flex: 1 1 auto; }
+  .cl-prof-hero > .cl-prof-queue-actions > [data-testid="person-open-thread"] { flex: 1 1 auto; justify-content: center; }
   /* The crumb names the person, and the name is the first thing under it: the crumb says People, once, with the
      back's chevron before it (drawn, not a glyph, so it sits on the word's middle in every font). */
   .main:has(.cl-profile) .crumbs > span:not(:first-child), .main:has(.cl-profile) .crumbs > button:not(:first-child) { display: none; }

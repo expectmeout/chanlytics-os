@@ -443,7 +443,8 @@ test("REGRESSION (S20): Profile's sign-out is not titled for one device, and Ale
   assert.ok(profile.includes("Sign out everywhere"), profile);
   const alerts = textOf(settings("notifications"));
   assert.ok(!alerts.includes("push notifications are not built"), "REGRESSION: denied the alerts the bell offers");
-  assert.ok(alerts.includes("switch alerts on from the bell"), alerts);
+  // The device's switch is the pane's own card since #1467 ("This device"), and the line under the list points to it.
+  assert.ok(alerts.includes("This device, above"), alerts);
 });
 
 test("a real roster is counted in people, never in seats of a plan it does not have, and Invite stays offered", () => {
