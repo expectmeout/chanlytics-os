@@ -602,10 +602,11 @@
 
 /* ---------- App root (live product frame) ---------- */
 /* dvh, for the reason .app gives: 100vh runs under a phone browser's toolbar, and the tab bar with it.
-   The room at its top is the phone's own bar (the clock, the battery) where the app is on an iPhone's home screen: the
-   page is drawn from the screen's top there (layout.tsx: black-translucent, viewport-fit cover), and the date, the bell
-   and the page's name stood under that bar (Ruben, 7 Oct 2026). The inset is the bar's height there and nothing in a
-   browser's tab, which keeps the bar's room itself, so a tab is drawn as it was. The page's paint still reaches the
+   The room at its top is the phone's own bar (the clock, the battery) where an app on an iPhone's home screen is drawn
+   under it: one added while the layout asked for that (layout.tsx said black-translucent until 7 Oct 2026, and iOS keeps
+   what it read when the app was added). The date, the bell and the page's name stood under that bar (Ruben, 7 Oct
+   2026). The inset is the bar's height there and nothing in a browser's tab or an app added since, which start under
+   the bar, so they are drawn as they were. The page's paint still reaches the
    screen's top (tokens.css, --surface-page-top). What is fixed to the window keeps the room itself: the drawer
    (mobile.css), a tablet's notes (below), the Inbox's sending strip (inbox.css), a lead's panel and its photos
    (leads.css). The inset is added to what a box keeps, never written over it: a tab reads it as 0. */
@@ -2544,6 +2545,17 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
   .pg-dateline-slot {
     left: calc(var(--gutter-page) + 40px);
+  }
+}
+
+/* An app on a phone's home screen stands under the phone's own bar (the clock, the battery), which keeps its own room
+   over the date and the bell: the 10px the head keeps over them stood under that room as a second one. So the frame's
+   column starts 6px higher there, the head with it (the date, the bell, the way back, an open thread's own head), and
+   the page under it is that much taller (Ruben, 7 Oct 2026). The column's first 8px hold nothing: the date and the
+   bell stand 10px down it, the way back 8. A browser's tab is not an installed app and is drawn as it was. */
+@media (max-width: 720px) and (display-mode: standalone) {
+  .app-root .main {
+    margin-top: -6px;
   }
 }
 

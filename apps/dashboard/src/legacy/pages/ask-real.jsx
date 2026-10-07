@@ -950,7 +950,7 @@ const arLineView = (ln) => {
   const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
   return (
     // It goes the way it came as it closes (data-bits leaving), and on a phone, where it is the whole screen (ask.css),
-    // a thumb pulls it down (touchSwipe). ask-overlay and ask-modal carry the motion (components.css, #922).
+    // a thumb pulls it down or takes it across to either side (touchSwipe). ask-overlay and ask-modal carry the motion.
     <div className="ask-overlay ask-line-scrim" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>
       <div
         ref={dialogRef}
@@ -960,7 +960,7 @@ const arLineView = (ln) => {
         tabIndex={-1}
         aria-label="Ask Chanlytics"
         data-testid="ask-real"
-        {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: arPhone }) : {})}
+        {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, onBack: onClose, onAway: onClose, when: arPhone }) : {})}
       >
         <p className="ask-said" role="status" aria-live="polite" data-testid="ask-said">{said}</p>
         {/* A phone's head: Earlier, New in a conversation or over a quick answer (a preset question is answered
