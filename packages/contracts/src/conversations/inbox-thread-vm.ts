@@ -134,7 +134,7 @@ export interface InboxThreadVM {
   escalatedAtMs?: number;
   /**
    * New to the reader: the customer wrote or called after they last opened the thread, or they put it back as unread
-   * (standing.ts isUnseen, over the reader's own marks, 00346). It meant needsYou until the marks were kept, since
+   * (standing.ts isUnseen, over the reader's own marks, 00349). It meant needsYou until the marks were kept, since
    * nothing else was known of a reader: a thread never went from unread to read, and one the receptionist handled
    * alone never read as new (Ruben, 7 Oct 2026). Needs you is the pill's to say, and stays.
    */

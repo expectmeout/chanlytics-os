@@ -160,7 +160,7 @@ test("the thread's menu: what to do with the conversation, then the person, then
   assert.deepEqual(shape, [
     "Snooze",
     "Archive",
-    // The reader's own mark on the person (00346): on a real thread it is kept, so the menu offers it again.
+    // The reader's own mark on the person (00349): on a real thread it is kept, so the menu offers it again.
     "Mark as unread",
     "|",
     "Open profile",

@@ -2534,7 +2534,7 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["tenants.select", "sells_by"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
-  // 7 Oct 2026 (00346): what the member asking has seen of each person on the page (server/people/person-seen.ts), for
+  // 7 Oct 2026 (00349): what the member asking has seen of each person on the page (server/people/person-seen.ts), for
   // the rows that say who is new to them: one call to the door, with the page's other reads of its rows.
   ["rpc:contact_seen", null],
   ["rpc:team_roster", null],

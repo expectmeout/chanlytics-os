@@ -29,7 +29,7 @@
  */
 // Values first: the header above then rides on an import the declaration build drops, and stays out of index.d.ts.
 import { GO, openInbound } from "./context";
-import { ingestMessage } from "./ingest";
+import { ingestMessage, recordMessage } from "./ingest";
 import { modeInForce, firstGates } from "./gates";
 import { seeingOf, unreadableGate, wordsOf, photoOf } from "./unreadable";
 import { lateOrConfirmed, heldForThePerson } from "./reply-gates";
@@ -40,7 +40,7 @@ import { claimTheTurn, stillOurs } from "./turn";
 // verb speaks it. A VALUE from channels would be a provider inside a verb —
 // that is a port, not a widening (hygiene.test.mjs).
 import type { CarrierConsent, NormalizedInbound, SendResult } from "@chanlytics/channels";
-import type { RoutedChannel } from "@chanlytics/db";
+import type { IngestResult, RoutedChannel } from "@chanlytics/db";
 import type { InboundPorts } from "./ports";
 
 /**
@@ -76,11 +76,27 @@ export interface InboundInput {
   routed: RoutedChannel | null;
   isEnvDefault: boolean;
   carrier: InboundCarrier | null;
+  /**
+   * The job that answers a text after its acknowledgement (recordInbound recorded it in the door): its ingest is a
+   * redelivery, and the message is answered while it is unprocessed and no reply names it yet.
+   */
+  resume?: boolean;
+}
+
+/**
+ * The door's half of a text answered after its acknowledgement (decision 0031, Phase 2): the message set aside or
+ * recorded, nothing decided about the answer. The ingest's row when it waits for its answer, which a job gives it
+ * (answerInbound with `resume`); null when it was set aside, is a redelivery, or there is nowhere to record it;
+ * IngestFailed when the write failed, so the door refuses and the provider sends it again.
+ */
+export async function recordInbound(input: InboundInput, ports: InboundPorts): Promise<IngestResult | null> {
+  const cx = await openInbound(input, ports);
+  return (await recordMessage(cx)) ?? null;
 }
 
 export async function answerInbound(input: InboundInput, ports: InboundPorts): Promise<void> {
   const cx = await openInbound(input, ports);
-  const kept = await ingestMessage(cx);
+  const kept = await ingestMessage(cx, input.resume === true);
   if (!kept) return;
   const at = { ...cx, ...kept, ...(await modeInForce(cx, kept.ing)) };
   if ((await firstGates(at)) !== GO) return;

@@ -1,5 +1,5 @@
 /**
- * What a member has seen of a person (00346), proved on a real Postgres with real sessions: a member's floor is the day
+ * What a member has seen of a person (00349), proved on a real Postgres with real sessions: a member's floor is the day
  * they joined until they have a row of their own; opening a person stamps their own mark and nobody else's; putting a
  * person back as unread keeps when they last saw them; a mark says how far they have seen in the customer's own
  * moments and never goes back; every writing is stamped; a member of another workspace can neither read nor mark; the

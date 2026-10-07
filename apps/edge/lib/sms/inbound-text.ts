@@ -27,30 +27,44 @@
  * the text; the owner reads it from there (lib/lines/line-codes.ts), so a code is neither lost nor stored here: not as a
  * message, and not as a kept delivery either (a code's delivery is the one the intake ledger never keeps).
  *
- * An accepted text then takes the same road a WhatsApp message takes: handleInbound (lib/whatsapp/inbound.ts, onto
- * core's answerInbound) with the line as its carrier (carrierFor) -- answered by the same brain under the same Autonomy
- * rules, with the two things a text does differently: the first reply carries SMS_FOOTER, and a line the carriers have
- * not approved yet (sms_state is not 'active') holds every text for a person instead of answering. The carrier's
- * opt-out and the STOP words are read as the person's consent. When the handler throws, only a text the database did
- * not keep (IngestFailed) is refused, with a 503 so the provider redelivers, and the platform is told; anything later
- * already happened after the words were recorded, and is acknowledged.
+ * An accepted text then takes the same road a WhatsApp message takes, with the line as its carrier (carrierFor) --
+ * answered by the same brain under the same Autonomy rules, with the two things a text does differently: the first
+ * reply carries SMS_FOOTER, and a line the carriers have not approved yet (sms_state is not 'active') holds every text
+ * for a person instead of answering. The carrier's opt-out and the STOP words are read as the person's consent.
+ *
+ * It is answered after the acknowledgement (decision 0031, Phase 2): Twilio waits fifteen seconds for this answer, and a
+ * model's turn can take longer. The door records the text (recordInboundMessage, core recordInbound: set aside, or
+ * kept, nothing decided) and schedules its answer as a job (inbound_answer, once per message, in the reply lane), then
+ * answers Twilio. The job (answerText) reads the line and its routing again and takes the text up again through the
+ * whole phase (resumeInbound), so a runner killed mid-turn leaves a job the ledger claims again, which answers while
+ * the message is unprocessed and no reply names it, and never texts twice. A job the database refuses (one before 00347
+ * fails the kind's CHECK) is said (sms_answer_unscheduled) and the text is answered here, as before; any other failure
+ * to write it may be a write that landed, so nothing is answered here and the deadman sweep hands a text no job holds
+ * to a person. When recording throws, only a text the database did not keep (IngestFailed) is refused, with a 503 so the
+ * provider redelivers, and the platform is told; anything later already happened after the words were recorded, and
+ * is acknowledged.
  *
  * Every answer is an empty TwiML <Response/>: no reply from here; the reply, when there is one, goes out through the
  * Messaging Service like every other text. Lines carry tails, never numbers (sid, from_tail, to_tail), and never the
  * customer's words or a token (sms-door.test.mjs searches the door's whole stdout for them): sms_inbound for an
  * accepted text, sms_inbound_failed when the handler threw, and the verdict's own event for a refusal.
  */
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { text } from "../http.js";
 import { pg } from "../pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { oneTimeCodeOf, smsInboundFrom, smsAsWaMessage } from "../packages/channels.js";
+import { oneTimeCodeOf, smsInboundFrom, smsAsWaMessage, type SmsInbound } from "../packages/channels.js";
+import type { Database, IngestResult, Json } from "../packages/db.js";
+import { scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
 import { smsSenderFor } from "./sms.js";
-import { planSmsIngress, carrierFor, smsAfterThrow } from "./sms-ingress.js";
-import { handleInbound } from "../whatsapp/inbound.js";
+import { planSmsIngress, carrierFor, smsAfterThrow, lineForAnswer } from "./sms-ingress.js";
+import { recordInboundMessage, resumeInbound } from "../whatsapp/inbound.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { IngestFailed } from "../whatsapp/persist.js";
-import { logger } from "../log.js";
+import { errField, logger } from "../log.js";
 import { phoneTail } from "../packages/contracts.js";
+
+type Db = SupabaseClient<Database>;
 
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
@@ -118,8 +132,13 @@ export async function receiveInboundText(request: Request): Promise<Response> {
   const { line, acct, routed, held } = verdict;
   const carrier = carrierFor(inbound, held, held ? null : smsSenderFor(line, acct));
   L.info("sms_inbound", { held, opt: inbound.optOutType, media: inbound.numMedia });
+  const receivedAt = Date.now();
+  const message = smsAsWaMessage(inbound, receivedAt);
   try {
-    await handleInbound(smsAsWaMessage(inbound), {}, routed.tenantId, routed, false, carrier);
+    // Recorded, then answered by its job; answered here only when the database refused the job's kind.
+    const ing = await recordInboundMessage(message, routed.tenantId, routed, carrier);
+    if (ing && (await answerLater(db, routed.tenantId, answerPayload(form, receivedAt, ing), L)) === "refused")
+      await resumeInbound(message, routed.tenantId, routed, carrier);
   } catch (e) {
     L.error("sms_inbound_failed", { error: e instanceof Error ? e.message : String(e) });
     // Twilio retries nothing on its own: a text the database did not accept is
@@ -129,4 +148,75 @@ export async function receiveInboundText(request: Request): Promise<Response> {
     return twiml(after.status);
   }
   return twiml(200);
+}
+
+/** The fields smsInboundFrom reads, picked from Twilio's form: what a text's job carries of it, and nothing else. */
+const TEXT_FIELDS =
+  /^(MessageSid|SmsSid|From|To|Body|NumMedia|MediaContentType\d+|OptOutType|MessagingServiceSid|AccountSid)$/;
+
+/** The text's own fields, as Twilio named them, for its job: the one parser reads them again there. */
+function textFields(form: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(form).filter(([k]) => TEXT_FIELDS.test(k)));
+}
+
+/**
+ * What a text's job carries: the text, when it came (the staleness check reads it), and the rows it was kept as. The
+ * message, its thread and its person are named so an erasure cancels a job still waiting and scrubs one finished
+ * (erase_contact, scrubErasedJobs).
+ */
+function answerPayload(form: Record<string, string>, receivedAt: number, ing: IngestResult): Json {
+  return {
+    text: textFields(form),
+    received_at: receivedAt,
+    message_id: ing.message_id,
+    conversation_id: ing.conversation_id,
+    contact_id: ing.contact_id,
+  };
+}
+
+/**
+ * The text's answer scheduled as its job, once per message, due now. `refused` when the database refused the kind (one
+ * before 00347 fails its CHECK), and the door then answers the text itself. Any other failure may be a write that
+ * landed and an answer that did not come back (a timeout), so the door answers nothing: a job that exists answers it,
+ * and the deadman sweep hands a text with none to a person. A missed auto-reply beats a double text.
+ */
+async function answerLater(
+  db: Db,
+  tenantId: string,
+  payload: Json,
+  L: ReturnType<typeof logger>,
+): Promise<"scheduled" | "refused" | "unknown"> {
+  try {
+    await scheduleJobOnce(db, { tenantId, kind: "inbound_answer", dueAt: new Date(), payload });
+    return "scheduled";
+  } catch (e) {
+    const refused = (e as { code?: unknown }).code === CHECK_REFUSED;
+    L.warn("sms_answer_unscheduled", { refused, error: errField(e) });
+    return refused ? "refused" : "unknown";
+  }
+}
+
+/** Postgres's code for a row a CHECK refuses (check_violation). */
+const CHECK_REFUSED = "23514";
+
+/**
+ * The job's half (inbound_answer, bound by lib/ops/jobs-tick.ts): the text its door recorded, answered. The line and
+ * its routing are read again (lineForAnswer), the text is the one Twilio sent, with the time it came for the staleness
+ * check, and the whole inbound phase runs with `resume`: answered while the message is unprocessed and no reply names
+ * it. Throws when the payload names no text, the number is another workspace's now, or a read failed: the ledger tries
+ * again, and after that the deadman sweep hands the message to a person.
+ */
+export async function answerText(db: Db, job: ClaimedJob): Promise<void> {
+  const fields = job.payload.text;
+  const inbound: SmsInbound | null =
+    fields !== null && typeof fields === "object" ? smsInboundFrom(fields as Record<string, string>) : null;
+  if (!inbound) throw new Error("inbound_answer: the payload names no text");
+  const receivedAt = typeof job.payload.received_at === "number" ? job.payload.received_at : Date.now();
+  const { line, acct, routed, held } = await lineForAnswer(db, inbound);
+  if (routed.tenantId !== job.tenant_id)
+    throw new Error("inbound_answer: the number texted is another workspace's now");
+  const carrier = carrierFor(inbound, held, held ? null : smsSenderFor(line, acct));
+  const L = logger({ tenant_id: job.tenant_id, sid: inbound.messageSid, to_tail: phoneTail(inbound.to) });
+  L.info("sms_answer_taken_up", { held });
+  await resumeInbound(smsAsWaMessage(inbound, receivedAt), routed.tenantId, routed, carrier);
 }

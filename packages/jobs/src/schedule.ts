@@ -33,7 +33,8 @@ export interface ScheduleParams {
 /**
  * What makes a row once-only while it is scheduled or fired (jobs.dedupe_key, 00333, decision 0033): the three kinds the
  * ledger held once per subject by an index of their own carry the same subject as their key, so one index holds every
- * kind once the three retire. A kind with no rule has no key.
+ * kind once the three retire. A text's answer (inbound_answer, 00347) is held once per message the same way. A kind with
+ * no rule has no key.
  */
 function dedupeKeyOf(kind: JobKind, payload: Json): string | null {
   const p = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
@@ -51,6 +52,8 @@ function dedupeKeyOf(kind: JobKind, payload: Json): string | null {
     // provider's webhook replayed, finds the read already on the ledger.
     case "booking_read":
       return field("received_id") ? `booking_read:${field("received_id")}` : null;
+    case "inbound_answer":
+      return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
     default:
       return null;
   }
@@ -92,7 +95,8 @@ export async function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"sched
   if (error?.code === "PGRST204" && key) ({ error } = await insert(null));
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
-  throw new Error(`schedule_job: ${error.message}`);
+  // The database's code travels with it: a caller tells a refusal (a CHECK a kind fails) from a write that may have landed.
+  throw Object.assign(new Error(`schedule_job: ${error.message}`), { code: error.code });
 }
 
 /**

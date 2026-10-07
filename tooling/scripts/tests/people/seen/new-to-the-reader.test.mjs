@@ -1,5 +1,5 @@
 /**
- * Who is new to the reader (00346): one rule for the Inbox, Conversations and People.
+ * Who is new to the reader (00349): one rule for the Inbox, Conversations and People.
  *
  * Seen on the salon's phone, 7 Oct 2026: every row of Conversations drew at one weight, read or not; the Inbox's dot
  * meant "needs you", so a thread never went from unread to read by being opened; and People's list said nothing of who

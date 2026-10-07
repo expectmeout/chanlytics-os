@@ -1,4 +1,4 @@
--- 00346 · Each member keeps what they have seen of a person.
+-- 00349 · Each member keeps what they have seen of a person.
 --
 -- A thread never went from unread to read. The Inbox's dot meant "needs you" (a person is needed and nobody has it),
 -- Conversations and People drew every row at one weight, and nothing recorded that a member had opened anyone
@@ -58,7 +58,7 @@ revoke all on public.contact_reads from anon, authenticated;
 grant select on public.contact_reads to authenticated;
 grant all on public.contact_reads to service_role;
 comment on table public.contact_reads is
-  'Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00346). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.';
+  'Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00349). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.';
 
 create table if not exists public.contact_marks (
   tenant_id  uuid not null references public.tenants (id) on delete cascade,
@@ -85,7 +85,7 @@ revoke all on public.contact_marks from anon, authenticated;
 grant select on public.contact_marks to authenticated;
 grant all on public.contact_marks to service_role;
 comment on table public.contact_marks is
-  'Per member per person: seen_at is how far the member has seen of the person, in the customer''s own moments (the last_inbound_at their screen held as they opened the thread or the page), unread_at when they put it back as unread, cleared by the next opening, and marked_at when the row was last written (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
+  'Per member per person: seen_at is how far the member has seen of the person, in the customer''s own moments (the last_inbound_at their screen held as they opened the thread or the page), unread_at when they put it back as unread, cleared by the next opening, and marked_at when the row was last written (00349). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
 
 -- Every member there is has seen everything up to now: the lists start quiet.
 insert into public.contact_reads (tenant_id, user_id, seen_at)

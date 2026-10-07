@@ -65,6 +65,28 @@ export function matchService<S extends ServiceLike>(services: readonly S[] | und
   return best;
 }
 
+/**
+ * The longest service the workspace lists that a calendar title names, as Settings spells it, so "Kitchen remodel" wins
+ * over "Remodel"; null where it names none, or none that `only` keeps. The one rule for a service a title names: the
+ * appointment record's service (feed-appointments.ts) and a consultation's (deals consultServiceOf) both ask it.
+ */
+export function serviceNamedIn(
+  title: string | null | undefined,
+  services: readonly { name: string }[] | undefined,
+  only?: (name: string) => boolean,
+): string | null {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best: { name: string; folded: string } | null = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || (only && !only(name))) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+
 /** The booking rules as far as a consultation needs them. */
 export interface ConsultRules {
   consult_first?: readonly string[];

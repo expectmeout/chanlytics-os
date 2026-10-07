@@ -289,8 +289,8 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
     "the draft row remembers",
   );
   assert.ok(
-    readCode("apps/edge/lib/whatsapp/persist.ts").includes("...(meta ? { meta } : {}),"),
-    "so does the sent row, through the door",
+    readCode("apps/edge/lib/whatsapp/persist.ts").includes("meta: { ...meta, reply_to: ing.message_id },"),
+    "so does the sent row, through the door, naming the message it answers",
   );
   assert.ok(
     /replyMode === "auto" &&\s*minConfidence > 0 &&\s*typeof brainMeta\?\.confidence === "number" &&\s*brainMeta\.confidence < minConfidence;/.test(

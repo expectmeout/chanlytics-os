@@ -402,7 +402,7 @@ export async function dismissPersonDoubt(
 const stampOf = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
 /**
- * What the calling member has seen of these people (contact_seen, 00346): their floor, everything before which is
+ * What the calling member has seen of these people (contact_seen, 00349): their floor, everything before which is
  * seen, and their own marks for the people named. One call for any number of ids: the door takes them in its body.
  * The caller's rows only, by the door's own rule. A read that fails THROWS, and the reader decides what a list says
  * of a reading it could not have (readers/seen.ts: nothing is then called new).
@@ -426,7 +426,7 @@ export async function contactSeen(db: Db, tenantId: string, contactIds: readonly
 }
 
 /**
- * The calling member's own mark on a person (contact_mark, 00346): seen, as they open the person, or unread, as they
+ * The calling member's own mark on a person (contact_mark, 00349): seen, as they open the person, or unread, as they
  * put it back. `heardAt` is how far they have seen: the customer's last moment as their screen held it, and where
  * there is none the door takes its own clock. `marked_at` is the database's stamp of this writing. The door's refusals
  * are thrown as they came (a person not theirs to see is P0002).

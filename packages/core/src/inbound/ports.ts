@@ -286,6 +286,12 @@ export interface InboundPorts {
       claim(db: InboundDb, tenantId: string, conversationId: string, messageId: string): Promise<boolean>;
       holds(db: InboundDb, conversationId: string, messageId: string): Promise<boolean>;
     };
+    /**
+     * Whether a reply names this message (its `reply_to`), whatever became of it: what a text's answer, taken up again
+     * after a runner died mid-turn, asks before it speaks. Absent in an adapter that keeps no such mark: then nothing is
+     * known to have answered it.
+     */
+    answered?(db: InboundDb | null, tenantId: string | null, ing: IngestResult): Promise<boolean>;
     /** The reply written as a DRAFT and scheduled to fire; null when it could not be queued. */
     queueReply(
       db: InboundDb | null,

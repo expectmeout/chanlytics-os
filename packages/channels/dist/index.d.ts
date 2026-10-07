@@ -2014,11 +2014,17 @@ interface ReceivedEmail {
     /** Lower-cased names; a header that repeats keeps its first value. */
     headers: Record<string, string>;
     /**
-     * Every Authentication-Results header the provider listed, in the order it listed them: the one place a repeated header
-     * keeps all its values (`headers` keeps the first), because which of them the receiving side wrote is decided by the
-     * name each carries (`senderAuthenticated`), never by where it sits. Absent reads as none.
+     * What the provider's receiving side concluded about the sender as the email arrived (Resend's `authentication`): SPF,
+     * DKIM and DMARC, each in the provider's own word (`pass`, `fail`, `gray`, `processing_failed`, `unknown`). The server
+     * that took the email in computes it; it is a field of the provider's answer, never a line of the message, so nothing
+     * a sender writes reaches it. Null when the provider handed none over (it gives none for an email from before it kept
+     * one), or handed over something that is not one: no proof, either way (`senderAuthenticated`).
      */
-    authResults?: string[];
+    authentication: {
+        spf: string;
+        dkim: string;
+        dmarc: string;
+    } | null;
     messageId: string | null;
     createdAt: string | null;
     attachments: Array<{
@@ -2049,23 +2055,22 @@ declare function messageIdsIn(header: string | null | undefined): string[];
  */
 type EmailClaim = "report" | "auto_reply" | "automated" | "person" | "booking_notice" | "forwarding_confirmation";
 /**
- * Whether the receiving side PROVES the sender is who the From line says, from the Authentication-Results header it
- * writes (RFC 8601), as the fetched email carries it: an aligned DMARC pass for the From domain (`dmarc=pass` with
- * `header.from` that domain), or a DKIM pass signed by it (`dkim=pass` with `header.d` that domain, or, where the verifier
- * says only the signing identity, `header.i` on it). Anything else is no proof: no header, an SPF result alone (SPF
- * speaks for the envelope, not the From), a pass for another domain, a failure, a DMARC failure beside a DKIM pass.
- * FAILS CLOSED, which is the point: a yes to offers widens what may be sent, and a From line is one anyone can write, so
- * a header this cannot read as a proof is not one. A no (STOP, UNSUBSCRIBE) never asks it, since a no only narrows.
+ * Whether the receiving side PROVES the sender is who the From line says, from the provider's own verdict on the email
+ * (`authentication`, above): DMARC passed, which is by definition an SPF or a DKIM pass aligned with the From domain; or
+ * DKIM passed and DMARC said nothing against it. The provider documents a DKIM pass as a signature by the From domain
+ * (one by another domain it calls `gray`), and it is how a sender whose domain publishes no policy is proved. Anything
+ * else is no proof: no verdict, an SPF pass alone (SPF speaks for the envelope, not the From), a DKIM pass beside a
+ * DMARC failure or beside a word this does not know, and a From that is not one mailbox, plainly (`oneMailbox`): the
+ * one the provider names, and the message's own From line where the provider lists it, which must name the same.
+ * FAILS CLOSED, which is the point: a yes to offers widens what may be sent, and a From line is one anyone can write.
+ * A no (STOP, UNSUBSCRIBE) never asks it, since a no only narrows.
  *
- * Which party wrote a header is decided by its authserv-id, the name that opens it (RFC 8601, on the trust boundary): the
- * header is evidence only so far as the provider's own receiving side is the one that wrote it, and a sender can put any
- * Authentication-Results line it likes into its own mail, with any name and in any place among the headers. So only a header
- * that names `authservId`, the name the provider's receiving side writes (configuration: EMAIL_AUTHSERV_ID, to be read off a
- * real received email), is read at all. With none given, nothing is proof: no yes by email is recorded until it is. And
- * exactly one such header is believed: the provider writes its own once, so a second that carries its name is somebody's
- * copy of it, and a mail with two is read as proving nothing rather than as whichever sits on top.
+ * No header is read for the verdict. An `Authentication-Results` header is words: a sender can write one into its own
+ * mail, under any name and anywhere among the headers, so reading it meant knowing which one the receiver wrote, by a
+ * name each deployment had to be told by hand (EMAIL_AUTHSERV_ID). Production was never told, and so proved no sender at
+ * all. The verdict is not in the message, and needs nothing set.
  */
-declare function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "authResults">, authservId: string | null): boolean;
+declare function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "headers" | "authentication">): boolean;
 declare function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">): EmailClaim;
 
 type EmailReceiptType = "sent" | "delivered" | "delivery_delayed" | "bounced" | "complained" | "failed" | "suppressed";

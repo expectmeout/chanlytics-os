@@ -334,9 +334,6 @@
   "apps/edge/lib/reach-out/run-now.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
-  "apps/edge/lib/receptionist/unfinished.ts": {
-    "@typescript-eslint/no-base-to-string": 1
-  },
   "apps/edge/lib/voice/availability-tool.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
   },

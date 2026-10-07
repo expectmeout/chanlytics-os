@@ -274,7 +274,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST ask/voice/end": "the end of a conversation, kept on its row; the Line already shows the mic at rest",
   "POST ask/messages/[id]/proposals/[pid]": "a card's outcome, kept on Ask's own message; the card's call refreshed",
   "DELETE ask/threads/[id]": "one of Ask's own threads, which Ask's list drops itself",
-  // The reader's own mark on a person (00346). The rows that say it are drawn from the tab's own word at once
+  // The reader's own mark on a person (00349). The rows that say it are drawn from the tab's own word at once
   // (surfaces/seen.ts), and the next read of each list carries the mark: three lists read again on every thread
   // opened would be three requests to say what the screen already does.
   "PUT contacts/[id]/seen": "the reader's own mark; the tab already draws it, and the next read carries it",

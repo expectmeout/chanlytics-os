@@ -157,7 +157,7 @@ before(async () => {
   ctx.notification = await seed("notifications", { tenant_id: A, kind: "alert", title: "tenancy", body: "probe" });
   await seed("notification_reads", { tenant_id: A, user_id: ctx.viewerId }, null);
   await seed("notification_marks", { notification_id: ctx.notification, user_id: ctx.viewerId }, null);
-  // What the viewer has seen of a person (00346): their floor, and their mark on one person. Their own rows.
+  // What the viewer has seen of a person (00349): their floor, and their mark on one person. Their own rows.
   await seed("contact_reads", { tenant_id: A, user_id: ctx.viewerId }, null);
   await seed(
     "contact_marks",
@@ -574,7 +574,7 @@ const TENANT_TABLES = {
   ],
   notifications: ["member", () => ({ tenant_id: A, kind: "alert", title: "stranger", body: "probe" })],
   notification_reads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
-  // A member's reading of the people (00346): read by user_id, written only through contact_mark and the migration.
+  // A member's reading of the people (00349): read by user_id, written only through contact_mark and the migration.
   contact_reads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
   contact_marks: ["own", () => ({ tenant_id: A, contact_id: ctx.contact, user_id: ctx.strangerId })],
   ask_threads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],

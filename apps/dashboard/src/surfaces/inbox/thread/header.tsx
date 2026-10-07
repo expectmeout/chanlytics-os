@@ -285,7 +285,7 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
           },
         ]
       : []),
-    // Mark as unread is the reader's own mark on the person now (00346, surfaces/seen.ts), kept: on a real thread it
+    // Mark as unread is the reader's own mark on the person now (00349, surfaces/seen.ts), kept: on a real thread it
     // flipped a local flag the next realtime reseed wiped, and was taken out of the menu for promising what did not
     // happen. A thread with nobody behind it (a caller who withheld their number) has no one to mark. "Block sender"
     // opened the Ask overlay, a no-op outside a demo: the real way to stop the receptionist for one person is the

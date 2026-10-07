@@ -59,9 +59,9 @@ export interface IncomingEmail {
   claim: EmailClaim;
   attachments: Array<{ filename: string | null; contentType: string | null; size: number | null }>;
   /**
-   * The receiving side PROVES the sender is who the From line says (channels senderAuthenticated: an aligned DMARC pass, or
-   * a DKIM pass signed by the From domain). A From anyone can forge is not one: a yes (YES OFFERS) is taken only from an
-   * email that has it, and is refused, and logged, from one that does not or whose header says nothing. A no (STOP,
+   * The receiving side PROVES the sender is who the From line says (channels senderAuthenticated: the provider's own
+   * verdict, a DMARC pass or a DKIM pass by the From domain). A From anyone can forge is not one: a yes (YES OFFERS) is
+   * taken only from an email that has it, and is refused, and logged, from one that does not. A no (STOP,
    * UNSUBSCRIBE) is always taken, since a no only narrows. Required: no caller may leave a proof out and have a yes taken.
    */
   senderAuthenticated: boolean;
@@ -275,8 +275,8 @@ export async function ingestEmail(
  * is stamped as for any email it took in. Trusted first, on three things, each of which a stranger cannot supply:
  *
  *   - the sender is PROVED by the receiving side (senderAuthenticated), whichever way the notice came. A From line
- *     anyone can write proves nothing: a tool's, or a member's address on a forward. Until the deployment can prove a
- *     sender (EMAIL_AUTHSERV_ID), no notice is read at all, and each is kept for a person as before;
+ *     anyone can write proves nothing: a tool's, or a member's address on a forward. An email the provider gave no
+ *     verdict on is not read, and is kept for a person as before;
  *   - the tool is the one this workspace named (bookingTool): a workspace that set nothing up reads nothing, and
  *     another tool's mail, which anyone may cause to be sent here, is not this business's bookings;
  *   - a forward by hand comes from a member of the workspace (memberAddress), their own address now proved.
@@ -358,7 +358,7 @@ async function flagForAPerson(
  * person with no other line to say it on. A no only narrows, so it is taken whoever the sender claims to be. A yes
  * (to offers, or a START) widens what may be sent, so it is taken only from a sender the receiving side proved
  * (`senderAuthenticated`): one whose words say yes and whose proof is missing or says no is not recorded, and
- * `unproven` has it said in the log, as either a forgery or a header this does not yet read.
+ * `unproven` has it said in the log, as either a forgery or an email the provider gave no verdict on.
  */
 function answersOf(e: IncomingEmail): {
   optOut: boolean;

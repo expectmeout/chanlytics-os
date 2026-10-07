@@ -250,6 +250,7 @@ export {
   HISTORY_COLUMNS,
   searchMessages,
   messageSenders,
+  repliedTo,
   failedMessageErrors,
 } from "./repositories/thread";
 export type { ThreadTurn, PgThreadState, LeadContext, MessageHit, MessageSender } from "./repositories/thread";
@@ -439,8 +440,15 @@ export {
   appointmentsScrub,
   contactIdByPhone,
   contactIdByEmail,
+  syncFeedAppointments,
+  appointmentStates,
 } from "./repositories/calendar/appointments";
-export type { AppointmentRow, AppointmentInsert, AppointmentUpdate } from "./repositories/calendar/appointments";
+export type {
+  AppointmentRow,
+  AppointmentInsert,
+  AppointmentUpdate,
+  AppointmentSync,
+} from "./repositories/calendar/appointments";
 export {
   appointmentNoticeOf,
   keepAppointmentNotice,

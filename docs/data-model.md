@@ -635,7 +635,7 @@ Foreign keys:
 
 ### contact_marks
 
-Per member per person: seen_at is how far the member has seen of the person, in the customer's own moments (the last_inbound_at their screen held as they opened the thread or the page), unread_at when they put it back as unread, cleared by the next opening, and marked_at when the row was last written (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member's floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.
+Per member per person: seen_at is how far the member has seen of the person, in the customer's own moments (the last_inbound_at their screen held as they opened the thread or the page), unread_at when they put it back as unread, cleared by the next opening, and marked_at when the row was last written (00349). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member's floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.
 
 - Owned by: none
 - Primary key: `contact_id`, `user_id`
@@ -662,7 +662,7 @@ Foreign keys:
 
 ### contact_reads
 
-Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00346). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.
+Per member of a workspace: every message or call a customer made before seen_at counts as seen by that member (00349). Made for each member there was when the unread rule landed; a member with no row is held to memberships.created_at. Members read their own row; nothing writes it after the migration yet.
 
 - Owned by: none
 - Primary key: `tenant_id`, `user_id`
@@ -1194,7 +1194,7 @@ How many jobs naming a capacity key (scope:key in payload.capacity) may be fired
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `lease_until` | timestamp with time zone | yes |  | While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts. |
 | `dedupe_key` | text | yes |  | What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00333): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed. |
-| `lane` | smallint | yes | `generated: CASE WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 WHEN (kind = 'event_deliver'::text) THEN CASE WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer ELSE 2 END ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver row carries its subscription's lane. |
+| `lane` | smallint | yes | `generated: CASE WHEN (kind = 'inbound_answer'::text) THEN 0 WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 WHEN (kind = 'event_deliver'::text) THEN CASE WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer ELSE 2 END ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription's lane (payload.lane, 00334), a text's answer in a reply's (inbound_answer, 00347); null for a kind the case does not name, claimed last. |
 
 Foreign keys:
 

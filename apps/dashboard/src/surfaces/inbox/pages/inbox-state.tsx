@@ -456,7 +456,7 @@ export const inboxMoves = (ix: InboxState) => {
   const mutate: Mutate = (id, fn) => setThreads((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
 
   // Opening a thread clears its unread dot; Mark as unread sets it back (one honest meaning of "unread").
-  // A real thread's dot is the reader's own mark on the person (surfaces/seen.ts, 00346): opening it is kept, so it
+  // A real thread's dot is the reader's own mark on the person (surfaces/seen.ts, 00349): opening it is kept, so it
   // stays read on the next read and on their other screens. It meant "needs you" until the marks were kept, and
   // opening it changed nothing: it cleared, and the next read lit it again (I2). A seeded thread's is the page's flag.
   // A search spans every bucket (inbox-list.tsx), so a thread picked from it may live in another: its own bucket opens

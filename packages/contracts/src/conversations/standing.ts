@@ -125,7 +125,7 @@ export function replyWaitsOnYou(
  *
  * A row never went from unread to read. The Inbox's dot meant "needs you", every other list drew each row at one
  * weight, and nothing recorded that anyone had opened a thread (Ruben, 7 Oct 2026). Now each member keeps their own
- * reading of each person (00346: contact_reads, the floor everything before which is seen, and contact_marks, when they
+ * reading of each person (00349: contact_reads, the floor everything before which is seen, and contact_marks, when they
  * last opened the person and whether they put it back as unread), and a person is new to them when the customer's
  * last message or call (conversations.last_inbound_at) came after it.
  *

@@ -335,6 +335,26 @@ test("internal work not written to be run again still fails on its first throw",
   assert.equal(counts.failed, 2);
 });
 
+test("a text's answer is tried once more after a throw, and when it fails for good the owner is not told twice: the deadman sweep tells them, with the customer's words", async () => {
+  const { ports, calls, logged } = fakes([job("a", "inbound_answer", 1), job("b", "inbound_answer", 2)], {
+    throwOn: new Set(["a", "b"]),
+  });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(
+    calls.defer.map(([id]) => id),
+    ["a"],
+    "the first throw waits its one retry",
+  );
+  assert.deepEqual(
+    calls.fail.map(([id]) => id),
+    ["b"],
+    "the second is final",
+  );
+  assert.deepEqual(calls.alert, [], "and the ledger sends no notice of its own");
+  assert.ok(logged("info", "job_failed"), "though the failure is said in the log");
+  assert.equal(counts.failed, 1);
+});
+
 test("a kind this runner does not know is kept for the runner that will, its claim given back, not failed", async () => {
   // A newer deploy wrote it (its kind arrived with its handler, caller and CHECK) and this edge is the older one: it
   // waits five minutes and is looked at again, so the edge and the database may deploy in either order.

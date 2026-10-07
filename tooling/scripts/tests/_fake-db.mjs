@@ -828,7 +828,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // The Inbox's messages (00258), each thread's newest, from the messages the fixture holds: every suite that reads
     // GET conversations reads through it.
     newest_messages: (args) => newestMessagesIn(tables, args),
-    // What a member has seen of the people named (00346 contact_seen), from the floor and the marks a fixture holds:
+    // What a member has seen of the people named (00349 contact_seen), from the floor and the marks a fixture holds:
     // every suite that reads GET conversations reads through it. The double holds one member's view, so the rows are
     // that member's: the workspace's floor, and each mark on those people. A fixture with neither answers a member
     // with no reading, and nothing is then new to them.

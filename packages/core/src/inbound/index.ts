@@ -30,5 +30,5 @@ export {
   NO_MODEL_PAGE,
 } from "./steps";
 export type { LayerTwoIn, LayerTwoOut } from "./steps";
-export { answerInbound } from "./answer";
+export { answerInbound, recordInbound } from "./answer";
 export type { InboundCarrier, InboundInput } from "./answer";

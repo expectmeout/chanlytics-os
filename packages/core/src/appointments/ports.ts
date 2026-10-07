@@ -4,7 +4,7 @@
  * the person the booking is for. No database client, provider or environment inside the verb; the jobs handler binds
  * these over packages/db and the edge's model door.
  */
-import type { NoticeHold } from "@chanlytics/contracts";
+import type { AppointmentStatus, NoticeHold } from "@chanlytics/contracts";
 
 /** One received email as the read needs it: who sent it, its words, when it came, and the provider's id for it. */
 export interface NoticeEmail {
@@ -16,8 +16,8 @@ export interface NoticeEmail {
   receivedAt: string | null;
 }
 
-/** An appointment's life (decision 0002): a hold, a booking, what became of it. */
-export type AppointmentStatus = "proposed" | "booked" | "kept" | "missed" | "cancelled";
+/** An appointment's life (decision 0002): a hold, a booking, what became of it. The one closed set is contracts'. */
+export type { AppointmentStatus };
 
 /** The row as the read needs it back: enough to tell a live booking from a finished one, and to move it. */
 export interface StoredAppointment {

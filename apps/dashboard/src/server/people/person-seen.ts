@@ -1,5 +1,5 @@
 /**
- * What a member has seen of a person (00346), as the signed-in member: the read every list's reader makes, and the
+ * What a member has seen of a person (00349), as the signed-in member: the read every list's reader makes, and the
  * write the mark route does.
  *
  * A person is new to a member when the customer's last message or call came after the member last opened them, or
@@ -12,7 +12,7 @@ import { contactSeen, markContact } from "@chanlytics/db";
 import { log } from "@/server/log";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 
-/** The door is not there yet (the dashboard deployed before 00346), or nobody is signed in on this client (a reader run for Ask by the service). */
+/** The door is not there yet (the dashboard deployed before 00349), or nobody is signed in on this client (a reader run for Ask by the service). */
 const NO_READING = new Set(["PGRST202", "42883", "28000"]);
 
 /**

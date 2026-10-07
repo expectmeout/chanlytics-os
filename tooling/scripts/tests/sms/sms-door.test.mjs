@@ -64,6 +64,8 @@ const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
 const { smsSenderFor } = await import(at("apps/edge/lib/sms/sms.ts"));
 const { deliver } = await import(at("packages/core/dist/index.js"));
 const hook = await import(at("apps/edge/api/inbound-sms.ts"));
+const { answerText } = await import(at("apps/edge/lib/sms/inbound-text.ts"));
+const { dispatchJob } = await import(at("packages/jobs/dist/index.js"));
 
 /* -------------------------------------------------------------- the wire */
 
@@ -142,13 +144,45 @@ const post = (body, headers = {}, url = DOOR) =>
     }),
     event(),
   );
-/** A text as Twilio posts it: the fields as a form, signed over the URL and every field with `token` (null signs nothing). */
-const text = async (fields, token, { url = DOOR, signedUrl = url } = {}) =>
-  post(
+/**
+ * A text as Twilio posts it: the fields as a form, signed over the URL and every field with `token` (null signs
+ * nothing). The door records the text and leaves its answer as a job (inbound_answer), which runs before this returns,
+ * as the ledger would run it a moment later, unless the case asks for the door alone (`answer: false`).
+ */
+const text = async (fields, token, { url = DOOR, signedUrl = url, answer = true } = {}) => {
+  const res = await post(
     new URLSearchParams(fields).toString(),
     token ? { "x-twilio-signature": await twilioSignature(token, signedUrl, fields) } : {},
     url,
   );
+  if (answer) await runAnswers();
+  return res;
+};
+
+/** The tables of the world the door was last handed, and what the jobs run from them threw, in order. */
+let openTables = null;
+const jobThrows = [];
+/**
+ * The answers the door left as jobs, run as the ledger runs one: claimed, dispatched by the ledger's own map under the
+ * request that scheduled it (packages/jobs dispatchJob), into the edge's job half (answerText, as lib/ops/jobs-tick.ts
+ * binds it) over the same database, settled done, or failed with what it threw (the ledger would try it again).
+ */
+async function runAnswers() {
+  const db = pg();
+  for (const job of openTables?.jobs ?? []) {
+    // A row's state is the database's default until something moves it (the double keeps what was written).
+    if (!db || job.kind !== "inbound_answer" || (job.state ?? "scheduled") !== "scheduled") continue;
+    job.state = "fired";
+    try {
+      const claimed = { id: job.id, tenant_id: job.tenant_id, kind: job.kind, payload: job.payload };
+      assert.equal(await dispatchJob({ db, inbound: { answer: (j) => answerText(db, j) } }, claimed), "done");
+      job.state = "done";
+    } catch (e) {
+      job.state = "failed";
+      jobThrows.push(e);
+    }
+  }
+}
 /** What Twilio hears: the status, the type and the body. */
 const heard = async (res) => [res.status, res.headers.get("content-type"), await res.text()];
 const twiml = (status) => [status, "text/xml", EMPTY_TWIML];
@@ -248,6 +282,7 @@ function world() {
     open: (faults = {}) => {
       const db = fakeDb(tables, faults, { get_line_credentials: ({ p_line_id }) => vault[p_line_id] ?? {} });
       setPg(db);
+      openTables = tables;
       return db;
     },
     /** A customer nobody else in this file texts as, in E.164 as Twilio sends it. */
@@ -280,6 +315,7 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], textedBefore: f
  * `ingest` and `escalate` run inside those steps, so a case can make either throw.
  */
 function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {}, thread = blank } = {}) {
+  const kept = new Set();
   const seen = {
     runtimes: [],
     ingested: [],
@@ -315,15 +351,19 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {}, 
     budget: { tokensLast24h: async () => 0 },
     persist: {
       thread: async () => thread(),
+      // The message id is what a redelivery is recognised by: a text's job ingests what its door kept, and is told so.
       ingest: async (_db, tenantId, n, channel) => {
-        seen.ingested.push({ tenantId, channel, body: n.body });
+        const isNew = !kept.has(n.messageId);
+        kept.add(n.messageId);
+        if (isNew) seen.ingested.push({ tenantId, channel, body: n.body });
         ingest(n);
         return tenantId
           ? {
               message_id: "m-in",
               conversation_id: "conv-1",
               contact_id: "k-1",
-              is_new: true,
+              is_new: isNew,
+              processed: false,
               consent: "unknown",
               dnc: false,
               paused_until: null,
@@ -595,20 +635,19 @@ test("a text on a line the carriers have not approved reaches the receptionist h
       "acknowledged: the text is kept, so Twilio need not send it again",
     );
 
+    const routedTo = {
+      channelId: w.channel.id,
+      tenantId: w.T,
+      kind: "sms",
+      externalId: w.LINE,
+      numberE164: w.LINE,
+      credentialsRef: null,
+      config: {},
+    };
     assert.deepEqual(
       seen.runtimes,
-      [
-        {
-          channelId: w.channel.id,
-          tenantId: w.T,
-          kind: "sms",
-          externalId: w.LINE,
-          numberE164: w.LINE,
-          credentialsRef: null,
-          config: {},
-        },
-      ],
-      "the workspace's runtime, for the sms channel its number routes to",
+      [routedTo, routedTo],
+      "the workspace's runtime, for the sms channel its number routes to: read by the door, and again by its job",
     );
     assert.deepEqual(
       seen.ingested,
@@ -879,8 +918,8 @@ test("after the receptionist throws, only a text the database did not keep is re
     );
   });
 
-  // The words were kept and answered; the handoff after the answer threw. A
-  // redelivery would only answer the same text twice.
+  // The words were kept and the door answered Twilio; the handoff after the answer threw, in the text's job. A
+  // redelivery would only answer the same text twice: the job is the ledger's to try again.
   const v = world();
   v.open();
   receptionist({
@@ -888,6 +927,7 @@ test("after the receptionist throws, only a text the database did not keep is re
       throw new TypeError("cannot read properties of undefined (reading 'id')");
     },
   });
+  const thrown = jobThrows.length;
   await listening(async (log) => {
     assert.deepEqual(
       await heard(await text(v.form(v.customer()), v.TOKEN)),
@@ -896,12 +936,115 @@ test("after the receptionist throws, only a text the database did not keep is re
     );
     assert.equal(v.left().texts.length, 1, "the customer was answered once");
     assert.deepEqual(v.left().mail, [], "and nobody is paged");
+    assert.deepEqual(log.said("sms_inbound_failed"), [], "the door's own work went through");
     assert.deepEqual(
-      log.said("sms_inbound_failed").map((l) => [l.stream, l.error]),
-      [["error", "cannot read properties of undefined (reading 'id')"]],
-      "but it is said",
+      jobThrows.slice(thrown).map((e) => e.message),
+      ["cannot read properties of undefined (reading 'id')"],
+      "the job threw it, for the ledger to try again",
     );
   });
+});
+
+/* ------------------------------------------- answered after the acknowledgement */
+
+test("the door answers Twilio before the text is answered: the text kept, its answer a job in the reply lane, once per message, carrying the text's own fields and naming its person", async () => {
+  const w = world();
+  w.open();
+  const seen = receptionist();
+  const from = w.customer();
+  // A field the parser never reads (Twilio sends the sender's city): the job carries none of it.
+  const fields = { ...w.form(from), FromCity: "MIAMI" };
+  const before = Date.now();
+  assert.deepEqual(await heard(await text(fields, w.TOKEN, { answer: false })), twiml(200));
+  assert.deepEqual([seen.sent, seen.escalations, w.left().texts], [[], [], []], "nothing answered in the door");
+  assert.equal(seen.ingested.length, 1, "the words are on record before Twilio is answered");
+  const jobs = w.tables.jobs ?? [];
+  assert.equal(jobs.length, 1);
+  const [job] = jobs;
+  assert.deepEqual(
+    [job.tenant_id, job.kind, job.state ?? "scheduled", job.dedupe_key],
+    [w.T, "inbound_answer", "scheduled", "inbound_answer:m-in"],
+    "one job, the workspace's, held once per message",
+  );
+  const { FromCity: _city, ...own } = fields;
+  assert.deepEqual(job.payload.text, own, "the text's own fields, as Twilio named them, and nothing else");
+  assert.deepEqual(
+    [job.payload.message_id, job.payload.conversation_id, job.payload.contact_id],
+    ["m-in", "conv-1", "k-1"],
+    "the rows it was kept as, so an erasure finds the job",
+  );
+  assert.ok(job.payload.received_at >= before && Date.parse(job.due_at) >= job.payload.received_at, "due now");
+
+  await runAnswers();
+  assert.equal(job.state, "done");
+  assert.deepEqual(
+    w.left().texts.map((t) => [t.url.includes(`/Accounts/${w.SUB}/`), t.form.To, t.form.MessagingServiceSid]),
+    [[true, from, w.SERVICE]],
+    "the job answers on the line's own subaccount and Messaging Service",
+  );
+  assert.equal(seen.ingested.length, 1, "kept once: the job's ingest is a redelivery its resume goes on through");
+});
+
+test("a job the database will not take (one before 00347 refuses the kind): said, and the door answers the text itself, as before", async () => {
+  const w = world();
+  w.open({
+    "jobs.insert": {
+      code: "23514",
+      message: 'new row for relation "jobs" violates check constraint "jobs_kind_check"',
+    },
+  });
+  const seen = receptionist();
+  await listening(async (log) => {
+    assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN, { answer: false })), twiml(200));
+    assert.deepEqual(
+      log.said("sms_answer_unscheduled").map((l) => [l.stream, l.refused, /jobs_kind_check/.test(String(l.error))]),
+      [["warn", true, true]],
+    );
+  });
+  assert.equal(w.tables.jobs, undefined, "no job was written");
+  assert.deepEqual(
+    [w.left().texts.length, seen.sent.length, seen.ingested.length],
+    [1, 1, 1],
+    "answered in the door, taken up again as its job would have taken it up",
+  );
+});
+
+test("a job whose write may have landed (a timeout, a connection lost) is never answered in the door too: said, and left to the job or to the deadman sweep", async () => {
+  const w = world();
+  w.open({ "jobs.insert": { code: "57014", message: "canceling statement due to statement timeout" } });
+  const seen = receptionist();
+  await listening(async (log) => {
+    assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN, { answer: false })), twiml(200));
+    assert.deepEqual(
+      log.said("sms_answer_unscheduled").map((l) => [l.stream, l.refused]),
+      [["warn", false]],
+    );
+  });
+  assert.deepEqual(
+    [w.left().texts, seen.sent, seen.ingested.length],
+    [[], [], 1],
+    "kept, and not answered here: a job that did land answers it, once",
+  );
+});
+
+test("the job reads the line again and refuses a text it cannot answer: a payload with no text, or a number another workspace holds now", async () => {
+  const w = world();
+  w.open();
+  receptionist();
+  await assert.rejects(
+    answerText(pg(), { id: "j1", tenant_id: w.T, kind: "inbound_answer", payload: {} }),
+    /names no text/,
+  );
+  await assert.rejects(
+    answerText(pg(), {
+      id: "j2",
+      tenant_id: "ffffffff-0000-4000-8000-000000000000",
+      kind: "inbound_answer",
+      payload: { text: w.form(w.customer()), received_at: Date.now() },
+    }),
+    /another workspace's now/,
+  );
+  assert.deepEqual(w.left().texts, [], "and nothing was said");
 });
 
 test("a one-time code texted to the line is skipped: an empty TwiML, no person, no conversation, no reply, no handoff and no page, a line that names the service and never the code or the number -- and the next customer's text is answered as ever", async () => {

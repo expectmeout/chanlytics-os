@@ -661,6 +661,38 @@ test("a visit run keeps each person's words on their row, from the visit the run
   ]);
 });
 
+test("a visit read from the calendar keeps its appointment's key, its start and when the run read it on the row (decision 0002), so the send can ask whether it still stands; a visit with no key keeps the words alone", async () => {
+  const next = { ...visit("2026-09-07T18:00:00Z", "Balayage"), key: "evt-1:1788804000000" };
+  const read = { timezone: TZ, source: "calendar", state: "ok", next, last: null };
+  const row = toPersonRowVM(dto("a", { visits: read }), TZ, NOW);
+  const { ports, of } = fakes();
+  const r = await runPlaybook(
+    ports,
+    cmd({
+      playbook: playbook({
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_name: "visit_reminder",
+        params: [{ kind: "visit_when" }, { kind: "visit_service" }],
+      }),
+      ctx: context({
+        modes: new Map([["booking", "auto"]]),
+        calendar: "ok",
+        people: [row],
+        visits: new Map([["a", read]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "sent");
+  assert.deepEqual(of("assemble")[0][2][0].facts, {
+    visit_when: "tomorrow at 2:00 PM",
+    visit_service: "Balayage",
+    appointment: "evt-1:1788804000000",
+    visit_start: "2026-09-07T18:00:00Z",
+    appointment_read_at: NOW.toISOString(),
+  });
+});
+
 test("a person with a visit later today and another tomorrow is reminded of TOMORROW's: the run reads the visit on its day, not the next one (wiring review P2 14)", async () => {
   // Their next visit is today's, at 4 PM: "the next visit is tomorrow" was false, and tomorrow's reminder never went.
   const today = visit("2026-09-06T20:00:00Z", "Cut"); // today, 4:00 PM in New York

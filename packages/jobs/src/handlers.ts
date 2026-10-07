@@ -138,11 +138,10 @@ async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
 /**
  * The provider's email, as the verb takes it: what it claims to be, its words
  * as plain text, and its thread ids read out of its headers. The parsing is
- * here, in the adapter, so the verb knows no provider (hygiene.test.mjs). `authservId` is the name the provider's receiving
- * side writes into the Authentication-Results header it adds (channels senderAuthenticated); null where none is configured,
- * and then no sender is proved.
+ * here, in the adapter, so the verb knows no provider (hygiene.test.mjs). Whether its sender is proved is the provider's
+ * own verdict on it (channels senderAuthenticated), which nothing in the message can write.
  */
-export function incomingEmailOf(e: ReceivedEmail, authservId: string | null): IncomingEmail {
+export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
   return {
     id: e.id,
     from: e.from,
@@ -156,7 +155,7 @@ export function incomingEmailOf(e: ReceivedEmail, authservId: string | null): In
     receivedAt: e.createdAt,
     claim: classifyReceived(e),
     attachments: e.attachments,
-    senderAuthenticated: senderAuthenticated(e, authservId),
+    senderAuthenticated: senderAuthenticated(e),
   };
 }
 
@@ -165,6 +164,9 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const email = ctx.email;
   if (!email) throw new Error("email_ingest: this runtime holds no email provider");
   const { db } = ctx;
+  // What the provider said of the sender, for the line below: it is how a deployment sees that a verdict is handed over
+  // at all, and why an email that says yes was, or was not, believed.
+  let senderChecks: ReceivedEmail["authentication"] = null;
   const outcome = await ingestEmail(
     {
       mailbox: async (id) => {
@@ -176,7 +178,8 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
       },
       fetch: async (receivedId) => {
         const e = await email.fetch(receivedId);
-        return e ? incomingEmailOf(e, email.authservId ?? null) : null;
+        senderChecks = e?.authentication ?? null;
+        return e ? incomingEmailOf(e) : null;
       },
       // A booking tool's notice is read into an appointment by its own job, once per delivery (dedupe_key), as this
       // job's own tenant: the intake run again finds it already on the ledger. The tool rides along, so a delivery the
@@ -214,7 +217,7 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
     },
     { payload: job.payload },
   );
-  logger().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome });
+  logger().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome, sender_checks: senderChecks });
 }
 
 type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
@@ -466,6 +469,16 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
  * not build, rather than sitting on the ledger until a row of it is claimed
  * and comes back "unknown_kind" in production.
  */
+/**
+ * inbound_answer: a text the SMS door recorded and acknowledged, answered through the receptionist the edge injects
+ * (decision 0031, Phase 2). payload: { text, received_at, message_id, conversation_id, contact_id }. Run again after a
+ * runner died mid-turn, it answers only while the message is unprocessed and no reply names it (core inbound/ingest.ts).
+ */
+async function inboundAnswer(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.inbound) throw new Error("inbound_answer: this runtime holds no receptionist");
+  await ctx.inbound.answer(job);
+}
+
 const HANDLERS: Record<JobKind, Handler> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -479,6 +492,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   reply_read: replyRead,
   event_deliver: eventDeliver,
   booking_read: bookingRead,
+  inbound_answer: inboundAnswer,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

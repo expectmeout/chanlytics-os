@@ -179,6 +179,24 @@ export async function planSmsIngress(o: {
 }
 
 /**
+ * A text its door recorded, taken up again by its job (inbound_answer, decision 0031 Phase 2): the line, its account
+ * and its routing read again as the door read them, without the signature the door already proved. Throws when any of
+ * them could not be read, or the line or its channel is gone, so the ledger tries again and after that the deadman sweep
+ * hands the text to a person.
+ */
+export async function lineForAnswer(
+  db: Db,
+  inbound: SmsInbound,
+): Promise<{ line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean }> {
+  const line = await lineByNumber(db, inbound.to);
+  const acct = line ? await lineAccount(db, line) : null;
+  if (!line || !acct) throw new Error("inbound_answer: no line with its account carries the number texted");
+  const { channel: routed } = await resolveChannelDetailed(db, "sms", inbound.to);
+  if (!routed) throw new Error("inbound_answer: the number's sms channel could not be read, or is not active");
+  return { line, acct, routed, held: line.sms_state !== "active" };
+}
+
+/**
  * This message's wire, for the handler that already knows how to answer it.
  *
  * Pure: the sender is handed in, so a held line is expressed as no sender at
