@@ -438,8 +438,15 @@ export {
   appointmentsScrub,
   contactIdByPhone,
   contactIdByEmail,
+  syncFeedAppointments,
+  appointmentStates,
 } from "./repositories/calendar/appointments";
-export type { AppointmentRow, AppointmentInsert, AppointmentUpdate } from "./repositories/calendar/appointments";
+export type {
+  AppointmentRow,
+  AppointmentInsert,
+  AppointmentUpdate,
+  AppointmentSync,
+} from "./repositories/calendar/appointments";
 export {
   appointmentNoticeOf,
   keepAppointmentNotice,

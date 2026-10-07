@@ -19,6 +19,11 @@
  * stops a reach-out to a business that booked after it was written to; if the door fails that is logged and counts
  * nothing, and People has been filled all the same.
  *
+ * The same read is then kept as the workspace's appointments (keepAppointments, lib/calendar/calendar-appointments.ts,
+ * decision 0002): inserted or moved by the calendar's own key, a row the read no longer names vanished, never
+ * cancelled, a booked appointment over for a day kept. A keep that fails is logged (calendar_appointments_failed) and
+ * counts the workspace as read: People has been filled, and the next hour's read keeps what this one could not.
+ *
  * A workspace read is stamped (markCalendarChecked, tenant_config.calendar_checked_at). So is one that could not be
  * read (a feed that fails, settings that do not parse, no address, a throw): it is retried next hour, behind the feeds
  * that can be read, instead of holding the first place of the page every hour.
@@ -43,6 +48,7 @@ import {
 } from "../ops/sweep-rotation.js";
 import { feedItemsFor } from "./availability.js";
 import { addPeopleFromCalendar } from "./calendar-people.js";
+import { keepAppointments } from "./calendar-appointments.js";
 import { bookedFromCalendar } from "./reach-out-booked.js";
 import { recordNotification } from "../ops/notify.js";
 import { ownAddressesOf, parseTenantConfig, peopleFromItems } from "../packages/contracts.js";
@@ -66,7 +72,18 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
     return json(500, { ok: false });
   }
 
-  const out = { tenants: 0, seen: 0, added: 0, named: 0, emailed: 0, booked: 0, failed: 0, remaining: page.remaining };
+  const out = {
+    tenants: 0,
+    seen: 0,
+    added: 0,
+    named: 0,
+    emailed: 0,
+    booked: 0,
+    failed: 0,
+    remaining: page.remaining,
+  };
+  // What the reads kept as appointments, for the tick's log line: the answer stays the sweep's own counts.
+  const kept = { added: 0, moved: 0, back: 0, vanished: 0, kept: 0, seen: 0 };
   const startedAt = Date.now();
   for (const [i, row] of page.rows.entries()) {
     // Out of time: the rest of the page is remaining, not read, and not stamped.
@@ -89,13 +106,8 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
     try {
       // The zone comes with the page (00245): the workspace's own, UTC when that is a name nobody knows.
       const tz = row.timezone;
-      const items = await feedItemsFor(
-        row.tenant_id,
-        url,
-        tz,
-        now,
-        cfg?.brain?.profile?.booking_rules?.max_days_ahead ?? 14,
-      );
+      const daysAhead = cfg?.brain?.profile?.booking_rules?.max_days_ahead ?? 14;
+      const items = await feedItemsFor(row.tenant_id, url, tz, now, daysAhead);
       if (!items) {
         out.failed += 1;
         await tried();
@@ -112,6 +124,17 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
       out.named += r.named;
       out.emailed += r.emailed;
       out.booked += await bookedFromCalendar(db, row.tenant_id, items, ownAddressesOf(cfg));
+      // After the people, so an appointment names the person this read just put in People.
+      await keepAppointments(db, row.tenant_id, items, { timezone: tz, cfg, daysAhead, now }).then(
+        (r) => {
+          for (const k of Object.keys(kept) as (keyof typeof kept)[]) kept[k] += r[k];
+        },
+        (e: unknown) =>
+          L.error("calendar_appointments_failed", {
+            tenant_id: row.tenant_id,
+            error: e instanceof Error ? e.message : String(e),
+          }),
+      );
       await markCalendarChecked(db, row.tenant_id, now);
       if (r.added || r.named || r.emailed) L.info("calendar_people_added", { tenant_id: row.tenant_id, ...r });
       // A row on the bell, not an email: people arriving is good news, not an alarm.
@@ -129,7 +152,7 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
     }
   }
   const backlog = await noteBacklog(db, "calendar", out.remaining);
-  L.info("calendar_sweep", { ...out, backlog_ticks: backlog.ticks });
+  L.info("calendar_sweep", { ...out, appointments: kept, backlog_ticks: backlog.ticks });
   // One tick with work left over is the cap doing its job. Three in a row is
   // the queue growing faster than this sweep drains it, which sweep_health
   // turns red and mails -- a capacity fact a person has to hear before a

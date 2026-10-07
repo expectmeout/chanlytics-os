@@ -10055,6 +10055,9 @@ var HELD_REASONS = {
   // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
   send_failed: "the provider refused it",
   missing_value: "a value was missing",
+  // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
+  // (calendar/feed-appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
+  appointment_changed: "their appointment moved or was cancelled",
   // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
   // this object opaque to the bundler, which then carries the whole map into
   // every package that imports anything from here. core-broadcast.test.mjs
@@ -10901,6 +10904,12 @@ var SEND_WHEN_WORDS = {
   timeLabel: "The time it goes out"
 };
 
+// src/calendar/appointment-key.ts
+function appointmentKeyOf(item) {
+  if (!item.uid) return `ev:${item.start}`;
+  return item.occurrence === void 0 ? item.uid : `${item.uid}:${item.occurrence}`;
+}
+
 // src/calendar/calendar-people.ts
 function threadOf(p) {
   return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
@@ -11017,6 +11026,15 @@ function indexFeed(items, own) {
   }
   return { byPhone, byEmail, texts, own };
 }
+var visitOf = (it, via) => ({
+  id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
+  key: appointmentKeyOf(it),
+  start: it.start,
+  end: it.end,
+  title: it.title || "Busy",
+  allDay: it.allDay,
+  via
+});
 function allVisitsIn(index, person) {
   if (isOwn(index.own, person)) return [];
   const out = [];
@@ -11024,14 +11042,7 @@ function allVisitsIn(index, person) {
   const take = (it, via) => {
     if (seen.has(it)) return;
     seen.add(it);
-    out.push({
-      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
-      start: it.start,
-      end: it.end,
-      title: it.title || "Busy",
-      allDay: it.allDay,
-      via
-    });
+    out.push(visitOf(it, via));
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
@@ -11050,14 +11061,7 @@ function visitsIn(index, person, nowMs) {
   const take = (it, via) => {
     if (seen.has(it)) return;
     seen.add(it);
-    const v = {
-      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
-      start: it.start,
-      end: it.end,
-      title: it.title || "Busy",
-      allDay: it.allDay,
-      via
-    };
+    const v = visitOf(it, via);
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
@@ -11145,7 +11149,8 @@ function toVisitDto(v) {
     end: new Date(v.end).toISOString(),
     title: v.title,
     all_day: v.allDay,
-    via: v.via
+    via: v.via,
+    ...v.key ? { key: v.key } : {}
   } : null;
 }
 var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
@@ -12549,6 +12554,10 @@ function instantsOf(lines, fallbackTz) {
   }
   return out;
 }
+var seriesOf = (occurrence) => occurrence === null ? {} : { occurrence };
+function dueAt(rid, fallbackTz) {
+  return rid ? toMs(rid.value, rid.params, fallbackTz) : null;
+}
 function parseIcs(text, fallbackTz, opts = {}) {
   const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
   const busy = [];
@@ -12622,7 +12631,6 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const title = unescapeText(p.SUMMARY?.value ?? "");
     const description = unescapeText(p.DESCRIPTION?.value ?? "") || null;
     const location = unescapeText(p.LOCATION?.value ?? "") || null;
-    const guests = r2.attendees.slice();
     const allDay = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim());
     const uid = p.UID?.value.trim() || null;
     const org = p.ORGANIZER?.value.trim() ?? "";
@@ -12631,9 +12639,10 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
     const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
-    const push = (o) => {
+    const words2 = { title, allDay, uid, description, location, attendees: r2.attendees.slice(), organizer };
+    const push = (o, occurrence = null) => {
       busy.push(o);
-      items.push({ ...o, title, allDay, uid, description, location, attendees: guests, organizer });
+      items.push({ ...o, ...words2, ...seriesOf(occurrence) });
     };
     if (p.RRULE && !isOverride && rule && local) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
@@ -12643,33 +12652,370 @@ function parseIcs(text, fallbackTz, opts = {}) {
       for (const o of occ) {
         if (!seen.has(o.start)) {
           seen.add(o.start);
-          push(o);
+          push(o, o.start);
         }
       }
       for (const ms2 of instantsOf(r2.rdates, fallbackTz)) {
         if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
         seen.add(ms2);
-        push({ start: ms2, end: ms2 + dur });
+        push({ start: ms2, end: ms2 + dur }, ms2);
       }
       recurringExpanded++;
     } else if (!p.RRULE && r2.rdates.length && !isOverride) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
       const seen = /* @__PURE__ */ new Set([start]);
-      push({ start, end });
+      push({ start, end }, start);
       for (const ms2 of instantsOf(r2.rdates, fallbackTz)) {
         if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
         seen.add(ms2);
-        push({ start: ms2, end: ms2 + dur });
+        push({ start: ms2, end: ms2 + dur }, ms2);
       }
       recurringExpanded++;
     } else {
       if (p.RRULE && !isOverride) skippedRecurring++;
-      push({ start, end });
+      push({ start, end }, dueAt(p["RECURRENCE-ID"], fallbackTz));
     }
   }
   busy.sort((a, b) => a.start - b.start);
   items.sort((a, b) => a.start - b.start);
   return { busy, items, events, recurringExpanded, skippedRecurring };
+}
+
+// src/shared/link.ts
+var MAX_LINK = 500;
+var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+function normalizeLink(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s || /\s/.test(s)) return null;
+  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
+  if (withScheme.length > MAX_LINK) return null;
+  let u;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (!HOST.test(u.hostname)) return null;
+  return withScheme;
+}
+function whyNotALink(raw) {
+  if (normalizeLink(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "A web address is needed.";
+  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
+  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
+  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
+  return "That needs a full web address, like docs.example.com/proposal.";
+}
+function linkHost(url) {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+// src/deals/deal-amount.ts
+function amountWords(cents, per, currency = "USD") {
+  if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
+  const whole = cents % 100 === 0;
+  const money2 = numberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2
+  }).format(cents / 100);
+  const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
+  return p && per !== "once" ? `${money2} ${p}` : money2;
+}
+function parseAmount(words2) {
+  const digits2 = String(words2 || "").replace(/[^0-9.-]/g, "");
+  const n = digits2 ? Number(digits2) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+function amountTotalsWords(items) {
+  const order = ["once", "month", "year"];
+  const sums = /* @__PURE__ */ new Map();
+  for (const i of items) {
+    if (i.amount_cents === null || i.amount_cents === void 0 || !Number.isFinite(i.amount_cents)) continue;
+    const per = i.per === "month" || i.per === "year" ? i.per : "once";
+    const currency = (i.currency || "USD").toUpperCase();
+    const key = `${per}|${currency}`;
+    const s = sums.get(key) ?? { cents: 0, per, currency };
+    s.cents += i.amount_cents;
+    sums.set(key, s);
+  }
+  if (!sums.size) return null;
+  return [...sums.values()].sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency)).map((s) => amountWords(s.cents, s.per, s.currency)).join(" + ");
+}
+
+// src/deals/deal-vm.ts
+function dealFactsOf(r2) {
+  if (!r2 || !isDealStage(r2.deal_stage)) return null;
+  return {
+    stage: r2.deal_stage,
+    service: r2.deal_service ?? null,
+    proposed_at: r2.deal_proposed_at ?? null,
+    decided_at: r2.deal_decided_at ?? null,
+    ended_at: r2.deal_ended_at ?? null,
+    amount_cents: r2.deal_amount_cents ?? null,
+    per: r2.deal_per ?? null,
+    currency: r2.deal_currency ?? null,
+    proposal_url: r2.deal_proposal_url ?? null,
+    valid_until: r2.deal_valid_until ?? null,
+    lost_reason: r2.deal_lost_reason ?? null
+  };
+}
+function pickCurrentDeal(rows) {
+  const sorted = [...rows].sort(
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
+  return sorted[0] ?? null;
+}
+function dealIsOpen(d) {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
+}
+function proposalLinkOf(current, personLink) {
+  if (!current) return personLink?.trim() || null;
+  if (current.stage !== "proposed") return null;
+  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
+}
+function wholeDaysSince(atMs, nowMs) {
+  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
+}
+function dealSinceMs(d) {
+  const at3 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
+  const ms2 = at3 ? Date.parse(at3) : NaN;
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function validUntilOf(day, tz, nowMs) {
+  if (!day || !isRealDate(day)) return null;
+  const at3 = wallClockAt(tz, day, 12, 0);
+  if (!Number.isFinite(at3)) return null;
+  const lapsed = zoneDayKey(nowMs, tz) > day;
+  const date = clockDate(at3, tz, nowMs);
+  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
+}
+function toDealVM(d, tz, nowMs) {
+  if (!isDealStage(d.stage)) return null;
+  const sinceMs = dealSinceMs(d);
+  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
+  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
+  const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
+  const url = d.proposal_url?.trim() || null;
+  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
+  const word = DEAL_STAGE_WORDS[d.stage];
+  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
+  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
+  return {
+    id: d.id ?? null,
+    version: d.version ?? null,
+    stage: d.stage,
+    word,
+    service: d.service,
+    sinceMs,
+    since,
+    said,
+    line,
+    facts,
+    brief,
+    waitingDays,
+    amount,
+    amountCents: d.amount_cents === null || d.amount_cents === void 0 || !Number.isFinite(d.amount_cents) ? null : d.amount_cents,
+    per: isDealPer(d.per) ? d.per : null,
+    currency: d.currency || "USD",
+    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
+    proposal: url ? { url, host: linkHost(url) } : null,
+    validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
+    reason: d.stage === "lost" && isDealLostReason(d.lost_reason) ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] } : null
+  };
+}
+function dealOf(r2, tz, nowMs) {
+  const f = dealFactsOf(r2);
+  return f ? toDealVM({ ...f, id: r2?.deal_id ?? null }, tz, nowMs) : null;
+}
+var strOrNull = (v) => typeof v === "string" ? v : null;
+function openDealsFromJson(j) {
+  if (j === void 0) return void 0;
+  if (!Array.isArray(j)) return null;
+  const out = [];
+  for (const x of j) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x;
+    const id = strOrNull(o.id);
+    const stage = strOrNull(o.stage);
+    if (!id || !stage) continue;
+    out.push({
+      id,
+      stage,
+      service: strOrNull(o.service),
+      proposed_at: strOrNull(o.proposed_at),
+      decided_at: strOrNull(o.decided_at),
+      ended_at: strOrNull(o.ended_at),
+      amount_cents: typeof o.amount_cents === "number" ? o.amount_cents : null,
+      per: strOrNull(o.per),
+      currency: strOrNull(o.currency),
+      proposal_url: strOrNull(o.proposal_url),
+      valid_until: strOrNull(o.valid_until),
+      lost_reason: strOrNull(o.lost_reason)
+    });
+  }
+  return out;
+}
+function openDealsOf(r2, tz, nowMs) {
+  if (!r2) return [];
+  if (r2.open_deals === void 0) {
+    const one = dealOf(r2, tz, nowMs);
+    return one && dealIsOpen(one) ? [one] : [];
+  }
+  return (r2.open_deals ?? []).map(
+    (x) => dealOf(
+      {
+        deal_id: x.id,
+        deal_stage: x.stage,
+        deal_service: x.service,
+        deal_proposed_at: x.proposed_at,
+        deal_decided_at: x.decided_at,
+        deal_ended_at: x.ended_at,
+        deal_amount_cents: x.amount_cents,
+        deal_per: x.per,
+        deal_currency: x.currency,
+        deal_proposal_url: x.proposal_url,
+        deal_valid_until: x.valid_until,
+        deal_lost_reason: x.lost_reason
+      },
+      tz,
+      nowMs
+    )
+  ).filter((d) => d !== null && dealIsOpen(d));
+}
+function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
+  if (!d || !isDealStage(d.stage)) return null;
+  const svc = d.service ? ` (${d.service})` : "";
+  const sinceMs = dealSinceMs(d);
+  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
+  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  switch (d.stage) {
+    case "won":
+      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+    case "proposed":
+      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
+    case "lost":
+      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
+    case "ended":
+      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
+  }
+}
+
+// src/deals/deal-consultations.ts
+var CONSULT_FOLLOW_DAYS = 7;
+function consultServiceOf(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+function isConsultationTitle(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return false;
+  if (t.includes("consult")) return true;
+  return consultServiceOf(title, services, rules) !== null;
+}
+function noProposalSince(deal, endedMs) {
+  if (!deal) return true;
+  if (dealIsOpen(deal)) return false;
+  return deal.sinceMs !== null && deal.sinceMs < endedMs;
+}
+function consultationHeld(r2, nowMs) {
+  const at3 = r2.consultedMs;
+  if (typeof at3 !== "number" || !Number.isFinite(at3)) return false;
+  if (at3 > nowMs || nowMs - at3 > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+  return noProposalSince(r2.deal, at3);
+}
+function dealStageOf(r2, nowMs) {
+  if (consultationHeld(r2, nowMs)) return "consultation";
+  const d = r2.deal;
+  if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
+  if (r2.consultAhead) return "consultation";
+  return d ? d.stage : null;
+}
+function dealStagesOf(stage, open) {
+  const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
+  return [...new Set(stage ? [stage, ...theirs] : theirs)];
+}
+function consultationsWithoutProposal(rows, nowMs) {
+  const endOf = (r2) => r2.consultedMs;
+  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
+    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
+  );
+}
+function consultsHeldWords(n) {
+  return `${n} held in the last week, no proposal yet`;
+}
+
+// src/calendar/feed-appointments.ts
+var APPOINTMENT_SOURCES = ["calendar_feed", "booking_email", "booking_tool", "person"];
+var APPOINTMENT_STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"];
+function serviceNamedIn(title, services) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (folded && t.includes(folded) && (!best || folded.length > best.folded.length)) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+function feedAppointmentRows(items, o) {
+  const out = /* @__PURE__ */ new Map();
+  for (const it of items) {
+    if (it.start < o.window.from || it.start > o.window.to) continue;
+    const key = appointmentKeyOf(it);
+    if (out.has(key)) continue;
+    const title = it.title.trim() || null;
+    out.set(key, {
+      external_id: key,
+      starts_at: new Date(it.start).toISOString(),
+      ends_at: new Date(it.end).toISOString(),
+      all_day: it.allDay,
+      title,
+      service: serviceNamedIn(title, o.services),
+      consultation: isConsultationTitle(title, o.services, o.rules),
+      contact_id: matchPerson(it, o.people, o.own)?.id ?? null
+    });
+  }
+  return [...out.values()];
+}
+var STANDING = /* @__PURE__ */ new Set(["proposed", "booked", "kept"]);
+function appointmentHolds(rows, facts) {
+  const key = typeof facts.appointment === "string" ? facts.appointment : null;
+  const start = typeof facts.visit_start === "string" ? Date.parse(facts.visit_start) : NaN;
+  const row2 = key ? rows.get(key) : void 0;
+  if (!row2 || !Number.isFinite(start)) return true;
+  return STANDING.has(row2.status) && row2.vanished_at === null && Date.parse(row2.starts_at) === start;
+}
+function appointmentKeysOf(rows) {
+  const keys = /* @__PURE__ */ new Set();
+  for (const r2 of rows) {
+    const f = r2.facts;
+    if (f && typeof f === "object" && !Array.isArray(f)) {
+      const k = f.appointment;
+      if (typeof k === "string" && k) keys.add(k);
+    }
+  }
+  return [...keys];
 }
 
 // src/calendar/feed-url.ts
@@ -13716,7 +14062,13 @@ var EVENT_KINDS = [
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
   "reach_out.reply_undone",
   // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
-  "workspace.activated"
+  "workspace.activated",
+  /**
+   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00348, decision 0002): { change: added
+   * | moved | vanished | back | kept, source, starts_at }, never its title. On the appointment; hidden from the activity
+   * log unless asked for by name, since a calendar read writes one per appointment.
+   */
+  "appointment.changed"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
@@ -17136,289 +17488,6 @@ function lastWordOf(dto) {
   }
   const said = lastWordLine(false, last, messageAuthor(last));
   return failedBy ? { text: `${said} \u2014 the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" } : { text: `${said} \u2014 no one asked for you.`, tone: "ok", short: null };
-}
-
-// src/deals/deal-amount.ts
-function amountWords(cents, per, currency = "USD") {
-  if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
-  const whole = cents % 100 === 0;
-  const money2 = numberFormat("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2
-  }).format(cents / 100);
-  const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
-  return p && per !== "once" ? `${money2} ${p}` : money2;
-}
-function parseAmount(words2) {
-  const digits2 = String(words2 || "").replace(/[^0-9.-]/g, "");
-  const n = digits2 ? Number(digits2) : NaN;
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
-}
-function amountTotalsWords(items) {
-  const order = ["once", "month", "year"];
-  const sums = /* @__PURE__ */ new Map();
-  for (const i of items) {
-    if (i.amount_cents === null || i.amount_cents === void 0 || !Number.isFinite(i.amount_cents)) continue;
-    const per = i.per === "month" || i.per === "year" ? i.per : "once";
-    const currency = (i.currency || "USD").toUpperCase();
-    const key = `${per}|${currency}`;
-    const s = sums.get(key) ?? { cents: 0, per, currency };
-    s.cents += i.amount_cents;
-    sums.set(key, s);
-  }
-  if (!sums.size) return null;
-  return [...sums.values()].sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency)).map((s) => amountWords(s.cents, s.per, s.currency)).join(" + ");
-}
-
-// src/shared/link.ts
-var MAX_LINK = 500;
-var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
-function normalizeLink(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s || /\s/.test(s)) return null;
-  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
-  if (withScheme.length > MAX_LINK) return null;
-  let u;
-  try {
-    u = new URL(withScheme);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (!HOST.test(u.hostname)) return null;
-  return withScheme;
-}
-function whyNotALink(raw) {
-  if (normalizeLink(raw)) return null;
-  const s = String(raw ?? "").trim();
-  if (!s) return "A web address is needed.";
-  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
-  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
-  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
-  return "That needs a full web address, like docs.example.com/proposal.";
-}
-function linkHost(url) {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
-// src/deals/deal-vm.ts
-function dealFactsOf(r2) {
-  if (!r2 || !isDealStage(r2.deal_stage)) return null;
-  return {
-    stage: r2.deal_stage,
-    service: r2.deal_service ?? null,
-    proposed_at: r2.deal_proposed_at ?? null,
-    decided_at: r2.deal_decided_at ?? null,
-    ended_at: r2.deal_ended_at ?? null,
-    amount_cents: r2.deal_amount_cents ?? null,
-    per: r2.deal_per ?? null,
-    currency: r2.deal_currency ?? null,
-    proposal_url: r2.deal_proposal_url ?? null,
-    valid_until: r2.deal_valid_until ?? null,
-    lost_reason: r2.deal_lost_reason ?? null
-  };
-}
-function pickCurrentDeal(rows) {
-  const sorted = [...rows].sort(
-    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
-  );
-  return sorted[0] ?? null;
-}
-function dealIsOpen(d) {
-  return !!d && (d.stage === "proposed" || d.stage === "won");
-}
-function proposalLinkOf(current, personLink) {
-  if (!current) return personLink?.trim() || null;
-  if (current.stage !== "proposed") return null;
-  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
-}
-function wholeDaysSince(atMs, nowMs) {
-  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
-}
-function dealSinceMs(d) {
-  const at3 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
-  const ms2 = at3 ? Date.parse(at3) : NaN;
-  return Number.isFinite(ms2) ? ms2 : null;
-}
-function validUntilOf(day, tz, nowMs) {
-  if (!day || !isRealDate(day)) return null;
-  const at3 = wallClockAt(tz, day, 12, 0);
-  if (!Number.isFinite(at3)) return null;
-  const lapsed = zoneDayKey(nowMs, tz) > day;
-  const date = clockDate(at3, tz, nowMs);
-  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
-}
-function toDealVM(d, tz, nowMs) {
-  if (!isDealStage(d.stage)) return null;
-  const sinceMs = dealSinceMs(d);
-  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
-  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
-  const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
-  const url = d.proposal_url?.trim() || null;
-  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
-  const word = DEAL_STAGE_WORDS[d.stage];
-  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
-  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
-  return {
-    id: d.id ?? null,
-    version: d.version ?? null,
-    stage: d.stage,
-    word,
-    service: d.service,
-    sinceMs,
-    since,
-    said,
-    line,
-    facts,
-    brief,
-    waitingDays,
-    amount,
-    amountCents: d.amount_cents === null || d.amount_cents === void 0 || !Number.isFinite(d.amount_cents) ? null : d.amount_cents,
-    per: isDealPer(d.per) ? d.per : null,
-    currency: d.currency || "USD",
-    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
-    proposal: url ? { url, host: linkHost(url) } : null,
-    validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
-    reason: d.stage === "lost" && isDealLostReason(d.lost_reason) ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] } : null
-  };
-}
-function dealOf(r2, tz, nowMs) {
-  const f = dealFactsOf(r2);
-  return f ? toDealVM({ ...f, id: r2?.deal_id ?? null }, tz, nowMs) : null;
-}
-var strOrNull = (v) => typeof v === "string" ? v : null;
-function openDealsFromJson(j) {
-  if (j === void 0) return void 0;
-  if (!Array.isArray(j)) return null;
-  const out = [];
-  for (const x of j) {
-    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
-    const o = x;
-    const id = strOrNull(o.id);
-    const stage = strOrNull(o.stage);
-    if (!id || !stage) continue;
-    out.push({
-      id,
-      stage,
-      service: strOrNull(o.service),
-      proposed_at: strOrNull(o.proposed_at),
-      decided_at: strOrNull(o.decided_at),
-      ended_at: strOrNull(o.ended_at),
-      amount_cents: typeof o.amount_cents === "number" ? o.amount_cents : null,
-      per: strOrNull(o.per),
-      currency: strOrNull(o.currency),
-      proposal_url: strOrNull(o.proposal_url),
-      valid_until: strOrNull(o.valid_until),
-      lost_reason: strOrNull(o.lost_reason)
-    });
-  }
-  return out;
-}
-function openDealsOf(r2, tz, nowMs) {
-  if (!r2) return [];
-  if (r2.open_deals === void 0) {
-    const one = dealOf(r2, tz, nowMs);
-    return one && dealIsOpen(one) ? [one] : [];
-  }
-  return (r2.open_deals ?? []).map(
-    (x) => dealOf(
-      {
-        deal_id: x.id,
-        deal_stage: x.stage,
-        deal_service: x.service,
-        deal_proposed_at: x.proposed_at,
-        deal_decided_at: x.decided_at,
-        deal_ended_at: x.ended_at,
-        deal_amount_cents: x.amount_cents,
-        deal_per: x.per,
-        deal_currency: x.currency,
-        deal_proposal_url: x.proposal_url,
-        deal_valid_until: x.valid_until,
-        deal_lost_reason: x.lost_reason
-      },
-      tz,
-      nowMs
-    )
-  ).filter((d) => d !== null && dealIsOpen(d));
-}
-function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
-  if (!d || !isDealStage(d.stage)) return null;
-  const svc = d.service ? ` (${d.service})` : "";
-  const sinceMs = dealSinceMs(d);
-  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
-  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
-  switch (d.stage) {
-    case "won":
-      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
-    case "proposed":
-      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
-    case "lost":
-      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
-    case "ended":
-      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
-  }
-}
-
-// src/deals/deal-consultations.ts
-var CONSULT_FOLLOW_DAYS = 7;
-function consultServiceOf(title, services, rules) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return null;
-  let best = null;
-  for (const s of services ?? []) {
-    const name = String(s.name ?? "").trim();
-    const folded = foldName(name);
-    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
-    if (!best || folded.length > best.folded.length) best = { name, folded };
-  }
-  return best ? best.name : null;
-}
-function isConsultationTitle(title, services, rules) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return false;
-  if (t.includes("consult")) return true;
-  return consultServiceOf(title, services, rules) !== null;
-}
-function noProposalSince(deal, endedMs) {
-  if (!deal) return true;
-  if (dealIsOpen(deal)) return false;
-  return deal.sinceMs !== null && deal.sinceMs < endedMs;
-}
-function consultationHeld(r2, nowMs) {
-  const at3 = r2.consultedMs;
-  if (typeof at3 !== "number" || !Number.isFinite(at3)) return false;
-  if (at3 > nowMs || nowMs - at3 > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
-  return noProposalSince(r2.deal, at3);
-}
-function dealStageOf(r2, nowMs) {
-  if (consultationHeld(r2, nowMs)) return "consultation";
-  const d = r2.deal;
-  if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
-  if (r2.consultAhead) return "consultation";
-  return d ? d.stage : null;
-}
-function dealStagesOf(stage, open) {
-  const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
-  return [...new Set(stage ? [stage, ...theirs] : theirs)];
-}
-function consultationsWithoutProposal(rows, nowMs) {
-  const endOf = (r2) => r2.consultedMs;
-  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
-    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
-  );
-}
-function consultsHeldWords(n) {
-  return `${n} held in the last week, no proposal yet`;
 }
 
 // src/deals/deal-report.ts
@@ -33054,7 +33123,9 @@ var ACTIVITY_NOISE_KINDS = [
   "booking_link.sent",
   "channel.quality_rating",
   // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
-  "person.resolved"
+  "person.resolved",
+  // The calendar's hourly read, one row per appointment it kept (00348, decision 0002): the calendar is where they read it.
+  "appointment.changed"
 ];
 var isActivityMoney = (row2) => row2.category === "billing";
 var WORDS2 = {
@@ -33127,6 +33198,7 @@ var WORDS2 = {
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
   "person.resolved": "A door resolved who a person is",
+  "appointment.changed": "An appointment on the calendar changed",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -34088,6 +34160,8 @@ export {
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
   ANGLE_WORDS_MAX,
+  APPOINTMENT_SOURCES,
+  APPOINTMENT_STATUSES,
   APP_KEYS_RESIZE_CLASS,
   APP_ROUTE_RE,
   ASK_ANSWER_CAPS,
@@ -34876,7 +34950,10 @@ export {
   answeredYes,
   applyReadState,
   applySettingsChange,
+  appointmentHolds,
   appointmentKey,
+  appointmentKeyOf,
+  appointmentKeysOf,
   appointmentTitle,
   approvalWordsOf,
   areaCodeOf,
@@ -35161,6 +35238,7 @@ export {
   fallbackMessages,
   fallbackModel,
   fallbacksWords,
+  feedAppointmentRows,
   feedBodyProblem,
   feedItemOfAppointment,
   feedNotes,
@@ -35910,6 +35988,7 @@ export {
   sendingDomainsFootWords,
   sentByWords,
   serverNotificationRows,
+  serviceNamedIn,
   serviceOf2 as serviceOf,
   serviceSuggestionsOf,
   serviceUndoName,

@@ -45,6 +45,7 @@ export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, 
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
 export { whatsappOffersOpen } from "./broadcasts/whatsapp-offers";
 export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments } from "./calendar/appointment-item";
+export { appointmentKeyOf } from "./calendar/appointment-key";
 export { dayIntervals, closedOn, openAt, hasHours, freeWindows, filterOpenings, describeOpenings, BOOKING_DEFAULTS } from "./calendar/availability";
 export { isBookingTool, bookingToolName, bookingToolOfAddress, bookingNoticeOf, NOTICE_SCHEMA, NOTICE_READ_MAX_TOKENS, noticePrompt, isNoticeHold, NOTICE_DEFAULT_LENGTH_MS, noticeAnswerOf, clientKeyOf, appointmentKey, SAME_VISIT_MS, BOOKING_TOOL_IDS, bookingToolOptions, BOOKING_TOOL_STEPS, GMAIL_FORWARD_NOTE, BOOKING_TRY_NOTE, NOTICE_HOLD_WORDS, forwardingConfirmationOf } from "./calendar/booking-notice";
 export { serviceOf, toCalendarVM } from "./calendar/calendar";
@@ -53,6 +54,7 @@ export { spanForView, windowFor, coversSpan, frameOf } from "./calendar/calendar
 export { clockLabel, closureDatesLabel, closuresFrom, readAgoLabel, ruleParts, rulesLine, feedNotes, hoursLines, CALENDAR_FEED_WORDS } from "./calendar/calendar-words";
 export { shiftKey, mondayOf, isDayKey, monthSpan, shiftMonth, monthLabelOf, zoneMidnight } from "./calendar/day-keys";
 export { parseIcs } from "./calendar/feed";
+export { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, appointmentHolds, appointmentKeysOf, feedAppointmentRows, serviceNamedIn } from "./calendar/feed-appointments";
 export { feedUrlOk, fetchPublic, feedProblemWords, feedBodyProblem, offeringHorizon, seasonHorizon, previewHorizon, FEED_GUIDES, FEED_CHECK_WORDS, FEED_MAX_BYTES } from "./calendar/feed-url";
 export { sameListed, matchService, needsConsultation, offerFor, offerLead, foldName } from "./calendar/service-offer";
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./calendar/zone-math";

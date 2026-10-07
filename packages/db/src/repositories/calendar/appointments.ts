@@ -5,15 +5,23 @@
  *   one visit           appointmentByKey (the row under a source's key), appointmentByClientStart (the live row a
  *                       client holds near an instant), insertAppointment, updateAppointment ("refused" when the row's
  *                       guard will not take the move: a finished visit cancelled).
- *   the board           appointmentsBetween (the live rows over a span), appointmentsForClient (one person's, by their
- *                       number or address, from an instant on).
+ *   the board           appointmentsBetween (the live rows over a span the feed does not already draw), appointmentsForClient
+ *                       (one person's, by their number or address, from an instant on).
+ *   the feed            syncFeedAppointments (one read of the calendar feed kept through appointments_feed_sync, 00348),
+ *                       appointmentStates (how the appointments a reminder batch was drawn for stand now, by key).
  *   an erasure's hand   appointmentsScrub (appointments_scrub: the person taken out of their visits and the notices).
  *   the person          contactIdByPhone, contactIdByEmail: the one row a number or an address names in People.
  *
- * Written by the booking_read job on the service role; read by the dashboard on the member's client, where RLS decides,
- * and by the edge for a caller's own visits. A failed read or write throws, so the caller's retry meets it.
+ * Written by the booking_read job and the calendar sweep on the service role; read by the dashboard on the member's
+ * client, where RLS decides, by the edge for a caller's own visits, and by a reminder's send. A failed read or write throws, so the caller's retry meets it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  APPOINTMENT_STATUSES,
+  type AppointmentState,
+  type AppointmentStatus,
+  type FeedAppointmentRow,
+} from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -112,7 +120,11 @@ export async function updateAppointment(
 
 /* ------------------------------------------------------------------ the board */
 
-/** The live rows over a span: those that end after `fromIso` and start before `toIso`, by start. */
+/**
+ * The live rows over a span: those that end after `fromIso` and start before `toIso`, by start. The calendar feed's own
+ * rows are left out: the board and the receptionist's openings read the feed itself, so a row kept from it would be the
+ * same visit twice.
+ */
 export async function appointmentsBetween(
   db: Db,
   tenantId: string,
@@ -124,6 +136,7 @@ export async function appointmentsBetween(
     .select("*")
     .eq("tenant_id", tenantId)
     .in("status", [...LIVE_STATUSES])
+    .neq("source", "calendar_feed")
     .gt("ends_at", fromIso)
     .lt("starts_at", toIso)
     .order("starts_at", { ascending: true })
@@ -205,4 +218,86 @@ export async function contactIdByEmail(db: Db, tenantId: string, email: string):
     .maybeSingle();
   if (error) throw new Error(`contact_by_email: ${error.message}`);
   return data?.id ?? null;
+}
+
+/* ------------------------------------------------------------------ the feed */
+
+/** What one read of the feed changed: rows added, moved, back after vanishing, vanished, kept by time; and how many it named. */
+export interface AppointmentSync {
+  added: number;
+  moved: number;
+  back: number;
+  vanished: number;
+  kept: number;
+  seen: number;
+}
+
+const count = (o: Record<string, unknown>, k: keyof AppointmentSync): number => (typeof o[k] === "number" ? o[k] : 0);
+
+export async function syncFeedAppointments(
+  db: Db,
+  p: {
+    tenantId: string;
+    timezone: string;
+    rows: readonly FeedAppointmentRow[];
+    window: { from: Date; to: Date };
+    now?: Date;
+  },
+): Promise<AppointmentSync> {
+  const { data, error } = await db.rpc("appointments_feed_sync", {
+    p_tenant_id: p.tenantId,
+    p_timezone: p.timezone,
+    p_rows: p.rows.map((r) => ({
+      external_id: r.external_id,
+      starts_at: r.starts_at,
+      ends_at: r.ends_at,
+      all_day: r.all_day,
+      title: r.title,
+      service: r.service,
+      consultation: r.consultation,
+      contact_id: r.contact_id,
+    })),
+    p_from: p.window.from.toISOString(),
+    p_to: p.window.to.toISOString(),
+    p_now: (p.now ?? new Date()).toISOString(),
+  });
+  if (error) throw Object.assign(new Error(`appointments_feed_sync: ${error.message}`), { code: error.code });
+  const o = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return {
+    added: count(o, "added"),
+    moved: count(o, "moved"),
+    back: count(o, "back"),
+    vanished: count(o, "vanished"),
+    kept: count(o, "kept"),
+    seen: count(o, "seen"),
+  };
+}
+
+/** Keys one read names: a key is the calendar's UID and a start, and a UID may run to hundreds of characters. */
+const KEYS_PER_READ = 25;
+
+const isStatus = (s: string): s is AppointmentStatus => (APPOINTMENT_STATUSES as readonly string[]).includes(s);
+
+export async function appointmentStates(
+  db: Db,
+  tenantId: string,
+  keys: readonly string[],
+): Promise<Map<string, AppointmentState>> {
+  const out = new Map<string, AppointmentState>();
+  // `.in()` puts every key in the URL, and a calendar's UID can be long: a few keys a read.
+  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
+    const { data, error } = await db
+      .from("appointments")
+      .select("external_id, status, starts_at, vanished_at")
+      .eq("tenant_id", tenantId)
+      .eq("source", "calendar_feed")
+      .in("external_id", keys.slice(i, i + KEYS_PER_READ));
+    if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
+    if (error) throw new Error(`appointments: ${error.message}`);
+    for (const r of data ?? []) {
+      if (r.external_id && isStatus(r.status))
+        out.set(r.external_id, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at });
+    }
+  }
+  return out;
 }

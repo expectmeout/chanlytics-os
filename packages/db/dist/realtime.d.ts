@@ -6027,6 +6027,17 @@ type Database = {
                 };
                 Returns: number;
             };
+            appointments_feed_sync: {
+                Args: {
+                    p_from: string;
+                    p_now?: string;
+                    p_rows: Json;
+                    p_tenant_id: string;
+                    p_timezone: string;
+                    p_to: string;
+                };
+                Returns: Json;
+            };
             appointments_scrub: {
                 Args: {
                     p_contact_id: string;

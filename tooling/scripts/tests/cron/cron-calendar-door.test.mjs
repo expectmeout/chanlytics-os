@@ -87,6 +87,7 @@ function world({ ticks = 1, faults = {}, booked = () => 0, rpcs = {} } = {}) {
   const tables = { tenants: [], tenant_config: [], contacts: [], events: [], notifications: [] };
   const backlog = [];
   const bookings = [];
+  const kept = [];
   const db = fakeDb(tables, faults, {
     ...vault,
     note_sweep_backlog: (a) => {
@@ -97,10 +98,27 @@ function world({ ticks = 1, faults = {}, booked = () => 0, rpcs = {} } = {}) {
       bookings.push(a);
       return booked(a);
     },
+    // Everyone in People, as people_list answers a page of them: who an appointment can be matched to.
+    people_list: (a) =>
+      tables.contacts
+        .filter((c) => c.tenant_id === a.p_tenant_id && !c.erased_at && !c.merged_into_contact_id)
+        .map((c) => ({
+          id: c.id,
+          display_name: c.display_name ?? null,
+          wa_profile_name: c.wa_profile_name ?? null,
+          phone_e164: c.phone_e164 ?? null,
+          email: c.email ?? null,
+        })),
+    // The appointments door (00348), whose SQL is proved on a stack (calendar/appointments/feed-appointments.db.test.mjs): kept here as
+    // what each read handed it.
+    appointments_feed_sync: (a) => {
+      kept.push(a);
+      return { added: a.p_rows.length, moved: 0, back: 0, vanished: 0, kept: 0, seen: a.p_rows.length };
+    },
     ...rpcs,
   });
   setPg(db);
-  return { db, tables, backlog, bookings, tick: () => knock(POST, "calendar") };
+  return { db, tables, backlog, bookings, kept, tick: () => knock(POST, "calendar") };
 }
 /**
  * A workspace with a calendar connected, last read at `checkedAt` (null:
@@ -578,5 +596,66 @@ test("a row whose calendar has no address is not a feed: it holds no place in th
     assert.deepEqual(w.backlog, [{ p_sweep: "calendar", p_remaining: 0 }], "nothing due was left behind");
   } finally {
     line.restore();
+  }
+});
+
+/* -------------------------------------------------------- the appointments */
+
+test("each read is kept as the workspace's appointments (decision 0002): every event inside the season the read covered, keyed by its UID, its person the one the board would name (after this read put them in People), its service and whether it is a consultation; a feed that cannot be read keeps nothing, and a keep that fails costs the workspace nothing it already did", async () => {
+  const w = world();
+  connected(
+    w.tables,
+    "books",
+    null,
+    [
+      { uid: "a1", title: "Maria Lopez - Balayage", phone: "+1 305 555 0142" },
+      { uid: "a2", title: "Balayage consult", inDays: 6 },
+    ],
+    ["Balayage"],
+  );
+  connected(w.tables, "gone", null, []);
+  feeds.delete("https://cal.example/gone.ics");
+  const line = wire(reply);
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.equal(body.failed, 1, "the calendar that is gone fails that workspace alone");
+    assert.equal(w.kept.length, 1, "one keep, for the feed that was read; a read that failed vanishes nothing");
+    const [k] = w.kept;
+    assert.equal(k.p_tenant_id, "books");
+    assert.equal(k.p_timezone, "America/New_York");
+    const days = (Date.parse(k.p_to) - Date.parse(k.p_from)) / D;
+    assert.ok(days >= 179 && days <= 181, `the season the read covers, ninety days either side (${days})`);
+    const maria = w.tables.contacts.find((c) => c.phone_e164 === "+13055550142");
+    assert.ok(maria, "the read put Maria in People first");
+    assert.deepEqual(
+      k.p_rows.map((r) => [r.external_id, r.title, r.service, r.consultation, r.contact_id]),
+      [
+        ["a1", "Maria Lopez - Balayage", "Balayage", false, maria.id],
+        ["a2", "Balayage consult", "Balayage", true, null],
+      ],
+      "keyed by the event's UID; the person by the number in the event; the service the title names; a consultation by its words",
+    );
+  } finally {
+    line.restore();
+  }
+
+  // A keep the database refuses is said in the log, and the workspace is still read: its people are in People.
+  const again = world({
+    rpcs: {
+      appointments_feed_sync: () => {
+        throw new Error("relation does not exist");
+      },
+    },
+  });
+  connected(again.tables, "books", null, [{ uid: "b1", title: "Haircut - Dana Whitfield", phone: "(305) 555-0177" }]);
+  const line2 = wire(reply);
+  try {
+    const [status, body] = await answer(await again.tick());
+    assert.equal(status, 200);
+    assert.deepEqual([body.failed, body.added], [0, 1], "not a failed workspace: Dana is in People");
+    assert.ok(fresh(checkedAt(again, "books")), "and the read is stamped");
+  } finally {
+    line2.restore();
   }
 });
