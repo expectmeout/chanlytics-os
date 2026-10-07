@@ -279,8 +279,8 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     await settle();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["people", "reports_headline"],
-      "People once, as nothing passed it since; and the headline Today draws, which a run that opened on People never read (it is on demand), once as Today came on screen",
+      ["google", "people", "reports_headline"],
+      "People once, as nothing passed it since; and what Today draws that a run that opened on People never read (they are on demand): the headline and Google's, once as Today came on screen",
     );
   } finally {
     r.stop();
@@ -320,9 +320,9 @@ test("Campaigns' home owns what it draws: a message re-reads the playbooks and t
     win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(
-      r.asked,
-      ["reports_headline"],
-      "nothing was missed; the headline Today draws, which a run that opened on Campaigns never read (it is on demand), is read once as Today comes on screen",
+      [...r.asked].sort(),
+      ["google", "reports_headline"],
+      "nothing was missed; the headline and Google's read, which Today draws and a run that opened on Campaigns never read (they are on demand), are read once as Today comes on screen",
     );
     r.asked.length = 0;
     await r.message();

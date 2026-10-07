@@ -6,8 +6,12 @@
  * typed client. After a write lands the refresh map re-reads this surface
  * and Setup's, since the Setup row reads the same facts; a draft touches
  * nothing and refreshes nothing.
+ *
+ * It is read where it is drawn and nowhere else: Today's review line and Settings' Connections pane name it in `ROUTE_DRAWS`, and
+ * every other page leaves it alone (`onDemand`). The Reviews lens draws from its own read (surfaces/reports/reviews-surface.ts).
  */
 import {
+  MIN_MS,
   toGoogleVM,
   ratingWords,
   starsOf,
@@ -22,7 +26,7 @@ import {
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
-import { setSurfaceValue } from "../surfaces/surface-values";
+import { setSurfaceValue, surfaceValue } from "../surfaces/surface-values";
 
 export interface GoogleSurface {
   dto: GoogleDto;
@@ -68,9 +72,22 @@ export interface GoogleApi {
   };
 }
 
+/** How old a held read of Google may be before a page that draws it, coming on screen, reads it again. */
+const GOOGLE_STALE_MS = 5 * MIN_MS;
+
+/** Whether Google has been read at all in what this tab holds, and within GOOGLE_STALE_MS of its own `fetchedAt`: when not, it wants a read. */
+function googleIsStale(): boolean {
+  const held = surfaceValue("google");
+  return !held || Date.now() - held.fetchedAt > GOOGLE_STALE_MS;
+}
+
 export const googleOverride: SurfaceOverride = {
   key: "google",
   value: "google",
+  // Read where Today's line and Settings' Connections pane are drawn, as they come on screen, and again then when the read has aged.
+  // The live feed (below) and a write's refresh by name (refresh-map.ts) keep what is held current meanwhile.
+  onDemand: true,
+  isStale: googleIsStale,
   events: ["surface:google"],
   // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen.
   refreshOnTables: ["google_listings", "google_reviews", "google_connections"],

@@ -369,6 +369,19 @@ test("a lens that names its draws is asked before its page, as the gate asks for
   assert.deepEqual(registry.routeDrawsFor("clients"), []);
 });
 
+test("a pane that names its draws is asked before its page too: Settings' Connections pane draws Google's read, no other pane of Settings does", async () => {
+  const { routeOfPath } = await import("@chanlytics/contracts");
+  // The pane's own address, the one a person opens, is the route the table names.
+  assert.equal(routeOfPath("/w/acme/settings/integrations"), "admin/integrations");
+  assert.deepEqual(registry.ROUTE_DRAWS["admin/integrations"], ["google"], "the one row that says it");
+  assert.deepEqual(registry.routeDrawsFor("admin", "integrations"), ["google"]);
+  assert.equal(registry.routeSurfaceFor("admin", "integrations"), "settings", "its own surface is still Settings'");
+  assert.deepEqual(registry.routeSurfaces("admin", "integrations"), ["workspace", "settings", "google"]);
+  for (const pane of [undefined, null, "workspace", "profile", "team", "autonomy", "notifications", "billing"])
+    assert.deepEqual(registry.routeDrawsFor("admin", pane), [], String(pane));
+  assert.deepEqual(registry.routeSurfaces("admin", "team"), ["workspace", "settings"]);
+});
+
 test("the flipped pages still resolve exactly as before", () => {
   for (const page of ["today", "inbox", "conversations"]) {
     assert.equal(registry.routeSurfaceFor(page), page);

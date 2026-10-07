@@ -79,8 +79,8 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
 };
 
 // A review on Google, the morning it lands: first seen in the last day and a half, written recently, not part of the
-// first read (contracts/google.ts reviewIsNew). From the Google surface, which boots with the rest. Gone once it is
-// old news.
+// first read (contracts/google.ts reviewIsNew). From the Google surface, read where Today is drawn (ROUTE_DRAWS). Gone
+// once it is old news.
 const ReviewLine = ({ nav }: { nav: Nav }) => {
   const G = useSurface("google");
   if (!G || !G.dto.listing) return null;

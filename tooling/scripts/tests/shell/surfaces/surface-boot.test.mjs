@@ -563,7 +563,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
   } finally {
     console.error = keepError;
   }
-  for (const k of [...draws, ...ROUTE_DRAWS["reports/reviews"]])
+  for (const k of [...draws, ...ROUTE_DRAWS["reports/reviews"], ...ROUTE_DRAWS["admin/integrations"]])
     assert.ok(known.has(k), `${k} is a surface an override feeds (known: ${[...known].join(", ")})`);
   const { order, overrides } = crowd(keys, { hash: "#/today" });
   const stop = startSurfaces(overrides);
@@ -606,6 +606,24 @@ test("the Reviews lens reads its own surface right after Reports' own, ahead of 
     ["reports", "reports_reviews"],
     "its own surface, then the lens's read, before Settings or anyone's list",
   );
+  assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
+});
+
+test("Settings' Connections pane reads Google right after Settings' own surface, ahead of every stranger, and no other pane does", async () => {
+  // The pane draws Google's listing and its connection beside the settings read (settings/connections/pane.tsx); Today draws its
+  // review line from it too, and no other page does (ROUTE_DRAWS).
+  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  assert.deepEqual(reg.ROUTE_DRAWS["admin/integrations"], ["google"]);
+  assert.deepEqual(reg.routeDrawsFor("admin", "integrations"), ["google"], "asked as the shell asks: page and pane");
+  assert.equal(reg.routeSurfaceFor("admin", "integrations"), "settings", "the gate still waits for Settings' read");
+  for (const pane of [undefined, null, "workspace", "team", "billing"])
+    assert.deepEqual(reg.routeDrawsFor("admin", pane), [], String(pane));
+  const keys = ["conversations", "inbox", "today", "people", "calendar", "reports", "settings", "setup", "google"];
+  const { order, overrides } = crowd(keys, { hash: "#/admin/integrations" });
+  const stop = startSurfaces(overrides);
+  await settle(80);
+  stop();
+  assert.deepEqual(order.slice(0, 2), ["settings", "google"], "its own surface, then Google's, before anyone else's");
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 

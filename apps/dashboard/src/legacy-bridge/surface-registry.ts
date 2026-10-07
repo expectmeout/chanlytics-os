@@ -206,6 +206,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   leads: ["setup", "settings"],
   // The Reviews lens draws its own read beside Reports' (surfaces/reports/reviews-surface.ts): no other lens of Reports does.
   "reports/reviews": ["reports_reviews"],
+  // Settings' Connections pane draws Google's listing and its connection beside the settings read, as Today's card draws its
+  // review line (`google` is read where one of the two is on screen, legacy-bridge/google.ts): no other pane of Settings does.
+  "admin/integrations": ["google"],
 };
 
 /**
@@ -225,7 +228,7 @@ export const ROUTE_WAIT_MS = 3000;
 
 /**
  * What a route draws beside its own surface: a person's page is one route of its own, whatever its id, and a lens or a pane
- * that names its draws (`reports/reviews`) is asked about before its page, as routeSurfaceFor asks it.
+ * that names its draws (`reports/reviews`, `admin/integrations`) is asked about before its page, as routeSurfaceFor asks it.
  */
 export function routeDrawsFor(page: string, param?: string | null): readonly string[] {
   // Leads is `clients/leads…`, the scope asked about as routeSurfaceFor asks it, never as People.

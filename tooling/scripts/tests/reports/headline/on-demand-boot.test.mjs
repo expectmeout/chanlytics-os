@@ -3,7 +3,8 @@
  * the page on screen draws it, a return to the tab and the shell's Retry-all read only what is drawn here, and a page that draws it
  * has it read as it comes on screen: once, and again when it says it has aged. Run on the real runner and the real routes' registry
  * (`reports` is Reports' own surface; `reports_headline` is one Today draws; `reports_reviews` is one only the Reviews lens
- * draws), the way LegacyApp wires them, each read recorded rather than made. A surface not marked behaves as it always did.
+ * draws; `google` is one Today and Settings' Connections pane draw, and no other page), the way LegacyApp wires them, each read
+ * recorded rather than made. A surface not marked behaves as it always did.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -53,6 +54,8 @@ const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-regis
 const { reportsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");
 const { reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
 const { reviewsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
+const { googleOverride } = await importSrc("apps/dashboard/src/legacy-bridge/google.ts");
+const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 let aged = false;
 let reviewsAged = false;
@@ -66,8 +69,19 @@ const world = (asked) => {
     read("reports", { onDemand: true }),
     read("reports_headline", { onDemand: true, isStale: () => aged }),
     read("reports_reviews", { onDemand: true, isStale: () => reviewsAged }),
+    // Google's own marks and its own measure of age, over a read that holds what the real one does: the answer, and when it was made.
+    read("google", {
+      onDemand: googleOverride.onDemand,
+      isStale: googleOverride.isStale,
+      apply: async () => {
+        asked.push("google");
+        setSurfaceValue("google", { dto: { listing: null }, fetchedAt: Date.now() });
+      },
+    }),
   ];
 };
+/** The Google read this tab holds, made `ms` ago. */
+const heldGoogleFrom = (ms) => setSurfaceValue("google", { dto: { listing: null }, fetchedAt: Date.now() - ms });
 /** A runner over them, wired as LegacyApp wires it; `go` moves the address as Back does, `away` leaves the tab and comes back. */
 async function running(hash) {
   win.location.hash = hash;
@@ -112,7 +126,7 @@ test("on Today neither pass reads Reports' three routes: what Today draws, and t
   try {
     assert.deepEqual(
       r.take(),
-      ["inbox", "reports_headline", "today", "workspace"],
+      ["google", "inbox", "reports_headline", "today", "workspace"],
       "REGRESSION: every page's boot read the report beside its own (and `reports` is Reports' own surface: three routes)",
     );
     assert.equal(status.isSurfaceReady("reports"), false, "never read: nothing of it is held");
@@ -126,12 +140,16 @@ test("on Today neither pass reads Reports' three routes: what Today draws, and t
     assert.deepEqual(r.take(), [], "REGRESSION: one unread surface made every return read every surface again");
     // A long absence reads what is drawn here, and still not what is not.
     await r.away(10 * 60_000);
-    assert.deepEqual(r.take(), ["inbox", "reports_headline", "today", "workspace"], "a return reads what Today draws");
+    assert.deepEqual(
+      r.take(),
+      ["google", "inbox", "reports_headline", "today", "workspace"],
+      "a return reads what Today draws",
+    );
     // The shell's Retry-all, the same.
     await runner.refreshAllSurfaces();
     assert.deepEqual(
       r.take(),
-      ["inbox", "reports_headline", "today", "workspace"],
+      ["google", "inbox", "reports_headline", "today", "workspace"],
       "Retry-all on Today does not read Reports",
     );
   } finally {
@@ -240,6 +258,113 @@ test("moving to the Reviews lens reads its surface once, and leaving it and comi
   }
 });
 
+test("Google is read where it is drawn, Today's line and Settings' Connections pane, and no other page's boot, return or arrival reads it", async () => {
+  // A tab that opened on the Inbox: nothing of Google's was read, and nothing is held.
+  status.setStatus("google", "seeded");
+  setSurfaceValue("google", undefined);
+  const r = await running("#/inbox");
+  try {
+    assert.equal(r.take().includes("google"), false, "the Inbox's boot, both passes, does not read it");
+    assert.equal(surfaceValue("google"), undefined, "nothing of it is held");
+    for (const hash of [
+      "#/reports",
+      "#/reports/reviews",
+      "#/reports/people",
+      "#/calendar",
+      "#/admin/workspace",
+      "#/admin/team",
+    ]) {
+      await r.go(hash);
+      assert.equal(r.take().includes("google"), false, `${hash} does not draw it`);
+    }
+    await r.away(10 * 60_000);
+    assert.equal(r.take().includes("google"), false, "a return, off its pages, leaves it for them");
+    await runner.refreshAllSurfaces();
+    assert.equal(r.take().includes("google"), false, "and so does the shell's Retry-all");
+    // Settings' Connections pane draws it: read as the pane comes on screen, once, and the Settings panes beside it do not.
+    await r.go("#/admin/integrations");
+    assert.deepEqual(r.take(), ["google"], "read as the pane comes on screen");
+    assert.notEqual(surfaceValue("google"), undefined, "and held");
+    await r.go("#/admin/team");
+    await r.go("#/admin/integrations");
+    assert.deepEqual(r.take(), [], "back on the pane, held and fresh: nothing is read");
+    // Today's card draws it too, and finds it held.
+    await r.go("#/today");
+    assert.equal(r.take().includes("google"), false, "Today draws it, and what the pane read is held and fresh");
+    // A refresh asked for by name is made wherever the page is (a write's, as the refresh map names it).
+    await r.go("#/inbox");
+    await runner.refreshSurfaces([r.overrides.find((o) => o.key === "google")]);
+    assert.deepEqual(r.take(), ["google"], "a named refresh is a request: the caller knows");
+  } finally {
+    r.stop();
+    setSurfaceValue("google", undefined);
+  }
+});
+
+test("a page that opens on Settings' Connections pane reads Google in its own pass, and one that opens on another pane does not", async () => {
+  status.setStatus("google", "seeded");
+  setSurfaceValue("google", undefined);
+  const pane = await running("#/admin/integrations");
+  try {
+    assert.deepEqual(
+      pane.take(),
+      ["google", "inbox", "today", "workspace"],
+      "the pane's own pass reads it, beside the strangers not marked",
+    );
+    assert.notEqual(surfaceValue("google"), undefined, "and held");
+  } finally {
+    pane.stop();
+  }
+  status.setStatus("google", "seeded");
+  setSurfaceValue("google", undefined);
+  const other = await running("#/admin/team");
+  try {
+    assert.deepEqual(other.take(), ["inbox", "today", "workspace"], "Team draws nothing of Google's");
+    assert.equal(surfaceValue("google"), undefined, "and nothing of it is held");
+  } finally {
+    other.stop();
+    setSurfaceValue("google", undefined);
+  }
+});
+
+test("Google's read ages by its own time: five minutes old it is read again as a page that draws it comes on screen, and not before", async () => {
+  status.setStatus("google", "seeded");
+  setSurfaceValue("google", undefined);
+  const r = await running("#/today");
+  try {
+    assert.deepEqual(r.take(), ["google", "inbox", "reports_headline", "today", "workspace"], "read at Today's boot");
+    await r.go("#/inbox");
+    r.take();
+    heldGoogleFrom(4 * 60_000);
+    await r.go("#/today");
+    assert.deepEqual(r.take(), [], "four minutes old: held, and Today comes back with it");
+    await r.go("#/inbox");
+    heldGoogleFrom(6 * 60_000);
+    await r.go("#/today");
+    assert.deepEqual(r.take(), ["google"], "six minutes old: read again as Today comes back");
+    assert.equal(Date.now() - surfaceValue("google").fetchedAt < 60_000, true, "and held as of now");
+    // The Connections pane asks the same of what Today read.
+    await r.go("#/admin/team");
+    heldGoogleFrom(6 * 60_000);
+    await r.go("#/admin/integrations");
+    assert.deepEqual(r.take(), ["google"], "an aged read is made again as the pane comes on screen");
+    // Held at all is what a page that draws it asks first: a tab that lost it (a failed cache) reads it as the page arrives.
+    await r.go("#/inbox");
+    setSurfaceValue("google", undefined);
+    await r.go("#/today");
+    assert.deepEqual(r.take(), ["google"], "nothing held: read, as a read never made");
+    // A page that does not draw it leaves an old one alone, however old.
+    await r.go("#/inbox");
+    heldGoogleFrom(60 * 60_000);
+    await r.go("#/reports");
+    await r.go("#/calendar");
+    assert.equal(r.take().includes("google"), false, "an hour old, and no page on screen draws it: not read");
+  } finally {
+    r.stop();
+    setSurfaceValue("google", undefined);
+  }
+});
+
 test("the three overrides that read Reports are the three marked, and nothing else in this part is", () => {
   assert.equal(reportsOverride.onDemand, true, "the whole report, its campaigns and its reach-outs");
   assert.equal(reportsHeadlineOverride.onDemand, true);
@@ -258,6 +383,46 @@ test("the real registry names the Reviews lens's read for that lens alone, and t
   assert.equal(registry.ownsTheScreen("reports_reviews", "reports/reviews"), true);
   for (const route of ["reports", "reports/people", "reports/campaigns", "today", "inbox"])
     assert.equal(registry.ownsTheScreen("reports_reviews", route), false, route);
+});
+
+test("Google is marked and ages by the read's own time, and the real registry names its read for Today and for the Connections pane alone", () => {
+  assert.equal(
+    googleOverride.onDemand,
+    true,
+    "what Today's line and Settings' Connections pane draw, read where drawn",
+  );
+  assert.equal(typeof googleOverride.isStale, "function", "a read of Google ages: the page that draws it asks");
+  setSurfaceValue("google", undefined);
+  assert.equal(googleOverride.isStale(), true, "nothing held: it wants a read");
+  for (const [ms, stale] of [
+    [0, false],
+    [4 * 60_000, false],
+    [6 * 60_000, true],
+    [24 * 60 * 60_000, true],
+  ]) {
+    heldGoogleFrom(ms);
+    assert.equal(
+      googleOverride.isStale(),
+      stale,
+      `a read made ${ms / 60_000} minutes ago is ${stale ? "" : "not "}stale`,
+    );
+  }
+  setSurfaceValue("google", undefined);
+  assert.equal(registry.routeDrawsFor("today").includes("google"), true, "Today's card draws its review line from it");
+  assert.deepEqual(registry.routeDrawsFor("admin", "integrations"), ["google"], "the Connections pane draws it");
+  assert.deepEqual(registry.routeSurfaces("admin", "integrations"), ["workspace", "settings", "google"]);
+  // No other pane of Settings, no lens of Reports (the Reviews lens draws its own read) and no other page draws it.
+  for (const [page, param] of [
+    ["admin", null],
+    ["admin", "workspace"],
+    ["admin", "team"],
+    ["admin", "billing"],
+    ["reports", null],
+    ["reports", "reviews"],
+    ["inbox", null],
+    ["start", null],
+  ])
+    assert.equal(registry.routeSurfaces(page, param).includes("google"), false, `${page}/${param ?? ""}`);
 });
 
 test("a return that leaves Reports out keeps it for its page: after a long absence on Today, Reports is read once as it comes on screen", async () => {
