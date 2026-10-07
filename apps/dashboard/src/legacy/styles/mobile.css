@@ -664,7 +664,7 @@
    Outside the app the variable is unset and every rule below is inert.
    ==================================================================== */
 html.in-app .phone-tabs { display: none; }
-html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }
+html.in-app .main-scroll { --page-foot: var(--app-inset-bottom, 0px); padding-bottom: var(--app-inset-bottom, 0px); }
 html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }
 /* The ✦ lifts by the same inset; its rule lives with the palette's, in ask.css. */
 
@@ -716,6 +716,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     display: none;
   }
   .main-scroll:has(> [data-takeover]) {
+    --page-foot: 0px;
     padding-bottom: 0;
   }
   /* A bar docked at the foot says so with data-dock on the bar (People's selection: ✕, the count, an act): the page keeps
@@ -725,6 +726,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     display: none;
   }
   .main-scroll:has([data-dock]) {
+    --page-foot: 0px;
     padding-bottom: 0;
   }
 }
@@ -735,13 +737,22 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     margin: 4px 16px 8px;
   }
 
+  /* How far over the screen's edge the bar, Ask's circle (ask.css) and everything kept clear of them rest: 14px, as
+     its sides are, or 13px nearer the edge than the phone's own inset where that is more. An app on an iPhone's home
+     screen has a 34px inset for the home bar, and at the whole of it the capsule stood on an empty strip a browser's
+     toolbar would have filled (Ruben, 7 Oct 2026): it rests 21px up there, eight clear of the home bar. A browser's tab
+     has no inset at its foot and keeps the 14. */
+  :root {
+    --bar-foot: max(14px, calc(env(safe-area-inset-bottom, 0px) - 13px));
+  }
+
   /* The tab bar is one capsule floating over the page, 14px clear of its sides and of the home bar, with the room for
      Ask's circle at its right (liquid.py tabbar): its tabs lozenges when picked, the picked one's glyph and word in
      coral at 600, and the count on the Inbox the neutral count, with no ring. */
   .phone-tabs {
     left: 14px;
     right: 86px;
-    bottom: max(14px, env(safe-area-inset-bottom));
+    bottom: var(--bar-foot);
     padding: 6px;
     border-top: 0;
     border-radius: var(--radius-full);
@@ -804,11 +815,79 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     font-weight: var(--weight-semibold);
   }
 
-  /* Room under every surface for the bar, 14px clear of it, and the toast above it. */
+  /* Room under every surface for the bar, 14px clear of it, and the toast above it. The room is the END of what scrolls,
+     never a strip the page stops short of: the bar floats over the page. Today and Campaigns scroll in the route view
+     itself, so their rows passed under the bar; a page of panes scrolls inside itself, and with the room kept on the route
+     view its list stopped 90px up the screen and the bar stood on an empty band of the page (Ruben, 7 Oct 2026). So the
+     room is said once (--page-foot, 0 where the bar stands down: a takeover, a docked bar; the app's own inset inside the
+     phone app) and a page of panes hands it to the list that scrolls, which runs to the screen's foot under the bar and
+     ends that far clear of it. A pane page not named here keeps the room on the route view, as before: Live, whose talk
+     bar is docked under its list. */
   .main-scroll {
-    padding-bottom: calc(max(14px, env(safe-area-inset-bottom)) + 76px);
+    --page-foot: calc(var(--bar-foot) + 76px);
+    padding-bottom: var(--page-foot);
+  }
+  .main-scroll.pane:has(:is(.ix-threads, .cv-rows, .cl-main-scroll, .cal-pane, .rpt-body, .set-pane)) {
+    padding-bottom: 0;
+  }
+  .main-scroll.pane :is(.ix-threads, .cv-rows, .cal-pane) {
+    padding-bottom: var(--page-foot);
+  }
+  .main-scroll.pane :is(.cl-main-scroll, .rpt-body) {
+    padding-bottom: max(var(--page-foot), 40px);
+  }
+  .main-scroll.pane .set-pane {
+    padding-bottom: max(var(--page-foot), 48px);
   }
   .pp-toast-stack {
-    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 76px);
+    bottom: calc(var(--bar-foot) + 76px);
+  }
+}
+
+/* ====================================================================
+   A phone held sideways
+   No page is drawn for that shape yet (a sideways phone is 320 to 440px tall: the head, the row of views and the tab
+   bar leave a strip of the page), and a page cannot hold an iPhone upright, so the OS stands down there and says to
+   turn the phone (app/(os)/layout.tsx draws the words beside every page). The frame under them is hidden, never
+   unloaded: turned back, the page is as it was left, and a keyboard that was up goes down with its field. It is
+   hidden by its own name, with no :has() over it (styles/has-subjects.test.mjs).
+   A PHONE, not a short window or a tablet: a touch screen whose short side is a phone's. An iPhone says its upright
+   width as device-width whichever way it is held, and Android says the screen as held, so its short side is
+   device-height. And sideways, not typing: wide for its height (8 to 5), so an upright phone whose page a keyboard
+   made shorter than it is wide is never read as turned.
+   ==================================================================== */
+.turn-upright {
+  display: none;
+}
+@media (orientation: landscape) and (min-aspect-ratio: 8/5) and (max-height: 500px) and (pointer: coarse) and (max-device-width: 500px),
+  (orientation: landscape) and (min-aspect-ratio: 8/5) and (max-height: 500px) and (pointer: coarse) and (max-device-height: 500px) {
+  .app-root,
+  .fr-shell {
+    visibility: hidden;
+  }
+  .turn-upright {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 6px;
+    padding: 24px max(24px, env(safe-area-inset-right, 0px)) 24px max(24px, env(safe-area-inset-left, 0px));
+    background: var(--bg);
+    color: var(--ink);
+    text-align: center;
+  }
+  .turn-upright > svg {
+    margin-bottom: 10px;
+    color: var(--ink-muted);
+  }
+  .turn-upright > strong {
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
+  }
+  .turn-upright > span {
+    font-size: var(--text-base);
+    color: var(--ink-dim);
   }
 }

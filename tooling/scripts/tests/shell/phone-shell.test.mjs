@@ -66,8 +66,9 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(css.includes(".phone-tabs { display: none; }"), "desktop never sees it");
   assert.ok(
-    css.includes("bottom: max(14px, env(safe-area-inset-bottom));"),
-    "above the home bar: the boards' capsule floats clear of it",
+    css.includes("--bar-foot: max(14px, calc(env(safe-area-inset-bottom, 0px) - 13px));") &&
+      css.includes("bottom: var(--bar-foot);"),
+    "above the home bar: the boards' capsule floats clear of it, 14px up or 13 nearer the edge than the phone's inset",
   );
   assert.ok(css.includes("min-height: 44px;"), "thumb-sized");
   // Inside the app: the native tab bar stands where the web one did, and the shell says how tall it is.
@@ -76,7 +77,9 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
     "belt and braces for the frame before the shell reads the global",
   );
   assert.ok(
-    css.includes("html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }"),
+    css.includes(
+      "html.in-app .main-scroll { --page-foot: var(--app-inset-bottom, 0px); padding-bottom: var(--app-inset-bottom, 0px); }",
+    ),
     "the room under every surface is the shell's tab bar, not the web's",
   );
   assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));
@@ -89,7 +92,7 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
   );
   // The ✦'s own lift lives in ask.css with the palette's rules (ask.test.mjs holds it there).
   assert.ok(
-    css.includes("position: fixed;") && css.includes("bottom: max(14px, env(safe-area-inset-bottom));"),
+    css.includes("position: fixed;") && css.includes("bottom: var(--bar-foot);"),
     "fixed to the viewport, floating clear of its bottom: flowed, it lived below the fold",
   );
   // The status the bridge's floating pill used to carry is the shell's one
