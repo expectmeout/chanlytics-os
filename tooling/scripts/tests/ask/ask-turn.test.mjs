@@ -169,11 +169,15 @@ const call = (id, over = {}) => ({
 
 // The workspace has a WhatsApp number unless a test says otherwise (step 3): a campaign is counted by the channels the
 // workspace can send on, and with no number nobody can be sent a broadcast.
+/**
+ * The workspace's WhatsApp number: not a US one, since Meta's pause on marketing messages to US numbers (contracts
+ * whatsapp-offers.ts) would hold every offer these turns count and propose; the one turn about the pause gives a US number.
+ */
 const WHATSAPP_NUMBER = {
   id: "ch-wa-base",
   tenant_id: A,
   kind: "whatsapp",
-  number_e164: "+19295550198",
+  number_e164: "+442079460958",
   status: "active",
   created_at: "2026-08-01T00:00:00Z",
   config: { quality_rating: "GREEN", messaging_limit: "TIER_1K" },
@@ -7494,6 +7498,21 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
   const flagged = { ...WHATSAPP_NUMBER, config: { quality_rating: "RED", messaging_limit: "TIER_1K" } };
   const red = await buildProposal(toolContext([flagged]), "propose_campaign", broadcast);
   assert.match(JSON.parse(red.result).error, /WhatsApp flagged this number's quality/);
+  // A US number: Meta is not delivering marketing messages on WhatsApp to US numbers (contracts whatsapp-offers.ts), so an
+  // offer is refused with that reason, never with a missing yes; a number Meta has stopped is refused in the row's sentence.
+  const us = { ...WHATSAPP_NUMBER, number_e164: "+19295550198" };
+  const paused = await buildProposal(toolContext([us]), "propose_campaign", broadcast);
+  assert.deepEqual([paused.proposal, paused.isError], [null, true], paused.result);
+  assert.match(
+    JSON.parse(paused.result).error,
+    /Meta isn't delivering marketing messages on WhatsApp to US numbers right now/,
+  );
+  const unpaid = {
+    ...WHATSAPP_NUMBER,
+    config: { ...WHATSAPP_NUMBER.config, standing: { can_send: "AVAILABLE", has_payment_method: false } },
+  };
+  const held2 = await buildProposal(toolContext([unpaid]), "propose_campaign", broadcast);
+  assert.match(JSON.parse(held2.result).error, /Meta needs a payment method on your WhatsApp account/);
   // A playbook is still proposed with no number (a run holds everyone), and its card says so.
   const playbook = { action: "playbook", trigger: "everyone_monthly", template_id: TPL, params: [] };
   const held = await buildProposal(toolContext([]), "propose_campaign", playbook);

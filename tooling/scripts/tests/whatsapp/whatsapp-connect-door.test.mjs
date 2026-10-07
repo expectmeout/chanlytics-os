@@ -608,10 +608,12 @@ test("connect, what Meta holds about the number: read once the line and its toke
   ]);
   assert.deepEqual(
     tables.notifications.map((n) => [n.tenant_id, n.kind, n.route, n.title]),
-    [[A, "number", "admin/integrations", "WhatsApp can't send from your number"]],
+    [[A, "number", "admin/integrations", "WhatsApp can't start conversations from your number"]],
     "the owner's bell says it now, not at the next six-hourly read",
   );
-  assert.ok(tables.notifications[0].body.includes("+1 (555) 123-4567: A payment method is required"));
+  assert.ok(
+    tables.notifications[0].body.includes("+1 (555) 123-4567: Meta needs a payment method on your WhatsApp account"),
+  );
   assert.ok(!printed(body).includes("BLOCKED"), "and the connection's answer is the connection's, unchanged");
 
   // Meta cannot be asked, or refuses: the connection stands.

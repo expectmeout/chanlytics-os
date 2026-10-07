@@ -4,16 +4,12 @@ import {
   channelsReady,
   type NumberHealth,
   numberHealth,
+  numberHealthWithStanding,
   offerPauseOf,
   parseTenantConfig,
+  standingFromConfig,
 } from "@chanlytics/contracts";
-import {
-  getTenantConfig,
-  mailboxOfTenant,
-  textLineFacts,
-  whatsappChannelConfig,
-  workspacePaused,
-} from "@chanlytics/db";
+import { getTenantConfig, mailboxOfTenant, textLineFacts, whatsappChannelFacts, workspacePaused } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { emailWire } from "../connections/email-readiness";
 import { log } from "../log";
@@ -98,10 +94,18 @@ export async function channelsReadyOrNull(
   }
 }
 
-/** The WhatsApp number's health (contracts numberHealth), or null with no active number. A read that fails throws. */
-export async function whatsappHealthOf(ctx: RouteContext, tenantId: string): Promise<NumberHealth | null> {
-  const cfg = await whatsappChannelConfig(ctx.supabase, tenantId);
-  if (!cfg) return null;
-  const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
-  return numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
+/** The WhatsApp number's health, with the number itself (E.164), which the pause on offers to US numbers is judged by. */
+type WhatsappHealth = NumberHealth & { number: string | null };
+
+/**
+ * The WhatsApp number's health (contracts numberHealth), with what Meta holds against the number (its kept standing, 00338:
+ * a number Meta has stopped, or whose account has no payment method, carries no campaign, in the sentence the Connections
+ * row says) and the number itself; null with no active number. A read that fails throws.
+ */
+export async function whatsappHealthOf(ctx: RouteContext, tenantId: string): Promise<WhatsappHealth | null> {
+  const wa = await whatsappChannelFacts(ctx.supabase, tenantId);
+  if (!wa) return null;
+  const s = (k: string) => (typeof wa.config[k] === "string" ? wa.config[k] : null);
+  const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
+  return { ...numberHealthWithStanding(health, standingFromConfig(wa.config.standing)), number: wa.number };
 }
