@@ -17,7 +17,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 const EAS_WORKFLOWS = "apps/mobile/.eas/workflows";
 const GITHUB_WORKFLOWS = ".github/workflows";
 
-const read = (file) => fs.readFileSync(path.join(REPO_ROOT, file), "utf8");
+const workflowText = (file) => fs.readFileSync(path.join(REPO_ROOT, file), "utf8");
 const workflowsIn = (dir) =>
   fs
     .readdirSync(path.join(REPO_ROOT, dir))
@@ -68,14 +68,14 @@ test("a trigger is read however it is written", () => {
 test("an EAS workflow starts by hand, and by nothing else", () => {
   const files = workflowsIn(EAS_WORKFLOWS);
   assert.ok(files.length > 0, "the workflows were read");
-  for (const file of files) assert.deepEqual(triggersOf(read(file)), ["workflow_dispatch"], file);
+  for (const file of files) assert.deepEqual(triggersOf(workflowText(file)), ["workflow_dispatch"], file);
 });
 
 test("no GitHub workflow holds the Expo account's token, so none can build, update or submit", () => {
   const files = workflowsIn(GITHUB_WORKFLOWS);
   assert.ok(files.length > 0, "the workflows were read");
   assert.deepEqual(
-    files.filter((file) => /EXPO_TOKEN|eas-cli|expo-github-action/.test(read(file))),
+    files.filter((file) => /EXPO_TOKEN|eas-cli|expo-github-action/.test(workflowText(file))),
     [],
   );
 });
