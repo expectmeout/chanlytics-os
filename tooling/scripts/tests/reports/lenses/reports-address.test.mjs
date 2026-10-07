@@ -60,6 +60,7 @@ test("the strip is the frame's: the lens registry's tabs as links to each lens's
     label: "Which report",
     testid: "reports-lenses",
     picked: "overview",
+    stays: true,
     tabs: [
       { id: "overview", label: "Overview", to: "reports", testid: "lens-overview" },
       { id: "receptionist", label: "Receptionist", to: "reports/receptionist", testid: "lens-receptionist" },
@@ -71,6 +72,18 @@ test("the strip is the frame's: the lens registry's tabs as links to each lens's
   const people = chromeAt("people");
   assert.deepEqual(people.crumbs, [{ label: "Reports", to: "reports" }, "People"]);
   assert.equal(people.views.picked, "people");
+});
+
+test("the strip wears that the page stays, and the frame's slot says whose views it holds, so a swipe and the stylesheet know at first paint", async () => {
+  hold("booking");
+  const win = globalThis.window;
+  win.CHANLY = { address: { href: (r) => `/w/harbor/${r}`, warm() {}, warmSoon() {} } };
+  await importSrc("apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  const strip = win.SurfaceTabs({ page: "reports", param: null, views: chromeAt(null).views, onNavigate() {} });
+  assert.match(strip.props.className, /\bstabs-reports\b/);
+  assert.equal(strip.props["data-stays"], "", "Reports' page stays across its lenses: a swipe brings the next into it");
+  const inbox = win.SurfaceTabs({ page: "conversations", param: null, views: null, onNavigate() {} });
+  assert.equal(inbox.props["data-stays"], undefined, "a group's views are pages of their own");
 });
 
 test("Pipeline is a tab where deals are on, in its place, and nowhere else; the strip reads only what the shell holds", () => {

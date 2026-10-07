@@ -20,7 +20,7 @@
     "billing/billing-pause.test.mjs": 5,
     "billing/billing.test.mjs": 16,
     "billing/may-spend.test.mjs": 3,
-    "broadcasts/broadcasts.test.mjs": 20,
+    "broadcasts/broadcasts.test.mjs": 19,
     "calendar/availability-tool.test.mjs": 1,
     "calendar/availability.test.mjs": 4,
     "calendar/calendar-people.test.mjs": 31,

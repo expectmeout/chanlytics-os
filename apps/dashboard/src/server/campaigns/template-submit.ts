@@ -5,7 +5,7 @@
  * with a reason) is the row's status, kept current by the webhook. The submission itself is the edge's
  * (meta-templates.ts createTemplate), as every write that leaves for a provider is.
  */
-import { AppError, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
+import { AppError, LIBRARY_WORDS, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
 import { templateIdOf } from "@chanlytics/db";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate } from "@/server/campaigns/meta-templates";
@@ -14,7 +14,7 @@ import type { Member } from "@/server/route";
 
 const SUBMIT_SAID: Record<string, string> = {
   preview: "Submitting only works on the production dashboard.",
-  no_channel: "Connect a WhatsApp number first — templates belong to a number's account.",
+  no_channel: LIBRARY_WORDS.writeNeedsNumber,
   no_waba: "This number's WhatsApp Business Account is not on file. Reconnect the number and try again.",
   no_token: "Chanlytics has no access token for this number yet.",
   write_failed: "The template was submitted but could not be saved here. Sync from Meta to see it.",

@@ -3,9 +3,11 @@
  * contracts' rows (emailTemplateRowsOf) over the reach_outs surface's chains, each a message with an email version
  * (../reach-out/email-message.tsx, step 5), opened in the pane beside the list and edited there, and found by their words
  * too. Unread is no row and no claim either way; a read that failed is said. "All approved" is WhatsApp's to say, of its
- * own rows.
+ * own rows. There is no "nothing on file" line: the starter set is always offered, a workspace with no WhatsApp number
+ * included, so the list is never bare.
  */
-import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { LIBRARY_WORDS } from "@chanlytics/contracts";
+import { FailedRead } from "../../kit/empty/empty";
 import { surfaceValue } from "../../surface-values";
 import { ReachOutEmailRow } from "../reach-out/email-message";
 import type { ReachOutsSurface } from "../reach-out/surface";
@@ -17,13 +19,11 @@ type Emails = ReturnType<typeof reachOuts.words.emailTemplateRowsOf>;
 export const tplEmails = (chains: ReachOutsSurface | undefined): Emails =>
   Array.isArray(chains) ? reachOuts.words.emailTemplateRowsOf(chains) : [];
 
-// The head's hover: WhatsApp's, and when the count takes email rows, contracts' sentence saying so.
-const TPL_WHATSAPP_TIP =
-  "What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way, usually within minutes. A marketing template can only go to people who said yes to offers.";
+// The head's hover: what the Library holds, and when the count takes a reach-out's email rows, contracts' sentence saying so.
 export const tplHeadTip = (emails: Emails): string =>
   emails.length > 0
-    ? `${TPL_WHATSAPP_TIP} ${reachOuts.words.EMAIL_TEMPLATE_LIST_WORDS.headTip(emails.length)}`
-    : TPL_WHATSAPP_TIP;
+    ? `${LIBRARY_WORDS.headTip} ${reachOuts.words.EMAIL_TEMPLATE_LIST_WORDS.headTip(emails.length)}`
+    : LIBRARY_WORDS.headTip;
 
 export const tplEmailsMatching = (emails: Emails, needle: string): Emails =>
   emails.filter((t) => !needle || `${t.subject || ""} ${t.body} ${t.chain_name}`.toLowerCase().includes(needle));
@@ -31,30 +31,18 @@ export const tplEmailsMatching = (emails: Emails, needle: string): Emails =>
 export const tplAllApproved = (approved: number, shown: readonly unknown[], emails: Emails): boolean =>
   approved === shown.length && emails.length === 0;
 
-interface TplNothingProps {
-  hasWhatsApp: boolean;
-  customN: number;
-  emails: Emails;
-}
-
-// Under the list: the reach-outs' read that failed, said with its Retry; else "Nothing on file yet." only when every
-// kind was read and holds nothing -- an email-only workspace has its rows, and an unread one is not empty.
-export function TplNothing({ hasWhatsApp, customN, emails }: TplNothingProps) {
+// Under the list: the reach-outs' read that failed, said with its Retry. An unread one says nothing.
+export function TplEmailsFailed() {
   // What the surface holds as this draws, as the JSX read `window.__REACH_OUTS` with no surface argument: the page
   // above subscribes to the surface, so this is drawn again whenever it moves.
   const chains = surfaceValue("reach_outs");
-  if (chains === null) {
-    return (
-      <FailedRead
-        kind="line"
-        what={reachOuts.words.EMAIL_TEMPLATE_LIST_WORDS.failed}
-        surface="reach_outs"
-        testid="templates-email-failed"
-      />
-    );
-  }
-  return !hasWhatsApp && customN === 0 && emails.length === 0 && Array.isArray(chains) ? (
-    <EmptyState kind="line" title="Nothing on file yet." testid="templates-nothing" />
+  return chains === null ? (
+    <FailedRead
+      kind="line"
+      what={reachOuts.words.EMAIL_TEMPLATE_LIST_WORDS.failed}
+      surface="reach_outs"
+      testid="templates-email-failed"
+    />
   ) : null;
 }
 

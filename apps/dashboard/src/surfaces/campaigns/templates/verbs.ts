@@ -70,6 +70,16 @@ interface StarterBody {
   keys?: string[];
   languages?: string[];
 }
+/**
+ * What a message is, said with its first version when the workspace holds no row of its name: an offer or news (the
+ * starters alone are about a visit or a proposal, so a message written here is never `utility`), the values it takes as
+ * the edge files them (numbered from 1, each with the name a person sees and an example), and its title.
+ */
+export interface MessageBegins {
+  category: "marketing";
+  variables: { position: number; label: string; example: string }[];
+  title: string;
+}
 /** An email or a text version to save (One message, every channel, step 1): the message's name, the language, the channel and the words. */
 export interface VersionDraft {
   name: string;
@@ -78,6 +88,8 @@ export interface VersionDraft {
   /** An email's subject; a text has none. */
   subject?: string;
   body: string;
+  /** The first version of a message the workspace has no row of: what the message is (the door that begins it). */
+  message?: MessageBegins;
 }
 
 export const syncTemplates = () => api()("POST templates/sync");

@@ -4,6 +4,7 @@ import {
   TEMPLATE_BODY_MAX,
   TEMPLATE_BUTTON_TEXT_MAX,
   TEMPLATE_FOOTER_MAX,
+  TEMPLATE_LABEL_MAX,
   defaultSlotKinds,
   languageLabel,
   parseTenantConfig,
@@ -54,7 +55,7 @@ const DraftSchema = z.object({
     .array(
       z.object({
         position: z.number().int().min(1).max(10),
-        label: z.string().max(40),
+        label: z.string().max(TEMPLATE_LABEL_MAX),
         source: z.enum(["text", "first_name", "business_name", "booking_link"]),
       }),
     )

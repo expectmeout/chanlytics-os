@@ -14,7 +14,7 @@ import { holdNote } from "./report-speed";
 import type { PeriodFacts } from "./reports";
 
 /** Every figure a tile says. */
-type ReportMetric =
+export type ReportMetric =
   | "customer_messages"
   | "answered_share"
   | "reply_median"

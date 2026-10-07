@@ -60,12 +60,12 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   "said yes":
     "A recorded answer that the person wants offers and news by WhatsApp: the desk recorded it on their profile, or they sent YES OFFERS or START themselves. Only these people can be on a broadcast.",
   broadcast:
-    "One approved WhatsApp template sent to the people on a list who said yes — everyone, a People list, or a list kept by hand. Sent now or at a time, 25 at a time; replies land in the Inbox, where the receptionist answers them.",
+    "One message sent to the people on a list who said yes — everyone, a People list, or a list kept by hand. A message is a name with a version for each channel it is written for (WhatsApp, which WhatsApp approves; email and text, ready when saved) and goes on the channels it holds, each person once. Sent now or at a time, 25 at a time; replies land in the Inbox, where the receptionist answers them.",
   "held back":
     "A person on a broadcast the send skipped at the wire: no recorded yes, asked to stop, no number, or a person had their thread.",
   calendar:
     "The owner's calendar as the receptionist reads it: an iCal feed of what is taken, the business's hours and closures, and the booking rules. The receptionist offers only the open windows, then sends the booking link, or takes their details where there is none; it never books, moves or cancels anything itself.",
-  playbook: `A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (by visits where a calendar is connected, by 30 days of silence where not), the month's offer (everyone who said yes, on a cadence), a reminder before a visit and a check after one, and, where deals are on, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.`,
+  playbook: `A standing rule that sends one message to newly eligible people who said yes: win-back (by visits where a calendar is connected, by 30 days of silence where not), the month's offer (everyone who said yes, on a cadence), a reminder before a visit and a check after one, and, where deals are on, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.`,
 };
 
 export const ASK_RULES = [

@@ -12,6 +12,7 @@ import { LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { toConversationVM, toCallVM } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import { cvCallsStandAsTheirThread } from "./cv-rules";
 import type { ConversationRow } from "./types";
 
 // The pages that have not moved (a person's profile, Ask) still read this under its old name.
@@ -70,22 +71,22 @@ export const conversationsOverride: SurfaceOverride = {
       workspaceZone(),
     ]);
     const openByConv = new Map(escData.escalations.map((e) => [e.conversation_id, e]));
-    // Calls get their OWN rows: a thread answers "am I on the hook to reply",
-    // a call answers "is my AI saying the right things on the phone" — the
-    // second is a transcript plus audio that cannot live in a chat bubble.
-    // The call row carries no decision affordance; the Inbox owns "needs you".
+    // Each call is read as a row, and the page folds a person's rows into one (cv-rules.ts cvOnePerPerson): the call
+    // opens in their thread, which holds every call, transcript and recording. A call stands as its thread does.
+    const allThreads = data.conversations.map((c) => toConversationVM(c, openByConv.get(c.id) ?? null, tz));
     let callRows: ConversationRow[] = [];
     try {
       if (callsRes instanceof Error) throw callsRes;
-      callRows = callsRes.calls.map((c) => toCallVM(c, tz));
+      callRows = cvCallsStandAsTheirThread(
+        callsRes.calls.map((c) => toCallVM(c, tz)),
+        allThreads,
+      );
     } catch (e) {
       console.error("calls_fetch_failed", e instanceof Error ? e.message : e);
     }
     // A customer who has only ever phoned is fully represented by their call
     // rows; a chat row for them would preview a call that is already on screen.
-    const threads = data.conversations
-      .map((c) => toConversationVM(c, openByConv.get(c.id) ?? null, tz))
-      .filter((t) => t.hasChat);
+    const threads = allThreads.filter((t) => t.hasChat);
     // Newest first by REAL timestamp. The previous sort localeCompare'd the
     // display strings ("Aug 26" vs "3:22 AM"), which is not an ordering at all
     // — a message sent this morning listed below yesterday's calls.

@@ -9,7 +9,7 @@
  * `useSurfaceFailed`, which the shell's route gate reads), so a week it could not see is never "nothing is set to go out".
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MIN_MS, campaignsHomeOf } from "@chanlytics/contracts";
+import { MIN_MS, campaignMessagesOf, campaignsHomeOf } from "@chanlytics/contracts";
 import type { LifecycleHome } from "@chanlytics/contracts";
 import { tabDraft } from "../../kit/record/work";
 import { demoSession, navigate, replaceRoute } from "../../legacy-verbs";
@@ -68,7 +68,10 @@ export function useHomeData(nowMs?: number): HomeData {
   const playbooks = livePlaybooks ?? sample?.playbooks;
   // Nothing read: failed (null) where the seam says it could not be, else not read yet (undefined).
   const broadcasts = liveBroadcasts ?? sample?.broadcasts ?? (broadcastsFailed ? null : undefined);
-  const library = settings ? settings.templatesAll : settingsFailed ? null : (sample?.playbooks.templates ?? undefined);
+  const sampled = sample?.playbooks.templates ?? undefined;
+  const library = settings ? settings.templatesAll : settingsFailed ? null : sampled;
+  // The messages the Library counts: the settings surface's (one read with its rows), a demo session's from its sample's.
+  const messages = settings ? settings.messages : settingsFailed ? null : undefined;
   const home = useMemo(
     () =>
       campaignsHomeOf({
@@ -77,9 +80,10 @@ export function useHomeData(nowMs?: number): HomeData {
         playbooks,
         broadcasts,
         library,
+        messages: messages === undefined && sampled ? campaignMessagesOf(sampled) : messages,
         reachOuts,
       }),
-    [now, playbooks, broadcasts, library, reachOuts],
+    [now, playbooks, broadcasts, library, messages, sampled, reachOuts],
   );
   return { playbooks, broadcasts, reachOuts, home };
 }

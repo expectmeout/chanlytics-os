@@ -48,13 +48,38 @@ const contacts = {
   k2: { id: "k2", phone_e164: "+13475550102", erased_at: null, display_name: null, wa_profile_name: "Bo" },
 };
 
+/** A template row as the message port answers it (db messageVersionRowsOf): every column the batch and contracts read, of the name and language asked. */
+const rowOf = (channel, name, language, over = {}) => ({
+  id: `${channel}-${name}`,
+  channel,
+  name,
+  language,
+  meta_status: "approved",
+  category: null,
+  variables: [],
+  hidden_at: null,
+  title: null,
+  source: channel === "whatsapp" ? "meta" : "chanlytics",
+  components: [],
+  body_preview: null,
+  rejected_reason: null,
+  ...over,
+});
+/** The message port over the versions a message holds, each channel's facts made a whole row of the message asked for; `asked` records each read. */
+const rowsOf =
+  (versions, asked = []) =>
+  (name, language) => {
+    asked.push([name, language]);
+    return Object.entries(versions).map(([channel, v]) => rowOf(channel, name, language, v));
+  };
+
 /** Every port answers a value or a function of its arguments; the writes log their call as [name, ...args]. */
 function fakes(over = {}) {
   const log = [];
   const answers = {
     broadcast: broadcast(),
     workspacePaused: false,
-    template: approved,
+    message: rowsOf({ whatsapp: approved }),
     // UTC, where noon is inside the day's sending hours on any machine the suite runs on.
     facts: { businessName: "Marisa's", bookingLink: "https://book.example/m", timezone: "UTC" },
     batch: [
@@ -128,7 +153,7 @@ test("a broadcast that is gone, or in any state but scheduled or sending, sends 
 test("a paused workspace fails the run with its reason and tells the owner, before the template is even read", async () => {
   const { ports, log, ops } = fakes({
     workspacePaused: true,
-    template: new Error("must not be read"),
+    message: new Error("must not be read"),
     tally: { sent: 0, held: 0 },
   });
   await sendBroadcastBatch(ports, cmd());
@@ -136,7 +161,7 @@ test("a paused workspace fails the run with its reason and tells the owner, befo
   assert.deepEqual(log[0], ["fail", "b1", "paused"]);
   assert.match(log[1][1].body, /paused until billing resumes, so nothing went out/);
   // A pause between two batches stops what is left, and says how many it had reached: nothing went out is not true then.
-  const later = fakes({ workspacePaused: true, template: new Error("must not be read"), tally: { sent: 3, held: 0 } });
+  const later = fakes({ workspacePaused: true, message: new Error("must not be read"), tally: { sent: 3, held: 0 } });
   await sendBroadcastBatch(later.ports, cmd());
   assert.deepEqual(later.log[0], ["fail", "b1", "paused"]);
   assert.match(
@@ -146,15 +171,18 @@ test("a paused workspace fails the run with its reason and tells the owner, befo
 });
 
 test("a template Meta withdrew fails the broadcast before a single send; a scheduled run is marked sending first", async () => {
-  const { ports, log, ops } = fakes({ template: { ...approved, meta_status: "rejected" } });
+  const { ports, log, ops } = fakes({ message: rowsOf({ whatsapp: { ...approved, meta_status: "rejected" } }) });
   await sendBroadcastBatch(ports, cmd());
   assert.deepEqual(ops(), ["startSending", "fail", "alert"]);
   assert.deepEqual(log[1], ["fail", "b1", "template_not_approved"]);
-  assert.match(log[2][1].body, /no longer approved by WhatsApp/);
-  const missing = fakes({ template: null });
+  assert.equal(
+    log[2][1].body,
+    "WhatsApp refused this message's WhatsApp version. Everyone on this run goes by WhatsApp, so nothing was sent.",
+  );
+  const missing = fakes({ message: [] });
   await sendBroadcastBatch(missing.ports, cmd());
   assert.deepEqual(missing.ops(), ["startSending", "fail", "alert"]);
-  const sending = fakes({ broadcast: broadcast({ state: "sending" }), template: null });
+  const sending = fakes({ broadcast: broadcast({ state: "sending" }), message: [] });
   await sendBroadcastBatch(sending.ports, cmd());
   assert.deepEqual(sending.ops(), ["fail", "alert"], "already sending: not marked again");
 });
@@ -199,7 +227,7 @@ test("each person goes through the door with the template's purpose, proactive, 
   assert.equal(log.filter((l) => l[0] === "mark")[1][3].message_id, "m-k1");
   assert.equal(log.filter((l) => l[0] === "sleep").length, 1, "a breath between two people, none after the last");
   const utility = fakes({
-    template: { ...approved, category: "utility" },
+    message: rowsOf({ whatsapp: { ...approved, category: "utility" } }),
     broadcast: broadcast({ playbook_id: "p1", audience: { label: "Win-back" } }),
   });
   await sendBroadcastBatch(utility.ports, cmd());
@@ -316,7 +344,7 @@ test("a wire that could not be BOUND claims nobody: the batch waits whole, still
       broadcast: broadcast({ state }),
       wireUnavailable: "vault unavailable",
       remaining: 2,
-      template: new Error("must not be read"),
+      message: new Error("must not be read"),
     });
     await sendBroadcastBatch(ports, cmd());
     assert.deepEqual(ops(), ["scheduleNext"], `${state}: nobody claimed, nothing failed, nobody told`);
@@ -474,7 +502,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
 test("every way a broadcast can stop says it stopped, and none of them says a job did not finish", async () => {
   const paused = fakes({ workspacePaused: true });
   await sendBroadcastBatch(paused.ports, cmd());
-  const withdrawn = fakes({ template: { ...approved, meta_status: "rejected" } });
+  const withdrawn = fakes({ message: rowsOf({ whatsapp: { ...approved, meta_status: "rejected" } }) });
   await sendBroadcastBatch(withdrawn.ports, cmd());
   const down = fakes({
     deliver: {
@@ -548,7 +576,7 @@ test("a proposal follow-up's send (0006): the link each person's run froze fills
     { contact_id: "k1", facts: { proposal_link: "https://docs.example.com/proposal/1" } },
     { contact_id: "k2", facts: null },
   ];
-  const utility = fakes({ broadcast: follow, template: words, batch });
+  const utility = fakes({ broadcast: follow, message: rowsOf({ whatsapp: words }), batch });
   await sendBroadcastBatch(utility.ports, cmd());
   const sent = utility.log.filter((l) => l[0] === "deliver").map((l) => l[1]);
   assert.deepEqual(
@@ -562,7 +590,11 @@ test("a proposal follow-up's send (0006): the link each person's run froze fills
     "no link, no bare nudge",
   );
   // Meta filed it as marketing: the send asks for the offers yes, at the door (deliver.ts), whatever the class says.
-  const marketing = fakes({ broadcast: follow, template: { ...words, category: "marketing" }, batch: [batch[0]] });
+  const marketing = fakes({
+    broadcast: follow,
+    message: rowsOf({ whatsapp: { ...words, category: "marketing" } }),
+    batch: [batch[0]],
+  });
   await sendBroadcastBatch(marketing.ports, cmd());
   assert.deepEqual(
     marketing.log.filter((l) => l[0] === "deliver").map((l) => l[1].purpose),
@@ -1010,13 +1042,8 @@ const visitRows = {
     ],
   },
 };
-/** The template port by channel, remembering which channels it was asked for: a batch reads a version once. */
-const versionsOf = (asked = [], rows = visitRows) => {
-  return (_name, _language, channel) => {
-    asked.push(channel);
-    return rows[channel] ?? null;
-  };
-};
+/** The message port over its versions by channel, remembering each read it was asked for: a batch reads the message once. */
+const versionsOf = (asked = [], rows = visitRows) => rowsOf(rows, asked);
 const reachable = {
   k1: {
     id: "k1",
@@ -1067,7 +1094,7 @@ const world = (over = {}) => {
     asked,
     f: fakes({
       broadcast: reminder(),
-      template: versionsOf(asked),
+      message: versionsOf(asked),
       facts: visitFacts,
       contacts: (ids) => new Map(ids.filter((id) => reachable[id]).map((id) => [id, reachable[id]])),
       targetOfContact: (id) => ({ conversationId: `cv-${id}` }),
@@ -1112,7 +1139,11 @@ test("a text goes on the text version's words, the slots filled, with the STOP l
     },
   });
   assert.equal(second.body, "Hi Bo, your visit is tomorrow at 2:00 PM.\nReply STOP to opt out");
-  assert.deepEqual(asked, ["whatsapp", "sms"], "Meta's row for the purpose, and the text's version once for both");
+  assert.deepEqual(
+    asked,
+    [["visit_reminder", "en_US"]],
+    "the message is read once for the batch: Meta's row for the purpose, and the text's version for both",
+  );
   assert.deepEqual(f.marks(), [
     ["k1", "failed", OUTCOME_UNKNOWN],
     ["k1", "sent", null],
@@ -1191,7 +1222,7 @@ test("an email is written queued first, frozen from the version's subject and bo
     holdIfNotTaken: true,
     meta: queued.meta,
   });
-  assert.deepEqual(asked, ["whatsapp", "email"]);
+  assert.deepEqual(asked, [["visit_reminder", "en_US"]], "the message is read once for the batch");
   assert.deepEqual(f.marks(), [
     ["k1", "failed", OUTCOME_UNKNOWN],
     ["k1", "sent", null],
@@ -1350,15 +1381,9 @@ test("a visit's message is never held by the month: the reminder and the check a
 });
 
 test("a version the message no longer has on a channel holds the person there (no channel it can go by); an unsendable email never reaches the door", async () => {
-  const noEmail = world({ batch: [on("email")], template: versionsOf([], { whatsapp: visitRows.whatsapp }) });
+  const noEmail = world({ batch: [on("email")], message: versionsOf([], { whatsapp: visitRows.whatsapp }) });
   await sendBroadcastBatch(noEmail.f.ports, cmd());
   assert.deepEqual(noEmail.f.marks(), [["k1", "skipped", "no_channel"]]);
-  const unapproved = world({
-    batch: [on("sms")],
-    template: versionsOf([], { ...visitRows, sms: { ...visitRows.sms, meta_status: "pending" } }),
-  });
-  await sendBroadcastBatch(unapproved.f.ports, cmd());
-  assert.deepEqual(unapproved.f.marks(), [["k1", "skipped", "no_channel"]]);
   // No mailbox here, or words no email may carry: the adapter freezes nothing.
   const noMailbox = world({ batch: [on("email")], emailRequest: null });
   await sendBroadcastBatch(noMailbox.f.ports, cmd());
@@ -1656,7 +1681,7 @@ test("WhatsApp's template not approved holds WhatsApp's people alone: the people
   const rejected = { ...visitRows, whatsapp: { ...visitRows.whatsapp, meta_status: "rejected" } };
   const mixed = world({
     batch: [on("whatsapp", "k2"), on("email"), on("sms", "k2")],
-    template: versionsOf([], rejected),
+    message: versionsOf([], rejected),
     byOtherChannels: true,
   });
   await sendBroadcastBatch(mixed.f.ports, cmd());
@@ -1678,10 +1703,13 @@ test("WhatsApp's template not approved holds WhatsApp's people alone: the people
   assert.ok(!mixed.f.ops().includes("fail"), "the run is not failed: somebody on it can still be reached");
   assert.ok(mixed.f.ops().includes("finish"));
   assert.ok("template_not_approved" in HELD_REASONS, "and the run's page says why the WhatsApp people were held");
-  // A row that is gone has no category to keep: marketing, as purposeOfTemplate fails closed.
+  // A message with no category anywhere has none to keep: marketing, as purposeOfTemplate fails closed.
   const gone = world({
     batch: [on("email")],
-    template: versionsOf([], { email: visitRows.email, sms: visitRows.sms }),
+    message: versionsOf([], {
+      email: { ...visitRows.email, category: null },
+      sms: { ...visitRows.sms, category: null },
+    }),
     byOtherChannels: true,
   });
   await sendBroadcastBatch(gone.f.ports, cmd());
@@ -1689,7 +1717,7 @@ test("WhatsApp's template not approved holds WhatsApp's people alone: the people
   // The question is the RUN's, not the batch's: a batch of WhatsApp people on a run that has email people is held, and the run goes on.
   const onlyWhatsApp = world({
     batch: [on("whatsapp"), on("whatsapp", "k2")],
-    template: versionsOf([], rejected),
+    message: versionsOf([], rejected),
     byOtherChannels: true,
     remaining: 1,
   });
@@ -1700,7 +1728,7 @@ test("WhatsApp's template not approved holds WhatsApp's people alone: the people
   ]);
   assert.ok(onlyWhatsApp.f.ops().includes("scheduleNext"), "the run goes on to its email people");
   // A run with nobody else on it fails as it always did, before a single send.
-  const alone = world({ batch: [on("whatsapp")], template: versionsOf([], rejected), byOtherChannels: false });
+  const alone = world({ batch: [on("whatsapp")], message: versionsOf([], rejected), byOtherChannels: false });
   await sendBroadcastBatch(alone.f.ports, cmd());
   assert.deepEqual(alone.f.ops(), ["startSending", "fail", "alert"]);
   assert.deepEqual(call(alone.f.log, "fail").slice(1), ["b1", "template_not_approved"]);
@@ -1815,7 +1843,7 @@ test("offers by email, where the deployment names a campaigns domain the provide
   const others = [];
   const { f } = world({
     batch: [on("email"), on("whatsapp", "k2"), on("email", "k3")],
-    template: versionsOf([], offerRows),
+    message: versionsOf([], offerRows),
     offersClosed: () => (asked.push("asked"), "the campaigns domain campaigns.example.com is not verified for sending"),
     byOtherChannels: (_id, than) => (others.push(than), true),
     heldForEmail: ["email_marketing_disabled"],
@@ -1869,7 +1897,7 @@ test("offers by email, where the deployment names a campaigns domain the provide
     // A broadcast the owner made: it is sent again once the domain is verified (a playbook's run is told its own next step).
     broadcast: broadcast(),
     batch: [on("email"), on("email", "k3")],
-    template: versionsOf([], offerRows),
+    message: versionsOf([], offerRows),
     offersClosed: "the campaigns domain campaigns.example.com is not verified for sending",
     byOtherChannels: (_id, than) => than !== "email",
     remaining: 2,
@@ -1897,7 +1925,7 @@ test("offers by email, where the deployment names a campaigns domain the provide
     const asks = [];
     const w = world({
       batch,
-      template: versionsOf([], rows),
+      message: versionsOf([], rows),
       offersClosed: () => (asks.push(1), "closed"),
     });
     return sendBroadcastBatch(w.f.ports, cmd()).then(() => ({ asks: asks.length, ops: w.f.ops() }));
@@ -1907,7 +1935,7 @@ test("offers by email, where the deployment names a campaigns domain the provide
   assert.equal((await counted(offerRows, [on("whatsapp")])).asks, 0, "an offer by WhatsApp has no email in it");
   assert.equal((await counted(offerRows, [on("email")])).asks, 1);
   // Open (null): the offers are sent as ever, from the lane the adapter holds.
-  const open = world({ batch: [on("email")], template: versionsOf([], offerRows), offersClosed: null });
+  const open = world({ batch: [on("email")], message: versionsOf([], offerRows), offersClosed: null });
   await sendBroadcastBatch(open.f.ports, cmd());
   assert.ok(open.f.ops().includes("deliver"));
 });
@@ -1917,7 +1945,7 @@ test("offers by email whose campaigns domain could not be asked about wait a min
   const unread = "the campaigns domain campaigns.example.com could not be checked";
   const { f } = world({
     batch: [on("email"), on("email", "k3")],
-    template: versionsOf([], offerRows),
+    message: versionsOf([], offerRows),
     offersUnread: unread,
     offersClosed: new Error("not asked: an unread domain is no answer"),
     remaining: 2,
@@ -1934,7 +1962,7 @@ test("offers by email whose campaigns domain could not be asked about wait a min
     ],
   ]);
   // A visit's email is not an offer, and leaves from the mail domain: it is not held for the campaigns domain.
-  const visit = world({ batch: [on("email")], template: versionsOf([], visitRows), offersUnread: unread });
+  const visit = world({ batch: [on("email")], message: versionsOf([], visitRows), offersUnread: unread });
   await sendBroadcastBatch(visit.f.ports, cmd());
   assert.ok(visit.f.ops().includes("deliver"), "and it goes");
 });
@@ -2231,7 +2259,7 @@ test("a pause on offers and news by email, or a campaigns domain that cannot be 
   for (const reason of ["email_offers_paused", "email_marketing_disabled"]) {
     const others = [];
     const { f } = world({
-      template: versionsOf([], offerRows),
+      message: versionsOf([], offerRows),
       batch: [on("email"), on("whatsapp", "k2"), on("email", "k3")],
       deliver: (d) =>
         d.channel === "email"
@@ -2290,7 +2318,7 @@ test("a pause on offers and news by email, or a campaigns domain that cannot be 
   const stopped = async (reason, b) => {
     const { f } = world({
       broadcast: b ?? broadcast(),
-      template: versionsOf([], offerRows),
+      message: versionsOf([], offerRows),
       batch: [on("email"), on("email", "k2")],
       deliver: heldBy(reason),
       // Nobody on the run goes another way than email (the default answer): the hold is everyone's.
@@ -2399,7 +2427,7 @@ const news = (over = {}) => {
       playbook_id: null,
       audience: null,
     }),
-    template: versionsOf([], newsRows),
+    message: versionsOf([], newsRows),
     emailRequest: (i) => (made.push(i), frozen(i)),
     ...over,
   });
@@ -2514,4 +2542,154 @@ test("the batch's head holds news by email as it holds an offer: a campaigns dom
   });
   await sendBroadcastBatch(whatsapp.f.ports, cmd());
   assert.equal(sendsOf(whatsapp.f).length, 1);
+});
+
+/* ---------- A message needs no WhatsApp row (Lane 1): the batch reads the message once, and each person goes on their version -- */
+
+test("a message with no WhatsApp row and a utility category goes to its email and text people on their own versions, as a message about their visit, and nobody is skipped for a WhatsApp row it has not got", async () => {
+  const asked = [];
+  const own = world({
+    batch: [on("email"), on("sms", "k2"), on("email", "k3")],
+    message: versionsOf(asked, { email: visitRows.email, sms: visitRows.sms }),
+    // The adapter answers from the run's people: the email and the text people are not WhatsApp's.
+    byOtherChannels: true,
+  });
+  await sendBroadcastBatch(own.f.ports, cmd());
+  assert.deepEqual(own.f.marks(), [
+    ["k1", "failed", OUTCOME_UNKNOWN],
+    ["k1", "sent", null],
+    ["k2", "failed", OUTCOME_UNKNOWN],
+    ["k2", "sent", null],
+    ["k3", "failed", OUTCOME_UNKNOWN],
+    ["k3", "sent", null],
+  ]);
+  assert.deepEqual(
+    sendsOf(own.f).map((d) => [d.contactId, d.channel, d.purpose]),
+    [
+      ["k1", "email", "conversational"],
+      ["k2", "sms", "conversational"],
+      ["k3", "email", "conversational"],
+    ],
+    "the own rows' category is the message's: a visit's words ask the yes to hearing from them, not the offers yes",
+  );
+  assert.ok(!own.f.ops().includes("fail"), "the run is not failed for a WhatsApp row it never had");
+  assert.ok(own.f.ops().includes("finish"));
+  assert.deepEqual(asked, [["visit_reminder", "en_US"]], "the message is read once for the batch");
+});
+
+test("a marketing message with no WhatsApp row is an offer by email as any is: held for the business's postal address without one; a utility one goes without", async () => {
+  const noAddress = { ...visitFacts, address: null };
+  const offer = world({
+    batch: [on("email")],
+    facts: noAddress,
+    message: versionsOf([], { email: { ...visitRows.email, category: "marketing" } }),
+    byOtherChannels: true,
+  });
+  await sendBroadcastBatch(offer.f.ports, cmd());
+  assert.deepEqual(offer.f.marks(), [["k1", "skipped", "no_business_address"]], "held before anyone is claimed");
+  assert.equal(offer.f.of("queueEmail").length, 0);
+  assert.equal(sendsOf(offer.f).length, 0);
+  const visit = world({
+    batch: [on("email")],
+    facts: noAddress,
+    message: versionsOf([], { email: visitRows.email }),
+    byOtherChannels: true,
+  });
+  await sendBroadcastBatch(visit.f.ports, cmd());
+  assert.deepEqual(visit.f.marks(), [
+    ["k1", "failed", OUTCOME_UNKNOWN],
+    ["k1", "sent", null],
+  ]);
+  assert.equal(sendsOf(visit.f)[0].purpose, "conversational");
+});
+
+test("a message whose WhatsApp row is waiting, or whole to nobody, holds its WhatsApp people alone: the people on email go on their version and the run is not failed", async () => {
+  const held = {
+    pending: { ...visitRows.whatsapp, meta_status: "pending" },
+    // Approved by Meta, but with a picture for a heading, which this product cannot put on the wire (contracts templateBlocked).
+    blocked: {
+      ...visitRows.whatsapp,
+      components: [
+        { type: "HEADER", format: "IMAGE" },
+        { type: "BODY", text: VISIT_WORDS },
+      ],
+    },
+  };
+  for (const [why, whatsapp] of Object.entries(held)) {
+    const asked = [];
+    const mixed = world({
+      batch: [on("whatsapp"), on("email", "k3")],
+      message: versionsOf(asked, { whatsapp, email: visitRows.email }),
+      byOtherChannels: true,
+    });
+    await sendBroadcastBatch(mixed.f.ports, cmd());
+    assert.deepEqual(
+      mixed.f.marks(),
+      [
+        ["k1", "skipped", "template_not_approved"],
+        ["k3", "failed", OUTCOME_UNKNOWN],
+        ["k3", "sent", null],
+      ],
+      why,
+    );
+    assert.deepEqual(
+      sendsOf(mixed.f).map((d) => [d.contactId, d.channel, d.purpose]),
+      [["k3", "email", "conversational"]],
+      why,
+    );
+    assert.ok(!mixed.f.ops().includes("fail"), `${why}: the run is not failed, somebody on it can be reached`);
+    assert.ok(mixed.f.ops().includes("finish"), why);
+    assert.deepEqual(asked, [["visit_reminder", "en_US"]], `${why}: one read`);
+  }
+});
+
+test("a message whose only row is a WhatsApp one that cannot be sent, with everyone on the run going by WhatsApp, fails the run before a single send, and the owner is told why in the message's own words", async () => {
+  const stopped = async (message) => {
+    const alone = world({ batch: [on("whatsapp")], message, byOtherChannels: false });
+    await sendBroadcastBatch(alone.f.ports, cmd());
+    assert.deepEqual(alone.f.ops(), ["startSending", "fail", "alert"]);
+    assert.deepEqual(call(alone.f.log, "fail").slice(1), ["b1", "template_not_approved"]);
+    const alert = call(alone.f.log, "alert")[1];
+    assert.deepEqual(
+      [alert.kind, alert.route, alert.about],
+      ["broadcast_stopped", "broadcasts", { type: "broadcast", id: "b1" }],
+    );
+    assert.equal(alert.subject, "Broadcast “Visit reminder · 2026-09-11” stopped");
+    return alert.body;
+  };
+  assert.equal(
+    await stopped(versionsOf([], { whatsapp: { ...visitRows.whatsapp, meta_status: "pending" } })),
+    "WhatsApp is still reviewing this message's WhatsApp version. Everyone on this run goes by WhatsApp, so nothing was sent.",
+  );
+  assert.equal(
+    await stopped(versionsOf([], { whatsapp: { ...visitRows.whatsapp, meta_status: "rejected" } })),
+    "WhatsApp refused this message's WhatsApp version. Everyone on this run goes by WhatsApp, so nothing was sent.",
+  );
+  assert.equal(
+    await stopped(
+      versionsOf([], {
+        whatsapp: {
+          ...visitRows.whatsapp,
+          components: [
+            { type: "HEADER", format: "IMAGE" },
+            { type: "BODY", text: VISIT_WORDS },
+          ],
+        },
+      }),
+    ),
+    "This message's WhatsApp version has a picture for a heading, so it cannot be sent from here. Everyone on this run goes by WhatsApp, so nothing was sent.",
+  );
+  // The message has no row at all (the workspace removed its last version): it has no WhatsApp version to send.
+  assert.equal(
+    await stopped([]),
+    "This message has no WhatsApp version. Everyone on this run goes by WhatsApp, so nothing was sent.",
+  );
+});
+
+test("a read of the message that throws leaves the batch unsent and the error up, for the job to try again: the run is neither failed nor told WhatsApp withdrew it", async () => {
+  const timeout = new Error("canceling statement due to statement timeout");
+  const lost = world({ batch: [on("whatsapp"), on("email", "k3")], message: timeout, byOtherChannels: false });
+  await assert.rejects(sendBroadcastBatch(lost.f.ports, cmd()), timeout);
+  assert.deepEqual(lost.f.ops(), ["startSending"], "marked sending, as the batch's first write; nothing else written");
+  assert.deepEqual(lost.f.marks(), [], "nobody is claimed or held");
 });

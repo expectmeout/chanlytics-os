@@ -14,12 +14,15 @@ import {
   enrolPurpose,
   isWinBack,
   messageFitsMoment,
+  messageHolds,
+  messageWhyNot,
   momentOffered,
   playbookName,
   ruleNeeds,
   triggerOf,
   triggerOffered,
   UUID,
+  type CampaignMessage,
   type ConsentChannel,
   type ParamSpec,
   type PlaybookPolicyClass,
@@ -66,7 +69,7 @@ function int(v: unknown, { fallback, min, max, what }: IntRule): number {
   return n;
 }
 
-/** What a playbook's check reads beyond its template: the name of a list it runs on, or null when there is none. */
+/** What a playbook's check reads beyond its message: the name of a list it runs on, or null when there is none. */
 export interface CheckPlaybookPorts extends TemplateValuesPorts {
   listName(id: string): Promise<string | null>;
   /** Whether deals are on here (dealsAreOn, 0008): a proposal follow-up is made only then (0006). */
@@ -135,9 +138,23 @@ function refuseMessageThatDisagrees(cls: string, category: string | null): void 
 }
 
 /**
+ * A playbook keeps a tick that cannot send yet (its runs hold those people), but never goes by a message none of whose
+ * ticks it holds: a broadcast of it could not be sent, and a playbook can never name a message a broadcast could not
+ * send. Refused in each ticked channel's sentence for the version the message lacks (contracts messageWhyNot, one after
+ * another), so a message with an email and no WhatsApp version is kept on WhatsApp and email, and is refused on WhatsApp
+ * alone with WhatsApp's standing.
+ */
+function refuseMessageNoTickHolds(message: CampaignMessage, channels: readonly ConsentChannel[]): void {
+  const held = messageHolds(message);
+  if (channels.some((c) => held[c])) return;
+  const words = channels.flatMap((c) => messageWhyNot(message, c) ?? []);
+  throw new AppError("conflict", words.join(" "), 409);
+}
+
+/**
  * Everything a playbook names, checked the way a broadcast is: the trigger,
- * then the template and its values through the one judgement, then the
- * whole numbers. A playbook can never name a template a broadcast could not
+ * then the message and its values through the one judgement, then the
+ * whole numbers. A playbook can never name a message a broadcast could not
  * send or a slot the workspace cannot fill. `existing` is the playbook being changed, null for a new one.
  */
 export async function checkPlaybook(
@@ -162,20 +179,21 @@ export async function checkPlaybook(
       ? (body!.policy_class as PlaybookPolicyClass)
       : trig.cls;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  const { template: tpl, specs } = await templateValues(ports, {
+  const { message, specs } = await templateValues(ports, {
     templateId,
     params: body?.params,
     visits: trig.kind === "visit",
     proposal: trig.kind === "deal",
   });
-  refuseMessageThatDisagrees(cls, tpl.category);
+  refuseMessageThatDisagrees(cls, message.category);
   // Which of WhatsApp, text and email it may go by: a tick this purpose never carries (texts carry no offers) is refused
   // here, not at send. One the workspace is not ready on now is not (offers by email before the campaigns domain is set
   // up, among them): a run holds the people it cannot reach there until it can, and never fails the playbook for it.
   const channels = parseChannels(body?.channels, existing?.channels ?? null);
-  const purpose = enrolPurpose(cls, tpl);
+  const purpose = enrolPurpose(cls, message);
   const never = channels.map((c) => channelNeverCarries(c, purpose)).find((words) => words !== null);
   if (never) throw new AppError("validation", never);
+  refuseMessageNoTickHolds(message, channels);
   // A follow-up carries the proposal it follows (0006): with no slot filled by its link it is a bare "just checking
   // in", which is a person's to write.
   if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
@@ -183,13 +201,14 @@ export async function checkPlaybook(
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
     // list's own name for a playbook on a list.
-    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
+    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, message).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
     list_id: listId,
     list_key: listKey,
-    template_id: tpl.id,
-    template_name: tpl.name,
-    template_language: tpl.language,
+    // The message's anchor, whichever version's id was picked: the one id every version of it resolves to.
+    template_id: message.anchor.id,
+    template_name: message.name,
+    template_language: message.language,
     params: specs,
     policy_class: cls,
     run_hour: int(body?.run_hour, {

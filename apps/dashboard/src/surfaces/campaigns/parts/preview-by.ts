@@ -41,7 +41,7 @@ export type CmPreviewBy = Pick<
 
 /**
  * The channel a person is read on: the one the send reaches them on, WhatsApp for a preview made before channels were
- * kept, and none for a person held back (their bubble is WhatsApp's, marked Not sent).
+ * kept, and none for a person held back (their stand-in is the message's own words, marked Not sent: cmPreviewBy).
  */
 export const cmChannelOfPerson = (p: {
   refusal: string | null;
@@ -52,7 +52,10 @@ export const cmChannelOfPerson = (p: {
  * One person's message: `whatsapp` is what the template says there; `channel` where they are reached; `o.versions` the
  * message's email and text versions as words; `o.labelled` whether to name the channel (said where the campaign goes by more
  * than WhatsApp alone, so a WhatsApp campaign draws what it always drew). Where the version the person is read on is not
- * in hand, WhatsApp's words stand and the note says so, never another channel's words under this one's name.
+ * in hand, WhatsApp's words stand and the note says so, never another channel's words under this one's name. A person held
+ * back (no channel) is drawn the words on `o.standIn`, the channel the page holds the message's words on (cmStandInOf: the
+ * WhatsApp version's where the message has one, else its email's or its text's, as previewOn draws them), unlabelled and
+ * noted Not sent.
  */
 export function cmPreviewBy(
   whatsapp: WhatsAppWords,
@@ -64,6 +67,8 @@ export function cmPreviewBy(
     address?: string | null;
     facts?: Record<string, unknown>;
     labelled: boolean;
+    /** The channel a person held back is drawn on: the one the message's words are on (cmStandInOf). */
+    standIn: ConsentChannel;
     /** An offer's email carries the offer's foot, the reason and the unsubscribe link (contracts previewOn); absent, a visit's. */
     offer?: "customer" | "asked";
   },
@@ -75,9 +80,10 @@ export function cmPreviewBy(
     via,
     note,
   });
-  if (!channel) return asWhatsApp(null, null);
-  const via = o.labelled ? PREVIEW_CHANNEL_WORDS[channel] : null;
-  const on = previewOn(channel, {
+  const shown = channel ?? o.standIn;
+  const via = channel && o.labelled ? PREVIEW_CHANNEL_WORDS[channel] : null;
+  const note = channel ? null : PREVIEW_WORDS.notSent;
+  const on = previewOn(shown, {
     versions: o.versions ?? {},
     language: o.language,
     business: o.business,
@@ -87,9 +93,9 @@ export function cmPreviewBy(
   });
   // Not labelled with a channel whose words are not here.
   if (on.missing) return asWhatsApp(null, on.missing);
-  if (!on.version) return asWhatsApp(via, null);
-  const own = { body: on.version.body, header: null, buttons: null, via, note: null };
-  return channel === "sms"
+  if (!on.version) return asWhatsApp(via, note);
+  const own = { body: on.version.body, header: null, buttons: null, via, note };
+  return shown === "sms"
     ? { ...own, footer: on.foot, kind: PREVIEW_WORDS.kind.sms, mail: null }
     : {
         ...own,

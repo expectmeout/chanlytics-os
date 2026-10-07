@@ -227,6 +227,7 @@ export interface SeededThread extends ThreadBase {
   claimedByOther?: undefined;
   assigneeUserId?: undefined;
   ask?: undefined;
+  previewChannel?: undefined;
   archived?: undefined;
   lastWord?: undefined;
   needsYou?: undefined;
@@ -326,7 +327,7 @@ export interface ConversationRow {
   agent: { glyph: string; name: string };
   at: string;
   outcome: string;
-  /** Who has the thread, by the one rule (contracts standingOf): the pill reads it before `outcome`. A call's row has none. */
+  /** Who has the thread, by the one rule (contracts standingOf): the pill reads it before `outcome`. A call's is its thread's. */
   standing?: Standing;
   snippet: string;
   threadId?: string;
@@ -352,6 +353,8 @@ export interface ConversationRow {
   facts?: string[];
   /** What the call's analysis left: the to-do the receptionist noted, what the caller gave (contracts callNotesOf). */
   notes?: CallNotes;
+  /** On a person's one row (cv-rules.ts cvOnePerPerson): every row it stands for, newest first, itself the first. */
+  parts?: ConversationRow[];
 }
 
 /** A tab of the Conversations strip. */

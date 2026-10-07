@@ -1,6 +1,8 @@
 import {
+  campaignMessageOf,
   clockWhen,
   localDate,
+  messageHolds,
   nextOpenMoment,
   parseParamSpecs,
   listToken,
@@ -12,6 +14,7 @@ import {
   enrolPurpose,
   messageAboutOfTrigger,
   proposalFactsFor,
+  readyForMessage,
   touchesAfterRun,
   triggerOf,
   triggerOffered,
@@ -21,6 +24,7 @@ import {
   visitMomentDay,
   visitOnDay,
   type CampaignHow,
+  type CampaignMessage,
   type ConsentChannel,
   type PersonRowVM,
   type PlaybookTrigger,
@@ -29,7 +33,7 @@ import {
 } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import { allowanceRecord, pastTheMonth } from "./allowance";
-import { parseChannels, readyForMessage, versionsHeld } from "./message-channels";
+import { parseChannels } from "./message-channels";
 import type { PlaybookRow, RunBy, RunContext, RunOutcome, RunPlaybookCommand, RunPlaybookPorts } from "./ports";
 
 type Skipped = Extract<RunOutcome, { outcome: "off" }>["skipped"];
@@ -50,38 +54,40 @@ interface Run {
   record(data: Record<string, unknown>): Promise<void>;
   off(skipped: Skipped, opts?: { record?: boolean }): Promise<RunOutcome>;
 }
-/** The message as the run reads it: Meta's row, and which of email and text hold a version of it. */
+/** The message as the run reads it: contracts' reading of its rows, and the channels it can be said on now. */
 type Message = {
-  row: Awaited<ReturnType<RunPlaybookPorts["template"]>>;
-  own: readonly string[];
-  /** Whether Meta approves the WhatsApp template: its version of the message, which WhatsApp's people alone need. */
-  approved: boolean;
+  /** Null where the workspace holds no row of it now (a message that is gone): it holds nothing and names no category. */
+  m: CampaignMessage | null;
+  /** What it holds (contracts messageHolds): WhatsApp's version approved and whole, which WhatsApp's people alone need, and a row of its own on email and on text. */
+  held: Record<ConsentChannel, boolean>;
 };
 
 /**
- * The template as Meta has it now, and the versions of it the playbook's other ticks need. A read that could not be made
- * is this run failing, not the template withdrawn: nothing is recorded, so the next sweep asks again rather than
- * skipping the day.
+ * The message as the workspace holds it now, read once from its rows: the versions the playbook's ticks need, and the
+ * category it is enrolled by. A read that could not be made is this run failing, not the message withdrawn: nothing is
+ * recorded, so the next sweep asks again rather than skipping the day.
  */
 async function readMessage(r: Run): Promise<Message | { error: string }> {
   const { ports, p } = r;
   try {
-    const row = await ports.template(p.template_name, p.template_language);
-    const own = r.channels.some((c) => c !== "whatsapp")
-      ? await ports.versions(p.template_name, p.template_language)
-      : [];
-    return { row, own, approved: row?.meta_status === "approved" };
+    const m = campaignMessageOf(
+      await ports.message(p.template_name, p.template_language),
+      p.template_name,
+      p.template_language,
+    );
+    return { m, held: m ? messageHolds(m) : { whatsapp: false, email: false, sms: false } };
   } catch (e) {
     return { error: `template: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
 
 /**
- * Whether WhatsApp's template alone ends a run that drew `drawn` people: the run ticks WhatsApp, Meta does not approve
- * its template, and nobody was drawn on email or text (a template Meta does not approve draws nobody on WhatsApp).
+ * Whether WhatsApp's version alone ends a run that drew `drawn` people: the run ticks WhatsApp, the message does not
+ * hold a WhatsApp version to send, and nobody was drawn on email or text (a version the message does not hold draws
+ * nobody on WhatsApp).
  */
 const templateHolds = (r: Run, m: Message, drawn: number): boolean =>
-  drawn === 0 && !m.approved && r.channels.includes("whatsapp");
+  drawn === 0 && !m.held.whatsapp && r.channels.includes("whatsapp");
 
 /**
  * A moment that reads the calendar, run with none it can read. No calendar connected is a final answer: the run says so
@@ -101,17 +107,18 @@ async function withoutCalendar(r: Run): Promise<RunOutcome> {
  * list runs on, and a moment this workspace has no use for. Each ends the run with its reason (`off`).
  *
  * The number's health stops a run only when it ticks WhatsApp: a run that does not tick it never asks. WhatsApp's
- * template stops it only when WhatsApp is all the run goes by: one that also ticks email or text goes on for them, and
- * is stopped by it later (`templateHolds`) only if nobody drawn is on either.
+ * version stops it only when WhatsApp is all the run goes by: one that also ticks email or text goes on for them, and
+ * is stopped by it later (`templateHolds`) only if nobody drawn is on either. A message with no WhatsApp version at all
+ * stops nothing that does not tick WhatsApp.
  */
 async function allowed(
   r: Run,
-  tpl: Message["row"],
+  message: Message,
 ): Promise<{ ended: RunOutcome } | { ended: null; listIds: ReadonlySet<string> | null; kept: KeptList | undefined }> {
   const { p, ctx } = r;
   const stop = playbookStopBy({
     channels: r.channels,
-    templateStatus: tpl?.meta_status ?? null,
+    templateStatus: message.m?.versions.whatsapp?.status ?? null,
     numberCanSend: ctx.health.canSend,
   });
   if (stop) return { ended: await r.off(stop) };
@@ -144,15 +151,15 @@ async function allowed(
  * Who the run reaches, each on one channel, with the number's daily limit as a ceiling on WhatsApp's people, and who it
  * leaves out, and why, counted as it goes (playbookRunReach): the run keeps the counts, so the sheet it is approved from
  * can say "186 of 312, 94 never said yes" instead of only the rules that made its list. Enrolled by the stricter of the
- * moment's class and the message's category (`message`, enrolPurpose), on the channels the playbook ticks that the
- * workspace can send on now and the message has a version on (`how`).
+ * moment's class and the message's category (`message`, enrolPurpose: Meta's where it has a WhatsApp version, else its
+ * own rows'), on the channels the playbook ticks that the workspace can send on now and the message holds (`how`).
  *
  * The limit is Meta's: it holds WhatsApp's people alone, and an email or a text is never held for it. The people past it
  * are named in the run's record, never dropped in silence.
  */
 function draw(
   r: Run,
-  message: Message["row"],
+  message: Message["m"],
   how: CampaignHow,
   listIds: ReadonlySet<string> | null,
 ): { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel>; dropped: number } {
@@ -204,7 +211,7 @@ function draw(
  */
 async function pastTheRoom(
   r: Run,
-  message: Message["row"],
+  message: Message["m"],
   drawn: { eligible: readonly PersonRowVM[]; channelOf: Record<string, ConsentChannel> },
   goesAt: Date,
 ): Promise<{ held: string[] } | { error: string }> {
@@ -367,31 +374,32 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   const channels = parseChannels(undefined, p.channels ?? null);
   const run: Run = { ports, p, ctx, by, runFor, mode, channels, record, off };
 
-  // The template must still be what Meta approved; the number must be one Meta lets send (when WhatsApp is ticked).
+  // WhatsApp's version, where it is all the run goes by, must still be what Meta approved; the number must be one Meta
+  // lets send (when WhatsApp is ticked).
   const message = await readMessage(run);
   if ("error" in message) return { outcome: "failed", error: message.error };
-  const gate = await allowed(run, message.row);
+  const gate = await allowed(run, message);
   if (gate.ended) return gate.ended;
 
-  // The channels as this message can go by them: the workspace's, with the message's own versions in them (WhatsApp's
-  // only while Meta approves its template). The run never fails over one: the people a channel cannot carry are held
-  // (`no_channel`), and the rest go on their own versions.
+  // The channels as this message can go by them: the workspace's, with what the message holds in them (contracts
+  // messageHolds: WhatsApp's only while Meta approves its version, an email's and a text's by having one). The run never
+  // fails over one: the people a channel cannot carry are held (`no_channel`), and the rest go on their own versions.
   const how: CampaignHow = {
     channels,
-    ready: readyForMessage(ctx.ready, versionsHeld(message.own, message.approved)),
+    ready: readyForMessage(ctx.ready, message.m),
     // A visit's or a follow-up's message is theirs; any other moment's, the business's news (decision D1).
     about: messageAboutOfTrigger(p.trigger),
   };
-  const { eligible, reach, channelOf, dropped } = draw(run, message.row, how, gate.listIds);
-  // A template Meta does not approve holds WhatsApp's people alone: none is drawn on it, and the purpose stays the
-  // message's own category. A run that ticks WhatsApp and has nobody on email or text stops on it, as it always did.
+  const { eligible, reach, channelOf, dropped } = draw(run, message.m, how, gate.listIds);
+  // A WhatsApp version Meta does not approve holds WhatsApp's people alone: none is drawn on it, and the purpose stays
+  // the message's own category. A run that ticks WhatsApp and has nobody on email or text stops on it, as it always did.
   if (templateHolds(run, message, eligible.length)) return off("template_not_approved");
   if (eligible.length === 0) {
     await record({ mode, eligible: 0, reach, ...(dropped ? { dropped } : {}) });
     return { outcome: "empty", eligible: 0, mode };
   }
 
-  const past = await pastTheRoom(run, message.row, { eligible, channelOf }, goesAt);
+  const past = await pastTheRoom(run, message.m, { eligible, channelOf }, goesAt);
   if ("error" in past) return { outcome: "failed", error: past.error };
   const specs = parseParamSpecs(p.params);
   const facts = recipientFacts(run, goesAt);

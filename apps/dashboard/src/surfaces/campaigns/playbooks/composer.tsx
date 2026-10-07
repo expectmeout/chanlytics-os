@@ -32,7 +32,7 @@ import { Icon } from "../../kit/icon/icon";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import type { UnsavedWork } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
-import { CM_VIA_WORDS, cmDefaultChannels } from "../parts/channels";
+import { CM_VIA_WORDS, cmDefaultChannels, cmReadyOf } from "../parts/channels";
 import { CmPane } from "../parts/split";
 import { composerActs } from "./composer-acts";
 import { composerModel, composerOffered, composerOpened } from "./composer-model";
@@ -165,7 +165,7 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
   const [cls, setCls] = useState(start.cls || "campaign");
   // The channels it goes by, ticked in the Send by row: what the playbook has, or WhatsApp alone, as every playbook went.
   const [channels, setChannels] = useState<ConsentChannel[]>(
-    start.channels && start.channels.length > 0 ? start.channels : cmDefaultChannels(),
+    start.channels && start.channels.length > 0 ? start.channels : cmDefaultChannels(cmReadyOf(data.ready), null),
   );
   // What the sheet holds, against what it opened as: changed, it is kept in the tab, and Cancel asks first.
   const held: Fields = { trigger, tplId, picked, name, hour, cap, gap, cadence, listId, cls, fills, typed, channels };

@@ -77,7 +77,7 @@ export function stoppedRunFix(why: RunStop, run: { playbook_id: string | null; t
  *
  * `by` is when the people it did not reach are reached: by tomorrow's run, where what stopped it is over by then or is
  * the owner's to end (a pause to resume, a line to reconnect); or by the next run that can go, where it may outlast
- * tomorrow and is nobody's to end (the mail provider's month, a template waiting on Meta, the platform's key). Saying
+ * tomorrow and is nobody's to end (the mail provider's month, a WhatsApp version waiting on Meta, the platform's key). Saying
  * "tomorrow" of those promised a run that meets the same stop.
  */
 export type PlaybookRunNextBy = "tomorrow" | "when_it_can";
@@ -106,13 +106,21 @@ export function wireFailure(code: WireFailure, channel: ConsentChannel): string 
 }
 
 /**
+ * What to do about a run that stopped because its message's WhatsApp version is no longer one WhatsApp approves and
+ * everyone on it went by WhatsApp: that version is resubmitted, or the message is written for another channel, an email
+ * or a text, which needs no review.
+ */
+const WHATSAPP_VERSION_FIX_WORDS =
+  "Open it in the Library — its WhatsApp version can be resubmitted, or the message written as an email or a text.";
+
+/**
  * How to get past each reason a run stops, in one sentence: a failed run says
  * what to do next, not only what went wrong. These are the words for a run that
  * reached nobody; one that reached some first says so (BROADCAST_FAILURE_FIX_AFTER).
  */
 export const BROADCAST_FAILURE_FIX: Record<BroadcastFailure, Words> = {
   paused: "Unpause it under Settings, then send it again.",
-  template_not_approved: "Open it in the Library — it can be resubmitted.",
+  template_not_approved: WHATSAPP_VERSION_FIX_WORDS,
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
   throttled: {
@@ -175,7 +183,7 @@ const BROADCAST_FAILURE_FIX_AFTER: Partial<Record<BroadcastFailure, (n: number, 
  * words a playbook's run says before what becomes of it (playbookRunNext). None where there is nothing to do but wait.
  */
 const PLAYBOOK_RUN_REMEDY: Record<Exclude<BroadcastFailure, RunStop>, Words | null> = {
-  template_not_approved: "Open it in the Library — it can be resubmitted.",
+  template_not_approved: WHATSAPP_VERSION_FIX_WORDS,
   wire_unavailable: null,
   run_interrupted: null,
   throttled: {

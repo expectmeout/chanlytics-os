@@ -11,6 +11,11 @@
  * The card then says the channels (and how many each reaches), commits them to the route, and a card that named none
  * says and commits what it always did. Executed through the real registry over a workspace in memory; the edge's answer
  * about email is a stubbed fetch.
+ *
+ * A message needs no WhatsApp row (lane 1): Ask reads the one the id names through the verb the routes read it by, so a
+ * message with only an email version is offered by campaigns.audiences with the channels it holds, is proposed on by the
+ * channels it holds on a workspace with no number, and is refused, when the proposal names none, in WhatsApp's words and
+ * with what it can go by; a starter is found among the messages the composers offer, an email version of it among them.
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
@@ -25,8 +30,8 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { PROPOSAL_SPECS, CHANNEL_WORDS } = await import("@chanlytics/contracts");
+const { buildProposal, newToolContext, runTool } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const { PROPOSAL_SPECS, CHANNEL_WORDS, noVersionWords } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
@@ -465,7 +470,7 @@ test("a card whose version is not in hand is refused, never drawn as another cha
   };
   const none = await propose(quiet, { templates: [offer] });
   assert.equal(none.isError, true);
-  assert.match(said(none), /^This message has no email version to show here\. Say so: /);
+  assert.match(said(none), /^This message has no email version yet\. Say so: /);
   assert.equal(none.proposal, null, "no card to approve");
   // With the version, the card says each: the playbook's own words under "Says:".
   const withMail = await propose(quiet, {
@@ -490,4 +495,285 @@ test("a card whose version is not in hand is refused, never drawn as another cha
   // A playbook that names no channel says WhatsApp's words alone, as before.
   const plain = await propose({ ...quiet, channels: undefined }, { templates: [offer] });
   assert.ok(plain.proposal.summary.endsWith("Says: This month: 20% off."), plain.proposal.summary);
+});
+
+/**
+ * A message with an email version and no WhatsApp row beside it, as a workspace with no number writes one: the words in
+ * Meta's component shape, one slot, filed as a visit's message (a utility).
+ */
+const NOTE = "ffffffff-ffff-4fff-8fff-ffffffffff11";
+const emailNote = (over = {}) => ({
+  ...own("email", "harbor_note", NOTE, "A note, {{1}}", "Hi {{1}}, we have news."),
+  category: "utility",
+  variables: [{ position: 1 }],
+  ...over,
+});
+/** A mailbox and no number: the workspace has none connected. */
+const NO_NUMBER = { tenant_channels: [] };
+const NOTE_BROADCAST = { action: "broadcast", template_id: NOTE, audience_kind: "everyone", params: ["@first_name"] };
+
+test("campaigns.audiences lists a message with an email version and no WhatsApp row as offered, by the channels it holds", async () => {
+  const supabase = fakeDb(
+    tables({ ...NO_NUMBER, templates: [emailNote(), ...SAYING.templates] }),
+    {},
+    { people_list: () => PEOPLE },
+  );
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  const out = await runTool(t, { name: "campaigns", input: { action: "audiences" } });
+  assert.equal(out.isError, false, out.result);
+  const { templates } = JSON.parse(out.result);
+  assert.deepEqual(
+    templates.find((x) => x.name === "harbor_note"),
+    {
+      template_id: NOTE,
+      name: "harbor_note",
+      language: "en",
+      category: "utility",
+      channels: { whatsapp: false, email: true, sms: false },
+      values: [{ position: 1, example: null }],
+      body: "Hi {{1}}, we have news.",
+    },
+    "listed by the id a proposal takes, offered by the one channel it holds",
+  );
+  // A message with all three versions says so, under the id of its WhatsApp row (the anchor).
+  const visit = templates.find((x) => x.name === "visit_reminder");
+  assert.equal(visit.template_id, REMINDER);
+  assert.deepEqual(visit.channels, { whatsapp: true, email: true, sms: true });
+  assert.ok(t.read.template.has(NOTE), "a message it offers is a row an answer may cite, by the id it lists");
+});
+
+test("campaigns.audiences says its counts are by WhatsApp: with no number a message held on email is listed with a 0 in every can_be_sent count, and is still proposed, by email, to the people it reaches", async () => {
+  const world = { ...NO_NUMBER, templates: [emailNote()] };
+  const supabase = fakeDb(tables(world), {}, { people_list: () => PEOPLE });
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  const out = await runTool(t, { name: "campaigns", input: { action: "audiences" } });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  const everyone = read.audiences.find((a) => a.kind === "everyone");
+  assert.deepEqual(
+    [everyone.can_be_sent_offers, everyone.can_be_sent_messages],
+    [0, 0],
+    "no number: nobody by WhatsApp",
+  );
+  assert.deepEqual(
+    read.templates.find((x) => x.name === "harbor_note").channels,
+    { whatsapp: false, email: true, sms: false },
+    "and the message is held by its email",
+  );
+  // The listing says what its counts are by, and what a zero in them is not.
+  assert.ok(read.note.startsWith("Two consents, two counts each, all by WhatsApp."), read.note);
+  assert.ok(
+    read.note.includes(
+      "A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.",
+    ),
+    read.note,
+  );
+  // That message, proposed by its channels, reaches people: the card's count is the one to quote, not the zero above.
+  const card = await propose({ ...NOTE_BROADCAST, channels: ["email"] }, world);
+  assert.equal(card.isError, false, card.result);
+  assert.match(card.proposal.summary, /^2 people who said yes · by email/);
+  // The tool's own words say the same, in the listing's sentences and in the tail the model reads before it quotes a count.
+  const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+  const listing = toApiTools("owner", true).find((x) => x.name === "campaigns").description;
+  for (const words of [
+    "four counts, all by WhatsApp,",
+    "(who a promotional, or a utility or authentication, template reaches on WhatsApp)",
+    "a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached",
+    "never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached;",
+    "when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to",
+  ])
+    assert.ok(listing.includes(words), words);
+  assert.ok(
+    !listing.includes("never a larger one; when that count is 0"),
+    "a zero is no longer said to be nobody, whatever channels the message holds",
+  );
+});
+
+test("a message with no WhatsApp row is proposed by the channels it holds on a workspace with no number, and refused with what it can go by when none is named", async () => {
+  const world = { ...NO_NUMBER, templates: [emailNote()] };
+  const ok = await propose({ ...NOTE_BROADCAST, channels: ["email"] }, world);
+  assert.equal(ok.isError, false, ok.result);
+  assert.deepEqual([ok.proposal.payload.template_id, ok.proposal.payload.channels], [NOTE, ["email"]]);
+  assert.match(ok.proposal.summary, /^2 people who said yes · by email · “harbor_note” · now: /);
+  endsWith(ok, "now: By email: “A note, Dani” — Hi Dani, we have news.");
+  assert.doesNotMatch(ok.proposal.summary, /WhatsApp/, "no WhatsApp preview that does not exist");
+  // The values are counted by the message's slots, which a message with no WhatsApp row takes from its anchor.
+  const few = await propose({ ...NOTE_BROADCAST, params: [], channels: ["email"] }, world);
+  assert.equal(said(few), "this template takes 1 value, in order");
+  // Naming no channel is WhatsApp alone, which the message has no version for: WhatsApp's words, and the channels it can go
+  // by, for the model to name. No card, and nothing counted.
+  const none = await propose(NOTE_BROADCAST, world);
+  assert.equal(none.isError, true);
+  assert.equal(none.proposal, null);
+  assert.equal(said(none), "This message has no WhatsApp version. Say so, and name channels among email");
+  // A message with a text version too names both, in the product's order.
+  const both = await propose(NOTE_BROADCAST, {
+    ...world,
+    templates: [
+      emailNote(),
+      {
+        ...own("sms", "harbor_note", "ffffffff-ffff-4fff-8fff-ffffffffff12", null, "News, {{1}}."),
+        category: "utility",
+      },
+    ],
+  });
+  assert.equal(said(both), "This message has no WhatsApp version. Say so, and name channels among sms, email");
+  // What the workspace is not ready on is not named: with no mailbox there is nothing to name.
+  const bare = await propose(NOTE_BROADCAST, { ...world, mailboxes: [] });
+  assert.equal(said(bare), "This message has no WhatsApp version. It can go by no other channel yet: say so");
+  // A playbook on it is held to the same: by its email it is made, by none named it is refused in the same words.
+  const quiet = { action: "playbook", trigger: "quiet_30", template_id: NOTE, params: ["@first_name"] };
+  const offer = { ...world, templates: [emailNote({ category: "marketing" })] };
+  const kept = await propose({ ...quiet, channels: ["email"] }, offer);
+  assert.equal(kept.isError, false, kept.result);
+  assert.deepEqual(kept.proposal.payload.channels, ["email"]);
+  // Its WhatsApp tick is one the check would keep, but a card has no WhatsApp words to quote of it: refused, as for any
+  // version the message lacks, never drawn as the email's.
+  const waTick = await propose({ ...quiet, channels: ["whatsapp", "email"] }, offer);
+  assert.equal(waTick.isError, true);
+  assert.ok(said(waTick).startsWith(`${noVersionWords("whatsapp")} Say so: `), said(waTick));
+  assert.equal(
+    said(await propose(quiet, offer)),
+    "This message has no WhatsApp version. Say so, and name channels among email",
+  );
+});
+
+test("a moment's starter is found among the messages the composers offer: one whose only version is an email row is held", async () => {
+  const starter = "winback_reply";
+  const email = own("email", starter, "ffffffff-ffff-4fff-8fff-ffffffffff21", "We miss you", "Hi {{1}}, from {{2}}.");
+  const world = {
+    ...NO_NUMBER,
+    templates: [{ ...email, category: "marketing", variables: [{ position: 1 }, { position: 2 }] }],
+  };
+  const quiet = { action: "playbook", trigger: "quiet_30" };
+  const found = await propose({ ...quiet, channels: ["email"] }, world);
+  assert.equal(found.isError, false, found.result);
+  assert.equal(found.proposal.payload.template_id, "ffffffff-ffff-4fff-8fff-ffffffffff21", "the message's anchor");
+  endsWith(found, "Says: By email: “We miss you” — Hi Dani, from the business.");
+  // With no version of it in hand the workspace holds no starter, and says so.
+  const none = await propose({ ...quiet, channels: ["email"] }, { templates: [] });
+  assert.match(said(none), /starter has no version this workspace can send yet/);
+  // A WhatsApp version this product cannot put on the wire whole holds nothing: a starter filed only so is not held.
+  const picture = template("dddddddd-dddd-4ddd-8ddd-ddddddddddd5", starter, {
+    components: [
+      { type: "HEADER", format: "IMAGE" },
+      { type: "BODY", text: "Hi" },
+    ],
+  });
+  const blocked = await propose({ ...quiet, channels: ["email"] }, { templates: [picture] });
+  assert.match(said(blocked), /starter has no version this workspace can send yet/);
+  // The one the workspace hid is not held, whichever channel its version is on.
+  const hidden = await propose(
+    { ...quiet, channels: ["email"] },
+    {
+      ...world,
+      templates: [{ ...world.templates[0], hidden_at: ago(DAY) }],
+    },
+  );
+  assert.match(said(hidden), /starter has no version this workspace can send yet/);
+});
+
+test("a hidden message is refused a playbook, and a message whose WhatsApp row is pending is refused for WhatsApp, in WhatsApp's own standing", async () => {
+  // The workspace keeps it out of the composers: no playbook on it, by the id the model was given.
+  const kept = { ...template(REMINDER, "visit_reminder"), hidden_at: ago(DAY) };
+  const hidden = await propose(
+    { action: "playbook", trigger: "quiet_30", template_id: REMINDER, params: [] },
+    { templates: [kept] },
+  );
+  assert.equal(hidden.isError, true);
+  assert.equal(
+    said(hidden),
+    "that template is one the workspace keeps out of the composers; campaigns with action audiences names the ones that may send",
+  );
+  // A WhatsApp row still in review, beside an approved email: WhatsApp's tick says what WhatsApp says, alone or beside email.
+  const waiting = {
+    templates: [template(REMINDER, "visit_reminder", { meta_status: "pending" }), version("email", "visit_reminder")],
+  };
+  const STILL = "WhatsApp is still reviewing this message's WhatsApp version.";
+  assert.equal(said(await propose({ ...BROADCAST, channels: ["whatsapp"] }, waiting)), STILL);
+  assert.equal(said(await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, waiting)), STILL);
+  // Naming none is WhatsApp alone: the same words, and the email it can go by.
+  assert.equal(said(await propose(BROADCAST, waiting)), `${STILL} Say so, and name channels among email`);
+  // By the email it holds it is made, and says only the email's words.
+  const mail = await propose({ ...BROADCAST, channels: ["email"] }, waiting);
+  assert.equal(mail.isError, false, mail.result);
+  assert.doesNotMatch(mail.proposal.summary, /On WhatsApp/);
+});
+
+test("a WhatsApp version in review is no longer lost to Ask: its message is listed by the channels it holds now, and a starter whose WhatsApp row is in review is held by its email", async () => {
+  // The composers' read answers the messages made of every row (readers/templates.ts), so a version still in review keeps
+  // its standing inside its message: it is among the message's versions, and what holds the message is the email.
+  const EMAIL = "ffffffff-ffff-4fff-8fff-ffffffffff31";
+  const reviewing = [
+    template(REMINDER, "visit_reminder", { meta_status: "pending" }),
+    own("email", "visit_reminder", EMAIL, "Your visit", "Your visit is tomorrow."),
+    // A message whose only version is in review is not one the composers offer, as it never was.
+    template(OFFER, "month_offer", { meta_status: "pending", category: "marketing" }),
+    // A message the workspace hid is hidden whole: its WhatsApp row anchors it, and an email beside it does not list it again.
+    template(NUDGE, "nudge_note", { hidden_at: ago(DAY) }),
+    own("email", "nudge_note", "ffffffff-ffff-4fff-8fff-ffffffffff33", "A nudge", "Hi {{1}}."),
+  ];
+  const supabase = fakeDb(tables({ templates: reviewing }), {}, { people_list: () => PEOPLE });
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  const out = await runTool(t, { name: "campaigns", input: { action: "audiences" } });
+  assert.equal(out.isError, false, out.result);
+  const { templates } = JSON.parse(out.result);
+  assert.deepEqual(
+    templates.map((x) => [x.name, x.template_id, x.channels]),
+    [["visit_reminder", EMAIL, { whatsapp: false, email: true, sms: false }]],
+    "listed by the email it can go by, under the id of the row its words are read from; the one in review alone and the one the workspace hid are not listed",
+  );
+  assert.ok(t.read.template.has(EMAIL), "and the id it lists is a row an answer may cite");
+  // The starter the quiet moment's playbook is written on: held by the email, its anchor the WhatsApp row in review.
+  const starter = "winback_reply";
+  const WAITING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd6";
+  const waiting = template(WAITING, starter, {
+    meta_status: "pending",
+    category: "marketing",
+    variables: [{ position: 1 }, { position: 2 }],
+  });
+  const email = {
+    ...own("email", starter, "ffffffff-ffff-4fff-8fff-ffffffffff32", "We miss you", "Hi {{1}}, from {{2}}."),
+    category: "marketing",
+    variables: [{ position: 1 }, { position: 2 }],
+  };
+  const quiet = { action: "playbook", trigger: "quiet_30", channels: ["email"] };
+  const found = await propose(quiet, { templates: [waiting, email] });
+  assert.equal(found.isError, false, found.result);
+  assert.equal(found.proposal.payload.template_id, WAITING, "the message's anchor, whichever of its rows is held");
+  endsWith(found, "Says: By email: “We miss you” — Hi Dani, from the business.");
+  // With its WhatsApp row in review alone, no version of the starter can be sent: not held, as before.
+  const alone = await propose(quiet, { templates: [waiting] });
+  assert.match(said(alone), /starter has no version this workspace can send yet/);
+});
+
+test("Ask is told what a message is: a name with a version on each channel it is written for, sent on the channels it holds; its tools say to propose by the `channels` the listing gives, and none says one approved WhatsApp template", async () => {
+  const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+  assert.ok(ASK_DEFINITIONS.broadcast.startsWith("One message sent to the people on a list who said yes"));
+  assert.ok(
+    ASK_DEFINITIONS.broadcast.includes(
+      "A message is a name with a version for each channel it is written for (WhatsApp, which WhatsApp approves; email and text, ready when saved) and goes on the channels it holds, each person once.",
+    ),
+  );
+  assert.ok(
+    ASK_DEFINITIONS.playbook.startsWith(
+      "A standing rule that sends one message to newly eligible people who said yes:",
+    ),
+  );
+  const tools = toApiTools("owner", true);
+  const described = (name) => tools.find((t) => t.name === name).description;
+  const listing = described("campaigns");
+  const proposing = described("propose_campaign");
+  assert.ok(
+    listing.includes("channels (true for each of whatsapp, email and sms it can be sent on now;"),
+    "the listing's channels are described",
+  );
+  assert.equal(
+    proposing.split("name the channels its `channels` in action audiences say it holds").length - 1,
+    2,
+    "a broadcast and a playbook are proposed by the channels the listing says a message holds",
+  );
+  for (const text of [ASK_DEFINITIONS.broadcast, ASK_DEFINITIONS.playbook, listing, proposing])
+    assert.ok(!/approved (WhatsApp )?templates?/i.test(text), text.slice(0, 120));
 });

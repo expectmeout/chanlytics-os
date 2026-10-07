@@ -373,6 +373,7 @@ test("REGRESSION (C17, C21): a viewer on Templates finds New message where it al
       facts: null,
       channels: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
       templatesAll: [],
+      messages: [],
       templateUse: null,
       templateSent: null,
     });

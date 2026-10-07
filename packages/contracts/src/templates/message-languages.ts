@@ -47,9 +47,9 @@ export function languageLabels(codes: readonly string[]): Record<string, string>
 
 export type LanguageGroup = "on" | "ready" | "add";
 
-/** The picker's headings: what WhatsApp holds, what the library has written, what Chanlytics can write. */
+/** The picker's headings: what the message holds (on any channel), what the library has written, what Chanlytics can write. */
 export const LANGUAGE_GROUP_WORDS: Readonly<Record<LanguageGroup, string>> = {
-  on: "On WhatsApp",
+  on: "On file",
   ready: "Ready to add",
   add: "Translate into",
 };
@@ -57,9 +57,9 @@ export const LANGUAGE_GROUP_WORDS: Readonly<Record<LanguageGroup, string>> = {
 export interface LanguageChoice extends TemplateLanguage {
   group: LanguageGroup;
   /**
-   * Its status at WhatsApp, drawn as the glyph: a status for a language on
-   * file, null for one the library has written and WhatsApp has never seen.
-   * Absent for a language nobody has written yet, which has nothing to draw.
+   * Where the language stands, drawn as the glyph: WhatsApp's status for a language on file there, "approved" for one
+   * written for email or text alone (those are approved the moment they are saved), null for one the library has
+   * written and the message does not hold. Absent for a language nobody has written yet, which has nothing to draw.
    */
   status?: string | null;
 }
@@ -72,13 +72,14 @@ export interface LanguageChoice extends TemplateLanguage {
  * was sixteen pairs of letters, and a seventh language would have been a
  * seventh column. One chip says the language in view; this is what it opens:
  *
- *   on     the languages WhatsApp holds, each with its status
+ *   on     the languages the message holds on any channel, each with where it stands
  *   ready  the ones the starter library has written that the workspace never added
  *   add    every other language WhatsApp takes, when the owner may add one and
  *          Chanlytics can carry the message whole (templateUntranslatable)
  *
  * A code WhatsApp does not list -- a row synced from elsewhere -- is still the
- * message's, and is offered under its own code.
+ * message's, and is offered under its own code. A language the message holds only as an email or a text is on file
+ * as much as one WhatsApp holds: its caller says it "approved", which is what an own version is the moment it is written.
  */
 export function messageLanguageChoices(input: {
   onFile: readonly { language: string; meta_status?: string | null }[];

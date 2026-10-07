@@ -269,7 +269,8 @@ test("a period that had people in it but nothing to act on says so in one line",
 test("the strip's figures: five counts, each named by its metric, the period before said in counts beside the value, booked from the calendar", () => {
   const read = (t) => [
     t.props["data-figure"],
-    ...["figure-label", "figure-value", "figure-meta"].map((c) => textOf(cls(t, c))),
+    textOf(cls(t, "figure-term") ?? cls(t, "figure-label")),
+    ...["figure-value", "figure-meta"].map((c) => textOf(cls(t, c))),
   ];
   const figures = (opts) =>
     all(card(page(opts), "reports-tiles"), (n) => n.type === "div" && classes(n).includes("figure")).map(read);
@@ -1044,7 +1045,11 @@ test("REGRESSION (C28): a card with a table saves it as a CSV -- the numbers wer
 
 test("REGRESSION: a tile is a number, what it is and one line under it; the head says the period and its days once (#557)", () => {
   const tree = page();
-  assert.equal(all(tree, (n) => n.type === "div" && classes(n).includes("rpt-cell")).length, 5);
+  assert.equal(
+    all(byTestId(tree, "reports-tiles"), (n) => n.type === "div" && classes(n).includes("rpt-cell")).length,
+    5,
+    "the Overview's strip is five cells; the Campaigns lens draws two of its own",
+  );
   assert.equal(
     find(tree, (n) => /spark|delta/.test(String(n.props?.className || ""))),
     null,

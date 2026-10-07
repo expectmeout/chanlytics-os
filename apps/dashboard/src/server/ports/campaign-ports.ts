@@ -6,7 +6,7 @@
  * (00046) and `scheduled_for` (00119). A broadcast, its people and its job are
  * assembled through one door (00282) that is the service role's alone.
  *
- * Beside the writes, the reads a send is judged by: the template and the booking link, the audience pool (every person,
+ * Beside the writes, the reads a send is judged by: the message and the booking link, the audience pool (every person,
  * and a built-in or saved list over it) read once, in the workspace's own zone, and the WhatsApp number's health. A
  * release or a cancel puts the broadcast_send job on the ledger, or takes it off (schedule, cancelKindFor), and every
  * act is recorded as a decision.
@@ -16,7 +16,7 @@ import {
   assembleBroadcast,
   campaignMonthSent,
   holdRecipients,
-  ownVersionsFiled,
+  messageVersionRowsOf,
   workspacePaused,
   type Json,
 } from "@chanlytics/db";
@@ -38,17 +38,8 @@ import { channelsReadyOf, channelsReadyOrNull, whatsappHealthOf } from "../campa
 
 export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {
   return {
-    template: async (id) => {
-      const { data, error } = await ctx.supabase
-        .from("templates")
-        .select("id, name, language, meta_status, category, variables, body_preview, title")
-        .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .eq("channel", "whatsapp")
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      return data;
-    },
+    // The message the version names, as every row the workspace holds of it on any channel (a message needs no WhatsApp row).
+    message: (id) => messageVersionRowsOf(ctx.supabase, tenantId, { id }),
     bookingLink: async () => {
       const { data } = await ctx.supabase
         .from("tenant_config")
@@ -151,11 +142,6 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string, o: { f
       ]);
       return { ready, health };
     },
-    // The email and text versions of a message in a language (a templates row of its name and language there).
-    versions: async (name, language) =>
-      (await ownVersionsFiled(ctx.supabase, tenantId, [name]))
-        .filter((v) => v.language === language)
-        .map((v) => v.channel),
     record: (subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
   };
 }

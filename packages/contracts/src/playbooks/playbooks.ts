@@ -1,6 +1,6 @@
 /**
- * Playbooks: a standing rule that sends one approved template to newly
- * eligible people who said yes, under the workspace's autonomy mode.
+ * Playbooks: a standing rule that sends one message, on the channels it holds, to
+ * newly eligible people who said yes, under the workspace's autonomy mode.
  *
  * Everything a playbook may do is decided here, once, and executed by the
  * hourly sweep with the same predicates the People page and the broadcast

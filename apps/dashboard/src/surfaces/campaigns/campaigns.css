@@ -4561,6 +4561,35 @@ div.tpl-slotbox:not([data-lines="1"]) {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* A new message written as an email, or a text chosen for it (composer-forms.tsx): its fields one under another, each
+   value a name beside its example, and the acts that add or take one away under them. The editor of its words is
+   .tpl-ver-edit, drawn as it is for any version. */
+.tpl-own {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 0;
+}
+.tpl-own > .bc-excl-hint {
+  align-self: flex-start;
+}
+.tpl-own-values {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tpl-own-value {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: var(--space-2);
+}
+.tpl-own-acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
 
 /* ====================================================================
    Campaigns home (canvas A, "Lifecycle"; surfaces/campaigns/home/)

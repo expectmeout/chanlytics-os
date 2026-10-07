@@ -5,7 +5,7 @@
  * All of it is pure but for the two reads of the settings surface (`brainOf` of what it is given, `tplOwn` of what the
  * surface holds now, as the JSX read `window.__SETTINGS`).
  */
-import { DAY_MS, HOUR_MS, MIN_MS, stateOf } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, DAY_MS, HOUR_MS, MIN_MS, stateOf } from "@chanlytics/contracts";
 import type { SettingsRecord, WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { surfaceValue } from "../../surface-values";
 import { starters } from "./verbs";
@@ -140,4 +140,7 @@ export const TPL_VERSION_WORDS = {
     `${title}: the ${lower(channel)} version in ${language} is saved`,
   removed: (title: string, channel: string, language: string): string =>
     `${title}: the ${lower(channel)} version in ${language} is removed`,
+  /** A message begun here: it is in the Library, with the version it began as. */
+  began: (title: string, channel: string, language: string): string =>
+    `${title} is in the ${CAMPAIGN_ROOMS.library}: the ${lower(channel)} version in ${language} is saved`,
 };

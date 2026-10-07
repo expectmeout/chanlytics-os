@@ -1,24 +1,46 @@
-import { AppError, cleanParam, parseParamSpec, UUID, type ParamSpec } from "@chanlytics/contracts";
-import type { TemplateRow, TemplateValuesPorts } from "./ports";
+import {
+  AppError,
+  campaignMessageOf,
+  cleanParam,
+  parseParamSpec,
+  UUID,
+  type CampaignMessage,
+  type ParamSpec,
+} from "@chanlytics/contracts";
+import type { TemplateValuesPorts } from "./ports";
 
 /**
- * The template as Meta holds it and the values as Meta will accept them:
- * what a broadcast and a playbook both name, judged once. Approved; as many
- * values as the template takes; each typed text once or a value the job
- * fills per person; a booking-link slot needs a link on file. Every refusal
- * is a sentence for the person composing.
+ * The message a version's id names, read once from the rows this workspace holds of it (contracts campaignMessageOf):
+ * the one verb a broadcast, a playbook and Ask's proposals read a message by. The id is any version's, WhatsApp's or an
+ * email's or a text's, and names the same message; a message needs no WhatsApp row. Refused: an id that is not one
+ * ("Pick a template.") and a version this workspace does not hold ("Template not found.", a 404). Whether a channel can
+ * send the message is each tick's to say (message-channels.ts), so a version WhatsApp has not approved is no refusal here.
+ */
+export async function readCampaignMessage(
+  ports: Pick<TemplateValuesPorts, "message">,
+  id: string,
+): Promise<CampaignMessage> {
+  if (!UUID.test(id)) throw new AppError("validation", "Pick a template.");
+  const rows = await ports.message(id);
+  const row = rows.find((r) => r.id === id);
+  const message = row ? campaignMessageOf(rows, row.name, row.language) : null;
+  if (!message) throw new AppError("not_found", "Template not found.", 404);
+  return message;
+}
+
+/**
+ * The message and the values as its channels will accept them: what a broadcast and a playbook both name, judged once.
+ * As many values as the message takes (contracts' one count, whichever version carries it); each typed text once or a
+ * value the job fills per person; a booking-link slot needs a link on file. Every refusal is a sentence for the person
+ * composing.
  */
 export async function templateValues(
   ports: TemplateValuesPorts,
   /** `visits`: a visit playbook, whose run knows each visit; `proposal`: the follow-up, whose run knows each link. */
   cmd: { templateId: string; params: unknown; visits: boolean; proposal: boolean },
-): Promise<{ template: TemplateRow; specs: ParamSpec[] }> {
-  if (!UUID.test(cmd.templateId)) throw new AppError("validation", "Pick a template.");
-  const tpl = await ports.template(cmd.templateId);
-  if (!tpl) throw new AppError("not_found", "Template not found.", 404);
-  if (tpl.meta_status !== "approved")
-    throw new AppError("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);
-  const expected = Array.isArray(tpl.variables) ? tpl.variables.length : 0;
+): Promise<{ message: CampaignMessage; specs: ParamSpec[] }> {
+  const message = await readCampaignMessage(ports, cmd.templateId);
+  const expected = message.slots;
   const rawParams = Array.isArray(cmd.params) ? cmd.params : [];
   if (rawParams.length !== expected) {
     throw new AppError(
@@ -68,5 +90,5 @@ export async function templateValues(
       409,
     );
   }
-  return { template: tpl, specs };
+  return { message, specs };
 }

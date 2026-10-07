@@ -614,6 +614,59 @@ function withCallDirection(frozen) {
 }
 
 /**
+ * 7 Oct 2026 (lane 1, T6): campaigns.audiences lists the messages the composers offer, whatever channels they have versions
+ * on, each with the channels it can be sent by (contracts messageHolds). Every template of this world is an approved
+ * WhatsApp row alone: the one change to the bytes of the listing, `channels` after `category`. (The lane's review) Its
+ * note says its four counts are by WhatsApp, and that a message held on email or text is proposed by its channels, whose
+ * card counts the people they reach, so a 0 in them is not nobody: the other change, to the note.
+ */
+function withChannels(frozen) {
+  const said = JSON.parse(frozen);
+  const note =
+    typeof said.note === "string"
+      ? `${said.note.replace(
+          "Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and",
+          "Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional template reaches on WhatsApp and",
+        )} A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.`
+      : null;
+  const held = { whatsapp: true, email: false, sms: false };
+  const into = (t) =>
+    Object.fromEntries(
+      Object.entries(t).flatMap(([k, v]) =>
+        k === "category"
+          ? [
+              [k, v],
+              ["channels", held],
+            ]
+          : [[k, v]],
+      ),
+    );
+  return Array.isArray(said.templates)
+    ? JSON.stringify({ ...said, templates: said.templates.map(into), ...(note === null ? {} : { note }) })
+    : frozen;
+}
+
+/**
+ * 7 Oct 2026 (lane 1, T6): Ask reads the message a proposal names through core's readCampaignMessage, the verb the routes
+ * read it by, and says what it refuses in its own sentence: a template the workspace does not hold is "Template not found."
+ * (the broadcast's and the playbook's, which said it was not approved by WhatsApp, the playbook's adding "or the workspace
+ * keeps it out of the composers", a sentence now said of a message that exists and is hidden); and a moment's starter of
+ * which the workspace holds no version it can send `has no version this workspace can send yet`, where it said it was not
+ * approved on this workspace yet. (T11) That refusal sends the owner to the Library, the room's name now, and to name a
+ * message, where it said Campaigns › Messages and an approved template. The fixture is the old registry's bytes and stays as
+ * it was made; these are the changes to them.
+ */
+function withTheVerbsWords(frozen) {
+  return frozen
+    .replace(/"that template is not approved by WhatsApp[^"]*"/, '"Template not found."')
+    .replace("starter is not approved on this workspace yet", "starter has no version this workspace can send yet")
+    .replace(
+      "under Campaigns › Messages, or name an approved template from",
+      "under Campaigns › Library, or name a message from",
+    );
+}
+
+/**
  * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026, the
  * lifecycle set: contracts momentOffered; this workspace sells by proposal and has no calendar). Its listing is held to
  * those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is compared byte for byte.
@@ -667,6 +720,8 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
+    if (NAMES[old] === "campaigns.audiences") result = withChannels(result);
+    if (NAMES[old].startsWith("propose_campaign.")) result = withTheVerbsWords(result);
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];
@@ -676,20 +731,33 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // The threads' messages are one call since 00258: the conversations reader read the table a page at a time, and
     // reads each thread's newest through newest_messages. The old tools that read through it made that read, and no
     // other of the table: the one change to the reads, with the bytes unchanged.
-    const reads0 = THROUGH_THE_HUNDRED.has(old)
+    const reads00 = THROUGH_THE_HUNDRED.has(old)
       ? want.reads.map((r) => (r === "messages.select" ? "rpc:newest_messages" : r))
       : want.reads;
+    // 7 Oct 2026 (lane 1, T6): Ask reads the message a proposal's template names through core's readCampaignMessage (db
+    // messageVersionRowsOf: the version, then every row of its message), where it read the one WhatsApp row: one `templates`
+    // read more for a template this workspace holds. A template it does not hold answers at the version, one read as before.
+    const readsRows =
+      NAMES[old].startsWith("propose_campaign.") && input.template_id === TPL && reads00.includes("templates.select");
+    const reads0 = readsRows ? [...reads00, "templates.select"] : reads00;
     // 3 Oct 2026 (One message, every channel, step 3): the playbooks reader asks whether the workspace can send on each
     // channel (server/campaigns/channels-ready.ts): the WhatsApp number and the texting line, after the turn's tenants
     // reads (the mailbox only where the deployment sends email, which this one does not). The one change to its reads.
     // A campaign proposed (a broadcast, a playbook) asks the same of WhatsApp alone, the one channel Ask names: whether
     // its number can send. One read more, in any order; a call refused before, at its template, never gets that far.
     const proposes = String(NAMES[old]).startsWith("propose_campaign.") && !want.isError;
+    // 7 Oct 2026 (lane 1, T5): a playbook's check reads the message the template's id names (db messageVersionRowsOf: the
+    // version, then every row of it, on any channel), where it read the one WhatsApp row: a playbook proposed on a
+    // template, which reached the check after Ask's own read of the row, makes one `templates` read more.
+    const readsMessage =
+      proposes &&
+      NAMES[old] === "propose_campaign.playbook" &&
+      reads00.filter((r) => r === "templates.select").length >= 2;
     const counted =
       NAMES[old] === "campaigns.playbooks"
         ? withChannelReads(reads0)
         : proposes
-          ? [...reads0, "tenant_channels.select"]
+          ? [...reads0, "tenant_channels.select", ...(readsMessage ? ["templates.select"] : [])]
           : reads0;
     // 3 Oct 2026 (the review's item 7): People's rows say who can be sent what against what the workspace can send on, so
     // a tool that reads the people's pool or a page of them asks for it once a turn (readers/facts.ts channelsReady): the

@@ -133,7 +133,7 @@ const SurfaceTabs = ({ page, param, views, onNavigate }) => {
   // People, and the tabs vanished on the last two (the wiring audit's N24). A page that says its own views says none for one.
   if (!own && page === "clients" && param && !/^(seg|list|state):/.test(param)) return null;
   return (
-    <nav ref={stripRef} className={`stabs stabs-${groupKey}`} aria-label={own ? own.label : "Section views"} data-testid={own ? own.testid : undefined}>
+    <nav ref={stripRef} className={`stabs stabs-${groupKey}`} aria-label={own ? own.label : "Section views"} data-testid={own ? own.testid : undefined} data-stays={own && own.stays ? "" : undefined}>
       {tabs.map(t => {
         const badge = t.badge ? t.badge() : null;
         const pulse = t.pulse ? t.pulse() : false;
@@ -212,6 +212,10 @@ const stripPager = (view, from) => {
   return {
     prev: at > 0,
     next: at < tabs.length - 1,
+    // The page stays as its view changes (routes.ts SurfaceViews `stays`, which the strip wears): the view on screen
+    // draws the next, so the swipe asks for it once this one has left and brings it in as the Calendar's days come
+    // (data-bits swipeLeave); else the next view is a page of its own, drawn while this one leaves.
+    stays: strip.hasAttribute("data-stays"),
     moving: view.contains(strip) ? stripAround(strip, view) : null,
     follow: (progress, step, how) => {
       const a = tabs[at];
@@ -222,16 +226,31 @@ const stripPager = (view, from) => {
       strip.setAttribute("data-glide", how === "move" ? "" : "ease");
       if (how === "settle") setTimeout(() => stripUnglide(strip), 260);
     },
+    // Answers once the view has landed: the tab pressed is the address's own (aria-current, the shell drawn for the
+    // new route) and the view has drawn since the press (the page follows the same address), or the strip is gone
+    // with its page, or 400 ms have passed (a page's switch is a navigation). The glide clears as soon as the tab is
+    // lit. A page that stays comes back in only then, with the next view in it (data-bits swipeLeave).
     go: (step) => {
       const tab = tabs[at + step];
-      if (!tab) return;
+      if (!tab) return Promise.resolve();
+      let drew = false;
+      const watcher = typeof MutationObserver === "function" ? new MutationObserver(() => { drew = true; }) : null;
+      if (watcher) watcher.observe(view, { childList: true, subtree: true, attributes: true });
       tab.click();
       const since = Date.now();
-      const landed = () => {
-        if (tab.classList.contains("active") || !tab.isConnected || Date.now() - since > 400) stripUnglide(strip);
-        else setTimeout(landed, 16);
-      };
-      landed();
+      let lit = false;
+      return new Promise((resolve) => {
+        const landed = () => {
+          const gone = !tab.isConnected;
+          const late = Date.now() - since > 400;
+          if (!lit && (tab.classList.contains("active") || gone || late)) { stripUnglide(strip); lit = true; }
+          if ((tab.getAttribute("aria-current") === "page" && (drew || !watcher)) || gone || late) {
+            if (watcher) watcher.disconnect();
+            resolve();
+          } else setTimeout(landed, 16);
+        };
+        landed();
+      });
     },
   };
 };

@@ -8,6 +8,9 @@
  * - What each channel adds is said once: an email's foot is the one the sender puts on the wire (contracts emailFoot, which
  *   core imports), a text's STOP line is the one renderOwnVersion adds.
  * - A version the page does not hold is said, never drawn as WhatsApp's words under the email's name.
+ * - A message needs no WhatsApp row (Lane 1): the composers offer it by the channels it holds, open on the first of them the
+ *   workspace is ready on, say a closed channel in the message's own words (or the workspace's where it is the workspace that
+ *   cannot), and draw a person held back as the message's own words, noted Not sent.
  * - The split is a bar: each part's share of the people reached, in the channel's own chart colour, its words in the kit's
  *   tooltip and its meaning to a screen reader; none where the campaign goes by WhatsApp alone.
  * Run on the stub React over the parts the composers draw (the composers' own wiring is held in
@@ -17,6 +20,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { transform } from "lightningcss";
 import * as contracts from "@chanlytics/contracts";
 import { ROOT } from "../_source.mjs";
@@ -43,9 +47,9 @@ installClock();
 const { CmSplitBar } = await import(`${SRC}/surfaces/campaigns/parts/split-bar.tsx`);
 const { MessagePreview, PreviewStepper } = await import(`${SRC}/surfaces/campaigns/parts/message-preview.tsx`);
 const { cmPreviewBy, cmChannelOfPerson } = await import(`${SRC}/surfaces/campaigns/parts/preview-by.ts`);
-const { cmVersionsOf, cmReachBy, cmChannelColour, cmViaTicks } = await import(
-  `${SRC}/surfaces/campaigns/parts/channels.ts`
-);
+const channelsModule = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
+const { cmReachBy, cmChannelColour, cmViaTicks, cmDefaultChannels, cmOfferedMessages, cmStandInOf, CM_NO_MESSAGE_YET } =
+  channelsModule;
 const { CmVia } = await import(`${SRC}/surfaces/campaigns/parts/send-by.tsx`);
 const { Meter } = await import(`${SRC}/surfaces/kit/meter/meter.tsx`);
 const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
@@ -108,6 +112,8 @@ const OPTS = (over = {}) => ({
   business: "Northside Studio",
   address: null,
   labelled: true,
+  // A message with a WhatsApp version: the words the page holds are WhatsApp's, so that is who a person held back is drawn as.
+  standIn: "whatsapp",
   ...over,
 });
 
@@ -212,29 +218,36 @@ test("an email carries the foot the sender adds, a text its STOP line, WhatsApp 
   // A message with no version on the person's channel is said, not drawn as another channel's words.
   const none = on("email", { versions: { sms: VERSIONS.sms } });
   assert.deepEqual([none.version, none.foot], [null, null]);
-  assert.equal(none.missing, "This message has no email version to show here.");
+  assert.equal(none.missing, "This message has no email version yet.");
 });
 
-test("cmVersionsOf reads a message's email and text versions in a language from the rows the workspace holds", () => {
+test("an offered message carries its email and text versions in its own language, read from the rows the workspace holds", () => {
+  const version = (name, channel, language, over = {}) => ({
+    id: `t-${name}-${channel}-${language}`,
+    name,
+    channel,
+    language,
+    meta_status: "approved",
+    category: "utility",
+    hidden_at: null,
+    blocked: null,
+    ...over,
+  });
   const rows = [
-    { name: "hours_note", channel: "whatsapp", language: "en_US", body_preview: "Hi {{1}}" },
-    {
-      name: "hours_note",
-      channel: "email",
-      language: "en_US",
-      header: "A note, {{1}}",
-      body_preview: "Hi {{1}}, we are open late.",
-    },
-    { name: "hours_note", channel: "sms", language: "en_US", body_preview: "Open late, {{1}}." },
-    { name: "hours_note", channel: "email", language: "es_MX", header: "Una nota", body_preview: "Hola" },
-    { name: "other", channel: "email", language: "en_US", header: "Other", body_preview: "Other" },
+    version("hours_note", "whatsapp", "en_US", { body_preview: "Hi {{1}}" }),
+    version("hours_note", "email", "en_US", { header: "A note, {{1}}", body_preview: "Hi {{1}}, we are open late." }),
+    version("hours_note", "sms", "en_US", { body_preview: "Open late, {{1}}." }),
+    version("hours_note", "email", "es_MX", { header: "Una nota", body_preview: "Hola" }),
+    version("other", "email", "en_US", { header: "Other", body_preview: "Other" }),
   ];
-  assert.deepEqual(cmVersionsOf(rows, "hours_note", "en_US"), {
+  const offered = cmOfferedMessages({ templates: rows });
+  const versions = (name, language) => offered.find((t) => t.name === name && t.language === language)?.versions;
+  assert.deepEqual(versions("hours_note", "en_US"), {
     email: { subject: "A note, {{1}}", body: "Hi {{1}}, we are open late." },
     sms: { subject: null, body: "Open late, {{1}}." },
   });
-  assert.deepEqual(cmVersionsOf(rows, "hours_note", "es_MX"), { email: { subject: "Una nota", body: "Hola" } });
-  assert.deepEqual(cmVersionsOf(rows, "nothing", "en_US"), {});
+  assert.deepEqual(versions("hours_note", "es_MX"), { email: { subject: "Una nota", body: "Hola" } });
+  assert.equal(versions("nothing", "en_US"), undefined, "a message the workspace has no row of is not offered");
 });
 
 test("what the preview is handed for a person: the email as a mail, the text as a bubble with its STOP line, else WhatsApp's", () => {
@@ -267,7 +280,7 @@ test("what the preview is handed for a person: the email as a mail, the text as 
   const lost = cmPreviewBy(WHATSAPP, "email", OPTS({ versions: undefined }));
   assert.deepEqual(
     [lost.via, lost.mail, lost.body, lost.note],
-    [null, null, WHATSAPP.body, "This message has no email version to show here."],
+    [null, null, WHATSAPP.body, "This message has no email version yet."],
   );
   // An offer's email reads with the offer's foot (step 4: contracts emailFoot's "offer" kind), the visit's without it.
   const address = "12 Harbor Way";
@@ -361,7 +374,7 @@ test("an email is drawn as a mail -- who from, the subject, the words with their
     values: ["Mia", "7 pm"],
     ...cmPreviewBy(WHATSAPP, "email", OPTS({ versions: {} })),
   });
-  assert.equal(textOf(byTestId(tree, "mp-version-note")), "This message has no email version to show here.");
+  assert.equal(textOf(byTestId(tree, "mp-version-note")), "This message has no email version yet.");
 });
 
 test("the stepper walks the people and wraps, each press one step, and says its place: ‹ Ana Reyes · 1 of 3 ›", () => {
@@ -583,7 +596,7 @@ test("previewSays quotes each channel's own words, in the page's order, named fo
   // A channel the message has no version on is named, with the sentence for it: never WhatsApp's words under its name.
   assert.deepEqual(say(["whatsapp", "email"], { versions: { sms: VERSIONS.sms } }), {
     missing: "email",
-    why: "This message has no email version to show here.",
+    why: "This message has no email version yet.",
   });
   // The room is shared between the channels, none cut under a line's worth, and a cut says so.
   const long = say(["whatsapp", "email"], { whatsapp: "x".repeat(300), limit: 140 }).says;
@@ -595,15 +608,334 @@ test("previewSays quotes each channel's own words, in the page's order, named fo
 });
 
 test("previewVersionsOf is the one reading of a message's version rows, which the composers' stamp is", () => {
+  const row = (id, channel, language, over) => ({
+    id,
+    name: "hours_note",
+    channel,
+    language,
+    meta_status: "approved",
+    category: "utility",
+    ...over,
+  });
   const rows = [
-    { name: "hours_note", channel: "email", language: "en_US", header: "A note", body_preview: "Hi" },
-    { name: "hours_note", channel: "sms", language: "en_US", body_preview: "Open late." },
-    { name: "hours_note", channel: "whatsapp", language: "en_US", body_preview: "WhatsApp's words" },
-    { name: "hours_note", channel: "email", language: "es_MX", header: "Una nota", body_preview: "Hola" },
+    row("t1", "email", "en_US", { header: "A note", body_preview: "Hi" }),
+    row("t2", "sms", "en_US", { body_preview: "Open late." }),
+    row("t3", "whatsapp", "en_US", { body_preview: "WhatsApp's words" }),
+    row("t4", "email", "es_MX", { header: "Una nota", body_preview: "Hola" }),
   ];
-  assert.deepEqual(contracts.previewVersionsOf(rows, "hours_note", "en_US"), cmVersionsOf(rows, "hours_note", "en_US"));
+  assert.deepEqual(
+    cmOfferedMessages({ templates: rows })[0].versions,
+    contracts.previewVersionsOf(rows, "hours_note", "en_US"),
+    "what an offered message carries is that one reading",
+  );
   assert.deepEqual(contracts.previewVersionsOf(rows, "hours_note", "en_US"), {
     email: { subject: "A note", body: "Hi" },
     sms: { subject: null, body: "Open late." },
   });
+});
+
+/* ---------------------------------- a message needs no WhatsApp row ---------------------------------- */
+
+/**
+ * A template row as the composers' read returns it (server/readers/templates.ts): the columns a message is made of, a WhatsApp
+ * row's `blocked` judged on it and an email's or a text's null. `channel` says whose version it is.
+ */
+const rowOf = (channel, over = {}) => ({
+  id: `t-${channel}`,
+  channel,
+  name: "hours_note",
+  language: "en_US",
+  meta_status: "approved",
+  category: "utility",
+  source: "chanlytics",
+  hidden_at: null,
+  title: null,
+  quality: null,
+  rejected_reason: null,
+  synced_at: null,
+  blocked: null,
+  variables: [{ position: 1, label: "First name", example: "Dani" }],
+  header: channel === "email" ? "A note, {{1}}" : null,
+  body_preview: channel === "whatsapp" ? "Hi {{1}}, we are open late." : "Hi {{1}}, we are open late on Thursdays.",
+  ...over,
+});
+/** What GET templates answers for these rows: the composers' (approved, not hidden) and every row's messages, as the reader makes them. */
+const readOf = (rows) => ({
+  templates: rows.filter((r) => r.meta_status === "approved" && !r.hidden_at),
+  messages: contracts.campaignMessagesOf(rows),
+});
+/** The workspace as a page has it: a number or none, a texting line, a mailbox that sends the business's news. */
+const WORKSPACE = (over = {}) =>
+  contracts.channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: { sms_state: "active", reg_mock: false },
+    email: { mailbox: true, domain: true, offers: OFFERS_OPEN },
+    ...over,
+  });
+const NO_NUMBER = WORKSPACE({ whatsapp: null });
+/** The Send by row for an offered message, as a composer draws it: the ticks it opens on, then the row. */
+const sendByOf = (offered, ready) => {
+  const ticked = cmDefaultChannels(ready, offered.message ?? null);
+  const open = contracts.readyForMessage(ready, offered.message ?? CM_NO_MESSAGE_YET);
+  const ticks = cmViaTicks(ticked, open, { purpose: offered.purpose, about: "ours" }, false);
+  return { ticked, ticks: Object.fromEntries(ticks.map((t) => [t.channel, { on: t.on, why: t.why }])) };
+};
+
+test("a message with an email version and no WhatsApp row is offered by the channel it holds: Email on, WhatsApp and Text closed in the message's own words, or the workspace's where it is the workspace that cannot", () => {
+  const [offered, ...rest] = cmOfferedMessages(readOf([rowOf("email")]));
+  assert.equal(rest.length, 0, "one message");
+  assert.deepEqual(
+    [offered.id, offered.channel, offered.name, offered.language, offered.purpose, offered.channels, offered.blocked],
+    ["t-email", "email", "hours_note", "en_US", "conversational", ["email"], null],
+    "its id is its anchor's (the email row), its words that row's, it holds email alone, and nothing blocks it",
+  );
+  assert.equal(
+    offered.body_preview,
+    "Hi {{1}}, we are open late on Thursdays.",
+    "the anchor's words, there being no WhatsApp row",
+  );
+  assert.deepEqual(offered.versions, {
+    email: { subject: "A note, {{1}}", body: "Hi {{1}}, we are open late on Thursdays." },
+  });
+  assert.equal(offered.message.versions.whatsapp, null);
+  // A workspace with a number, a line and a mailbox: WhatsApp says the message has no version there, Text the same of its own.
+  const withNumber = sendByOf(offered, WORKSPACE());
+  assert.deepEqual(withNumber.ticked, ["email"], "it opens on Email, the one channel the message holds");
+  assert.deepEqual(withNumber.ticks, {
+    whatsapp: { on: false, why: "This message has no WhatsApp version." },
+    sms: { on: false, why: "This message has no text version yet." },
+    email: { on: true, why: "A campaign goes by at least one channel." },
+  });
+  // A workspace with no number: WhatsApp's reason is the workspace's, which wins; Text and Email are as they were.
+  const noNumber = sendByOf(offered, NO_NUMBER);
+  assert.deepEqual(
+    noNumber.ticked,
+    ["email"],
+    "a workspace with no number composing it opens on Email, not on a WhatsApp it has none of",
+  );
+  assert.deepEqual(noNumber.ticks, {
+    whatsapp: { on: false, why: "Connect a WhatsApp number first." },
+    sms: { on: false, why: "This message has no text version yet." },
+    email: { on: true, why: "A campaign goes by at least one channel." },
+  });
+});
+
+test("the Send by row closes a channel for want of a version only where the workspace is ready on it, and the rows' words are contracts' (messageWhyNot), one spelling", () => {
+  const [offered] = cmOfferedMessages(readOf([rowOf("email")]));
+  // No texting line and no mailbox: each says what the workspace is missing, whatever the message holds.
+  const closed = contracts.readyForMessage(
+    contracts.channelsReady({
+      whatsapp: { canSend: true, refusal: null },
+      textLine: null,
+      email: { mailbox: false, domain: false },
+    }),
+    offered.message,
+  );
+  assert.equal(closed.sms.why, contracts.CHANNEL_WORDS.noTextLine, "the line's, not the message's");
+  assert.equal(
+    closed.email.why,
+    contracts.CHANNEL_WORDS.noEmailDomain,
+    "the workspace's, though the message holds an email version",
+  );
+  assert.equal(closed.whatsapp.why, contracts.messageWhyNot(offered.message, "whatsapp"));
+  assert.equal(closed.whatsapp.ready, false);
+  // What a closed channel carries besides stays: email's `offers` is not replaced by "no version".
+  const open = contracts.readyForMessage(WORKSPACE(), offered.message);
+  assert.deepEqual(open.sms, { ...WORKSPACE().sms, ready: false, why: "This message has no text version yet." });
+  assert.deepEqual(open.email, WORKSPACE().email, "a channel the message holds is the workspace's as it was");
+  assert.equal(
+    contracts.readyForMessage({ ...WORKSPACE(), paused: true }, offered.message).paused,
+    true,
+    "the pause is the workspace's, and rides through",
+  );
+  // No message in view yet: WhatsApp's version alone, as every campaign opened.
+  const none = contracts.readyForMessage(WORKSPACE(), CM_NO_MESSAGE_YET);
+  assert.deepEqual(
+    [none.whatsapp.ready, none.sms.why, none.email.why],
+    [true, "This message has no text version yet.", "This message has no email version yet."],
+  );
+});
+
+test("one reading of a message in the workspace's channels and one set of words for a version it lacks: contracts' readyForMessage and noVersionWords, with no copy in core, the page or the previews", async () => {
+  const core = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
+  assert.equal(core.readyForMessage, undefined, "core's copy is gone");
+  assert.equal(channelsModule.cmReadyForMessage, undefined, "and the page's");
+  assert.equal(typeof contracts.readyForMessage, "function");
+  assert.equal(contracts.PREVIEW_WORDS.noVersion, undefined, "the previews' own spelling of the sentence is gone");
+  // A message that holds nothing closes every channel the workspace is ready on, in messageWhyNot's words for each.
+  const nothing = { versions: { whatsapp: null, email: null, sms: null } };
+  const closed = contracts.readyForMessage(WORKSPACE(), nothing);
+  assert.deepEqual(
+    contracts.readyForMessage(WORKSPACE(), null),
+    closed,
+    "null is a message the workspace no longer holds",
+  );
+  for (const c of contracts.CONSENT_CHANNELS) {
+    assert.equal(closed[c].ready, false, c);
+    assert.equal(closed[c].why, contracts.messageWhyNot(nothing, c), `${c}: messageWhyNot's`);
+    assert.equal(closed[c].why, contracts.noVersionWords(c), `${c}: the one sentence for a version it lacks`);
+  }
+  // The previews say it in the same words: a channel with no words to draw, whether one person's or the card's.
+  assert.equal(
+    contracts.previewOn("email", { versions: {}, language: "en_US", business: "Harbor Studio" }).missing,
+    contracts.noVersionWords("email"),
+  );
+  assert.deepEqual(
+    contracts.previewSays(["whatsapp", "sms"], {
+      whatsapp: "Hi",
+      versions: {},
+      values: [],
+      language: "en_US",
+      limit: 200,
+    }),
+    { missing: "sms", why: contracts.noVersionWords("sms") },
+  );
+  assert.equal(contracts.noVersionWords("whatsapp"), "This message has no WhatsApp version.");
+  assert.equal(contracts.noVersionWords("sms"), "This message has no text version yet.");
+});
+
+test("the opening ticks are the first channel, in the product's order, that the workspace is ready on and the message holds, and WhatsApp alone where there is none", () => {
+  const message = (...channels) => cmOfferedMessages(readOf(channels.map((c) => rowOf(c))))[0].message;
+  const ticks = (ready, m) => cmDefaultChannels(ready, m);
+  // A message with an approved WhatsApp version opens on WhatsApp, with or without an email beside it: nothing made before changes.
+  assert.deepEqual(ticks(WORKSPACE(), message("whatsapp")), ["whatsapp"]);
+  assert.deepEqual(ticks(WORKSPACE(), message("whatsapp", "email")), ["whatsapp"]);
+  // One with an email and no WhatsApp row opens on Email, and a text before an email.
+  assert.deepEqual(ticks(WORKSPACE(), message("email")), ["email"]);
+  assert.deepEqual(
+    ticks(NO_NUMBER, message("whatsapp", "email")),
+    ["email"],
+    "no number: WhatsApp is not ready, so the email it holds",
+  );
+  assert.deepEqual(ticks(WORKSPACE(), message("email", "sms")), ["sms"], "WhatsApp, text, email: the product's order");
+  // None that is both ready and held: WhatsApp alone, as before, for the page to say why it cannot send.
+  const noMailbox = WORKSPACE({ email: { mailbox: false, domain: true } });
+  assert.deepEqual(ticks(noMailbox, message("email")), ["whatsapp"]);
+  assert.deepEqual(ticks(WORKSPACE(), null), ["whatsapp"], "no message in view");
+  assert.deepEqual(
+    ticks(contracts.readyOrWhatsApp(null), message("email")),
+    ["whatsapp"],
+    "a workspace whose readiness was not read: WhatsApp, as before",
+  );
+});
+
+test("a WhatsApp version still in review with an email beside it is an offered message, and WhatsApp's tick says it is being reviewed", () => {
+  const rows = [rowOf("whatsapp", { meta_status: "pending" }), rowOf("email")];
+  const [offered, ...rest] = cmOfferedMessages(readOf(rows));
+  assert.equal(rest.length, 0);
+  assert.deepEqual(
+    [offered.id, offered.channel, offered.channels, offered.message.versions.whatsapp.status],
+    ["t-whatsapp", "email", ["email"], "pending"],
+    "its id is its anchor's, the WhatsApp row in review, which the read does not return: its words are the email's",
+  );
+  assert.equal(offered.message.anchor.channel, "whatsapp");
+  const by = sendByOf(offered, WORKSPACE());
+  assert.deepEqual(by.ticked, ["email"]);
+  assert.equal(by.ticks.whatsapp.why, "WhatsApp is still reviewing this message's WhatsApp version.");
+  assert.equal(by.ticks.whatsapp.on, false);
+  // Refused, paused and disabled each say their own; a message whose only version is one not approved is not offered at all.
+  for (const [status, words] of [
+    ["rejected", "WhatsApp refused this message's WhatsApp version."],
+    ["paused", "WhatsApp has paused this message's WhatsApp version."],
+    ["disabled", "WhatsApp has disabled this message's WhatsApp version."],
+  ]) {
+    const [m] = cmOfferedMessages(readOf([rowOf("whatsapp", { meta_status: status }), rowOf("email")]));
+    assert.equal(sendByOf(m, WORKSPACE()).ticks.whatsapp.why, words, status);
+  }
+  assert.deepEqual(
+    cmOfferedMessages(readOf([rowOf("whatsapp", { meta_status: "pending" })])),
+    [],
+    "as before: not offered",
+  );
+  // The same message as a cached read made it, with no `messages` in it: made of the rows the read holds, which leave the version in review out.
+  const bare = cmOfferedMessages({ templates: [rowOf("email")] });
+  assert.deepEqual([bare[0].id, bare[0].channels, bare[0].message.versions.whatsapp], ["t-email", ["email"], null]);
+});
+
+test("a WhatsApp version that cannot be put on the wire whole closes WhatsApp's tick in its own words, and the message is listed as blocked only when nothing else of it can go", () => {
+  const picture = { blocked: "a picture for a heading" };
+  // With an email beside it the message is offered, not blocked: the email goes, WhatsApp's tick says why not.
+  const [both] = cmOfferedMessages(readOf([rowOf("whatsapp", picture), rowOf("email")]));
+  assert.deepEqual([both.id, both.channel, both.channels, both.blocked], ["t-whatsapp", "whatsapp", ["email"], null]);
+  assert.equal(
+    sendByOf(both, WORKSPACE()).ticks.whatsapp.why,
+    "This message's WhatsApp version has a picture for a heading, so it cannot be sent from here.",
+  );
+  // Alone it is listed with the reason, so a picker says why it is not offered (contracts sendableTemplates), as it did.
+  const [alone, ...rest] = cmOfferedMessages(readOf([rowOf("whatsapp", picture)]));
+  assert.equal(rest.length, 0);
+  assert.deepEqual([alone.channels, alone.blocked], [[], "a picture for a heading"]);
+  assert.deepEqual(contracts.sendableTemplates([alone]).blocked, [alone]);
+  // A hidden message is offered to nobody, whatever its versions.
+  assert.deepEqual(
+    cmOfferedMessages(readOf([rowOf("whatsapp", { hidden_at: "2026-10-01T00:00:00.000Z" }), rowOf("email")])),
+    [],
+  );
+});
+
+test("a person held back is drawn as the message's own words, noted Not sent: WhatsApp's where the message has a version there, else its email's or its text's", () => {
+  const held = (standIn, over = {}) => cmPreviewBy(WHATSAPP, null, OPTS({ standIn, ...over }));
+  assert.equal(contracts.PREVIEW_WORDS.notSent, "Not sent");
+  const wa = held("whatsapp");
+  assert.deepEqual(
+    [wa.via, wa.body, wa.footer, wa.mail, wa.note],
+    [null, WHATSAPP.body, WHATSAPP.footer, null, "Not sent"],
+    "WhatsApp's bubble, as it was, now noted",
+  );
+  // A message with an email version and no WhatsApp row: the email, as a mail with the foot the sender adds, unlabelled.
+  const mail = held("email", { address: "12 Harbor Way" });
+  assert.deepEqual(
+    [mail.via, mail.kind, mail.body, mail.header, mail.note],
+    [null, "Email", VERSIONS.email.body, null, "Not sent"],
+  );
+  assert.equal(mail.mail.subject, "A note, {{1}}");
+  assert.ok(mail.mail.foot.endsWith("Northside Studio · 12 Harbor Way"), mail.mail.foot);
+  // A text: the bubble with its STOP line.
+  const text = held("sms");
+  assert.deepEqual(
+    [text.via, text.kind, text.body, text.footer, text.mail, text.note],
+    [null, "Text message", VERSIONS.sms.body, "Reply STOP to opt out", null, "Not sent"],
+  );
+  // The words not in hand: the sentence for that, never another channel's words under the email's name.
+  const lost = held("email", { versions: undefined });
+  assert.deepEqual([lost.via, lost.mail, lost.note], [null, null, "This message has no email version yet."]);
+  // A person on their channel is drawn as ever, whatever the stand-in: no note.
+  assert.equal(cmPreviewBy(WHATSAPP, "email", OPTS({ standIn: "sms" })).note, null);
+  assert.equal(cmPreviewBy(WHATSAPP, "whatsapp", OPTS({ standIn: "email" })).body, WHATSAPP.body);
+  // The channel a stand-in is drawn on is the one the page holds the message's words on.
+  assert.deepEqual(
+    [cmStandInOf({ channel: "email" }), cmStandInOf({ channel: "sms" }), cmStandInOf({ channel: "whatsapp" })],
+    ["email", "sms", "whatsapp"],
+  );
+  assert.equal(
+    cmStandInOf({ channel: "voice" }),
+    "whatsapp",
+    "a row on no channel a message goes by is WhatsApp's, as every template was",
+  );
+  const [offered] = cmOfferedMessages(readOf([rowOf("email")]));
+  assert.equal(cmStandInOf(offered), "email");
+});
+
+test("Not sent is said once: under an email's stand-in, which has no mark of its own; not again under a bubble the page marks held; and by a playbook's stand-in, which names no person", () => {
+  fresh();
+  const draw = (preview, props = {}) =>
+    h(MessagePreview, { from: "Northside Studio", values: ["Mia", "7 pm"], ...preview, ...props });
+  const mail = cmPreviewBy(WHATSAPP, null, OPTS({ standIn: "email" }));
+  assert.equal(
+    textOf(byTestId(draw(mail, { held: "Asked to stop." }), "mp-version-note")),
+    "Not sent",
+    "the mail has no held mark",
+  );
+  const bubble = draw(cmPreviewBy(WHATSAPP, null, OPTS({ standIn: "whatsapp" })), { held: "Asked to stop." });
+  assert.ok(
+    textOf(byTestId(bubble, "mp-held")).includes(contracts.PREVIEW_WORDS.notSent),
+    "the bubble's own mark, in contracts' word",
+  );
+  assert.equal(byTestId(bubble, "mp-version-note"), null, "so no second one under it");
+  const text = draw(cmPreviewBy(WHATSAPP, null, OPTS({ standIn: "sms" })), { held: "Asked to stop." });
+  assert.ok(byTestId(text, "mp-held") && !byTestId(text, "mp-version-note"), "a text is a bubble too");
+  // A playbook walks channels, not people, and marks nothing held: with none open its stand-in says Not sent itself.
+  const walk = draw(cmPreviewBy(WHATSAPP, null, OPTS({ standIn: "whatsapp" })));
+  assert.equal(byTestId(walk, "mp-held"), null);
+  assert.equal(textOf(byTestId(walk, "mp-version-note")), "Not sent");
 });

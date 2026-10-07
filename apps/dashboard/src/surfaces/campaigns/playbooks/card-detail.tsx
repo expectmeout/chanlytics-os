@@ -8,7 +8,13 @@
  */
 import { useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { DELIVERY_RECEIPTS_TIP, PLAYBOOK_DELETE_WORDS, pipelineRoute, poolWords } from "@chanlytics/contracts";
+import {
+  DELIVERY_RECEIPTS_TIP,
+  MESSAGE_GONE_WORDS,
+  PLAYBOOK_DELETE_WORDS,
+  pipelineRoute,
+  poolWords,
+} from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { pageClock } from "@/legacy-bridge/zone";
 import { canRestoreList, gate, gatedProps, navigate, restoreList } from "../../legacy-verbs";
@@ -371,8 +377,7 @@ function cardFacts(c: CardCtx) {
       {cardSentence(c)}
       {templateGone && (
         <p className="bc-excl-hint warn" data-testid="pb-template-gone">
-          Its message is no longer approved by WhatsApp, so its runs are skipped until it is approved again or the
-          playbook sends another.
+          {MESSAGE_GONE_WORDS.card}
         </p>
       )}
       {wrongSlot && (

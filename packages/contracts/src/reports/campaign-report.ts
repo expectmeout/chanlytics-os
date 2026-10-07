@@ -9,8 +9,8 @@
  * a text or an email keeps no read receipt. Colors are the page's.
  */
 import { DELIVERY_RECEIPTS_WORDS, REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
-import { REPORT_CHANNELS, dayDate, fmtDay, priorOf, type ReportChannelKey } from "./reports";
-import { deltaOf, pointsDelta, type ReportTileVM } from "./report-tiles";
+import { REPORT_CHANNELS, dayDate, fmtDay, priorOf, rangeLabelOf, type ReportChannelKey } from "./reports";
+import { compareWords, deltaOf, pointsDelta, type ReportTileVM } from "./report-tiles";
 import { templateTitle } from "../templates/template-titles";
 import { sumOf } from "../shared/numbers";
 import { formatterOnUse } from "../shared/time";
@@ -230,6 +230,9 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const read = dto.by_channel ? (whatsapp?.read ?? 0) : tot.read;
   const readOf = dto.by_channel ? (whatsapp?.sent ?? 0) : tot.sent;
   const noun = plural(days, "day");
+  // The period before beside a yes or a stop, in counts, where it had a send or an answer to be compared with.
+  const rangeLabel = rangeLabelOf(days);
+  const priorHadAny = prev.sent + prev.optIns + prev.optOuts > 0;
   const rawSources = dto.sources ?? [];
   const sends = sumOf(rawSources.map((s) => s.runs));
   const maxSent = Math.max(1, ...rawSources.map((s) => s.sent));
@@ -290,7 +293,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       meta: tot.optIns ? "at the desk, or in their own words" : "nobody in this period",
       delta: deltaOf(tot.optIns, prev.optIns, true, noun),
       spark: points.map((p) => p.optIns),
-      compare: null,
+      compare: compareWords(tot.optIns, prev.optIns, rangeLabel, priorHadAny),
     },
     {
       id: "optouts",
@@ -300,7 +303,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       meta: tot.optOuts ? "STOP, or recorded at the desk" : "nobody in this period",
       delta: deltaOf(tot.optOuts, prev.optOuts, false, noun),
       spark: points.map((p) => p.optOuts),
-      compare: null,
+      compare: compareWords(tot.optOuts, prev.optOuts, rangeLabel, priorHadAny),
     },
   ];
 
