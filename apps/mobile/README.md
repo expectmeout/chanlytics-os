@@ -21,12 +21,18 @@ corepack pnpm typecheck                                                         
 `typecheck` generates the routes' own types before it runs (`expo customize tsconfig.json`, as Expo's docs say for a
 check without a dev server), so an address in the app that names no screen is a type error, in CI as here.
 
-**The preview app on main** (`.eas/workflows/preview.yml`): a push to main that changes what the app is made of (this
-app, the lockfile, or a contracts module its entry reaches; `test/preview-paths.test.mjs` holds the list to that
-entry) fingerprints the native code. When a preview APK with that fingerprint exists, the push reaches it as an update
-on the `preview` channel (the app fetches it at launch and runs it on the next one); only a native change builds a new
-APK. Besides the native modules, the fingerprint hashes the evaluated `app.config.ts`, this `package.json`'s scripts,
-`eas.json` and `.gitignore`: a change to any of those builds a new APK, which spends the plan's build credit.
+**Nothing here reaches Expo by itself.** The phone app is paused (Ruben, 7 October 2026), and a build, an update, a
+store submission or a workflow run is asked for by hand, on Ruben's word, each time: every one spends the Expo plan.
+Both workflows in `.eas/workflows` start on `workflow_dispatch` alone, and `test/expo-by-hand.test.mjs` fails one that
+names a push, a tag, a pull request or a schedule. Until then the release ran on a tag `v*.*.*`, which the tag every
+merge to main is given (`vYYYY.MM.DD-<sha>`, `.github/workflows/release.yml`) also matched, so each merge started one.
+
+**The preview app** (`.eas/workflows/preview.yml`, `npx eas-cli@latest workflow:run .eas/workflows/preview.yml`): a
+run fingerprints the native code. When a preview APK with that fingerprint exists, the run's commit reaches it as an
+update on the `preview` channel (the app fetches it at launch and runs it on the next one); only a native change
+builds a new APK. Besides the native modules, the fingerprint hashes the evaluated `app.config.ts`, this
+`package.json`'s scripts, `eas.json` and `.gitignore`: a change to any of those builds a new APK, which spends the
+plan's build credit.
 
 `EXPO_PUBLIC_SITE_ORIGIN` names the site the shell holds. Unset, it is the product's own address (`src/site.ts`); an
 EAS environment or a local `.env.local` may point it elsewhere, at a preview for instance.
