@@ -353,16 +353,16 @@ export function pipelineOf<T extends PipelineSource>(
       null,
     ),
   ].filter((g) => g.count > 0);
-  const part = (words: string | null, press: PipelineView | null = null): PipelineLinePart | null =>
-    words ? { words, view: press, tone: press ? "warn" : null } : null;
+  const part = (words: string | null, press: PipelineView | null = null, joins = false): PipelineLinePart | null =>
+    words ? { words, view: press, tone: press ? "warn" : null, joins } : null;
   const line = [
     part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
-    part(proposals.length ? worth(proposals) : null),
+    part(proposals.length ? worth(proposals) : null, null, true),
     part(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     // Clients are people: a client of two services is one client, whose two deals are both in what they come to.
     part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null),
-    part(clients.length ? worth(clients) : null),
+    part(clients.length ? worth(clients) : null, null, true),
   ].filter((x): x is PipelineLinePart => !!x);
   return { summary: line.map((p) => p.words), line, groups, empty: groups.length === 0, pace };
 }

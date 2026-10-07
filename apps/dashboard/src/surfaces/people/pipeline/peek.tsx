@@ -110,28 +110,32 @@ const PipelinePeekHistory = ({
   );
 };
 
-// A phone's one act, pinned under the peek: the deal's next act (the card's own, contracts dealNextAct, through the
-// deal kit) for a member who may record one, and Call where there is a number.
+// The deal's next act (the card's own, contracts dealNextAct, through the deal kit) for a member who may record one: on a
+// phone it is pinned under the peek, and the card's own copy of it leaves the body (clients.css, data-act-pinned).
+function peekBarAct(person: PersonVM, deal: PersonVM["deal"], canRecord: boolean): DealAct | null {
+  if (!canRecord) return null;
+  try {
+    return dealNextAct(person, Date.now(), deal);
+  } catch {
+    return null;
+  }
+}
+
+// A phone's one act, pinned under the peek: the deal's next act, and Call where there is a number.
 const PipelinePeekBar = ({
   person,
   deal,
+  act,
   call,
-  canRecord,
   onCompose,
 }: {
   person: PersonVM;
   /** The row's own deal (0029), of the person read; null for a consultation's row, which starts a proposal. */
   deal: PersonVM["deal"];
+  act: DealAct | null;
   call: string | null;
-  canRecord: boolean;
   onCompose: Compose;
 }) => {
-  let act: DealAct | null = null;
-  try {
-    act = canRecord ? dealNextAct(person, Date.now(), deal) : null;
-  } catch {
-    act = null;
-  }
   if (!act && !call) return null;
   const W = P.words.peek.reach;
   return (
@@ -321,10 +325,17 @@ export const PipelinePeek = ({
     }
   }
   const call = detail ? (detail.reach.find((r) => r.call) || { call: null }).call || null : null;
+  const deal =
+    phone && person
+      ? vm.dealId === null
+        ? null
+        : ((person.deals ?? []).find((d) => d.id === vm.dealId) ?? person.deal)
+      : null;
+  const barAct = phone && person ? peekBarAct(person, deal, canRecord) : null;
   return (
     <aside className="pk pl-peek pipe-peek" role="dialog" aria-label={vm.name} data-testid="pipeline-peek" {...swipe}>
       {peekHead(vm, onClose)}
-      <div className="pk-body pipe-peek-body">
+      <div className="pk-body pipe-peek-body" data-act-pinned={barAct ? "true" : undefined}>
         <PipelinePeekDeal
           person={person}
           failed={failed}
@@ -339,13 +350,7 @@ export const PipelinePeek = ({
         {peekDoors(vm, onOpenPage, onOpenThread)}
       </div>
       {phone && person ? (
-        <PipelinePeekBar
-          person={person}
-          deal={vm.dealId === null ? null : ((person.deals ?? []).find((d) => d.id === vm.dealId) ?? person.deal)}
-          call={call}
-          canRecord={canRecord}
-          onCompose={onCompose}
-        />
+        <PipelinePeekBar person={person} deal={deal} act={barAct} call={call} onCompose={onCompose} />
       ) : null}
     </aside>
   );
