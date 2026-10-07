@@ -1748,6 +1748,12 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .dash-a-v2 .tc-fig-n { font-size: var(--text-figure); font-weight: var(--weight-medium); letter-spacing: -0.035em; line-height: 1; }
 .dash-a-v2 .tc-fig-w { margin-top: 6px; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
 .dash-a-v2 .tc-fig-m { font-size: var(--text-sm); }
+/* A phone stands the figures two a row (above), so the line is between the two of a row: the third begins its row at
+   the card's edge, as the first does. A line before every figure after the first drew the third 16px in, a line at
+   its left with nothing beside it. */
+@media (max-width: 720px) {
+  .dash-a-v2 .tc-fig:nth-child(odd) { padding-left: 0; border-left: 0; }
+}
 /* The period's line at the foot: a hairline over it, the dim ink, no band and no button (the door is in the head). */
 .dash-a-v2 .tc-foot { margin-top: 14px; padding: 12px 0 18px; border-radius: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 

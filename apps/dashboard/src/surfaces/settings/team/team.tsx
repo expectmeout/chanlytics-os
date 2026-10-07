@@ -22,6 +22,7 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { Segmented } from "../../kit/segmented/segmented";
 import {
   actingRole,
   canDo,
@@ -106,17 +107,12 @@ function viewAs(myRole: string, previewing: boolean): ReactNode {
       <span className="set-viewas-label" id="set-viewas-label">
         View as
       </span>
-      <div className="cl-tabs" role="group" aria-labelledby="set-viewas-label">
-        {["owner", "operator", "viewer"].map((r) => (
-          <button
-            key={r}
-            className={`cl-tab ${myRole === r ? "active" : ""}`}
-            onClick={() => setViewAs(r === "owner" ? null : r)}
-          >
-            {roleWords(r).label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        labelledBy="set-viewas-label"
+        value={myRole}
+        onValueChange={(r) => setViewAs(r === "owner" ? null : r)}
+        options={["owner", "operator", "viewer"].map((r) => ({ value: r, label: roleWords(r).label }))}
+      />
       {previewing && (
         <span className="set-viewas-note">
           <Icon name="agents" size={10} /> Previewing — controls a {roleWords(myRole).label} wouldn&apos;t have are
@@ -293,13 +289,12 @@ function inviteRow(o: {
         }}
         autoFocus
       />
-      <div className="cl-tabs">
-        {["operator", "viewer"].map((r) => (
-          <button key={r} className={`cl-tab ${o.inviteRole === r ? "active" : ""}`} onClick={() => o.setInviteRole(r)}>
-            {roleWords(r).label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label="Invite as"
+        value={o.inviteRole}
+        onValueChange={o.setInviteRole}
+        options={["operator", "viewer"].map((r) => ({ value: r, label: roleWords(r).label }))}
+      />
       <button className="btn btn-primary btn-sm" onClick={o.invite} disabled={o.teamBusy}>
         {o.teamBusy ? "Sending…" : "Send invite"}
       </button>
