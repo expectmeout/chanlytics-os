@@ -19,17 +19,18 @@ import {
   playbookName,
   poolWords,
   reachLines,
+  readyForMessage,
 } from "@chanlytics/contracts";
 import type { ConsentChannel, PlaybookTrigger, ReachSplit, TemplateGroup } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
 import { policyStore } from "../../legacy-verbs";
 import {
+  CM_NO_MESSAGE_YET,
   cmChannelsKept,
   cmChannelsOn,
   cmDefaultChannels,
   cmOfferedBy,
-  cmReadyForMessage,
   cmReachBy,
   cmReadyOf,
   cmViaTicks,
@@ -305,7 +306,7 @@ function reachReading(input: ModelIn, mo: Moment, on: readonly ConsentChannel[])
 function channelsModelOf({ data, f }: ModelIn, { trig, onList }: Moment, { tpl }: Message) {
   const purpose = enrolPurpose(onList ? f.cls : trig ? trig.cls : null, tpl ? { category: tpl.category } : null);
   const mine = tpl && data.templates ? data.templates.find((t) => t.id === tpl.id) : undefined;
-  const channelReady = cmReadyForMessage(cmReadyOf(data.ready), mine?.message ?? null);
+  const channelReady = readyForMessage(cmReadyOf(data.ready), mine?.message ?? CM_NO_MESSAGE_YET);
   const ticked = f.channels || DEFAULT_CAMPAIGN_CHANNELS;
   // What the moment's message is about: a visit's or a proposal's is theirs, any other moment's the business's news, which by
   // email waits for the workspace's offers as an offer does (contracts isOfferByEmail, decision D2).

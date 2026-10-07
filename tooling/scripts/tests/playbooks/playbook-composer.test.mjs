@@ -1048,7 +1048,7 @@ test("a playbook whose message has no email version in hand says so, and never d
   const now = previewNow(page());
   assert.equal(now.via, null, "no channel is named over words that are not its");
   assert.equal(now.mail, false);
-  assert.equal(textOf(byTestId(page(), "mp-version-note")), "This message has no email version to show here.");
+  assert.equal(textOf(byTestId(page(), "mp-version-note")), "This message has no email version yet.");
 });
 
 test("The To row is one line -- the count, who it reaches on which channel, Who's held back -- the reasons are behind the link, and a thin bar sits under it", () => {

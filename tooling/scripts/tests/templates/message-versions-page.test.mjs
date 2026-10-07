@@ -1440,12 +1440,25 @@ test("a text chosen for a new message says the carriers' sentence and the way ou
   );
   assert.equal(byTestId(tree, "tpl-composer"), null, "no WhatsApp rows");
   assert.equal(byTestId(tree, "tpl-own"), null, "and nothing to write");
+  // The pane's line under "New template" says what an email is (ready when saved, reviewed by no one) and what WhatsApp
+  // does; a text is neither written here nor reviewed, and says its own sentence in the form, not that of an email.
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cm-pane-sub"),
+    null,
+    "no line under the pane's name on a Text",
+  );
+  assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New template");
   assert.equal(byTestId(tree, "template-version-editor"), null, "a text takes no words here");
   assert.equal(textOf(byTestId(tree, "tpl-text-email")), "Write it as an email");
   press(byTestId(tree, "tpl-text-email"));
   tree = redraw();
   assert.equal(whereOf(tree).props.value, "email", "the email is offered instead, and taken");
   assert.ok(byTestId(tree, "tpl-own"));
+  assert.equal(
+    textOf(find(tree, (n) => n.props?.className === "cm-pane-sub")),
+    NEW_WORDS.sub,
+    "and the email's line comes back with it",
+  );
 });
 
 test("the form for an email names the message from its title, refuses a title that makes no name or a name already held, and draws the value as many as it takes", () => {

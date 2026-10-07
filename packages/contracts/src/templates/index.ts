@@ -89,6 +89,7 @@ export {
   reachOutRowName,
   reachOutStepOf,
   versionsOf,
+  noVersionWords,
 } from "./message-versions";
 export type {
   VersionChannel,
@@ -104,7 +105,9 @@ export {
   campaignMessagesOf,
   messageHolds,
   messageWhyNot,
+  readyForMessage,
   messageStandingWords,
+  variablesSlotCount,
   MESSAGE_GONE_WORDS,
   MESSAGE_BEGIN_WORDS,
   RUN_NOW_WITHOUT_VERSION_WORDS,

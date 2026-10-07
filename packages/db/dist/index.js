@@ -2825,7 +2825,8 @@ async function releaseControl(db, p) {
 
 // src/repositories/templates.ts
 import {
-  isReachOutRow
+  isReachOutRow,
+  variablesSlotCount
 } from "../../contracts/dist/index.js";
 async function templatesFor(db, tenantId, channel = "whatsapp") {
   const ofTenant = db.from("templates").select("id, channel, name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId);
@@ -2838,11 +2839,6 @@ async function templatesToSend(db, tenantId, channel = "whatsapp") {
   if (error) throw new Error(`templatesToSend: ${error.message}`);
   return data ?? [];
 }
-function slotsOf(variables) {
-  if (!Array.isArray(variables)) return 0;
-  const positions = variables.map((v) => Number(v?.position)).filter(Number.isFinite);
-  return Math.max(variables.length, ...positions);
-}
 async function messageSlots(db, tenantId, name, language) {
   const { data, error } = await db.from("templates").select("channel, language, variables").eq("tenant_id", tenantId).eq("name", name);
   if (error) throw new Error(`messageSlots: ${error.message}`);
@@ -2851,7 +2847,7 @@ async function messageSlots(db, tenantId, name, language) {
     return wa || Number(b.language === language) - Number(a.language === language);
   });
   const row = rows[0];
-  return row ? slotsOf(row.variables) : null;
+  return row ? variablesSlotCount(row.variables) : null;
 }
 async function messageOfVersion(db, tenantId, id) {
   const { data, error } = await db.from("templates").select("name, language").eq("tenant_id", tenantId).eq("id", id).maybeSingle();

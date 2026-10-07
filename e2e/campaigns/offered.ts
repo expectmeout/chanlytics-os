@@ -28,7 +28,10 @@ export interface TemplateRow extends CampaignMessageRow {
 /** GET /api/v1/templates's body, as far as the composers and the Library read it. */
 export interface TemplatesRead {
   templates: TemplateRow[];
-  /** The messages the route makes of EVERY row of the workspace (lane 1, T7); an older server answers none. */
+  /**
+   * The messages the route makes of EVERY row of the workspace, a WhatsApp version still in review among their versions;
+   * where the answer holds none, messagesOf makes them of `templates`.
+   */
   messages?: CampaignMessage[];
 }
 

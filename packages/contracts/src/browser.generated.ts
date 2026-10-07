@@ -257,13 +257,13 @@ export { personInitials, identityWords, memberWords, cleanDisplayName, providerN
 export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING } from "./shell/refusal";
 export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } from "./shell/tone";
 export { PAGE_VITALS, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";
-export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot, messageStandingWords, MESSAGE_GONE_WORDS, MESSAGE_BEGIN_WORDS, RUN_NOW_WITHOUT_VERSION_WORDS, STARTER_LINE_WORDS, whatsappStoppedRunWords } from "./templates/campaign-message";
+export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot, readyForMessage, messageStandingWords, variablesSlotCount, MESSAGE_GONE_WORDS, MESSAGE_BEGIN_WORDS, RUN_NOW_WITHOUT_VERSION_WORDS, STARTER_LINE_WORDS, whatsappStoppedRunWords } from "./templates/campaign-message";
 export { emailFoot, emailFootHtml } from "./templates/email-foot";
 export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds } from "./templates/inbox-templates";
 export { libraryCount, isLibrarySample } from "./templates/library-count";
 export { languageWords, languageLabels, LANGUAGE_GROUP_WORDS, messageLanguageChoices, templateUntranslatable } from "./templates/message-languages";
 export { toSlotParts, fromSlotParts, partWritten, insertSlot, eraseSlot, clampWords, slotLabel, slotKnown, namedProblem } from "./templates/message-version-slots";
-export { VERSION_CHANNELS, OWN_VERSION_CHANNELS, VERSION_CHANNEL_WORDS, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX, SMS_SEGMENTS_MAX, smsStopLine, smsSegments, smsVersionSegments, versionSlotsRefusal, validateEmailVersion, validateSmsVersion, validateOwnVersion, campaignEmailRules, emailIssues, versionComponents, versionWords, renderOwnVersion, isReachOutRow, reachOutRowName, reachOutStepOf, versionsOf } from "./templates/message-versions";
+export { VERSION_CHANNELS, OWN_VERSION_CHANNELS, VERSION_CHANNEL_WORDS, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX, SMS_SEGMENTS_MAX, smsStopLine, smsSegments, smsVersionSegments, versionSlotsRefusal, validateEmailVersion, validateSmsVersion, validateOwnVersion, campaignEmailRules, emailIssues, versionComponents, versionWords, renderOwnVersion, isReachOutRow, reachOutRowName, reachOutStepOf, versionsOf, noVersionWords } from "./templates/message-versions";
 export { SENDER_WORDS, senderWords, senderLanguage } from "./templates/sender-words";
 export { fillSlots, numberedSlots, slotValueOf, slotWritten } from "./templates/slot-sets";
 export { starterByName, starterByKey, startersOffered, starterForTrigger, startersForTrigger, starterText, starterDraft, starterEmailText, starterSmsText } from "./templates/starter-lookup";

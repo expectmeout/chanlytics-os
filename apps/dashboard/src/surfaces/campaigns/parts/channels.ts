@@ -2,7 +2,7 @@
  * What the composers know of channels (One message, every channel, step 3; the campaigns-on-every-channel spec, 4.9): the
  * messages they offer and by which channels each is held, which channels a campaign may tick for the message in view, which
  * are on, why one cannot be, and how the reach splits across the ones that are. The rules are contracts' (campaign-message.ts:
- * campaignMessagesOf, messageHolds, messageWhyNot; reach-for.ts: channelChoices, reachSplit, heldWords); the readiness is the
+ * campaignMessagesOf, messageHolds, messageWhyNot, readyForMessage; reach-for.ts: channelChoices, reachSplit, heldWords); the readiness is the
  * workspace's (server/campaigns/channels-ready.ts) with the message's own versions laid over it. Plain functions, nothing
  * here draws: the broadcast composer and the playbook composer read the same ones, and parts/send-by.tsx draws the row.
  */
@@ -16,7 +16,6 @@ import {
   channelNeverCarries,
   heldWords,
   messageHolds,
-  messageWhyNot,
   previewVersionsOf,
   reachByWords,
   reachSplitWords,
@@ -56,9 +55,9 @@ export function cmReadyOf(read: ChannelsReady | null | undefined): ChannelsReady
 
 /**
  * The message in view before one is picked, and for a template stamped before messages were kept: WhatsApp's version alone,
- * approved, as every campaign opened.
+ * approved, as every campaign opened. What the pages hand contracts' readyForMessage where they hold no message.
  */
-const CM_NO_MESSAGE_YET: Pick<CampaignMessage, "versions"> = {
+export const CM_NO_MESSAGE_YET: Pick<CampaignMessage, "versions"> = {
   versions: {
     whatsapp: { id: "", status: "approved", hidden: false, blocked: null, reason: null },
     email: null,
@@ -146,28 +145,6 @@ export function cmStandInOf(t: { channel: string }): ConsentChannel {
 /** The business's postal address where its Business record holds one: what an email's foot names (contracts emailFoot). */
 export function cmAddressOf(brain: { profile?: { address?: string | null } | null } | null | undefined): string | null {
   return brain?.profile?.address ?? null;
-}
-
-/**
- * The workspace's readiness with the message in it: a channel that is ready but whose version the message does not hold is
- * closed, saying why in the message's own sentence for it (contracts messageWhyNot: "This message has no email version
- * yet.", "WhatsApp is still reviewing this message's WhatsApp version."), and a channel the workspace is not ready on keeps
- * its own reason ("Connect a WhatsApp number first."), as the verb that creates the campaign reads it (core readyForMessage).
- * The workspace's pause is the workspace's, not the message's, and rides through (`...ready`). `null` is no message in view
- * yet: WhatsApp's version alone, as every campaign opened.
- */
-export function cmReadyForMessage(
-  ready: ChannelsReady,
-  message: Pick<CampaignMessage, "versions"> | null,
-): ChannelsReady {
-  const out: ChannelsReady = { ...ready };
-  for (const c of CONSENT_CHANNELS) {
-    const why = messageWhyNot(message ?? CM_NO_MESSAGE_YET, c);
-    // A channel closed for want of a version keeps what else it carries (email's `offers`: the reason it gives for an offer or
-    // the business's news is the campaigns domain's, never "no version" over it, nor the domain's over "no version").
-    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
-  }
-  return out;
 }
 
 /** One tick of the Send by row as it is drawn. */

@@ -15,6 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isReachOutRow,
+  variablesSlotCount,
   type CampaignMessageRow,
   type Holds,
   type OwnVersionChannel,
@@ -105,15 +106,6 @@ export async function templatesToSend(db: Db, tenantId: string, channel = "whats
   return data ?? [];
 }
 
-/** How many slots a message fills: the highest numbered one its row names, or the rows it lists. */
-function slotsOf(variables: unknown): number {
-  if (!Array.isArray(variables)) return 0;
-  const positions = variables
-    .map((v) => Number((v as { position?: unknown } | null)?.position))
-    .filter(Number.isFinite);
-  return Math.max(variables.length, ...positions);
-}
-
 /**
  * How many slots a message has, for the version being written in `language`: the row of its name the door
  * (save_template_version) would take them from, WhatsApp's first, then the one in this language. Null when the
@@ -131,7 +123,7 @@ export async function messageSlots(db: Db, tenantId: string, name: string, langu
     return wa || Number(b.language === language) - Number(a.language === language);
   });
   const row = rows[0];
-  return row ? slotsOf(row.variables) : null;
+  return row ? variablesSlotCount(row.variables) : null;
 }
 
 /** The name and language of the message a version of this workspace's is, or null when it holds no version of that id. */

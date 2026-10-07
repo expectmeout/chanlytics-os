@@ -20,7 +20,7 @@ export type {
 } from "./ports";
 export { assembleRun } from "./assemble";
 export { runPlaybook } from "./run-playbook";
-export { parseChannels, readyForMessage } from "./message-channels";
+export { parseChannels } from "./message-channels";
 export { readCampaignMessage, templateValues } from "./template-values";
 export { campaignHow, campaignHowOf, createBroadcast } from "./create-broadcast";
 export type { BroadcastReceipt } from "./create-broadcast";

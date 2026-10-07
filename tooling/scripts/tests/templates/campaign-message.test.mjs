@@ -19,13 +19,16 @@ import {
   MESSAGE_GONE_WORDS,
   RUN_NOW_WITHOUT_VERSION_WORDS,
   STARTER_LINE_WORDS,
+  STARTER_TEMPLATES,
   broadcastFailureFix,
   campaignMessageOf,
   campaignMessagesOf,
   messageHolds,
   messageStandingWords,
   messageWhyNot,
+  noVersionWords,
   reachOutRowName,
+  variablesSlotCount,
   whatsappStoppedRunWords,
 } from "@chanlytics/contracts";
 
@@ -219,13 +222,76 @@ test("the slots are WhatsApp's variables, else the anchor's: the highest positio
   assert.equal(campaignMessageOf([E({ variables: { position: 2 } })], NAME, LANGUAGE).slots, 0);
 });
 
-test("the title is the anchor's words for people: its own title, else the name made words", () => {
+test("the count of values a row names is one function, the message's slots and the db's reading of them: the highest position, or the rows listed", () => {
+  assert.equal(variablesSlotCount([{ position: 1 }, { position: 2 }]), 2);
+  assert.equal(variablesSlotCount([{ position: 1 }, { position: 4 }]), 4, "the highest numbered one");
   assert.equal(
-    campaignMessageOf([W({ title: "  Autumn   special " }), E({ title: "Other" })], NAME, LANGUAGE).title,
-    "Autumn special",
+    variablesSlotCount([{ label: "First name" }, { label: "Business" }, { label: "Time" }]),
+    3,
+    "or the rows it lists",
   );
-  assert.equal(campaignMessageOf([E({ title: "Autumn special" })], NAME, LANGUAGE).title, "Autumn special");
-  assert.equal(campaignMessageOf([T()], NAME, LANGUAGE).title, "Autumn note");
+  assert.equal(
+    variablesSlotCount([null, { position: "2" }]),
+    2,
+    "a position written as a number string counts, a null row is a row",
+  );
+  for (const none of [null, undefined, "x", { position: 2 }, []]) assert.equal(variablesSlotCount(none), 0);
+  const message = campaignMessageOf([W({ variables: [{ position: 1 }, { position: 3 }] })], NAME, LANGUAGE);
+  assert.equal(message.slots, variablesSlotCount([{ position: 1 }, { position: 3 }]));
+});
+
+test("a version a message lacks has one sentence per channel, which messageWhyNot says and the previews and cards say in the same words", () => {
+  const nothing = { versions: { whatsapp: null, email: null, sms: null } };
+  assert.deepEqual(
+    ["whatsapp", "email", "sms"].map((c) => noVersionWords(c)),
+    [
+      "This message has no WhatsApp version.",
+      "This message has no email version yet.",
+      "This message has no text version yet.",
+    ],
+  );
+  for (const c of ["whatsapp", "email", "sms"]) assert.equal(messageWhyNot(nothing, c), noVersionWords(c), c);
+  // A WhatsApp version that exists says its own standing, not that it is missing.
+  const reviewing = campaignMessageOf([W({ meta_status: "pending" })], NAME, LANGUAGE);
+  assert.notEqual(messageWhyNot(reviewing, "whatsapp"), noVersionWords("whatsapp"));
+});
+
+test("the title is the message's words for people: the first title its WhatsApp, email or text version carries, else the name made words", () => {
+  const titleOf = (...rows) => campaignMessageOf(rows, NAME, LANGUAGE).title;
+  assert.equal(titleOf(W({ title: "  Autumn   special " }), E({ title: "Other" })), "Autumn special");
+  assert.equal(titleOf(E({ title: "Autumn special" })), "Autumn special");
+  assert.equal(titleOf(T()), "Autumn note");
+  // A title written with the first email version is not lost once a WhatsApp row with no title of its own exists: the
+  // message's title was the anchor's alone, and the anchor moved to the row that has none.
+  assert.equal(titleOf(W(), E({ title: "Autumn special" })), "Autumn special");
+  assert.equal(titleOf(E({ title: "Autumn special" }), W()), "Autumn special", "whichever order the rows came in");
+  assert.equal(
+    titleOf(W(), E(), T({ title: "Autumn text" })),
+    "Autumn text",
+    "a text's, where no other version has one",
+  );
+  // In order: WhatsApp's, then the email's, then the text's.
+  assert.equal(titleOf(T({ title: "Text" }), E({ title: "Email" }), W({ title: "WhatsApp" })), "WhatsApp");
+  assert.equal(titleOf(T({ title: "Text" }), E({ title: "Email" })), "Email");
+  // A blank title says none, so it does not hide the next version's.
+  assert.equal(titleOf(W({ title: "   " }), E({ title: "Autumn special" })), "Autumn special");
+  assert.equal(titleOf(W({ title: "" }), E(), T()), "Autumn note", "none anywhere: the name made words");
+  // A starter's own title is read when no version carries one; a title given outranks it.
+  const [visit] = STARTER_TEMPLATES;
+  assert.equal(
+    campaignMessageOf([W({ name: visit.name }), E({ name: visit.name })], visit.name, LANGUAGE).title,
+    visit.title,
+  );
+  assert.equal(
+    campaignMessageOf([W({ name: visit.name }), E({ name: visit.name, title: "Our reminder" })], visit.name, LANGUAGE)
+      .title,
+    "Our reminder",
+  );
+  // The Library's list is made of the same: one message, one title, whichever row came first.
+  assert.deepEqual(
+    campaignMessagesOf([W(), E({ title: "Autumn special" }), T()]).map((m) => m.title),
+    ["Autumn special"],
+  );
 });
 
 /* ---------------------------------- the rows that are no message's ---------------------------------- */

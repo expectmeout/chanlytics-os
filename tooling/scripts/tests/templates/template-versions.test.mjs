@@ -334,6 +334,33 @@ test("writing a version: the slots are the message's own, from its WhatsApp row,
   assert.equal((await post(write({ name: "no_slots", subject: "Hello", body: "Hi there" }))).template.name, "no_slots");
 });
 
+test("writing a version: a message's values are counted as contracts counts them, the highest number its row names", async () => {
+  // The row lists two values and numbers them 1 and 3: the message fills three, so a version may use {{3}} and not {{4}}.
+  const tables = {
+    memberships: both("viewer", "operator"),
+    templates: [
+      tpl(1, B, {
+        name: "gapped_note",
+        variables: [
+          { position: 1, label: "First name" },
+          { position: 3, label: "Time" },
+        ],
+      }),
+    ],
+  };
+  const w = world(tables);
+  const post = (body) => versions.POST.run(send("POST", body, inB), w.ctx());
+  const note = (body) => write({ name: "gapped_note", subject: "A note", body });
+  await refused(
+    post(note("Hi {{4}}")),
+    "validation",
+    400,
+    "{{4}} is not one of this message's values: it has {{1}} to {{3}}.",
+  );
+  assert.deepEqual(w.calls, []);
+  assert.equal((await post(note("Hi {{1}}, at {{3}}"))).template.name, "gapped_note");
+});
+
 test("writing a version of a starter the workspace has not added: its slots are the starter's, checked before the door", async () => {
   const tables = { memberships: both("viewer", "operator"), templates: [] };
   const w = world(tables);

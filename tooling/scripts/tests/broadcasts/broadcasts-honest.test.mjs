@@ -1083,7 +1083,7 @@ test("REGRESSION: a run waiting on you says the words on the channel its reader 
   // The reader's version is not in hand (the page holds none for it): WhatsApp's words stand under no channel's name, and
   // the sheet says why, rather than draw them as an email.
   const bare = await sheetOf("email", { ...note, versions: undefined });
-  assert.equal(textOf(byTestId(bare, "bc-sheet-version-note")), "This message has no email version to show here.");
+  assert.equal(textOf(byTestId(bare, "bc-sheet-version-note")), "This message has no email version yet.");
   assert.equal(byTestId(bare, "bc-sheet-subject"), null);
   assert.equal(
     textOf(byTestId(bare, "bc-sheet-reader")),
@@ -4873,7 +4873,7 @@ test("a preview whose email version is not in hand says so, and never draws What
   assert.equal(walkNow(tree).who, "Mia Mail");
   assert.equal(byTestId(tree, "mp-via"), null, "no channel is named over words that are not its");
   assert.equal(walkNow(tree).mail, false);
-  assert.equal(textOf(byTestId(tree, "mp-version-note")), "This message has no email version to show here.");
+  assert.equal(textOf(byTestId(tree, "mp-version-note")), "This message has no email version yet.");
 });
 
 /** How many of what the predicate names are drawn inside the fold behind "Who's held back", and how many at all. */

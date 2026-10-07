@@ -2412,6 +2412,9 @@ var VERSION_CHANNEL_WORDS = {
   email: "Email",
   sms: "Text"
 };
+function noVersionWords(channel) {
+  return channel === "whatsapp" ? "This message has no WhatsApp version." : `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version yet.`;
+}
 var EMAIL_SUBJECT_MAX = 60;
 var EMAIL_BODY_MAX = 2e3;
 var SMS_SEGMENTS_MAX = 4;
@@ -12436,8 +12439,6 @@ var PREVIEW_WORDS = {
   heldBack: "Who's held back",
   /** A stand-in on a playbook's walk: how many people the run reaches on a channel. */
   people: (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`,
-  /** The message has no version on the channel the person is reached on, so its words cannot be drawn here. */
-  noVersion: (channel) => `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version to show here.`,
   /** What a held-back person's stand-in says of itself: they are drawn the message's words, and nothing goes to them. */
   notSent: "Not sent",
   /** Where an offer's foot puts the link, which is each person's own: the preview cannot make it. */
@@ -12468,7 +12469,7 @@ function previewOn(channel, o) {
   const label = PREVIEW_CHANNEL_WORDS[channel];
   if (channel === "whatsapp") return { channel, label, version: null, foot: null, missing: null };
   const version = o.versions[channel] ?? null;
-  if (!version) return { channel, label, version: null, foot: null, missing: PREVIEW_WORDS.noVersion(channel) };
+  if (!version) return { channel, label, version: null, foot: null, missing: noVersionWords(channel) };
   if (channel === "email" && o.offer && !o.address?.trim())
     return { channel, label, version: null, foot: null, missing: OFFERS_BY_EMAIL_WORDS.noAddress };
   const foot = channel === "sms" ? smsStopLine(o.language) : emailFoot(
@@ -12495,7 +12496,7 @@ function previewSays(channels, o) {
       continue;
     }
     const words3 = o.versions[channel];
-    if (!words3) return { missing: channel, why: PREVIEW_WORDS.noVersion(channel) };
+    if (!words3) return { missing: channel, why: noVersionWords(channel) };
     const sent2 = renderOwnVersion(channel, words3, o.values, o.language);
     parts2.push(`${label}: ${sent2.subject ? `\u201C${sent2.subject}\u201D \u2014 ` : ""}${clip2(sent2.body)}`);
   }
@@ -30843,10 +30844,11 @@ function messageFrom(name, language, rows) {
   };
   const held = messageHolds({ versions });
   const hidden = Boolean(anchorRow.hidden_at);
+  const titled = [w, e, s].map((r2) => r2?.title ?? null).find((t) => t !== null && t.trim() !== "") ?? null;
   return {
     name,
     language,
-    title: templateTitle(name, anchorRow.title),
+    title: templateTitle(name, titled),
     anchor: { id: anchorRow.id, channel: w ? "whatsapp" : e ? "email" : "sms" },
     slots: variablesSlotCount((w ?? anchorRow).variables),
     category,
@@ -30891,18 +30893,21 @@ var NOT_APPROVED_WORDS = {
   paused: "WhatsApp has paused this message's WhatsApp version.",
   disabled: "WhatsApp has disabled this message's WhatsApp version."
 };
-var NO_WHATSAPP_VERSION_WORDS = "This message has no WhatsApp version.";
-var NO_OWN_VERSION_WORDS = {
-  email: `This message has no ${VERSION_CHANNEL_WORDS.email.toLowerCase()} version yet.`,
-  sms: `This message has no ${VERSION_CHANNEL_WORDS.sms.toLowerCase()} version yet.`
-};
 function messageWhyNot(m, channel) {
   if (messageHolds(m)[channel]) return null;
-  if (channel !== "whatsapp") return NO_OWN_VERSION_WORDS[channel];
   const w = m.versions.whatsapp;
-  if (w === null) return NO_WHATSAPP_VERSION_WORDS;
+  if (channel !== "whatsapp" || w === null) return noVersionWords(channel);
   if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
   return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
+}
+var HOLDS_NOTHING = { versions: { whatsapp: null, email: null, sms: null } };
+function readyForMessage(ready, message) {
+  const out = { ...ready };
+  for (const c of CONSENT_CHANNELS) {
+    const why = messageWhyNot(message ?? HOLDS_NOTHING, c);
+    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
+  }
+  return out;
 }
 var WHATSAPP_STANDING_WORDS = {
   approved: "approved",
@@ -30922,7 +30927,7 @@ function messageStandingWords(m) {
 }
 function whatsappStoppedRunWords(m) {
   const why = m === null ? null : messageWhyNot(m, "whatsapp");
-  return `${why ?? NO_WHATSAPP_VERSION_WORDS} Everyone on this run goes by WhatsApp, so nothing was sent.`;
+  return `${why ?? noVersionWords("whatsapp")} Everyone on this run goes by WhatsApp, so nothing was sent.`;
 }
 var NO_RUN_VERSION_WORDS = "has no version its runs can send";
 var MESSAGE_GONE_WORDS = {
@@ -36392,6 +36397,7 @@ export {
   noNumberWords,
   noProposalSince,
   noTemplateWords,
+  noVersionWords,
   nonBlankOrNull,
   normalizeAnswer,
   normalizeEmail,
@@ -36666,6 +36672,7 @@ export {
   readingSystemPrompt,
   readingUserContent,
   readsAsModel,
+  readyForMessage,
   readyOrWhatsApp,
   reasonLabelOf,
   reasonShort,
@@ -36985,6 +36992,7 @@ export {
   validateReachOutWords,
   validateSmsVersion,
   validateTemplateDraft,
+  variablesSlotCount,
   verbForRoute,
   verbalOptInScript,
   verifyCodeWords,

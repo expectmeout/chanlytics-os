@@ -515,7 +515,9 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
       sub={
         where === "whatsapp"
           ? "WhatsApp reviews it before it can be sent — usually minutes, sometimes a day"
-          : NEW_MESSAGE_WORDS.sub
+          : where === "email"
+            ? NEW_MESSAGE_WORDS.sub
+            : undefined
       }
       onClose={work.leave}
       closeLabel="Cancel"

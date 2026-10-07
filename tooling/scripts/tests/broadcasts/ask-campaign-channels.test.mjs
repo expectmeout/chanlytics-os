@@ -31,7 +31,7 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext, runTool } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { PROPOSAL_SPECS, CHANNEL_WORDS, PREVIEW_WORDS } = await import("@chanlytics/contracts");
+const { PROPOSAL_SPECS, CHANNEL_WORDS, noVersionWords } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
@@ -470,7 +470,7 @@ test("a card whose version is not in hand is refused, never drawn as another cha
   };
   const none = await propose(quiet, { templates: [offer] });
   assert.equal(none.isError, true);
-  assert.match(said(none), /^This message has no email version to show here\. Say so: /);
+  assert.match(said(none), /^This message has no email version yet\. Say so: /);
   assert.equal(none.proposal, null, "no card to approve");
   // With the version, the card says each: the playbook's own words under "Says:".
   const withMail = await propose(quiet, {
@@ -542,6 +542,53 @@ test("campaigns.audiences lists a message with an email version and no WhatsApp 
   assert.ok(t.read.template.has(NOTE), "a message it offers is a row an answer may cite, by the id it lists");
 });
 
+test("campaigns.audiences says its counts are by WhatsApp: with no number a message held on email is listed with a 0 in every can_be_sent count, and is still proposed, by email, to the people it reaches", async () => {
+  const world = { ...NO_NUMBER, templates: [emailNote()] };
+  const supabase = fakeDb(tables(world), {}, { people_list: () => PEOPLE });
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  const out = await runTool(t, { name: "campaigns", input: { action: "audiences" } });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  const everyone = read.audiences.find((a) => a.kind === "everyone");
+  assert.deepEqual(
+    [everyone.can_be_sent_offers, everyone.can_be_sent_messages],
+    [0, 0],
+    "no number: nobody by WhatsApp",
+  );
+  assert.deepEqual(
+    read.templates.find((x) => x.name === "harbor_note").channels,
+    { whatsapp: false, email: true, sms: false },
+    "and the message is held by its email",
+  );
+  // The listing says what its counts are by, and what a zero in them is not.
+  assert.ok(read.note.startsWith("Two consents, two counts each, all by WhatsApp."), read.note);
+  assert.ok(
+    read.note.includes(
+      "A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.",
+    ),
+    read.note,
+  );
+  // That message, proposed by its channels, reaches people: the card's count is the one to quote, not the zero above.
+  const card = await propose({ ...NOTE_BROADCAST, channels: ["email"] }, world);
+  assert.equal(card.isError, false, card.result);
+  assert.match(card.proposal.summary, /^2 people who said yes · by email/);
+  // The tool's own words say the same, in the listing's sentences and in the tail the model reads before it quotes a count.
+  const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+  const listing = toApiTools("owner", true).find((x) => x.name === "campaigns").description;
+  for (const words of [
+    "four counts, all by WhatsApp,",
+    "(who a promotional, or a utility or authentication, template reaches on WhatsApp)",
+    "a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached",
+    "never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached;",
+    "when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to",
+  ])
+    assert.ok(listing.includes(words), words);
+  assert.ok(
+    !listing.includes("never a larger one; when that count is 0"),
+    "a zero is no longer said to be nobody, whatever channels the message holds",
+  );
+});
+
 test("a message with no WhatsApp row is proposed by the channels it holds on a workspace with no number, and refused with what it can go by when none is named", async () => {
   const world = { ...NO_NUMBER, templates: [emailNote()] };
   const ok = await propose({ ...NOTE_BROADCAST, channels: ["email"] }, world);
@@ -584,7 +631,7 @@ test("a message with no WhatsApp row is proposed by the channels it holds on a w
   // version the message lacks, never drawn as the email's.
   const waTick = await propose({ ...quiet, channels: ["whatsapp", "email"] }, offer);
   assert.equal(waTick.isError, true);
-  assert.ok(said(waTick).startsWith(`${PREVIEW_WORDS.noVersion("whatsapp")} Say so: `), said(waTick));
+  assert.ok(said(waTick).startsWith(`${noVersionWords("whatsapp")} Say so: `), said(waTick));
   assert.equal(
     said(await propose(quiet, offer)),
     "This message has no WhatsApp version. Say so, and name channels among email",
@@ -719,7 +766,7 @@ test("Ask is told what a message is: a name with a version on each channel it is
   const listing = described("campaigns");
   const proposing = described("propose_campaign");
   assert.ok(
-    listing.includes("channels (true for each of whatsapp, email and sms it can be sent on now)"),
+    listing.includes("channels (true for each of whatsapp, email and sms it can be sent on now;"),
     "the listing's channels are described",
   );
   assert.equal(

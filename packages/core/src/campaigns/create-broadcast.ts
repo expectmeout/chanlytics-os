@@ -13,6 +13,7 @@ import {
   enrolFor,
   overLimitRefusal,
   paramLabel,
+  readyForMessage,
   UUID,
   type Audience,
   type AudienceKind,
@@ -30,7 +31,7 @@ import {
 import { errField, logger } from "@chanlytics/channels";
 import { assembleRun } from "./assemble";
 import { allowanceRecord, pastTheMonth } from "./allowance";
-import { parseChannels, readyForMessage, refuseTicks } from "./message-channels";
+import { parseChannels, refuseTicks } from "./message-channels";
 import { templateValues } from "./template-values";
 import type { CreateBroadcastCommand, CreateBroadcastPorts } from "./ports";
 
@@ -130,7 +131,7 @@ function askedTime(scheduledFor: unknown, now: Date): Date {
 /**
  * The channels a send goes by as its message can carry them, and the WhatsApp number's health the day's limit is judged
  * by: the workspace's channels now (its number, its texting line, its mailbox) with the versions the message holds laid
- * over them (message-channels.ts readyForMessage), WhatsApp's among them: a version WhatsApp has not approved is no
+ * over them (contracts readyForMessage), WhatsApp's among them: a version WhatsApp has not approved is no
  * version to send. Refuses nothing: a playbook keeps a tick that cannot send yet, and Ask counts a proposal by it.
  */
 export async function campaignHow(

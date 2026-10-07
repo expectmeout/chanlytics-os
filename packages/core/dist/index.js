@@ -2094,6 +2094,7 @@ import {
   enrolPurpose,
   messageAboutOfTrigger as messageAboutOfTrigger3,
   proposalFactsFor,
+  readyForMessage,
   touchesAfterRun,
   triggerOf as triggerOf2,
   triggerOffered,
@@ -2110,18 +2111,8 @@ import {
   CONSENT_CHANNELS,
   DEFAULT_CAMPAIGN_CHANNELS,
   channelChoices,
-  channelNeverCarries,
-  messageWhyNot
+  channelNeverCarries
 } from "../../contracts/dist/index.js";
-var GONE = { versions: { whatsapp: null, email: null, sms: null } };
-function readyForMessage(ready, message) {
-  const out = { ...ready };
-  for (const c of CONSENT_CHANNELS) {
-    const why = messageWhyNot(message ?? GONE, c);
-    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
-  }
-  return out;
-}
 function parseChannels(asked2, kept = null) {
   if (asked2 === void 0 || asked2 === null) {
     const base = kept && kept.length > 0 ? kept : DEFAULT_CAMPAIGN_CHANNELS;
@@ -2472,6 +2463,7 @@ import {
   enrolFor,
   overLimitRefusal,
   paramLabel,
+  readyForMessage as readyForMessage2,
   UUID as UUID2,
   listToken as listToken2,
   DAY_MS as DAY_MS2
@@ -2514,7 +2506,7 @@ function askedTime(scheduledFor, now) {
 }
 async function campaignHow(ports, message, channels, about) {
   const { ready, health } = await ports.channels();
-  return { how: { channels, ready: readyForMessage(ready, message), about }, health };
+  return { how: { channels, ready: readyForMessage2(ready, message), about }, health };
 }
 async function campaignHowOf(ports, message, channels, purpose) {
   const made = await campaignHow(ports, message, channels, "ours");
@@ -2742,7 +2734,7 @@ import {
   isWinBack,
   messageFitsMoment,
   messageHolds as messageHolds3,
-  messageWhyNot as messageWhyNot2,
+  messageWhyNot,
   momentOffered,
   playbookName,
   ruleNeeds,
@@ -2793,7 +2785,7 @@ function refuseMessageThatDisagrees(cls, category) {
 function refuseMessageNoTickHolds(message, channels) {
   const held = messageHolds3(message);
   if (channels.some((c) => held[c])) return;
-  const words = channels.flatMap((c) => messageWhyNot2(message, c) ?? []);
+  const words = channels.flatMap((c) => messageWhyNot(message, c) ?? []);
   throw new AppError14("conflict", words.join(" "), 409);
 }
 async function checkPlaybook(ports, body, existing) {
@@ -38735,7 +38727,6 @@ export {
   reachOutRunIdFor,
   readCampaignMessage,
   readReply,
-  readyForMessage,
   reconcileUnknownRuns,
   refusalScript,
   rejudgeProbe,

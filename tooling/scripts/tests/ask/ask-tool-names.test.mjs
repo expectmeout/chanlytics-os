@@ -616,10 +616,19 @@ function withCallDirection(frozen) {
 /**
  * 7 Oct 2026 (lane 1, T6): campaigns.audiences lists the messages the composers offer, whatever channels they have versions
  * on, each with the channels it can be sent by (contracts messageHolds). Every template of this world is an approved
- * WhatsApp row alone: the one change to the bytes of the listing, `channels` after `category`.
+ * WhatsApp row alone: the one change to the bytes of the listing, `channels` after `category`. (The lane's review) Its
+ * note says its four counts are by WhatsApp, and that a message held on email or text is proposed by its channels, whose
+ * card counts the people they reach, so a 0 in them is not nobody: the other change, to the note.
  */
 function withChannels(frozen) {
   const said = JSON.parse(frozen);
+  const note =
+    typeof said.note === "string"
+      ? `${said.note.replace(
+          "Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and",
+          "Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional template reaches on WhatsApp and",
+        )} A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.`
+      : null;
   const held = { whatsapp: true, email: false, sms: false };
   const into = (t) =>
     Object.fromEntries(
@@ -632,7 +641,9 @@ function withChannels(frozen) {
           : [[k, v]],
       ),
     );
-  return Array.isArray(said.templates) ? JSON.stringify({ ...said, templates: said.templates.map(into) }) : frozen;
+  return Array.isArray(said.templates)
+    ? JSON.stringify({ ...said, templates: said.templates.map(into), ...(note === null ? {} : { note }) })
+    : frozen;
 }
 
 /**

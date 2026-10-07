@@ -10,10 +10,10 @@ import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "..
 import { emailFoot } from "../templates/email-foot";
 import {
   OWN_VERSION_CHANNELS,
+  noVersionWords,
   renderOwnVersion,
   smsStopLine,
   versionWords,
-  VERSION_CHANNEL_WORDS,
   type OwnVersionChannel,
   type VersionWords,
 } from "../templates/message-versions";
@@ -26,9 +26,6 @@ export const PREVIEW_WORDS = {
   heldBack: "Who's held back",
   /** A stand-in on a playbook's walk: how many people the run reaches on a channel. */
   people: (n: number): string => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`,
-  /** The message has no version on the channel the person is reached on, so its words cannot be drawn here. */
-  noVersion: (channel: ConsentChannel): string =>
-    `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version to show here.`,
   /** What a held-back person's stand-in says of itself: they are drawn the message's words, and nothing goes to them. */
   notSent: "Not sent",
   /** Where an offer's foot puts the link, which is each person's own: the preview cannot make it. */
@@ -96,7 +93,8 @@ export interface PreviewOn {
 }
 
 /**
- * A message as one channel carries it. An email's foot is the sender's (emailFoot), named for the business, the
+ * A message as one channel carries it, or the sentence for a channel it has no version on (noVersionWords, messageWhyNot's).
+ * An email's foot is the sender's (emailFoot), named for the business, the
  * address where the page has one, and the words the person's row kept (a visit's time, a proposal's link); a text's is
  * its STOP line, in the version's language. WhatsApp's words are the template's own, which the page draws.
  */
@@ -119,7 +117,7 @@ export function previewOn(
   const label = PREVIEW_CHANNEL_WORDS[channel];
   if (channel === "whatsapp") return { channel, label, version: null, foot: null, missing: null };
   const version = o.versions[channel] ?? null;
-  if (!version) return { channel, label, version: null, foot: null, missing: PREVIEW_WORDS.noVersion(channel) };
+  if (!version) return { channel, label, version: null, foot: null, missing: noVersionWords(channel) };
   // An offer's foot owes the business's postal address (emailFoot refuses to be built without it), and the send holds
   // everyone on it: the preview says so rather than draw a foot the send would never carry.
   if (channel === "email" && o.offer && !o.address?.trim())
@@ -168,7 +166,7 @@ export function previewSays(
       continue;
     }
     const words = o.versions[channel];
-    if (!words) return { missing: channel, why: PREVIEW_WORDS.noVersion(channel) };
+    if (!words) return { missing: channel, why: noVersionWords(channel) };
     const sent = renderOwnVersion(channel, words, o.values, o.language);
     parts.push(`${label}: ${sent.subject ? `“${sent.subject}” — ` : ""}${clip(sent.body)}`);
   }

@@ -92,7 +92,10 @@ const RUN_CHANNEL_WORDS = [
 /**
  * 7 Oct 2026 (lane 1, T11): campaigns says a message where it said an approved WhatsApp template, and says what its
  * audiences listing gives of each: the `channels` a version of it can be sent on now. The four sentences that moved, each
- * once (the listing's, the playbooks', the playbooks' starter, the tail's), and nothing else it says.
+ * once (the listing's, the playbooks', the playbooks' starter, the tail's), and nothing else it says. And (the lane's
+ * review): the listing's four counts are said to be by WhatsApp, a message held on email or text is proposed with the
+ * channels its `channels` name and its card counts them, and the tail quotes a zero only for a message that goes by
+ * WhatsApp. Three more sentences, each once, said over the words above.
  */
 const MESSAGE_WORDS = [
   [
@@ -107,6 +110,18 @@ const MESSAGE_WORDS = [
   [
     "Pick the template first, then quote its can_be_sent count as who the broadcast reaches",
     "Pick the message first, then quote its can_be_sent count as who the broadcast reaches",
+  ],
+  [
+    "four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and",
+    "four counts, all by WhatsApp, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches on WhatsApp) and",
+  ],
+  [
+    "channels (true for each of whatsapp, email and sms it can be sent on now),",
+    "channels (true for each of whatsapp, email and sms it can be sent on now; a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached),",
+  ],
+  [
+    "never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have.",
+    "never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have.",
   ],
 ];
 /**

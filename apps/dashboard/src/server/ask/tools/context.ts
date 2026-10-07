@@ -8,6 +8,7 @@ import {
   emptyReadSet,
   messageWhyNot,
   noteRows,
+  readyForMessage,
   type AskCitationKind,
   type AskProposal,
   type AskReadSet,
@@ -19,7 +20,7 @@ import {
   type NumberHealth,
   type ProposalKindAboveOperator,
 } from "@chanlytics/contracts";
-import { parseChannels, readCampaignMessage, readyForMessage, type TemplateValuesPorts } from "@chanlytics/core";
+import { parseChannels, readCampaignMessage, type TemplateValuesPorts } from "@chanlytics/core";
 import type { RouteContext } from "../../with-route";
 import { readerContext, type ReaderContext } from "../../readers";
 import { whatsappHealthOf } from "../../campaigns/channels-ready";
@@ -295,7 +296,7 @@ export async function askedMessage(t: ToolContext, id: string): Promise<AskedMes
  * Why a proposal that names no channel is refused when its message has no WhatsApp version to go by: it goes by WhatsApp
  * alone, as a campaign always did, so nothing made before changes. Said in the words contracts has for the version it lacks
  * (messageWhyNot), and with what the message can go by -- the channels it holds that the workspace is ready on and its purpose
- * carries (core readyForMessage over the channels the routes read) -- for the model to name. Null where WhatsApp holds it,
+ * carries (contracts readyForMessage over the channels the routes read) -- for the model to name. Null where WhatsApp holds it,
  * and the workspace's own reason for WhatsApp stays the proposal's to give.
  */
 export async function whatsappAloneRefusal(

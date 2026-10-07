@@ -8,16 +8,17 @@ import {
   DEFAULT_CAMPAIGN_CHANNELS,
   emptyAudienceRefusal,
   overLimitRefusal,
+  readyForMessage,
 } from "@chanlytics/contracts";
 import type { AskedPurpose, AudiencePreview, ConsentChannel, ParamSourceKind } from "@chanlytics/contracts";
 import { sameChannels } from "@/lib/campaign-channels";
 import { pageClock } from "@/legacy-bridge/zone";
 import {
+  CM_NO_MESSAGE_YET,
   CM_VIA_WORDS,
   cmChannelsOn,
   cmHeldLines,
   cmReachBy,
-  cmReadyForMessage,
   cmReadyOf,
   cmSplitWords,
   cmStandInOf,
@@ -90,7 +91,7 @@ export function bcReachOf({
   const purpose = (tpl && tpl.purpose) || "marketing";
   const number = data.number || null;
   // The channels it goes by: the ones ticked that the workspace can send on and the message has a version for.
-  const channelReady = cmReadyForMessage(cmReadyOf(data.ready), tpl?.message ?? null);
+  const channelReady = readyForMessage(cmReadyOf(data.ready), tpl?.message ?? CM_NO_MESSAGE_YET);
   // A broadcast is the business's news, whatever its template's category: by email it waits for the workspace's offers as an
   // offer does (contracts isOfferByEmail, decision D2), so a channel is open to it by what an offer's is.
   const on = cmChannelsOn(channels, channelReady, purpose, "ours");

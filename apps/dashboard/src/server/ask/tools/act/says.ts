@@ -1,8 +1,8 @@
 import "server-only";
 import {
   CAMPAIGN_ROOMS,
-  PREVIEW_WORDS,
   exampleParams,
+  noVersionWords,
   previewSays,
   previewVersionsOf,
   renderTemplate,
@@ -35,9 +35,9 @@ export function cardSays(
   });
   if (!by.named)
     return whatsapp === null
-      ? missing(PREVIEW_WORDS.noVersion("whatsapp"))
+      ? missing(noVersionWords("whatsapp"))
       : { says: `${whatsapp.slice(0, limit)}${whatsapp.length > limit ? "…" : ""}` };
-  if (whatsapp === null && by.channels.includes("whatsapp")) return missing(PREVIEW_WORDS.noVersion("whatsapp"));
+  if (whatsapp === null && by.channels.includes("whatsapp")) return missing(noVersionWords("whatsapp"));
   const said = previewSays(by.channels, {
     whatsapp: whatsapp ?? "",
     versions: previewVersionsOf(rows, message.name, message.language),

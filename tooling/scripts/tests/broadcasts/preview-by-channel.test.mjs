@@ -20,6 +20,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { transform } from "lightningcss";
 import * as contracts from "@chanlytics/contracts";
 import { ROOT } from "../_source.mjs";
@@ -46,8 +47,9 @@ installClock();
 const { CmSplitBar } = await import(`${SRC}/surfaces/campaigns/parts/split-bar.tsx`);
 const { MessagePreview, PreviewStepper } = await import(`${SRC}/surfaces/campaigns/parts/message-preview.tsx`);
 const { cmPreviewBy, cmChannelOfPerson } = await import(`${SRC}/surfaces/campaigns/parts/preview-by.ts`);
-const { cmReachBy, cmChannelColour, cmViaTicks, cmDefaultChannels, cmOfferedMessages, cmReadyForMessage, cmStandInOf } =
-  await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
+const channelsModule = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
+const { cmReachBy, cmChannelColour, cmViaTicks, cmDefaultChannels, cmOfferedMessages, cmStandInOf, CM_NO_MESSAGE_YET } =
+  channelsModule;
 const { CmVia } = await import(`${SRC}/surfaces/campaigns/parts/send-by.tsx`);
 const { Meter } = await import(`${SRC}/surfaces/kit/meter/meter.tsx`);
 const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
@@ -216,7 +218,7 @@ test("an email carries the foot the sender adds, a text its STOP line, WhatsApp 
   // A message with no version on the person's channel is said, not drawn as another channel's words.
   const none = on("email", { versions: { sms: VERSIONS.sms } });
   assert.deepEqual([none.version, none.foot], [null, null]);
-  assert.equal(none.missing, "This message has no email version to show here.");
+  assert.equal(none.missing, "This message has no email version yet.");
 });
 
 test("an offered message carries its email and text versions in its own language, read from the rows the workspace holds", () => {
@@ -278,7 +280,7 @@ test("what the preview is handed for a person: the email as a mail, the text as 
   const lost = cmPreviewBy(WHATSAPP, "email", OPTS({ versions: undefined }));
   assert.deepEqual(
     [lost.via, lost.mail, lost.body, lost.note],
-    [null, null, WHATSAPP.body, "This message has no email version to show here."],
+    [null, null, WHATSAPP.body, "This message has no email version yet."],
   );
   // An offer's email reads with the offer's foot (step 4: contracts emailFoot's "offer" kind), the visit's without it.
   const address = "12 Harbor Way";
@@ -372,7 +374,7 @@ test("an email is drawn as a mail -- who from, the subject, the words with their
     values: ["Mia", "7 pm"],
     ...cmPreviewBy(WHATSAPP, "email", OPTS({ versions: {} })),
   });
-  assert.equal(textOf(byTestId(tree, "mp-version-note")), "This message has no email version to show here.");
+  assert.equal(textOf(byTestId(tree, "mp-version-note")), "This message has no email version yet.");
 });
 
 test("the stepper walks the people and wraps, each press one step, and says its place: ‹ Ana Reyes · 1 of 3 ›", () => {
@@ -594,7 +596,7 @@ test("previewSays quotes each channel's own words, in the page's order, named fo
   // A channel the message has no version on is named, with the sentence for it: never WhatsApp's words under its name.
   assert.deepEqual(say(["whatsapp", "email"], { versions: { sms: VERSIONS.sms } }), {
     missing: "email",
-    why: "This message has no email version to show here.",
+    why: "This message has no email version yet.",
   });
   // The room is shared between the channels, none cut under a line's worth, and a cut says so.
   const long = say(["whatsapp", "email"], { whatsapp: "x".repeat(300), limit: 140 }).says;
@@ -674,7 +676,7 @@ const NO_NUMBER = WORKSPACE({ whatsapp: null });
 /** The Send by row for an offered message, as a composer draws it: the ticks it opens on, then the row. */
 const sendByOf = (offered, ready) => {
   const ticked = cmDefaultChannels(ready, offered.message ?? null);
-  const open = cmReadyForMessage(ready, offered.message ?? null);
+  const open = contracts.readyForMessage(ready, offered.message ?? CM_NO_MESSAGE_YET);
   const ticks = cmViaTicks(ticked, open, { purpose: offered.purpose, about: "ours" }, false);
   return { ticked, ticks: Object.fromEntries(ticks.map((t) => [t.channel, { on: t.on, why: t.why }])) };
 };
@@ -721,7 +723,7 @@ test("a message with an email version and no WhatsApp row is offered by the chan
 test("the Send by row closes a channel for want of a version only where the workspace is ready on it, and the rows' words are contracts' (messageWhyNot), one spelling", () => {
   const [offered] = cmOfferedMessages(readOf([rowOf("email")]));
   // No texting line and no mailbox: each says what the workspace is missing, whatever the message holds.
-  const closed = cmReadyForMessage(
+  const closed = contracts.readyForMessage(
     contracts.channelsReady({
       whatsapp: { canSend: true, refusal: null },
       textLine: null,
@@ -738,20 +740,58 @@ test("the Send by row closes a channel for want of a version only where the work
   assert.equal(closed.whatsapp.why, contracts.messageWhyNot(offered.message, "whatsapp"));
   assert.equal(closed.whatsapp.ready, false);
   // What a closed channel carries besides stays: email's `offers` is not replaced by "no version".
-  const open = cmReadyForMessage(WORKSPACE(), offered.message);
+  const open = contracts.readyForMessage(WORKSPACE(), offered.message);
   assert.deepEqual(open.sms, { ...WORKSPACE().sms, ready: false, why: "This message has no text version yet." });
   assert.deepEqual(open.email, WORKSPACE().email, "a channel the message holds is the workspace's as it was");
   assert.equal(
-    cmReadyForMessage({ ...WORKSPACE(), paused: true }, offered.message).paused,
+    contracts.readyForMessage({ ...WORKSPACE(), paused: true }, offered.message).paused,
     true,
     "the pause is the workspace's, and rides through",
   );
   // No message in view yet: WhatsApp's version alone, as every campaign opened.
-  const none = cmReadyForMessage(WORKSPACE(), null);
+  const none = contracts.readyForMessage(WORKSPACE(), CM_NO_MESSAGE_YET);
   assert.deepEqual(
     [none.whatsapp.ready, none.sms.why, none.email.why],
     [true, "This message has no text version yet.", "This message has no email version yet."],
   );
+});
+
+test("one reading of a message in the workspace's channels and one set of words for a version it lacks: contracts' readyForMessage and noVersionWords, with no copy in core, the page or the previews", async () => {
+  const core = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
+  assert.equal(core.readyForMessage, undefined, "core's copy is gone");
+  assert.equal(channelsModule.cmReadyForMessage, undefined, "and the page's");
+  assert.equal(typeof contracts.readyForMessage, "function");
+  assert.equal(contracts.PREVIEW_WORDS.noVersion, undefined, "the previews' own spelling of the sentence is gone");
+  // A message that holds nothing closes every channel the workspace is ready on, in messageWhyNot's words for each.
+  const nothing = { versions: { whatsapp: null, email: null, sms: null } };
+  const closed = contracts.readyForMessage(WORKSPACE(), nothing);
+  assert.deepEqual(
+    contracts.readyForMessage(WORKSPACE(), null),
+    closed,
+    "null is a message the workspace no longer holds",
+  );
+  for (const c of contracts.CONSENT_CHANNELS) {
+    assert.equal(closed[c].ready, false, c);
+    assert.equal(closed[c].why, contracts.messageWhyNot(nothing, c), `${c}: messageWhyNot's`);
+    assert.equal(closed[c].why, contracts.noVersionWords(c), `${c}: the one sentence for a version it lacks`);
+  }
+  // The previews say it in the same words: a channel with no words to draw, whether one person's or the card's.
+  assert.equal(
+    contracts.previewOn("email", { versions: {}, language: "en_US", business: "Harbor Studio" }).missing,
+    contracts.noVersionWords("email"),
+  );
+  assert.deepEqual(
+    contracts.previewSays(["whatsapp", "sms"], {
+      whatsapp: "Hi",
+      versions: {},
+      values: [],
+      language: "en_US",
+      limit: 200,
+    }),
+    { missing: "sms", why: contracts.noVersionWords("sms") },
+  );
+  assert.equal(contracts.noVersionWords("whatsapp"), "This message has no WhatsApp version.");
+  assert.equal(contracts.noVersionWords("sms"), "This message has no text version yet.");
 });
 
 test("the opening ticks are the first channel, in the product's order, that the workspace is ready on and the message holds, and WhatsApp alone where there is none", () => {
@@ -858,7 +898,7 @@ test("a person held back is drawn as the message's own words, noted Not sent: Wh
   );
   // The words not in hand: the sentence for that, never another channel's words under the email's name.
   const lost = held("email", { versions: undefined });
-  assert.deepEqual([lost.via, lost.mail, lost.note], [null, null, "This message has no email version to show here."]);
+  assert.deepEqual([lost.via, lost.mail, lost.note], [null, null, "This message has no email version yet."]);
   // A person on their channel is drawn as ever, whatever the stand-in: no note.
   assert.equal(cmPreviewBy(WHATSAPP, "email", OPTS({ standIn: "sms" })).note, null);
   assert.equal(cmPreviewBy(WHATSAPP, "whatsapp", OPTS({ standIn: "email" })).body, WHATSAPP.body);

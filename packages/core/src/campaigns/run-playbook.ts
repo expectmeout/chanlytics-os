@@ -14,6 +14,7 @@ import {
   enrolPurpose,
   messageAboutOfTrigger,
   proposalFactsFor,
+  readyForMessage,
   touchesAfterRun,
   triggerOf,
   triggerOffered,
@@ -32,7 +33,7 @@ import {
 } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import { allowanceRecord, pastTheMonth } from "./allowance";
-import { parseChannels, readyForMessage } from "./message-channels";
+import { parseChannels } from "./message-channels";
 import type { PlaybookRow, RunBy, RunContext, RunOutcome, RunPlaybookCommand, RunPlaybookPorts } from "./ports";
 
 type Skipped = Extract<RunOutcome, { outcome: "off" }>["skipped"];

@@ -12,7 +12,7 @@
  *  2. The anchor, which any campaign's `template_id` may point at, is the WhatsApp row if there is one, else the email,
  *     else the text.
  *  3. The slots are the WhatsApp row's `variables`, else the anchor's: the highest numbered slot a row names, or the
- *     slots it lists.
+ *     slots it lists (variablesSlotCount, which the db's own reading of a message's slots is too).
  *  4. The category is the WhatsApp row's, in any status: it is Meta's word, and it stands even when the row is
  *     waiting, refused or paused. With no WhatsApp row it is the category the own rows carry, the strictest of them:
  *     marketing beats utility, and a row with none is marketing, as the send reads it (consent purposeOfTemplate).
@@ -23,21 +23,28 @@
  *     the reader reads as "a heading that takes a value" on every row, and that is no reason to hold the email); email
  *     and text when the row exists. Whether the workspace is ready on a channel is channelsReady's, not this module's.
  *  6. The message is hidden when its anchor is, and offered when it is not hidden and holds at least one channel.
- *  7. A channel the message does not hold has one sentence for it (messageWhyNot), whichever page or verb says it.
+ *  7. A channel the message does not hold has one sentence for it (messageWhyNot; noVersionWords, which it is built on,
+ *     where a preview or a card has the channel and no message), whichever page or verb says it, and the workspace's
+ *     channels with the message in them are one reading (readyForMessage: a channel it is ready on but the message has
+ *     no version on is closed, in that sentence).
  *  8. Where one language of it stands on each channel has one set of words, the Library's (messageStandingWords).
  *  9. What a campaign's page, route and Ask say of a message whose WhatsApp version is not one a send can use has one
  *     set of words too (messageWhyNot, whatsappStoppedRunWords, MESSAGE_GONE_WORDS, RUN_NOW_WITHOUT_VERSION_WORDS,
  *     STARTER_LINE_WORDS): each says the WhatsApp version where it means that one, and names no template.
+ * 10. The title is the first non-blank one its WhatsApp, email or text version carries, in that order, else the
+ *     starter's, else the name made words: not the anchor's alone, so a title written with the first email version stays
+ *     when a WhatsApp row with none comes.
  */
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 import { purposeOfTemplate, type AskedPurpose } from "../consent/consent";
 import { TEMPLATE_STATUSES, type TemplateStatus } from "../shared/enums";
+import type { ChannelsReady } from "../broadcasts/reach-for";
 import { CAMPAIGN_ROOMS } from "../shell/campaign-rooms";
 import {
   VERSION_CHANNEL_WORDS,
   isReachOutRow,
+  noVersionWords,
   versionsOf,
-  type OwnVersionChannel,
   type VersionChannel,
 } from "./message-versions";
 import { refusedWords, templateBlocked } from "./template-parts";
@@ -69,7 +76,7 @@ export interface CampaignMessageRow {
 export interface CampaignMessage {
   name: string;
   language: string;
-  /** What the message is called for people: the anchor's title, else the starter's, else its name made words. */
+  /** What the message is called for people: the first title its WhatsApp, email or text version carries, else the starter's, else its name made words. */
   title: string;
   /** The version a campaign's `template_id` may point at (rule 2). */
   anchor: { id: string; channel: VersionChannel };
@@ -99,9 +106,9 @@ export interface CampaignMessage {
 
 /**
  * How many values a row's `variables` list names: the highest position it carries, or how many it lists. The one count
- * every version of a message is held to.
+ * every version of a message is held to, which the db reads a message's slots by too.
  */
-function variablesSlotCount(variables: unknown): number {
+export function variablesSlotCount(variables: unknown): number {
   if (!Array.isArray(variables)) return 0;
   const positions = variables
     .map((v: VariableLike | null) => Number(v?.position))
@@ -148,10 +155,13 @@ function messageFrom(name: string, language: string, rows: readonly CampaignMess
   };
   const held = messageHolds({ versions });
   const hidden = Boolean(anchorRow.hidden_at);
+  // The title is the message's, not the anchor's: one written with the first email version stays once a WhatsApp row of
+  // no title comes, and a row's blank title says none.
+  const titled = [w, e, s].map((r) => r?.title ?? null).find((t) => t !== null && t.trim() !== "") ?? null;
   return {
     name,
     language,
-    title: templateTitle(name, anchorRow.title),
+    title: templateTitle(name, titled),
     anchor: { id: anchorRow.id, channel: w ? "whatsapp" : e ? "email" : "sms" },
     slots: variablesSlotCount((w ?? anchorRow).variables),
     category,
@@ -218,29 +228,44 @@ const NOT_APPROVED_WORDS: Record<Exclude<TemplateStatus, "approved">, string> = 
   disabled: "WhatsApp has disabled this message's WhatsApp version.",
 };
 
-/** What WhatsApp says when the message has no row there. */
-const NO_WHATSAPP_VERSION_WORDS = "This message has no WhatsApp version.";
-
-/** What an email or a text says when the message has no row there. */
-const NO_OWN_VERSION_WORDS: Record<OwnVersionChannel, string> = {
-  email: `This message has no ${VERSION_CHANNEL_WORDS.email.toLowerCase()} version yet.`,
-  sms: `This message has no ${VERSION_CHANNEL_WORDS.sms.toLowerCase()} version yet.`,
-};
-
 /**
  * The sentence for a channel the message does not hold (rule 7), null for one it does: the one set of words a page, a
  * verb and Ask say it in. Whether the workspace is ready on the channel keeps its own reason, which wins over this
- * (core readyForMessage closes only a channel that is ready).
+ * (readyForMessage, below, closes only a channel that is ready).
  */
 export function messageWhyNot(m: Pick<CampaignMessage, "versions">, channel: ConsentChannel): string | null {
   if (messageHolds(m)[channel]) return null;
-  if (channel !== "whatsapp") return NO_OWN_VERSION_WORDS[channel];
   const w = m.versions.whatsapp;
-  if (w === null) return NO_WHATSAPP_VERSION_WORDS;
+  if (channel !== "whatsapp" || w === null) return noVersionWords(channel);
   if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
   return w.blocked === null
     ? null
     : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
+}
+
+/** A message the workspace holds no row of (it was deleted): it holds nothing, and says so on every channel. */
+const HOLDS_NOTHING: Pick<CampaignMessage, "versions"> = { versions: { whatsapp: null, email: null, sms: null } };
+
+/**
+ * The workspace's channels with the message in them: a channel the workspace is ready on whose version the message does
+ * not hold is not ready, and says so in the message's own sentence for it (messageWhyNot: "This message has no email
+ * version yet.", "WhatsApp is still reviewing this message's WhatsApp version."), so every reader of "can this go by
+ * email" asks one answer, and `reachFor` never enrols a person on a channel the message cannot be said on. A channel the
+ * workspace is not ready on keeps its own reason, and what else it carries stays (email's `offers`, which the news by email
+ * and an offer are judged by: closing the channel for a missing version must not make it say the campaigns domain is
+ * missing). The workspace's pause is the workspace's, not the message's, and rides through. `null` is a message the
+ * workspace no longer holds; a page with no message in view yet hands its own stand-in (the pages' CM_NO_MESSAGE_YET).
+ */
+export function readyForMessage(
+  ready: ChannelsReady,
+  message: Pick<CampaignMessage, "versions"> | null,
+): ChannelsReady {
+  const out: ChannelsReady = { ...ready };
+  for (const c of CONSENT_CHANNELS) {
+    const why = messageWhyNot(message ?? HOLDS_NOTHING, c);
+    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
+  }
+  return out;
 }
 
 /**
@@ -281,7 +306,7 @@ export function messageStandingWords(
  */
 export function whatsappStoppedRunWords(m: Pick<CampaignMessage, "versions"> | null): string {
   const why = m === null ? null : messageWhyNot(m, "whatsapp");
-  return `${why ?? NO_WHATSAPP_VERSION_WORDS} Everyone on this run goes by WhatsApp, so nothing was sent.`;
+  return `${why ?? noVersionWords("whatsapp")} Everyone on this run goes by WhatsApp, so nothing was sent.`;
 }
 
 /** What a playbook says of a message none of whose versions a run can send: true on every channel, not WhatsApp's alone. */
