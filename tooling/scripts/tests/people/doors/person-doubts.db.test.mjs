@@ -1,5 +1,5 @@
 /**
- * The doubt queue, on a real database (00343, decision 0034 step 4).
+ * The doubt queue, on a real database (00344, decision 0034 step 4).
  *
  * resolve_person never merges: when an arrival's name or address names another living record the merge could join, it
  * writes the pair on person_doubts, once. What settles a doubt is proved here, since it is triggers, grants and a

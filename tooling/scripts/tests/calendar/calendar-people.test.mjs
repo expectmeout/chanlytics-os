@@ -1062,7 +1062,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
     "pg_cron calls the edge every hour, like the other sweeps",
   );
   // The sweep's writer, run over a database in memory through the one door a person is resolved by (resolve_person,
-  // decision 0034; 00343): a new person with the appointment on their added event, a known number named and given the
+  // decision 0034; 00344): a new person with the appointment on their added event, a known number named and given the
   // address it came with, an address another person holds left theirs, and a person who asked to be erased left erased
   // and counted, never made again. The door itself is proved on a stack (people/doors/resolve-person.db.test.mjs).
   const { addPeopleFromCalendar } = await importSrc("apps/edge/lib/calendar/calendar-people.ts");

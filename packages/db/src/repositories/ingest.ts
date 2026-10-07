@@ -300,7 +300,7 @@ export async function recordOutbound(
 
 /**
  * A first-time caller's row, through the one door a person is resolved by (resolve_person, decision 0034: 00342,
- * 00343): the number as their voice identity, observed, seen now. The door makes nobody twice (a caller who texted
+ * 00344): the number as their voice identity, observed, seen now. The door makes nobody twice (a caller who texted
  * first is the same person) and keeps the identity the call's own ingest will find. The row is then read for what the
  * consent predicate asks of it.
  */

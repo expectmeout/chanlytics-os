@@ -1,5 +1,5 @@
 /**
- * A person is resolved by one door, on a real database (00342 and 00343, decision 0034 steps 1 to 4).
+ * A person is resolved by one door, on a real database (00342 and 00344, decision 0034 steps 1 to 4).
  *
  * Nine writers each matched a person their own way, and nothing merged or said when two records might be one person.
  * resolve_person is the door they all go through now: the erasure digests first on the passive paths (a member's, a
@@ -94,7 +94,7 @@ const identitiesOf = async (id) =>
     await db.from("contact_identities").select("channel, external_id, assurance").eq("contact_id", id).order("channel"),
     "identities",
   );
-/** The doubts naming a record, either way round, oldest first: the queue the People page reads (00343). */
+/** The doubts naming a record, either way round, oldest first: the queue the People page reads (00344). */
 const doubtsOf = async (id) =>
   ok(
     await db

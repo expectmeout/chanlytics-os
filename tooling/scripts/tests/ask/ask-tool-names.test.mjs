@@ -706,7 +706,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       NAMES[old] === "people.get" && !reachReads.includes("decisions.select")
         ? [...reachReads, "decisions.select"]
         : reachReads;
-    // 7 Oct 2026 (00343, decision 0034 step 4): a person's page reads the open doubts naming them (person_doubts) in the
+    // 7 Oct 2026 (00344, decision 0034 step 4): a person's page reads the open doubts naming them (person_doubts) in the
     // same round, so people.get makes that one read more; its bytes are unchanged, the tool not saying them yet.
     const reads = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
     const [gotResult, wantResult] =

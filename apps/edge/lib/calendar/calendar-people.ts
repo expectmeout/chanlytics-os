@@ -7,7 +7,7 @@
  * their profile and the receptionist greets them by name the day they call.
  * If the owner does not want someone, they delete them from the profile.
  *
- * Each row goes through the one door a person is resolved by (resolve_person, decision 0034: 00342, 00343), as a
+ * Each row goes through the one door a person is resolved by (resolve_person, decision 0034: 00342, 00344), as a
  * feed's word (found), with the appointment on the added event so the profile can say "Added from your calendar". The
  * door matches by number then address, makes nobody twice, fills a name and an address only where they are empty, keeps
  * an address another person here holds as theirs, and refuses a person who asked to be erased (PE001), who is counted

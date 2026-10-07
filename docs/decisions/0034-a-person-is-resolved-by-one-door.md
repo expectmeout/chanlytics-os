@@ -4,7 +4,7 @@
 person asked to be forgotten, 00331) built with the note; steps 1 and 3, and step 2's first two writers, built on 7
 October 2026 (00342): `resolve_person`, called by `create_person` and `import_person`, with `contact_identities.assurance`
 written by it and `person.resolved` in the catalogue, as evidence the purge takes; the rest of step 2 and step 4 built
-the same day (00343): every writer matches through the door (`ingest_inbound`, `ingest_call`, `lead_set_stage` and
+the same day (00344): every writer matches through the door (`ingest_inbound`, `ingest_call`, `lead_set_stage` and
 `reach_out_person` in SQL; the calendar sweep, the booking link and the email intake through `packages/db`'s
 `resolvePerson`), a doubt is a row on `person_doubts` that the People page shows as "Same person?" with Merge (0028's
 door) and Not the same (`person_doubt_dismiss`), and the two open questions are answered below. Step 5, the lead link on
@@ -120,7 +120,7 @@ _Both orders:_ a function nothing calls.
 first (members' doors, the smallest; built, 00342: each keeps its signature, its checks and its answer, and asks the
 door for the match as a member's assertion), then the calendar sweep and the board, then `lead_set_stage` and
 `reach_out_person`, then `ingest_call`, then the booking link and the email backfill, and `ingest_inbound` last, with
-`inbound-executed.test.mjs`'s cases green. Built, 00343, the other seven in one change, each keeping its signature and
+`inbound-executed.test.mjs`'s cases green. Built, 00344, the other seven in one change, each keeping its signature and
 its answer (the board's write, `people-seen.ts`, reaches the door through `create_person` already): an arrival on the
 wire (they wrote, they called: _observed_) writes no `contact.added`, since the message or the call is the record and
 00306's trigger says the wire, and is never refused by the erasure digests, since a person who asked to be forgotten
@@ -128,7 +128,7 @@ and writes again is a new person, as the inbound doors always made them; a name 
 (`wa_profile_name`), a member's or the finder's fills `display_name` only where it is empty; an identity already held
 is written only when its word gets stronger. The door defaults every argument but the workspace; `packages/db`'s
 wrapper still names all nine of 00342's, an empty word for what it did not see, so a database on 00342 answers an
-edge on 00343 with the first cut's match, and the email intake keeps naming a person known by address until 00343 is
+edge on 00344 with the first cut's match, and the email intake keeps naming a person known by address until 00344 is
 on production. _Both orders:_ each writer's old path answers an older edge.
 
 **3 · Assurance on identities.** The column, written by the door; readers ignore it until step 5. Built, 00342: observed
@@ -136,7 +136,7 @@ by default for every identity the inbound doors wrote before it, and a stronger 
 door's upsert, never the reverse. _Both orders._
 
 **4 · The doubt queue:** `person_doubts`, written by `resolve_person`, and the People page's "same person?" row with
-Merge (0028's door, `POST /api/v1/contacts/[id]/merge`) and Not the same, which settles the pair. Built, 00343: a doubt
+Merge (0028's door, `POST /api/v1/contacts/[id]/merge`) and Not the same, which settles the pair. Built, 00344: a doubt
 is raised only for a pair 0028's door could join (two numbers, or two addresses, are two people by rule), written once
 per pair whichever way round, never the value itself, only which of the three was seen; the row says who else it could
 be, Merge opens 0028's box with that record chosen (the owner's act), Not the same is any acting member's

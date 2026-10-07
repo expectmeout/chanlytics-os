@@ -100,11 +100,11 @@ export interface IngestEmailParams {
 }
 
 export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<IngestResult> {
-  // Who has this address is the inbound door's to say (00343: ingest_inbound hands the address to resolve_person, which
+  // Who has this address is the inbound door's to say (00344: ingest_inbound hands the address to resolve_person, which
   // matches by the email identity, then by the address on a row, and keeps the identity). Until every database carries
-  // 00343, a database before it matches by the identity alone, so a person known here by address and not yet by an
+  // 00344, a database before it matches by the identity alone, so a person known here by address and not yet by an
   // email identity is given one first, as before; after the door, the upsert finds the identity it kept and writes
-  // nothing. This read and write leave once 00343 is on production.
+  // nothing. This read and write leave once 00344 is on production.
   const known = await db
     .from("contacts")
     .select("id")
@@ -156,8 +156,8 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     optIn,
   });
 
-  // The address on a new person's row is the door's to set (00343). A database before it leaves the row without one,
-  // so until every database carries 00343 it is set here where it is still empty: a no-op after the door. Somebody
+  // The address on a new person's row is the door's to set (00344). A database before it leaves the row without one,
+  // so until every database carries 00344 it is set here where it is still empty: a no-op after the door. Somebody
   // else in the workspace holding this address is a doubt the door keeps now; here, as before, the email is kept
   // either way and the owner merges them.
   {

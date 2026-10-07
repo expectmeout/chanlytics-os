@@ -456,7 +456,7 @@ function byWaiting(a, b, ...cols) {
   return 0;
 }
 
-/* ---------------------------------------------------- resolve_person (00342, 00343), from the rows a world holds */
+/* ---------------------------------------------------- resolve_person (00342, 00344), from the rows a world holds */
 
 /** How sure the door is of an identity (contact_identities.assurance): a stronger word replaces a weaker one. */
 const ASSURANCE_RANK = { found: 1, asserted: 2, observed: 3 };
@@ -656,7 +656,7 @@ function keepDoubt(tables, tenantId, id, other, seenAs, insertRow) {
 }
 
 /**
- * The one door a person is resolved by (resolve_person, 00342 and 00343; decision 0034), over the rows a world holds,
+ * The one door a person is resolved by (resolve_person, 00342 and 00344; decision 0034), over the rows a world holds,
  * so the sweeps, the booking link and the email intake run their real code over it: the erasure digests first on the
  * passive paths, then the identity, the number and the address; fills what is empty and never overwrites; never
  * merges, and writes a doubt instead for a pair the merge could join; contact.added for a new person a member, a feed
@@ -750,7 +750,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     return fresh;
   };
   const derived = {
-    // The one door a person is resolved by (00342, 00343): the sweeps, the booking link and the email intake call it.
+    // The one door a person is resolved by (00342, 00344): the sweeps, the booking link and the email intake call it.
     resolve_person: (args) => resolvePersonIn(tables, args, insertRow),
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);

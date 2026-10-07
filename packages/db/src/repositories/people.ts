@@ -257,7 +257,7 @@ function mergedOf(v: unknown): MergedPeople {
   };
 }
 
-/** What a door hands resolve_person (00342, 00343): the identity as it saw it, and how sure it is of it. */
+/** What a door hands resolve_person (00342, 00344): the identity as it saw it, and how sure it is of it. */
 export interface ResolvePersonInput {
   tenantId: string;
   /** The provider's identity: its channel and id, both or neither. */
@@ -297,8 +297,8 @@ export interface ResolvedPerson {
  */
 export async function resolvePerson(db: Db, p: ResolvePersonInput): Promise<ResolvedPerson> {
   // Every argument of 00342's signature is named, an empty word for what the caller did not see (the door reads it as
-  // none), so a database still on 00342 answers the call as one on 00343 does: either deploy order. p_seen_at, which
-  // 00343 added with a default, is never named.
+  // none), so a database still on 00342 answers the call as one on 00344 does: either deploy order. p_seen_at, which
+  // 00344 added with a default, is never named.
   const { data, error } = await db.rpc("resolve_person", {
     p_tenant_id: p.tenantId,
     p_channel: p.channel ?? "",
@@ -330,7 +330,7 @@ export async function resolvePerson(db: Db, p: ResolvePersonInput): Promise<Reso
 export const PERSON_FORGOTTEN = "PE001";
 
 /**
- * The open doubts naming a person (00343 person_doubts, decision 0034 step 4), oldest first, each with the other
+ * The open doubts naming a person (00344 person_doubts, decision 0034 step 4), oldest first, each with the other
  * record as People names a row. Read under the caller's row security. A database before the table answers none, so
  * either deploy order shows a page.
  */
@@ -383,7 +383,7 @@ export async function doubtOn(
   return data;
 }
 
-/** Not the same (person_doubt_dismiss, 00343): the member settles the pair, as themselves. The door's refusals are thrown as they came. */
+/** Not the same (person_doubt_dismiss, 00344): the member settles the pair, as themselves. The door's refusals are thrown as they came. */
 export async function dismissPersonDoubt(
   db: Db,
   doubtId: string,

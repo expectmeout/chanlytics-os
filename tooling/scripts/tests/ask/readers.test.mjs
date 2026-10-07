@@ -1299,7 +1299,7 @@ const PERSON_KEYS = [
   "added",
 ];
 /**
- * Every read GET contacts/:id made at origin/main (fad8b7ea) for one person with threads, by table, and since 00343 the
+ * Every read GET contacts/:id made at origin/main (fad8b7ea) for one person with threads, by table, and since 00344 the
  * open doubts naming them (person_doubts, decision 0034 step 4), read in the same round.
  */
 const PERSON_READS = {

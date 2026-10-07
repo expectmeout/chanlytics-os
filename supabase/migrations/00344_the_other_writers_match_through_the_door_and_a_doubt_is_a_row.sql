@@ -1,4 +1,4 @@
--- 00343 · The other writers match through the door, and a doubt is a row.
+-- 00344 · The other writers match through the door, and a doubt is a row.
 --
 -- Decision 0034, the rest of step 2, and step 4. 00342 made resolve_person the one door a person is matched through
 -- and moved the two member doors onto it. Now the four SQL writers that were left follow (ingest_inbound, ingest_call,
@@ -497,7 +497,7 @@ declare
   v_ts              timestamptz := coalesce(p_channel_ts, now());
   v_person          jsonb;
 begin
-  -- The person, through the one door (00342, 00343): the wire's identity, the number, and the address when the wire
+  -- The person, through the one door (00342, 00344): the wire's identity, the number, and the address when the wire
   -- is email; what they called themselves follows the wire; seen now. The door takes the identity's lock this door
   -- took before it, so two first messages still make one person, and keeps the identity.
   v_person := public.resolve_person(
@@ -653,7 +653,7 @@ begin
     from calls where tenant_id = p_tenant_id and retell_call_id = p_retell_call_id;
 
   if p_from_e164 is not null then
-    -- The caller, through the one door (00342, 00343), once per call: a row that already names them is read, not
+    -- The caller, through the one door (00342, 00344), once per call: a row that already names them is read, not
     -- resolved again, so a live call's every transcript turn writes nothing of the person. The door takes the voice
     -- identity's lock this door took before it, keeps the identity, and moves last_seen_at to the call's start only
     -- forward.
@@ -846,7 +846,7 @@ begin
       v_contact := v_lead.contact_id;
       v_existed := true;
     else
-      -- The person, through the one door (00342, 00343): whose number this is, else whose address, else a new one
+      -- The person, through the one door (00342, 00344): whose number this is, else whose address, else a new one
       -- named for the business, as the finder's word (found), with the lead on the added event (what People reads
       -- back as "A lead you found", 00138), the address filled where nobody here holds it, and a person who asked to
       -- be forgotten refused (PE001). A number not in international form is no number.
@@ -966,7 +966,7 @@ begin
                    where i.tenant_id = p_tenant_id and i.channel = 'email' and i.external_id = v_email) then
       return jsonb_build_object('refused', 'already_yours');
     end if;
-    -- The person, through the one door (00342, 00343), with the lead-link trigger told this is not a lead converting:
+    -- The person, through the one door (00342, 00344), with the lead-link trigger told this is not a lead converting:
     -- the address as the identity, the finder's word (found), the lead on the added event, `by` the sender. A person
     -- the door finds instead of making (another lead's claim, an email in, between the look above and here) is
     -- somebody's already; an address People cannot hold is none; a person who asked to be forgotten is left alone.

@@ -775,16 +775,16 @@ const SOURCES = {
 };
 
 /** The migration that re-creates a function last, after 00220, whose own suite holds it to the body before it. */
-const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00343" };
+const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00344" };
 
 /**
- * 00343 (decision 0034, step 2) re-creates four doors whole, each its last body but for the person's block, which the
+ * 00344 (decision 0034, step 2) re-creates four doors whole, each its last body but for the person's block, which the
  * one door (resolve_person) resolves now: the body it was re-created from last, and the lines it meant to change as
  * [was, is] blocks, each found once in that body. lead_set_stage's last is 00220's (held above to 00142's); the
  * inbound door's 00110's, the call door's 00164's, the reach-out person's 00184's. The test below the next holds each
- * to it, and the database to 00343's.
+ * to it, and the database to 00344's.
  */
-const RECREATED_00343 = {
+const RECREATED_00344 = {
   ingest_inbound: [
     "00110",
     [
@@ -821,7 +821,7 @@ const RECREATED_00343 = {
         [
           "  v_person          jsonb;",
           "begin",
-          "  -- The person, through the one door (00342, 00343): the wire's identity, the number, and the address when the wire",
+          "  -- The person, through the one door (00342, 00344): the wire's identity, the number, and the address when the wire",
           "  -- is email; what they called themselves follows the wire; seen now. The door takes the identity's lock this door",
           "  -- took before it, so two first messages still make one person, and keeps the identity.",
           "  v_person := public.resolve_person(",
@@ -883,7 +883,7 @@ const RECREATED_00343 = {
           "    on conflict (tenant_id, channel, external_id) do nothing;",
         ],
         [
-          "    -- The caller, through the one door (00342, 00343), once per call: a row that already names them is read, not",
+          "    -- The caller, through the one door (00342, 00344), once per call: a row that already names them is read, not",
           "    -- resolved again, so a live call's every transcript turn writes nothing of the person. The door takes the voice",
           "    -- identity's lock this door took before it, keeps the identity, and moves last_seen_at to the call's start only",
           "    -- forward.",
@@ -941,7 +941,7 @@ const RECREATED_00343 = {
         ],
         [
           "    else",
-          "      -- The person, through the one door (00342, 00343): whose number this is, else whose address, else a new one",
+          "      -- The person, through the one door (00342, 00344): whose number this is, else whose address, else a new one",
           "      -- named for the business, as the finder's word (found), with the lead on the added event (what People reads",
           '      -- back as "A lead you found", 00138), the address filled where nobody here holds it, and a person who asked to',
           "      -- be forgotten refused (PE001). A number not in international form is no number.",
@@ -983,7 +983,7 @@ const RECREATED_00343 = {
           "            jsonb_build_object('source', 'lead', 'lead_id', p_lead_id, 'by', 'reach_out'));",
         ],
         [
-          "    -- The person, through the one door (00342, 00343), with the lead-link trigger told this is not a lead converting:",
+          "    -- The person, through the one door (00342, 00344), with the lead-link trigger told this is not a lead converting:",
           "    -- the address as the identity, the finder's word (found), the lead on the added event, `by` the sender. A person",
           "    -- the door finds instead of making (another lead's claim, an email in, between the look above and here) is",
           "    -- somebody's already; an address People cannot hold is none; a person who asked to be forgotten is left alone.",
@@ -1040,11 +1040,11 @@ test("every function re-created whole is its source's body but for the lines it 
 });
 
 test(
-  "00343 re-creates four doors whole, each its last body but for the person's block, and the database runs them",
+  "00344 re-creates four doors whole, each its last body but for the person's block, and the database runs them",
   { skip },
   () => {
-    const now = migration("00343");
-    for (const [name, [from, changes]] of Object.entries(RECREATED_00343)) {
+    const now = migration("00344");
+    for (const [name, [from, changes]] of Object.entries(RECREATED_00344)) {
       const header = `create or replace function public.${name}(`;
       const source = bodyIn(migration(from), header);
       const at = changes.map(([was, is]) => {
@@ -1060,7 +1060,7 @@ test(
         cut = c.to;
       }
       want += source.slice(cut);
-      assert.equal(bodyIn(now, header), want, `${name}: 00343 writes its last body with these changes only`);
+      assert.equal(bodyIn(now, header), want, `${name}: 00344 writes its last body with these changes only`);
       const [live] = query(
         `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
       );

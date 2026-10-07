@@ -1,5 +1,5 @@
 /**
- * A doubt: two records one identity could belong to (decision 0034, step 4; 00343 person_doubts).
+ * A doubt: two records one identity could belong to (decision 0034, step 4; 00344 person_doubts).
  *
  * The door that resolves a person (resolve_person) never merges on its own. When an arrival's name, number or address
  * names another living record that 0028's door could join with this one (no two numbers, no two addresses: those are

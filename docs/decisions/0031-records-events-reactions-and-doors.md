@@ -4,7 +4,7 @@
 (00332) are built; of Phase 1, the spine (00333 to 00336, through 0032 and 0033), intake lag (00337), the event-shaped
 clocks ratchet that holds invariant 6 (`tooling/scripts/tests/clocks/_clocks.mjs`) and the writers-per-table ratchet that
 shows invariant 1 (`tooling/scripts/tests/baselines/writers.json`); of Phase 2, 0034's door with every writer on it and
-its doubt queue (00342 and 00343, 7 October 2026); the rest is not yet built: this note is the frame, and each step below is a note of its own,
+its doubt queue (00342 and 00344, 7 October 2026); the rest is not yet built: this note is the frame, and each step below is a note of its own,
 three of them decided with it (0032, 0033, 0034), and "Where it stands" below says, phase by phase and invariant by
 invariant, what is built and what is not. Proposed the same day from the wiring map of 5 October (the trace of
 how the Inbox, Campaigns, People, the Calendar and Setup reach each other, and a second review of it answered point by
@@ -163,7 +163,7 @@ request id.
 
 Read against main at `49765c8d` (7 October 2026), after Phase 1 (#1447), the keyed write and the erasure registry
 (#1451) and 0034's door (00342), and brought up to the change that put every writer on the door with its doubt queue
-(00343, the same day). Not fully complete: Phases 0 and 1 are built in mechanism and measured; Phase 2 has
+(00344, the same day). Not fully complete: Phases 0 and 1 are built in mechanism and measured; Phase 2 has
 begun; Phases 3 to 5 are not started. Of the twelve invariants, four are held by a mechanism and a test, four in part,
 and four are not begun.
 
@@ -171,7 +171,7 @@ and four are not begun.
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 · Fix, instrument, stage                | The seven fixes (00330, 00331, #1447); the five numbers (00332) and intake lag (00337), read on the back office                                                                                            | The log drain, the outside pinger, the second alarm path and the staging project: Ruben's switches, deferred by Ruben                              |
 | 1 · The spine, alone                      | All of it (00333 to 00337): 0032 steps 1 to 4, 0033 steps 1, 2 and 4; an older edge proved green against the new tables                                                                                    | 0033 step 3, the three job indexes, which wait on a dedupe index covering finished rows; the reach-out sender's own count until its sends are jobs |
-| 2 · One door, one vertical, one channel   | 0034 steps 0 to 4 (00331, 00342, 00343): `resolve_person` with every one of the nine writers on it, assurance on identities, the doubt queue and the People page's row                                     | 0034 step 5, the lead link on every identity; 0002 entire; 0032 step 5, the first real subscriber; SMS answered after the acknowledgement          |
+| 2 · One door, one vertical, one channel   | 0034 steps 0 to 4 (00331, 00342, 00344): `resolve_person` with every one of the nine writers on it, assurance on identities, the doubt queue and the People page's row                                     | 0034 step 5, the lead link on every identity; 0002 entire; 0032 step 5, the first real subscriber; SMS answered after the acknowledgement          |
 | 3 · The receptionist as a governed system | Nothing; 0023's shadow port is the base, and off                                                                                                                                                           | Each item, a note of its own first                                                                                                                 |
 | 4 · Orchestration and the control plane   | 0036 steps 1 and 2, the erasure registry with its ratchet, the notes' scrub and the completeness proof (00341); 0035 steps 1 and 3, a keyed write answered once (00340), with step 2 begun at eight routes | Everything else; 0036 step 3 and 0035's remaining client calls are the nearest                                                                     |
 | 5 · Scale and observation                 | Nothing                                                                                                                                                                                                    | 0019 step 4 only if wanted; the rest with Phase 4's numbers                                                                                        |
@@ -181,7 +181,7 @@ production meets the targets is held by nothing yet, which is invariant 12.
 
 | #   | Invariant                                              | Where it stands                                                                                                                                                                                                              |
 | --- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | One record, one writer                                 | In part: the writers ratchet (57 tables with more than one, `person_doubts` the fifty-seventh, argued in `docs/debt.md`; `contacts` 22 and `contact_identities` 3 since 00343); the table-to-door registry test is not built |
+| 1   | One record, one writer                                 | In part: the writers ratchet (57 tables with more than one, `person_doubts` the fifty-seventh, argued in `docs/debt.md`; `contacts` 22 and `contact_identities` 3 since 00344); the table-to-door registry test is not built |
 | 2   | Fact and event in one transaction, no subscriber named | Mechanism built (0032); the conformance test per door and the doors-without-events baseline are not                                                                                                                          |
 | 3   | At least once and idempotent below the commit          | Held: one delivery per event and subscriber, `jobs.dedupe_key`, the double-delivery harness                                                                                                                                  |
 | 4   | At most once at the wire                               | Held, unchanged; duplicate sends counted since 00332                                                                                                                                                                         |

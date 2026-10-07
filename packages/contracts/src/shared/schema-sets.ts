@@ -130,7 +130,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"contact_identities.channel">>>,
   // How sure a door was of an identity (00342, decision 0034).
   Holds<Exactly<Of<typeof IDENTITY_ASSURANCES>, SchemaSet<"contact_identities.assurance">>>,
-  // A doubt the door raised (00343, decision 0034 step 4): which identity was seen, and how the pair was settled.
+  // A doubt the door raised (00344, decision 0034 step 4): which identity was seen, and how the pair was settled.
   Holds<Exactly<Of<typeof DOUBT_SEEN>, SchemaSet<"person_doubts.seen">>>,
   Holds<Exactly<Of<typeof DOUBT_SETTLED_AS>, SchemaSet<"person_doubts.settled_as">>>,
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"templates.channel">>>,

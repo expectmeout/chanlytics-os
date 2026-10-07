@@ -79,7 +79,7 @@ export type PersonForSend =
   | { ok: false; refused: "lead_gone" | "lead_closed" | "no_address" | "already_yours" | "erased" };
 
 /**
- * The person a first send needs, made once (00184 reach_out_person, through resolve_person since 00343): never a lead
+ * The person a first send needs, made once (00184 reach_out_person, through resolve_person since 00344): never a lead
  * converted by it, and never a person who asked to be forgotten (`erased`: the door's PE001, said in the door's answer).
  */
 export async function reachOutPerson(db: Db, tenantId: string, leadId: string): Promise<PersonForSend> {
