@@ -34,7 +34,7 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit             87   of which over 200 lines: 13
+functions over the limit             86   of which over 200 lines: 13
 files over 800 lines                  3
 directories over 20 modules           3
 window globals                      100   names
@@ -60,10 +60,10 @@ wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     295
 source-text reads in tests          766
 lint warnings                       355   in 153 files, 59 of them exhaustive-deps
-workspace route JS, KB gzipped      722   the shell included
+workspace route JS, KB gzipped      725   the shell included
 workspace route CSS, KB gzipped     145
 workspace pages' own JS, KB        1267   gzipped, beyond the route, summed over 14 pages
-trees the lint's limits hold         45   15 of them with max-params waiting
+trees the lint's limits hold         47   16 of them with max-params waiting
 ```
 
 <!-- measured:end -->
