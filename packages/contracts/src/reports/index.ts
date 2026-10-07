@@ -65,8 +65,9 @@ export {
   monthDaysAt,
   reportPeriodOf,
   reportDaysAsked,
+  reportWindowOf,
 } from "./report-periods";
-export type { ReportPeriodId } from "./report-periods";
+export type { ReportPeriodId, ReportWindowVM } from "./report-periods";
 export { toHeadlineVM, isReportDto } from "./report-headline";
 export type { ReportHeadlineDto, ReportHeadlineVM } from "./report-headline";
 export { holdOf, replyHoldDtoOf } from "./report-speed";

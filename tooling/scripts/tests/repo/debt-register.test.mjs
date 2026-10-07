@@ -111,6 +111,11 @@ function blockFrom(by, scanCounts) {
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
     ["event-shaped clocks", keys(by["event-shaped-clocks.json"]), "of the registered clocks (invariant 6)"],
     ["tables with more than one writer", keys(by["writers.json"]), `${total(by["writers.json"])} writers among them`],
+    [
+      "personal columns with no erasure strategy",
+      keys(by["erasure-strategies.json"]),
+      `in ${new Set(Object.keys(by["erasure-strategies.json"] ?? {}).map((c) => c.split(".")[0])).size} tables`,
+    ],
     ["breakpoints outside the set", total(by["breakpoints.json"]), `in ${files(by["breakpoints.json"])} files`],
     ["literal style values", fieldsTotal(by["style-values.json"]), `in ${keys(by["style-values.json"])} stylesheets`],
     [

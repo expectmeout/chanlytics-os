@@ -150,7 +150,7 @@ export const reachOuts = {
   /** A chain changed whole: new words send what waits back to the check (R5); a dropped step's work goes (R17). */
   update: (rootId: string, body: ReachOutChainInput) => api()("PUT reach-outs/[id]", { params: { id: rootId }, body }),
   /** One business's email as the chain would write it (R11): it spends the model, so it is asked for by a press. */
-  preview: (body: ReachOutPreviewInput) => api()("POST reach-outs/preview", { body }),
+  preview: (body: ReachOutPreviewInput) => api()("POST reach-outs/preview", { body, once: true }),
   /**
    * A search's reach (the Leads door, the sheet): the answer held for the tab through read-cache.ts, so a door and its
    * sheet read it once, and let go of by the one rule every on-demand read keeps: any write lands, every answer goes
@@ -233,7 +233,7 @@ export const reachOuts = {
    * (lead-import.ts) and every sentence the import sheet, *Write to them* and a list's strip say.
    */
   lists: {
-    importLeads: (body: LeadImportInput) => api()("POST lead-searches/import", { body }),
+    importLeads: (body: LeadImportInput) => api()("POST lead-searches/import", { body, once: true }),
     chooseLeads: (body: LeadChooseInput) => api()("POST lead-searches/chosen", { body }),
     planOf: leadImportPlanOf,
     ready: leadImportReady,

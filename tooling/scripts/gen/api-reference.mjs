@@ -35,6 +35,15 @@ function who(policy) {
   return policy.role ? `${scope}, ${policy.role} or above` : scope;
 }
 
+/** What a write does with an Idempotency-Key (decision 0035), where it is not the rule the page's head states. */
+function keyWords(policy) {
+  if (policy.kind !== "write") return "";
+  if (policy.idempotent === "own") return " Keeps its own `Idempotency-Key`.";
+  if (policy.scope === "account" || policy.scope === "platform")
+    return " Takes no `Idempotency-Key`: there is no workspace to keep it in.";
+  return "";
+}
+
 /** A JSON Schema's type, in a few words. */
 function typeOf(s) {
   if (!s || typeof s !== "object") return "any";
@@ -121,7 +130,7 @@ export async function generate(root) {
       const lines = [
         `### \`${m} /api/v1/${rel}\``,
         "",
-        `${p.kind === "read" ? "Reads" : "Writes"}; for ${who(p)}; ${p.rate ? `counts against the \`${p.rate}\` rate` : "no rate bucket"}; ${p.spend ? "may spend the workspace's money" : "spends nothing"}.`,
+        `${p.kind === "read" ? "Reads" : "Writes"}; for ${who(p)}; ${p.rate ? `counts against the \`${p.rate}\` rate` : "no rate bucket"}; ${p.spend ? "may spend the workspace's money" : "spends nothing"}.${keyWords(p)}`,
         "",
       ];
       const rows = fieldRows(handler.input);
@@ -152,6 +161,11 @@ export async function generate(root) {
     "(`apps/dashboard/src/server/route.ts`). What a route answers is its handler's return type, which the typed client",
     "reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a",
     "stale copy.",
+    "",
+    "A write in a workspace that carries an `Idempotency-Key` header (at most 120 characters, one per intent) is answered",
+    "once per key for a day: the same request sent again is given the first answer and changes nothing, the same key on",
+    "another request (another method, path or body) is refused with 422, and one that arrives while the first still runs",
+    "with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.",
     "",
     `${count} handlers in ${byDomain.size} domains.`,
     "",

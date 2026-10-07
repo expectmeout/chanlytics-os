@@ -485,7 +485,7 @@ interface NoteBody {
 // Each note write answers when the server takes it, and People (a row carries its next step) is read again behind it:
 // the whole list was being read before a note said it was added. The page reads the person itself.
 export async function writePersonNote(id: string, body: NoteBody): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
-  return api()("POST contacts/[id]/notes", { params: { id }, body, refresh: "behind" });
+  return api()("POST contacts/[id]/notes", { params: { id }, body, refresh: "behind", once: true });
 }
 
 /** A step done, or open again (00166): any owner or operator, with the version the page saw. */

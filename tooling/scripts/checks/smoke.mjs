@@ -1,11 +1,15 @@
 /**
- * After a deploy: does it answer? The two doors with no key, read the way a pinger and the phone app read them.
+ * After a deploy: does it answer, and is it the build just merged? The doors with no key, read the way a pinger and
+ * the phone app read them.
  *
  *   GET <edge>/api/health        200 { ok: true, unhealthy: [], jobs_backlog, checked_at }: the platform's clocks and
  *                                its due work (apps/edge/api/health.ts). 503 { ok: false, ... } is the same door saying
  *                                something is wrong; --allow-unhealthy takes it as an answer (a preview with no database).
+ *   GET <edge>/api/version       200 { sha }: the build the edge runs (apps/edge/api/version.ts). A health door answers
+ *                                well from the build before a deploy as from the one after, so without this the smoke
+ *                                passed while the edge still served the old build (6 Oct 2026).
  *   GET <dashboard>/api/version  200 { sha }: the build the deployment runs (apps/dashboard/app/api/version/route.ts);
- *                                --sha names the one it must be.
+ *                                --sha names the one each version door must name.
  *
  *   node tooling/scripts/checks/smoke.mjs --edge https://<edge> --dashboard https://<dashboard> [--sha <commit>]
  *   node tooling/scripts/checks/smoke.mjs https://<one-host>     both doors on one host
@@ -95,16 +99,19 @@ export async function smoke(args, env = process.env) {
   const bypass = env.VERCEL_AUTOMATION_BYPASS_SECRET;
   const headers = { accept: "application/json", ...(bypass ? { "x-vercel-protection-bypass": bypass } : {}) };
   const out = [];
+  const version = async (host) => {
+    const url = `${host}/api/version`;
+    const a = await ask(url, headers);
+    out.push({ door: "version", url, problem: a.failed ?? judgeVersion(a.status, a.body, args) });
+  };
   if (args.edge) {
     const url = `${args.edge}/api/health`;
     const a = await ask(url, headers);
     out.push({ door: "health", url, problem: a.failed ?? judgeHealth(a.status, a.body, args) });
+    await version(args.edge);
   }
-  if (args.dashboard) {
-    const url = `${args.dashboard}/api/version`;
-    const a = await ask(url, headers);
-    out.push({ door: "version", url, problem: a.failed ?? judgeVersion(a.status, a.body, args) });
-  }
+  // One host serving both is asked once.
+  if (args.dashboard && args.dashboard !== args.edge) await version(args.dashboard);
   return out;
 }
 

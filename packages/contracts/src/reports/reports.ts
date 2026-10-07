@@ -177,6 +177,8 @@ export interface ReportVM {
   since: string;
   until: string;
   timezone: string;
+  /** The business's today, "YYYY-MM-DD": the period's last day, which the period's picker counts from. */
+  today: string;
   /** Nothing came in during the period: no customer message and no call. */
   empty: boolean;
   tiles: ReportTileVM[];
@@ -675,6 +677,7 @@ export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null
     since: first ? fmtDay(first) : "",
     until: last ? fmtDay(last) : "",
     timezone: dto.timezone,
+    today: dto.today,
     empty: f.empty,
     tiles,
     answered: answeredOf(f),

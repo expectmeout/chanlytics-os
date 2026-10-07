@@ -1054,7 +1054,7 @@ test("an email leaves as the request that was frozen for it, from the row it was
   assert.deepEqual([t.messages[0].status, t.messages[0].external_id], ["sent", "re_1"]);
 });
 
-test("an email is handed what is left of its caller's ceiling at the moment it is put on the wire (sendBy), never less than a request needs, and a send with no ceiling is handed none; no other channel is handed one", async () => {
+test("an email is handed what is left of its caller's ceiling at the moment it is put on the wire (sendBy), never less than a request needs, and a send with no ceiling is handed none; no other channel is handed one", async (t) => {
   const sentBy = async (over, wire = emailWire()) => {
     const t = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
     await deliver(ports(t, wire), emailed(over));
@@ -1067,7 +1067,10 @@ test("an email is handed what is left of its caller's ceiling at the moment it i
   // A send put on the wire after its ceiling has none left to give: zero, which the email wire raises to what one request
   // needs (channels SEND_MIN_MS) rather than start a send that could only time out.
   assert.equal(await sentBy({ sendBy: NOW - 5_000 }), 0);
-  // The wire itself: a smaller ceiling is the bound, and one that is smaller than a request needs is raised to it.
+  // The wire itself: a smaller ceiling is the bound, and one that is smaller than a request needs is raised to it. The
+  // wire reads the clock for its deadline and again for each try's share of it, so the clock is held still here: a
+  // millisecond between the two reads was a try of 9,999 (CI, 6 October 2026).
+  t.mock.timers.enable({ apis: ["Date"], now: NOW });
   const asked = [];
   const realTimeout = AbortSignal.timeout;
   const realFetch = globalThis.fetch;

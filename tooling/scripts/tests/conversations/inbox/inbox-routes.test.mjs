@@ -163,7 +163,15 @@ test("the seven declare their policy: the reads open to every member, the verbs 
   assert.deepEqual(calls.GET.policy, { ...open, scope: "workspace" });
   assert.deepEqual(thread.GET.policy, { ...open, scope: "row" });
   assert.deepEqual(recording.GET.policy, { ...open, scope: "row" });
-  assert.deepEqual(reply.POST.policy, { kind: "write", scope: "row", role: "operator", rate: "reply", spend: false });
+  // The reply keeps its own Idempotency-Key, per member, in core (decision 0035): route() leaves it to it.
+  assert.deepEqual(reply.POST.policy, {
+    kind: "write",
+    scope: "row",
+    role: "operator",
+    rate: "reply",
+    spend: false,
+    idempotent: "own",
+  });
   assert.deepEqual(steer.POST.policy, { kind: "write", scope: "row", role: "operator", rate: "whisper", spend: false });
   assert.deepEqual(whisper.POST.policy, {
     kind: "write",

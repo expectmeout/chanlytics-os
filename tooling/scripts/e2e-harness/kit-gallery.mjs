@@ -487,6 +487,49 @@ const kitDatePicker = () => {
   );
 };
 
+/**
+ * The kit's MonthRange, a window of thirty days (September 7 to October 6, 2026, today the 6th) on a month: on October, the
+ * month it ends in, where the band runs from the weeks' start to its last day; and moved back to September, where it starts.
+ * The date picker's head and weekdays over six weeks of days that press nothing, hidden from a screen reader (the page says
+ * the range in words beside it).
+ */
+const kitMonthRange = (month) => {
+  const [from, to, today] = ["2026-09-07", "2026-10-06", "2026-10-06"];
+  const first = new Date(Date.UTC(2026, month, 1));
+  const start = new Date(Date.UTC(2026, month, 1 - ((first.getUTCDay() + 6) % 7)));
+  const key = (d) => d.toISOString().slice(0, 10);
+  const cell = (d) => {
+    const k = key(d);
+    const marks = [
+      k >= from && k <= to ? ' data-in="true"' : "",
+      k === from ? ' data-start="true"' : "",
+      k === to ? ' data-end="true"' : "",
+      d.getUTCMonth() === month ? "" : ' data-outside="true"',
+      k === today ? ' data-today="true"' : "",
+    ].join("");
+    return `<span class="date-pick-cell"${marks}><span class="date-pick-num">${d.getUTCDate()}</span></span>`;
+  };
+  const week = (w) =>
+    `<div class="date-pick-row">` +
+    Array.from({ length: 7 }, (_, d) => cell(new Date(start.getTime() + (w * 7 + d) * 86_400_000))).join("") +
+    `</div>`;
+  const title = month === 9 ? "October 2026" : "September 2026";
+  return (
+    `<div class="date-pick-month">` +
+    `<div class="date-pick-head"><span class="date-pick-title" aria-live="polite">${title}</span>` +
+    `<span class="date-pick-nav">` +
+    `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Previous month"><span class="date-pick-back">${icon("chevron", 14)}</span></button>` +
+    `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Next month">${icon("chevron", 14)}</button>` +
+    `</span></div>` +
+    `<div class="date-pick-grid" aria-hidden="true">` +
+    `<div class="date-pick-row">` +
+    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((w) => `<span class="date-pick-dow">${w}</span>`).join("") +
+    `</div>` +
+    Array.from({ length: 6 }, (_, w) => week(w)).join("") +
+    `</div></div>`
+  );
+};
+
 /** The kit's Tooltip, shown over its control. */
 const kitTooltip = () =>
   `<button type="button" class="btn btn-sm">Export</button>` +
@@ -1739,6 +1782,17 @@ export const FAMILIES = [
       "The kit's DatePicker (surfaces/kit/datepicker/datepicker.tsx), open: Base UI's popover on the panel's pop, a month " +
       "of days in the ARIA grid with the day chosen and its arrows over it, and Today at the foot.",
     entries: [{ id: "datepicker-kit", stage: "pop", html: kitDatePicker() }],
+  },
+  {
+    family: "Month range",
+    about:
+      "The kit's MonthRange (surfaces/kit/datepicker/month-range.tsx): the days a period covers on a month, one band of the " +
+      "inset's fill from its first day to its last, its ends the picked lozenge and today the accent's ink; it presses " +
+      "nothing but its two arrows. Reports' period draws it.",
+    entries: [
+      { id: "month-range", html: kitMonthRange(9) },
+      { id: "month-range-start", html: kitMonthRange(8) },
+    ],
   },
   {
     family: "Tooltip, on Base UI",

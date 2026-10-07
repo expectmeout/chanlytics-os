@@ -1367,12 +1367,15 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 :is(.ld-row-name > .tint-5, .pk-band.tint-5) { --tint: var(--tile-tint-5); --tint-ink: var(--tile-tint-ink); }
 :is(.ld-row-name > .tint-6, .pk-band.tint-6) { --tint: var(--tile-tint-6); --tint-ink: var(--tile-tint-ink); }
 
-@media (width > 900px) {
-  /* The first day's Find leads is a button's width on a desk, under its sentence; a phone's spans the column, under a
-     thumb. It wore the setup's own class (fr-find, a grid), which stood its glyph over its words outside it (6 Oct 2026). */
+/* The first day's Find leads is a button's width under its sentence; a phone's spans the column, under a thumb. It wore
+   the setup's own class (fr-find, a grid), which stood its glyph over its words outside it (6 Oct 2026). */
+@media (min-width: 721px) {
   .ld-first-find {
     align-self: flex-start;
   }
+}
+
+@media (width > 900px) {
   /* The list's name sits where People's does (P1): close under the controls, the pane's 18px at its sides. */
   .main-scroll .ld-list-head {
     margin: 0;

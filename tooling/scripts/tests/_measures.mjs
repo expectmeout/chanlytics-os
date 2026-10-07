@@ -52,6 +52,8 @@ import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
 import { bank } from "./_ratchet.mjs";
 import { CLOCKS } from "./clocks/_clocks.mjs";
 import { OUT as SCHEMA_SQL, functionChangesIn, statementsOf } from "../gen/schema-snapshot.mjs";
+import { SCHEMA_SETS } from "@chanlytics/contracts";
+import { ERASURE_STRATEGIES } from "@chanlytics/db";
 
 /** A function's limits: eslint.config.mjs's FUNCTION_LIMITS, as errors where this holds nothing. */
 export const LIMIT = { lines: 150, branches: 30, depth: 5 };
@@ -146,6 +148,34 @@ export function tenantTablesOf() {
     else if (inRow && table && /^ {10}tenant_id: /.test(line)) tables.add(table);
   }
   return tables;
+}
+
+/** The column types that can hold a person's words: text, json, and their arrays (decision 0036). */
+const WORD_TYPES = new Set(["text", "text[]", "jsonb", "jsonb[]", "json", "character varying", "citext", "bytea"]);
+
+/**
+ * Every column of a workspace table that can hold a person's words, as `table.column`, from the schema a replay builds
+ * (supabase/schema.sql): a table that names `tenant_id`, its partitions read through it; a column of a word type the
+ * schema does not hold to a closed set (contracts SCHEMA_SETS). What packages/db's ERASURE_STRATEGIES must name.
+ */
+export function personalColumns() {
+  const sql = readRaw(SCHEMA_SQL);
+  const partitions = new Set([...sql.matchAll(/ATTACH PARTITION public\.(\w+)/g)].map((m) => m[1]));
+  const out = [];
+  for (const [, table, body] of sql.matchAll(/^CREATE TABLE public\.(\w+) \(\n([\s\S]*?)\n\)/gm)) {
+    if (partitions.has(table)) continue;
+    const columns = body
+      .split("\n")
+      .map((line) => line.trim().replace(/,$/, ""))
+      .filter((line) => line && !line.startsWith("CONSTRAINT"))
+      .map((line) => /^"?(\w+)"? (.+?)(?: DEFAULT .*| NOT NULL.*| GENERATED .*)?$/.exec(line))
+      .filter(Boolean)
+      .map(([, name, type]) => ({ name, type: type.trim() }));
+    if (!columns.some((c) => c.name === "tenant_id")) continue;
+    for (const c of columns)
+      if (WORD_TYPES.has(c.type) && !Object.hasOwn(SCHEMA_SETS, `${table}.${c.name}`)) out.push(`${table}.${c.name}`);
+  }
+  return out.sort();
 }
 
 /** A file that reads across workspaces on purpose says so in its header, as a line `Cross-workspace: <why>`. */
@@ -447,6 +477,23 @@ export const MEASURES = [
       ),
     advice:
       "One record, one door writes it (decision 0031, invariant 1): write the table through the door that already writes it, the SQL function or the repository in packages/db, rather than adding a writer.",
+  },
+  {
+    // Each column's strategy is packages/db's ERASURE_STRATEGIES; people/erasure/erasure-registry.test.mjs holds it to
+    // the schema. Per column, so a column named while another arrives unnamed is still a new offender.
+    name: "personal columns with no erasure strategy",
+    file: "erasure-strategies.json",
+    measure: () =>
+      Object.fromEntries(
+        personalColumns()
+          .filter((c) => {
+            const [table, column] = c.split(".");
+            return !ERASURE_STRATEGIES[table]?.[column];
+          })
+          .map((c) => [c, 1]),
+      ),
+    advice:
+      "Say how an erasure reaches the column, in the change that adds it (decision 0036): its strategy in packages/db/src/erasure-registry.ts, gone with the person, scrubbed by a named leg, kept as a digest, removed by age, or not personal.",
   },
 ];
 

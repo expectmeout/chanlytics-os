@@ -51,7 +51,7 @@ const isRefusal = (c: ProposalCall | ProposalRefusal): c is ProposalRefusal => "
 /**
  * One of a spec's calls, through the typed client, marked as a card's, under a key that is the card's own (its
  * proposal id, and a suffix for its second call or its undo): a card approved in two tabs, or pressed twice, is one
- * change, since the write routes keep a card's answer under its key (server/route.ts, onceForCard).
+ * change, since the write routes keep a card's answer under its key (server/route.ts, onceForKey).
  */
 function send(client: Api, c: ProposalCall, cardKey: string, undoOf?: string) {
   // Every key a spec may name is one the client knows: contracts' keys and the client's are one generated list

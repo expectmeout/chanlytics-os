@@ -2297,9 +2297,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
   /* Where a phone draws a strip of views and the page's act (Campaigns' New; canvas C-phone-list), the act stands
      beside the strip at its right as a 44px circle of the primary fill, its mark alone, the words kept for a screen
-     reader. Named with the strip's element, since its class is the kit's. */
+     reader. Named with the strip's element, since its class is the kit's. The two stand 8px apart, as the Calendar's
+     views and its options button do (Ruben, 7 Oct 2026). */
   .pg-slot:has(> nav) {
     grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-2);
   }
   .pg-slot:has(> nav) > .pg-head-slot {
     grid-column: 1 / -1;
@@ -2341,15 +2343,55 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     display: none;
   }
   /* On a phone the strip and the act stand at the boards' 12px from the screen's edges (every phone board draws its
-     row of views at 12 under a head at 16), 4 in from the slot's gutter. */
+     row of views at 12 under a head at 16), 4 in from the slot's gutter, the edge of the capsules under them (the
+     Inbox's and People's search). Reports' panes stand at the gutter, so its strip and its period stand there too, as
+     the Calendar's views and options do over its panes: 4px out, the two stood apart from everything under them
+     (Ruben, 7 Oct 2026). */
   .pg-slot > :nth-child(2):not(.pg-act-slot) {
     margin-left: -4px;
   }
   .pg-slot:has(> nav) > .pg-act-slot {
     margin-right: -4px;
   }
+  .main:has(> .main-scroll > .rpt) .pg-slot > nav {
+    margin-left: 0;
+  }
+  .main:has(> .main-scroll > .rpt) .pg-slot > .pg-act-slot {
+    margin-right: 0;
+  }
   /* The Inbox's row of views (Needs you, Conversations, Live) stands on a phone as on a desk (Ruben, 2 Oct 2026: the
      canvas's swipe between them was not found); the buckets' capsule is the list's own, under it. */
+}
+/* A tablet (721 to 900px) wears the phone's head but has no tab bar, so the top bar keeps its menu and Ask (mobile.css):
+   both stood in the bar's flow while the date and the bell were laid over it, the menu under the date and Ask over the
+   bell (6 Oct 2026). Here the four share the bell's line: the menu (the bar's first button) at the gutter with the date
+   after it, and Ask in the row with the bell, which comes back into the bar's flow, each 32px as the bell is. */
+@media (min-width: 721px) and (max-width: 900px) {
+  .main > .topbar {
+    padding-top: 10px;
+  }
+  .main > .topbar .tbn-wrap {
+    position: relative;
+    top: auto;
+    right: auto;
+  }
+  .main > .topbar > button:first-child,
+  .main > .topbar .tb-ask {
+    width: 32px;
+    min-width: 0;
+    height: 32px;
+    min-height: 0;
+    padding: 0;
+    justify-content: center;
+  }
+  .main > .topbar > button:first-child {
+    position: absolute;
+    top: 10px;
+    left: var(--gutter-page);
+  }
+  .pg-dateline-slot {
+    left: calc(var(--gutter-page) + 40px);
+  }
 }
 
 /* The pools of light move as the canvases' do (their glow drifts over twenty seconds), on a desk, each on a layer of its

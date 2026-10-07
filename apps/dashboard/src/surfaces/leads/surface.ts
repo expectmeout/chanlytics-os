@@ -109,6 +109,8 @@ interface LeadCallOptions {
    * being worked down does not wait for two reads.
    */
   refresh?: false | "behind";
+  /** One intent's key, kept until it lands (client/api.ts Options.once, decision 0035): a write that spends. */
+  once?: boolean;
 }
 
 /**
@@ -594,14 +596,17 @@ export async function bulkLeads(body: LeadsBulkInput) {
 }
 /** Check again (D3): the mailbox check once more for the addresses whose last check did not answer. */
 export async function checkLeadsAgain(ids: string[]) {
-  return leadCall<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", { body: { ids } });
+  return leadCall<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", {
+    body: { ids },
+    once: true,
+  });
 }
 /** Include carries the plan the owner approved; the route sets its version and count (G1). Keep and Stop carry none (§7.2). */
 export async function answerSearch(id: string, answer: "keep" | "include" | "stop", plan?: LeadSearchPlan) {
   return api()("POST lead-searches/[id]/answer", { params: { id }, body: { answer, ...(plan ? { plan } : {}) } });
 }
 export async function moreForSearch(id: string, purpose: "topup" | "renew", plan: LeadSearchPlan) {
-  return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan } });
+  return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan }, once: true });
 }
 export async function stopSearch(id: string) {
   return api()("POST lead-searches/[id]/stop", { params: { id } });
