@@ -19,6 +19,8 @@
 -- Either deploy order: an edge before this migration has its job refused by the CHECK and answers the text in the
 -- door, as before (sms_answer_unscheduled); a database before the edge holds no job of the kind. Re-runnable throughout.
 
+set local lock_timeout = '3s';
+
 alter table public.jobs drop constraint if exists jobs_kind_check;
 alter table public.jobs add constraint jobs_kind_check
   check (kind in ('outbound_send', 'broadcast_send', 'line_provision', 'email_ingest', 'lead_round_start', 'lead_collect', 'lead_check', 'push_send', 'push_receipts', 'reply_read', 'event_deliver', 'booking_read', 'inbound_answer'));

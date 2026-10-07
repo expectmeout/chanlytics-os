@@ -38109,11 +38109,9 @@ async function recordMessage(cx) {
   return ing && !ing.is_new ? void 0 : ing;
 }
 async function answeredBefore(cx, ing) {
-  const { ports, db, tenantId, rt, channel, L } = cx;
-  const reply = ports.persist.answered ? await ports.persist.answered(db, tenantId, ing) : null;
-  if (!reply) return false;
-  L.info("wa_resume_answered", { reply });
-  await ports.persist.sink(db, tenantId, ing, rt, channel).processed(handledOf({ escalation: "none", reply }));
+  const { ports, db, tenantId, L } = cx;
+  if (!ports.persist.answered || !await ports.persist.answered(db, tenantId, ing)) return false;
+  L.info("wa_resume_answered");
   return true;
 }
 async function ingestMessage(cx, resume = false) {

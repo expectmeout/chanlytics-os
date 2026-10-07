@@ -20,7 +20,7 @@ import {
   emitEvent,
   recordActivation,
   readThreadState,
-  replyNaming,
+  repliedTo,
   type IngestResult,
 } from "../packages/db.js";
 import type { Database, Json } from "../packages/db.js";
@@ -147,18 +147,18 @@ export { IngestFailed };
 export const replyTurn = { claim: claimReplyTurn, holds: holdsReplyTurn };
 
 /**
- * Whether a reply naming this message already left or waits as a draft (packages/db replyNaming): what a text's
- * answer, taken up again after its runner died mid-turn, asks before it speaks (core inbound/ingest.ts). Every word a
- * message's path says names it in `meta.reply_to`: the sink's sends and queueReply's draft. No database or no workspace
- * is nothing known to have answered it.
+ * Whether a reply names this message already (packages/db repliedTo): what a text's answer, taken up again after its
+ * runner died mid-turn, asks before it speaks (core inbound/ingest.ts). Every word a message's path says names it in
+ * `meta.reply_to`: the sink's sends and queueReply's draft. No database or no workspace is nothing known to have
+ * answered it.
  */
 export async function pgAnswered(
   db: ReturnType<typeof pg>,
   tenantId: string | null,
   ing: IngestResult,
-): Promise<"sent" | "queued" | null> {
-  if (!db || !tenantId) return null;
-  return replyNaming(db, tenantId, ing.conversation_id, ing.message_id);
+): Promise<boolean> {
+  if (!db || !tenantId) return false;
+  return repliedTo(db, tenantId, ing.conversation_id, ing.message_id);
 }
 
 /**

@@ -30,7 +30,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { handleInbound, recordInboundMessage } = await import(at("apps/edge/lib/whatsapp/inbound.ts"));
+const { handleInbound, recordInboundMessage, resumeInbound } = await import(at("apps/edge/lib/whatsapp/inbound.ts"));
 const { IngestFailed, pgSink } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
 
 const GREETING = "Thanks for writing to Harbor Nails. A person will be with you shortly.";
@@ -281,18 +281,11 @@ function world(over = {}) {
       escalations: seen.escalations.length,
       processed: seen.processed,
     };
-    const out = await handleInbound(
-      m,
-      value,
-      "t1",
-      routed,
-      !!over.isEnvDefault,
-      over.carrier ?? null,
-      {
-        ...ports,
-        ...extra,
-      },
-      resume,
+    const all = { ...ports, ...extra };
+    const out = await (
+      resume
+        ? resumeInbound(m, "t1", routed, over.carrier ?? null, all)
+        : handleInbound(m, value, "t1", routed, !!over.isEnvDefault, over.carrier ?? null, all)
     ).finally(unbind);
     // The rule behind every stamp (contracts HANDLED_OUTCOMES), in both directions, over EVERY message the world
     // processed or escalated for: it carries a stamp, one of the four words, and the stamp is a handoff exactly when an
@@ -460,12 +453,12 @@ test("a text answered after its acknowledgement: the door records it and says no
   assert.equal(w.seen.escalations.length, 1);
 });
 
-test("a text's job claimed again after its runner died mid-turn: a reply that names the message already left, so it says nothing twice and stamps the message", async () => {
+test("a text's job claimed again after its runner died mid-turn: a reply already names the message, so it says nothing twice, asks nobody, and leaves the stamp to the deadman sweep", async () => {
   const asked = [];
   const w = world({
     answered: async (_db, tenant, ing) => {
       asked.push([tenant, ing.message_id]);
-      return "sent";
+      return true;
     },
   });
   const m = text("are you open saturday?", "wamid.r2");
@@ -474,17 +467,12 @@ test("a text's job claimed again after its runner died mid-turn: a reply that na
   assert.deepEqual(asked, [["t1", "m-in"]], "asked of the message the door recorded, before anything else");
   assert.deepEqual([w.seen.sent, w.seen.escalations], [[], []], "nothing said, nobody asked");
   assert.deepEqual(
-    w.seen.handled.map((h) => [h.how, h.marked]),
-    [["ai", true]],
-    "and the message is stamped handled, so the deadman sweep finds nothing to finish",
+    [w.seen.handled, w.seen.processed],
+    [[], 0],
+    "and no stamp guessed: whatever the reply became (left, waiting, withdrawn, refused), the sweep finds it and stamps",
   );
 
-  // A reply that waits as a draft is an answer too; an adapter with no such mark is nothing known to have answered.
-  const q = world({ answered: async () => "queued" });
-  const d = text("and sunday?", "wamid.r3");
-  await q.record(d);
-  await q.run(d, {}, true);
-  assert.deepEqual([q.seen.sent, q.seen.handled.map((h) => h.how)], [[], ["held"]], "held, as the draft says");
+  // An adapter with no such mark is nothing known to have answered.
   const none = world();
   const e = text("and monday?", "wamid.r4");
   await none.record(e);

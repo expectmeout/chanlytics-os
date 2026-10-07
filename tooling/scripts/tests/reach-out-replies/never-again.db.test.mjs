@@ -523,6 +523,44 @@ test(
 );
 
 test(
+  "a lead a member archived converts when its person gets in touch, never when a member, a file or the calendar names them: the person is linked, the lead stays where the member left it",
+  { skip },
+  async () => {
+    const door = (phone, assurance, source) =>
+      db.rpc("resolve_person", {
+        p_tenant_id: A,
+        p_channel: "sms",
+        p_external: phone,
+        p_phone: phone,
+        p_assurance: assurance,
+        p_source: source,
+      });
+    // Named by a member: linked to its person, still archived, no conversion said.
+    const named = "+15125550171";
+    const shelved = await lead({ phone_e164: named, stage: "archived", closed_reason: "not_a_fit" });
+    const added = ok(await door(named, "asserted", "manual"));
+    const kept = await leadRow(shelved);
+    assert.deepEqual(
+      [kept.contact_id, kept.stage, kept.closed_reason, kept.version],
+      [added.contact_id, "archived", "not_a_fit", 1],
+      "the member's word stands",
+    );
+    assert.deepEqual(await eventsOf(shelved, "lead.converted"), []);
+
+    // Their person writes in: they came back on their own, so the lead converts whatever its stage.
+    const wrote = "+15125550172";
+    const left = await lead({ phone_e164: wrote, stage: "archived", closed_reason: "said_no" });
+    const arrived = ok(await door(wrote, "observed", "inbound"));
+    const back = await leadRow(left);
+    assert.deepEqual([back.contact_id, back.stage, back.closed_reason], [arrived.contact_id, "converted", null]);
+    assert.deepEqual(
+      (await eventsOf(left, "lead.converted")).map((e) => e.data.how),
+      ["arrived"],
+    );
+  },
+);
+
+test(
   "the member's Interested converts through lead_convert_by: one lead.converted, how call, the version moved once",
   { skip },
   async () => {

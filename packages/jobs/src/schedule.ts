@@ -95,7 +95,8 @@ export async function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"sched
   if (error?.code === "PGRST204" && key) ({ error } = await insert(null));
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
-  throw new Error(`schedule_job: ${error.message}`);
+  // The database's code travels with it: a caller tells a refusal (a CHECK a kind fails) from a write that may have landed.
+  throw Object.assign(new Error(`schedule_job: ${error.message}`), { code: error.code });
 }
 
 /**

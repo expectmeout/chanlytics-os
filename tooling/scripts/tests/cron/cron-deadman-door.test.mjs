@@ -322,29 +322,39 @@ test("a customer's message the handler never finished with: flagged for a person
   }
 });
 
-test("a text whose answer is a job still waiting or running is that job's, not abandoned; once the job has failed for good, the text is this sweep's", async () => {
+test("a text whose answer is a job still waiting or running is that job's, not abandoned; once the job has failed for good, or the ledger has left it ten minutes overdue, the text is this sweep's", async () => {
   const text = (id) => inbound(id, { channel: "sms" });
-  const job = (id, message, state) => ({
+  const job = (id, message, state, due = ago(4 * M)) => ({
     id,
     tenant_id: A,
     kind: "inbound_answer",
     state,
+    due_at: due,
     payload: { message_id: message },
   });
   const w = world([], {
-    messages: [text("t-waiting"), text("t-running"), text("t-failed")],
-    jobs: [job("j1", "t-waiting", "scheduled"), job("j2", "t-running", "fired"), job("j3", "t-failed", "failed")],
+    messages: [text("t-waiting"), text("t-running"), text("t-failed"), text("t-stalled")],
+    jobs: [
+      job("j1", "t-waiting", "scheduled"),
+      job("j2", "t-running", "fired"),
+      job("j3", "t-failed", "failed"),
+      // Due a quarter of an hour ago and never claimed: the ledger stopped, and the customer is waiting.
+      job("j4", "t-stalled", "scheduled", ago(15 * M)),
+    ],
   });
   const line = wire();
   try {
     assert.deepEqual(await answer(await w.tick()), [
       200,
-      { ok: true, flagged: 0, unanswered: 1, orphaned: 0, told: 1, stranded: 0 },
+      { ok: true, flagged: 0, unanswered: 2, orphaned: 0, told: 2, stranded: 0 },
     ]);
     assert.deepEqual(
-      w.tables.escalations.map((e) => [e.conversation_id, e.reason]),
-      [["cv-t-failed", "brain_error"]],
-      "the text whose job gave up is handed to a person",
+      w.tables.escalations.map((e) => [e.conversation_id, e.reason]).sort(),
+      [
+        ["cv-t-failed", "brain_error"],
+        ["cv-t-stalled", "brain_error"],
+      ],
+      "the text whose job gave up, and the one whose job the ledger never claimed, are handed to a person",
     );
     for (const id of ["t-waiting", "t-running"])
       assert.ok(!w.tables.messages.find((m) => m.id === id).meta.processed_at, `${id}: its job's to finish, unstamped`);

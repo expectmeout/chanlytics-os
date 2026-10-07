@@ -150,13 +150,14 @@ _Both orders:_ a table only the door writes and only a newer dashboard reads.
 alone, and writes `lead.converted` with a version bump, which `lead_link_contact` never did (00184). _Both orders._
 Built, 00346: `person_link_lead`, called by `resolve_person` when it makes a person, fills a number or an address, or adds
 an identity, takes the lead holding the person's number, else their address, that names nobody yet, and converts it
-through `lead_convert_by` (its version moved, `lead.converted` with how `arrived` for a person who wrote or called and
-`added` for one a member, a file, the calendar or the finder named), writing `contact.added {source lead, lead_id}` for a
+through `lead_convert_by` (its version moved, `lead.converted` with how `arrived` for a person who wrote or called, at
+any stage, and `added` for one a member, a file, the calendar or the finder named, an open lead only, so a lead a member
+archived stays archived, its person linked), writing `contact.added {source lead, lead_id}` for a
 person it made whom no door had named, as the trigger did. The lead a caller converts itself (`lead_set_stage`, which
 names it in `p_detail`) is skipped, a reach-out's cold first email holds the link off, and a link that fails warns and
 is undone alone, never the arrival. The trigger and its function are dropped, since the door is the only writer of a
 person. Tested in `database/event-shapes.db`, `messages/a-person-keeps-how-they-first-reached-us.db` (the lead is the
-first touch, with its id as the ref) and `reach-out-replies/never-again.db` (the two new words).
+first touch, with its id as the ref) and `reach-out-replies/never-again.db` (the two new words, and an archived lead that only its person's arrival converts).
 
 ## Tests
 

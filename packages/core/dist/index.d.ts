@@ -3754,11 +3754,11 @@ interface InboundPorts {
             holds(db: InboundDb, conversationId: string, messageId: string): Promise<boolean>;
         };
         /**
-         * Whether a reply naming this message (its `reply_to`) already left or waits as a draft: what a text's answer, taken
-         * up again after a runner died mid-turn, asks before it speaks. Null when none does. Absent in an adapter that keeps
-         * no such mark: then nothing is known to have answered it.
+         * Whether a reply names this message (its `reply_to`), whatever became of it: what a text's answer, taken up again
+         * after a runner died mid-turn, asks before it speaks. Absent in an adapter that keeps no such mark: then nothing is
+         * known to have answered it.
          */
-        answered?(db: InboundDb | null, tenantId: string | null, ing: IngestResult): Promise<"sent" | "queued" | null>;
+        answered?(db: InboundDb | null, tenantId: string | null, ing: IngestResult): Promise<boolean>;
         /** The reply written as a DRAFT and scheduled to fire; null when it could not be queued. */
         queueReply(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null, toPhone: string, body: string, delayMs: number, L: InboundLog, source?: "veto_window" | "low_confidence", brainMeta?: BrainMeta, channel?: InboundChannel): Promise<string | null>;
     };

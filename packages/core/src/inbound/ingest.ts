@@ -17,8 +17,8 @@
  * aside a short code and a sender off the allowlist as the whole phase does) and answers Twilio, and a job takes it up
  * again through the whole phase with `resume`. Its ingest is then a redelivery by construction, so the replay gate lets
  * it through while the message is unprocessed and nothing has answered it yet (the persist port's `answered`, which
- * reads the reply that names it): a job taken up again after a runner died mid-turn still answers, and one whose reply
- * already left, or waits as a draft, stamps the message handled and says nothing twice.
+ * reads the reply that names it): a job taken up again after a runner died mid-turn still answers, and one whose turn
+ * already reached a reply says nothing twice and leaves the stamp to the deadman sweep.
  *
  * Persist first is the rule: the allowlist and the short code gate the reply, never the persist. An ingest the database
  * refused throws IngestFailed (./ports.ts) after a best-effort copy of the customer's words goes to the workspace's
@@ -132,16 +132,16 @@ export async function recordMessage(cx: InboundContext): Promise<IngestResult | 
 }
 
 /**
- * Whether a message taken up again already has its answer: a reply that names it left or waits as a draft. Stamped
- * handled when it has, so the deadman sweep finds nothing to finish; asked only of a redelivery the job resumes, and a
- * port that cannot say is no answer yet.
+ * Whether a message taken up again already has its answer: a reply names it, whatever became of it (it left, waits or
+ * was withdrawn as a draft, or the wire refused it). The turn that wrote it died between its answer and its stamp, so
+ * nothing more is said and the stamp is left to the deadman sweep, which finds a reply after the message and stamps it
+ * quietly, as it does for any turn that died there. Asked only of a redelivery the job resumes; a port that cannot say
+ * is no answer yet.
  */
 async function answeredBefore(cx: InboundContext, ing: IngestResult): Promise<boolean> {
-  const { ports, db, tenantId, rt, channel, L } = cx;
-  const reply = ports.persist.answered ? await ports.persist.answered(db, tenantId, ing) : null;
-  if (!reply) return false;
-  L.info("wa_resume_answered", { reply });
-  await ports.persist.sink(db, tenantId, ing, rt, channel).processed(handledOf({ escalation: "none", reply }));
+  const { ports, db, tenantId, L } = cx;
+  if (!ports.persist.answered || !(await ports.persist.answered(db, tenantId, ing))) return false;
+  L.info("wa_resume_answered");
   return true;
 }
 

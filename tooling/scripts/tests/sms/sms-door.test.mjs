@@ -997,8 +997,8 @@ test("a job the database will not take (one before 00347 refuses the kind): said
   await listening(async (log) => {
     assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN, { answer: false })), twiml(200));
     assert.deepEqual(
-      log.said("sms_answer_unscheduled").map((l) => [l.stream, /jobs_kind_check/.test(String(l.error))]),
-      [["warn", true]],
+      log.said("sms_answer_unscheduled").map((l) => [l.stream, l.refused, /jobs_kind_check/.test(String(l.error))]),
+      [["warn", true, true]],
     );
   });
   assert.equal(w.tables.jobs, undefined, "no job was written");
@@ -1006,6 +1006,24 @@ test("a job the database will not take (one before 00347 refuses the kind): said
     [w.left().texts.length, seen.sent.length, seen.ingested.length],
     [1, 1, 1],
     "answered in the door, taken up again as its job would have taken it up",
+  );
+});
+
+test("a job whose write may have landed (a timeout, a connection lost) is never answered in the door too: said, and left to the job or to the deadman sweep", async () => {
+  const w = world();
+  w.open({ "jobs.insert": { code: "57014", message: "canceling statement due to statement timeout" } });
+  const seen = receptionist();
+  await listening(async (log) => {
+    assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN, { answer: false })), twiml(200));
+    assert.deepEqual(
+      log.said("sms_answer_unscheduled").map((l) => [l.stream, l.refused]),
+      [["warn", false]],
+    );
+  });
+  assert.deepEqual(
+    [w.left().texts, seen.sent, seen.ingested.length],
+    [[], [], 1],
+    "kept, and not answered here: a job that did land answers it, once",
   );
 });
 

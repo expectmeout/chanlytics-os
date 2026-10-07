@@ -127,6 +127,12 @@ export const RELAY_LIMIT = 500;
 /** Kinds whose second run could reach a real person a second time. */
 export const SPEAKS_TO_A_PERSON: ReadonlySet<string> = new Set(["outbound_send", "broadcast_send"]);
 
+/**
+ * Kinds whose failure the owner hears from someone else, so the ledger's own notice would be the second of two: a text's
+ * answer that failed leaves its message to the deadman sweep, which hands it to a person with the customer's words.
+ */
+export const TOLD_ELSEWHERE: ReadonlySet<string> = new Set(["inbound_answer"]);
+
 export const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 
 export interface LedgerRow {

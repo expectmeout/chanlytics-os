@@ -225,7 +225,7 @@
     "depth": 1
   },
   "apps/edge/lib/receptionist/unfinished.ts::sweepUnfinished#1": {
-    "lines": 149,
+    "lines": 144,
     "branches": 35,
     "depth": 5
   },

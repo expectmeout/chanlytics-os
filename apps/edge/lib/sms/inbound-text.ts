@@ -36,10 +36,11 @@
  * model's turn can take longer. The door records the text (recordInboundMessage, core recordInbound: set aside, or
  * kept, nothing decided) and schedules its answer as a job (inbound_answer, once per message, in the reply lane), then
  * answers Twilio. The job (answerText) reads the line and its routing again and takes the text up again through the
- * whole phase (handleInbound with `resume`), so a runner killed mid-turn leaves a job the ledger claims again, which
- * answers while the message is unprocessed and no reply names it, and never texts twice. A job that could not be
- * scheduled (a database before 00347 refuses the kind) is said (sms_answer_unscheduled) and the text is answered here,
- * as before. When recording throws, only a text the database did not keep (IngestFailed) is refused, with a 503 so the
+ * whole phase (resumeInbound), so a runner killed mid-turn leaves a job the ledger claims again, which answers while
+ * the message is unprocessed and no reply names it, and never texts twice. A job the database refuses (one before 00347
+ * fails the kind's CHECK) is said (sms_answer_unscheduled) and the text is answered here, as before; any other failure
+ * to write it may be a write that landed, so nothing is answered here and the deadman sweep hands a text no job holds
+ * to a person. When recording throws, only a text the database did not keep (IngestFailed) is refused, with a 503 so the
  * provider redelivers, and the platform is told; anything later already happened after the words were recorded, and
  * is acknowledged.
  *
@@ -57,7 +58,7 @@ import type { Database, IngestResult, Json } from "../packages/db.js";
 import { scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
 import { smsSenderFor } from "./sms.js";
 import { planSmsIngress, carrierFor, smsAfterThrow, lineForAnswer } from "./sms-ingress.js";
-import { handleInbound, recordInboundMessage } from "../whatsapp/inbound.js";
+import { recordInboundMessage, resumeInbound } from "../whatsapp/inbound.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { IngestFailed } from "../whatsapp/persist.js";
 import { errField, logger } from "../log.js";
@@ -134,10 +135,10 @@ export async function receiveInboundText(request: Request): Promise<Response> {
   const receivedAt = Date.now();
   const message = smsAsWaMessage(inbound, receivedAt);
   try {
-    // Recorded, then answered by its job; answered here only when the job could not be written.
+    // Recorded, then answered by its job; answered here only when the database refused the job's kind.
     const ing = await recordInboundMessage(message, routed.tenantId, routed, carrier);
-    if (ing && !(await answerLater(db, routed.tenantId, answerPayload(form, receivedAt, ing), L)))
-      await handleInbound(message, {}, routed.tenantId, routed, false, carrier, undefined, true);
+    if (ing && (await answerLater(db, routed.tenantId, answerPayload(form, receivedAt, ing), L)) === "refused")
+      await resumeInbound(message, routed.tenantId, routed, carrier);
   } catch (e) {
     L.error("sms_inbound_failed", { error: e instanceof Error ? e.message : String(e) });
     // Twilio retries nothing on its own: a text the database did not accept is
@@ -174,18 +175,29 @@ function answerPayload(form: Record<string, string>, receivedAt: number, ing: In
 }
 
 /**
- * The text's answer scheduled as its job, once per message, due now. False when it could not be written: a database
- * before 00347 refuses the kind, and the door then answers the text itself.
+ * The text's answer scheduled as its job, once per message, due now. `refused` when the database refused the kind (one
+ * before 00347 fails its CHECK), and the door then answers the text itself. Any other failure may be a write that
+ * landed and an answer that did not come back (a timeout), so the door answers nothing: a job that exists answers it,
+ * and the deadman sweep hands a text with none to a person. A missed auto-reply beats a double text.
  */
-async function answerLater(db: Db, tenantId: string, payload: Json, L: ReturnType<typeof logger>): Promise<boolean> {
+async function answerLater(
+  db: Db,
+  tenantId: string,
+  payload: Json,
+  L: ReturnType<typeof logger>,
+): Promise<"scheduled" | "refused" | "unknown"> {
   try {
     await scheduleJobOnce(db, { tenantId, kind: "inbound_answer", dueAt: new Date(), payload });
-    return true;
+    return "scheduled";
   } catch (e) {
-    L.warn("sms_answer_unscheduled", { error: errField(e) });
-    return false;
+    const refused = (e as { code?: unknown }).code === CHECK_REFUSED;
+    L.warn("sms_answer_unscheduled", { refused, error: errField(e) });
+    return refused ? "refused" : "unknown";
   }
 }
+
+/** Postgres's code for a row a CHECK refuses (check_violation). */
+const CHECK_REFUSED = "23514";
 
 /**
  * The job's half (inbound_answer, bound by lib/ops/jobs-tick.ts): the text its door recorded, answered. The line and
@@ -206,14 +218,5 @@ export async function answerText(db: Db, job: ClaimedJob): Promise<void> {
   const carrier = carrierFor(inbound, held, held ? null : smsSenderFor(line, acct));
   const L = logger({ tenant_id: job.tenant_id, sid: inbound.messageSid, to_tail: phoneTail(inbound.to) });
   L.info("sms_answer_taken_up", { held });
-  await handleInbound(
-    smsAsWaMessage(inbound, receivedAt),
-    {},
-    routed.tenantId,
-    routed,
-    false,
-    carrier,
-    undefined,
-    true,
-  );
+  await resumeInbound(smsAsWaMessage(inbound, receivedAt), routed.tenantId, routed, carrier);
 }

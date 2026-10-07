@@ -10,9 +10,10 @@
 --   person_link_lead(p_tenant_id, p_contact_id, p_assurance, p_source, p_made, p_skip_lead)
 --       The lead holding the person's number, else their address, that names nobody yet and is neither erased nor
 --       blanked, newest found first (00140's two guarded single-column lookups, each on its own index): its person set,
---       then converted through the one converter (lead_convert_by, any stage, as the trigger converted any stage), which
---       moves its version and writes lead.converted, how `arrived` when they wrote or called (observed) and `added`
---       when a member, a file, the calendar or the finder named them (asserted, found), with the person and the source.
+--       then converted through the one converter (lead_convert_by), which moves its version and writes lead.converted,
+--       how `arrived` when they wrote or called (observed: any stage, as the trigger converted any stage, since they came
+--       back on their own) and `added` when a member, a file, the calendar or the finder named them (asserted, found: an
+--       open lead only, so a lead a member closed stays closed, its person linked), with the person and the source.
 --       A person the link made (p_made) whom no door has said the source of yet (an arrival: the message or the call
 --       is their record) gets contact.added {source lead, lead_id}, as the trigger wrote, so People still says "A lead
 --       you found" and 00307 stamps their first touch, now with the lead as its ref. The lead a caller is converting
@@ -126,9 +127,12 @@ begin
   -- Only a lead still naming nobody: two arrivals of two people cannot both take it.
   update public.leads set contact_id = p_contact_id where id = v_lead and contact_id is null;
   if not found then return null; end if;
+  -- A person who wrote or called converts their lead whatever its stage: they came back on their own. One a member, a
+  -- file, the calendar or the finder named converts an open lead only, so a lead a member closed stays closed.
   perform public.lead_convert_by(p_tenant_id, v_lead,
                                  case when p_assurance = 'observed' then 'arrived' else 'added' end,
-                                 jsonb_build_object('contact_id', p_contact_id, 'source', p_source), true);
+                                 jsonb_build_object('contact_id', p_contact_id, 'source', p_source),
+                                 p_assurance = 'observed');
   if coalesce(p_made, false) and not exists (
        select 1 from public.events e
         where e.tenant_id = p_tenant_id and e.subject_type = 'contact' and e.subject_id = p_contact_id
@@ -142,7 +146,7 @@ end $$;
 
 revoke all on function public.person_link_lead(uuid, uuid, text, text, boolean, uuid) from public, anon, authenticated, service_role;
 comment on function public.person_link_lead(uuid, uuid, text, text, boolean, uuid) is
-  'The lead a person turns out to be (decision 0034, step 5): the one holding their number, else their address, naming nobody yet, converted onto them through lead_convert_by (how arrived or added), with contact.added {source lead} for a person the link made and no door named. Skips the lead the caller converts itself; held off by chanlytics.link_lead = off. Called by resolve_person alone.';
+  'The lead a person turns out to be (decision 0034, step 5): the one holding their number, else their address, naming nobody yet, converted onto them through lead_convert_by (how arrived, at any stage, or added, an open lead only), with contact.added {source lead} for a person the link made and no door named. Skips the lead the caller converts itself; held off by chanlytics.link_lead = off. Called by resolve_person alone.';
 
 /* ---------------------------------------------------------------------------------------------- the door */
 

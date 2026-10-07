@@ -250,7 +250,7 @@ export {
   HISTORY_COLUMNS,
   searchMessages,
   messageSenders,
-  replyNaming,
+  repliedTo,
   failedMessageErrors,
 } from "./repositories/thread";
 export type { ThreadTurn, PgThreadState, LeadContext, MessageHit, MessageSender } from "./repositories/thread";

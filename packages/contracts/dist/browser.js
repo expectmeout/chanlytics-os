@@ -30588,7 +30588,8 @@ var JOB_WORK = {
   // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
   // did not get there, and the activity log is where the fact is.
   event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
-  // A text the door kept and the receptionist could not answer: the thread is flagged for a person too, by the deadman.
+  // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
+  // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.
   inbound_answer: { stopped: "A text could not be answered", to: "inbox" }
 };
 var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };

@@ -4,9 +4,9 @@
  * The door records the text (ingest_inbound) and leaves its answer to an inbound_answer job; the job's own ingest is a
  * redelivery, and it goes on only while the message is unprocessed and no reply names it. What the job reads is proved
  * here against the schema the replay builds: the redelivery answers is_new false with the message's processed state;
- * replyNaming finds the receptionist's reply by the message it names (meta.reply_to), a draft as queued and one that
- * left as sent, a withdrawn draft as none, and nothing of another thread or workspace; the job is held once per message
- * while it lives, in the reply lane. Skipped without a local database; never production.
+ * repliedTo finds a reply by the message it names (meta.reply_to), whatever became of it (waiting, withdrawn, refused or
+ * sent), and nothing of another message or workspace; the job is held once per message while it lives, in the reply
+ * lane. Skipped without a local database; never production.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -25,7 +25,7 @@ const skip =
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { ingestInbound, markProcessed, replyNaming } = await import(at("packages/db/dist/index.js"));
+const { ingestInbound, markProcessed, repliedTo } = await import(at("packages/db/dist/index.js"));
 const { scheduleJobOnce } = await import(at("packages/jobs/dist/index.js"));
 
 const ok = (res, what = "") => {
@@ -118,29 +118,22 @@ test("the job's ingest is a redelivery that says whether the message was finishe
 });
 
 test(
-  "a reply is found by the message it names: a draft as queued, one that left as sent, a withdrawn one as none",
+  "a reply is found by the message it names, whatever became of it: waiting, withdrawn, refused or sent; and never another message's or another workspace's",
   { skip },
   async () => {
-    const { ing } = await textIn(A);
-    assert.equal(await replyNaming(db, A, ing.conversation_id, ing.message_id), null, "nothing has answered it");
-
-    const draft = await replyTo(A, ing, "queued");
-    assert.equal(await replyNaming(db, A, ing.conversation_id, ing.message_id), "queued");
-    ok(await db.from("messages").update({ status: "canceled" }).eq("id", draft), "withdraw");
-    assert.equal(await replyNaming(db, A, ing.conversation_id, ing.message_id), null, "a withdrawn draft is no answer");
-
-    await replyTo(A, ing, "sent");
-    assert.equal(await replyNaming(db, A, ing.conversation_id, ing.message_id), "sent");
-    assert.equal(
-      await replyNaming(db, B, ing.conversation_id, ing.message_id),
-      null,
-      "another workspace asks of nothing it holds",
-    );
+    const asked = (tenant, ing) => repliedTo(db, tenant, ing.conversation_id, ing.message_id);
+    for (const status of ["queued", "canceled", "failed", "sent"]) {
+      const { ing } = await textIn(A);
+      assert.equal(await asked(A, ing), false, `${status}: nothing has answered it yet`);
+      await replyTo(A, ing, status);
+      assert.equal(await asked(A, ing), true, `a reply ${status} names it: its turn reached its answer`);
+      assert.equal(await asked(B, ing), false, `${status}: another workspace asks of nothing it holds`);
+    }
 
     // A reply naming another message of the same thread answers that one, not this.
     const other = await textIn(A);
     await replyTo(A, other.ing, "sent", "00000000-0000-4000-8000-000000000000");
-    assert.equal(await replyNaming(db, A, other.ing.conversation_id, other.ing.message_id), null);
+    assert.equal(await asked(A, other.ing), false);
   },
 );
 

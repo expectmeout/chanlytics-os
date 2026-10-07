@@ -11283,9 +11283,12 @@ begin
   -- Only a lead still naming nobody: two arrivals of two people cannot both take it.
   update public.leads set contact_id = p_contact_id where id = v_lead and contact_id is null;
   if not found then return null; end if;
+  -- A person who wrote or called converts their lead whatever its stage: they came back on their own. One a member, a
+  -- file, the calendar or the finder named converts an open lead only, so a lead a member closed stays closed.
   perform public.lead_convert_by(p_tenant_id, v_lead,
                                  case when p_assurance = 'observed' then 'arrived' else 'added' end,
-                                 jsonb_build_object('contact_id', p_contact_id, 'source', p_source), true);
+                                 jsonb_build_object('contact_id', p_contact_id, 'source', p_source),
+                                 p_assurance = 'observed');
   if coalesce(p_made, false) and not exists (
        select 1 from public.events e
         where e.tenant_id = p_tenant_id and e.subject_type = 'contact' and e.subject_id = p_contact_id
@@ -11302,7 +11305,7 @@ end $$;
 -- Name: FUNCTION person_link_lead(p_tenant_id uuid, p_contact_id uuid, p_assurance text, p_source text, p_made boolean, p_skip_lead uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.person_link_lead(p_tenant_id uuid, p_contact_id uuid, p_assurance text, p_source text, p_made boolean, p_skip_lead uuid) IS 'The lead a person turns out to be (decision 0034, step 5): the one holding their number, else their address, naming nobody yet, converted onto them through lead_convert_by (how arrived or added), with contact.added {source lead} for a person the link made and no door named. Skips the lead the caller converts itself; held off by chanlytics.link_lead = off. Called by resolve_person alone.';
+COMMENT ON FUNCTION public.person_link_lead(p_tenant_id uuid, p_contact_id uuid, p_assurance text, p_source text, p_made boolean, p_skip_lead uuid) IS 'The lead a person turns out to be (decision 0034, step 5): the one holding their number, else their address, naming nobody yet, converted onto them through lead_convert_by (how arrived, at any stage, or added, an open lead only), with contact.added {source lead} for a person the link made and no door named. Skips the lead the caller converts itself; held off by chanlytics.link_lead = off. Called by resolve_person alone.';
 
 
 --

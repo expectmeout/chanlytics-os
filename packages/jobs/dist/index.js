@@ -19,6 +19,7 @@ var MAX_ATTEMPTS = 3;
 var MAX_RESUMES = 5;
 var RELAY_LIMIT = 500;
 var SPEAKS_TO_A_PERSON = /* @__PURE__ */ new Set(["outbound_send", "broadcast_send"]);
+var TOLD_ELSEWHERE = /* @__PURE__ */ new Set(["inbound_answer"]);
 var RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 function verdictFor(job) {
   if (job.attempts <= 1) return "run";
@@ -143,7 +144,7 @@ async function scheduleJobOnce(db, p) {
   if (error?.code === "PGRST204" && key) ({ error } = await insert(null));
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
-  throw new Error(`schedule_job: ${error.message}`);
+  throw Object.assign(new Error(`schedule_job: ${error.message}`), { code: error.code });
 }
 async function cancelJobsFor(db, tenantId, kind, payloadKey, payloadValue) {
   if (!/^[a-z][a-z0-9_]*$/.test(payloadKey)) throw new Error(`cancel_jobs_for: ${payloadKey} is not a payload key`);
@@ -1488,6 +1489,7 @@ async function conclude(ports, job, reason, certain, end) {
     attempts: job.attempts,
     reason
   });
+  if (TOLD_ELSEWHERE.has(job.kind)) return;
   try {
     const words = jobNewsWords(job.kind, end, { attempts: job.attempts, resumed });
     const reference = `Reference: job ${job.id} (${job.kind}): ${reason}.`;
