@@ -460,13 +460,15 @@ test("REGRESSION: a playbook stored with its first name filled by the booking li
   assert.equal(body.name, "Win-back", "a stored name stays its own");
 });
 
-test("a playbook whose message WhatsApp no longer approves says so when changed, and is never moved to another behind its back", () => {
+test("a playbook whose message has no version a run can send says so when changed, and is never moved to another behind its back", () => {
   const p = playbook({ template_id: "tpl-gone", template_name: "old_offer" });
   const tree = composing({ rows: [p] }, null, "pb-1");
-  assert.ok(
-    textOf(byTestId(tree, "pb-template-lost")).includes("no longer approves it"),
+  assert.equal(
     textOf(byTestId(tree, "pb-template-lost")),
+    contracts.MESSAGE_GONE_WORDS.composer("Old offer"),
+    "said as contracts says it, true of a message on any channel: it has no version a run can send",
   );
+  assert.ok(!textOf(byTestId(tree, "pb-template-lost")).includes("WhatsApp"), "and not in WhatsApp's words alone");
   assert.ok(faceOf(tree, "pb-template").includes("Pick a message"), "no other message is put in its place");
   assert.equal(byTestId(tree, "pb-save").props.disabled, true);
 });
@@ -654,8 +656,21 @@ const VISIT_POOL = poolOf({
     }),
   ],
 });
+/**
+ * The message the surface stamps on a template it offers (surfaces/campaigns/parts/channels.ts cmOfferedMessages), made as the
+ * reader makes it, of a row on each channel the template holds: what the Send by row reads a closed channel's words from.
+ */
+const withMessage = (t) => ({
+  ...t,
+  message: contracts.campaignMessageOf(
+    t.channels.map((channel) => ({ ...t, id: channel === "whatsapp" ? t.id : `${t.id}-${channel}`, channel })),
+    t.name,
+    t.language,
+  ),
+});
 /** A message with a version on each channel; the offer, WhatsApp's alone. */
-const reminderRow = (channels = ["whatsapp", "sms", "email"]) => ({ ...starterRow("visit_reminder"), channels });
+const reminderRow = (channels = ["whatsapp", "sms", "email"]) =>
+  withMessage({ ...starterRow("visit_reminder"), channels });
 const viaSurface = (over = {}) =>
   surface({
     ready: ALL_READY,
@@ -1093,4 +1108,146 @@ test("a visit reminder never says the month's emails are running out, because a 
     textOf(byTestId(said, "pb-reach-allowance")),
     "Only 2 emails are left this month: 2 of these people will be held back.",
   );
+});
+
+/* ------------------------- A message needs no WhatsApp row: what the composer offers, opens on, and says ------------------------- */
+
+const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
+
+/** The visit reminder as one of its versions, `channel`'s row of the starter's name, as GET templates returns it. */
+const reminderVersion = (channel, over = {}) => ({
+  ...starterRow("visit_reminder"),
+  id: `tpl-visit-${channel}`,
+  channel,
+  source: "chanlytics",
+  header: channel === "email" ? "Your visit, {{1}}" : null,
+  blocked: null,
+  hidden_at: null,
+  ...over,
+});
+/** What the surface offers of these rows (playbooks/surface.ts): the read's templates, and its messages, made of every row. */
+const offeredOf = (...rows) =>
+  cmOfferedMessages({
+    templates: rows.filter((r) => r.meta_status === "approved" && !r.hidden_at),
+    messages: contracts.campaignMessagesOf(rows),
+  });
+const NO_NUMBER_READY = contracts.channelsReady({
+  whatsapp: null,
+  textLine: { sms_state: "active", reg_mock: false },
+  email: { mailbox: true, domain: true },
+});
+const ticksOf = (tree) => ["whatsapp", "sms", "email"].map((c) => viaOf(tree)[c].props.checked);
+
+test("a new playbook on a message with an email version and no WhatsApp row opens on Email, with a number and without: WhatsApp and Text say why they are closed, and it is saved on Email", async () => {
+  const email = offeredOf(reminderVersion("email"));
+  let tree = composingVia({ templates: email });
+  assert.deepEqual(ticksOf(tree), [false, false, true], "the moment's own message holds email alone: it opens there");
+  assert.equal(reasonsOf(tree).whatsapp, "This message has no WhatsApp version.");
+  assert.equal(reasonsOf(tree).sms, "This message has no text version yet.");
+  assert.equal(viaOf(tree).email.props.readOnly, true, "the one channel on stays on");
+  // No number: the workspace's reason is WhatsApp's, and the playbook opens on Email as well.
+  tree = composingVia({
+    templates: email,
+    ready: NO_NUMBER_READY,
+    number: { present: false, health: { canSend: false } },
+  });
+  assert.deepEqual(ticksOf(tree), [false, false, true], "not on a WhatsApp the workspace has none of");
+  assert.equal(reasonsOf(tree).whatsapp, "Connect a WhatsApp number first.");
+  assert.equal(
+    byTestId(tree, "pb-number"),
+    null,
+    "and the number's warning is never said to a playbook that does not go by WhatsApp",
+  );
+  assert.equal(byTestId(tree, "pb-save").props.disabled, false);
+  await press(byTestId(tree, "pb-save"));
+  assert.deepEqual(said.at(-1)[1].channels, ["email"], "it names the channel it goes by");
+  assert.equal(
+    said.at(-1)[1].template_id,
+    "tpl-visit-email",
+    "on the message's anchor, the email row where there is no other",
+  );
+});
+
+test("a message with an approved WhatsApp version opens a new playbook on WhatsApp, as every playbook did", () => {
+  const rows = [reminderVersion("whatsapp", { id: "tpl-visit_reminder" }), reminderVersion("email")];
+  const tree = composingVia({ templates: offeredOf(...rows) });
+  assert.deepEqual(ticksOf(tree), [true, false, false]);
+  assert.equal(viaOf(tree).email.props.readOnly, false, "its email version is a press away");
+});
+
+test("a WhatsApp version still in review with an email beside it is offered to a playbook, and WhatsApp's tick says it is being reviewed", () => {
+  const rows = [
+    reminderVersion("whatsapp", { id: "tpl-visit_reminder", meta_status: "pending" }),
+    reminderVersion("email"),
+  ];
+  const tree = composingVia({ templates: offeredOf(...rows) });
+  assert.equal(pickerOf(tree, "pb-template").props.value, "visit_reminder", "the message is on the picker");
+  assert.deepEqual(ticksOf(tree), [false, false, true]);
+  assert.equal(reasonsOf(tree).whatsapp, "WhatsApp is still reviewing this message's WhatsApp version.");
+  // Only that version: not offered, as before.
+  const alone = composingVia({
+    templates: offeredOf(reminderVersion("whatsapp", { id: "tpl-visit_reminder", meta_status: "pending" })),
+  });
+  assert.equal(pickerOf(alone, "pb-template"), null);
+});
+
+test("a playbook made on a message's email version is changed on that message by its name and language after a WhatsApp version moved its id: found, not called gone, saved on the id it is offered by", async () => {
+  // Made when the message had an email version alone, its stored template_id that row's; a WhatsApp version added since is the
+  // message's anchor, and the id the composer offers it by.
+  const offered = offeredOf(reminderVersion("whatsapp", { id: "tpl-visit_reminder" }), reminderVersion("email"));
+  assert.equal(offered[0].id, "tpl-visit_reminder");
+  const mine = playbook({
+    id: "pb-visit",
+    name: "Visit reminder",
+    trigger: "visit_tomorrow",
+    template_id: "tpl-visit-email",
+    template_name: "visit_reminder",
+    policy_class: "booking",
+    poolKey: "visit_tomorrow",
+    channels: ["email"],
+    params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "visit_when" }, { kind: "visit_service" }],
+  });
+  const tree = composing(viaSurface({ rows: [mine], templates: offered }), null, "pb-visit");
+  assert.equal(byTestId(tree, "pb-template-lost"), null, "its message is found, whichever version its stored id names");
+  assert.equal(pickerOf(tree, "pb-template").props.value, "visit_reminder");
+  assert.deepEqual(
+    ticksOf(tree),
+    [false, false, true],
+    "it keeps its stored ticks, not the first channel its message holds",
+  );
+  assert.deepEqual(
+    fillsOf(tree).map((f) => f.kind),
+    ["first_name", "business_name", "visit_when", "visit_service"],
+    "and what fills each slot, kept under the id the message is offered by",
+  );
+  await press(byTestId(tree, "pb-save"));
+  const [verb, id, body] = said.at(-1);
+  assert.deepEqual(
+    [verb, id, body.template_id, body.channels],
+    ["update", "pb-visit", "tpl-visit_reminder", ["email"]],
+  );
+  assert.deepEqual(body.params, [
+    { kind: "first_name" },
+    { kind: "business_name" },
+    { kind: "visit_when" },
+    { kind: "visit_service" },
+  ]);
+  // The message gone from the picker (no version a run can send): said, as before, and never moved to another.
+  const gone = composing(viaSurface({ rows: [mine], templates: [] }), null, "pb-visit");
+  assert.equal(textOf(byTestId(gone, "pb-template-lost")), contracts.MESSAGE_GONE_WORDS.composer("Visit reminder"));
+});
+
+test("the words for a message no run can send are contracts', said once, in the composer and on the card, and true of a message on any channel", () => {
+  // The same words in the composer and on the card, from contracts, true of an email's message as of a WhatsApp one.
+  assert.equal(
+    contracts.MESSAGE_GONE_WORDS.card,
+    "Its message has no version its runs can send, so they are skipped until it has one again or the playbook sends another.",
+  );
+  assert.equal(
+    contracts.MESSAGE_GONE_WORDS.composer("Autumn offer"),
+    "Its message, Autumn offer, has no version its runs can send any more. Pick another to save a change.",
+  );
+  const mine = playbook({ template_id: "tpl-gone", template_name: "old_offer" });
+  const tree = paneOf(mine, { templates: [] });
+  assert.equal(textOf(byTestId(tree, "pb-template-gone")), contracts.MESSAGE_GONE_WORDS.card);
 });

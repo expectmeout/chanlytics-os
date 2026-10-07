@@ -12,7 +12,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { gateTitle, navigate } from "../../legacy-verbs";
-import { cmSplitWords } from "../parts/channels";
+import { cmSplitWords, cmStandInOf } from "../parts/channels";
 import { mpParts } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import type { CmPreviewBy } from "../parts/preview-by";
@@ -27,11 +27,12 @@ export interface BcSheetAsk {
   position: readonly [number, number] | null;
   canSend: boolean;
   playbook: PlaybookCardVM | null;
-  /** The message: its WhatsApp words, and its email and text versions where the page holds them (page/runs.tsx). */
+  /** The message: the words of the version the page holds, on its `channel`, and its email and text versions where it holds them (page/runs.tsx). */
   template: {
     body_preview: string | null;
     language: string;
     category: string | null;
+    channel: string;
     versions?: PreviewVersions;
   } | null;
   businessName: string;
@@ -207,6 +208,7 @@ function bcSheetSays(tpl: NonNullable<BcSheetAsk["template"]>, avm: ApprovalVM, 
     business: sheet.businessName,
     address: sheet.businessAddress,
     labelled,
+    standIn: cmStandInOf(tpl),
     // An offer's email reads with the offer's foot, which owes the postal address: with none the preview says so. A run's
     // moment says what its message is about (the business's news is an offer by email too, decision D2).
     ...cmOfferFoot(tpl.category, messageAboutOfTrigger(sheet.playbook?.trigger)),

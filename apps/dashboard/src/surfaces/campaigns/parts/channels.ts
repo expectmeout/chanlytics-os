@@ -1,7 +1,8 @@
 /**
- * What the composers know of channels (One message, every channel, step 3; the campaigns-on-every-channel spec, 4.9): which
- * channels a campaign may tick for the message in view, which are on, why one cannot be, and how the reach splits across
- * the ones that are. The rules are contracts' (reach-for.ts: channelChoices, reachSplit, heldWords); the readiness is the
+ * What the composers know of channels (One message, every channel, step 3; the campaigns-on-every-channel spec, 4.9): the
+ * messages they offer and by which channels each is held, which channels a campaign may tick for the message in view, which
+ * are on, why one cannot be, and how the reach splits across the ones that are. The rules are contracts' (campaign-message.ts:
+ * campaignMessagesOf, messageHolds, messageWhyNot; reach-for.ts: channelChoices, reachSplit, heldWords); the readiness is the
  * workspace's (server/campaigns/channels-ready.ts) with the message's own versions laid over it. Plain functions, nothing
  * here draws: the broadcast composer and the playbook composer read the same ones, and parts/send-by.tsx draws the row.
  */
@@ -10,39 +11,39 @@ import {
   DEFAULT_CAMPAIGN_CHANNELS,
   HELD_ON,
   VERSION_CHANNEL_WORDS,
+  campaignMessagesOf,
   channelChoices,
   channelNeverCarries,
   heldWords,
+  messageHolds,
+  messageWhyNot,
   previewVersionsOf,
   reachByWords,
   reachSplitWords,
   readyOrWhatsApp,
   type AskedPurpose,
+  type CampaignMessage,
   type ChannelsReady,
   type ConsentChannel,
   type MessageAbout,
+  type PreviewVersions,
   type ReachSplit,
 } from "@chanlytics/contracts";
 import { channelsOpenFor, openAmong } from "@/lib/campaign-channels";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import { RPT_CHANNEL_COLORS } from "@/surfaces/reports/series";
 
-/** What the page says of the Send by row, beyond the reasons contracts words (CHANNEL_WORDS). */
+/** What the page says of the Send by row, beyond the reasons contracts words (CHANNEL_WORDS, messageWhyNot). */
 export const CM_VIA_WORDS = {
   /** The row's word, and the group's name to a screen reader. */
   label: "Send by",
   /** The one channel on stays on: a campaign goes by at least one. */
   lastOne: "A campaign goes by at least one channel.",
-  /** A message with no version on a channel cannot go by it. */
-  noVersion: (channel: ConsentChannel): string =>
-    `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version yet.`,
   /** Every ticked channel is closed to it: nobody is reached. */
   nowhere: "None of the channels ticked can carry this message yet.",
   /** A playbook keeps a channel that cannot send yet: its run holds those people until it can. */
   waits: (why: string): string => `${why} It goes by it once it can.`,
 } as const;
-
-/** The channels a campaign ticks until the owner changes them: WhatsApp alone, as every campaign went before. */
-export const cmDefaultChannels = (): ConsentChannel[] => [...DEFAULT_CAMPAIGN_CHANNELS];
 
 /**
  * Whether the workspace can send on each channel, as the page has it: the read's own, or, where it could not be read (or
@@ -54,27 +55,93 @@ export function cmReadyOf(read: ChannelsReady | null | undefined): ChannelsReady
 }
 
 /**
- * The channels a message has a version on, in a language: its WhatsApp row is the message itself, and an email or a text
- * is a row of the same name and language beside it (contracts versionsOf). WhatsApp is always among them: a composer
- * offers only a message WhatsApp approved.
+ * The message in view before one is picked, and for a template stamped before messages were kept: WhatsApp's version alone,
+ * approved, as every campaign opened.
  */
-export function cmChannelsOf(
-  rows: readonly { name: string; channel: string; language: string }[],
-  name: string,
-  language: string,
+const CM_NO_MESSAGE_YET: Pick<CampaignMessage, "versions"> = {
+  versions: {
+    whatsapp: { id: "", status: "approved", hidden: false, blocked: null, reason: null },
+    email: null,
+    sms: null,
+  },
+};
+
+/**
+ * The channels a campaign ticks until the owner changes them: the first, in the product's order (WhatsApp, text, email), that
+ * the workspace is ready on and the message holds; WhatsApp alone where there is none, or no message in view, as every
+ * campaign went before. A workspace with no number composing a message written for email opens on Email.
+ */
+export function cmDefaultChannels(
+  ready: ChannelsReady,
+  message: Pick<CampaignMessage, "versions"> | null,
 ): ConsentChannel[] {
-  return CONSENT_CHANNELS.filter(
-    (c) => c === "whatsapp" || rows.some((r) => r.channel === c && r.name === name && r.language === language),
-  );
+  const held = message === null ? null : messageHolds(message);
+  const first = held === null ? undefined : CONSENT_CHANNELS.find((c) => ready[c].ready && held[c]);
+  return first ? [first] : [...DEFAULT_CAMPAIGN_CHANNELS];
 }
 
 /**
- * A message's email and text versions as the words a preview draws, from the workspace's rows of its name and language
- * (contracts previewVersionsOf, which Ask's cards read the same rows through): a channel the message has no row on is left
- * out. The surfaces stamp this on each template they offer, beside `channels`, so the composers draw an email or a text as the
- * person reads it.
+ * A message the composers offer, in the shape their pages read: the row its words are drawn from (the WhatsApp version's
+ * where the read holds it, else the first of its own), under the message's own id (its anchor's), title and category.
+ * `channels` are those it holds now (contracts messageHolds), `message` the one reading of it (its WhatsApp version's
+ * standing is where a tick's sentence comes from), `versions` the words of its email and text versions in its language, for a
+ * preview to draw a person on those channels as they read it (contracts previewVersionsOf, which Ask's cards read the same
+ * rows through: a channel the message has no row on is left out). `message` is absent on a template
+ * stamped before messages were kept, which reads as WhatsApp's version alone. `channel` is the row the words are on.
  */
-export const cmVersionsOf = previewVersionsOf;
+export type CmOffered = TemplateDto & {
+  purpose: AskedPurpose;
+  channels: ConsentChannel[];
+  versions?: PreviewVersions;
+  message?: CampaignMessage;
+};
+
+/**
+ * The messages a composer offers, from the templates read: every message that is offered (not hidden, at least one channel
+ * held: contracts campaignMessagesOf), made of the read's own `messages` where it carries them (they are made of EVERY row,
+ * so a WhatsApp version still in review keeps its standing), else of its rows. A message whose WhatsApp version is approved
+ * and cannot be put on the wire whole, and holds nothing else, is listed too, `blocked`, so the picker says why it is not
+ * offered (contracts sendableTemplates); a message whose only version is one WhatsApp has not approved is not.
+ */
+export function cmOfferedMessages(read: { templates?: TemplateDto[]; messages?: CampaignMessage[] }): CmOffered[] {
+  const rows = read.templates ?? [];
+  return (read.messages ?? campaignMessagesOf(rows)).flatMap((m) => {
+    const whatsapp = m.versions.whatsapp;
+    const blockedAlone = !m.hidden && whatsapp !== null && whatsapp.status === "approved" && whatsapp.blocked !== null;
+    const own = rows.filter((r) => r.name === m.name && r.language === m.language);
+    const row =
+      own.find((r) => r.id === m.anchor.id) ?? CONSENT_CHANNELS.flatMap((c) => own.filter((r) => r.channel === c))[0];
+    if (!(m.offered || blockedAlone) || !row) return [];
+    const held = messageHolds(m);
+    return [
+      {
+        ...row,
+        id: m.anchor.id,
+        title: m.title,
+        category: m.category,
+        blocked: m.offered ? null : (whatsapp?.blocked ?? null),
+        purpose: m.purpose,
+        channels: CONSENT_CHANNELS.filter((c) => held[c]),
+        versions: previewVersionsOf(rows, m.name, m.language),
+        message: m,
+      },
+    ];
+  });
+}
+
+/** The offered message of this name and language, whichever of its versions an id once named: null where none is offered. */
+export function cmOfferedBy<T extends { name: string; language: string }>(
+  offered: readonly T[],
+  name: string,
+  language: string,
+): T | null {
+  return offered.find((t) => t.name === name && t.language === language) ?? null;
+}
+
+/** The channel the words of an offered message are on: the one a person held back is drawn them as (cmPreviewBy's `standIn`). */
+export function cmStandInOf(t: { channel: string }): ConsentChannel {
+  return CONSENT_CHANNELS.find((c) => c === t.channel) ?? "whatsapp";
+}
 
 /** The business's postal address where its Business record holds one: what an email's foot names (contracts emailFoot). */
 export function cmAddressOf(brain: { profile?: { address?: string | null } | null } | null | undefined): string | null {
@@ -82,15 +149,25 @@ export function cmAddressOf(brain: { profile?: { address?: string | null } | nul
 }
 
 /**
- * The workspace's readiness with each channel the message has no version on closed, saying why. The workspace's pause is the
- * workspace's, not the message's, and rides through (`...ready`).
+ * The workspace's readiness with the message in it: a channel that is ready but whose version the message does not hold is
+ * closed, saying why in the message's own sentence for it (contracts messageWhyNot: "This message has no email version
+ * yet.", "WhatsApp is still reviewing this message's WhatsApp version."), and a channel the workspace is not ready on keeps
+ * its own reason ("Connect a WhatsApp number first."), as the verb that creates the campaign reads it (core readyForMessage).
+ * The workspace's pause is the workspace's, not the message's, and rides through (`...ready`). `null` is no message in view
+ * yet: WhatsApp's version alone, as every campaign opened.
  */
-export function cmReadyForMessage(ready: ChannelsReady, has: readonly ConsentChannel[]): ChannelsReady {
-  // A channel closed for want of a version keeps what else it carries (email's `offers`: the reason it gives for an offer or
-  // the business's news is the campaigns domain's, never "no version" over it, nor the domain's over "no version").
-  const closed = (c: ConsentChannel) =>
-    has.includes(c) ? ready[c] : { ...ready[c], ready: false, why: CM_VIA_WORDS.noVersion(c) };
-  return { ...ready, whatsapp: closed("whatsapp"), sms: closed("sms"), email: closed("email") };
+export function cmReadyForMessage(
+  ready: ChannelsReady,
+  message: Pick<CampaignMessage, "versions"> | null,
+): ChannelsReady {
+  const out: ChannelsReady = { ...ready };
+  for (const c of CONSENT_CHANNELS) {
+    const why = messageWhyNot(message ?? CM_NO_MESSAGE_YET, c);
+    // A channel closed for want of a version keeps what else it carries (email's `offers`: the reason it gives for an offer or
+    // the business's news is the campaigns domain's, never "no version" over it, nor the domain's over "no version").
+    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
+  }
+  return out;
 }
 
 /** One tick of the Send by row as it is drawn. */

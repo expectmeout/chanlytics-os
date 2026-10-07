@@ -29,6 +29,8 @@ export const PREVIEW_WORDS = {
   /** The message has no version on the channel the person is reached on, so its words cannot be drawn here. */
   noVersion: (channel: ConsentChannel): string =>
     `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version to show here.`,
+  /** What a held-back person's stand-in says of itself: they are drawn the message's words, and nothing goes to them. */
+  notSent: "Not sent",
   /** Where an offer's foot puts the link, which is each person's own: the preview cannot make it. */
   unsubscribeLink: "(their own unsubscribe link)",
   /** The line under the business's name in the frame, as each channel's own app says it. */

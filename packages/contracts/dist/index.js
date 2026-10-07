@@ -12406,6 +12406,8 @@ var PREVIEW_WORDS = {
   people: (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`,
   /** The message has no version on the channel the person is reached on, so its words cannot be drawn here. */
   noVersion: (channel) => `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version to show here.`,
+  /** What a held-back person's stand-in says of itself: they are drawn the message's words, and nothing goes to them. */
+  notSent: "Not sent",
   /** Where an offer's foot puts the link, which is each person's own: the preview cannot make it. */
   unsubscribeLink: "(their own unsubscribe link)",
   /** The line under the business's name in the frame, as each channel's own app says it. */
@@ -30797,6 +30799,11 @@ function whatsappStoppedRunWords(m) {
   const why = m === null ? null : messageWhyNot(m, "whatsapp");
   return `${why ?? NO_WHATSAPP_VERSION_WORDS} Everyone on this run goes by WhatsApp, so nothing was sent.`;
 }
+var NO_RUN_VERSION_WORDS = "has no version its runs can send";
+var MESSAGE_GONE_WORDS = {
+  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the playbook sends another.`,
+  composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
+};
 
 // src/templates/message-version-slots.ts
 var partWritten = (part) => part.written ?? slotWritten(part.slot);
@@ -35170,6 +35177,7 @@ export {
   MERGE_WORDS,
   MESSAGE_CHANNELS,
   MESSAGE_DIRECTIONS,
+  MESSAGE_GONE_WORDS,
   MESSAGE_MOMENT_WORDS,
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,

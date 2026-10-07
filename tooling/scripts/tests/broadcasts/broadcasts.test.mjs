@@ -23,6 +23,7 @@ import {
   doorOf,
   PEOPLE_LISTS,
   broadcastName,
+  campaignMessagesOf,
   channelsReady,
   cleanParam,
   eligibleFor,
@@ -828,11 +829,41 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     s.includes("counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }"),
     "the chip's number is the length of the list the preview walks -- never a second count",
   );
-  assert.ok(
-    s.includes("purpose: purposeOfTemplate(t.category)"),
-    "the purpose is stamped by the surface, never decided in the page",
+  // What the surface offers is made of the read by one function (parts/channels.ts cmOfferedMessages), run here: the purpose is
+  // stamped there, from the message's own category (contracts), never decided in the page, and a message is offered by the channels
+  // it holds -- an email version alone is a message, a version WhatsApp has not approved is not one.
+  const { cmOfferedMessages } = await importSrc("apps/dashboard/src/surfaces/campaigns/parts/channels.ts");
+  const version = (channel, over = {}) => ({
+    id: `t-${channel}`,
+    channel,
+    name: "note",
+    language: "en_US",
+    meta_status: "approved",
+    category: "marketing",
+    hidden_at: null,
+    blocked: null,
+    variables: [],
+    body_preview: "Hi",
+    ...over,
+  });
+  const offeredOf = (...rows) =>
+    cmOfferedMessages({
+      templates: rows.filter((r) => r.meta_status === "approved"),
+      messages: campaignMessagesOf(rows),
+    });
+  assert.equal(offeredOf(version("whatsapp"))[0].purpose, "marketing", "an offer needs the yes to offers");
+  assert.equal(offeredOf(version("whatsapp", { category: "utility" }))[0].purpose, "conversational");
+  assert.equal(offeredOf(version("email", { category: "utility" }))[0].purpose, "conversational", "on any channel");
+  assert.deepEqual(
+    offeredOf(version("email")).map((t) => [t.id, t.channels]),
+    [["t-email", ["email"]]],
+    "a message with an email version and no WhatsApp row is offered",
   );
-  assert.ok(s.includes('.filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")'));
+  assert.deepEqual(
+    offeredOf(version("whatsapp", { meta_status: "pending" })),
+    [],
+    "one WhatsApp has not approved is not",
+  );
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
   assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");

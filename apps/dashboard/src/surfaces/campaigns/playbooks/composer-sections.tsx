@@ -10,6 +10,7 @@
  */
 import type { Dispatch, SetStateAction } from "react";
 import {
+  MESSAGE_GONE_WORDS,
   PREVIEW_WORDS,
   allowanceBeforeSend,
   messageAboutOfTrigger,
@@ -23,7 +24,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Picker } from "../../kit/picker/picker";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
-import { CM_VIA_WORDS, cmTick } from "../parts/channels";
+import { CM_VIA_WORDS, cmStandInOf, cmTick } from "../parts/channels";
 import { MessagePreview, PreviewStepper } from "../parts/message-preview";
 import { CmLangGlyph } from "../parts/picker";
 import { cmChevron, cmGroups, cmNumbers, cmSearch } from "../parts/picks";
@@ -287,8 +288,7 @@ function messageEmpty(x: SectionCtx) {
         )}
         {lost && (
           <p className="pb-empty-line is-warn" data-testid="pb-template-lost">
-            Its message, {pbTitle(editingTemplateName)}, is not one it can send any more — WhatsApp no longer approves
-            it. Pick another to save a change.
+            {MESSAGE_GONE_WORDS.composer(pbTitle(editingTemplateName))}
           </p>
         )}
         {starterLine(x)}
@@ -379,6 +379,7 @@ export function messageSection(x: SectionCtx) {
           address: data.businessAddress,
           facts,
           labelled,
+          standIn: cmStandInOf(tpl),
           // An offer's email reads with the offer's foot: why they get it, and the way out (step 4). The moment says what
           // its message is about: the business's news is an offer by email too (decision D2), a visit's is not.
           ...cmOfferFoot(tpl.category, messageAboutOfTrigger(x.trig ? x.trig.id : null)),

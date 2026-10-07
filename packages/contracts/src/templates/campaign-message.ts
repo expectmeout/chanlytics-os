@@ -248,3 +248,17 @@ export function whatsappStoppedRunWords(m: Pick<CampaignMessage, "versions"> | n
   const why = m === null ? null : messageWhyNot(m, "whatsapp");
   return `${why ?? NO_WHATSAPP_VERSION_WORDS} Everyone on this run goes by WhatsApp, so nothing was sent.`;
 }
+
+/** What a playbook says of a message none of whose versions a run can send: true on every channel, not WhatsApp's alone. */
+const NO_RUN_VERSION_WORDS = "has no version its runs can send";
+
+/**
+ * What a playbook says when the message it sends is no longer one a run can send (the workspace removed it, or every
+ * version it held is withdrawn or cannot be sent whole): on its card, where its runs are skipped until it holds a
+ * version again, and in the composer of the playbook, which is never moved to another message behind its owner's back.
+ */
+export const MESSAGE_GONE_WORDS = {
+  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the playbook sends another.`,
+  composer: (title: string): string =>
+    `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`,
+} as const;

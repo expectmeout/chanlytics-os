@@ -408,23 +408,41 @@ const messagesOpen = (over = {}, which = "custom-row") => {
   press(find(row, (n) => n.props?.["data-testid"] === "template-open"));
   return messagesAgain();
 };
-const templateRow = (over = {}) => ({
-  id: "t9",
-  channel: "whatsapp",
-  name: "offer",
-  language: "en_US",
-  meta_status: "approved",
-  category: "marketing",
-  source: "chanlytics",
-  hidden_at: null,
-  title: null,
-  quality: null,
-  rejected_reason: null,
-  synced_at: null,
-  body_preview: "Our fall offer is here.",
-  variables: [],
-  ...over,
-});
+/**
+ * The message the surface stamps on a template it offers (surfaces/campaigns/parts/channels.ts cmOfferedMessages), made as the
+ * reader makes it, of a row on each channel the template holds: what the Send by row reads a closed channel's words from.
+ */
+const messageHeld = (t) =>
+  contracts.campaignMessageOf(
+    (t.channels ?? ["whatsapp"]).map((channel) => ({
+      ...t,
+      id: channel === "whatsapp" ? t.id : `${t.id}-${channel}`,
+      channel,
+    })),
+    t.name,
+    t.language,
+  );
+const withMessage = (t) => ({ ...t, message: messageHeld(t) });
+const templateRow = (over = {}) => {
+  const row = {
+    id: "t9",
+    channel: "whatsapp",
+    name: "offer",
+    language: "en_US",
+    meta_status: "approved",
+    category: "marketing",
+    source: "chanlytics",
+    hidden_at: null,
+    title: null,
+    quality: null,
+    rejected_reason: null,
+    synced_at: null,
+    body_preview: "Our fall offer is here.",
+    variables: [],
+    ...over,
+  };
+  return row.channels && !row.message ? withMessage(row) : row;
+};
 /** The visit reminder as WhatsApp holds it, with the starter's own slots. */
 const visitTemplate = () => {
   const starter = starters.forTrigger("visit_tomorrow");
@@ -974,7 +992,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
 
 test("REGRESSION: a run waiting on you says the words on the channel its reader is reached on -- an email's subject and words, a text's words and STOP line -- named for the channel, never WhatsApp's under another's name", async () => {
   const today = globalThis.window.__clock.dayKey(Date.now());
-  const note = {
+  const note = withMessage({
     id: "tpl-note",
     channel: "whatsapp",
     name: "visit_note",
@@ -989,7 +1007,7 @@ test("REGRESSION: a run waiting on you says the words on the channel its reader 
       email: { subject: "Your visit, {{1}}", body: "Hi {{1}},\nwe will see you tomorrow." },
       sms: { subject: null, body: "Visit tomorrow, {{1}}." },
     },
-  };
+  });
   /** The sheet of a waiting run whose first person is reached on `channel`, over `tpl` and the channels the run counted. */
   const sheetOf = async (channel, tpl = note, by = null) => {
     const run = dto({
@@ -4539,7 +4557,9 @@ test("the number matters to a send only where it goes by WhatsApp: a paused numb
       },
     };
   };
-  let tree = openVia({ ready: readyPaused, number: { present: true, display: "+1 305-555-0100", health: paused } });
+  const number = { present: true, display: "+1 305-555-0100", health: paused };
+  // A message WhatsApp alone holds: no channel the workspace can send on holds it, so it opens ticked on WhatsApp, as ever.
+  let tree = openVia({ templates: [offerRow()], ready: readyPaused, number });
   assert.equal(viaOf(tree).whatsapp.props.checked, false, "the number cannot send: WhatsApp is off, and says why");
   assert.equal(reasonsOf(tree).whatsapp, paused.refusal);
   assert.equal(byTestId(tree, "bc-send").props.disabled, true);
@@ -4549,9 +4569,15 @@ test("the number matters to a send only where it goes by WhatsApp: a paused numb
     "None of the channels ticked can carry this message yet.",
     "and the line says nothing can carry it, not that nobody said yes",
   );
-  // Email, and the number is nothing to it.
-  viaOf(tree).email.props.onCheckedChange(true);
-  tree = viaAgain();
+  // A message that holds email too opens on the first channel the workspace can send on and it holds: Email, since the
+  // number cannot (before the opening ticks followed the message it opened on WhatsApp, and was held by the number).
+  tree = openVia({ ready: readyPaused, number });
+  assert.deepEqual(
+    ["whatsapp", "sms", "email"].map((c) => viaOf(tree)[c].props.checked),
+    [false, false, true],
+    "it opens on Email: the number is nothing to it",
+  );
+  assert.equal(reasonsOf(tree).whatsapp, paused.refusal, "WhatsApp is off, and says why");
   assert.equal(byTestId(tree, "bc-number-refusal"), null, "a send that does not tick WhatsApp never asks");
   assert.equal(byTestId(tree, "bc-number"), null);
   assert.equal(byTestId(tree, "bc-send").props.disabled, false);
@@ -5093,4 +5119,193 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     delete globalThis.window.gatedProps;
     broadcasts.approve = keep;
   }
+});
+
+/* ------------------------- A message needs no WhatsApp row: what the composer offers, opens on, and says ------------------------- */
+
+const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
+
+/** One version of the message hours_note, on `channel`, as GET templates returns its rows (a WhatsApp row's `blocked` judged, an email's null). */
+const versionRow = (channel, over = {}) => ({
+  id: `v-${channel}`,
+  channel,
+  name: "hours_note",
+  language: "en_US",
+  meta_status: "approved",
+  category: "utility",
+  source: "chanlytics",
+  hidden_at: null,
+  title: null,
+  quality: null,
+  rejected_reason: null,
+  synced_at: null,
+  blocked: null,
+  variables: [{ position: 1, label: "First name", example: "Dani" }],
+  header: channel === "email" ? "A note, {{1}}" : null,
+  body_preview: "Hi {{1}}, we are open late on Thursdays.",
+  ...over,
+});
+/** What the surface offers of these rows (broadcasts/surface.ts): the read's templates, and its messages, made of every row. */
+const offeredOf = (...rows) =>
+  cmOfferedMessages({
+    templates: rows.filter((r) => r.meta_status === "approved" && !r.hidden_at),
+    messages: contracts.campaignMessagesOf(rows),
+  });
+/** A workspace with a texting line and a mailbox that sends the business's news, and no WhatsApp number. */
+const NO_NUMBER_READY = contracts.channelsReady({
+  whatsapp: null,
+  textLine: { sms_state: "active", reg_mock: false },
+  email: { mailbox: true, domain: true, offers: { campaigns: true, address: true, paused: null } },
+});
+const noNumber = { present: false, display: null, health: numberHealth({ quality: null, event: null, limit: null }) };
+const ticksOf = (tree) => ["whatsapp", "sms", "email"].map((c) => viaOf(tree)[c].props.checked);
+
+test("a message with an email version and no WhatsApp row is offered and opens on Email, on a workspace with no number and on one with: WhatsApp and Text say why they are closed, and no number is asked for", () => {
+  const email = offeredOf(versionRow("email"));
+  assert.equal(email.length, 1, "offered: not hidden, and it holds a channel");
+  // A workspace with no WhatsApp number: the workspace's reason is WhatsApp's, the message's is Text's.
+  let tree = openVia({ templates: email, ready: NO_NUMBER_READY, number: noNumber });
+  assert.deepEqual(
+    ticksOf(tree),
+    [false, false, true],
+    "it opens on Email, not on a WhatsApp the workspace has none of",
+  );
+  assert.equal(reasonsOf(tree).whatsapp, "Connect a WhatsApp number first.");
+  assert.equal(reasonsOf(tree).sms, "This message has no text version yet.");
+  assert.equal(viaOf(tree).email.props.readOnly, true, "the one channel on stays on");
+  assert.equal(byTestId(tree, "bc-number"), null, "a send that does not go by WhatsApp never asks for its number");
+  assert.equal(textOf(byTestId(tree, "bc-reach-by")), "2 by email");
+  assert.equal(byTestId(tree, "bc-send").props.disabled, false, "and it can be sent");
+  // A workspace with a number: the message has no WhatsApp version, which is what WhatsApp's tick says.
+  tree = openVia({ templates: email });
+  assert.deepEqual(ticksOf(tree), [false, false, true]);
+  assert.equal(reasonsOf(tree).whatsapp, "This message has no WhatsApp version.");
+  assert.equal(reasonsOf(tree).sms, "This message has no text version yet.");
+  assert.equal(byTestId(tree, "bc-send").props.disabled, false);
+});
+
+test("a message with an approved WhatsApp version opens on WhatsApp, as every broadcast did, whatever else it holds", () => {
+  let tree = openVia({ templates: offeredOf(versionRow("whatsapp")) });
+  assert.deepEqual(ticksOf(tree), [true, false, false]);
+  assert.equal(reasonsOf(tree).email, "This message has no email version yet.");
+  tree = openVia({ templates: offeredOf(versionRow("whatsapp"), versionRow("email")) });
+  assert.deepEqual(
+    ticksOf(tree),
+    [true, false, false],
+    "with an email beside it: WhatsApp still, the email a press away",
+  );
+  assert.equal(viaOf(tree).email.props.readOnly, false);
+});
+
+test("a WhatsApp version still in review with an email beside it is offered, and WhatsApp's tick says it is being reviewed; a message with only that version is not offered", () => {
+  const rows = [versionRow("whatsapp", { meta_status: "pending" }), versionRow("email")];
+  const tree = openVia({ templates: offeredOf(...rows) });
+  assert.equal(pickerOf(tree, "bc-template").props.value, "hours_note", "the message is on the picker");
+  assert.deepEqual(ticksOf(tree), [false, false, true], "it opens on the channel it holds");
+  assert.equal(reasonsOf(tree).whatsapp, "WhatsApp is still reviewing this message's WhatsApp version.");
+  assert.equal(viaOf(tree).whatsapp.props.readOnly, true, "and the tick stays closed until WhatsApp approves it");
+  // As before: a message whose only version is one WhatsApp has not approved is not on the picker.
+  const alone = openVia({ templates: offeredOf(versionRow("whatsapp", { meta_status: "pending" })) });
+  assert.equal(pickerOf(alone, "bc-template"), null);
+  assert.ok(byTestId(alone, "bc-no-template"));
+});
+
+test("Send it again finds the message a run sent by its name and language: a WhatsApp version added since moved the id the picker lists it by", async () => {
+  // The run went out when the message had an email version alone, so its template_id is that row's. A WhatsApp version added
+  // since is the message's anchor: the composer lists the message by that row's id.
+  const rows = [
+    versionRow("whatsapp", {
+      id: "tpl-offer-whatsapp",
+      name: "autumn_offer",
+      category: "marketing",
+      body_preview: "Hi {{1}}, {{2}}",
+      variables: [
+        { position: 1, label: "First name", example: "Dani" },
+        { position: 2, label: "The offer", example: "20% off" },
+      ],
+    }),
+    versionRow("email", {
+      id: "tpl-offer-email",
+      name: "autumn_offer",
+      category: "marketing",
+      header: "Autumn",
+      body_preview: "Hi {{1}}, {{2}}",
+      variables: [
+        { position: 1, label: "First name", example: "Dani" },
+        { position: 2, label: "The offer", example: "20% off" },
+      ],
+    }),
+  ];
+  const offered = offeredOf(...rows);
+  assert.equal(offered[0].id, "tpl-offer-whatsapp", "the picker's id is the WhatsApp version's");
+  const byHand = dto({
+    id: "b-hand",
+    name: "Autumn colour",
+    playbook_id: null,
+    run_for: null,
+    template_id: "tpl-offer-email",
+    template_name: "autumn_offer",
+    audience: { kind: "saved", id: "s1", label: "Regulars" },
+    params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
+  });
+  setSurfaceValue(
+    "broadcasts",
+    broadcastsSurface({ templates: offered, number: healthyNumber, rows: [toBroadcastVM(byHand, ZONE)] }),
+  );
+  answers.set("b-hand", [{ ok: true, data: detailOf(byHand) }]);
+  const props = { initialSegment: null, initialRun: "b-hand" };
+  page(props);
+  await settle();
+  let tree = again(props);
+  assert.ok(byTestId(tree, "bc-again"), "the run can be sent again: its message is still there, by name");
+  press(byTestId(tree, "bc-again"));
+  again({ initialSegment: null, initialRun: null });
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.ok(byTestId(tree, "bc-composer"), "onto the send screen");
+  assert.equal(pickerOf(tree, "bc-template").props.value, "autumn_offer", "on its message");
+  assert.equal(
+    typedOf(tree)[0].props.typed,
+    "20% off colour",
+    "and the words it said, under the id the picker lists it by",
+  );
+  // The message gone from the picker (no version left a broadcast can send): no button, as before.
+  setSurfaceValue(
+    "broadcasts",
+    broadcastsSurface({ templates: [], number: healthyNumber, rows: [toBroadcastVM(byHand, ZONE)] }),
+  );
+  page(props);
+  await settle();
+  assert.equal(byTestId(again(props), "bc-again"), null, "no composer quietly filled with something else");
+});
+
+test("a person held back is drawn as the message's own words, marked Not sent: an email's, for a message with an email version and no WhatsApp row", () => {
+  const email = offeredOf(versionRow("email"));
+  let tree = openWalk({ templates: email });
+  assert.deepEqual(ticksOf(tree), [false, false, true]);
+  // Walk to the one nobody can reach: they are in the list and held back.
+  let held = null;
+  for (let i = 0; i < 4 && !held; i += 1) {
+    const now = walkNow(tree);
+    if (now.place === "held back") held = now;
+    else {
+      nextPerson();
+      tree = viaAgain();
+    }
+  }
+  assert.ok(held, "someone is held back: a person with no address, on a send that goes by email alone");
+  assert.deepEqual(
+    [held.via, held.kind, held.mail, held.subject],
+    [null, "Email", true, `A note, ${held.who.split(" ")[0]}`],
+    "the email as a mail, its words not WhatsApp's, with no channel named over them",
+  );
+  assert.equal(textOf(byTestId(tree, "mp-version-note")), "Not sent", "marked, as a mail has no mark of its own");
+  // A message with a WhatsApp version: the bubble, marked once.
+  tree = openWalk();
+  for (let i = 0; i < 3; i += 1) {
+    nextPerson();
+    tree = viaAgain();
+  }
+  assert.equal(walkNow(tree).place, "held back");
+  assert.ok(byTestId(tree, "mp-held"), "WhatsApp's bubble carries its own mark");
+  assert.equal(byTestId(tree, "mp-version-note"), null, "which says it once");
 });

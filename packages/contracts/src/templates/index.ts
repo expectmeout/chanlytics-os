@@ -102,6 +102,7 @@ export {
   campaignMessagesOf,
   messageHolds,
   messageWhyNot,
+  MESSAGE_GONE_WORDS,
   whatsappStoppedRunWords,
 } from "./campaign-message";
 export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";

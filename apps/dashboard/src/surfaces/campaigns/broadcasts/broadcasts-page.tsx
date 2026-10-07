@@ -20,7 +20,7 @@ import { canDo, demoSession, replaceRoute, useLegacyToast } from "../../legacy-v
 import { useUnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
-import { cmDefaultChannels } from "../parts/channels";
+import { cmDefaultChannels, cmReadyOf } from "../parts/channels";
 import { CmSplit } from "../parts/split";
 import { bcAgainOf, bcLedgerOf, bcRunSolo, bcSheetOf } from "./page/runs";
 import { bcRunActs, bcSendActs } from "./page/acts";
@@ -119,10 +119,13 @@ function useBroadcastsPage({
     const d = bcDefault(templates);
     return d ? d.id : "";
   });
-  // The channels it goes by, ticked in the Send by row: WhatsApp alone until the owner ticks others, as every send went. A
-  // choice like the list and the message, so a tick alone keeps nothing; what the tab kept comes back with the send.
+  // The channels it goes by, ticked in the Send by row: the first the workspace is ready on and the message it opens on
+  // holds, WhatsApp alone where there is none, as every send went. A choice like the list and the message, so a tick alone
+  // keeps nothing; what the tab kept comes back with the send.
   const [channels, setChannels] = useState<ConsentChannel[]>(() =>
-    kept && kept.channels && kept.channels.length > 0 ? kept.channels : cmDefaultChannels(),
+    kept && kept.channels && kept.channels.length > 0
+      ? kept.channels
+      : cmDefaultChannels(cmReadyOf(data.ready), templates.find((t) => t.id === tplId)?.message ?? null),
   );
   const words = useBcWords(kept);
   const { params, sources, name, whenAt, wrote, clearWords } = words;

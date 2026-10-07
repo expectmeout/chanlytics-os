@@ -28,6 +28,7 @@ import {
   cmChannelsKept,
   cmChannelsOn,
   cmDefaultChannels,
+  cmOfferedBy,
   cmReadyForMessage,
   cmReachBy,
   cmReadyOf,
@@ -110,17 +111,44 @@ function openedList(editing: PlaybookCardVM | null, data: PlaybooksSurface): str
 /**
  * What it opens as: the playbook being changed, or a new one on the moment pressed. Words typed here before and not
  * saved come back over that (the tab's draft, useUnsavedWork), except the moment a slot was pressed for.
+ *
+ * A playbook being changed is on the offered message of its name and language, whichever version its stored `template_id`
+ * names (a WhatsApp version added since moves the message's anchor: composerOffered's `id`), and keeps its stored ticks. A
+ * new one opens on the first channel the workspace is ready on and the moment's own message holds, WhatsApp alone where
+ * there is none (parts/channels.ts cmDefaultChannels).
  */
 export function composerOpened(
   editing: PlaybookCardVM | null,
   initialTrigger: string | null,
   data: PlaybooksSurface,
 ): Fields {
+  const opened = composerFields(editing, initialTrigger, data);
+  if (editing) return opened;
+  const input = {
+    data,
+    editing,
+    offered: composerOffered(data.templates),
+    templatesAll: null,
+    f: opened,
+    busy: false,
+    error: null,
+  };
+  const own = composerMessage(input, momentOf(input)).tpl;
+  const mine = own && data.templates ? data.templates.find((t) => t.id === own.id) : undefined;
+  return { ...opened, channels: cmDefaultChannels(cmReadyOf(data.ready), mine?.message ?? null) };
+}
+
+/** What the sheet holds as it opens, before a new playbook's ticks follow its message (composerOpened). */
+function composerFields(editing: PlaybookCardVM | null, initialTrigger: string | null, data: PlaybooksSurface): Fields {
   const triggers = data.triggers || PB_NONE;
   const params = editing && Array.isArray(editing.params) ? editing.params : null;
+  const message = editing
+    ? cmOfferedBy(data.templates || PB_NONE, editing.template_name, editing.template_language)
+    : null;
+  const tplId = editing ? (message ? message.id : editing.template_id) : "";
   return {
     trigger: editing ? editing.trigger : initialTrigger || pbFirstFree(triggers, data.rows),
-    tplId: editing ? editing.template_id : "",
+    tplId,
     picked: !!editing,
     name: editing ? editing.name : null,
     hour: editing ? editing.run_hour : 10,
@@ -130,14 +158,13 @@ export function composerOpened(
     listId: openedList(editing, data),
     // What a playbook on a list sends, under which row of Autonomy: an offer, or a win-back.
     cls: editing && editing.trigger === "saved_list" && editing.policy_class === "reengage" ? "reengage" : "campaign",
-    fills: editing && params ? { [editing.template_id]: params.map((p) => (p && p.kind ? p.kind : "text")) } : {},
-    typed:
-      editing && params ? { [editing.template_id]: params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {},
-    // A playbook made before channels goes by WhatsApp alone; a new one opens on it too.
+    fills: editing && params ? { [tplId]: params.map((p) => (p && p.kind ? p.kind : "text")) } : {},
+    typed: editing && params ? { [tplId]: params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {},
+    // A playbook made before channels goes by WhatsApp alone.
     channels:
       editing && editing.channels && editing.channels.length > 0
         ? CONSENT_CHANNELS.filter((c) => (editing.channels ?? []).includes(c))
-        : cmDefaultChannels(),
+        : cmDefaultChannels(cmReadyOf(data.ready), null),
   };
 }
 
@@ -175,7 +202,11 @@ function composerMessage({ editing, offered, templatesAll, f }: ModelIn, { trig,
   const starterAny = starter ? (templatesAll || PB_NONE).find((t) => t.name === starter.name) || null : null;
   const tpl = f.picked ? usable.find((t) => t.id === f.tplId) || null : rowIn(starterGroup, null);
   // A playbook being changed whose message is no longer one it can send: said, never swapped for another behind its back.
-  const lost = !!(editing && f.picked && f.tplId === editing.template_id && !tpl);
+  // Its message is the one of its name and language, whichever version its stored id names (composerOpened).
+  const stored = editing
+    ? cmOfferedBy([...offered.sendable, ...offered.blocked], editing.template_name, editing.template_language)
+    : null;
+  const lost = !!(editing && f.picked && !tpl && (f.tplId === editing.template_id || f.tplId === stored?.id));
   const group = tpl ? groups.find((g) => g.name === tpl.name) || null : null;
   return { slotsOf, usable, groups, starter, starterGroup, starterAny, tpl, lost, group };
 }
@@ -274,10 +305,7 @@ function reachReading(input: ModelIn, mo: Moment, on: readonly ConsentChannel[])
 function channelsModelOf({ data, f }: ModelIn, { trig, onList }: Moment, { tpl }: Message) {
   const purpose = enrolPurpose(onList ? f.cls : trig ? trig.cls : null, tpl ? { category: tpl.category } : null);
   const mine = tpl && data.templates ? data.templates.find((t) => t.id === tpl.id) : undefined;
-  const channelReady = cmReadyForMessage(
-    cmReadyOf(data.ready),
-    mine && mine.channels ? mine.channels : DEFAULT_CAMPAIGN_CHANNELS,
-  );
+  const channelReady = cmReadyForMessage(cmReadyOf(data.ready), mine?.message ?? null);
   const ticked = f.channels || DEFAULT_CAMPAIGN_CHANNELS;
   // What the moment's message is about: a visit's or a proposal's is theirs, any other moment's the business's news, which by
   // email waits for the workspace's offers as an offer does (contracts isOfferByEmail, decision D2).
