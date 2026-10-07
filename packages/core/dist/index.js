@@ -37929,25 +37929,44 @@ async function ingestOrSay(cx) {
     throw e;
   }
 }
-async function ingestMessage(cx) {
-  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
+async function setAside(cx) {
+  const { ports, tenantId, isEnvDefault, from, channel, db, rt } = cx;
   const recordOrSay = () => ingestOrSay(cx);
   if (shortCode(from)) {
-    const ing2 = await recordOrSay();
-    const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
-    await sink2.unreachableSender();
-    await sink2.processed(handledOf(SET_ASIDE));
-    return;
+    const ing = await recordOrSay();
+    const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    await sink.unreachableSender();
+    await sink.processed(handledOf(SET_ASIDE));
+    return true;
   }
   const digits = (s) => s.replace(/\D/g, "");
   const allow = ports.env.allowlist.split(",").map(digits).filter(Boolean);
   if (isEnvDefault && allow.length && !allow.includes(digits(from))) {
-    const ing2 = await recordOrSay();
-    const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
-    await sink2.allowlistSkip();
-    await sink2.processed(handledOf(SET_ASIDE));
-    return;
+    const ing = await recordOrSay();
+    const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    await sink.allowlistSkip();
+    await sink.processed(handledOf(SET_ASIDE));
+    return true;
   }
+  return false;
+}
+async function recordMessage(cx) {
+  if (await setAside(cx)) return void 0;
+  const ing = await ingestOrSay(cx);
+  return ing && !ing.is_new ? void 0 : ing;
+}
+async function answeredBefore(cx, ing) {
+  const { ports, db, tenantId, rt, channel, L } = cx;
+  const reply = ports.persist.answered ? await ports.persist.answered(db, tenantId, ing) : null;
+  if (!reply) return false;
+  L.info("wa_resume_answered", { reply });
+  await ports.persist.sink(db, tenantId, ing, rt, channel).processed(handledOf({ escalation: "none", reply }));
+  return true;
+}
+async function ingestMessage(cx, resume = false) {
+  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
+  const recordOrSay = () => ingestOrSay(cx);
+  if (await setAside(cx)) return;
   const ing = await recordOrSay();
   const thread = await ports.persist.thread(db, tenantId, ing);
   const ingestMs = Date.now() - t0;
@@ -37971,7 +37990,7 @@ async function ingestMessage(cx) {
     who: n.profileName ?? null,
     about: ing ? { type: "conversation", id: ing.conversation_id } : null
   });
-  if (ing && !ing.is_new) {
+  if (ing && !ing.is_new && !(resume && !ing.processed && !await answeredBefore(cx, ing))) {
     L.info("wa_skip_pg_dupe");
     return;
   }
@@ -38554,9 +38573,13 @@ async function stillOurs(at, t, photo) {
 }
 
 // src/inbound/answer.ts
+async function recordInbound(input, ports) {
+  const cx = await openInbound(input, ports);
+  return await recordMessage(cx) ?? null;
+}
 async function answerInbound(input, ports) {
   const cx = await openInbound(input, ports);
-  const kept = await ingestMessage(cx);
+  const kept = await ingestMessage(cx, input.resume === true);
   if (!kept) return;
   const at = { ...cx, ...kept, ...await modeInForce(cx, kept.ing) };
   if (await firstGates(at) !== GO) return;
@@ -38740,6 +38763,7 @@ export {
   readCampaignMessage,
   readReply,
   reconcileUnknownRuns,
+  recordInbound,
   refusalScript,
   rejudgeProbe,
   replyPosture,

@@ -444,6 +444,16 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
  * not build, rather than sitting on the ledger until a row of it is claimed
  * and comes back "unknown_kind" in production.
  */
+/**
+ * inbound_answer: a text the SMS door recorded and acknowledged, answered through the receptionist the edge injects
+ * (decision 0031, Phase 2). payload: { text, received_at, message_id, conversation_id, contact_id }. Run again after a
+ * runner died mid-turn, it answers only while the message is unprocessed and no reply names it (core inbound/ingest.ts).
+ */
+async function inboundAnswer(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.inbound) throw new Error("inbound_answer: this runtime holds no receptionist");
+  await ctx.inbound.answer(job);
+}
+
 const HANDLERS: Record<JobKind, Handler> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -456,6 +466,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   push_receipts: pushReceipts,
   reply_read: replyRead,
   event_deliver: eventDeliver,
+  inbound_answer: inboundAnswer,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

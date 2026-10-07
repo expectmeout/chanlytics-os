@@ -427,6 +427,15 @@ interface JobContext {
         draft: ReplyReadPorts["draft"];
     };
     /**
+     * A text answered after its acknowledgement (decision 0031, Phase 2), as the edge holds it: the line, its sender and
+     * the receptionist's ports live there. INJECTED like email's intake. Optional so a test context need not supply one;
+     * an inbound_answer job in a runtime without it fails loudly rather than guessing.
+     */
+    inbound?: {
+        /** The job's text taken up again through the whole inbound phase; throws when it could not be, and the ledger retries. */
+        answer: (job: ClaimedJob) => Promise<void>;
+    };
+    /**
      * Schedule a job of this tenant — how a broadcast continues itself, one
      * batch after another, through the same door the dashboard uses.
      */

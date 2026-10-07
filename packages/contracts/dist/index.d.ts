@@ -774,7 +774,7 @@ declare const SCHEMA_SETS: {
     readonly "google_reviews.origin": readonly ["places", "profile"];
     readonly "invitations.role": readonly ["operator", "viewer"];
     readonly "job_capacity.scope": readonly ["workspace", "provider", "domain"];
-    readonly "jobs.kind": readonly ["outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver"];
+    readonly "jobs.kind": readonly ["outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver", "inbound_answer"];
     readonly "jobs.state": readonly ["scheduled", "fired", "done", "canceled", "failed"];
     readonly "lead_counters.kind": readonly ["allowance", "budget", "day"];
     readonly "lead_operations.kind": readonly ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"];
@@ -899,7 +899,7 @@ type ConsentState = (typeof CONSENT_STATES)[number];
  * A new kind arrives with its handler, its caller, the jobs.kind CHECK and
  * its lane (jobs.lane, 00281: which work a claim takes first), together.
  */
-declare const JOB_KINDS: readonly ["outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver"];
+declare const JOB_KINDS: readonly ["outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver", "inbound_answer"];
 type JobKind = (typeof JOB_KINDS)[number];
 /**
  * Every subscriber a delivery can name (event_subscriptions.subscriber, 00334, decision 0032): each is a verb in core's

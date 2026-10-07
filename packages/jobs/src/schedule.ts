@@ -33,7 +33,8 @@ export interface ScheduleParams {
 /**
  * What makes a row once-only while it is scheduled or fired (jobs.dedupe_key, 00333, decision 0033): the three kinds the
  * ledger held once per subject by an index of their own carry the same subject as their key, so one index holds every
- * kind once the three retire. A kind with no rule has no key.
+ * kind once the three retire. A text's answer (inbound_answer, 00347) is held once per message the same way. A kind with
+ * no rule has no key.
  */
 function dedupeKeyOf(kind: JobKind, payload: Json): string | null {
   const p = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
@@ -47,6 +48,8 @@ function dedupeKeyOf(kind: JobKind, payload: Json): string | null {
       return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
     case "reply_read":
       return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
+    case "inbound_answer":
+      return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
     default:
       return null;
   }

@@ -51,7 +51,11 @@ var RETRY_WAITS_MS = {
   reply_read: [2 * MIN_MS, 10 * MIN_MS],
   // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
   // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
-  event_deliver: [2 * MIN_MS, 10 * MIN_MS]
+  event_deliver: [2 * MIN_MS, 10 * MIN_MS],
+  // A text answered after its acknowledgement (00347): a thrown read or write is the database's bad minute. One more
+  // try, after a wait that outlasts the lease; a second throw fails it, and the deadman sweep then hands the message to
+  // a person (lib/receptionist/unfinished.ts), as it would a turn that died in the door.
+  inbound_answer: [2 * MIN_MS]
 };
 function retryWait(job, random = Math.random) {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
@@ -103,6 +107,8 @@ function dedupeKeyOf(kind, payload) {
       return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
     case "reply_read":
       return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
+    case "inbound_answer":
+      return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
     default:
       return null;
   }
@@ -943,6 +949,10 @@ async function eventDeliver(ctx, job) {
   }
   await settle("done", null);
 }
+async function inboundAnswer(ctx, job) {
+  if (!ctx.inbound) throw new Error("inbound_answer: this runtime holds no receptionist");
+  await ctx.inbound.answer(job);
+}
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -954,7 +964,8 @@ var HANDLERS = {
   push_send: pushSend,
   push_receipts: pushReceipts,
   reply_read: replyRead,
-  event_deliver: eventDeliver
+  event_deliver: eventDeliver,
+  inbound_answer: inboundAnswer
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];

@@ -56,7 +56,10 @@ type Db = SupabaseClient<Database>;
  * mailbox's last-received stamp never moved.
  *
  * A new channel is excluded by construction, which is the safe direction: a
- * channel is added here only once somebody decides this sweep owns it.
+ * channel is added here only once somebody decides this sweep owns it. A text
+ * is answered after its acknowledgement by a job (inbound_answer, 00347): its
+ * message is left alone while that job waits or runs, and is this sweep's
+ * again once the job has failed for good.
  */
 const INLINE_INTAKE = ["whatsapp", "sms"] as const;
 
@@ -117,6 +120,25 @@ interface QueuedRow {
 const iso = (ms: number) => new Date(ms).toISOString();
 const short = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
 
+/** The messages, of these, that a job of this kind still waiting or running names (payload.message_id). */
+async function liveJobsNaming(db: Db, kind: "outbound_send" | "inbound_answer", ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const { data, error } = await db
+    .from("jobs")
+    .select("payload")
+    .eq("kind", kind)
+    .in("state", ["scheduled", "fired"])
+    .in("payload->>message_id", ids);
+  if (error) throw new Error(`unfinished: cannot read the jobs: ${error.message}`);
+  const named = (data ?? []).map((j) => {
+    const p = j.payload;
+    return p !== null && typeof p === "object" && !Array.isArray(p) && typeof p.message_id === "string"
+      ? p.message_id
+      : "";
+  });
+  return new Set(named.filter(Boolean));
+}
+
 export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSummary> {
   const now = p.now ? p.now() : Date.now();
   const out: UnfinishedSummary = { unanswered: 0, orphaned: 0, told: 0 };
@@ -141,7 +163,14 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
     .order("created_at", { ascending: true })
     .limit(BATCH);
   if (inErr) throw new Error(`unfinished: cannot read inbound messages: ${inErr.message}`);
-  const rows = (inbound ?? []) as unknown as InboundRow[];
+  // A text whose answer is a job still waiting or running is that job's (inbound_answer, 00347): not abandoned, in hand.
+  const found = (inbound ?? []) as unknown as InboundRow[];
+  const answering = await liveJobsNaming(
+    p.db,
+    "inbound_answer",
+    found.map((r) => r.id),
+  );
+  const rows = found.filter((r) => !answering.has(r.id));
   if (rows[0]) {
     // A reply that went out after the message, before the stamp, is not a
     // customer with no answer: the crash was between the send and the mark.
@@ -208,18 +237,10 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
   if (qErr) throw new Error(`unfinished: cannot read queued replies: ${qErr.message}`);
   const stuck = (queued ?? []) as unknown as QueuedRow[];
   if (stuck.length) {
-    const { data: jobs, error: jErr } = await p.db
-      .from("jobs")
-      .select("payload")
-      .eq("kind", "outbound_send")
-      .in("state", ["scheduled", "fired"])
-      .in(
-        "payload->>message_id",
-        stuck.map((s) => s.id),
-      );
-    if (jErr) throw new Error(`unfinished: cannot read the jobs: ${jErr.message}`);
-    const live = new Set(
-      ((jobs ?? []) as { payload: { message_id?: unknown } | null }[]).map((j) => String(j.payload?.message_id ?? "")),
+    const live = await liveJobsNaming(
+      p.db,
+      "outbound_send",
+      stuck.map((s) => s.id),
     );
     for (const s of stuck) {
       if (live.has(s.id)) continue;

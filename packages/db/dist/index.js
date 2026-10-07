@@ -2739,6 +2739,13 @@ async function messageSenders(db, tenantId, ids) {
   }
   return out;
 }
+async function replyNaming(db, tenantId, conversationId, messageId) {
+  const { data, error } = await db.from("messages").select("status").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("meta->>reply_to", messageId).neq("status", "canceled").limit(5);
+  if (error) throw new Error(`replyNaming: ${error.message}`);
+  const rows = data ?? [];
+  if (rows.length === 0) return null;
+  return rows.every((r) => r.status === "queued") ? "queued" : "sent";
+}
 
 // src/ask-voice-session.ts
 import { isVoiceEndReason } from "../../contracts/dist/index.js";
@@ -4166,6 +4173,7 @@ export {
   removeTemplateVersion,
   renameList,
   repliesFor,
+  replyNaming,
   replyReadingOf,
   replyReadingRefOf,
   replyUndoableOf,

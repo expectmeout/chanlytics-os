@@ -30,7 +30,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { handleInbound } = await import(at("apps/edge/lib/whatsapp/inbound.ts"));
+const { handleInbound, recordInboundMessage } = await import(at("apps/edge/lib/whatsapp/inbound.ts"));
 const { IngestFailed, pgSink } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
 
 const GREETING = "Thanks for writing to Harbor Nails. A person will be with you shortly.";
@@ -204,6 +204,8 @@ function world(over = {}) {
       },
       // The thread's reply turn (00284), when a case models one.
       ...(over.turn ? { turn: over.turn } : {}),
+      // Whether a reply names the message already (a text's answer taken up again), when a case models one.
+      ...(over.answered ? { answered: over.answered } : {}),
     },
     alertStaff: async (thread, userText, botText, reason, ctx) => {
       seen.alerts.push({
@@ -227,9 +229,10 @@ function world(over = {}) {
     },
     env: { allowlist: "", modelKey: undefined, ...(over.env ?? {}) },
   };
-  const run = async (m, extra = {}) => {
-    // The customer's words go on record before anything else can fail, and
-    // the message id is what a redelivery is recognised by.
+  // The messages stamped processed, by id: what an ingest of one already recorded answers (`processed`).
+  const processedIds = new Set();
+  /** The ingest bound for this message: its words on record before anything else can fail, its id the redelivery key. */
+  const bind = (m) => {
     const key = `in:${m.id}`;
     const isNew = !delivered.has(key);
     delivered.add(key);
@@ -242,19 +245,55 @@ function world(over = {}) {
         rec && {
           ...rec,
           is_new: rec.is_new === false ? false : isNew,
+          processed: processedIds.has(m.id),
           paused_until: memory.pausedUntil ? new Date(memory.pausedUntil).toISOString() : null,
         }
       );
     };
+    const sink = ports.persist.sink;
+    ports.persist.sink = (...args) => {
+      const made = sink(...args);
+      return {
+        ...made,
+        processed: async (...how) => {
+          processedIds.add(m.id);
+          await made.processed(...how);
+        },
+      };
+    };
+    return () => {
+      ports.persist.sink = sink;
+    };
+  };
+  /** The door's half of a text answered after its acknowledgement: recorded, nothing answered (recordInboundMessage). */
+  const record = async (m) => {
+    const unbind = bind(m);
+    try {
+      return await recordInboundMessage(m, "t1", routed, over.carrier ?? null, ports);
+    } finally {
+      unbind();
+    }
+  };
+  const run = async (m, extra = {}, resume = false) => {
+    const unbind = bind(m);
     const before = {
       handled: seen.handled.length,
       escalations: seen.escalations.length,
       processed: seen.processed,
     };
-    const out = await handleInbound(m, value, "t1", routed, !!over.isEnvDefault, over.carrier ?? null, {
-      ...ports,
-      ...extra,
-    });
+    const out = await handleInbound(
+      m,
+      value,
+      "t1",
+      routed,
+      !!over.isEnvDefault,
+      over.carrier ?? null,
+      {
+        ...ports,
+        ...extra,
+      },
+      resume,
+    ).finally(unbind);
     // The rule behind every stamp (contracts HANDLED_OUTCOMES), in both directions, over EVERY message the world
     // processed or escalated for: it carries a stamp, one of the four words, and the stamp is a handoff exactly when an
     // escalation LANDED for it (a write the database refused asked nobody). A way out that marks the message or asks a
@@ -279,7 +318,7 @@ function world(over = {}) {
     return out;
   };
   const thread = () => structuredClone(memory);
-  return { run, seen, thread };
+  return { run, record, seen, thread };
 }
 
 test("no model key: the workspace's greeting leaves labelled a fallback, the thread goes to a person, the platform is paged once", async () => {
@@ -386,6 +425,71 @@ test("a redelivered message id is a duplicate: nothing happens twice", async () 
   await w.run(text("hi", "wamid.9"));
   assert.equal(w.seen.sent.length, 1);
   assert.equal(w.seen.escalations.length, 1);
+});
+
+test("a text answered after its acknowledgement: the door records it and says nothing, and its job answers it once", async () => {
+  const w = world();
+  const m = text("hi, do you have time tomorrow?", "wamid.r1");
+  const ing = await w.record(m);
+  assert.equal(ing?.message_id, "m-in", "the door holds the row its job will name");
+  assert.deepEqual(
+    [w.seen.sent, w.seen.escalations, w.seen.processed],
+    [[], [], 0],
+    "recorded, and nothing answered, asked or stamped",
+  );
+  assert.deepEqual(
+    w.thread().history.map((h) => h.content),
+    ["hi, do you have time tomorrow?"],
+    "the words are on record before the door answers Twilio",
+  );
+
+  await w.run(m, {}, true);
+  assert.deepEqual(
+    w.seen.sent.map((s) => s.body),
+    [GREETING],
+    "its job answers it, though its ingest is a redelivery",
+  );
+  assert.equal(w.seen.escalations.length, 1);
+
+  // Claimed again after it finished (its runner died before the ledger heard): the message is processed, so nothing.
+  await w.run(m, {}, true);
+  assert.equal(w.seen.sent.length, 1, "processed is answered, and never twice");
+  // And a redelivery that is not its job is the duplicate it always was.
+  await w.run(m);
+  assert.equal(w.seen.sent.length, 1);
+  assert.equal(w.seen.escalations.length, 1);
+});
+
+test("a text's job claimed again after its runner died mid-turn: a reply that names the message already left, so it says nothing twice and stamps the message", async () => {
+  const asked = [];
+  const w = world({
+    answered: async (_db, tenant, ing) => {
+      asked.push([tenant, ing.message_id]);
+      return "sent";
+    },
+  });
+  const m = text("are you open saturday?", "wamid.r2");
+  await w.record(m);
+  await w.run(m, {}, true);
+  assert.deepEqual(asked, [["t1", "m-in"]], "asked of the message the door recorded, before anything else");
+  assert.deepEqual([w.seen.sent, w.seen.escalations], [[], []], "nothing said, nobody asked");
+  assert.deepEqual(
+    w.seen.handled.map((h) => [h.how, h.marked]),
+    [["ai", true]],
+    "and the message is stamped handled, so the deadman sweep finds nothing to finish",
+  );
+
+  // A reply that waits as a draft is an answer too; an adapter with no such mark is nothing known to have answered.
+  const q = world({ answered: async () => "queued" });
+  const d = text("and sunday?", "wamid.r3");
+  await q.record(d);
+  await q.run(d, {}, true);
+  assert.deepEqual([q.seen.sent, q.seen.handled.map((h) => h.how)], [[], ["held"]], "held, as the draft says");
+  const none = world();
+  const e = text("and monday?", "wamid.r4");
+  await none.record(e);
+  await none.run(e, {}, true);
+  assert.equal(none.seen.sent.length, 1, "no mark to read: answered");
 });
 
 test("a short code is a sender, never a person: recorded, marked handled, nothing sent", async () => {

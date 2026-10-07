@@ -230,8 +230,8 @@
     "depth": 1
   },
   "apps/edge/lib/receptionist/unfinished.ts::sweepUnfinished#1": {
-    "lines": 150,
-    "branches": 37,
+    "lines": 149,
+    "branches": 35,
     "depth": 5
   },
   "apps/edge/lib/tenant-runtime.ts::loadTenantRuntime#1": {

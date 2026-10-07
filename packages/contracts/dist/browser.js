@@ -13407,7 +13407,14 @@ var JOB_KINDS = [
    * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
    * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
    */
-  "event_deliver"
+  "event_deliver",
+  /**
+   * One text answered after its acknowledgement (00347, decision 0031 Phase 2): the SMS door records the text and answers
+   * Twilio, and this job takes it up again through the whole inbound phase (core answerInbound with `resume`), keyed
+   * 'inbound_answer:<message>' (jobs.dedupe_key), in the reply lane. A runner killed mid-turn leaves it to be claimed
+   * again: the message is answered while it is unprocessed and no reply names it, so a second claim never texts twice.
+   */
+  "inbound_answer"
 ];
 var EVENT_SUBSCRIBERS = ["audit"];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
@@ -27581,7 +27588,8 @@ var SCHEMA_SETS = {
     "push_send",
     "push_receipts",
     "reply_read",
-    "event_deliver"
+    "event_deliver",
+    "inbound_answer"
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -30172,7 +30180,9 @@ var JOB_WORK = {
   reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
   // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
   // did not get there, and the activity log is where the fact is.
-  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" }
+  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
+  // A text the door kept and the receptionist could not answer: the thread is flagged for a person too, by the deadman.
+  inbound_answer: { stopped: "A text could not be answered", to: "inbox" }
 };
 var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
 function jobNewsWords(jobKind, end, how) {

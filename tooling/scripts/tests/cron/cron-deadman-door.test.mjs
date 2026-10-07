@@ -322,6 +322,37 @@ test("a customer's message the handler never finished with: flagged for a person
   }
 });
 
+test("a text whose answer is a job still waiting or running is that job's, not abandoned; once the job has failed for good, the text is this sweep's", async () => {
+  const text = (id) => inbound(id, { channel: "sms" });
+  const job = (id, message, state) => ({
+    id,
+    tenant_id: A,
+    kind: "inbound_answer",
+    state,
+    payload: { message_id: message },
+  });
+  const w = world([], {
+    messages: [text("t-waiting"), text("t-running"), text("t-failed")],
+    jobs: [job("j1", "t-waiting", "scheduled"), job("j2", "t-running", "fired"), job("j3", "t-failed", "failed")],
+  });
+  const line = wire();
+  try {
+    assert.deepEqual(await answer(await w.tick()), [
+      200,
+      { ok: true, flagged: 0, unanswered: 1, orphaned: 0, told: 1, stranded: 0 },
+    ]);
+    assert.deepEqual(
+      w.tables.escalations.map((e) => [e.conversation_id, e.reason]),
+      [["cv-t-failed", "brain_error"]],
+      "the text whose job gave up is handed to a person",
+    );
+    for (const id of ["t-waiting", "t-running"])
+      assert.ok(!w.tables.messages.find((m) => m.id === id).meta.processed_at, `${id}: its job's to finish, unstamped`);
+  } finally {
+    line.restore();
+  }
+});
+
 test("a reply that went out before the stamp is not a customer with no answer: stamped quietly, nobody told", async () => {
   const w = world([], { messages: [inbound("m-1"), outbound("o-1", "cv-m-1")] });
   const line = wire();
