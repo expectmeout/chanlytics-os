@@ -62,7 +62,7 @@ function campaignsSaid(cm: CampaignReportVM) {
  * no listing linked there is `linked: false` and the words the fold has for it.
  */
 function reviewsSaid(rv: ReviewsReportVM) {
-  if (rv.empty) return { linked: false, words: rv.lines.connect };
+  if (rv.empty) return { linked: false, words: rv.lines.empty };
   const said = {
     head: rv.lines.head,
     // What the figure draws beside its value is its `compare` (no Reviews tile has a percentage); null where history falls short.

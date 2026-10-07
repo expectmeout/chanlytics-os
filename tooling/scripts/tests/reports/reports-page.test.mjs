@@ -848,15 +848,10 @@ test("Google's reviews under the period, from the Business Profile: five figures
     );
     assert.deepEqual(
       all(byTestId(tree, "google-tiles"), (n) => n.type === Figure).map((n) => [n.props.id, n.props.value]),
-      [
-        ["rating", "4.8"],
-        ["reviews", "213"],
-        ["reviews_written", "1"],
-        ["reviews_answered", "0 of 1"],
-        ["review_reply_time", "—"],
-      ],
-      "the kit's Figure, in the strip's pattern, each named by its metric: five, from the reviews on record",
+      V.tiles.map((t) => [t.metric, t.value]),
+      "the kit's Figure, in the strip's pattern, each named by its metric and saying the fold's value",
     );
+    assert.equal(V.tiles.length, 5, "five, from the reviews on record");
     assert.ok(classes(byTestId(tree, "google-tiles")).includes("rpt-figures"), "the strip's own frame");
     assert.ok(
       classes(byTestId(tree, "google-tiles")).includes("profile") &&
@@ -866,26 +861,25 @@ test("Google's reviews under the period, from the Business Profile: five figures
     // The mix of the period's stars: a row to each, five down to one, and the page says what the fold says under it.
     assert.deepEqual(
       all(card(tree, "chart-reviews-stars"), (n) => classes(n).includes("ck-barlist-head")).map(textOf),
-      ["5 stars1 · 100%", "4 stars0 · 0%", "3 stars0 · 0%", "2 stars0 · 0%", "1 star0 · 0%"],
+      V.stars.rows.map((s) => `${s.label}${s.display}`),
     );
     assert.equal(takeaway(tree, "chart-reviews-stars"), V.lines.mix);
-    assert.equal(V.lines.mix, "1 of the 1 review written in the last 7 days is 4 or 5 stars.");
     assert.ok(plot(tree, "chart-reviews-weekly"), "the weeks, on the kit");
     assert.equal(takeaway(tree, "chart-reviews-weekly"), V.lines.weekly);
     // Who waits: Ana, with the reply the receptionist wrote and held, and the door to answer her.
     const waiting = card(tree, "reviews-waiting");
-    assert.equal(textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))), "Waiting for a reply (1)");
-    assert.equal(reviewRows(waiting).length, 1);
     assert.equal(
-      textOf(byTestId(waiting, "google-review-held")),
-      "The receptionist wrote a reply and held it: it named a price.",
+      textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))),
+      `Waiting for a reply (${V.waiting.total})`,
     );
+    assert.equal(reviewRows(waiting).length, V.waiting.rows.length);
+    assert.ok(V.waiting.rows[0].held, "the fold has a reply held for Ana to say");
     assert.equal(V.waiting.rows[0].held, textOf(byTestId(waiting, "google-review-held")), "the fold's own words");
     assert.ok(byTestId(waiting, "google-reply"), "a review through the Business Profile can be answered");
     // A review is drawn once: Ana waits above, so the latest has none of its own, and says why.
     const latest = card(tree, "chart-google-latest");
     assert.equal(reviewRows(latest).length, 0);
-    assert.match(textOf(latest), /The latest reviews are the ones waiting for a reply, above\./);
+    assert.ok(V.lines.latestEmpty && textOf(latest).includes(V.lines.latestEmpty), "and says why, in the fold's words");
     assert.equal(reviewRows(tree).length, 1, "one review row on the page");
     assert.equal(card(tree, "chart-google-gained"), null, "the profile counts what was written: no day-by-day gain");
     assert.equal(card(tree, "reviews-connect"), null, "nothing to connect: it is");
@@ -975,8 +969,12 @@ test("a review that waits is drawn once, above Latest, which keeps the ones that
   try {
     const tree = page();
     const waiting = card(tree, "reviews-waiting");
-    assert.equal(textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))), "Waiting for a reply (0)");
-    assert.match(textOf(waiting), /Nothing is waiting for a reply\./);
+    assert.equal(
+      textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))),
+      `Waiting for a reply (${V.waiting.total})`,
+    );
+    assert.equal(V.waiting.total, 0);
+    assert.ok(V.lines.waitingEmpty && textOf(waiting).includes(V.lines.waitingEmpty), "the fold's words for none");
     assert.equal(reviewRows(waiting).length, 0);
     const latest = card(tree, "chart-google-latest");
     assert.equal(reviewRows(latest).length, 1, "the answered review is the latest, once");
@@ -985,7 +983,7 @@ test("a review that waits is drawn once, above Latest, which keeps the ones that
     assert.match(textOf(latest), /Thank you, Ana!/, "its reply, under it");
     assert.equal(
       takeaway(tree, "chart-google-latest"),
-      `every review, from your Business Profile · ${V.google.reply.words}`,
+      `${V.google.source} · ${V.google.reply.words}`,
       "the source is named, and what the receptionist does under a new review beside it",
     );
     assert.ok(V.google.reply.words, "which is something to say, under Ask");
@@ -998,20 +996,19 @@ test("a record that starts after the period says where, in the section's meta an
   // 100 of Google's 213 on record, the sync did not read the whole list, and the connection began Aug 30: the week began Aug 29
   const V = holdReviews(
     reviewsGoogle({ connection: googleConnection({ connected_at: "2026-08-30T12:00:00Z" }) }),
-    reviewsLedger({ on_record: { profile: 100, places: 0, oldest_day: "2026-08-30", complete: false } }),
+    reviewsLedger({ on_record: { profile: 100, places: 0, complete: false } }),
   );
   try {
     const tree = page();
-    assert.ok(sectionMeta(tree).includes("history on record starts Aug 30"), sectionMeta(tree));
+    assert.ok(V.lines.history && sectionMeta(tree).includes(V.lines.history), sectionMeta(tree));
     assert.deepEqual(
       all(byTestId(tree, "google-tiles"), (n) => n.type === Figure).map((n) => [n.props.id, n.props.value]),
-      [
-        ["rating", "4.8"],
-        ["reviews", "213"],
-        ["reviews_written", "—"],
-        ["reviews_answered", "—"],
-        ["review_reply_time", "—"],
-      ],
+      V.tiles.map((t) => [t.metric, t.value]),
+    );
+    assert.deepEqual(
+      V.tiles.slice(2).map((t) => t.value),
+      ["—", "—", "—"],
+      "what the record cannot count is a dash in the fold, and drawn as one",
     );
     const stars = card(tree, "chart-reviews-stars");
     assert.equal(all(stars, (n) => classes(n).includes("ck-barlist-row")).length, 0, "no mix of what is not counted");
@@ -1045,7 +1042,7 @@ test("Google's reviews from the five it shows first: four figures, the ratings g
     assert.equal(reviewRows(card(tree, "chart-google-latest")).length, 1, "the five Google shows first, here one");
     assert.equal(
       takeaway(tree, "chart-google-latest"),
-      "the one Google shows first",
+      V.google.source,
       "the source is named, and no reply to say where a review cannot be answered from here",
     );
     for (const id of ["chart-reviews-stars", "chart-reviews-weekly", "reviews-waiting"])
@@ -1059,11 +1056,11 @@ test("Google's reviews from the five it shows first: four figures, the ratings g
       assert.ok(classes(card(tree, id)).includes("rpt-span-12"), id);
     const connect = card(tree, "reviews-connect");
     assert.ok(textOf(connect).includes(V.lines.connect), "what the profile would add, in the fold's own words");
-    assert.equal(V.lines.connect, "Connect your Business Profile to see every review, who answered, and how fast.");
+    assert.ok(V.lines.connect, "the fold has the words");
     press(find(connect, (n) => n.type === "button"));
     assert.deepEqual(went, ["admin/integrations"], "and the door to Connections");
     // Connected, the location not yet chosen: the same five, the connection's own words in the meta and in the card.
-    holdReviews(
+    const toChoose = holdReviews(
       {
         ...places,
         connection: { ...NORTHSIDE.connection, location_name: null, location_title: null, last_synced_at: null },
@@ -1071,13 +1068,15 @@ test("Google's reviews from the five it shows first: four figures, the ratings g
       null,
     );
     const pending = page();
-    assert.ok(sectionMeta(pending).includes("Connected as owner@example.com · choose the location to finish"));
-    assert.ok(textOf(card(pending, "reviews-connect")).includes("choose the location to finish"));
+    const joined = toChoose.google.connection;
+    assert.ok(joined.pending && joined.words, "the fold has the connection's words for a location still to choose");
+    assert.ok(sectionMeta(pending).includes(joined.words));
+    assert.ok(textOf(card(pending, "reviews-connect")).includes(joined.words));
     assert.deepEqual(figureIds(pending), ["rating", "reviews", "ratings_gained", "newest_review"]);
     // One reading of Google's count is no difference: the card says so in the fold's words, with no days to draw.
     const first = holdReviews({ ...places, days: places.days.slice(-1) }, null);
     const young = page();
-    assert.equal(first.lines.gained, "Needs a second day of reading.");
+    assert.ok(first.lines.gained, "the fold has the words");
     assert.equal(takeaway(young, "chart-google-gained"), first.lines.gained);
     assert.ok(textOf(card(young, "chart-google-gained")).includes(first.lines.gainedEmpty));
     assert.equal(plot(young, "chart-google-gained"), null, "nothing to plot");
@@ -1140,10 +1139,9 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
       0,
       "and Google is not read beside the Reviews read: its answer carries Google's",
     );
-    assert.match(
-      textOf(card(tree, "reviews-waiting")),
-      /Nothing is waiting for a reply\./,
-      "the review left the waiting card",
+    assert.ok(
+      textOf(card(tree, "reviews-waiting")).includes(reviewsHeld(reviewReply.now).vm.lines.waitingEmpty),
+      "the review left the waiting card, which says so in the fold's words",
     );
     const toasts = all(tree, (n) => n.props?.["data-testid"] === "toast");
     assert.equal(toasts.length, 1, "and the page still says it landed, once");

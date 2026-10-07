@@ -270,8 +270,9 @@ test("a lens that waits on how the workspace sells draws nothing until the works
   assert.ok(byTestId(draw("pipeline", { R: surface({ deals: DEALS }) }), "rpt-deals"), "the list held: the lens draws");
 });
 
-// LAST in the file, in this order: a surface that never had a read is failed only until one lands (surface-status.ts keeps `ready`
-// for good), and every test above draws Reviews on a surface with neither.
+// These two follow every test above that draws Reviews, in this order: a surface that never had a read is failed only until one
+// lands (surface-status.ts keeps `ready` for good), and those draw Reviews on a surface with neither. The second leaves it live, and
+// no test after them draws Reviews.
 test("Reviews says the read failed, with its Retry, where its read could not be made, and never the empty that says nothing is linked", () => {
   workspace("booking");
   setStatus("reports_reviews", "seeded");

@@ -130,15 +130,15 @@ Order: A first (small, independent). B next. D runs beside B and C, lowest-numbe
 
 ### 6.4 One read per lens
 
-For each lens:
+For each lens, as it is built (7 Oct 2026; Reviews, the first lens of phase C, is the one that fits all of it, and Campaigns has its function and its reader but is still read through the frame):
 
 | Layer | Where | Rule |
 | --- | --- | --- |
-| SQL | `report_<lens>(p_tenant uuid, p_period text)` in a migration named for what it adds | SECURITY INVOKER; one pass per source grouped by day in the tenant's time zone; returns the period and the same length before; capped at 90 days of daily rows until the rollup (K10); 00251 is the pattern. Called from a `packages/db` repository function (`packages/db/src/repositories/reports.ts`), never by name from the dashboard. |
-| Route | `GET /api/v1/reports/<lens>?period=` | `read({ scope: workspace, rate: "aggregate", role })`; the period parsed by one shared zod schema; a row in `tooling/scripts/tests/route-policy.json`, the typed client regenerated (`route-types.mjs`), `docs/api.md` regenerated. `GET reports` stays as the Receptionist lens's read until C1 renames it; `reports/campaigns` and `reports/reach-outs` fold into the Campaigns lens's read. |
-| Reader | `dashboard/server/readers/reports/<lens>.ts` | The one reader for the page and for Ask's tool. No whole-pool reads in TypeScript: booking and deals move into SQL. |
-| Contracts | `packages/contracts/src/reports/<lens>/` | The DTO schema, `to<Lens>VM`, the sentence builders, the lens's demo sample. Every figure carries a registry id (§7). |
-| Surface | `dashboard/surfaces/reports/surface.ts` | One `reports` surface whose held views are keyed `<lens>:<period>` (`heldViews(8)`): going back to a lens paints at once and reads behind. |
+| SQL | A function for the lens's own read, in a migration named for what it adds: `report_series` (00304, the Overview, Receptionist and People lenses), `campaign_series` (00329), `reviews_ledger(p_tenant_id, p_days)` (00346) | SECURITY INVOKER, so the caller's RLS decides; one statement, so one snapshot; the window said once, in the tenant's own time zone (`p_days` is the days of the period, which the route works out: Month is the days since the 1st); capped at 90 days of daily rows until the rollup (K10); 00251 is the pattern. Called from a `packages/db` repository function (`packages/db/src/repositories/reports/report-series.ts`), never by name from the dashboard. |
+| Route | `GET /api/v1/reports/<lens>?period=` | `read({ scope: workspace, rate: "aggregate" })`; the period parsed by one shared zod schema (`ReportQuery`); a row in `tooling/scripts/tests/route-policy.json`, the typed client regenerated (`route-types.mjs`), `docs/api.md` regenerated. Built: `reports` (the Receptionist lens's read, and the Overview's), `reports/campaigns`, `reports/reach-outs`, `reports/headline` and `reports/reviews`. `days`, which the pages sent before there was a Month, is read by the first three until 19 October 2026; the headline's and Reviews' routes take `period` alone. |
+| Reader | `dashboard/src/server/readers/report.ts` (`report`, `reportHeadline`, `reviewsReport`) and `campaign-report.ts` | The one reader for the page and for Ask's tool; a turn reads Google once (`readers/connections.ts`). Booking and deals are still counted in TypeScript from People and the calendar: moving them into SQL is phase C's later work. |
+| Contracts | `packages/contracts/src/reports/`, one folder, a module to a concern | The DTO type, `to<Lens>VM` and the sentence builders: Reviews' are `review-report.ts` (its figures and every sentence) over `review-record.ts` (its counts). Every sentence the page draws is in the view model. The demo sample is the surface's (`dashboard/src/surfaces/reports/sample.ts`: `reportsSample`, and `reviewsSample` for Reviews), made through the real fold. Every figure carries a registry id (§7). |
+| Surface | `dashboard/src/surfaces/reports/`: `surface.ts` (`reports`, read for every lens by the frame), `reviews-surface.ts` (`reports_reviews`, Reviews' own), both over `periodSurface` (`period-surface.ts`) for what a period's read needs | Held views keyed by period (`heldViews(4)`): going back to a period paints at once and reads behind. A lens with a surface of its own is read where the lens is drawn and nowhere else, and forgotten, not re-read, by a write made on another page. |
 | Page | `dashboard/surfaces/reports/lenses/<lens>.tsx` | Kit parts only; the page's stylesheet holds layout alone. |
 
 ### 6.5 The headline read, and Today
@@ -163,7 +163,7 @@ Each lens names the tables it repaints on from the workspace topic (00265; `pack
 
 ### 6.7 Ask, ⌘K and citations
 
-- Ask's report tool (`dashboard/server/ask/tools/read/report.ts`) takes a lens and reads that lens's reader; today it misses campaigns, reach-outs and Google.
+- Ask's report tool (`dashboard/server/ask/tools/read/report.ts`) takes a period, not yet a lens, and reads the report, the Campaigns lens's reader and the Reviews lens's, so what it says of Campaigns and Reviews is the page's (a lens's sentence and figures from the same fold); today it still misses the reach-outs.
 - Each lens's view model exports at most four figures in Ask's `show.figures` shape (`packages/contracts/src/ask/ask-answer.ts:39-64`), so "Ask about this lens" and the lens show the same block.
 - ⌘K lists each visible lens (`packages/contracts/src/ask/ask-jump.ts:50`); citations accept `reports/<lens>` (`citations.ts:86,103`; the prefix already takes one segment).
 - The Overview's Ask tile offers three questions built from that period's facts.
@@ -178,7 +178,7 @@ The strip scrolls sideways with the chosen lens centred and the period as one ca
 
 ### 6.10 Demo
 
-Each lens has a contracts sample (as `surfaces/reports/sample.ts` today), drawn in a declared demo session.
+Each lens has a sample, drawn in a declared demo session: `surfaces/reports/sample.ts` holds `reportsSample` (the Overview, Receptionist, People, Pipeline and Campaigns lenses) and `reviewsSample` (Reviews: the listing as Google shows it with no profile behind it, through the real fold, so the demo draws the same section a workspace does).
 
 ## 7. The metric registry
 
@@ -389,7 +389,7 @@ Writers: `packages/contracts/src/calendar/feed.ts:22-37,248-250`, `apps/edge/api
 - Phase A can ship alone.
 - Phase B lands with the lenses holding exactly today's sections (Overview from the headline read), so nothing an owner sees disappears; phase C then fills one lens per PR.
 - `/reports` keeps working throughout: it is the Overview.
-- The demo session draws each lens's sample.
+- The demo session draws each lens's sample (Reviews' too).
 
 ## 16. Out of scope, and what not to build
 

@@ -9,13 +9,14 @@ import { ReportQuery, reportDaysFor, reviewsReport } from "@/server/readers/repo
  * its daily readings, as GET /api/v1/google answers it) and, where a listing is linked and the Business Profile has
  * synced, the ledger of the reviews on record beside it, which contracts' toReviewsReportVM folds into the figures, the
  * cards and the sentence at the head. A workspace with no profile answers `ledger: null`, and `readable` says whether
- * the lens has anything to draw; a ledger that cannot be read is this route's failure. The body is its reader's
- * (readers/report.ts).
+ * the lens has anything to draw; a ledger that cannot be read is this route's failure. `days` is not read: no page sent it
+ * to a route that did not exist, so the four periods are all it names (the other report routes read it until 19 October
+ * 2026). The body is its reader's (readers/report.ts).
  */
 export const GET = read({
   scope: workspace,
   rate: "aggregate",
-  query: ReportQuery,
+  query: ReportQuery.pick({ period: true }),
   handle: async ({ ctx, member, input }) => {
     const rc = readerContext(ctx, member);
     return (await load(rc, reviewsReport, { days: await reportDaysFor(rc, input) })).data;

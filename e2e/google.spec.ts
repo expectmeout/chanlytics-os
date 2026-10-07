@@ -1,42 +1,76 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 import { reviewsFromProfile } from "../packages/contracts/src/google/google";
+import { toReviewsReportVM, type ReviewsReportDto } from "../packages/contracts/src/reports/review-report";
 
 /**
- * Google, on a real workspace: the listing route answers honestly about what
- * this deployment can do and never carries a key; without a Places key on
- * the edge there is no row on Setup, the Reviews lens on Reports says there is
- * nothing to find and no card on Integrations; with one and no listing yet,
- * each offers the one next step. With a listing, Reviews draws five figures
- * where the Business Profile's reviews are on record and four where only the
- * five Google shows are. Read-only: nothing here links, reads or removes a
- * listing.
+ * Google, on the nightly's own workspace: the listing route answers honestly about what this deployment can do and never
+ * carries a key; without a Places key on the edge there is no row on Setup, and with one the row follows the listing. The
+ * workspace holds a listing, the Business Profile connected to it and four of its reviews (tooling/scripts/ops/e2e-workspace.mjs,
+ * convergeGoogle), so the Reviews lens draws from a profile that has synced: five figures whose values the seed makes exact, the
+ * sentence at the head, the mix of stars, who waits (one with a reply the receptionist wrote and held back) and the latest.
+ * Read-only: nothing here links, reads or removes a listing, or answers a review.
  */
 
 /**
- * What each figure of the Reviews lens says as its number, by the metric it counts, in the order the lens draws them (contracts
- * report-tiles.ts and review-report.ts): a dash where the stored rows cannot say, never a zero.
+ * What the seed holds of Google. Restated here rather than imported, as leads.spec.ts restates the leads: that file is ESM run by
+ * plain node, and Playwright compiles a spec to CJS. The first test reads the workspace back through the API and refuses a seed
+ * that has drifted from these, so the two copies cannot quietly disagree.
  */
-const PROFILE_FIGURES: ReadonlyArray<[string, RegExp]> = [
-  ["rating", /^(\d\.\d|—)$/],
-  ["reviews", /^(\d+|—)$/],
-  ["reviews_written", /^(\d+|—)$/],
-  ["reviews_answered", /^(\d+ of \d+|—)$/],
-  ["review_reply_time", /^(\d+(s|m( \d+s)?|h( \d+m)?)|—)$/],
+const SEEDED = {
+  placeId: "ChIJfixture0201",
+  /** Reviews on record, and of them: answered, the receptionist's, waiting. */
+  onRecord: 4,
+  answered: 2,
+  byReceptionist: 1,
+  waiting: 2,
+};
+
+/**
+ * The five figures the 30 days of those four reviews make, in the order the lens draws them (contracts review-report.ts), by the
+ * metric each counts: a rating that fell from the one review before the period (5.0), three written against one in the 30 before,
+ * two of three answered, and no middle time from fewer than three replies. A dash where the stored rows cannot say, never a zero.
+ */
+const SEEDED_FIGURES: ReadonlyArray<{ id: string; value: string; change: string | null }> = [
+  { id: "rating", value: "4.0", change: "down from 5.0" },
+  { id: "reviews", value: "4", change: null },
+  { id: "reviews_written", value: "3", change: "up from 1" },
+  { id: "reviews_answered", value: "2 of 3", change: null },
+  { id: "review_reply_time", value: "—", change: null },
 ];
-const PLACES_FIGURES: ReadonlyArray<[string, RegExp]> = [
-  ["rating", /^(\d\.\d|—)$/],
-  ["reviews", /^(\d+|—)$/],
-  ["ratings_gained", /^(\d+|down \d+|—)$/],
-  ["newest_review", /^(just now|\d+[smhd] ago|[A-Z][a-z]{2} \d{1,2}|—)$/],
-];
-/** The period before beside a number, in counts (compareWords, and the rating's own): never a percentage. */
-const FIGURE_CHANGE = /^(up from \d+(\.\d)?|down from \d+(\.\d)?|same as the .+ before|none the .+ before)$/;
+
+/** The Reviews read for the period the lens opens on, as the page reads it. */
+async function reviewsRead(page: Page): Promise<ReviewsReportDto> {
+  const res = await apiGet(page, "/api/v1/reports/reviews?period=30d");
+  expect(res.status()).toBe(200);
+  return (await res.json()).data;
+}
+
 test.describe("Google on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
+  });
+
+  test("the workspace holds the seed's Google: the listing, a profile that has synced, four reviews and what the ledger counts of them", async ({
+    page,
+  }) => {
+    const { data } = await (await apiGet(page, "/api/v1/google")).json();
+    expect(data.google.listing?.place_id, "the seed's listing (e2e-workspace.mjs --apply)").toBe(SEEDED.placeId);
+    expect(reviewsFromProfile(data.google.connection), "a profile with a location, synced").toBe(true);
+    const { ledger } = await reviewsRead(page);
+    expect(ledger, "the reviews on record").not.toBeNull();
+    expect(ledger?.on_record).toEqual({ profile: SEEDED.onRecord, places: 0, complete: true });
+    // Three in the 30 days and one in the 30 before: all four are in the ledger.
+    expect(ledger?.written).toHaveLength(SEEDED.onRecord);
+    expect(ledger?.written.filter((w) => w.replied)).toHaveLength(SEEDED.answered);
+    expect(ledger?.written.filter((w) => w.by === "receptionist")).toHaveLength(SEEDED.byReceptionist);
+    expect(ledger?.waiting_total).toBe(SEEDED.waiting);
+    expect(
+      ledger?.waiting.map((w) => w.held),
+      "the oldest first; the second has the reply the receptionist held back",
+    ).toEqual([null, "price"]);
   });
 
   test("the route says whether listings can be looked up, and never a key", async ({ page }) => {
@@ -50,111 +84,85 @@ test.describe("Google on a real workspace", () => {
     expect(JSON.stringify(data)).not.toMatch(/AIza|api_key|secret|token/i);
   });
 
-  test("the first run, Reports and Integrations follow the platform's readiness, then the listing", async ({
+  test("the first run and Integrations follow the platform's readiness, then the listing and the profile", async ({
     page,
   }) => {
     const { data } = await (await apiGet(page, "/api/v1/google")).json();
     const ready: boolean = data.google.ready.places;
     const profile: boolean = data.google.ready.profile;
-    const linked = !!data.google.listing;
-    // Google's row put off by this member ("We're not on Google"), in their saved view.
-    const views = (await (await apiGet(page, "/api/v1/views")).json()).data?.views ?? {};
-    const putOff = Array.isArray(views.setup?.later) && views.setup.later.includes("google");
 
-    // The listing is the first step's, which every workspace has reached.
+    // The listing is the first step's, which every workspace has reached; the row is Setup's, drawn where a deployment can look
+    // a listing up or connect a profile at all.
     await page.goto("/#/start/business");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("first-run")).toBeVisible();
     const row = page.getByTestId("setup-row-google");
-    const find = page.getByTestId("fr-find");
     if (!ready && !profile) {
-      await expect(row).toHaveCount(0);
-      await expect(find).toHaveCount(0);
-    } else if (ready && !linked && !putOff) {
-      // The owner, nothing linked: the step opens on Find, Google's answer for the name on record. Nothing is linked here.
-      await expect(find).toBeVisible();
-      await expect(page.getByTestId("fr-heading")).toContainText(/^Is this |^Which one is your business\?/);
-      await expect(
-        find
-          .getByTestId("fr-find-hit")
-          .first()
-          .or(find.getByTestId("fr-find-none"))
-          .or(find.getByTestId("fr-find-failed")),
-      ).toBeVisible({ timeout: 20000 });
       await expect(row).toHaveCount(0);
     } else {
       await expect(row).toBeVisible();
       await expect(row).toContainText("Your Google listing");
-      await expect(row.locator(".cl-attn-status .lead")).toHaveText(
-        linked ? /^(Ready|Waiting on Google)$/ : "Not started",
-      );
-      if (!linked) await expect(row.getByTestId("setup-verb")).toHaveText(ready ? "Find it" : "Connect");
-    }
-
-    // Google is Reports' Reviews lens (surfaces/reports/lenses/reviews.tsx), at its own address since #1424 and drawn from its own
-    // read (`reports/reviews`). Whose reviews it counts is the Business Profile's once a location is chosen and a sync has stored
-    // them, and the five Google shows until then (contracts reviewsFromProfile, the one test): five figures and the cards that count
-    // them, or four and the days gained.
-    await page.goto("/#/reports/reviews");
-    await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("reports-real")).toBeVisible();
-    if (!ready && !profile && !linked) {
-      // Nothing can be looked up or connected here: the registry's empty, and no card that leads to Find.
-      await expect(page.getByTestId("lens-empty")).toBeVisible();
-      await expect(page.getByTestId("google-none")).toHaveCount(0);
-      await expect(page.getByTestId("google-tiles")).toHaveCount(0);
-    } else if (!linked) {
-      await expect(page.getByTestId("google-none")).toContainText("Find it");
-      await expect(page.getByTestId("google-tiles")).toHaveCount(0);
-    } else {
-      const connection = data.google.connection;
-      const fromProfile = reviewsFromProfile(connection);
-      const figures = page.getByTestId("google-tiles").locator("[data-figure]");
-      const expected = fromProfile ? PROFILE_FIGURES : PLACES_FIGURES;
-      await expect(figures).toHaveCount(expected.length);
-      // The number alone: the figure's value also holds the period before beside it, in its own span.
-      const drawn = await figures.evaluateAll((els) =>
-        els.map((el) => ({
-          id: el.getAttribute("data-figure"),
-          value: (el.querySelector(".figure-value")?.firstChild?.textContent ?? "").trim(),
-          change: el.querySelector(".figure-change")?.textContent?.trim() ?? null,
-        })),
-      );
-      expect(drawn.map((f) => f.id)).toEqual(expected.map(([id]) => id));
-      expected.forEach(([id, value], i) => {
-        expect(drawn.at(i)?.value, `${id}'s number`).toMatch(value);
-        const change = drawn.at(i)?.change;
-        if (change) expect(change, `${id}'s change`).toMatch(FIGURE_CHANGE);
-      });
-      await expect(page.getByTestId("chart-google-latest")).toBeVisible();
-      const profileCards = ["chart-reviews-stars", "chart-reviews-weekly", "reviews-waiting"];
-      if (fromProfile) {
-        // Every review on record: the mix, the weeks and who waits, and no day-by-day count of Google's own.
-        for (const id of profileCards) await expect(page.getByTestId(id), id).toBeVisible();
-        await expect(page.getByTestId("chart-google-gained")).toHaveCount(0);
-        await expect(page.getByTestId("reviews-connect")).toHaveCount(0);
-      } else {
-        // The five Google shows count nothing: the days gained, and the door to the profile where none is connected or its
-        // location is still to choose.
-        await expect(page.getByTestId("chart-google-gained")).toBeVisible();
-        for (const id of profileCards) await expect(page.getByTestId(id), id).toHaveCount(0);
-        await expect(page.getByTestId("reviews-connect")).toHaveCount(connection?.location_name ? 0 : 1);
-      }
+      await expect(row.locator(".cl-attn-status .lead")).toHaveText(/^(Ready|Waiting on Google)$/);
     }
 
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("connections-connected")).toBeVisible();
-    // Both doors are rows either way: "Later" where closed, a verb for an owner where open, the listing's state where linked.
+    // Both doors are connected rows: the profile as the seed left it, the listing watched (or, when a read failed, said so).
     const profileRow = page.getByTestId("connection-google_profile");
     const listingRow = page.getByTestId("connection-google_listing");
     await expect(profileRow).toContainText("Google Business Profile");
-    if (!profile) await expect(profileRow).toContainText("Later");
-    if (!ready) await expect(listingRow).toContainText("Later");
-    if (ready) await expect(listingRow).toContainText(linked ? /Watched|Could not be read/ : "Your listing on Google");
+    await expect(profileRow).toContainText(/Connected|Could not sync/);
+    await expect(listingRow).toContainText(/Watched|Could not be read/);
     await expect(JSON.stringify(await (await apiGet(page, "/api/v1/google")).json())).not.toMatch(
       /refresh_token|access_token|credentials_ref/,
     );
+  });
+
+  test("Reviews draws the five figures the seed's reviews make, the sentence they say at the head, the mix, who waits and the latest", async ({
+    page,
+  }) => {
+    // The page folds the read with contracts' toReviewsReportVM, and so does this: the figures are asserted exact (the values
+    // the seed makes), the sentence and the held reply are the fold's own words.
+    const vm = toReviewsReportVM(await reviewsRead(page), { nowMs: Date.now() });
+    expect(vm.source).toBe("profile");
+    expect(vm.tiles.map((t) => ({ id: t.metric, value: t.value, change: t.compare }))).toEqual(SEEDED_FIGURES);
+    expect(vm.lines.head, "the head says the figures' numbers").toMatch(/\b3 new\b.*\b2 answered\b/);
+
+    await page.goto("/#/reports/reviews");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("reports-real")).toBeVisible();
+    await expect(page.getByTestId("lens-reviews")).toHaveAttribute("aria-current", "page");
+
+    const figures = page.getByTestId("google-tiles").locator("[data-figure]");
+    await expect(figures).toHaveCount(SEEDED_FIGURES.length);
+    // The number alone: the figure's value also holds the period before beside it, in its own span.
+    const drawn = await figures.evaluateAll((els) =>
+      els.map((el) => ({
+        id: el.getAttribute("data-figure"),
+        value: (el.querySelector(".figure-value")?.firstChild?.textContent ?? "").trim(),
+        change: el.querySelector(".figure-change")?.textContent?.trim() ?? null,
+      })),
+    );
+    expect(drawn).toEqual(SEEDED_FIGURES);
+
+    // The head is the lens's sentence, in the frame's head beside its name.
+    await expect(page.locator(".pg-head .pg-sentence")).toHaveText(vm.lines.head ?? "");
+
+    // Every review on record: the mix, the weeks and who waits, and no day-by-day count of Google's own.
+    for (const id of ["chart-reviews-stars", "chart-reviews-weekly", "reviews-waiting", "chart-google-latest"])
+      await expect(page.getByTestId(id), id).toBeVisible();
+    await expect(page.getByTestId("chart-google-gained")).toHaveCount(0);
+    await expect(page.getByTestId("reviews-connect")).toHaveCount(0);
+    await expect(page.getByTestId("chart-reviews-stars")).toContainText(vm.lines.mix ?? "");
+
+    // Who waits: both, the oldest first, and the one the receptionist wrote a reply for says so.
+    const waiting = page.getByTestId("reviews-waiting");
+    await expect(waiting).toContainText(`Waiting for a reply (${SEEDED.waiting})`);
+    await expect(waiting.getByTestId("google-review")).toHaveCount(SEEDED.waiting);
+    const held = vm.waiting.rows.flatMap((r) => (r.held ? [r.held] : []));
+    expect(held, "one of the two was held").toHaveLength(1);
+    await expect(waiting.getByTestId("google-review-held")).toHaveText(held);
   });
 
   test("the way to Google refuses politely where the door is closed, and never leaks the state key", async ({

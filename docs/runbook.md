@@ -227,7 +227,7 @@ no foreign key: a state machine's writers are run through the real guard by one 
 through both guards, an escalation, a job's claim to its end, a message from queued to read, a line's voice, the lead
 money lock). `database/fake-db/fake-db-agrees.db.test.mjs` sends the same requests to the replayed stack and to the double and
 fails when the two answer differently. A fixture makes its rows with `tooling/scripts/tests/_rows.mjs`, one factory
-per table for the ten the suite seeds most: every column the table has, so a migration that adds a NOT NULL column
+per table for the thirteen the suite seeds most: every column the table has, so a migration that adds a NOT NULL column
 breaks one factory, not forty fixtures. After a migration, `corepack pnpm gen:db-types` writes the types and the unique
 keys from the stack, and `database/generated/unique-keys.db.test.mjs` fails a stale file. The database suites run in parallel
 processes against one database, and each makes its own workspace; the few rows that are the platform's (the lead finder's

@@ -1584,9 +1584,9 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   );
 });
 
-test("refresh under the auto mode: the review the receptionist answered rings one bell, under that review, that opens the Reviews lens", async () => {
-  const unanswered = reviewRow(R1, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) });
-  const tables = world({
+/** A workspace whose reviews are on the auto mode, a profile synced yesterday and one new review waiting for a reply (`unanswered`). */
+function autoModeWorld(unanswered) {
+  return world({
     google_listings: [listingRow()],
     google_connections: [connRow()],
     google_reviews: [unanswered],
@@ -1605,6 +1605,11 @@ test("refresh under the auto mode: the review the receptionist answered rings on
     billing_accounts: [{ tenant_id: A, mode: "direct", status: "none" }],
     ai_usage: [],
   });
+}
+
+test("refresh under the auto mode: the review the receptionist answered rings one bell, under that review, that opens the Reviews lens, and files the reply as the receptionist's", async () => {
+  const unanswered = reviewRow(R1, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) });
+  const tables = autoModeWorld(unanswered);
   use(tables, new Map([[A, liveCreds()]]));
   const REPLY = "Thank you, Rosa. See you next time.";
   const model = scripted(said(REPLY));
@@ -1630,6 +1635,44 @@ test("refresh under the auto mode: the review the receptionist answered rings on
     "one bell, about the review row, for the page where the reply is read",
   );
   assert.equal(tables.notifications[0].route, "reports/reviews");
+  // The ledger the Reviews report reads who wrote a reply from (reviews_ledger, 00346, joined to this by the database test):
+  // the event is the receptionist's, filed under the review row.
+  const replied = tables.events.filter((e) => e.kind === "google.replied");
+  assert.deepEqual(
+    replied.map((e) => [e.tenant_id, e.subject_type, e.subject_id, e.data.review_id, e.data.by, e.data.chars]),
+    [[A, "review", R1, "g-1", "receptionist", REPLY.length]],
+    "one reply, filed as the receptionist's, with the words' length",
+  );
+  assert.equal(tables.events.filter((e) => e.kind === "google.reply_held").length, 0, "and none was held");
+});
+
+test("refresh under the auto mode: a reply that names a price is held, not posted: the review waits for its owner, with the reason filed under it that the Reviews report reads", async () => {
+  const unanswered = reviewRow(R1, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) });
+  const tables = autoModeWorld(unanswered);
+  use(tables, new Map([[A, liveCreds()]]));
+  const model = scripted(said("Thank you, Rosa. The full move is $450 and we would be glad to do it again."));
+  setModelFetch(model.fetch);
+  const net = google({
+    reviews: [{ ...GBP_REVIEW, createTime: unanswered.published_at, updateTime: unanswered.published_at }],
+  });
+  const [status, body] = await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () =>
+    answer(await knock({ op: "refresh" })),
+  );
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.read, { ok: true, fresh: 0, counted: 0, answered: 0 });
+  assert.equal(model.calls.length, 1, "a reply was drafted for the one review");
+  assert.deepEqual(
+    net.asked().filter(([method]) => method === "PUT"),
+    [],
+    "and not posted: a price said in public cannot be taken back",
+  );
+  assert.equal(tables.google_reviews.find((r) => r.id === R1).reply_text, null, "the review waits for a reply");
+  assert.deepEqual(tables.notifications, [], "no bell: nothing was answered");
+  assert.deepEqual(
+    tables.events.map((e) => [e.tenant_id, e.kind, e.category, e.subject_type, e.subject_id, e.data]),
+    [[A, "google.reply_held", "google", "review", R1, { review_id: "g-1", why: "price" }]],
+    "the reason filed under the review row, which the report shows beside the review that waits",
+  );
 });
 
 /* ----------------------------------- reply -------------------------------- */

@@ -33,8 +33,15 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runTool, buildProposal, newToolContext, ACT_TOOL_NAMES, ACT_DEFS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
-const { MOMENTS_RETIRED, PERSON_STATE_LABELS, PLAYBOOK_TRIGGERS, PROPOSAL_SPECS, momentOffered, roleAtLeast } =
-  await import("@chanlytics/contracts");
+const {
+  MOMENTS_RETIRED,
+  PERSON_STATE_LABELS,
+  PLAYBOOK_TRIGGERS,
+  PROPOSAL_SPECS,
+  momentOffered,
+  roleAtLeast,
+  toReviewsReportVM,
+} = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 beforeEach(() => readerCache.clear());
 
@@ -356,7 +363,7 @@ const RPCS = {
     timezone: TZ,
     today: dayKey(NOW.getTime()),
     days,
-    on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+    on_record: { profile: 0, places: 0, complete: false },
     written: [],
     waiting_total: 0,
     waiting: [],
@@ -538,14 +545,26 @@ function withCampaigns(result) {
 /**
  * 7 Oct 2026 (Reports phase C, lens 1, T4): the report says the Reviews lens after the Campaigns lens, from the lens's own
  * read (readers/report.ts reviewsReport: Google as GET google reads it, and the reviews the database counted where a
- * profile has synced). This world has no Google listing, so it says `linked: false` and the fold's words for it (none yet),
- * and the read is six reads more: the ledger function, the listing, the connection, the newest reviews, the daily readings
+ * profile has synced). This world has no Google listing and a deployment that can look none up, so it says `linked: false` and
+ * the fold's words for that, and the read is six reads more: the ledger function, the listing, the connection, the newest reviews, the daily readings
  * and the Autonomy row for reviews. The one change to the bytes and to the reads of a report it answers.
  */
 function withReviews(result) {
   const said = JSON.parse(result);
-  return said.error ? result : JSON.stringify({ ...said, reviews: { linked: false, words: null } });
+  return said.error ? result : JSON.stringify({ ...said, reviews: { linked: false, words: NOTHING_LINKED } });
 }
+/** What the Reviews fold says of a workspace with nothing linked, where nothing can be looked up (this world's deployment). */
+const NOTHING_LINKED = toReviewsReportVM(
+  {
+    timezone: "America/New_York",
+    today: "2026-09-14",
+    days: 7,
+    google: { listing: null, connection: null, reviews: [], days: [], reply_mode: "ask" },
+    readable: false,
+    ledger: null,
+  },
+  { nowMs: 0 },
+).lines.empty;
 const withReviewReads = (reads) => [
   ...reads,
   "rpc:reviews_ledger",

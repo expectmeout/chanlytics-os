@@ -351,7 +351,7 @@ export const reviewsLedger = (over = {}) => ({
   timezone: "America/New_York",
   today: REVIEWS_TODAY,
   days: 30,
-  on_record: { profile: 213, places: 0, oldest_day: "2019-05-02", complete: true },
+  on_record: { profile: 213, places: 0, complete: true },
   written: REVIEWS_WRITTEN,
   waiting_total: UNANSWERED.length,
   waiting: UNANSWERED,

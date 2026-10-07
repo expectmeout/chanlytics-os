@@ -63,7 +63,6 @@ begin
     'on_record', jsonb_build_object(
       'profile', c.profile,
       'places', c.places,
-      'oldest_day', to_char((c.oldest at time zone v_tz)::date, 'YYYY-MM-DD'),
       'complete', coalesce((select g.reviews_complete from google_connections g where g.tenant_id = p_tenant_id), false)),
     -- The profile's reviews dated from the period before's first day, each on its day in the zone, oldest first.
     'written', coalesce((select jsonb_agg(jsonb_build_object(
@@ -111,7 +110,6 @@ begin
   ) into v_result
   from (select count(*) filter (where origin = 'profile')                            as profile,
                count(*) filter (where origin = 'places')                             as places,
-               min(published_at) filter (where origin = 'profile')                   as oldest,
                count(*) filter (where origin = 'profile' and reply_text is null)     as waiting
           from google_reviews
          where tenant_id = p_tenant_id) c;
@@ -123,4 +121,4 @@ revoke all on function public.reviews_ledger(uuid, integer) from public, anon;
 grant execute on function public.reviews_ledger(uuid, integer) to authenticated;
 
 comment on function public.reviews_ledger(uuid, integer) is
-  'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin and the day of the oldest, whether the record is all of Google''s, and the oldest five that wait for a reply with why a reply written for one was held. One statement, under the caller''s RLS.';
+  'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin, whether the record is all of Google''s, and the oldest five that wait for a reply with why a reply written for one was held. One statement, under the caller''s RLS.';

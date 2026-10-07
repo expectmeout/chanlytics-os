@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { TenantConfigWriteSchema } from "@chanlytics/contracts";
+import { TenantConfigWriteSchema, reviewIsNew } from "@chanlytics/contracts";
 import {
   converge,
   verify,
@@ -33,7 +33,25 @@ import {
   WAITING_LEADS,
   WAITING_FOR_MS,
   ALL_LEAD_PLACES,
+  GOOGLE_LISTING,
+  GOOGLE_REVIEWS,
+  GOOGLE_DAYS,
 } from "../../ops/e2e-workspace.mjs";
+
+// The Google sweep as production runs it: the Places key and the OAuth client set, and a wire where Google would be that
+// knows no fixture place (Google answers 404) and nothing else. Installed before the sweep's modules load: places.ts binds
+// `fetch` as it is then.
+process.env.GOOGLE_PLACES_API_KEY = "places-key-for-this-file";
+process.env.GOOGLE_OAUTH_CLIENT_ID = "oauth-client-for-this-file";
+process.env.GOOGLE_OAUTH_CLIENT_SECRET = "oauth-secret-for-this-file";
+process.env.GOOGLE_OAUTH_REDIRECT_URI = "https://dash.test/api/v1/google/callback";
+const wire = [];
+globalThis.fetch = async (url, init) => {
+  wire.push(`${init?.method ?? "GET"} ${String(url).split("?")[0]}`);
+  if (String(url).startsWith("https://places.googleapis.com/v1/places/"))
+    return new Response(JSON.stringify({ error: { code: 404, status: "NOT_FOUND" } }), { status: 404 });
+  throw new Error(`nothing on the wire answers ${url}`);
+};
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseAddressing, reachesTenant } = await import(
@@ -41,6 +59,12 @@ const { chooseAddressing, reachesTenant } = await import(
 );
 const { planLeadSweep, QUESTION_WAIT_MS } = await import(
   pathToFileURL(path.join(here, "../../../../apps/edge/lib/leads/lead-sweep.ts")).href
+);
+const { sweepGoogle } = await import(
+  pathToFileURL(path.join(here, "../../../../apps/edge/lib/google/google-sweep.ts")).href
+);
+const { listingsDue, connectionsDue } = await import(
+  pathToFileURL(path.join(here, "../../../../apps/edge/lib/google/listing-check.ts")).href
 );
 
 const OWNER = "e2e-owner@example.com";
@@ -159,6 +183,8 @@ function world(tables = {}) {
           rows("billing_accounts").push({ tenant_id: p_tenant_id, mode: "stripe", status: "none" });
         return null;
       },
+      // Vault holds nothing for the workspace: the Business Profile it is seeded with has no credentials.
+      get_google_credentials: () => null,
     },
   );
   db.auth = {
@@ -205,6 +231,18 @@ test("converging twice leaves one workspace in one state: nothing is duplicated"
     ["ai:delivered", "customer:received"],
   );
   assert.equal(of(w.t, "calls", T).length, 1);
+  assert.deepEqual(
+    ["google_listings", "google_connections", "google_reviews", "google_listing_days"].map(
+      (table) => of(w.t, table, T).length,
+    ),
+    [1, 1, GOOGLE_REVIEWS.length, GOOGLE_DAYS.length],
+    "the Google rows are written afresh, not added to",
+  );
+  assert.equal(
+    of(w.t, "events", T).filter((e) => e.kind.startsWith("google.")).length,
+    2,
+    "and so are the two events the replies filed",
+  );
   assert.equal(of(w.t, "tenant_channels", T).length, 1);
   assert.deepEqual(
     of(w.t, "tenant_config", T).map((r) => r.config.notifications),
@@ -263,15 +301,7 @@ test("every row it writes is one the production sweeps leave alone", async () =>
     { escalation_emails: [ALERT_INBOX] },
     "one address an alert can go to, and it is Resend's test inbox",
   );
-  for (const table of [
-    "jobs",
-    "escalations",
-    "lines",
-    "playbooks",
-    "broadcasts",
-    "google_connections",
-    "google_listings",
-  ]) {
+  for (const table of ["jobs", "escalations", "lines", "playbooks", "broadcasts"]) {
     assert.equal(of(w.t, table, T).length, 0, `no ${table}`);
   }
 
@@ -683,6 +713,152 @@ test("verify() names a waiting search that is no longer waiting, and a push job 
     problems.some((p) => p.includes("push job")),
     problems.join("; "),
   );
+  await run(w, { now: NOW + 86_400_000 });
+  assert.deepEqual(await verify(w.db, T, ownerId), [], "the next run puts it back");
+});
+
+test("the Google seed is a listing, a Business Profile with no credentials and four reviews dated from the run: two answered, two waiting, the receptionist's reply and the held one filed by the real writer", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const stamp = new Date(NOW).toISOString();
+  const [listing] = of(w.t, "google_listings", T);
+  assert.match(listing.place_id, /^ChIJfixture\d{4}$/, "a place id no Google place has");
+  assert.deepEqual(
+    [listing.place_id, listing.rating, listing.review_count, listing.checked_at, listing.check_error],
+    [GOOGLE_LISTING.place_id, 4, 4, stamp, null],
+  );
+  const [profile] = of(w.t, "google_connections", T);
+  assert.deepEqual(
+    [profile.credentials_ref, profile.reviews_complete, profile.last_synced_at, profile.sync_error],
+    [null, true, stamp, null],
+    "synced as of the run, and nothing that could be used to read Google",
+  );
+  assert.match(profile.location_name, /^locations\//);
+
+  const reviews = of(w.t, "google_reviews", T);
+  const hoursBefore = (iso) => (NOW - Date.parse(iso)) / 3_600_000;
+  assert.deepEqual(
+    reviews.map((r) => [r.review_id, r.origin, r.rating, hoursBefore(r.published_at) / 24]),
+    GOOGLE_REVIEWS.map((r) => [r.review_id, "profile", r.rating, r.writtenDaysAgo]),
+    "written 3, 9, 5 and 40 days before the run",
+  );
+  for (const r of reviews) assert.match(r.author, /^\w+ Example$/, "a made-up reviewer");
+  const [byReceptionist, byOwner, held, waiting] = reviews;
+  assert.deepEqual(
+    [byReceptionist, byOwner, held, waiting].map((r) => r.reply_text !== null),
+    [true, true, false, false],
+    "two answered and two waiting",
+  );
+  assert.equal(hoursBefore(byReceptionist.replied_at), 1, "the receptionist's reply is an hour old, as its event is");
+  assert.equal(
+    (Date.parse(byOwner.replied_at) - Date.parse(byOwner.published_at)) / 3_600_000,
+    26,
+    "the owner's came a day and two hours after the review",
+  );
+  assert.deepEqual([held.replied_at, waiting.replied_at], [null, null]);
+  assert.ok(
+    reviews.every((r) => !reviewIsNew(r, listing.linked_at, NOW)),
+    "none is news: Today draws no line about a review and no bell rings",
+  );
+
+  // The two events the ledger reads who wrote a reply and why one was held from, as the edge's writers file them.
+  const events = of(w.t, "events", T).filter((e) => e.kind.startsWith("google."));
+  assert.deepEqual(
+    events.map((e) => [e.kind, e.subject_type, e.subject_id, e.data]).sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+    [
+      [
+        "google.replied",
+        "review",
+        byReceptionist.id,
+        { review_id: byReceptionist.review_id, chars: GOOGLE_REVIEWS[0].reply.text.length, by: "receptionist" },
+      ],
+      ["google.reply_held", "review", held.id, { review_id: held.review_id, why: "price" }],
+    ],
+    "nothing for the owner's reply, which was written on Google",
+  );
+  assert.deepEqual(
+    of(w.t, "google_listing_days", T).map((d) => [d.day, d.rating, d.review_count]),
+    [
+      ["2026-08-14", 5, 1],
+      ["2026-09-14", 4, 4],
+    ],
+    "the count on the run's day in the workspace's zone, and a month before",
+  );
+  assert.deepEqual(await verify(w.db, T, w.users.find((u) => u.email === OWNER).id), []);
+});
+
+test("the Google sweep reaches the seed only a day on, and then writes its failure on the row and nothing else: no stamp moved, no review touched, no bell, and the next morning's seed clears it", async () => {
+  const w = world();
+  const hour = 3_600_000;
+  const seededAt = Date.now() - 21 * hour;
+  const { tenantId: T } = await run(w, { now: seededAt });
+  const stamp = new Date(seededAt).toISOString();
+  assert.deepEqual(await listingsDue(w.db, new Date(seededAt + 19 * hour), 40), [], "not due at nineteen hours");
+  assert.deepEqual(await connectionsDue(w.db, new Date(seededAt + 19 * hour), 40), []);
+  assert.equal((await listingsDue(w.db, new Date(), 40)).length, 1, "due at twenty-one");
+  assert.equal((await connectionsDue(w.db, new Date(), 40)).length, 1);
+
+  const kept = () =>
+    JSON.stringify([
+      of(w.t, "google_reviews", T),
+      of(w.t, "google_listing_days", T),
+      of(w.t, "notifications", T),
+      of(w.t, "events", T),
+    ]);
+  const before = kept();
+  wire.length = 0;
+  const quiet = { info() {}, warn() {}, error() {}, debug() {} };
+  const res = await sweepGoogle({ db: w.db, L: quiet, started: Date.now() });
+  assert.deepEqual(await res.json(), {
+    ok: true,
+    listings_due: 1,
+    listings_read: 0,
+    profiles_due: 1,
+    profiles_synced: 0,
+    fresh: 0,
+    counted: 0,
+    failed: 2,
+  });
+  assert.deepEqual(
+    wire,
+    [`GET https://places.googleapis.com/v1/places/${GOOGLE_LISTING.place_id}`],
+    "Google was asked for the fixture place and for nothing else: no token, no reviews, no reply",
+  );
+  const [listing] = of(w.t, "google_listings", T);
+  const [profile] = of(w.t, "google_connections", T);
+  assert.ok(listing.check_error && profile.sync_error, "each row says what failed");
+  assert.deepEqual([listing.checked_at, profile.last_synced_at], [stamp, stamp], "and neither stamp moved");
+  assert.equal(kept(), before, "no review, day, bell or event was written");
+
+  await run(w, { now: seededAt + 24 * hour });
+  const [mended] = of(w.t, "google_listings", T);
+  const [reconnected] = of(w.t, "google_connections", T);
+  assert.deepEqual([mended.check_error, reconnected.sync_error], [null, null], "the next morning's seed clears both");
+});
+
+test("verify() names a Google seed that a spec or a person changed: another listing, a profile with credentials, a review that is not a fixture, a reply event gone", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const ownerId = w.t.memberships.find((m) => m.role === "owner").user_id;
+  assert.deepEqual(await verify(w.db, T, ownerId), []);
+  w.t.google_listings[0].place_id = "ChIJrealplace0001";
+  w.t.google_connections[0].credentials_ref = "vault:google";
+  w.t.google_reviews[1].origin = "places";
+  w.t.events.splice(
+    w.t.events.findIndex((e) => e.kind === "google.replied"),
+    1,
+  );
+  const problems = await verify(w.db, T, ownerId);
+  for (const named of [
+    "one Google listing",
+    "one Business Profile",
+    "Google reviews are not the 4 fixtures",
+    "reply events",
+  ])
+    assert.ok(
+      problems.some((p) => p.includes(named)),
+      `${named}: ${problems.join("; ")}`,
+    );
   await run(w, { now: NOW + 86_400_000 });
   assert.deepEqual(await verify(w.db, T, ownerId), [], "the next run puts it back");
 });

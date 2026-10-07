@@ -261,7 +261,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   );
   assert.ok(lib.includes('if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];'));
   assert.ok(lib.includes("autoReplyCandidates(unreplied.data ?? [], conn.connected_at, now.getTime())"));
-  assert.ok(lib.includes('by: "receptionist"') && lib.includes("const bell = autoReplyBell(answered);"));
+  // The reply's `by` and the bell it rings, and the reply held back for a price, are run in google-door.test.mjs.
   assert.ok(
     lib.includes("business_name || t.data?.name") && lib.includes("phone: brain?.phone_display || null"),
     "the facts are the brain's profile",

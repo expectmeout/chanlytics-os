@@ -1,11 +1,13 @@
 /**
  * The one query the four report routes take (readers/report.ts): `period` names the window, `days` is read until
- * its day (report-periods.test.mjs holds it), and Month is the days since the 1st in the workspace's own zone, read from the
- * membership's facts and only when Month is asked.
+ * its day (report-periods.test.mjs holds it) by the three routes that existed before there was a Month, and Month is the days
+ * since the 1st in the workspace's own zone, read from the membership's facts and only when Month is asked. The Reviews route
+ * is newer than `days` and takes the period alone.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { rows } from "../../_rows.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -81,7 +83,7 @@ test("a route sent period=month answers the days since the 1st in the workspace'
     );
 });
 
-test("the reviews' route takes the same query: Month is the days since the 1st in the workspace's zone, the ledger is asked for those days, and any other period is refused at the door", async () => {
+test("the reviews' route takes the period alone: Month is the days since the 1st in the workspace's zone, the ledger is asked for those days, any other period is refused at the door, and `days` is none of its query", async () => {
   setRateStore(memoryStore());
   const route = await importSrc("apps/dashboard/app/api/v1/reports/reviews/route.ts");
   const ctx = () => ({
@@ -97,7 +99,7 @@ test("the reviews' route takes the same query: Month is the days since the 1st i
           },
         ],
         policies: [],
-        google_listings: [{ tenant_id: W, place_id: "place-1", name: "Harbor Studio", rating: 4.8, review_count: 213 }],
+        google_listings: [rows.googleListing({ tenant_id: W, name: "Harbor Studio", rating: 4.8, review_count: 213 })],
         google_connections: [],
         google_reviews: [],
         google_listing_days: [],
@@ -109,7 +111,7 @@ test("the reviews' route takes the same query: Month is the days since the 1st i
           timezone: "America/New_York",
           today: "2026-10-07",
           days: a.p_days,
-          on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+          on_record: { profile: 0, places: 0, complete: false },
           written: [],
           waiting_total: 0,
           waiting: [],
@@ -139,6 +141,9 @@ test("the reviews' route takes the same query: Month is the days since the 1st i
       (e) => e.status === 400,
       `period=${bad} is no id of the table`,
     );
+  // No page ever sent `days` to this route, so it is not read here as it is on the three older ones: none named is thirty.
+  const aged = await route.GET.run(new Request(`http://localhost/api/v1/reports/reviews?days=7&workspace=${W}`), ctx());
+  assert.equal(aged.days, 30, "thirty days, whatever the old query says");
 });
 
 test("the table is the one list of periods: the closed set a request names, and the counts of days the Ask report tool takes, said from it", async () => {

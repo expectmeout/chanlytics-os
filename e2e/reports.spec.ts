@@ -24,11 +24,10 @@ const INVENTED = [
 ];
 
 /**
- * What the Reviews lens draws from its own read once it has landed: a listing's figures, the card that leads to Find, or the
- * registry's empty where nothing can be looked up or connected. Which of the three, by the source, is google.spec.ts's.
+ * What the Reviews lens draws from its own read once it has landed: the figures of the listing and Business Profile the nightly's
+ * workspace is seeded with (tooling/scripts/ops/e2e-workspace.mjs). What they say is google.spec.ts's.
  */
-const reviewsLens = (page: Page) =>
-  page.getByTestId("google-tiles").or(page.getByTestId("google-none")).or(page.getByTestId("lens-empty"));
+const reviewsLens = (page: Page) => page.getByTestId("google-tiles");
 
 test.describe("Reports on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -101,7 +100,7 @@ test.describe("Reports on a real workspace", () => {
     }
     await page.getByTestId("lens-campaigns").click();
     await expect(report.getByTestId("chart-campaigns")).toBeVisible();
-    // Reviews is shown to every workspace, and draws from a read of its own.
+    // Reviews is shown to every workspace, and draws from a read of its own: here, a listing's.
     await page.getByTestId("lens-reviews").click();
     await expect(reviewsLens(page)).toBeVisible();
   });

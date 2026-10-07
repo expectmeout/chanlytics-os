@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import {
   ASK_ANSWER_FORMAT,
@@ -41,6 +42,7 @@ import {
   toPersonRowVM,
   nextRunLabel,
   toReportVM,
+  toReviewsReportVM,
   toBookingReportVM,
   toDealReportVM,
   compareTemplates,
@@ -234,7 +236,7 @@ const RPCS = {
     timezone: TZ,
     today: "2026-09-14",
     days: a.p_days,
-    on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+    on_record: { profile: 0, places: 0, complete: false },
     written: [],
     waiting_total: 0,
     waiting: [],
@@ -1027,50 +1029,42 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
       voicemail: 0,
     }),
   };
-  const review = (n, published, over = {}) => ({
-    id: `ffffffff-ffff-4fff-8fff-ffffffffff0${n}`,
-    tenant_id: A,
-    review_id: `g-0${n}`,
-    origin: "profile",
-    rating: 5,
-    author: "Ana P.",
-    author_uri: null,
-    author_photo_uri: null,
-    body: "Fast, careful, and on time.",
-    language_code: null,
-    published_at: published,
-    reply_text: null,
-    replied_at: null,
-    maps_uri: null,
-    first_seen_at: published,
-    last_seen_at: published,
-    ...over,
-  });
-  const listing = (over = {}) => ({
-    tenant_id: A,
-    place_id: "place-1",
-    name: "Harbor Studio",
-    address: "1 Dock Street",
-    maps_uri: "https://maps.example.com/harbor",
-    business_status: "OPERATIONAL",
-    rating: 4.8,
-    review_count: 4,
-    linked_at: "2026-08-01T12:00:00Z",
-    checked_at: "2026-09-14T12:00:00Z",
-    check_error: null,
-    ...over,
-  });
-  const connection = (over = {}) => ({
-    tenant_id: A,
-    google_email: "owner@example.com",
-    account_title: "Harbor Studio",
-    location_name: "locations/1",
-    location_title: "Harbor Studio",
-    connected_at: "2026-08-01T12:00:00Z",
-    last_synced_at: "2026-09-14T12:00:00Z",
-    sync_error: null,
-    ...over,
-  });
+  const review = (n, published, over = {}) =>
+    rows.googleReview({
+      id: `ffffffff-ffff-4fff-8fff-ffffffffff0${n}`,
+      tenant_id: A,
+      review_id: `g-0${n}`,
+      rating: 5,
+      author: "Ana P.",
+      body: "Fast, careful, and on time.",
+      published_at: published,
+      first_seen_at: published,
+      last_seen_at: published,
+      ...over,
+    });
+  const listing = (over = {}) =>
+    rows.googleListing({
+      tenant_id: A,
+      address: "1 Dock Street",
+      maps_uri: "https://maps.example.com/harbor",
+      business_status: "OPERATIONAL",
+      rating: 4.8,
+      review_count: 4,
+      linked_at: "2026-08-01T12:00:00Z",
+      checked_at: "2026-09-14T12:00:00Z",
+      ...over,
+    });
+  const connection = (over = {}) =>
+    rows.googleConnection({
+      tenant_id: A,
+      google_email: "owner@example.com",
+      account_title: "Harbor Studio",
+      location_name: "locations/1",
+      location_title: "Harbor Studio",
+      connected_at: "2026-08-01T12:00:00Z",
+      last_synced_at: "2026-09-14T12:00:00Z",
+      ...over,
+    });
   // Four reviews on the profile, which is every one Google counts: two written in the last 7 days (one answered by the
   // receptionist six hours later, one waiting, a reply to it written and held for naming a price), one in the 7 before
   // (answered by its owner), one older; and a fifth, one of the five the public listing shows, which counts for nothing.
@@ -1088,7 +1082,7 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
     timezone: TZ,
     today,
     days: a.p_days,
-    on_record: { profile: 4, places: 1, oldest_day: "2026-08-15", complete: true },
+    on_record: { profile: 4, places: 1, complete: true },
     written: [
       { id: reviews[3].id, d: "2026-08-15", rating: 5, replied: true, secs: 7_200, by: null },
       { id: reviews[2].id, d: "2026-09-02", rating: 4, replied: true, secs: 86_400, by: null },
@@ -1156,10 +1150,26 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
   });
   assert.deepEqual((await run(unsynced)).reviews, { ...places, connect: null });
 
-  // No listing linked: that, and nothing else, which a person reads as nothing to say, never as no reviews. The fold has no
-  // words for it yet (the connect line is for a listing that lacks the profile), and the field says so.
+  // No listing linked: that, and the fold's words for it (the lens's own, what a deployment that can look a listing up offers),
+  // which a person reads as nothing to say, never as no reviews. The model need not lean on the tool's description alone.
   const unlinked = await run(tables());
-  assert.deepEqual(unlinked.reviews, { linked: false, words: null });
+  const nothingLinked = toReviewsReportVM(
+    {
+      timezone: TZ,
+      today,
+      days: 7,
+      google: { listing: null, connection: null, reviews: [], days: [], reply_mode: "ask" },
+      readable: false,
+      ledger: null,
+    },
+    { nowMs: NOW.getTime() },
+  );
+  assert.ok(nothingLinked.lines.empty, "the fold has words for a workspace with nothing linked");
+  assert.deepEqual(
+    unlinked.reviews,
+    { linked: false, words: nothingLinked.lines.empty },
+    "and the tool says them: here, a deployment that can neither look a listing up nor connect a profile",
+  );
 
   // Its read failed (the ledger's here): said so, never as no reviews, and the report stands.
   const failed = await run(profile, {

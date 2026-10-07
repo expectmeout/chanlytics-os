@@ -41,7 +41,10 @@
  *     round waits, no job or sweep moves it but the sweep's end after a day, and
  *     the seed writes the bell's row for each round itself, so 00163's trigger
  *     queues no push (convergeLeads says how);
- *   - and there is no job, escalation, line, playbook, broadcast or Google row.
+ *   - Google holds one listing at a fixture place id, the Business Profile connected to it with no credentials, four of
+ *     its reviews and two days of its count: what e2e/google.spec.ts reads of the Reviews lens, with a reply the
+ *     receptionist wrote and one held back (convergeGoogle says how the sweeps leave them);
+ *   - and there is no job, escalation, line, playbook or broadcast.
  *
  * It refuses an owner or teammate address outside example.com, so it can never
  * reset a real account, and refuses when the owner belongs to any workspace but
@@ -56,6 +59,8 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import {
+  DAY_MS,
+  HOUR_MS,
   TenantConfigWriteSchema,
   leadMonth,
   leadQuestionRoute,
@@ -63,6 +68,7 @@ import {
   leadsRoute,
   newReceptionistDefaults,
 } from "@chanlytics/contracts";
+import { emitEvent } from "@chanlytics/db";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -372,6 +378,68 @@ export const WAITING_LEADS = [
 export const ALL_LEAD_PLACES = [...LEADS.map((l) => l.place_id), ...WAITING_LEADS.map((l) => l.place_id)];
 
 /**
+ * The workspace's Google (convergeGoogle): a listing at a place id no Google place has, and four reviews of it, written
+ * 3, 9, 5 and 40 days before the run, so a 30-day Reviews lens counts three and the 30 days before it one. The first was
+ * answered by the receptionist an hour before the run (its google.replied event, filed by the run, is within the six hours
+ * the ledger allows of the reply on the row) and the second by its owner on Google (no event is filed for a reply written
+ * there); the third waits with a reply the receptionist wrote for it and held, and the fourth waits. The listing's rating
+ * and count are what the four say: four reviews, 5 + 4 + 2 + 5 stars. Authors and words are made up. e2e/google.spec.ts
+ * restates what these make the lens say, and reads the route first to refuse a seed that has drifted from them.
+ */
+export const GOOGLE_LISTING = {
+  place_id: "ChIJfixture0201",
+  name: NAME,
+  address: "1 Example Street, New York, NY 10001",
+  maps_uri: "https://www.example.com/maps/e2e-fixture",
+  rating: 4,
+  review_count: 4,
+};
+export const GOOGLE_CONNECTION = { account_name: "accounts/e2e-fixture", location_name: "locations/e2e-fixture" };
+export const GOOGLE_REVIEWS = [
+  {
+    review_id: "e2e-fixture-review-1",
+    author: "Alex Example",
+    rating: 5,
+    body: "Careful, quick and friendly. I will book again.",
+    writtenDaysAgo: 3,
+    reply: { text: "Thank you, Alex! We look forward to seeing you again.", hoursAgo: 1, by: "receptionist" },
+    held: null,
+  },
+  {
+    review_id: "e2e-fixture-review-2",
+    author: "Jordan Example",
+    rating: 4,
+    body: "Good work, though the wait was a little longer than I expected.",
+    writtenDaysAgo: 9,
+    reply: { text: "Thanks for your patience, Jordan.", hoursAfter: 26, by: null },
+    held: null,
+  },
+  {
+    review_id: "e2e-fixture-review-3",
+    author: "Riley Example",
+    rating: 2,
+    body: "The quote was higher than I was told on the phone.",
+    writtenDaysAgo: 5,
+    reply: null,
+    held: "price",
+  },
+  {
+    review_id: "e2e-fixture-review-4",
+    author: "Morgan Example",
+    rating: 5,
+    body: "A lovely studio and a lovely team.",
+    writtenDaysAgo: 40,
+    reply: null,
+    held: null,
+  },
+];
+/** The listing's count on two days, the first with the oldest review alone and before the 30 days the lens looks at, the last on the run's own day. */
+export const GOOGLE_DAYS = [
+  { daysAgo: 31, rating: 5, review_count: 1 },
+  { daysAgo: 0, rating: 4, review_count: 4 },
+];
+
+/**
  * Every person's two answers, in force after each run: a yes to messages, taken
  * in person a week before the run, and nothing yet about offers. The specs
  * (e2e/today/owner-signals.spec.ts) read this state and nothing else; verify() below
@@ -501,6 +569,10 @@ export async function snapshot(db, tenantId, userIds) {
       "lead_search_members",
       "lead_counters",
       "lead_operations",
+      "google_listings",
+      "google_connections",
+      "google_reviews",
+      "google_listing_days",
     ]) {
       keep(table, must(`backing up ${table}`, await db.from(table).select("*").eq("tenant_id", tenantId)));
     }
@@ -921,6 +993,7 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
   );
 
   await convergeLeads(db, T, ownerId, now);
+  await convergeGoogle(db, T, ownerId, now);
 
   const problems = await verify(db, T, ownerId);
   if (problems.length) throw new Error(`the workspace is not in its known state: ${problems.join("; ")}`);
@@ -1267,6 +1340,119 @@ async function convergeLeads(db, T, ownerId, now) {
   );
 }
 
+/**
+ * The Google seed: the listing, the Business Profile connected to it, four of its reviews and two days of its count,
+ * deleted and written again every run, with the events its replies filed, so e2e/google.spec.ts reads the Reviews lens
+ * drawn from a Business Profile that has synced (reviews_complete, last_synced_at), with a reply the receptionist wrote
+ * and one it held back. Nothing is linked through the product, for a link reads Google and a connect needs a person's
+ * consent: the rows are written as the edge's writers leave them, and the two events through emitEvent, the writer
+ * reviews_ledger (00346) reads who wrote a reply and why one was held from.
+ *
+ * What the sweeps do to them. The hourly Google sweep (apps/edge/lib/google/google-sweep.ts) reads a listing not read for
+ * twenty hours and syncs a profile not synced for twenty hours. Both stamps are the run's and the seed runs every
+ * morning, so the sweep reaches these rows only after a missed morning, and then harmlessly: the place id is no place
+ * Google has, so the read fails and writes `check_error` on the listing; the connection holds no credentials, so the
+ * sync fails at its token and writes `sync_error` on the connection. A failure moves no stamp, touches no review and
+ * rings no bell (checkListing and syncProfile keep their words on the row), and the receptionist answers reviews only
+ * after a sync that succeeded, which this one cannot be (and the workspace's reviews are on `ask`). The next run writes
+ * both rows afresh, without either column. No review is news (each was first seen when it was written, days before the
+ * thirty-six hours news lasts), so Today draws no line about one and none rings the bell.
+ */
+async function convergeGoogle(db, T, ownerId, now) {
+  const stamp = new Date(now).toISOString();
+  const ago = (ms) => new Date(now - ms).toISOString();
+  const dayOf = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: TIMEZONE });
+
+  must("clearing the Google days", await db.from("google_listing_days").delete().eq("tenant_id", T));
+  must("clearing the Google reviews", await db.from("google_reviews").delete().eq("tenant_id", T));
+  must("clearing the Google listing", await db.from("google_listings").delete().eq("tenant_id", T));
+  must("clearing the Google connection", await db.from("google_connections").delete().eq("tenant_id", T));
+  must(
+    "clearing the events of the replies",
+    await db
+      .from("events")
+      .delete()
+      .eq("tenant_id", T)
+      .eq("subject_type", "review")
+      .in("kind", ["google.replied", "google.reply_held"]),
+  );
+
+  must(
+    "the Google listing",
+    await db.from("google_listings").insert({
+      tenant_id: T,
+      ...GOOGLE_LISTING,
+      linked_by: ownerId,
+      linked_at: ago(45 * DAY_MS),
+      checked_at: stamp,
+      check_error: null,
+    }),
+  );
+  must(
+    "the Business Profile",
+    await db.from("google_connections").insert({
+      tenant_id: T,
+      ...GOOGLE_CONNECTION,
+      google_email: null,
+      account_title: NAME,
+      location_title: NAME,
+      connected_by: ownerId,
+      connected_at: ago(45 * DAY_MS),
+      last_synced_at: stamp,
+      sync_error: null,
+      credentials_ref: null,
+      reviews_complete: true,
+    }),
+  );
+  const reviews = must(
+    "the Google reviews",
+    await db
+      .from("google_reviews")
+      .insert(
+        GOOGLE_REVIEWS.map((r) => {
+          const written = now - r.writtenDaysAgo * DAY_MS;
+          const repliedAt =
+            r.reply && (r.reply.hoursAgo ? now - r.reply.hoursAgo * HOUR_MS : written + r.reply.hoursAfter * HOUR_MS);
+          return {
+            tenant_id: T,
+            review_id: r.review_id,
+            origin: "profile",
+            rating: r.rating,
+            author: r.author,
+            body: r.body,
+            published_at: new Date(written).toISOString(),
+            reply_text: r.reply?.text ?? null,
+            replied_at: repliedAt ? new Date(repliedAt).toISOString() : null,
+            first_seen_at: new Date(written).toISOString(),
+            last_seen_at: stamp,
+          };
+        }),
+      )
+      .select("id, review_id"),
+  );
+  for (const r of GOOGLE_REVIEWS) {
+    const row = reviews.find((x) => x.review_id === r.review_id);
+    if (r.reply?.by === "receptionist")
+      await emitEvent(db, T, "google.replied", "review", row.id, {
+        review_id: r.review_id,
+        chars: r.reply.text.length,
+        by: "receptionist",
+      });
+    if (r.held) await emitEvent(db, T, "google.reply_held", "review", row.id, { review_id: r.review_id, why: r.held });
+  }
+  must(
+    "the listing's days",
+    await db.from("google_listing_days").insert(
+      GOOGLE_DAYS.map((d) => ({
+        tenant_id: T,
+        day: dayOf(now - d.daysAgo * DAY_MS),
+        rating: d.rating,
+        review_count: d.review_count,
+      })),
+    ),
+  );
+}
+
 /** Reads the workspace back and names anything that is not as it should be. */
 export async function verify(db, T, ownerId) {
   const problems = [];
@@ -1398,6 +1584,49 @@ export async function verify(db, T, ownerId) {
   ) {
     problems.push(`the config's alerts go somewhere other than the test inbox, ${ALERT_INBOX}`);
   }
+  // The state e2e/google.spec.ts reads: the fixture listing, one Business Profile synced and holding no credentials, the four
+  // reviews, and the two events the ledger reads who wrote a reply and why one was held from.
+  const listings = await read("the Google listings", db.from("google_listings").select("place_id").eq("tenant_id", T));
+  if (listings.length !== 1 || listings[0].place_id !== GOOGLE_LISTING.place_id)
+    problems.push("the workspace should hold exactly one Google listing, the fixture");
+  const profiles = await read(
+    "the Google connections",
+    db.from("google_connections").select("credentials_ref, last_synced_at, reviews_complete").eq("tenant_id", T),
+  );
+  if (
+    profiles.length !== 1 ||
+    profiles[0].credentials_ref !== null ||
+    !profiles[0].last_synced_at ||
+    profiles[0].reviews_complete !== true
+  )
+    problems.push("the workspace should hold exactly one Business Profile, synced, with no credentials");
+  const reviews = await read(
+    "the Google reviews",
+    db.from("google_reviews").select("id, review_id, origin").eq("tenant_id", T),
+  );
+  if (
+    JSON.stringify(reviews.map((r) => r.review_id).sort()) !==
+      JSON.stringify(GOOGLE_REVIEWS.map((r) => r.review_id).sort()) ||
+    reviews.some((r) => r.origin !== "profile")
+  )
+    problems.push(`the workspace's Google reviews are not the ${GOOGLE_REVIEWS.length} fixtures`);
+  const filed = await read(
+    "the replies' events",
+    db
+      .from("events")
+      .select("kind, subject_id, data")
+      .eq("tenant_id", T)
+      .in("kind", ["google.replied", "google.reply_held"]),
+  );
+  const repliesFiled = filed
+    .map((e) => `${e.kind} ${reviews.find((r) => r.id === e.subject_id)?.review_id} ${e.data?.by ?? e.data?.why}`)
+    .sort();
+  const repliesWanted = GOOGLE_REVIEWS.flatMap((r) => [
+    ...(r.reply?.by ? [`google.replied ${r.review_id} ${r.reply.by}`] : []),
+    ...(r.held ? [`google.reply_held ${r.review_id} ${r.held}`] : []),
+  ]).sort();
+  if (JSON.stringify(repliesFiled) !== JSON.stringify(repliesWanted))
+    problems.push(`the workspace's reply events are not the fixtures' (${repliesFiled.join(", ")})`);
   return problems;
 }
 

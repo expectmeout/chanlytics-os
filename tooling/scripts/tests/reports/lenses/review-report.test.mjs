@@ -452,7 +452,7 @@ test("history that does not reach the period is a dash and says where it starts,
   ];
   // 40 of Google's 213 are on record and the sync did not read the whole list; the connection began Aug 20, the period Aug 6
   const began = (day) => ({ connection: googleConnection({ connected_at: at(day, 12) }) });
-  const partial = { profile: 40, places: 0, oldest_day: "2026-08-20", complete: false };
+  const partial = { profile: 40, places: 0, complete: false };
   const short = vmOf(dtoOf(ledgerOf(written, { on_record: partial }), began("2026-08-20")));
   const startsAug20 = "history on record starts Aug 20";
   for (const id of ["written", "answered", "reply_time"]) {
@@ -480,23 +480,25 @@ test("history that does not reach the period is a dash and says where it starts,
   assert.equal(reaches.lines.history, "history on record starts Jul 30");
   assert.equal(reaches.lines.head, "4.8 on Google from 213 reviews; 4 new in the last 30 days, 1 answered.");
   assert.equal(reaches.lines.mix, "3 of the 4 reviews written in the last 30 days are 4 or 5 stars.");
-  // the record's start is the connection's, never the oldest review's date (a sync reads the newest, so the record has gaps)
+  // the record's start is the connection's, never a review's date (a sync reads the newest, so the record has gaps): an old
+  // review among the written does not stretch the history
   const gaps = vmOf(
-    dtoOf(ledgerOf(written, { on_record: { ...partial, oldest_day: "2019-05-02" } }), began("2026-08-20")),
+    dtoOf(
+      ledgerOf([...written, writtenReview("older", at("2019-05-02"), 5)], { on_record: partial }),
+      began("2026-08-20"),
+    ),
   );
   assert.equal(gaps.lines.history, startsAug20, "an old review on record does not stretch the history");
   // a connection with no date to start from: the record exists in name only
   const nothing = vmOf(
-    dtoOf(ledgerOf([], { on_record: { ...partial, profile: 0, oldest_day: null } }), {
+    dtoOf(ledgerOf([], { on_record: { ...partial, profile: 0 } }), {
       connection: googleConnection({ connected_at: "not a date" }),
     }),
   );
   assert.equal(tile(nothing, "written").meta, "no review history on record yet");
   assert.equal(nothing.lines.head, "4.8 on Google from 213 reviews; no review history on record yet.");
   // the record is complete when the sync read the whole list, whatever the count says (Google's own may be on another basis)
-  const whole = vmOf(
-    dtoOf(ledgerOf(written, { on_record: { profile: 40, places: 0, oldest_day: "2026-08-20", complete: true } })),
-  );
+  const whole = vmOf(dtoOf(ledgerOf(written, { on_record: { profile: 40, places: 0, complete: true } })));
   assert.equal(tile(whole, "written").value, "4");
   assert.equal(whole.lines.history, null);
   const counted = vmOf(dtoOf(ledgerOf(written, { on_record: { ...partial, profile: 214 } }), began("2026-08-20")));

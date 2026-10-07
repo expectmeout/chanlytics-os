@@ -22,6 +22,7 @@ import {
   toReportVM,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
@@ -1861,25 +1862,19 @@ test("the campaigns' report, for Ask and for the page: GET reports/campaigns ans
 const REVIEW_A = "ffffffff-ffff-4fff-8fff-ffffffffff01";
 const REVIEW_B = "ffffffff-ffff-4fff-8fff-ffffffffff02";
 const REVIEW_C = "ffffffff-ffff-4fff-8fff-ffffffffff03";
-const googleRow = (id, published, over = {}) => ({
-  id,
-  tenant_id: A,
-  review_id: `g-${id.slice(-2)}`,
-  origin: "profile",
-  rating: 5,
-  author: "Ana P.",
-  author_uri: null,
-  author_photo_uri: null,
-  body: "Fast, careful, and on time.",
-  language_code: null,
-  published_at: published,
-  reply_text: null,
-  replied_at: null,
-  maps_uri: null,
-  first_seen_at: published,
-  last_seen_at: published,
-  ...over,
-});
+const googleRow = (id, published, over = {}) =>
+  rows.googleReview({
+    id,
+    tenant_id: A,
+    review_id: `g-${id.slice(-2)}`,
+    rating: 5,
+    author: "Ana P.",
+    body: "Fast, careful, and on time.",
+    published_at: published,
+    first_seen_at: published,
+    last_seen_at: published,
+    ...over,
+  });
 /** What reviews_ledger answers for a workspace with the profile's two reviews: the database counts in SQL (google-reviews-ledger.db.test.mjs holds the function), the day in Auckland, where 14:00 UTC on 6 October is already the 7th. */
 const waitingRow = () => {
   const {
@@ -1895,7 +1890,7 @@ const reviewsLedgerOf = (args, { listing = true } = {}) =>
         timezone: "Pacific/Auckland",
         today: "2026-10-07",
         days: args.p_days,
-        on_record: { profile: 2, places: 1, oldest_day: "2026-10-04", complete: true },
+        on_record: { profile: 2, places: 1, complete: true },
         written: [
           { id: REVIEW_A, d: "2026-10-04", rating: 5, replied: true, secs: 21_600, by: "receptionist" },
           { id: REVIEW_B, d: "2026-10-06", rating: 2, replied: false, secs: null, by: null },
@@ -1907,7 +1902,7 @@ const reviewsLedgerOf = (args, { listing = true } = {}) =>
         timezone: "Pacific/Auckland",
         today: "2026-10-07",
         days: args.p_days,
-        on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+        on_record: { profile: 0, places: 0, complete: false },
         written: [],
         waiting_total: 0,
         waiting: [],
@@ -1931,10 +1926,8 @@ const reviewsWorld = ({ listing = true, synced = true } = {}) => ({
     ],
     google_listings: listing
       ? [
-          {
+          rows.googleListing({
             tenant_id: A,
-            place_id: "place-1",
-            name: "Harbor Studio",
             address: "1 Dock Street",
             maps_uri: "https://maps.example.com/harbor",
             business_status: "OPERATIONAL",
@@ -1942,13 +1935,12 @@ const reviewsWorld = ({ listing = true, synced = true } = {}) => ({
             review_count: 213,
             linked_at: "2026-08-01T12:00:00Z",
             checked_at: "2026-10-06T12:00:00Z",
-            check_error: null,
-          },
+          }),
         ]
       : [],
     google_connections: listing
       ? [
-          {
+          rows.googleConnection({
             tenant_id: A,
             google_email: "owner@example.com",
             account_title: "Harbor Studio",
@@ -1956,8 +1948,7 @@ const reviewsWorld = ({ listing = true, synced = true } = {}) => ({
             location_title: "Harbor Studio",
             connected_at: "2026-08-01T12:00:00Z",
             last_synced_at: synced ? "2026-10-06T12:00:00Z" : null,
-            sync_error: null,
-          },
+          }),
         ]
       : [],
     // A review and a day's reading hang off the listing (a foreign key that cascades): none without one.
@@ -3743,18 +3734,11 @@ const setupWorld = () => ({
       membership(B, "viewer", "bayside", "2026-02-01T00:00:00Z"),
     ],
     google_listings: [
-      {
+      rows.googleListing({
         tenant_id: A,
         place_id: "ChIJ-northside-movers",
         name: "Northside Movers",
-        address: null,
-        maps_uri: null,
-        business_status: null,
-        rating: null,
-        review_count: null,
         linked_at: "2026-09-07T14:00:00Z",
-        checked_at: null,
-        check_error: null,
         facts: {
           hours: [{ open: { day: 2, hour: 9, minute: 0 }, close: { day: 2, hour: 17, minute: 0 } }],
           website: null,
@@ -3763,7 +3747,7 @@ const setupWorld = () => ({
           booking_page: "https://calendly.com/northside-movers-example/estimate",
           phone_e164: "+13055550100",
         },
-      },
+      }),
     ],
     tenant_config: [
       {

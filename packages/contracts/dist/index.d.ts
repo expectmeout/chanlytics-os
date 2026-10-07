@@ -24916,8 +24916,8 @@ interface ReviewsLedgerDto {
     days: number;
     /**
      * How many profile reviews and how many of the public listing's the workspace holds, and whether the profile's last sync
-     * read the whole of Google's list, so the record is every review (google_connections.reviews_complete). The function also
-     * answers the oldest review's day; no sentence may use it, for the sync reads the newest reviews first and the record has gaps.
+     * read the whole of Google's list, so the record is every review (google_connections.reviews_complete). The oldest review's
+     * day is not here: the sync reads the newest reviews first, so the record has gaps and that day says nothing of where it starts.
      */
     on_record: {
         profile: number;

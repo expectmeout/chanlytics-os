@@ -4,7 +4,7 @@
  * same instant on different days), the profile's reviews are counted by the day each was written, a reply is the receptionist's
  * where its own event (written through the real writer, emitEvent) is the last recorded under the review and lies within
  * six hours of the reply on the row, the ones that wait come oldest first and five at most with why a reply written for one
- * was held, the counts and the oldest day are the workspace's alone, and a member reads what the service role reads for their
+ * was held, the counts are the workspace's alone, the answer is the DTO the fold reads and no more, and a member reads what the service role reads for their
  * own workspace and nothing of another's.
  *
  * Runs the way tenancy.db.test.mjs does: its own workspaces, users and rows, made with the service key and removed after,
@@ -13,7 +13,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { REVIEWS_WAITING_SHOWN } from "@chanlytics/contracts";
+import { REVIEWS_WAITING_SHOWN, isReviewsLedgerDto } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -386,36 +386,53 @@ test(
   },
 );
 
+test("a review with no date waits after the dated ones", { skip }, async () => {
+  const solo = await workspace("ledger-order", AUCKLAND);
+  const march = await review(solo, { published_at: nz("2026-03-02", "09:00") });
+  const january = await review(solo, { published_at: nz("2026-01-05", "09:00") });
+  const undated = await review(solo, { published_at: null });
+  const out = await ledger(solo, 30);
+  assert.deepEqual(
+    out.waiting.map((w) => w.id),
+    [january.id, march.id, undated.id],
+  );
+  assert.equal(out.waiting_total, 3);
+  assert.deepEqual(out.written, [], "none of the three is in the last 60 days");
+});
+
 test(
-  "a review with no date waits after the dated ones, and the oldest day is the oldest dated one in the zone",
+  "the answer is the Reviews ledger the fold reads and nothing more: its fields exactly, one of each kind of review in it",
   { skip },
   async () => {
-    const solo = await workspace("ledger-order", AUCKLAND);
-    const march = await review(solo, { published_at: nz("2026-03-02", "09:00") });
-    const january = await review(solo, { published_at: nz("2026-01-05", "09:00") });
-    const undated = await review(solo, { published_at: null });
-    const out = await ledger(solo, 30);
+    const out = await ledger(A, 30);
+    assert.ok(isReviewsLedgerDto(out), "contracts' guard takes it");
+    assert.deepEqual(Object.keys(out).sort(), [
+      "days",
+      "on_record",
+      "timezone",
+      "today",
+      "waiting",
+      "waiting_total",
+      "written",
+    ]);
+    assert.deepEqual(Object.keys(out.on_record).sort(), ["complete", "places", "profile"]);
+    assert.ok(out.written.length > 0 && out.waiting.length > 0, "a review written and one that waits are both in it");
+    for (const w of out.written)
+      assert.deepEqual(Object.keys(w).sort(), ["by", "d", "id", "rating", "replied", "secs"], w.id);
     assert.deepEqual(
-      out.waiting.map((w) => w.id),
-      [january.id, march.id, undated.id],
+      await ledger("00000000-0000-4000-8000-000000000000", 30),
+      { error: "unknown_tenant" },
+      "and the guard refuses a workspace the function does not know",
     );
-    assert.equal(out.on_record.oldest_day, "2026-01-05");
-    assert.equal(out.waiting_total, 3);
-    assert.deepEqual(out.written, [], "none of the three is in the last 60 days");
+    assert.ok(!isReviewsLedgerDto({ error: "unknown_tenant" }));
   },
 );
 
 test(
-  "on record: the profile's reviews and the public five counted apart, the oldest day, and whether the sync read the whole list",
+  "on record: the profile's reviews and the public five counted apart, and whether the sync read the whole list",
   { skip },
   async () => {
-    const dated = mine.map((m) => m.row.published_at).filter((p) => p !== null);
-    const expected = {
-      profile: mine.length,
-      places: 2,
-      oldest_day: dayIn(Math.min(...dated.map((p) => Date.parse(p))), AUCKLAND),
-      complete: false,
-    };
+    const expected = { profile: mine.length, places: 2, complete: false };
     assert.deepEqual((await ledger(A, 30)).on_record, expected, "no connection: nothing says the list was read whole");
     ok(
       await db
@@ -431,10 +448,10 @@ test(
     assert.deepEqual((await ledger(A, 30)).on_record, { ...expected, complete: true });
     ok(await db.from("google_connections").update({ reviews_complete: false }).eq("tenant_id", A));
     assert.equal((await ledger(A, 30)).on_record.complete, false);
-    // A workspace with no review on record counts none and has no oldest day.
+    // A workspace with no review on record counts none.
     const empty = await workspace("ledger-empty", "UTC");
     const none = await ledger(empty, 30);
-    assert.deepEqual(none.on_record, { profile: 0, places: 0, oldest_day: null, complete: false });
+    assert.deepEqual(none.on_record, { profile: 0, places: 0, complete: false });
     assert.deepEqual([none.written, none.waiting, none.waiting_total], [[], [], 0]);
   },
 );

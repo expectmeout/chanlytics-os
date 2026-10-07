@@ -543,7 +543,7 @@ test("the reports: the three presets and no other, the series from the function 
       timezone: "America/New_York",
       today: "2026-10-07",
       days: a.p_days,
-      on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+      on_record: { profile: 0, places: 0, complete: false },
       written: [],
       waiting_total: 0,
       waiting: [],
