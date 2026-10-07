@@ -216,6 +216,7 @@ export { toReachOutReportVM, reachOutDayWords } from "./reports/reach-out-report
 export { closedOf } from "./reports/report-closed";
 export { reportFacts } from "./reports/report-facts";
 export { toHeadlineVM, isReportDto } from "./reports/report-headline";
+export { metricWordsOf } from "./reports/report-metrics";
 export { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, isReportPeriod, fixedDaysOf, monthDaysAt, reportPeriodOf, reportDaysAsked, reportWindowOf } from "./reports/report-periods";
 export { holdOf, replyHoldDtoOf } from "./reports/report-speed";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./reports/report-tiles";

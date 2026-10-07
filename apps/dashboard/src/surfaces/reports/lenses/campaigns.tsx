@@ -1,12 +1,28 @@
 /** The Campaigns lens: what the broadcasts and playbooks sent, and what the reach-outs wrote. */
-import type { CampaignReportVM, ReportVM } from "@chanlytics/contracts";
+import type { CampaignReportVM, ReportTileVM, ReportVM } from "@chanlytics/contracts";
 import { BarChart, BarList } from "../../kit/charts/bar";
 import { ChartCard } from "../../kit/charts/card";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
-import { RptSection, RptSources } from "../blocks";
+import { RptFigure, RptSection, RptSources } from "../blocks";
 import { RptReachOuts } from "../reach-outs";
 import { RPT_CHANNEL_COLORS, RPT_SENT } from "../series";
 import { LensEmpty, type LensProps } from "./shared";
+
+/**
+ * Who said yes and who asked to stop, each with the period before beside it and, over its label, what is counted. The people
+ * are the consent ledger's, not the campaigns': a yes or a stop counts however the person came to give it.
+ */
+function answersStrip(cm: CampaignReportVM) {
+  const by = Object.fromEntries(cm.tiles.map((t) => [t.id, t]));
+  const tiles = [by.optins, by.optouts].filter((t): t is ReportTileVM => !!t);
+  return (
+    <dl className="rpt-figures two rpt-span-12" data-testid="campaign-answers">
+      {tiles.map((t) => (
+        <RptFigure key={t.id} t={t} />
+      ))}
+    </dl>
+  );
+}
 
 /** From sent to replied: the campaigns' funnel, each step a share of what went out. */
 function funnelCard(cm: CampaignReportVM) {
@@ -114,6 +130,7 @@ function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) 
   if (cm.empty) return <LensEmpty lens="campaigns" vm={vm} testid="chart-campaigns" />;
   return (
     <div className="rpt-grid">
+      {answersStrip(cm)}
       {funnelCard(cm)}
       {sentCard(cm, days)}
       {channelsCard(cm)}

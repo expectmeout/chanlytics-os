@@ -152,6 +152,7 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
 .rpt-cell { padding: 12px 18px 13px; }
 .rpt-cell + .rpt-cell { border-left: 1px solid var(--line); }
 .rpt-figures.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.rpt-figures.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* ---------- inside the cards ---------- */
 .rpt-hours { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -222,7 +223,7 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
   .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .rpt-cell:last-child { grid-column: 1 / -1; border-left: none; }
-  .rpt-figures.four .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
+  .rpt-figures.four .rpt-cell:last-child, .rpt-figures.two .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
   .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
   .rpt .ck-pie { flex-direction: column; align-items: stretch; }
   .rpt .ck-pie-figure { align-self: center; }
