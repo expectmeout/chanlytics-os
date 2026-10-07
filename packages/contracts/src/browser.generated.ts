@@ -256,6 +256,7 @@ export { personInitials, identityWords, memberWords, cleanDisplayName, providerN
 export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING } from "./shell/refusal";
 export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } from "./shell/tone";
 export { PAGE_VITALS, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";
+export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot } from "./templates/campaign-message";
 export { emailFoot, emailFootHtml } from "./templates/email-foot";
 export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds } from "./templates/inbox-templates";
 export { libraryCount, isLibrarySample } from "./templates/library-count";

@@ -29433,6 +29433,106 @@ function pageVitalsWords(rows) {
   return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
 }
 
+// src/templates/campaign-message.ts
+function variablesSlotCount(variables) {
+  if (!Array.isArray(variables)) return 0;
+  const positions = variables.map((v) => Number(v?.position)).filter((position) => Number.isFinite(position));
+  return Math.max(variables.length, ...positions);
+}
+function statusOf(raw) {
+  return TEMPLATE_STATUSES.find((s) => s === raw) ?? "pending";
+}
+function strictestCategory(categories) {
+  if (categories.some((c) => purposeOfTemplate(c) === "marketing")) return "marketing";
+  return categories.find((c) => c !== null) ?? null;
+}
+function whatsappVersionOf(row2) {
+  const status = statusOf(row2.meta_status);
+  return {
+    id: row2.id,
+    status,
+    hidden: Boolean(row2.hidden_at),
+    blocked: templateBlocked(row2),
+    reason: status === "rejected" ? refusedWords(row2.rejected_reason) : null
+  };
+}
+function messageFrom(name, language, rows) {
+  const {
+    whatsapp: [w = null],
+    email: [e = null],
+    sms: [s = null]
+  } = versionsOf(rows, name);
+  const anchorRow = w ?? e ?? s;
+  if (anchorRow === null) return null;
+  const category = w ? w.category ?? null : strictestCategory([e, s].flatMap((r2) => r2 ? [r2.category ?? null] : []));
+  const versions = {
+    whatsapp: w ? whatsappVersionOf(w) : null,
+    email: e ? { id: e.id } : null,
+    sms: s ? { id: s.id } : null
+  };
+  const held = messageHolds({ versions });
+  const hidden = Boolean(anchorRow.hidden_at);
+  return {
+    name,
+    language,
+    title: templateTitle(name, anchorRow.title),
+    anchor: { id: anchorRow.id, channel: w ? "whatsapp" : e ? "email" : "sms" },
+    slots: variablesSlotCount((w ?? anchorRow).variables),
+    category,
+    purpose: purposeOfTemplate(category),
+    hidden,
+    offered: !hidden && CONSENT_CHANNELS.some((c) => held[c]),
+    versions
+  };
+}
+function campaignMessageOf(rows, name, language) {
+  return messageFrom(
+    name,
+    language,
+    rows.filter((r2) => r2.language === language)
+  );
+}
+function campaignMessagesOf(rows) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const r2 of rows) {
+    if (isReachOutRow(r2)) continue;
+    const key = JSON.stringify([r2.name, r2.language]);
+    const group = groups.get(key) ?? { name: r2.name, language: r2.language, rows: [] };
+    group.rows.push(r2);
+    groups.set(key, group);
+  }
+  return [...groups.values()].flatMap((g) => {
+    const message = messageFrom(g.name, g.language, g.rows);
+    return message ? [message] : [];
+  });
+}
+function messageHolds(m) {
+  const w = m.versions.whatsapp;
+  return {
+    whatsapp: w !== null && w.status === "approved" && w.blocked === null,
+    email: m.versions.email !== null,
+    sms: m.versions.sms !== null
+  };
+}
+var NOT_APPROVED_WORDS = {
+  pending: "WhatsApp is still reviewing this message's WhatsApp version.",
+  rejected: "WhatsApp refused this message's WhatsApp version.",
+  paused: "WhatsApp has paused this message's WhatsApp version.",
+  disabled: "WhatsApp has disabled this message's WhatsApp version."
+};
+var NO_OWN_VERSION_WORDS = {
+  email: `This message has no ${VERSION_CHANNEL_WORDS.email.toLowerCase()} version yet.`,
+  sms: `This message has no ${VERSION_CHANNEL_WORDS.sms.toLowerCase()} version yet.`
+};
+function messageWhyNot(m, channel) {
+  if (messageHolds(m)[channel]) return null;
+  if (channel !== "whatsapp") return NO_OWN_VERSION_WORDS[channel];
+  const w = m.versions.whatsapp;
+  if (w === null) return "This message has no WhatsApp version.";
+  if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
+  return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
+}
+
 // src/templates/message-version-slots.ts
 var partWritten = (part) => part.written ?? slotWritten(part.slot);
 function toSlotParts(text, set = { kind: "numbered" }) {
@@ -34089,6 +34189,8 @@ export {
   callsToday,
   cameFromOf,
   campaignEmailRules,
+  campaignMessageOf,
+  campaignMessagesOf,
   campaignsHomeOf,
   cannotRows,
   capabilityStatus,
@@ -34603,11 +34705,13 @@ export {
   messageAt,
   messageAuthor,
   messageFitsMoment,
+  messageHolds,
   messageLanguageChoices,
   messageStatusLabel,
   messageText,
   messageVia,
   messageWhy,
+  messageWhyNot,
   messageWords,
   missedCall,
   missedCallIsNews,
