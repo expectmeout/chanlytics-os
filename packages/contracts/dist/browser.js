@@ -29683,6 +29683,7 @@ var STARTER_LINE_WORDS = {
 };
 var MESSAGE_BEGIN_WORDS = {
   customIsAnOffer: "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
+  starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet."
 };
 

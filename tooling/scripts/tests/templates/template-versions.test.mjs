@@ -5,9 +5,10 @@
  *
  * What is proved here is what the dashboard does around the doors: who may ask, what is checked before the database is
  * (the slots of the message, a subject, a text's length), what the door is given, how its refusals are answered, that
- * a message may begin as an email or a text (a starter begins as itself, any other name says what it is in `message`,
- * and a name the workspace holds a row of ignores it), and that the starter set files each starter's email and text
- * versions beside its WhatsApp one, once, whatever one of them does.
+ * a message may begin as an email or a text (a starter begins as itself, with its own words, any other name says what it
+ * is in `message`, and a name the workspace holds a row of ignores it), that the door which begins one is the service
+ * role's and is told which member it acts for, and that the starter set files each starter's email and text versions
+ * beside its WhatsApp one, once, whatever one of them does.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -36,6 +37,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const versions = await import(at("apps/dashboard/app/api/v1/templates/versions/route.ts"));
 const version = await import(at("apps/dashboard/app/api/v1/templates/versions/[id]/route.ts"));
 const starter = await import(at("apps/dashboard/app/api/v1/templates/starter/route.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -100,7 +102,8 @@ const tpl = (n, tenant_id, over = {}) => ({
  * A model of save_template_version, create_message_version and remove_template_version over the same tables: enough of
  * the doors' own rules that a route test finds what the route does around them (the SQL is run in
  * template-versions.db.test.mjs). Every call is kept, and `refuse` makes the next call to a door refuse as the database
- * would.
+ * would. The member's own session holds the first and the last; create_message_version is on the service client only,
+ * as it is granted, so a call of it on the session would find no such function.
  */
 function world(tables) {
   const calls = [];
@@ -140,6 +143,10 @@ function world(tables) {
     create_message_version: (a) => {
       calls.push(["create", a]);
       if (refuse.create) throw refuse.create;
+      // The service role has no session, so the door asks the member it acts for.
+      const seat = (tables.memberships ?? []).find((m) => m.tenant_id === a.p_tenant_id && m.user_id === a.p_user);
+      if (!seat || !["owner", "operator", "partner"].includes(seat.role))
+        throw doorError("Message not found.", "P0002");
       if (tables.templates.some((t) => t.tenant_id === a.p_tenant_id && t.name === a.p_name))
         throw doorError("This message already exists. Write its other versions in the Library.", "23505");
       const row = tpl(next++, a.p_tenant_id, {
@@ -151,6 +158,7 @@ function world(tables) {
         category: a.p_category,
         variables: a.p_variables,
         title: a.p_title || null,
+        created_by: a.p_user,
       });
       tables.templates.push(row);
       return { id: row.id, channel: row.channel, name: row.name, language: row.language };
@@ -165,8 +173,13 @@ function world(tables) {
       return { id: row.id, channel: row.channel, name: row.name, language: row.language };
     },
   };
+  setServiceClient(fakeDb(tables, {}, { create_message_version: rpcs.create_message_version }));
   const ctx = (params = {}) => ({
-    supabase: fakeDb(tables, {}, rpcs),
+    supabase: fakeDb(
+      tables,
+      {},
+      { save_template_version: rpcs.save_template_version, remove_template_version: rpcs.remove_template_version },
+    ),
     userId: USER,
     email: "ada@example.com",
     params,
@@ -328,8 +341,13 @@ test("writing a version of a starter the workspace has not added: its slots are 
   // quick_note has three slots; a fourth is refused by the starter's own count, before the door.
   await refused(post(write({ name: "quick_note", body: "Hi {{4}}" })), "validation", 400, "{{4}} is not one of");
   assert.deepEqual(w.calls, []);
-  // Its third is the starter's own: the message begins (the tests below say as what).
-  assert.equal((await post(write({ name: "quick_note", body: "Hi {{3}}" }))).template.name, "quick_note");
+  // Its third is the starter's own, in the starter's own words: the message begins (the tests below say as what).
+  const note = starterEmailText(starterByName("quick_note"), "en_US");
+  assert.ok(note.body.includes("{{3}}"), "the starter's own words fill its third value");
+  assert.equal(
+    (await post(write({ name: "quick_note", subject: note.subject, body: note.body }))).template.name,
+    "quick_note",
+  );
   assert.deepEqual(
     w.calls.map(([door]) => door),
     ["create"],
@@ -705,11 +723,12 @@ const valuesOf = (s, language) =>
 test("a starter's first version, with no row of its name, begins the message as the starter: its category, its values and no title, whatever `message` says", async () => {
   const { tables, w } = empty();
   const visit = starterByName("visit_reminder");
+  const visitMail = starterEmailText(visit, "en_US");
   const email = await begin(
     w,
     write({
-      subject: "Tomorrow at {{2}}",
-      body: "Hi {{1}}, see you {{3}} for {{4}}.",
+      subject: visitMail.subject,
+      body: visitMail.body,
       message: { category: "marketing", variables: [], title: "My own title" },
     }),
   );
@@ -718,11 +737,12 @@ test("a starter's first version, with no row of its name, begins the message as 
       "create",
       {
         p_tenant_id: B,
+        p_user: USER,
         p_name: "visit_reminder",
         p_language: "en_US",
         p_channel: "email",
-        p_subject: "Tomorrow at {{2}}",
-        p_body: "Hi {{1}}, see you {{3}} for {{4}}.",
+        p_subject: visitMail.subject,
+        p_body: visitMail.body,
         p_category: "utility",
         p_variables: valuesOf(visit, "en_US"),
         p_title: "",
@@ -738,7 +758,7 @@ test("a starter's first version, with no row of its name, begins the message as 
   assert.deepEqual(email.warnings, []);
 
   // It exists now, so its other versions are written beside it, taking what the first said.
-  const text = await begin(w, write({ channel: "sms", subject: null, body: "Hi {{1}}, see you {{3}}." }));
+  const text = await begin(w, write({ channel: "sms", subject: null, body: starterSmsText(visit, "en_US").body }));
   assert.equal(w.calls.at(-1)[0], "save", "the door for the versions after the first");
   assert.equal(text.template.channel, "sms");
   const row = tables.templates.find((t) => t.channel === "sms");
@@ -748,29 +768,87 @@ test("a starter's first version, with no row of its name, begins the message as 
 
   // Its words are the starter's in the language it is begun in.
   const check = starterByName("after_visit_check");
-  await begin(
-    w,
-    write({
-      name: "after_visit_check",
-      language: "es",
-      subject: "¿Cómo te fue?",
-      body: "Hola {{1}}, ¿cómo fue {{2}}?",
-    }),
-  );
+  const checkEs = starterEmailText(check, "es");
+  await begin(w, write({ name: "after_visit_check", language: "es", subject: checkEs.subject, body: checkEs.body }));
   const es = w.calls.at(-1)[1];
   assert.deepEqual(es.p_variables, valuesOf(check, "es"));
   assert.notEqual(es.p_variables[0].label, valuesOf(check, "en_US")[0].label, "Spanish labels, not English ones");
   assert.equal(es.p_category, "utility");
 
   // A text of a starter that is about a visit begins it too, and an offer begins as marketing.
-  await begin(
-    w,
-    write({ name: "call_text", channel: "sms", subject: null, body: "Hi {{1}}, thanks for calling {{2}}." }),
-  );
+  const callText = starterSmsText(starterByName("call_text"), "en_US");
+  await begin(w, write({ name: "call_text", channel: "sms", subject: null, body: callText.body }));
   assert.equal(w.calls.at(-1)[1].p_category, "utility");
-  await begin(w, write({ name: "quick_note", subject: "A note", body: "Hi {{1}}, {{2}} {{3}}" }));
+  const note = starterEmailText(starterByName("quick_note"), "en_US");
+  await begin(w, write({ name: "quick_note", subject: note.subject, body: note.body }));
   assert.equal(w.calls.at(-1)[1].p_category, "marketing");
   assert.deepEqual(w.calls.at(-1)[1].p_variables, valuesOf(starterByName("quick_note"), "en_US"));
+});
+
+test("a starter begins only with its own words: a member's are refused in one sentence, so a utility category is never put on words the member wrote", async () => {
+  const { tables, w } = empty();
+  const mail = starterEmailText(starterByName("visit_reminder"), "en_US");
+  const sms = starterSmsText(starterByName("visit_reminder"), "en_US");
+  const sentence = "A starter begins with its own words. Add the starter set, then change the words in the Library.";
+  assert.equal(MESSAGE_BEGIN_WORDS.starterNeedsItsOwnWords, sentence);
+  for (const [why, over] of [
+    [
+      "an offer's words under a visit's name and category",
+      { subject: "Spring sale", body: "Hi {{1}}, 20% off today." },
+    ],
+    ["the starter's body with a subject of the member's", { subject: "Buy now", body: mail.body }],
+    ["the starter's subject with a body of the member's", { subject: mail.subject, body: "Hi {{1}}, a sale." }],
+    ["one word changed", { subject: mail.subject, body: mail.body.replace("Hi", "Hello") }],
+    ["a text's words in an email", { subject: mail.subject, body: sms.body }],
+    ["words that say nothing of a visit, with a message that says utility", { body: "Hi {{1}}", message: OFFER }],
+    ["an extra line", { subject: mail.subject, body: `${mail.body}\n\nAnd 10% off.` }],
+  ]) {
+    await refused(begin(w, write(over)), "validation", 400, sentence);
+    assert.deepEqual(w.calls, [], why);
+  }
+  // A text of the starter is held to the starter's text.
+  await refused(
+    begin(w, write({ channel: "sms", subject: null, body: `${sms.body} Reply now for 10% off.` })),
+    "validation",
+    400,
+    sentence,
+  );
+  assert.deepEqual(w.calls, []);
+  assert.equal(tables.templates.length, 0);
+
+  // The starter's words as the route cleans them are the starter's still: padding and Windows line endings change none.
+  const padded = await begin(
+    w,
+    write({ subject: `  ${mail.subject}  `, body: `\r\n${mail.body.replace(/\n/g, "\r\n")}  ` }),
+  );
+  assert.equal(padded.template.name, "visit_reminder");
+  assert.deepEqual(
+    w.calls.map(([door, a]) => [door, a.p_subject, a.p_body, a.p_category]),
+    [["create", mail.subject, mail.body, "utility"]],
+  );
+  // The message exists now, and a version beside it is the member's to word: the rule is about beginning one.
+  const mine = await begin(w, write({ channel: "sms", subject: null, body: "Hi {{1}}, my own words." }));
+  assert.equal(mine.template.channel, "sms");
+  assert.equal(w.calls.at(-1)[0], "save");
+});
+
+test("the first version of a message is the service role's, naming the member who asked, and the session never calls it", async () => {
+  const tables = {
+    memberships: [
+      ...both("viewer", "operator"),
+      { ...membership(B, "owner", "bayside", "2026-03-01T00:00:00Z"), user_id: "u2" },
+    ],
+    templates: [],
+  };
+  const w = world(tables);
+  // The door is modelled on the service client alone: a call on the session would find no such function and throw.
+  const asOwner = await versions.POST.run(send("POST", news(), inB), { ...w.ctx(), userId: "u2" });
+  assert.equal(w.calls.length, 1);
+  assert.equal(w.calls[0][1].p_user, "u2", "the member who asked, not a fixed one");
+  assert.equal(tables.templates.find((t) => t.id === asOwner.template.id).created_by, "u2");
+  const asOperator = await begin(w, news({ name: "second_news" }));
+  assert.equal(w.calls.at(-1)[1].p_user, USER);
+  assert.equal(tables.templates.find((t) => t.id === asOperator.template.id).created_by, USER);
 });
 
 test("a starter has no first version on a channel it writes nothing for in that language: it is not found, as it was, and the door is not asked", async () => {
@@ -810,6 +888,7 @@ test("a custom message's first version: an email that is an offer or news begins
       "create",
       {
         p_tenant_id: B,
+        p_user: USER,
         p_name: "spring_news",
         p_language: "en_US",
         p_channel: "email",
@@ -959,7 +1038,15 @@ test("the door that begins a message answers in its own words, a missing door in
     await refused(post(), "conflict", 409, sentence);
     // A starter begins through the same door, so it says the same.
     await refused(
-      begin(w, write({ name: "call_text", channel: "sms", subject: null, body: "Hi {{1}}" })),
+      begin(
+        w,
+        write({
+          name: "call_text",
+          channel: "sms",
+          subject: null,
+          body: starterSmsText(starterByName("call_text"), "en_US").body,
+        }),
+      ),
       "conflict",
       409,
       sentence,

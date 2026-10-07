@@ -2893,6 +2893,7 @@ async function saveTemplateVersion(db, p) {
 async function createMessageVersion(db, p) {
   const { data, error } = await db.rpc("create_message_version", {
     p_tenant_id: p.tenantId,
+    p_user: p.userId,
     p_name: p.name,
     p_language: p.language,
     p_channel: p.channel,

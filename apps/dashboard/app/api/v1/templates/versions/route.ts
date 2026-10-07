@@ -23,7 +23,8 @@ import { saveVersion } from "@/server/campaigns/template-versions";
  * NEW name carries what its message is and the values it takes, as `message` { category: "marketing" | "utility",
  * variables: [{ position, label, example? }] (numbered 1, 2, 3 in order, as a WhatsApp row's are), title? }. A name that is a
  * starter of the registry begins as the starter (its category and its values; `message` is not read) and only on a
- * channel the starter writes for in that language. Any other name needs `message`, and is an offer or news: `utility` is
+ * channel the starter writes for in that language, with the starter's own words there (anything else is refused: add the
+ * starter set, then change the words in the Library). Any other name needs `message`, and is an offer or news: `utility` is
  * the starter's alone, and a text of an offer is refused (texts carry no offers). A name the workspace already holds a row
  * of is a message that exists, so its version is written as above and `message`, if sent, is ignored. With no row, no
  * starter and no `message` the message is not found. A database that has not applied 00342 answers one sentence, 409.

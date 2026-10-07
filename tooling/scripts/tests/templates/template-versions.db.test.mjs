@@ -4,9 +4,10 @@
  * 00296 gives a member two definer doors over `templates`, which members may only read: save_template_version writes
  * (or rewrites) the email or text version of a message, remove_template_version deletes one. 00342 gives a third,
  * create_message_version, which writes the FIRST version of a message no row of the workspace holds, with the category,
- * the values and the title that version says. What reading the SQL cannot prove is who may call them, what they refuse
- * and what they leave alone, so these sign real people in and call them. Runs the way tenancy.db.test.mjs does, against
- * the local stack only; skipped without one.
+ * the values and the title that version says. The first two are a member's own, called on their session; the third is the
+ * service role's alone, as the dashboard calls it after its role check, naming the member it acts for (00282's way). What
+ * reading the SQL cannot prove is who may call them, what they refuse and what they leave alone, so these sign real people
+ * in and call them. Runs the way tenancy.db.test.mjs does, against the local stack only; skipped without one.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -37,6 +38,7 @@ let B; // another workspace
 const users = [];
 let owner;
 let operator;
+let partner;
 let viewer;
 let stranger; // an owner of B
 let whatsappId; // the message's WhatsApp row in A
@@ -90,6 +92,7 @@ before(async () => {
   B = b.data.id;
   owner = await memberClient("owner", A);
   operator = await memberClient("operator", A);
+  partner = await memberClient("partner", A);
   viewer = await memberClient("viewer", A);
   stranger = await memberClient("owner", B);
   whatsappId = await seedTemplate({
@@ -376,10 +379,11 @@ const BEGIN_VARIABLES = [
   { position: 2, label: "The offer", example: null },
 ];
 
-/** create_message_version as a member calls it: a first email of an offer, over what a test changes. */
-function begin(who, over = {}) {
-  return who.client.rpc("create_message_version", {
+/** What the door is given: a first email of an offer, over what a test changes. */
+function doorArgs(over = {}) {
+  return {
     p_tenant_id: A,
+    p_user: owner.userId,
     p_name: "spring_news",
     p_language: "en_US",
     p_channel: "email",
@@ -389,7 +393,12 @@ function begin(who, over = {}) {
     p_variables: BEGIN_VARIABLES,
     p_title: "Spring news",
     ...over,
-  });
+  };
+}
+
+/** create_message_version as the dashboard's route calls it: on the service role, naming the member it acts for. */
+function begin(who, over = {}) {
+  return db.rpc("create_message_version", doorArgs({ p_user: who.userId, ...over }));
 }
 
 async function rowsNamed(name) {
@@ -666,29 +675,72 @@ test(
 );
 
 test(
-  "who may begin a message: an owner or an operator of the workspace; a viewer, a stranger and a signed-out caller may not",
+  "the door is the service role's: no session calls it, whoever it is, so a category is never a member's to name",
   { skip },
   async () => {
     const before = (await db.from("templates").select("id", { count: "exact", head: true }).eq("tenant_id", A)).count;
-    const asViewer = await begin(viewer, { p_name: "who_news" });
-    assert.equal(asViewer.error?.code, "P0002", "a viewer changes nothing: not found, as a stranger reads it");
-    assert.equal(asViewer.error.message, "Message not found.");
-    const asStranger = await begin(stranger, { p_name: "who_news" });
-    assert.equal(asStranger.error?.code, "P0002");
-    assert.equal(asStranger.error.message, "Message not found.");
     const anon = createClient(URL_, ANON, { auth: { persistSession: false } });
-    const asAnon = await begin({ client: anon }, { p_name: "who_news" });
-    assert.equal(asAnon.error?.code, "42501", "the logged-out key holds no door");
-    const noUser = await begin({ client: db }, { p_name: "who_news" });
-    assert.equal(noUser.error?.code, "28000", "the service role has no person, and a door that names one says sign in");
+    for (const [who, client] of [
+      ["an owner", owner.client],
+      ["an operator", operator.client],
+      ["a partner", partner.client],
+      ["a viewer", viewer.client],
+      ["a stranger", stranger.client],
+      ["the logged-out key", anon],
+    ]) {
+      // The route's rule (only a starter is utility) is walked around by a direct call that names a utility offer, so
+      // that is the call to refuse.
+      const direct = await client.rpc(
+        "create_message_version",
+        doorArgs({ p_user: owner.userId, p_name: "direct_news", p_category: "utility" }),
+      );
+      assert.equal(direct.error?.code, "42501", `${who}: the grant refuses a session`);
+      assert.match(direct.error?.message ?? "", /permission denied for function create_message_version/, who);
+    }
+    const after = (await db.from("templates").select("id", { count: "exact", head: true }).eq("tenant_id", A)).count;
+    assert.equal(after, before, "none of them wrote a row");
+    assert.deepEqual(await rowsNamed("direct_news"), []);
+  },
+);
+
+test(
+  "who it acts for: an owner, an operator or a partner of the workspace, written as created_by; a viewer, a stranger, a user with no seat and no one are not found",
+  { skip },
+  async () => {
+    const before = (await db.from("templates").select("id", { count: "exact", head: true }).eq("tenant_id", A)).count;
+    const noSeat = (await db.auth.admin.createUser({ email: `no-seat-${Date.now()}@example.com`, email_confirm: true }))
+      .data.user;
+    users.push(noSeat.id);
+    for (const [who, userId] of [
+      ["a viewer", viewer.userId],
+      ["a member of another workspace", stranger.userId],
+      ["a user with no seat anywhere", noSeat.id],
+      ["a user the database does not hold", "00000000-0000-4000-8000-000000000000"],
+      ["no one", null],
+    ]) {
+      const refused = await begin({ userId }, { p_name: "who_news" });
+      assert.equal(refused.error?.code, "P0002", `${who}: not found, as a stranger reads a message`);
+      assert.equal(refused.error.message, "Message not found.", who);
+    }
     const after = (await db.from("templates").select("id", { count: "exact", head: true }).eq("tenant_id", A)).count;
     assert.equal(after, before, "none of them wrote a row");
     assert.deepEqual(await rowsNamed("who_news"), []);
-    assert.equal((await begin(owner, { p_name: "who_news_owner" })).error, null);
-    assert.equal((await begin(operator, { p_name: "who_news_operator" })).error, null);
-    // Another workspace's rows are no reason to refuse: a name is a workspace's own.
+    for (const [role, member] of [
+      ["owner", owner],
+      ["operator", operator],
+      ["partner", partner],
+    ]) {
+      const written = await begin(member, { p_name: `who_news_${role}` });
+      assert.equal(written.error, null, `${role}: ${written.error?.message}`);
+      assert.equal((await rowOf(written.data.id)).created_by, member.userId, `${role}: the row names the member`);
+    }
+    // Another workspace's rows are no reason to refuse: a name is a workspace's own, and its member is its own.
     const theirs = await begin(stranger, { p_tenant_id: B, p_name: "visit_reminder", p_category: "utility" });
     assert.equal(theirs.error, null, "B holds no row of that name, though A does");
+    // A member of A is nothing in B.
+    const crossed = await begin(owner, { p_tenant_id: B, p_name: "crossed_news" });
+    assert.equal(crossed.error?.code, "P0002", "an owner of A writes nothing in B");
+    assert.deepEqual((await db.from("templates").select("id").eq("tenant_id", B).eq("name", "crossed_news")).data, []);
   },
 );
 

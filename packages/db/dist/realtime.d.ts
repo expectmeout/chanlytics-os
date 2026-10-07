@@ -6002,6 +6002,7 @@ type Database = {
                     p_subject: string;
                     p_tenant_id: string;
                     p_title: string;
+                    p_user: string;
                     p_variables: Json;
                 };
                 Returns: Json;

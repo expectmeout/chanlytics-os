@@ -30,6 +30,7 @@ import {
 } from "@chanlytics/db";
 import type { Member } from "@/server/route";
 import { saveReachOutEmail } from "@/server/campaigns/reach-outs";
+import { serviceDb } from "@/server/service-db";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 
 /**
@@ -43,11 +44,16 @@ import { dbRefusal, type RouteContext } from "@/server/with-route";
  * A message may BEGIN as an email or a text (a message needs no WhatsApp row): the first version of a name the workspace
  * holds no row of is written through another door (create_message_version, 00342), which takes what the message is with
  * it, since no row is there to say it: its category, its values and its title. A starter of the registry says them itself
- * (its category and its slots); a message a member writes says them in `message`, and is an offer or news, never
- * about a visit or a proposal, which only a starter is (the one rule, here). A name the workspace already holds is a
- * message that exists: its version is written beside the rows it has, and `message` is ignored.
+ * (its category and its slots), and begins only with its own words; a message a member writes says them in `message`,
+ * and is an offer or news, never about a visit or a proposal, which only a starter is (the one rule, here). A name the
+ * workspace already holds is a message that exists: its version is written beside the rows it has, and `message` is
+ * ignored. That door is the service role's alone, since a member who could call it would name the category themselves:
+ * the route's role check stands in front of it, and it is told which member it acts for.
  */
 type Db = Pick<RouteContext, "supabase">;
+
+/** The session a version is written on, and the member it is written as (the first version of a message is the service role's, naming them). */
+type Acting = Pick<RouteContext, "supabase" | "userId">;
 
 /** What a message is, said with its first version when the workspace has no row of its name (POST templates/versions). */
 interface NewMessage {
@@ -114,12 +120,12 @@ function beginRefusal(e: { code: string | null; message: string }): AppError {
 }
 
 /**
- * Write the first version of a message, its words already checked, through the door that needs no row of its name. A text
- * never carries an offer (contracts channelNeverCarries, the sentence the ticks and the sends say), refused before the
- * door is asked.
+ * Write the first version of a message, its words already checked, through the door that needs no row of its name, as the
+ * member who asked (the door is the service role's, and asks that this person is a member who may). A text never carries
+ * an offer (contracts channelNeverCarries, the sentence the ticks and the sends say), refused before the door is asked.
  */
 async function beginMessage(
-  db: Db,
+  userId: string,
   tenantId: string,
   v: VersionRequest,
   words: { value: VersionWords; warnings: string[] },
@@ -127,8 +133,9 @@ async function beginMessage(
 ): Promise<VersionSaved> {
   const never = channelNeverCarries(v.channel, purposeOfTemplate(message.category));
   if (never) throw new AppError("validation", never);
-  const door = await createMessageVersion(db.supabase, {
+  const door = await createMessageVersion(serviceDb(), {
     tenantId,
+    userId,
     name: v.name,
     language: v.language,
     channel: v.channel,
@@ -142,19 +149,25 @@ async function beginMessage(
 
 /**
  * The first version of a message the workspace holds no row of. A starter of the registry begins as itself: its category,
- * its values and no title of its own (the starter's title is read from the registry), and only on a channel it writes
- * something for in this language, else it is not found, as it was before this door existed. Any other name needs
+ * its values and no title of its own (the starter's title is read from the registry), only on a channel it writes
+ * something for in this language, else it is not found, as it was before this door existed, and only with the starter's
+ * own words there (the starter set's): the member's words are not the starter's, and a utility category is the
+ * starter's alone, so they are refused until the starter set is added and its words changed in the Library. Any other name needs
  * `message`, which is what a member writes it as: under a name of the shape Meta takes, with the values and title it
  * says, and an offer or news, never about a visit or a proposal. Nobody reviews a message with no WhatsApp row, so only
  * a starter, which Chanlytics writes, may be about a visit. With neither, there is no message.
  */
-async function beginVersion(db: Db, tenantId: string, v: VersionRequest): Promise<VersionSaved> {
+async function beginVersion(db: Acting, tenantId: string, v: VersionRequest): Promise<VersionSaved> {
   const starter = starterByName(v.name);
   if (starter) {
-    if (!starterWords(starter, v.channel, v.language)) throw new AppError("not_found", "Message not found.", 404);
+    const own = starterWords(starter, v.channel, v.language);
+    if (!own) throw new AppError("not_found", "Message not found.", 404);
     const variables = starterVariables(starter, v.language);
     const words = checkedWords(v, variables.length);
-    return beginMessage(db, tenantId, v, words, { category: starter.category, variables, title: null });
+    const theirs = checkedWords({ ...v, subject: own.subject, body: own.body }, variables.length).value;
+    if (words.value.subject !== theirs.subject || words.value.body !== theirs.body)
+      throw new AppError("validation", MESSAGE_BEGIN_WORDS.starterNeedsItsOwnWords);
+    return beginMessage(db.userId, tenantId, v, words, { category: starter.category, variables, title: null });
   }
   if (!v.message) throw new AppError("not_found", "Message not found.", 404);
   if (!templateNameOk(v.name)) throw new AppError("validation", TEMPLATE_NAME_WORDS);
@@ -166,7 +179,7 @@ async function beginVersion(db: Db, tenantId: string, v: VersionRequest): Promis
   }));
   const words = checkedWords(v, variables.length);
   if (category === "utility") throw new AppError("validation", MESSAGE_BEGIN_WORDS.customIsAnOffer);
-  return beginMessage(db, tenantId, v, words, { category, variables, title: title ?? null });
+  return beginMessage(db.userId, tenantId, v, words, { category, variables, title: title ?? null });
 }
 
 /**
@@ -174,7 +187,7 @@ async function beginVersion(db: Db, tenantId: string, v: VersionRequest): Promis
  * say), or, with none, as its first (beginVersion). The one place that tells a message that exists from one that begins:
  * a member's save and the starter set both write through it.
  */
-function writeOrBegin(db: Db, tenantId: string, v: VersionRequest, held: number | null): Promise<VersionSaved> {
+function writeOrBegin(db: Acting, tenantId: string, v: VersionRequest, held: number | null): Promise<VersionSaved> {
   return held !== null ? writeVersion(db, tenantId, v, held) : beginVersion(db, tenantId, v);
 }
 
@@ -241,7 +254,7 @@ function starterWords(s: StarterTemplate, channel: OwnVersionChannel, language: 
  * rest, nor the answer.
  */
 export async function fileStarterVersions(
-  db: Db,
+  db: Acting,
   tenantId: string,
   s: StarterTemplate,
   language: string,

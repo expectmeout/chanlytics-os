@@ -15,12 +15,19 @@
 --                            slots; the other versions are save_template_version's. Two first writers of one name
 --                            take turns: the second finds the first's row and is refused.
 --
--- What the door holds is what it can know: who may, the lengths, a category that is one of the two, values numbered in
--- order, and that a text is never an offer (texts carry no offers). WHICH messages may be about a visit or a proposal is
--- the route's rule, not the door's: only a starter of the registry is (contracts), a message a member writes is an offer
--- or news. The name's shape and what the words may say are contracts' too, which the route runs first. There is no door
--- that sets a message's category later: a WhatsApp row's is Meta's, and the category of the rest is the first
--- version's. save_template_version and remove_template_version are unchanged.
+-- It is the service role's alone, called by the dashboard's route after its role check, naming the member it acts for
+-- (p_user), as assemble_broadcast (00282) is: a session that could call it would choose the message's category for
+-- itself, and the rule that only a starter of the registry is about a visit or a proposal is the route's, which a session
+-- calling the door directly would walk around. The service role has no session, so the door asks the member itself: an
+-- owner, a partner or an operator of the workspace (the ladder's operator rung and above, as the route's role is; a
+-- partner's second factor is the route's, which has the session to read it), and writes created_by as that member.
+--
+-- What the door holds is what it can know: who the member is, the lengths, a category that is one of the two, values
+-- numbered in order, and that a text is never an offer (texts carry no offers). WHICH messages may be about a visit or a
+-- proposal is the route's rule, not the door's: only a starter of the registry is (contracts), a message a member writes
+-- is an offer or news. The name's shape and what the words may say are contracts' too, which the route runs first. There
+-- is no door that sets a message's category later: a WhatsApp row's is Meta's, and the category of the rest is the
+-- first version's. save_template_version and remove_template_version are unchanged.
 --
 -- Production runs it when the owner pushes it; until then the route that calls this door says so in one sentence and
 -- every other path is as it was.
@@ -31,6 +38,7 @@ set local lock_timeout = '3s';
 
 create or replace function public.create_message_version(
   p_tenant_id uuid,
+  p_user      uuid,
   p_name      text,
   p_language  text,
   p_channel   text,
@@ -46,7 +54,6 @@ security definer
 set search_path = public
 as $$
 declare
-  v_user    uuid := auth.uid();
   v_subject text := nullif(btrim(regexp_replace(coalesce(p_subject, ''), '\s+', ' ', 'g')), '');
   -- Trimmed of every kind of white space, as contracts' clean() does (btrim alone takes only spaces).
   v_body    text := regexp_replace(replace(coalesce(p_body, ''), E'\r\n', E'\n'), '^\s+|\s+$', '', 'g');
@@ -59,11 +66,13 @@ declare
   v_parts   jsonb;
   v_row     public.templates%rowtype;
 begin
-  if v_user is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or p_name is null or p_name = ''
-     or not public.is_acting_member(p_tenant_id) then
+  -- The member the route acts for, asked here because the service role has no session to read (is_acting_member reads
+  -- auth.uid()): a person with no seat, a viewer, another workspace's member and no one at all are one answer, as a
+  -- stranger gets from save_template_version.
+  if p_tenant_id is null or p_user is null or p_name is null or p_name = ''
+     or not exists (
+       select 1 from public.memberships m
+        where m.tenant_id = p_tenant_id and m.user_id = p_user and m.role in ('owner', 'operator', 'partner')) then
     raise exception 'Message not found.' using errcode = 'P0002';
   end if;
   if p_channel is null or p_channel not in ('email', 'sms') then
@@ -166,13 +175,13 @@ begin
   insert into public.templates
     (tenant_id, channel, name, language, meta_status, source, category, variables, title, components, body_preview, created_by)
   values
-    (p_tenant_id, p_channel, p_name, p_language, 'approved', 'chanlytics', p_category, v_vars, v_title, v_parts, v_body, v_user)
+    (p_tenant_id, p_channel, p_name, p_language, 'approved', 'chanlytics', p_category, v_vars, v_title, v_parts, v_body, p_user)
   returning * into v_row;
 
   return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
 end $$;
 
-revoke all on function public.create_message_version(uuid, text, text, text, text, text, text, jsonb, text) from public, anon;
-grant execute on function public.create_message_version(uuid, text, text, text, text, text, text, jsonb, text) to authenticated, service_role;
-comment on function public.create_message_version(uuid, text, text, text, text, text, text, jsonb, text) is
-  'Owner or operator writes the FIRST version of a message, on email or text: a name the workspace holds no row of, approved at once, with the message''s category (marketing or utility), its values as the edge writes them on a WhatsApp row, and its title. Refuses a name any row of the workspace holds, a text of a marketing message (texts carry no offers) and a reach-out''s name. The versions after the first are save_template_version''s.';
+revoke all on function public.create_message_version(uuid, uuid, text, text, text, text, text, text, jsonb, text) from public, anon, authenticated;
+grant execute on function public.create_message_version(uuid, uuid, text, text, text, text, text, text, jsonb, text) to service_role;
+comment on function public.create_message_version(uuid, uuid, text, text, text, text, text, text, jsonb, text) is
+  'The service role''s alone, called by the route after its role check and naming the member it acts for (p_user, an owner, a partner or an operator of the workspace, asked here: the service role has no session). Writes the FIRST version of a message, on email or text, as that member: a name the workspace holds no row of, approved at once, with the message''s category (marketing or utility), its values as the edge writes them on a WhatsApp row, and its title. Refuses a name any row of the workspace holds, a text of a marketing message (texts carry no offers) and a reach-out''s name. The versions after the first are save_template_version''s.';

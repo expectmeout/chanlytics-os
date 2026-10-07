@@ -1473,15 +1473,14 @@ COMMENT ON FUNCTION public.create_mailbox(p_tenant_id uuid, p_local_part text, p
 
 
 --
--- Name: create_message_version(uuid, text, text, text, text, text, text, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: create_message_version(uuid, uuid, text, text, text, text, text, text, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.create_message_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) RETURNS jsonb
+CREATE FUNCTION public.create_message_version(p_tenant_id uuid, p_user uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
 declare
-  v_user    uuid := auth.uid();
   v_subject text := nullif(btrim(regexp_replace(coalesce(p_subject, ''), '\s+', ' ', 'g')), '');
   -- Trimmed of every kind of white space, as contracts' clean() does (btrim alone takes only spaces).
   v_body    text := regexp_replace(replace(coalesce(p_body, ''), E'\r\n', E'\n'), '^\s+|\s+$', '', 'g');
@@ -1494,11 +1493,13 @@ declare
   v_parts   jsonb;
   v_row     public.templates%rowtype;
 begin
-  if v_user is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  if p_tenant_id is null or p_name is null or p_name = ''
-     or not public.is_acting_member(p_tenant_id) then
+  -- The member the route acts for, asked here because the service role has no session to read (is_acting_member reads
+  -- auth.uid()): a person with no seat, a viewer, another workspace's member and no one at all are one answer, as a
+  -- stranger gets from save_template_version.
+  if p_tenant_id is null or p_user is null or p_name is null or p_name = ''
+     or not exists (
+       select 1 from public.memberships m
+        where m.tenant_id = p_tenant_id and m.user_id = p_user and m.role in ('owner', 'operator', 'partner')) then
     raise exception 'Message not found.' using errcode = 'P0002';
   end if;
   if p_channel is null or p_channel not in ('email', 'sms') then
@@ -1601,7 +1602,7 @@ begin
   insert into public.templates
     (tenant_id, channel, name, language, meta_status, source, category, variables, title, components, body_preview, created_by)
   values
-    (p_tenant_id, p_channel, p_name, p_language, 'approved', 'chanlytics', p_category, v_vars, v_title, v_parts, v_body, v_user)
+    (p_tenant_id, p_channel, p_name, p_language, 'approved', 'chanlytics', p_category, v_vars, v_title, v_parts, v_body, p_user)
   returning * into v_row;
 
   return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
@@ -1609,10 +1610,10 @@ end $_$;
 
 
 --
--- Name: FUNCTION create_message_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION create_message_version(p_tenant_id uuid, p_user uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.create_message_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) IS 'Owner or operator writes the FIRST version of a message, on email or text: a name the workspace holds no row of, approved at once, with the message''s category (marketing or utility), its values as the edge writes them on a WhatsApp row, and its title. Refuses a name any row of the workspace holds, a text of a marketing message (texts carry no offers) and a reach-out''s name. The versions after the first are save_template_version''s.';
+COMMENT ON FUNCTION public.create_message_version(p_tenant_id uuid, p_user uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) IS 'The service role''s alone, called by the route after its role check and naming the member it acts for (p_user, an owner, a partner or an operator of the workspace, asked here: the service role has no session). Writes the FIRST version of a message, on email or text, as that member: a name the workspace holds no row of, approved at once, with the message''s category (marketing or utility), its values as the edge writes them on a WhatsApp row, and its title. Refuses a name any row of the workspace holds, a text of a marketing message (texts carry no offers) and a reach-out''s name. The versions after the first are save_template_version''s.';
 
 
 --
@@ -28620,12 +28621,11 @@ GRANT ALL ON FUNCTION public.create_mailbox(p_tenant_id uuid, p_local_part text,
 
 
 --
--- Name: FUNCTION create_message_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION create_message_version(p_tenant_id uuid, p_user uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.create_message_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.create_message_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) TO authenticated;
-GRANT ALL ON FUNCTION public.create_message_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) TO service_role;
+REVOKE ALL ON FUNCTION public.create_message_version(p_tenant_id uuid, p_user uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_message_version(p_tenant_id uuid, p_user uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) TO service_role;
 
 
 --
