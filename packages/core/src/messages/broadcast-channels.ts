@@ -20,7 +20,6 @@
  * rerouted to another channel.
  */
 import {
-  type AppointmentState,
   allowanceRoom,
   emailFoot,
   emailFootHtml,
@@ -74,8 +73,6 @@ export interface Work {
   facts: Awaited<ReturnType<BroadcastBatchPorts["facts"]>>;
   people: Map<string, ContactRow>;
   priors: Map<string, { id: string; sentAt: string | null }>;
-  /** The appointments the batch's reminders were drawn for, by key (ports.appointments): what each send asks again. */
-  appointments: ReadonlyMap<string, AppointmentState>;
   /** The month's emails and texts already sent, read once for the first person who needs it and counted as the batch sends. */
   month: Partial<Record<"email" | "sms", number>>;
   /**

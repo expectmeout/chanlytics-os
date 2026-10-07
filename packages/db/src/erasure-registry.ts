@@ -41,8 +41,6 @@ export const ERASURE_LEGS = {
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
-  appointments_trigger:
-    "appointments_erase_on_contact: their appointments deleted; the calendar's next read writes what it still names, linked to nobody (00346)",
 } as const;
 
 export type ErasureLeg = keyof typeof ERASURE_LEGS;
@@ -67,10 +65,6 @@ const all = (strategy: ErasureStrategy, ...names: string[]): Record<string, Eras
 
 /** Table, then column, then its strategy: what the legs reach today, and what is plainly no one's. */
 export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string, ErasureStrategy>>>> = {
-  appointments: {
-    ...all(withPerson("appointments_trigger"), "external_id", "title", "service"),
-    timezone: NOT_PERSONAL,
-  },
   ask_messages: { content: scrubbedBy("ask_scrub") },
   calls: all(
     withPerson("erase_contact"),

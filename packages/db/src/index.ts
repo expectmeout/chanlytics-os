@@ -424,8 +424,6 @@ export {
   whatsappNumberOf,
   keepChannelQuality,
   keepChannelStanding,
-  syncFeedAppointments,
-  appointmentStates,
 } from "./sweeps";
-export type { DuePage, DuePlaybook, DueCalendar, WhatsappNumber, AppointmentSync } from "./sweeps";
+export type { DuePage, DuePlaybook, DueCalendar, WhatsappNumber } from "./sweeps";
 export type { Database, Json } from "./database.types";

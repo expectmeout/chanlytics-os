@@ -3,7 +3,7 @@
  * what each means. The adapter that knows the tables and the runtime's
  * services is packages/jobs/src/handlers.ts.
  */
-import type { AppointmentState, EmailHold, JobNews, SendPurpose } from "@chanlytics/contracts";
+import type { EmailHold, JobNews, SendPurpose } from "@chanlytics/contracts";
 import type { EmailRequest } from "@chanlytics/channels";
 import type { Json, MessageVersionRow } from "@chanlytics/db";
 import type { Channel, Delivered, Delivery } from "../deliver";
@@ -162,12 +162,6 @@ export interface BroadcastBatchPorts {
   batch(id: string, limit: number): Promise<RecipientRow[]>;
   /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */
   contacts(contactIds: string[]): Promise<Map<string, ContactRow>>;
-  /**
-   * The appointments a visit run's recipients were drawn for, by the key the calendar keeps each under (decision 0002,
-   * contracts appointmentKeyOf), one read for the batch; a key with no row is absent. Absent where the runtime keeps no
-   * appointments, and a read that fails is no rows: the send goes as it did before the record.
-   */
-  appointments?(keys: string[]): Promise<Map<string, AppointmentState>>;
   /** The thread this send belongs to, never created here. */
   target(phoneE164: string): Promise<{ conversationId: string } | null>;
   /** The same thread by the person, for an email, which reaches them by an address rather than a number; null for one that is gone. */

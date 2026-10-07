@@ -79,8 +79,6 @@ export const ACTIVITY_NOISE_KINDS = [
   "channel.quality_rating",
   // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
   "person.resolved",
-  // The calendar's hourly read, one row per appointment it kept (00346, decision 0002): the calendar is where they read it.
-  "appointment.changed",
 ] as const;
 
 /**
@@ -162,7 +160,6 @@ const WORDS: Record<string, string> = {
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
   "person.resolved": "A door resolved who a person is",
-  "appointment.changed": "An appointment on the calendar changed",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -272,7 +269,7 @@ function importWords(p: Record<string, unknown>): string {
   return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
 }
 
-/** How a lead became Talking (00220 lead_convert_by's `how`; arrived and added are the person door's link, 00345). */
+/** How a lead became Talking (00220 lead_convert_by's `how`; arrived and added are the person door's link, 00346). */
 const CONVERTED_HOW: Record<string, string> = {
   call: "after a call",
   reply: "they wrote back",

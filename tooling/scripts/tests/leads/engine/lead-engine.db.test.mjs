@@ -1528,7 +1528,7 @@ test(
     assert.deepEqual(
       [byDesk.contact_id, byDesk.stage],
       [desk.contact_id, "converted"],
-      "the desk's person is that lead too, since 00345 (it never linked before)",
+      "the desk's person is that lead too, since 00346 (it never linked before)",
     );
     ok(await db.from("contacts").delete().eq("id", desk.contact_id));
     // The edge taking in a customer's first message, through the door: no session.

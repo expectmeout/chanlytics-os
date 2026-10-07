@@ -75,8 +75,6 @@ if (!tenantId || !expectName) {
  */
 const TABLES = [
   "ai_usage",
-  // The calendar's appointments, as the hourly read keeps them (00346).
-  "appointments",
   "ask_messages",
   "ask_threads",
   "ask_voice_sessions",

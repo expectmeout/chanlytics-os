@@ -260,7 +260,7 @@ test(
   "a person a lead names who then writes first: the lead's own event is written before their message, so the lead is their first touch and the message finds it taken, written once",
   { skip },
   async () => {
-    // The door's link (person_link_lead, 00345) runs inside ingest_inbound, between the person's insert and the
+    // The door's link (person_link_lead, 00346) runs inside ingest_inbound, between the person's insert and the
     // message's: it converts the lead onto the person and writes their contact.added event, whose source is `lead`.
     // 00307's trigger (events_note_first_touch) reads that event as it is written, so the order of the writers in that
     // transaction is the lead's event, then the message: the lead stands and the message finds the touch taken (People's

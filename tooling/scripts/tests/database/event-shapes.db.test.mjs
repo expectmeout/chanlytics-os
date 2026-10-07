@@ -10,7 +10,7 @@
  *   - contact.added <- resolve_person (00342 and 00344, decision 0034: the one door every writer matches through, so a
  *     person added by hand, a calendar guest, a lead converted with or without a number, an imported line and the
  *     person a reach-out is written to are its rows; a person who wrote or called is not, 00306's trigger says their
- *     wire), and person_link_lead (00345, 0034 step 5: the door's link, which says a person who wrote or called came from
+ *     wire), and person_link_lead (00346, 0034 step 5: the door's link, which says a person who wrote or called came from
  *     the lead holding their number);
  *   - contact.consent_changed <- ingest_inbound (a STOP and a START), note_yes_on_channel (a START by text from
  *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
@@ -269,7 +269,7 @@ test("lead_set_stage: a lead converted, with a number and without one", { skip }
 test("person_link_lead: a person who arrives with a lead's number is that lead, and says so", { skip }, async () => {
   const number = phone();
   const id = await lead(w.t, { phone_e164: number });
-  // No session: the edge taking in a customer's first message, through the door (00345).
+  // No session: the edge taking in a customer's first message, through the door (00346).
   const { rows } = await wrote(w.t, "contact.added", async () =>
     ok(
       await db.rpc("resolve_person", {

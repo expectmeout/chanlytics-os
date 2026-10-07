@@ -188,12 +188,6 @@ export const EVENT_KINDS = [
    * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
    */
   "person.resolved",
-  /**
-   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00346, decision 0002): { change: added
-   * | moved | vanished | back | kept, source, starts_at }, never its title. On the appointment; hidden from the activity
-   * log unless asked for by name, since a calendar read writes one per appointment.
-   */
-  "appointment.changed",
   "setup.requested",
   "voice.provisioned",
   "line.answering",

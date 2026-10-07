@@ -317,19 +317,6 @@ async function seed() {
     counted: false,
   });
 
-  // Their appointment, as the calendar's read keeps it (00346): its title and its key can carry what the event did.
-  await insert("appointments", {
-    tenant_id: T,
-    contact_id: A,
-    source: "calendar_feed",
-    external_id: `appt-${WORDS}`,
-    starts_at: new Date(Date.now() + 86_400_000).toISOString(),
-    ends_at: new Date(Date.now() + 90_000_000).toISOString(),
-    title: WORDS.slice(0, 480),
-    service: WORDS.slice(0, 190),
-    timezone: "UTC",
-  });
-
   // Their own note goes with them; a note about someone else that carries their number and address is scrubbed in place.
   await insert("person_notes", {
     tenant_id: T,
