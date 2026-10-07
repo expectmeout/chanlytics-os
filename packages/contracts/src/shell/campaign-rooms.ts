@@ -62,6 +62,35 @@ export const LIBRARY_WORDS = {
 } as const;
 
 /**
+ * What the Library's composer says when a new message begins as an email (a message needs no WhatsApp row). It asks where
+ * the message is sent first; an email or a text is written here and reviewed by no one, so the message is an offer or
+ * news (the starters alone are about a visit or a proposal), and a text carries no offers: the first sentence of what a
+ * text says is the carriers' (contracts channelNeverCarries), this is the second. What keeps a message from being written
+ * is said in the person's words before anything is sent.
+ */
+export const NEW_MESSAGE_WORDS = {
+  /** The first choice's name: Email, Text or WhatsApp. */
+  where: "Where is it sent",
+  /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
+  sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
+  /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
+  own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+  /** What a text says after the carriers' sentence: the way out. */
+  textGoesByEmail: "This one can go by email.",
+  writeAsEmail: "Write it as an email",
+  /** The act that takes the last of a message's values away: only the last, so no value is renumbered under words that use it. */
+  removeValue: "Remove the last value",
+  /** Under the title: the name the message is filed under, which WhatsApp would know it by. */
+  knownAs: "WhatsApp would know it as",
+  titleMissing: "Give it a title.",
+  titleTooLong: (max: number): string => `A title is at most ${max} characters.`,
+  titleNeedsWords: "A title needs letters or digits in it.",
+  nameTaken: "There is a message by that name already. Give this one another title.",
+  valuesNeedWords: "Give each value a name and an example.",
+  valueTooLong: (what: "name" | "example", max: number): string => `A value's ${what} is at most ${max} characters.`,
+} as const;
+
+/**
  * What the starter set says it does, on the Library's banner and after it is added. Its email and text versions are
  * written at once, whatever the workspace has connected; its WhatsApp versions go to a number's account, so they wait
  * for one, and WhatsApp reviews each.

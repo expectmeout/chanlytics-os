@@ -126,7 +126,7 @@
   "packages/contracts/src/shell/chrome.ts": 2,
   "packages/contracts/src/shell/refusal.ts": 2,
   "packages/contracts/src/shell/vitals.ts": 2,
-  "packages/contracts/src/templates/templates.ts": 2,
+  "packages/contracts/src/templates/templates.ts": 1,
   "packages/contracts/src/today/today-rows.ts": 1,
   "packages/contracts/src/workspace/billing.ts": 1,
   "packages/contracts/src/workspace/handover.ts": 2,

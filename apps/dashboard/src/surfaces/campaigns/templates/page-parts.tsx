@@ -8,6 +8,7 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { LIBRARY_STARTER_WORDS, LIBRARY_WORDS } from "@chanlytics/contracts";
 import { libraryCount } from "@chanlytics/contracts";
 import type { CampaignMessage, ChannelVM } from "@chanlytics/contracts";
+import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { gate } from "../../legacy-verbs";
 import type { useLegacyToast } from "../../legacy-verbs";
@@ -18,9 +19,10 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { CmBanner, CmDot } from "../parts/head";
 import { TemplateComposer } from "./composer";
+import { customKey } from "./group";
 import type { TemplateGroup, TemplateListing, TplLang } from "./group";
 import { TplEmailRows, TplEmailsFailed, tplAllApproved, tplHeadTip } from "./emails";
-import type { StarterLibrary } from "./verbs";
+import type { StarterLibrary, VersionDraft } from "./verbs";
 import { versionsOfMessage } from "./versions";
 import { tplAgo, tplAnd, tplSpell } from "./words";
 
@@ -155,6 +157,12 @@ interface ComposerPaneProps {
   flash: ReturnType<typeof useLegacyToast>[1];
   /** Whether the workspace has a WhatsApp number, which a template is written to: the composer says so where it has none. */
   hasWhatsApp: boolean;
+  /** Opens a message by its key, as a press on its row does. */
+  setOpenKey: Dispatch<SetStateAction<string | null>>;
+  /** Writes a new message's first version as an email, as the page writes any version (page-acts beginMessage). */
+  beginMessage: (draft: VersionDraft) => Promise<ApiResult<unknown> | null>;
+  /** What the workspace holds already, whose names a new message may not take. */
+  held: { templates: readonly TemplateDto[]; messages: readonly CampaignMessage[] };
 }
 
 /**
@@ -217,12 +225,26 @@ export const matchesOf =
       )
     );
 
-/** A new message, written here: the composer in the pane beside the list, and what is said once it is submitted. */
-export function composerPane({ bizName, setComposing, flash, hasWhatsApp }: ComposerPaneProps) {
+/**
+ * A new message, written here: the composer in the pane beside the list. It asks where the message is sent: what is said
+ * once a WhatsApp template is submitted is here, and an email's first version is written as any version is
+ * (`beginMessage`), after which the composer gives way to the message, open on its row.
+ */
+export function composerPane(p: ComposerPaneProps) {
+  const { bizName, setComposing, setOpenKey, flash, hasWhatsApp, beginMessage, held } = p;
   return (
     <TemplateComposer
       pane
       numberWhy={hasWhatsApp ? null : LIBRARY_WORDS.writeNeedsNumber}
+      onBegin={async (draft) => {
+        const r = await beginMessage(draft);
+        if (r?.ok) {
+          setComposing(false);
+          setOpenKey(customKey(draft.name));
+        }
+        return r;
+      }}
+      namesHeld={[...held.templates.map((t) => t.name), ...held.messages.map((m) => m.name)]}
       businessName={bizName || ""}
       onCancel={() => setComposing(false)}
       onDone={(made) => {

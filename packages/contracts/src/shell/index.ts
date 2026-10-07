@@ -79,6 +79,7 @@ export {
   NO_TEMPLATE_WORDS,
   noMessageWords,
   LIBRARY_WORDS,
+  NEW_MESSAGE_WORDS,
   LIBRARY_STARTER_WORDS,
   OFFERS_IN_WRITING_WORDS,
 } from "./campaign-rooms";

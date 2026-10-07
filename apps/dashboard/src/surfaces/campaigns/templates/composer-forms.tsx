@@ -3,8 +3,20 @@
  * written again in one more language, and a new message. Each is a function that returns its element, called by the
  * composer and not drawn as a component of its own, so the composer's tree is the tree it was; the composer's state is
  * theirs to read and to set, handed in as props.
+ *
+ * A new message in the Library's pane opens on where it is sent. WhatsApp is the form as it was; an email is the own
+ * form -- a title, the language, the values the message takes and then its words in the version editor, which writes the
+ * first version of a message with no WhatsApp row; a text is not offered for it (texts carry no offers) and says so,
+ * and offers the email.
  */
 import type { ReactNode } from "react";
+import {
+  NEW_MESSAGE_WORDS,
+  TEMPLATE_EXAMPLE_MAX,
+  TEMPLATE_LABEL_MAX,
+  TEMPLATE_TITLE_MAX,
+  VERSION_CHANNEL_WORDS,
+} from "@chanlytics/contracts";
 import { gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { EmptyState } from "../../kit/empty/empty";
@@ -20,8 +32,11 @@ import { cmLanguageSearch, cmLanguages } from "../parts/picker";
 import { cmChevron } from "../parts/picks";
 import { MessagePreview } from "../parts/message-preview";
 import { CmPane } from "../parts/split";
-import type { ComposerState, TemplateTranslation, composerActs, composerFacts } from "./composer-acts";
+import { COMPOSER_WHERE, textSaysWords } from "./composer-acts";
+import type { ComposerState, OwnValue, TemplateTranslation, composerActs, composerFacts } from "./composer-acts";
+import { VersionEditor } from "./version-editor";
 import { starters } from "./verbs";
+import { TPL_VERSION_WORDS } from "./words";
 
 /** The fields and the preview, made before the form is chosen: a translation that is being written draws neither. */
 interface Made {
@@ -41,6 +56,8 @@ interface ComposerCtx {
   pane?: boolean;
   /** Why nothing can be submitted yet (no WhatsApp number to write it to): said where the rows would be. */
   numberWhy: string | null;
+  /** Whether a new message asks where it is sent first, and may begin as an email: the Library's composer does. */
+  begins: boolean;
 }
 
 // The fields the words are changed in: a translation's are the same as a new
@@ -237,15 +254,38 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
 }
 
 /**
+ * The language a message is written in: any one WhatsApp takes, found by typing it (the list is 111 long, and a select
+ * of 111 is a scroll nobody finishes). A WhatsApp template and a message written as an email choose it the same way.
+ */
+function languagePicker({ language, setLanguage }: ComposerState) {
+  const spoken = starters.allLanguages.find((l) => l.id === language);
+  return (
+    <Picker
+      label="The language it is written in"
+      value={language}
+      onValueChange={setLanguage}
+      groups={cmLanguages(starters.allLanguages)}
+      chevron={cmChevron()}
+      face={
+        <>
+          <Icon name="globe" size={13} /> {spoken ? spoken.label : language}
+        </>
+      }
+      search={cmLanguageSearch(starters.allLanguages)}
+      data-testid="tpl-language"
+    />
+  );
+}
+
+/**
  * What a new message is made of, in the order it is asked: where it starts from, what it says, its kind and language,
  * then its words and what is wrong with them. A card and the pane beside the list draw the same rows.
  */
 function newRows(c: ComposerCtx, made: Made) {
   const { st, acts } = c;
-  const { brief, setBrief, category, setCategory, language, setLanguage } = st;
+  const { brief, setBrief, category, setCategory } = st;
   const { drafting, warnings, error } = st;
   const { startFrom, draft } = acts;
-  const spoken = starters.allLanguages.find((l) => l.id === language);
   return (
     <>
       <div className="tpl-row">
@@ -297,22 +337,7 @@ function newRows(c: ComposerCtx, made: Made) {
               },
             ]}
           />
-          {/* Any language WhatsApp takes, found by typing it: the list is 111 long,
-              and a select of 111 is a scroll nobody finishes. */}
-          <Picker
-            label="The language it is written in"
-            value={language}
-            onValueChange={setLanguage}
-            groups={cmLanguages(starters.allLanguages)}
-            chevron={cmChevron()}
-            face={
-              <>
-                <Icon name="globe" size={13} /> {spoken ? spoken.label : language}
-              </>
-            }
-            search={cmLanguageSearch(starters.allLanguages)}
-            data-testid="tpl-language"
-          />
+          {languagePicker(st)}
           <Button
             size="sm"
             disabled={drafting || brief.trim().length < 4}
@@ -336,29 +361,170 @@ function newRows(c: ComposerCtx, made: Made) {
   );
 }
 
+/** The first choice's options, in the order it offers them, each by contracts' name for the channel. */
+const WHERE_OPTIONS = COMPOSER_WHERE.map((value) => ({
+  value,
+  label: VERSION_CHANNEL_WORDS[value],
+  testid: `tpl-where-${value}`,
+}));
+
+/** Where the message is sent: the first thing a new message in the Library asks. */
+function whereRow({ st }: ComposerCtx) {
+  return (
+    <div className="tpl-compose" data-testid="tpl-where-step">
+      <div className="tpl-row">
+        <span className="bc-row-label">Where</span>
+        <Segmented
+          label={NEW_MESSAGE_WORDS.where}
+          value={st.where}
+          onValueChange={st.setWhere}
+          options={WHERE_OPTIONS}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** A text chosen for a message written here: it carries no offers, which is all such a message is; the email is the way out. */
+function textStep({ st }: ComposerCtx) {
+  return (
+    <div className="tpl-own" data-testid="tpl-text-step">
+      <p className="bc-excl-hint" data-testid="tpl-text-says">
+        {textSaysWords()}
+      </p>
+      <div className="tpl-own-acts">
+        <Button size="sm" onClick={() => st.setWhere("email")} data-testid="tpl-text-email">
+          {NEW_MESSAGE_WORDS.writeAsEmail}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A message written as an email, which has no WhatsApp row: its title (its name is made from it and shown as the name
+ * WhatsApp would know it by), the language, the values it takes -- each a name and an example, numbered in order -- and
+ * then its words in the version editor, whose Save writes the first version. The editor draws each value by its name and
+ * checks the words against them as they are typed; the composer keeps the words with the rest.
+ */
+function ownForm(c: ComposerCtx) {
+  const { st, facts, acts, onCancel } = c;
+  const { title, setTitle, values, setValues, ownWords, setOwnWords, language } = st;
+  const { own } = facts;
+  const change = (at: number, edit: Partial<OwnValue>) =>
+    setValues((all) => all.map((v, i) => (i === at ? { ...v, ...edit } : v)));
+  return (
+    <div className="tpl-own" data-testid="tpl-own">
+      <p className="bc-excl-hint" data-testid="tpl-own-note">
+        {NEW_MESSAGE_WORDS.own}
+      </p>
+      <Field
+        label="Title"
+        value={title}
+        onValueChange={setTitle}
+        maxLength={TEMPLATE_TITLE_MAX}
+        placeholder="Spring offer"
+        hint={
+          own.name ? (
+            <>
+              {NEW_MESSAGE_WORDS.knownAs} <span className="mono">{own.name}</span>
+            </>
+          ) : undefined
+        }
+        data-testid="tpl-own-title"
+      />
+      <FieldError message={own.titleProblem} testid="tpl-own-title-error" />
+      <Field label="Language" control={languagePicker(st)} />
+      <div className="tpl-own-values" data-testid="tpl-own-values">
+        {values.map((v, i) => (
+          // A value is its place in the message ({{1}}, {{2}}): the row's key is that place.
+          <div className="tpl-own-value" key={i}>
+            <Field
+              label={`Name of value ${i + 1}`}
+              value={v.label}
+              maxLength={TEMPLATE_LABEL_MAX}
+              onValueChange={(label) => change(i, { label })}
+              placeholder="First name"
+              data-testid={`tpl-own-value-${i + 1}-name`}
+            />
+            <Field
+              label={`Example for value ${i + 1}`}
+              value={v.example}
+              maxLength={TEMPLATE_EXAMPLE_MAX}
+              onValueChange={(example) => change(i, { example })}
+              placeholder="what a real value looks like"
+              data-testid={`tpl-own-value-${i + 1}-example`}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="tpl-own-acts">
+        <Button
+          size="sm"
+          onClick={() => setValues((all) => [...all, { label: "", example: "" }])}
+          data-testid="tpl-own-value-add"
+        >
+          <Icon name="plus" size={12} /> {TPL_VERSION_WORDS.addValue}
+        </Button>
+        {values.length > 0 ? (
+          <Button
+            variant="quiet"
+            size="sm"
+            onClick={() => setValues((all) => all.slice(0, -1))}
+            data-testid="tpl-own-value-remove"
+          >
+            {NEW_MESSAGE_WORDS.removeValue}
+          </Button>
+        ) : null}
+      </div>
+      <VersionEditor
+        name={own.name}
+        channel="email"
+        language={language}
+        start={ownWords}
+        slots={own.slots}
+        values={own.examples}
+        busy={false}
+        within={{ onWords: setOwnWords }}
+        onSave={acts.begin}
+        onClose={() => onCancel?.()}
+      />
+    </div>
+  );
+}
+
 /**
  * A new message, in the pane beside the list (parts/split.tsx): its name and what it waits on in the head, Cancel at the
  * head's end -- which asks first when something was written, as Escape does -- the rows in the body and the submit in
  * the foot, where the glass bar stands. It was a card over the list, which pushed the messages down while it was open.
+ * Where the message may begin as an email, the body opens on where it is sent: WhatsApp's rows and submit are as they
+ * were, and an email's form carries its own Save in the editor.
  */
 function newTemplatePane(c: ComposerCtx, made: Made) {
-  const { st, facts, acts, work, businessName, numberWhy } = c;
+  const { st, facts, acts, work, businessName, numberWhy, begins } = c;
   const { submitting } = st;
   const { submit } = acts;
   const { ready } = facts;
+  // Where the composer cannot begin a message of its own, it is WhatsApp's whatever a kept draft says.
+  const where = begins ? st.where : "whatsapp";
+  const leave = <UnsavedAsk onYes={work.discard} onNo={work.stay} what="submitted" testid="tpl-leave" />;
   return (
     <CmPane
       testid="messages-composer"
       title="New template"
-      sub="WhatsApp reviews it before it can be sent — usually minutes, sometimes a day"
+      sub={
+        where === "whatsapp"
+          ? "WhatsApp reviews it before it can be sent — usually minutes, sometimes a day"
+          : NEW_MESSAGE_WORDS.sub
+      }
       onClose={work.leave}
       closeLabel="Cancel"
       closeTestid="tpl-close"
       foot={
         // Cancel, and Escape, with words in it: the one question first (UnsavedAsk), where the submit was.
         work.asking ? (
-          <UnsavedAsk onYes={work.discard} onNo={work.stay} what="submitted" testid="tpl-leave" />
-        ) : (
+          leave
+        ) : where !== "whatsapp" ? null : (
           <>
             <span className="bc-excl-hint">
               The words are yours; WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}
@@ -376,7 +542,9 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
         )
       }
     >
-      {numberWhy !== null ? (
+      {begins ? whereRow(c) : null}
+      {where === "email" ? ownForm(c) : where === "sms" ? textStep(c) : null}
+      {where !== "whatsapp" ? null : numberWhy !== null ? (
         <EmptyState
           kind="line"
           glyph="phone"

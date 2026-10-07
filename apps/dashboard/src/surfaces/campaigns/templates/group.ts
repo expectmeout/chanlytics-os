@@ -72,6 +72,9 @@ export interface TemplateListing {
   lastSync: string | null;
 }
 
+/** The key a message the workspace wrote is listed under, and opened by: its name. */
+export const customKey = (name: string): string => `c:${name}`;
+
 /** The languages a message holds a version in, on any channel: WhatsApp's, an email's or a text's. */
 export const onFileOf = (g: TemplateGroup): TemplateRow[] => g.rows.filter((r) => r.row || r.message);
 
@@ -111,7 +114,7 @@ export function listingOf(
       const first = mine[0];
       if (!first) return [];
       const rows = mine.map((m) => rowOf(name, langOf(m.language)));
-      return [{ key: `c:${name}`, title: first.title, purpose: purposeOf(rows), starter: null, rows }];
+      return [{ key: customKey(name), title: first.title, purpose: purposeOf(rows), starter: null, rows }];
     });
   // The starters in the library's order, each with the set's languages -- on file
   // or not -- and then any other language the workspace has written it in; then

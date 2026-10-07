@@ -54,6 +54,9 @@ const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
 const { Confirm } = await import(`${S}/kit/confirm/confirm.tsx`);
 const { FieldError } = await import(`${S}/kit/field-error/field-error.tsx`);
 const { SlotBox } = await import(`${S}/campaigns/templates/slots/slot-box.tsx`);
+const { VersionEditor } = await import(`${S}/campaigns/templates/version-editor.tsx`);
+const composerActsModule = await import(`${S}/campaigns/templates/composer-acts.ts`);
+const { TemplateComposer } = await import(`${S}/campaigns/templates/composer.tsx`);
 const { SlotName } = await import(`${S}/campaigns/parts/slot.tsx`);
 
 const BIZ = "Harbor";
@@ -208,6 +211,26 @@ const stubbed = (over = {}) => {
   });
   return calls;
 };
+
+/** The Library's composer: a new message's pane, and the first choice in it, where the message is sent. */
+const composerOf = (tree) => byTestId(tree, "messages-composer");
+const whereOf = (tree) =>
+  find(composerOf(tree), (n) => n.type === Segmented && n.props.label === contracts.NEW_MESSAGE_WORDS.where);
+const chooseWhere = (tree, where) => {
+  whereOf(tree).props.onValueChange(where);
+  return redraw();
+};
+/** New pressed, over the surface as `page` makes it. */
+const newOpened = (over = {}) => {
+  const tree = page(over);
+  press(headed(tree, "template-new"));
+  return redraw();
+};
+const fieldIn = (tree, label) => find(composerOf(tree), (n) => n.type === Field && n.props.label === label);
+const boxIn = (tree, label) => find(composerOf(tree), (n) => n.type === SlotBox && n.props.label === label);
+const editorIn = (tree) => find(composerOf(tree), (n) => n.type === VersionEditor);
+const menuIn = (tree) => find(composerOf(tree), (n) => n.type === Menu);
+const NEW_WORDS = contracts.NEW_MESSAGE_WORDS;
 
 const AFTER_VISIT = "after_visit_check";
 const VISIT = "visit_reminder";
@@ -1302,12 +1325,20 @@ test("with no number the page still lists the starter set, offers it with what i
   assert.deepEqual(asked, [{ languages: ["en_US", "es"] }]);
   assert.equal(textOf(toasts.at(-1).msg), "11 email and text versions written · WhatsApp versions wait for a number");
 
-  // A new template is a WhatsApp template: where there is no number its composer says so, in place of its rows, and
-  // submits nothing. With a number it is the composer it was.
+  // A new template asks where it is sent, and WhatsApp's is a template written to a number's account: where there is no
+  // number the first step still offers WhatsApp, and its composer says so, in place of its rows, and submits nothing.
+  // With a number it is the composer it was.
   tree = noNumber();
   press(headed(tree, "template-new"));
   tree = redraw();
   assert.ok(byTestId(tree, "messages-composer"), "the composer opens");
+  assert.deepEqual(
+    whereOf(tree).props.options.map((o) => o.value),
+    ["email", "sms", "whatsapp"],
+    "WhatsApp is offered with no number",
+  );
+  assert.equal(whereOf(tree).props.value, "email", "and the first thing it opens on is what can be written");
+  tree = chooseWhere(tree, "whatsapp");
   assert.ok(textOf(byTestId(tree, "tpl-no-number")).startsWith(contracts.LIBRARY_WORDS.writeNeedsNumber));
   assert.equal(byTestId(tree, "tpl-composer"), null, "none of its rows");
   assert.equal(byTestId(tree, "tpl-submit").props.disabled, true);
@@ -1316,6 +1347,451 @@ test("with no number the page still lists the starter set, offers it with what i
   tree = redraw();
   assert.ok(byTestId(tree, "tpl-composer"));
   assert.equal(byTestId(tree, "tpl-no-number"), null);
+});
+
+/* ---------------------------------- a new message asks where it is sent ---------------------------------- */
+
+/** A message the form writes: its title, two values and the words of its email, typed as a person types them. */
+const filledIn = (
+  tree,
+  { title = "Spring offer", subject = "Spring offer", body = "Hi {{1}}, {{2}} off this week." } = {},
+) => {
+  const type = (get, words) => {
+    get(tree).props.onValueChange(words);
+    tree = redraw();
+  };
+  type((t) => fieldIn(t, "Title"), title);
+  for (const [n, name, example] of [
+    [1, "First name", "Dani"],
+    [2, "Offer", "20%"],
+  ]) {
+    press(byTestId(tree, "tpl-own-value-add"));
+    tree = redraw();
+    type((t) => byTestId(t, `tpl-own-value-${n}-name`), name);
+    type((t) => byTestId(t, `tpl-own-value-${n}-example`), example);
+  }
+  type((t) => boxIn(t, "Subject"), subject);
+  type((t) => boxIn(t, "Message"), body);
+  return tree;
+};
+
+test("a new message asks where it is sent first -- Email, Text, WhatsApp -- and opens on WhatsApp where there is a number to write to, on Email where there is none", () => {
+  let tree = newOpened();
+  const choice = whereOf(tree);
+  assert.deepEqual(
+    choice.props.options.map((o) => [o.value, o.label, o.testid]),
+    [
+      ["email", "Email", "tpl-where-email"],
+      ["sms", "Text", "tpl-where-sms"],
+      ["whatsapp", "WhatsApp", "tpl-where-whatsapp"],
+    ],
+  );
+  assert.equal(NEW_WORDS.where, "Where is it sent");
+  assert.equal(choice.props.value, "whatsapp", "with a number it is the composer it was");
+  assert.ok(byTestId(tree, "tpl-composer"), "WhatsApp's rows");
+  assert.ok(byTestId(tree, "tpl-submit"), "and its submit");
+  assert.equal(byTestId(tree, "tpl-own"), null);
+  assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New template");
+  assert.equal(
+    textOf(find(tree, (n) => n.props?.className === "cm-pane-sub")),
+    "WhatsApp reviews it before it can be sent — usually minutes, sometimes a day",
+  );
+
+  // Email is the form of a message with no WhatsApp row: no WhatsApp rows or submit, and no word of WhatsApp's review.
+  tree = chooseWhere(tree, "email");
+  assert.ok(byTestId(tree, "tpl-own"));
+  assert.equal(byTestId(tree, "tpl-composer"), null);
+  assert.equal(byTestId(tree, "tpl-submit"), null, "its Save is the editor's");
+  assert.equal(
+    textOf(find(tree, (n) => n.props?.className === "cm-pane-sub")),
+    "Email is written here and ready the moment it is saved; no one reviews it first.",
+  );
+  assert.equal(
+    textOf(byTestId(tree, "tpl-own-note")),
+    "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+    "one quiet line, in contracts' words",
+  );
+
+  // With no number there is nothing to write to on WhatsApp, so it opens where something can be written.
+  tree = newOpened({ channels: [] });
+  assert.equal(whereOf(tree).props.value, "email");
+  assert.ok(byTestId(tree, "tpl-own"));
+  assert.equal(byTestId(tree, "tpl-no-number"), null, "no wall of a number it does not need");
+
+  // A composer that cannot begin a message of its own (the send screen's) is WhatsApp's, with no first step.
+  fresh();
+  const card = again(() =>
+    W.React.createElement(TemplateComposer, { pane: true, businessName: BIZ, onDone() {}, onCancel() {} }),
+  );
+  assert.equal(byTestId(card, "tpl-where-step"), null);
+  assert.ok(byTestId(card, "tpl-composer"));
+});
+
+test("a text chosen for a new message says the carriers' sentence and the way out, and offers the email: a message written here is an offer, which a text never carries", () => {
+  let tree = chooseWhere(newOpened(), "sms");
+  assert.equal(
+    textOf(byTestId(tree, "tpl-text-says")),
+    "Texts carry no offers. This one can go by email.",
+    "channelNeverCarries' sentence, then the second",
+  );
+  assert.equal(
+    textOf(byTestId(tree, "tpl-text-says")),
+    `${contracts.channelNeverCarries("sms", "marketing")} ${NEW_WORDS.textGoesByEmail}`,
+  );
+  assert.equal(byTestId(tree, "tpl-composer"), null, "no WhatsApp rows");
+  assert.equal(byTestId(tree, "tpl-own"), null, "and nothing to write");
+  assert.equal(byTestId(tree, "template-version-editor"), null, "a text takes no words here");
+  assert.equal(textOf(byTestId(tree, "tpl-text-email")), "Write it as an email");
+  press(byTestId(tree, "tpl-text-email"));
+  tree = redraw();
+  assert.equal(whereOf(tree).props.value, "email", "the email is offered instead, and taken");
+  assert.ok(byTestId(tree, "tpl-own"));
+});
+
+test("the form for an email names the message from its title, refuses a title that makes no name or a name already held, and draws the value as many as it takes", () => {
+  let tree = chooseWhere(newOpened({ rows: [custom("fall_hours")] }), "email");
+  const title = (words) => {
+    fieldIn(tree, "Title").props.onValueChange(words);
+    tree = redraw();
+  };
+  const said = () => (byTestId(tree, "tpl-own-title-error") ? textOf(byTestId(tree, "tpl-own-title-error")) : null);
+  assert.equal(fieldIn(tree, "Title").props.maxLength, contracts.TEMPLATE_TITLE_MAX);
+  assert.equal(fieldIn(tree, "Title").props.hint, undefined, "no name until there is a title");
+
+  // The name is the title's slug, shown read-only as the name WhatsApp would know it by.
+  title("Spring Offer 2026!");
+  assert.equal(textOf(fieldIn(tree, "Title").props.hint), "WhatsApp would know it as spring_offer_2026");
+  assert.equal(contracts.slugTemplateName("Spring Offer 2026!"), "spring_offer_2026");
+  assert.equal(said(), null);
+  title("Café Día");
+  assert.equal(textOf(fieldIn(tree, "Title").props.hint), "WhatsApp would know it as cafe_dia");
+
+  // A title with nothing to make a name of, one too long, and a name the workspace has: a message's, a starter's, a reach-out's.
+  title("!!!");
+  assert.equal(said(), NEW_WORDS.titleNeedsWords);
+  assert.equal(fieldIn(tree, "Title").props.hint, undefined, "and no name to show");
+  title("x".repeat(contracts.TEMPLATE_TITLE_MAX + 1));
+  assert.equal(said(), NEW_WORDS.titleTooLong(contracts.TEMPLATE_TITLE_MAX));
+  assert.equal(NEW_WORDS.titleTooLong(60), "A title is at most 60 characters.");
+  title("Fall Hours");
+  assert.equal(
+    said(),
+    NEW_WORDS.nameTaken,
+    "a message of that name is on file: a version would be written over its own",
+  );
+  title("Winback reply");
+  assert.equal(said(), NEW_WORDS.nameTaken, "a starter's name is the starter's");
+  title("Reach out 1");
+  assert.equal(said(), NEW_WORDS.nameTaken, "a reach-out's name is the reach-out's");
+  title("Autumn hours");
+  assert.equal(said(), null);
+
+  // The values are as many as are added, each a name and an example, in order, and the editor draws them by name.
+  assert.equal(editorIn(tree).props.slots.keys.length, 0, "none until one is added");
+  assert.equal(byTestId(tree, "tpl-own-value-remove"), null);
+  press(byTestId(tree, "tpl-own-value-add"));
+  tree = redraw();
+  byTestId(tree, "tpl-own-value-1-name").props.onValueChange("First name");
+  byTestId(redraw(), "tpl-own-value-1-example").props.onValueChange("Dani");
+  press(byTestId(redraw(), "tpl-own-value-add"));
+  tree = redraw();
+  byTestId(tree, "tpl-own-value-2-name").props.onValueChange("Date");
+  byTestId(redraw(), "tpl-own-value-2-example").props.onValueChange("Oct 1");
+  tree = redraw();
+  assert.equal(textOf(byTestId(tree, "tpl-own-value-2-name").props.label), "Name of value 2");
+  assert.equal(byTestId(tree, "tpl-own-value-1-name").props.maxLength, contracts.TEMPLATE_LABEL_MAX);
+  assert.equal(byTestId(tree, "tpl-own-value-1-example").props.maxLength, contracts.TEMPLATE_EXAMPLE_MAX);
+  const editor = editorIn(tree);
+  assert.deepEqual(editor.props.slots.keys, ["1", "2"], "counted: two values");
+  assert.deepEqual(editor.props.slots.labels, ["First name", "Date"]);
+  assert.deepEqual(editor.props.values, ["Dani", "Oct 1"], "and the example that fills each in a preview");
+  assert.equal(editor.props.channel, "email");
+  assert.equal(editor.props.language, "en_US");
+  assert.deepEqual(
+    menuIn(tree).props.groups.flatMap((g) => g.items.map((i) => i.label)),
+    ["First name", "Date"],
+    "the menu that puts a value in offers each by its name",
+  );
+
+  // Only the last may be taken away, so no value is renumbered under words that name it.
+  press(byTestId(tree, "tpl-own-value-remove"));
+  tree = redraw();
+  assert.deepEqual(editorIn(tree).props.slots.labels, ["First name"]);
+  assert.equal(byTestId(tree, "tpl-own-value-2-name"), null);
+});
+
+test("the form refuses, in the person's words and before anything is sent, a value with no name or example, and words that name a value the message lacks", async () => {
+  const calls = stubbed();
+  let tree = chooseWhere(newOpened(), "email");
+  fieldIn(tree, "Title").props.onValueChange("Spring offer");
+  press(byTestId(redraw(), "tpl-own-value-add"));
+  tree = redraw();
+  const draft = (over = {}) => ({
+    name: "spring_offer",
+    language: "en_US",
+    channel: "email",
+    subject: "Spring offer",
+    body: "Hi {{1}}.",
+    ...over,
+  });
+  // A value with no name and no example holds the message back.
+  let r = await editorIn(tree).props.onSave(draft());
+  assert.equal(r.ok, false);
+  assert.equal(r.message, NEW_WORDS.valuesNeedWords);
+  byTestId(tree, "tpl-own-value-1-name").props.onValueChange("First name");
+  tree = redraw();
+  r = await editorIn(tree).props.onSave(draft());
+  assert.equal(r.message, NEW_WORDS.valuesNeedWords, "a name alone is not a value: it needs an example too");
+  byTestId(tree, "tpl-own-value-1-example").props.onValueChange("Dani");
+  tree = redraw();
+
+  // The message has one value, so {{2}} is not one of its values: the very sentence the door says.
+  r = await editorIn(tree).props.onSave(draft({ body: "Hi {{1}}, {{2}} off." }));
+  assert.equal(r.ok, false);
+  assert.equal(
+    r.message,
+    contracts.validateOwnVersion("email", { subject: "Spring offer", body: "Hi {{1}}, {{2}} off." }, 1, "en_US").error,
+  );
+  assert.equal(r.message, "{{2}} is not one of this message's values: it has {{1}}.");
+  // And as it is typed, in the names the editor draws.
+  boxIn(tree, "Subject").props.onValueChange("Spring offer");
+  boxIn(redraw(), "Message").props.onValueChange("Hi {{1}}, {{2}} off.");
+  assert.equal(
+    textOf(byTestId(redraw(), "template-version-error")),
+    "Value 2 is not one of this message's values: it has First name.",
+  );
+  assert.equal(saveOf(redraw()).props.disabled, true, "and Save waits");
+
+  // A title that makes no name is refused too, however the words stand.
+  fieldIn(tree, "Title").props.onValueChange("!!!");
+  r = await editorIn(redraw()).props.onSave(draft());
+  assert.equal(r.message, NEW_WORDS.titleNeedsWords);
+  fieldIn(redraw(), "Title").props.onValueChange("");
+  r = await editorIn(redraw()).props.onSave(draft());
+  assert.equal(r.message, NEW_WORDS.titleMissing);
+  assert.deepEqual(calls, [], "nothing was sent");
+});
+
+test("a message begun as an email is written by ONE request -- an offer, with its values as the edge files them and its title -- and the page opens its row", async () => {
+  const written = [];
+  Object.assign(verbs, REAL, {
+    saveVersion: async (body) => {
+      written.push(body);
+      // What the write did, as the refresh after it lands: the surface holds the message the door filed.
+      const row = baseRow({
+        id: "e-spring",
+        channel: "email",
+        name: body.name,
+        language: body.language,
+        category: body.message.category,
+        title: body.message.title,
+        header: body.subject,
+        body_preview: body.body,
+        variables: body.message.variables,
+      });
+      setSurfaceValue("settings", {
+        ...surfaceValue("settings"),
+        templateVersions: [row],
+        messages: contracts.campaignMessagesOf([row]),
+      });
+      return {
+        ok: true,
+        data: { template: { id: row.id, name: row.name, language: row.language, channel: "email" }, warnings: [] },
+      };
+    },
+  });
+  let tree = filledIn(chooseWhere(newOpened({ channels: [] }), "email"), {
+    body: "Hi {{1}}, {{2}} off this week.",
+  });
+  assert.equal(saveOf(tree).props.disabled, false, "its words pass, so Save is open");
+  assert.equal(
+    byTestId(tree, "template-version-cancel"),
+    null,
+    "the pane's Cancel is the composer's: the editor draws none",
+  );
+  press(saveOf(tree));
+  await settle();
+  assert.deepEqual(
+    written,
+    [
+      {
+        name: "spring_offer",
+        language: "en_US",
+        channel: "email",
+        subject: "Spring offer",
+        body: "Hi {{1}}, {{2}} off this week.",
+        message: {
+          category: "marketing",
+          variables: [
+            { position: 1, label: "First name", example: "Dani" },
+            { position: 2, label: "Offer", example: "20%" },
+          ],
+          title: "Spring offer",
+        },
+      },
+    ],
+    "one request, to the one door",
+  );
+  tree = redraw();
+  assert.equal(composerOf(tree), null, "the composer gives way");
+  assert.ok(paneOf(tree), "to the message, open");
+  assert.equal(textOf(find(paneOf(tree), (n) => n.props?.className === "cm-pane-title")).trim(), "Spring offer");
+  assert.equal(
+    find(paneOf(tree), (n) => n.type === Segmented).props.value,
+    "email",
+    "on the channel its first version is on",
+  );
+  assert.equal(textOf(byTestId(paneOf(tree), "template-version-subject")), "Spring offer");
+  assert.equal(bodyOf(paneOf(tree)), "Hi Dani, 20% off this week.");
+  assert.ok(rowOf(tree, "spring_offer"), "and its row is in the list");
+  assert.equal(
+    textOf(toasts.at(-1).msg),
+    "Spring offer is in the Library: the email version in English (US) is saved",
+    "the page's toast voice",
+  );
+  assert.equal(toasts.length, 1);
+});
+
+test("a refusal from the door is shown as it came, under the words, and nothing else changes: the form keeps what was written and no message is made", async () => {
+  const sentence = contracts.MESSAGE_BEGIN_WORDS.doorNotSwitchedOn;
+  const written = [];
+  Object.assign(verbs, REAL, {
+    saveVersion: async (body) => (
+      written.push(body),
+      {
+        ok: false,
+        ...contracts.refusalOf({ code: "conflict", status: 409, message: sentence, write: true }),
+      }
+    ),
+  });
+  let tree = filledIn(chooseWhere(newOpened({ channels: [] }), "email"));
+  const before = surfaceValue("settings");
+  press(saveOf(tree));
+  await settle();
+  tree = redraw();
+  assert.equal(written.length, 1);
+  assert.equal(textOf(byTestId(tree, "template-version-error")), sentence, "the route's sentence, as it is");
+  assert.ok(composerOf(tree), "the composer stays");
+  assert.equal(paneOf(tree), null, "no message opens");
+  assert.equal(fieldIn(tree, "Title").props.value, "Spring offer", "its title as it was");
+  assert.deepEqual(editorIn(tree).props.slots.labels, ["First name", "Offer"], "its values as they were");
+  assert.equal(boxIn(tree, "Message").props.value, "Hi {{1}}, {{2}} off this week.", "its words as they were");
+  assert.equal(toasts.length, 0, "nothing was said");
+  assert.equal(surfaceValue("settings"), before, "and the surface is as it was");
+  assert.equal(saveOf(tree).props.disabled, false, "and it may be tried again");
+  // Typing again clears the refusal until the next answer.
+  boxIn(tree, "Message").props.onValueChange("Hi {{1}}, {{2}} off.");
+  assert.equal(byTestId(redraw(), "template-version-error"), null);
+});
+
+test("a viewer's Save starts nothing: the act answers null, as the editor reads a save that did not start", async () => {
+  const calls = stubbed();
+  filledIn(chooseWhere(newOpened({ channels: [] }), "email"));
+  // The role store's answer, View-as included, read as the composer draws: the editor's Save carries the gate, and the
+  // act itself starts nothing.
+  W.ST_STORE.can = (a) => !!contracts.ROLE_PERMS.viewer[a];
+  W.ST_STORE.myRole = () => "viewer";
+  const r = await editorIn(redraw()).props.onSave({
+    name: "spring_offer",
+    language: "en_US",
+    channel: "email",
+    subject: "Spring offer",
+    body: "Hi {{1}}.",
+  });
+  assert.equal(r, null, "it did not start");
+  assert.deepEqual(calls, []);
+  assert.ok(composerOf(redraw()), "and the form stays as it was");
+});
+
+test("a new message's title, values and words are kept in the tab as they are typed, come back as an email's form, and go once the door takes them", async () => {
+  const kept = new Map();
+  const at = (kind, key) => `${kind}|${key ?? ""}`;
+  const had = W.__tabMemory;
+  W.__tabMemory = {
+    draft: (kind, key) => kept.get(at(kind, key)) ?? null,
+    keepDraft: (kind, value, key) => void kept.set(at(kind, key), JSON.parse(JSON.stringify(value))),
+    dropDraft: (kind, key) => void kept.delete(at(kind, key)),
+  };
+  try {
+    filledIn(chooseWhere(newOpened({ channels: [] }), "email"));
+    const saved = kept.get("template|new");
+    assert.deepEqual(
+      [saved.where, saved.title, saved.values, saved.ownWords],
+      [
+        "email",
+        "Spring offer",
+        [
+          { label: "First name", example: "Dani" },
+          { label: "Offer", example: "20%" },
+        ],
+        { subject: "Spring offer", body: "Hi {{1}}, {{2}} off this week." },
+      ],
+      "all of it, as it was typed",
+    );
+    // The page, come back to: the composer is open, on the email's form with what was written, whatever the number.
+    for (const channels of [[], [{ kind: "whatsapp" }]]) {
+      const tree = page({ channels });
+      assert.equal(whereOf(tree).props.value, "email");
+      assert.equal(fieldIn(tree, "Title").props.value, "Spring offer");
+      assert.deepEqual(editorIn(tree).props.slots.labels, ["First name", "Offer"]);
+      assert.equal(boxIn(tree, "Subject").props.value, "Spring offer");
+      assert.equal(boxIn(tree, "Message").props.value, "Hi {{1}}, {{2}} off this week.");
+    }
+    // A draft from before there was a first choice is a WhatsApp template's: it is, wherever it was kept as an email, in a
+    // composer that cannot begin a message of its own (the send screen's), which has no first step.
+    fresh();
+    const card = again(() =>
+      W.React.createElement(TemplateComposer, { pane: true, businessName: BIZ, onDone() {}, onCancel() {} }),
+    );
+    assert.equal(byTestId(card, "tpl-where-step"), null);
+    assert.equal(byTestId(card, "tpl-own"), null);
+    assert.ok(byTestId(card, "tpl-composer"));
+    kept.set("template|new", { body: "Hi {{1}}.", name: "old_draft", examples: ["Dani"] });
+    let tree = page();
+    assert.equal(whereOf(tree).props.value, "whatsapp", "what was kept before the choice is a WhatsApp template's");
+    assert.equal(byTestId(tree, "tpl-body").props.value, "Hi {{1}}.");
+
+    // Taken by the door, it goes.
+    kept.set("template|new", saved);
+    Object.assign(verbs, REAL, {
+      saveVersion: async () => ({ ok: true, data: { template: { id: "e1" }, warnings: [] } }),
+    });
+    tree = page({ channels: [] });
+    press(saveOf(tree));
+    await settle();
+    assert.equal(kept.has("template|new"), false, "nothing is left to come back to");
+  } finally {
+    W.__tabMemory = had;
+  }
+});
+
+test("a new message's title, values and words are words: Cancel asks before they go, as it does for a template's", () => {
+  const { wroteWords } = composerActsModule;
+  const blank = {
+    translate: null,
+    brief: "",
+    body: "",
+    footer: "",
+    buttonText: "",
+    name: "",
+    examples: [],
+    title: "",
+    values: [],
+    ownWords: { subject: "", body: "" },
+  };
+  assert.equal(wroteWords(blank), false);
+  assert.equal(wroteWords({ ...blank, title: "Spring offer" }), true, "a title is words");
+  assert.equal(wroteWords({ ...blank, values: [{ label: "First name", example: "" }] }), true, "so is a value's name");
+  assert.equal(wroteWords({ ...blank, ownWords: { subject: "", body: "Hi" } }), true, "and the words of the email");
+  assert.equal(wroteWords({ ...blank, ownWords: { subject: "Hello", body: "" } }), true);
+});
+
+test("what a text says for a message written here is channelNeverCarries' sentence and then the way out, set once", () => {
+  assert.equal(
+    composerActsModule.textSaysWords(),
+    `${contracts.CHANNEL_WORDS.noOffersByText} ${NEW_WORDS.textGoesByEmail}`,
+  );
+  assert.equal(NEW_WORDS.textGoesByEmail, "This one can go by email.");
 });
 
 test("what the starter set says it did: what went to WhatsApp, what was written as email and text, what could not be and why, and that WhatsApp waits for a number", () => {

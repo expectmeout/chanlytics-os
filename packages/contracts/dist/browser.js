@@ -8427,6 +8427,7 @@ var TEMPLATE_CATEGORIES = ["marketing", "utility"];
 var TEMPLATE_BODY_MAX = 1024;
 var TEMPLATE_FOOTER_MAX = 60;
 var TEMPLATE_EXAMPLE_MAX = 100;
+var TEMPLATE_LABEL_MAX = 40;
 var TEMPLATE_NAME_MAX = 60;
 var TEMPLATE_NAME_WORDS = "The name needs letters, digits or underscores.";
 var TEMPLATE_BUTTON_TEXT_MAX = 25;
@@ -25075,6 +25076,27 @@ var LIBRARY_WORDS = {
   /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
   addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
 };
+var NEW_MESSAGE_WORDS = {
+  /** The first choice's name: Email, Text or WhatsApp. */
+  where: "Where is it sent",
+  /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
+  sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
+  /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
+  own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+  /** What a text says after the carriers' sentence: the way out. */
+  textGoesByEmail: "This one can go by email.",
+  writeAsEmail: "Write it as an email",
+  /** The act that takes the last of a message's values away: only the last, so no value is renumbered under words that use it. */
+  removeValue: "Remove the last value",
+  /** Under the title: the name the message is filed under, which WhatsApp would know it by. */
+  knownAs: "WhatsApp would know it as",
+  titleMissing: "Give it a title.",
+  titleTooLong: (max) => `A title is at most ${max} characters.`,
+  titleNeedsWords: "A title needs letters or digits in it.",
+  nameTaken: "There is a message by that name already. Give this one another title.",
+  valuesNeedWords: "Give each value a name and an example.",
+  valueTooLong: (what, max) => `A value's ${what} is at most ${max} characters.`
+};
 var LIBRARY_STARTER_WORDS = {
   /** The banner's second line: the languages it comes in, and what is written now. */
   banner: (languages, hasNumber) => hasNumber ? `In ${languages} \u2014 email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.` : `In ${languages} \u2014 email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
@@ -33790,6 +33812,7 @@ export {
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
   NEEDS_TITLE,
+  NEW_MESSAGE_WORDS,
   NEW_WINDOW_DAYS,
   NOTE_MAX,
   NOTE_REFUSALS,
@@ -34082,6 +34105,7 @@ export {
   TEMPLATE_CATEGORIES,
   TEMPLATE_EXAMPLE_MAX,
   TEMPLATE_FOOTER_MAX,
+  TEMPLATE_LABEL_MAX,
   TEMPLATE_LANGUAGES,
   TEMPLATE_NAME_MAX,
   TEMPLATE_NAME_WORDS,

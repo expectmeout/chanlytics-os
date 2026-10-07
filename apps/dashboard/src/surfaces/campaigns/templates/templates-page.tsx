@@ -162,6 +162,7 @@ function MessagesReal() {
     setComposing(true);
   };
   const read = { langs, S, versions };
+  const held = { templates, messages };
   const card = (g: TemplateGroup) => (
     <MessageRow key={g.key} g={g} {...read} open={openKey === g.key} onOpen={() => openOne(g.key)} />
   );
@@ -183,7 +184,7 @@ function MessagesReal() {
   const openEmail = tplEmailOpen(emails, openKey);
   const closeOpen = () => setOpenKey(null);
   const pane = composing ? (
-    composerPane({ bizName, setComposing, flash, hasWhatsApp })
+    composerPane({ bizName, setComposing, setOpenKey, flash, hasWhatsApp, beginMessage: acts.beginMessage, held })
   ) : openGroup ? (
     <TemplatePane
       key={openGroup.key}
