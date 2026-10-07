@@ -25,10 +25,14 @@
  *  6. The message is hidden when its anchor is, and offered when it is not hidden and holds at least one channel.
  *  7. A channel the message does not hold has one sentence for it (messageWhyNot), whichever page or verb says it.
  *  8. Where one language of it stands on each channel has one set of words, the Library's (messageStandingWords).
+ *  9. What a campaign's page, route and Ask say of a message whose WhatsApp version is not one a send can use has one
+ *     set of words too (messageWhyNot, whatsappStoppedRunWords, MESSAGE_GONE_WORDS, RUN_NOW_WITHOUT_VERSION_WORDS,
+ *     STARTER_LINE_WORDS): each says the WhatsApp version where it means that one, and names no template.
  */
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 import { purposeOfTemplate, type AskedPurpose } from "../consent/consent";
 import { TEMPLATE_STATUSES, type TemplateStatus } from "../shared/enums";
+import { CAMPAIGN_ROOMS } from "../shell/campaign-rooms";
 import {
   VERSION_CHANNEL_WORDS,
   isReachOutRow,
@@ -292,6 +296,34 @@ export const MESSAGE_GONE_WORDS = {
   card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the playbook sends another.`,
   composer: (title: string): string =>
     `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`,
+} as const;
+
+/**
+ * What Run now says of a playbook that goes by WhatsApp when nobody it would reach goes by email or text and its message
+ * holds no WhatsApp version a run can send (core run-playbook's stop, stored as `template_not_approved`, whose name is a
+ * closed set and stays): what would carry it is another message, or another version of this one on a channel it ticks.
+ */
+export const RUN_NOW_WITHOUT_VERSION_WORDS =
+  "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the playbook.";
+
+/**
+ * What the lines that offer a moment's own message say while it waits on WhatsApp (the send screen with nothing to send,
+ * the playbook composer with the moment's starter not yet a message a run can send). Only its WhatsApp version is in
+ * review or refused: an email or a text of it is ready the moment it is written, and the starter set writes those at once.
+ */
+export const STARTER_LINE_WORDS = {
+  /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
+  reviewing: (n: number): string =>
+    `Your starter messages' WhatsApp versions are in review (${n}) — they appear here once approved, usually within minutes.`,
+  /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
+  standing: (status: string | null | undefined): string => {
+    const at = statusOf(status);
+    return at === "pending"
+      ? "has its WhatsApp version in review — it appears here once approved, usually within minutes."
+      : `has its WhatsApp version ${WHATSAPP_STANDING_WORDS[at]} — see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
+  },
+  /** The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number is. */
+  add: "Add it — its email and text versions are written at once, and where a number is connected WhatsApp reviews its WhatsApp version, usually within minutes",
 } as const;
 
 /**

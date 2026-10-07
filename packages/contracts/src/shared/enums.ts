@@ -535,8 +535,8 @@ export const DECISION_VERBS = [
    */
   "consent_change",
   /**
-   * A broadcast: one approved template to the people who said yes. The
-   * decision to send (subject 'broadcast', payload the template, the
+   * A broadcast: one message, on the channels it holds, to the people who said
+   * yes. The decision to send (subject 'broadcast', payload the message, the
    * audience and the count) and the decision to stop one.
    */
   "send_broadcast",

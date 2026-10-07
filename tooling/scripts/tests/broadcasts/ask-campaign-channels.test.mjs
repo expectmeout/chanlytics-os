@@ -699,3 +699,34 @@ test("a WhatsApp version in review is no longer lost to Ask: its message is list
   const alone = await propose(quiet, { templates: [waiting] });
   assert.match(said(alone), /starter has no version this workspace can send yet/);
 });
+
+test("Ask is told what a message is: a name with a version on each channel it is written for, sent on the channels it holds; its tools say to propose by the `channels` the listing gives, and none says one approved WhatsApp template", async () => {
+  const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+  assert.ok(ASK_DEFINITIONS.broadcast.startsWith("One message sent to the people on a list who said yes"));
+  assert.ok(
+    ASK_DEFINITIONS.broadcast.includes(
+      "A message is a name with a version for each channel it is written for (WhatsApp, which WhatsApp approves; email and text, ready when saved) and goes on the channels it holds, each person once.",
+    ),
+  );
+  assert.ok(
+    ASK_DEFINITIONS.playbook.startsWith(
+      "A standing rule that sends one message to newly eligible people who said yes:",
+    ),
+  );
+  const tools = toApiTools("owner", true);
+  const described = (name) => tools.find((t) => t.name === name).description;
+  const listing = described("campaigns");
+  const proposing = described("propose_campaign");
+  assert.ok(
+    listing.includes("channels (true for each of whatsapp, email and sms it can be sent on now)"),
+    "the listing's channels are described",
+  );
+  assert.equal(
+    proposing.split("name the channels its `channels` in action audiences say it holds").length - 1,
+    2,
+    "a broadcast and a playbook are proposed by the channels the listing says a message holds",
+  );
+  for (const text of [ASK_DEFINITIONS.broadcast, ASK_DEFINITIONS.playbook, listing, proposing])
+    assert.ok(!/approved (WhatsApp )?templates?/i.test(text), text.slice(0, 120));
+});

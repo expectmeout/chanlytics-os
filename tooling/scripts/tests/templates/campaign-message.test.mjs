@@ -12,6 +12,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  BROADCAST_FAILURE_WORDS,
+  BROADCAST_WORDS,
+  HELD_REASONS,
+  LIBRARY_WORDS,
+  MESSAGE_GONE_WORDS,
+  RUN_NOW_WITHOUT_VERSION_WORDS,
+  STARTER_LINE_WORDS,
+  broadcastFailureFix,
   campaignMessageOf,
   campaignMessagesOf,
   messageHolds,
@@ -513,3 +521,78 @@ test("where a language of a message stands on each channel is one set of words: 
     sms: "Text · not written",
   });
 });
+
+/* ---------------------------------- every sentence says what is true on every channel ---------------------------------- */
+
+test("what a campaign says of a message whose WhatsApp version cannot go says that version, never a template, and what else carries it", () => {
+  // The run door's: a playbook that goes by WhatsApp alone, whose message holds no WhatsApp version a run can send.
+  assert.equal(
+    RUN_NOW_WITHOUT_VERSION_WORDS,
+    "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the playbook.",
+  );
+  // The stored reason stays the closed set's; its words say the WhatsApp version, in the person's held reason and the run's.
+  assert.equal(HELD_REASONS.template_not_approved, "its WhatsApp version is no longer approved");
+  assert.equal(
+    BROADCAST_FAILURE_WORDS.template_not_approved,
+    HELD_REASONS.template_not_approved,
+    "said once, twice spelled",
+  );
+  // What to do: the version resubmitted, or the message written for a channel that needs no review; a broadcast's page and a
+  // playbook's run say the same, whoever reached how many.
+  const FIX =
+    "Open it in the Library — its WhatsApp version can be resubmitted, or the message written as an email or a text.";
+  assert.equal(broadcastFailureFix("template_not_approved"), FIX);
+  assert.equal(broadcastFailureFix("template_not_approved", 5), FIX, "however far it got");
+  const playbookRun = { playbook_id: "p1", trigger: "quiet_30" };
+  assert.ok(
+    broadcastFailureFix("template_not_approved", 0, playbookRun)?.includes(FIX),
+    "a playbook's run says it too",
+  );
+  // None of the sentences a page, a route or Ask reads about it calls the version a template.
+  const m = (...rows) => campaignMessageOf(rows, NAME, LANGUAGE);
+  const said = [
+    RUN_NOW_WITHOUT_VERSION_WORDS,
+    HELD_REASONS.template_not_approved,
+    BROADCAST_FAILURE_WORDS.template_not_approved,
+    FIX,
+    broadcastFailureFix("template_not_approved", 0, playbookRun),
+    STARTER_LINE_WORDS.reviewing(2),
+    STARTER_LINE_WORDS.add,
+    ...[null, "approved", "pending", "rejected", "paused", "disabled"].map(STARTER_LINE_WORDS.standing),
+    MESSAGE_GONE_WORDS.card,
+    MESSAGE_GONE_WORDS.composer("Autumn note"),
+    BROADCAST_WORDS.tip,
+    LIBRARY_WORDS.headTip,
+    whatsappStoppedRunWords(m(W({ meta_status: "pending" }))),
+    ...["pending", "rejected", "paused", "disabled"].map((status) =>
+      messageWhyNot(m(W({ meta_status: status })), "whatsapp"),
+    ),
+  ];
+  for (const s of said) assert.ok(!/\btemplates?\b/i.test(s), s);
+});
+
+test("a starter's line says where its WhatsApp version stands in the Library's words, once: in review waits for approval, anything else points at the Library, and adding it says what it writes", () => {
+  const library = "Campaigns › Library";
+  assert.equal(
+    STARTER_LINE_WORDS.standing("pending"),
+    "has its WhatsApp version in review — it appears here once approved, usually within minutes.",
+  );
+  // The word after "its WhatsApp version" is messageStandingWords' own for that status, so a refusal is refused here too.
+  for (const status of ["rejected", "paused", "disabled", "approved"]) {
+    const [, word] = messageStandingWords(m1(status)).whatsapp.split(" · ");
+    assert.equal(STARTER_LINE_WORDS.standing(status), `has its WhatsApp version ${word} — see ${library}.`, status);
+  }
+  // A row that names no status, or one the set does not know, is waiting, as the column's default is.
+  assert.equal(STARTER_LINE_WORDS.standing(null), STARTER_LINE_WORDS.standing("pending"));
+  assert.equal(STARTER_LINE_WORDS.standing("mystery"), STARTER_LINE_WORDS.standing("pending"));
+  assert.equal(
+    STARTER_LINE_WORDS.reviewing(2),
+    "Your starter messages' WhatsApp versions are in review (2) — they appear here once approved, usually within minutes.",
+  );
+  assert.ok(
+    STARTER_LINE_WORDS.add.startsWith("Add it — its email and text versions are written at once") &&
+      STARTER_LINE_WORDS.add.includes("where a number is connected WhatsApp reviews its WhatsApp version"),
+    "adding writes the email and the text at once and gives WhatsApp its own version only where there is a number",
+  );
+});
+const m1 = (status) => campaignMessageOf([W({ meta_status: status })], NAME, LANGUAGE);

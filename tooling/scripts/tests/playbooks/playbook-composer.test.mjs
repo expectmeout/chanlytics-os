@@ -1251,3 +1251,39 @@ test("the words for a message no run can send are contracts', said once, in the 
   const tree = paneOf(mine, { templates: [] });
   assert.equal(textOf(byTestId(tree, "pb-template-gone")), contracts.MESSAGE_GONE_WORDS.card);
 });
+
+test("the moment's own message waiting on WhatsApp says where its WhatsApp version stands in contracts' words, and the link that adds it says what adding writes", () => {
+  const starter = contracts.starterForTrigger("new_week");
+  const withVersion = (status) => {
+    setSurfaceValue("settings", { templatesAll: status ? [starterRow(starter.key, { meta_status: status })] : [] });
+    return composing({}, "new_week");
+  };
+  // In review: it appears once approved, and there is nothing to add.
+  let tree = withVersion("pending");
+  const line = textOf(byTestId(tree, "pb-starter"));
+  assert.ok(line.includes(starter.title), line);
+  assert.ok(line.includes(contracts.STARTER_LINE_WORDS.standing("pending")), line);
+  assert.ok(line.includes("has its WhatsApp version in review"), line);
+  assert.equal(byTestId(tree, "pb-add-starter"), null);
+  // Refused, paused or disabled: the Library's word for the standing, and the Library to look at it in.
+  for (const [status, word] of [
+    ["rejected", "refused"],
+    ["paused", "paused"],
+    ["disabled", "disabled"],
+  ]) {
+    tree = withVersion(status);
+    assert.ok(
+      textOf(byTestId(tree, "pb-starter")).includes(`has its WhatsApp version ${word} — see Campaigns › Library.`),
+      status,
+    );
+    assert.ok(!/template/i.test(textOf(byTestId(tree, "pb-starter"))), status);
+  }
+  // Written here and not added: one press adds it, and the link says what that writes (an email and a text at once, a WhatsApp version where a number is).
+  tree = withVersion(null);
+  assert.equal(textOf(byTestId(tree, "pb-add-starter")), contracts.STARTER_LINE_WORDS.add);
+  assert.ok(
+    !textOf(byTestId(tree, "pb-starter")).includes("Add it — WhatsApp reviews it, usually within minutes"),
+    "it does not say that WhatsApp alone reviews it",
+  );
+  setSurfaceValue("settings", undefined);
+});

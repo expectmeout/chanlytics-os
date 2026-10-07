@@ -270,7 +270,7 @@ export interface PlaybooksSurface {
  * count of people a run would pick now and how many wait for the week's
  * breath -- counted on the server over everyone, by the runner's own
  * predicate, so the number on the chip is the number a run starts from --
- * and the approved templates a playbook may send.
+ * and the messages a playbook may send.
  */
 export const playbooksOverride: SurfaceOverride = {
   key: "playbooks",

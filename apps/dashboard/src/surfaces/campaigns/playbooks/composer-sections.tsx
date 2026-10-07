@@ -12,6 +12,7 @@ import type { Dispatch, SetStateAction } from "react";
 import {
   MESSAGE_GONE_WORDS,
   PREVIEW_WORDS,
+  STARTER_LINE_WORDS,
   allowanceBeforeSend,
   messageAboutOfTrigger,
   noMessageWords,
@@ -243,7 +244,7 @@ function messageHead(x: SectionCtx) {
   );
 }
 
-/** The moment's own message, written and waiting to be added: in review at WhatsApp, or one press adds it. */
+/** The moment's own message, written and waiting to be added: its WhatsApp version in review, or one press adds it. */
 function starterLine(x: SectionCtx) {
   const { templatesRead, starter, starterGroup, starterAny, canEdit, adding, addStarter } = x;
   return (
@@ -255,17 +256,14 @@ function starterLine(x: SectionCtx) {
         <span>
           {starterAny ? (
             <>
-              <b>{starter.title}</b>, written for this moment,{" "}
-              {starterAny.meta_status === "pending"
-                ? "is in review at WhatsApp — it appears here once approved, usually within minutes."
-                : `is ${starterAny.meta_status} at WhatsApp — see Campaigns › Library.`}
+              <b>{starter.title}</b>, written for this moment, {STARTER_LINE_WORDS.standing(starterAny.meta_status)}
             </>
           ) : (
             <>
               <b>{starter.title}</b> is written for this moment.{" "}
               {canEdit ? (
                 <LinkButton disabled={adding} onClick={addStarter} data-testid="pb-add-starter">
-                  {adding ? "Adding…" : "Add it — WhatsApp reviews it, usually within minutes"}
+                  {adding ? "Adding…" : STARTER_LINE_WORDS.add}
                 </LinkButton>
               ) : null}
             </>

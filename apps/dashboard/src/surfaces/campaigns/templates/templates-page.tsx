@@ -1,11 +1,12 @@
 /**
- * Campaigns > Library (the route's `messages`, the path's `templates`): the wording the receptionist and the campaigns send on WhatsApp, shown as the customer sees it
+ * Campaigns > Library (the route's `messages`, the path's `templates`): the wording the receptionist and the campaigns send, on each channel, shown as the customer sees it
  * (moved from legacy/pages/messages.jsx, decision 0015). One row per message -- the starter set in the library's order,
  * then what the workspace wrote or synced -- opening, beside the list, on the bubble for the language in view, its
  * languages (approved, in review, or one tap to add), and the verbs an operator has under a menu. Meta's own sample is
- * never shown; a template the workspace hid sits under a fold, still on file. Written here or in WhatsApp Manager,
- * WhatsApp approves either way; a marketing template can only go to people who said yes to offers. Every verb goes
- * through the templates verbs and the surface is re-fetched, so the cards are the server's.
+ * never shown; a message the workspace hid sits under a fold, still on file. A WhatsApp version is approved by WhatsApp
+ * whether it is written here or in WhatsApp Manager, an email or a text is ready when it is saved, and a marketing message
+ * can only go to people who said yes to offers. Every verb goes through the templates verbs and the surface is re-fetched,
+ * so the cards are the server's.
  *
  * A message is a name with a version on each channel it has (One message, every channel, step 1): its row says which
  * ("WhatsApp · Email · Text") and the pane has a switch for them. The email and text rows come from the settings surface

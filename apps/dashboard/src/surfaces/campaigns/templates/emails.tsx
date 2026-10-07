@@ -6,6 +6,7 @@
  * own rows. There is no "nothing on file" line: the starter set is always offered, a workspace with no WhatsApp number
  * included, so the list is never bare.
  */
+import { LIBRARY_WORDS } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
 import { surfaceValue } from "../../surface-values";
 import { ReachOutEmailRow } from "../reach-out/email-message";
@@ -18,13 +19,11 @@ type Emails = ReturnType<typeof reachOuts.words.emailTemplateRowsOf>;
 export const tplEmails = (chains: ReachOutsSurface | undefined): Emails =>
   Array.isArray(chains) ? reachOuts.words.emailTemplateRowsOf(chains) : [];
 
-// The head's hover: WhatsApp's, and when the count takes email rows, contracts' sentence saying so.
-const TPL_WHATSAPP_TIP =
-  "What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way, usually within minutes. A marketing template can only go to people who said yes to offers.";
+// The head's hover: what the Library holds, and when the count takes a reach-out's email rows, contracts' sentence saying so.
 export const tplHeadTip = (emails: Emails): string =>
   emails.length > 0
-    ? `${TPL_WHATSAPP_TIP} ${reachOuts.words.EMAIL_TEMPLATE_LIST_WORDS.headTip(emails.length)}`
-    : TPL_WHATSAPP_TIP;
+    ? `${LIBRARY_WORDS.headTip} ${reachOuts.words.EMAIL_TEMPLATE_LIST_WORDS.headTip(emails.length)}`
+    : LIBRARY_WORDS.headTip;
 
 export const tplEmailsMatching = (emails: Emails, needle: string): Emails =>
   emails.filter((t) => !needle || `${t.subject || ""} ${t.body} ${t.chain_name}`.toLowerCase().includes(needle));

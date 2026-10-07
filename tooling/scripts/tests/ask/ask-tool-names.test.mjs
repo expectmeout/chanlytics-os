@@ -639,13 +639,18 @@ function withChannels(frozen) {
  * (the broadcast's and the playbook's, which said it was not approved by WhatsApp, the playbook's adding "or the workspace
  * keeps it out of the composers", a sentence now said of a message that exists and is hidden); and a moment's starter of
  * which the workspace holds no version it can send `has no version this workspace can send yet`, where it said it was not
- * approved on this workspace yet. The fixture is the old registry's bytes and stays as it was made; these are the changes to
- * them.
+ * approved on this workspace yet. (T11) That refusal sends the owner to the Library, the room's name now, and to name a
+ * message, where it said Campaigns › Messages and an approved template. The fixture is the old registry's bytes and stays as
+ * it was made; these are the changes to them.
  */
 function withTheVerbsWords(frozen) {
   return frozen
     .replace(/"that template is not approved by WhatsApp[^"]*"/, '"Template not found."')
-    .replace("starter is not approved on this workspace yet", "starter has no version this workspace can send yet");
+    .replace("starter is not approved on this workspace yet", "starter has no version this workspace can send yet")
+    .replace(
+      "under Campaigns › Messages, or name an approved template from",
+      "under Campaigns › Library, or name a message from",
+    );
 }
 
 /**

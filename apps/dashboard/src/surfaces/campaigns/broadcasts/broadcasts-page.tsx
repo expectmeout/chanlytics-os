@@ -1,11 +1,11 @@
 /**
- * Campaigns › Broadcasts, real: one approved template to the people who said yes (moved from
+ * Campaigns › Broadcasts, real: one message, on the channels it holds, to the people who said yes (moved from
  * legacy/pages/broadcasts.jsx, decision 0015). Every number is a row's. Nothing here scores, estimates or invents: no
  * credits, no revenue, no "booked from broadcasts" — the schema has no column for it.
  *
  * The audience chips carry the count of people who may receive an offer (what
  * the channels it goes by ask of them), computed by the same contracts predicate the
- * route enrols with. The template is one WhatsApp approved; its values are
+ * route enrols with. The message is one with a version on a channel it goes by; its values are
  * typed here and the words a person will read are shown before anything is
  * sent. Sends and cancels go through the broadcasts verbs and the surface is
  * re-fetched, so the Scheduled and History rows are the server's.

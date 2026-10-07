@@ -1,4 +1,4 @@
-/** Broadcasts: one approved template to the people who said yes; the audience, the number's limit, a run's report and words. */
+/** Broadcasts: one message, on the channels it holds, to the people who said yes; the audience, the number's limit, a run's report and words. */
 export {
   renderTemplate,
   cleanParam,

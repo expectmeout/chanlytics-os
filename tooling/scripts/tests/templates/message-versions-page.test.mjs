@@ -1821,3 +1821,21 @@ test("what the starter set says it did: what went to WhatsApp, what was written 
     "a WhatsApp failure reads as it did",
   );
 });
+
+test("the Library's count says what it holds on hover in contracts' words, whether or not the workspace has a WhatsApp number: every message, by each channel it goes by", () => {
+  const tip = () => find(headSaid(), (n) => n.props?.["data-testid"] === "messages-count").props["data-tip"];
+  const key = "visit_reminder";
+  // A workspace with a number and a message of WhatsApp, email and text.
+  page({ rows: [starterRow(key)], versions: [emailRow(key), smsRow(key)] });
+  assert.equal(tip(), contracts.LIBRARY_WORDS.headTip);
+  // A workspace with no number and a message of an email alone: the same words, true of it too.
+  page({ rows: [], versions: [emailRow(key)], channels: [] });
+  assert.equal(tip(), contracts.LIBRARY_WORDS.headTip);
+  assert.ok(
+    contracts.LIBRARY_WORDS.headTip.startsWith(
+      "What the receptionist and your campaigns send, as the customer sees it.",
+    ),
+  );
+  assert.ok(contracts.LIBRARY_WORDS.headTip.includes("an email or a text is ready the moment it is saved"));
+  assert.ok(!/template/i.test(contracts.LIBRARY_WORDS.headTip));
+});

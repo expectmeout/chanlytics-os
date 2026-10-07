@@ -11074,7 +11074,7 @@ function readFailure(stored) {
 var wordsFor = (w, channel) => typeof w === "string" ? w : w[channel];
 var BROADCAST_FAILURE_WORDS = {
   paused: "the workspace was paused",
-  template_not_approved: "WhatsApp no longer approves its template",
+  template_not_approved: "its WhatsApp version is no longer approved",
   wire_unavailable: {
     whatsapp: "WhatsApp could not be reached",
     sms: "the texting provider could not be reached",
@@ -11133,9 +11133,10 @@ var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not
 function wireFailure(code2, channel) {
   return channel === "whatsapp" ? code2 : `${code2}:${channel}`;
 }
+var WHATSAPP_VERSION_FIX_WORDS = "Open it in the Library \u2014 its WhatsApp version can be resubmitted, or the message written as an email or a text.";
 var BROADCAST_FAILURE_FIX = {
   paused: "Unpause it under Settings, then send it again.",
-  template_not_approved: "Open it in the Library \u2014 it can be resubmitted.",
+  template_not_approved: WHATSAPP_VERSION_FIX_WORDS,
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
   throttled: {
@@ -11172,7 +11173,7 @@ var BROADCAST_FAILURE_FIX_AFTER = {
   email_offers_paused: (n) => `The first ${n === 1 ? "one" : n} got it, then the workspace's offers by email were paused. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
 };
 var PLAYBOOK_RUN_REMEDY = {
-  template_not_approved: "Open it in the Library \u2014 it can be resubmitted.",
+  template_not_approved: WHATSAPP_VERSION_FIX_WORDS,
   wire_unavailable: null,
   run_interrupted: null,
   throttled: {
@@ -11895,8 +11896,8 @@ var HELD_REASONS = {
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
-  // Meta no longer approves the message's WhatsApp template: it holds the people who go by WhatsApp, and only them.
-  template_not_approved: "WhatsApp no longer approves its template",
+  // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
+  template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored
   // number that does not normalise, or one no contact row matches.
   no_thread: "no thread for that number",
@@ -14257,8 +14258,8 @@ var DECISION_VERBS = [
    */
   "consent_change",
   /**
-   * A broadcast: one approved template to the people who said yes. The
-   * decision to send (subject 'broadcast', payload the template, the
+   * A broadcast: one message, on the channels it holds, to the people who said
+   * yes. The decision to send (subject 'broadcast', payload the message, the
    * audience and the count) and the decision to stop one.
    */
   "send_broadcast",
@@ -26288,6 +26289,8 @@ var LIBRARY_WORDS = {
   failed: `The ${library} couldn\u2019t be loaded right now`,
   failedWhat: `the ${library}`,
   failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
+  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
   noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
   /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
   writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
@@ -26324,6 +26327,9 @@ var LIBRARY_STARTER_WORDS = {
   waitsForNumber: "WhatsApp versions wait for a number",
   /** The route's refusal when the channels it is asked for are none it knows. */
   pickAChannel: "Pick at least one channel: WhatsApp, email or text."
+};
+var BROADCAST_WORDS = {
+  tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
 };
 var OFFERS_IN_WRITING_WORDS = {
   lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
@@ -30857,6 +30863,18 @@ var MESSAGE_GONE_WORDS = {
   card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the playbook sends another.`,
   composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
 };
+var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the playbook.";
+var STARTER_LINE_WORDS = {
+  /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
+  reviewing: (n) => `Your starter messages' WhatsApp versions are in review (${n}) \u2014 they appear here once approved, usually within minutes.`,
+  /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
+  standing: (status) => {
+    const at3 = statusOf(status);
+    return at3 === "pending" ? "has its WhatsApp version in review \u2014 it appears here once approved, usually within minutes." : `has its WhatsApp version ${WHATSAPP_STANDING_WORDS[at3]} \u2014 see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}.`;
+  },
+  /** The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number is. */
+  add: "Add it \u2014 its email and text versions are written at once, and where a number is connected WhatsApp reviews its WhatsApp version, usually within minutes"
+};
 var MESSAGE_BEGIN_WORDS = {
   customIsAnOffer: "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet."
@@ -34881,6 +34899,7 @@ export {
   BROADCAST_STATES,
   BROADCAST_STATE_LABELS,
   BROADCAST_THROTTLE_WAITS_MS,
+  BROADCAST_WORDS,
   BROKEN_CONFIG_WORDS,
   BUILTIN_LISTS,
   BUSINESS_INDUSTRIES,
@@ -35503,6 +35522,7 @@ export {
   RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,
+  RUN_NOW_WITHOUT_VERSION_WORDS,
   RUN_REPORT_STEPS,
   RUN_VERBS,
   ReachOutChainSchema,
@@ -35563,6 +35583,7 @@ export {
   SPEND_NUMBER,
   SPEND_TEXTING,
   STARTER_LANGUAGES,
+  STARTER_LINE_WORDS,
   STARTER_TEMPLATES,
   START_PLAN_WORDS,
   STEP_SHEET_WORDS,

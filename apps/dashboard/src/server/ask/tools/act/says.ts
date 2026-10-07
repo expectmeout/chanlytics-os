@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  CAMPAIGN_ROOMS,
   PREVIEW_WORDS,
   exampleParams,
   previewSays,
@@ -30,7 +31,7 @@ export function cardSays(
   const row = rows.find((r) => r.id === message.versions.whatsapp?.id);
   const whatsapp = row ? renderTemplate(row.body_preview, values) : null;
   const missing = (why: string) => ({
-    refusal: `${why} Say so: write it under Campaigns › Messages first, or leave that channel out`,
+    refusal: `${why} Say so: write it under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library} first, or leave that channel out`,
   });
   if (!by.named)
     return whatsapp === null

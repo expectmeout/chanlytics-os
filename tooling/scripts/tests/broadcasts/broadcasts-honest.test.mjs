@@ -724,7 +724,7 @@ test("REGRESSION (C12): a failed broadcast says why, in its row and in its detai
   const rows = all(page({ initialSegment: null, initialRun: null }), (n) => n.props?.["data-testid"] === "bc-history");
   // The card says it failed (its state) and why (its line), where the row said "· failed" and stopped.
   assert.ok(
-    textOf(rows[0]).includes("Failed") && textOf(rows[0]).includes("WhatsApp no longer approves its template"),
+    textOf(rows[0]).includes("Failed") && textOf(rows[0]).includes("its WhatsApp version is no longer approved"),
     `REGRESSION: ${textOf(rows[0])}`,
   );
   assert.ok(textOf(rows[1]).includes("no reason was recorded"), textOf(rows[1]));
@@ -732,10 +732,12 @@ test("REGRESSION (C12): a failed broadcast says why, in its row and in its detai
   page(props);
   await settle();
   const tree = again(props);
-  assert.equal(textOf(byTestId(tree, "bc-detail-failure")), "It stopped: WhatsApp no longer approves its template.");
+  assert.equal(textOf(byTestId(tree, "bc-detail-failure")), "It stopped: its WhatsApp version is no longer approved.");
   // And, opened, how to get past it -- never "something went wrong".
   assert.ok(
-    textOf(byTestId(tree, "bc-stopped")).includes("Open it in the Library — it can be resubmitted."),
+    textOf(byTestId(tree, "bc-stopped")).includes(
+      "Open it in the Library — its WhatsApp version can be resubmitted, or the message written as an email or a text.",
+    ),
     textOf(byTestId(tree, "bc-stopped")),
   );
 });
@@ -5308,4 +5310,36 @@ test("a person held back is drawn as the message's own words, marked Not sent: a
   assert.equal(walkNow(tree).place, "held back");
   assert.ok(byTestId(tree, "mp-held"), "WhatsApp's bubble carries its own mark");
   assert.equal(byTestId(tree, "mp-version-note"), null, "which says it once");
+});
+
+test("with nothing to send yet and the starters' WhatsApp versions in review, the send screen says so in contracts' words: their WhatsApp versions, never templates", () => {
+  const inReview = ["visit_tomorrow", "quiet_30"].map((trigger, i) =>
+    templateRow({ id: `s-${i}`, name: starters.forTrigger(trigger).name, meta_status: "pending" }),
+  );
+  settingsOf({ templatesAll: inReview });
+  const tree = openVia({ templates: [] });
+  const said = textOf(byTestId(tree, "bc-no-template"));
+  assert.equal(said, contracts.STARTER_LINE_WORDS.reviewing(2));
+  assert.equal(
+    said,
+    "Your starter messages' WhatsApp versions are in review (2) — they appear here once approved, usually within minutes.",
+  );
+  assert.equal(
+    byTestId(tree, "bc-add-starters"),
+    null,
+    "the starter set is not offered again while its versions are in review",
+  );
+  // With none in review, the line is the picker's own, and the starter set one press adds.
+  settingsOf({ templatesAll: [] });
+  const none = openVia({ templates: [] });
+  assert.ok(textOf(byTestId(none, "bc-no-template")).startsWith(contracts.NO_TEMPLATE_WORDS.lead));
+  assert.ok(byTestId(none, "bc-add-starters"));
+});
+
+test("the Sent room's standing line says what a broadcast is in contracts' words: one message, on the channels it holds", async () => {
+  const { BcHistoryStats } = await import(`${SRC}/surfaces/campaigns/broadcasts/ledger.tsx`);
+  fresh();
+  const lead = find(BcHistoryStats({ rows: [] }), (n) => n.props?.className === "cm-standing-lead");
+  assert.equal(lead.props["data-tip"], contracts.BROADCAST_WORDS.tip);
+  assert.ok(lead.props["data-tip"].startsWith("One message, on the channels it holds, to the people who said yes."));
 });

@@ -8,8 +8,8 @@ import { load, readerContext } from "@/server/readers";
 import { playbooks } from "@/server/readers/playbooks";
 
 /**
- * Playbooks: a standing rule that sends one approved template to newly
- * eligible people who said yes, under the workspace's autonomy mode.
+ * Playbooks: a standing rule that sends one message, on the channels it holds,
+ * to newly eligible people who said yes, under the workspace's autonomy mode.
  *
  * GET  /api/v1/playbooks — the workspace's playbooks with what their runs
  *      earned, the business's clock (the hours are its), who any broadcast

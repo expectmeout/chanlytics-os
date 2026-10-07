@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { TEMPLATE_STATUSES } from "@chanlytics/contracts";
+import { LIBRARY_WORDS, TEMPLATE_STATUSES } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -122,7 +122,8 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
       s.includes('data-testid="template-row"') &&
       s.includes('data-testid="sync-templates"'),
   );
-  assert.ok(s.includes("A marketing template can only go to people who said yes to offers."));
+  // The head's hover is contracts' (the page draws it: message-versions-page.test.mjs): it says who a marketing message reaches.
+  assert.ok(LIBRARY_WORDS.headTip.includes("A marketing message can only go to people who said yes to offers."));
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts").includes(
       'read("GET templates", { query: { all: "1" } })',

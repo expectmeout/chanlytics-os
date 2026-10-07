@@ -1,5 +1,5 @@
 /**
- * Broadcasts: one approved template to the people who said yes.
+ * Broadcasts: one message, on the channels it holds, to the people who said yes.
  *
  * The first honest campaign. Everything a broadcast may do is decided here,
  * once, and executed by execution-tested code on both sides: the route that

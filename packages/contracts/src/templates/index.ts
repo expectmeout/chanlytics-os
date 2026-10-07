@@ -107,6 +107,8 @@ export {
   messageStandingWords,
   MESSAGE_GONE_WORDS,
   MESSAGE_BEGIN_WORDS,
+  RUN_NOW_WITHOUT_VERSION_WORDS,
+  STARTER_LINE_WORDS,
   whatsappStoppedRunWords,
 } from "./campaign-message";
 export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";
