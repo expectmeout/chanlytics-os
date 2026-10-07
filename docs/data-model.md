@@ -17,7 +17,7 @@ what the script writes.
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
 | [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
-| [`appointments`](#appointments) | none | on, 1 policy |
+| [`appointments`](#appointments) | `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`ask_messages`](#ask_messages) | none | on, 4 policies |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
 | [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/ask-voice-session.ts` | on, 4 policies |
@@ -154,7 +154,7 @@ Foreign keys:
 
 An appointment, as its source keeps it (decision 0002): the owner's calendar feed read hourly (calendar_feed), later a booking tool (booking_tool) or a person (person); never the receptionist, which does not book. One row per source's own id; status held by appointments_guard; vanished_at when the feed stopped naming it, which is not a cancellation. A member reads their workspace's; the definer doors write.
 
-- Owned by: none
+- Owned by: `packages/db/src/sweeps.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

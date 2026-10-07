@@ -3801,7 +3801,10 @@ function tell(hearing, tenantId, message) {
 }
 
 // src/sweeps.ts
-import { PLAYBOOK_HOURS } from "../../contracts/dist/index.js";
+import {
+  APPOINTMENT_STATUSES,
+  PLAYBOOK_HOURS
+} from "../../contracts/dist/index.js";
 function remainingOf(rows) {
   const first = rows[0];
   if (first === void 0) return 0;
@@ -3896,9 +3899,6 @@ async function keepChannelStanding(db, tenantId, channelId, standing) {
   if (kept === void 0) throw new Error(`channel_keep_standing: answered ${JSON.stringify(data)}`);
   return kept;
 }
-
-// src/appointments.ts
-import { APPOINTMENT_STATUSES } from "../../contracts/dist/index.js";
 var count = (o, k) => typeof o[k] === "number" ? o[k] : 0;
 async function syncFeedAppointments(db, p) {
   const { data, error } = await db.rpc("appointments_feed_sync", {
@@ -3929,16 +3929,18 @@ async function syncFeedAppointments(db, p) {
     seen: count(o, "seen")
   };
 }
+var KEYS_PER_READ = 25;
 var isStatus = (s) => APPOINTMENT_STATUSES.includes(s);
 async function appointmentStates(db, tenantId, keys) {
   const out = /* @__PURE__ */ new Map();
-  if (keys.length === 0) return out;
-  const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", [...keys]);
-  if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
-  if (error) throw new Error(`appointments: ${error.message}`);
-  for (const r of data ?? []) {
-    if (r.external_id && isStatus(r.status))
-      out.set(r.external_id, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at });
+  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
+    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", keys.slice(i, i + KEYS_PER_READ));
+    if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
+    if (error) throw new Error(`appointments: ${error.message}`);
+    for (const r of data ?? []) {
+      if (r.external_id && isStatus(r.status))
+        out.set(r.external_id, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at });
+    }
   }
   return out;
 }

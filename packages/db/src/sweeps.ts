@@ -18,6 +18,13 @@
  *                          check of its standing reads (apps/edge/lib/whatsapp/number-standing.ts).
  *   keepChannelStanding    what Meta holds about the number, kept through channel_keep_standing (00338): the sweep's second
  *                          write, and the owner's check's and the connection's only one.
+ *   syncFeedAppointments   one read of a workspace's calendar feed kept as its appointments through appointments_feed_sync
+ *                          (00346, decision 0002), in one transaction: each row inserted or moved by its key, a row the read
+ *                          no longer names vanished (never cancelled), a booked appointment over for a day kept. The
+ *                          calendar sweep's second write; throws with the database's words.
+ *   appointmentStates      how the appointments a reminder batch was drawn for stand now, by key: what a send asks again
+ *                          of the rows that sweep keeps (contracts appointmentHolds). A database before 00346 has none,
+ *                          and says so as no rows.
  * The functions are the service role's alone. The edge's calendar and playbooks sweeps read the pages through
  * lib/ops/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
  * whose rows lack the count, so a database without the function is a sweep that says so, never a quiet tick.
@@ -25,7 +32,14 @@
  * Cross-workspace: the hourly sweeps page what is due across every workspace; each row carries its tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PLAYBOOK_HOURS, type NumberStanding } from "@chanlytics/contracts";
+import {
+  APPOINTMENT_STATUSES,
+  PLAYBOOK_HOURS,
+  type AppointmentState,
+  type AppointmentStatus,
+  type FeedAppointmentRow,
+  type NumberStanding,
+} from "@chanlytics/contracts";
 import type { Database, Json } from "./database.types";
 
 type Db = SupabaseClient<Database>;
@@ -245,4 +259,84 @@ export async function keepChannelStanding(
   const kept = KEPT_ANSWERS.find((a) => a === data);
   if (kept === undefined) throw new Error(`channel_keep_standing: answered ${JSON.stringify(data)}`);
   return kept;
+}
+
+/** What one read of the feed changed: rows added, moved, back after vanishing, vanished, kept by time; and how many it named. */
+export interface AppointmentSync {
+  added: number;
+  moved: number;
+  back: number;
+  vanished: number;
+  kept: number;
+  seen: number;
+}
+
+const count = (o: Record<string, unknown>, k: keyof AppointmentSync): number => (typeof o[k] === "number" ? o[k] : 0);
+
+export async function syncFeedAppointments(
+  db: Db,
+  p: {
+    tenantId: string;
+    timezone: string;
+    rows: readonly FeedAppointmentRow[];
+    window: { from: Date; to: Date };
+    now?: Date;
+  },
+): Promise<AppointmentSync> {
+  const { data, error } = await db.rpc("appointments_feed_sync", {
+    p_tenant_id: p.tenantId,
+    p_timezone: p.timezone,
+    p_rows: p.rows.map((r) => ({
+      external_id: r.external_id,
+      starts_at: r.starts_at,
+      ends_at: r.ends_at,
+      all_day: r.all_day,
+      title: r.title,
+      service: r.service,
+      consultation: r.consultation,
+      contact_id: r.contact_id,
+    })),
+    p_from: p.window.from.toISOString(),
+    p_to: p.window.to.toISOString(),
+    p_now: (p.now ?? new Date()).toISOString(),
+  });
+  if (error) throw Object.assign(new Error(`appointments_feed_sync: ${error.message}`), { code: error.code });
+  const o = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return {
+    added: count(o, "added"),
+    moved: count(o, "moved"),
+    back: count(o, "back"),
+    vanished: count(o, "vanished"),
+    kept: count(o, "kept"),
+    seen: count(o, "seen"),
+  };
+}
+
+/** Keys one read names: a key is the calendar's UID and a start, and a UID may run to hundreds of characters. */
+const KEYS_PER_READ = 25;
+
+const isStatus = (s: string): s is AppointmentStatus => (APPOINTMENT_STATUSES as readonly string[]).includes(s);
+
+export async function appointmentStates(
+  db: Db,
+  tenantId: string,
+  keys: readonly string[],
+): Promise<Map<string, AppointmentState>> {
+  const out = new Map<string, AppointmentState>();
+  // `.in()` puts every key in the URL, and a calendar's UID can be long: a few keys a read.
+  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
+    const { data, error } = await db
+      .from("appointments")
+      .select("external_id, status, starts_at, vanished_at")
+      .eq("tenant_id", tenantId)
+      .eq("source", "calendar_feed")
+      .in("external_id", keys.slice(i, i + KEYS_PER_READ));
+    if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
+    if (error) throw new Error(`appointments: ${error.message}`);
+    for (const r of data ?? []) {
+      if (r.external_id && isStatus(r.status))
+        out.set(r.external_id, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at });
+    }
+  }
+  return out;
 }
