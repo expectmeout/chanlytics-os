@@ -20,7 +20,7 @@ import {
   parseTenantConfigResult,
   TenantConfigWriteSchema,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
 
 const TZ = "America/New_York";
 const ICS = [
@@ -83,6 +83,151 @@ test("the feed: zones, folding, all-day, cancelled and free events, recurring co
     { start: localToUtcMs(TZ, 2026, 9, 10, 0, 0), end: localToUtcMs(TZ, 2026, 9, 11, 0, 0) },
     "an all-day event takes the whole local day",
   );
+});
+
+test("REGRESSION: a feed whose times name Windows' zones is read -- one weekly event from Outlook threw, and the whole calendar could not be read", () => {
+  // Outlook and Exchange write a zone as Windows names it ("Eastern Standard Time"), which the clock does not know.
+  // A single event fell back to the business's zone, right only when the two were the same; a recurring one handed the
+  // name to the clock as it stepped the series, which threw, and a calendar with one weekly meeting read as nothing.
+  const outlook = (...events) => ["BEGIN:VCALENDAR", "VERSION:2.0", ...events.flat(), "END:VCALENDAR"].join("\r\n");
+  const at = { horizon: { from: Date.parse("2026-09-01T00:00:00Z"), to: Date.parse("2026-12-01T00:00:00Z") } };
+  const weekly = outlook([
+    "BEGIN:VEVENT",
+    "UID:w1",
+    "SUMMARY:Weekly meeting",
+    'DTSTART;TZID="Eastern Standard Time":20260909T100000',
+    'DTEND;TZID="Eastern Standard Time":20260909T110000',
+    "RRULE:FREQ=WEEKLY;COUNT=10",
+    "END:VEVENT",
+  ]);
+  const feed = parseIcs(weekly, TZ, at);
+  assert.equal(feed.recurringExpanded, 1);
+  assert.equal(feed.busy.length, 10);
+  // Ten in the morning in New York each week: 14:00Z in September, 15:00Z once the clocks go back on 1 November.
+  assert.equal(new Date(feed.busy[0].start).toISOString(), "2026-09-09T14:00:00.000Z");
+  assert.equal(new Date(feed.busy[7].start).toISOString(), "2026-10-28T14:00:00.000Z");
+  assert.equal(new Date(feed.busy[8].start).toISOString(), "2026-11-04T15:00:00.000Z");
+
+  // A zone that is not the business's own is its own: nine in the morning in Los Angeles is noon in New York.
+  const elsewhere = outlook([
+    "BEGIN:VEVENT",
+    "UID:p1",
+    "SUMMARY:Call",
+    "DTSTART;TZID=Pacific Standard Time:20260909T090000",
+    "DTEND;TZID=Pacific Standard Time:20260909T093000",
+    "END:VEVENT",
+    "BEGIN:VEVENT",
+    "UID:p2",
+    "SUMMARY:Weekly call",
+    "DTSTART;TZID=Pacific Standard Time:20260910T090000",
+    "DTEND;TZID=Pacific Standard Time:20260910T093000",
+    "RRULE:FREQ=WEEKLY;COUNT=2",
+    "END:VEVENT",
+  ]);
+  const far = parseIcs(elsewhere, TZ, at);
+  assert.deepEqual(
+    far.busy.map((b) => new Date(b.start).toISOString()),
+    ["2026-09-09T16:00:00.000Z", "2026-09-10T16:00:00.000Z", "2026-09-17T16:00:00.000Z"],
+  );
+
+  // A name nobody knows (a zone the sender made up) is the business's own clock, for a single event and a series:
+  // the time is kept, and the calendar is read.
+  const unknown = outlook([
+    "BEGIN:VEVENT",
+    "UID:u1",
+    "SUMMARY:Standing",
+    "DTSTART;TZID=Customized Time Zone:20260909T100000",
+    "DTEND;TZID=Customized Time Zone:20260909T110000",
+    "RRULE:FREQ=DAILY;COUNT=2",
+    "END:VEVENT",
+  ]);
+  assert.deepEqual(
+    parseIcs(unknown, TZ, at).busy.map((b) => new Date(b.start).toISOString()),
+    ["2026-09-09T14:00:00.000Z", "2026-09-10T14:00:00.000Z"],
+  );
+  // The zone database's own names are read as they always were.
+  const iana = outlook([
+    "BEGIN:VEVENT",
+    "UID:i1",
+    "SUMMARY:Standing",
+    "DTSTART;TZID=America/Chicago:20260909T100000",
+    "DTEND;TZID=America/Chicago:20260909T110000",
+    "RRULE:FREQ=DAILY;COUNT=1",
+    "END:VEVENT",
+  ]);
+  assert.equal(new Date(parseIcs(iana, TZ, at).busy[0].start).toISOString(), "2026-09-09T15:00:00.000Z");
+});
+
+test("every Windows zone is read as a zone the clock knows, by its name in any case, and as the right one", async () => {
+  const { zoneOfTzid } = await importSrc("packages/contracts/src/calendar/ics-zones.ts");
+  // Windows' zones, as Windows names them (CLDR windowsZones): the list is stated here, apart from the table, so a
+  // zone the table lacks and a row whose zone the clock does not read both fail. Either would be read as the
+  // business's own zone, silently. "Nowhere/Nowhere" is the business's zone for the asking: no row may answer it.
+  const WINDOWS = `
+    Dateline Standard Time | UTC-11 | Aleutian Standard Time | Hawaiian Standard Time | Marquesas Standard Time
+    Alaskan Standard Time | UTC-09 | Pacific Standard Time (Mexico) | UTC-08 | Pacific Standard Time
+    US Mountain Standard Time | Mountain Standard Time (Mexico) | Mountain Standard Time | Yukon Standard Time
+    Central America Standard Time | Central Standard Time | Easter Island Standard Time
+    Central Standard Time (Mexico) | Canada Central Standard Time | SA Pacific Standard Time
+    Eastern Standard Time (Mexico) | Eastern Standard Time | Haiti Standard Time | Cuba Standard Time
+    US Eastern Standard Time | Turks And Caicos Standard Time | Paraguay Standard Time | Atlantic Standard Time
+    Venezuela Standard Time | Central Brazilian Standard Time | SA Western Standard Time | Pacific SA Standard Time
+    Newfoundland Standard Time | Tocantins Standard Time | E. South America Standard Time | SA Eastern Standard Time
+    Argentina Standard Time | Greenland Standard Time | Montevideo Standard Time | Magallanes Standard Time
+    Saint Pierre Standard Time | Bahia Standard Time | UTC-02 | Mid-Atlantic Standard Time | Azores Standard Time
+    Cape Verde Standard Time | UTC | GMT Standard Time | Greenwich Standard Time | Sao Tome Standard Time
+    Morocco Standard Time | W. Europe Standard Time | Central Europe Standard Time | Romance Standard Time
+    Central European Standard Time | W. Central Africa Standard Time | Jordan Standard Time | GTB Standard Time
+    Middle East Standard Time | Egypt Standard Time | E. Europe Standard Time | Syria Standard Time
+    West Bank Standard Time | South Africa Standard Time | FLE Standard Time | Israel Standard Time
+    South Sudan Standard Time | Kaliningrad Standard Time | Sudan Standard Time | Libya Standard Time
+    Namibia Standard Time | Arabic Standard Time | Turkey Standard Time | Arab Standard Time | Belarus Standard Time
+    Russian Standard Time | E. Africa Standard Time | Volgograd Standard Time | Iran Standard Time
+    Arabian Standard Time | Astrakhan Standard Time | Azerbaijan Standard Time | Russia Time Zone 3
+    Mauritius Standard Time | Saratov Standard Time | Georgian Standard Time | Caucasus Standard Time
+    Afghanistan Standard Time | West Asia Standard Time | Ekaterinburg Standard Time | Pakistan Standard Time
+    Qyzylorda Standard Time | India Standard Time | Sri Lanka Standard Time | Nepal Standard Time
+    Central Asia Standard Time | Bangladesh Standard Time | Omsk Standard Time | Myanmar Standard Time
+    SE Asia Standard Time | Altai Standard Time | W. Mongolia Standard Time | North Asia Standard Time
+    N. Central Asia Standard Time | Tomsk Standard Time | China Standard Time | North Asia East Standard Time
+    Singapore Standard Time | W. Australia Standard Time | Taipei Standard Time | Ulaanbaatar Standard Time
+    Aus Central W. Standard Time | Transbaikal Standard Time | Tokyo Standard Time | North Korea Standard Time
+    Korea Standard Time | Yakutsk Standard Time | Cen. Australia Standard Time | AUS Central Standard Time
+    E. Australia Standard Time | AUS Eastern Standard Time | West Pacific Standard Time | Tasmania Standard Time
+    Vladivostok Standard Time | Lord Howe Standard Time | Bougainville Standard Time | Russia Time Zone 10
+    Magadan Standard Time | Norfolk Standard Time | Sakhalin Standard Time | Central Pacific Standard Time
+    Russia Time Zone 11 | New Zealand Standard Time | UTC+12 | Fiji Standard Time | Chatham Islands Standard Time
+    UTC+13 | Tonga Standard Time | Samoa Standard Time | Line Islands Standard Time`
+    .split(/\s*[|\n]\s*/)
+    .filter(Boolean);
+  assert.equal(WINDOWS.length, 140);
+  assert.equal(new Set(WINDOWS).size, WINDOWS.length);
+  for (const windows of WINDOWS) {
+    const zone = zoneOfTzid(windows, "Nowhere/Nowhere");
+    assert.notEqual(zone, "Nowhere/Nowhere", `${windows}: no row, or a row whose zone the clock does not read`);
+    assert.doesNotThrow(() => new Intl.DateTimeFormat("en-US", { timeZone: zone }), `${windows}: ${zone}`);
+    assert.equal(zoneOfTzid(windows.toUpperCase(), "Nowhere/Nowhere"), zone, "by its name in any case");
+    assert.equal(zoneOfTzid(` ${windows} `, "Nowhere/Nowhere"), zone, "and with the spaces a feed leaves round it");
+  }
+  // The right zone, not only a real one: noon there, as an instant, on a winter and a summer day.
+  const noon = (windows, y, m, d) =>
+    new Date(localToUtcMs(zoneOfTzid(windows, "Etc/UTC"), y, m, d, 12, 0)).toISOString().slice(11, 16);
+  assert.equal(noon("Eastern Standard Time", 2026, 1, 15), "17:00");
+  assert.equal(noon("Eastern Standard Time", 2026, 7, 15), "16:00");
+  assert.equal(noon("Pacific Standard Time", 2026, 7, 15), "19:00");
+  assert.equal(noon("Mountain Standard Time", 2026, 7, 15), "18:00");
+  assert.equal(noon("US Mountain Standard Time", 2026, 7, 15), "19:00", "Arizona keeps one clock all year");
+  assert.equal(noon("Central Standard Time", 2026, 1, 15), "18:00");
+  assert.equal(noon("GMT Standard Time", 2026, 7, 15), "11:00", "London is an hour ahead in summer");
+  assert.equal(noon("W. Europe Standard Time", 2026, 1, 15), "11:00");
+  assert.equal(noon("India Standard Time", 2026, 1, 15), "06:30");
+  assert.equal(noon("AUS Eastern Standard Time", 2026, 1, 15), "01:00", "Sydney's summer is January");
+  assert.equal(noon("UTC", 2026, 1, 15), "12:00");
+  // Neither Windows' name nor the database's: the business's own zone, never a throw.
+  assert.equal(zoneOfTzid("Customized Time Zone", "America/Chicago"), "America/Chicago");
+  assert.equal(zoneOfTzid(undefined, "America/Chicago"), "America/Chicago");
+  assert.equal(zoneOfTzid("", "America/Chicago"), "America/Chicago");
+  assert.equal(zoneOfTzid("Europe/Madrid", "America/Chicago"), "Europe/Madrid");
 });
 
 const hours = {

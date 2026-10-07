@@ -12365,6 +12365,170 @@ function frameOf(key, todayKey) {
   };
 }
 
+// src/calendar/ics-zones.ts
+var WINDOWS_ZONES = {
+  "dateline standard time": "Etc/GMT+12",
+  "utc-11": "Etc/GMT+11",
+  "aleutian standard time": "America/Adak",
+  "hawaiian standard time": "Pacific/Honolulu",
+  "marquesas standard time": "Pacific/Marquesas",
+  "alaskan standard time": "America/Anchorage",
+  "utc-09": "Etc/GMT+9",
+  "pacific standard time (mexico)": "America/Tijuana",
+  "utc-08": "Etc/GMT+8",
+  "pacific standard time": "America/Los_Angeles",
+  "us mountain standard time": "America/Phoenix",
+  "mountain standard time (mexico)": "America/Mazatlan",
+  "mountain standard time": "America/Denver",
+  "yukon standard time": "America/Whitehorse",
+  "central america standard time": "America/Guatemala",
+  "central standard time": "America/Chicago",
+  "easter island standard time": "Pacific/Easter",
+  "central standard time (mexico)": "America/Mexico_City",
+  "canada central standard time": "America/Regina",
+  "sa pacific standard time": "America/Bogota",
+  "eastern standard time (mexico)": "America/Cancun",
+  "eastern standard time": "America/New_York",
+  "haiti standard time": "America/Port-au-Prince",
+  "cuba standard time": "America/Havana",
+  "us eastern standard time": "America/Indianapolis",
+  "turks and caicos standard time": "America/Grand_Turk",
+  "paraguay standard time": "America/Asuncion",
+  "atlantic standard time": "America/Halifax",
+  "venezuela standard time": "America/Caracas",
+  "central brazilian standard time": "America/Cuiaba",
+  "sa western standard time": "America/La_Paz",
+  "pacific sa standard time": "America/Santiago",
+  "newfoundland standard time": "America/St_Johns",
+  "tocantins standard time": "America/Araguaina",
+  "e. south america standard time": "America/Sao_Paulo",
+  "sa eastern standard time": "America/Cayenne",
+  "argentina standard time": "America/Buenos_Aires",
+  "greenland standard time": "America/Godthab",
+  "montevideo standard time": "America/Montevideo",
+  "magallanes standard time": "America/Punta_Arenas",
+  "saint pierre standard time": "America/Miquelon",
+  "bahia standard time": "America/Bahia",
+  "utc-02": "Etc/GMT+2",
+  "mid-atlantic standard time": "Etc/GMT+2",
+  "azores standard time": "Atlantic/Azores",
+  "cape verde standard time": "Atlantic/Cape_Verde",
+  utc: "Etc/UTC",
+  "gmt standard time": "Europe/London",
+  "greenwich standard time": "Atlantic/Reykjavik",
+  "sao tome standard time": "Africa/Sao_Tome",
+  "morocco standard time": "Africa/Casablanca",
+  "w. europe standard time": "Europe/Berlin",
+  "central europe standard time": "Europe/Budapest",
+  "romance standard time": "Europe/Paris",
+  "central european standard time": "Europe/Warsaw",
+  "w. central africa standard time": "Africa/Lagos",
+  "jordan standard time": "Asia/Amman",
+  "gtb standard time": "Europe/Bucharest",
+  "middle east standard time": "Asia/Beirut",
+  "egypt standard time": "Africa/Cairo",
+  "e. europe standard time": "Europe/Chisinau",
+  "syria standard time": "Asia/Damascus",
+  "west bank standard time": "Asia/Hebron",
+  "south africa standard time": "Africa/Johannesburg",
+  "fle standard time": "Europe/Kiev",
+  "israel standard time": "Asia/Jerusalem",
+  "south sudan standard time": "Africa/Juba",
+  "kaliningrad standard time": "Europe/Kaliningrad",
+  "sudan standard time": "Africa/Khartoum",
+  "libya standard time": "Africa/Tripoli",
+  "namibia standard time": "Africa/Windhoek",
+  "arabic standard time": "Asia/Baghdad",
+  "turkey standard time": "Europe/Istanbul",
+  "arab standard time": "Asia/Riyadh",
+  "belarus standard time": "Europe/Minsk",
+  "russian standard time": "Europe/Moscow",
+  "e. africa standard time": "Africa/Nairobi",
+  "volgograd standard time": "Europe/Volgograd",
+  "iran standard time": "Asia/Tehran",
+  "arabian standard time": "Asia/Dubai",
+  "astrakhan standard time": "Europe/Astrakhan",
+  "azerbaijan standard time": "Asia/Baku",
+  "russia time zone 3": "Europe/Samara",
+  "mauritius standard time": "Indian/Mauritius",
+  "saratov standard time": "Europe/Saratov",
+  "georgian standard time": "Asia/Tbilisi",
+  "caucasus standard time": "Asia/Yerevan",
+  "afghanistan standard time": "Asia/Kabul",
+  "west asia standard time": "Asia/Tashkent",
+  "ekaterinburg standard time": "Asia/Yekaterinburg",
+  "pakistan standard time": "Asia/Karachi",
+  "qyzylorda standard time": "Asia/Qyzylorda",
+  "india standard time": "Asia/Calcutta",
+  "sri lanka standard time": "Asia/Colombo",
+  "nepal standard time": "Asia/Katmandu",
+  "central asia standard time": "Asia/Almaty",
+  "bangladesh standard time": "Asia/Dhaka",
+  "omsk standard time": "Asia/Omsk",
+  "myanmar standard time": "Asia/Rangoon",
+  "se asia standard time": "Asia/Bangkok",
+  "altai standard time": "Asia/Barnaul",
+  "w. mongolia standard time": "Asia/Hovd",
+  "north asia standard time": "Asia/Krasnoyarsk",
+  "n. central asia standard time": "Asia/Novosibirsk",
+  "tomsk standard time": "Asia/Tomsk",
+  "china standard time": "Asia/Shanghai",
+  "north asia east standard time": "Asia/Irkutsk",
+  "singapore standard time": "Asia/Singapore",
+  "w. australia standard time": "Australia/Perth",
+  "taipei standard time": "Asia/Taipei",
+  "ulaanbaatar standard time": "Asia/Ulaanbaatar",
+  "aus central w. standard time": "Australia/Eucla",
+  "transbaikal standard time": "Asia/Chita",
+  "tokyo standard time": "Asia/Tokyo",
+  "north korea standard time": "Asia/Pyongyang",
+  "korea standard time": "Asia/Seoul",
+  "yakutsk standard time": "Asia/Yakutsk",
+  "cen. australia standard time": "Australia/Adelaide",
+  "aus central standard time": "Australia/Darwin",
+  "e. australia standard time": "Australia/Brisbane",
+  "aus eastern standard time": "Australia/Sydney",
+  "west pacific standard time": "Pacific/Port_Moresby",
+  "tasmania standard time": "Australia/Hobart",
+  "vladivostok standard time": "Asia/Vladivostok",
+  "lord howe standard time": "Australia/Lord_Howe",
+  "bougainville standard time": "Pacific/Bougainville",
+  "russia time zone 10": "Asia/Srednekolymsk",
+  "magadan standard time": "Asia/Magadan",
+  "norfolk standard time": "Pacific/Norfolk",
+  "sakhalin standard time": "Asia/Sakhalin",
+  "central pacific standard time": "Pacific/Guadalcanal",
+  "russia time zone 11": "Asia/Kamchatka",
+  "new zealand standard time": "Pacific/Auckland",
+  "utc+12": "Etc/GMT-12",
+  "fiji standard time": "Pacific/Fiji",
+  "chatham islands standard time": "Pacific/Chatham",
+  "utc+13": "Etc/GMT-13",
+  "tonga standard time": "Pacific/Tongatapu",
+  "samoa standard time": "Pacific/Apia",
+  "line islands standard time": "Pacific/Kiritimati"
+};
+var READ = /* @__PURE__ */ new Map();
+function clockReads(zone) {
+  const known = READ.get(zone);
+  if (known !== void 0) return known;
+  let reads = true;
+  try {
+    dateFormat("en-US", { timeZone: zone });
+  } catch {
+    reads = false;
+  }
+  READ.set(zone, reads);
+  return reads;
+}
+function zoneOfTzid(tzid, fallbackTz) {
+  const name = tzid?.trim();
+  if (!name) return fallbackTz;
+  const windows = WINDOWS_ZONES[name.toLowerCase()];
+  if (windows && clockReads(windows)) return windows;
+  return clockReads(name) ? name : fallbackTz;
+}
+
 // src/calendar/ics-text.ts
 function unescapeText(v) {
   return v.replace(/\\([\\;,nN])/g, (_, c) => c === "n" || c === "N" ? "\n" : c).trim();
@@ -12427,12 +12591,8 @@ function toMs(value, params, fallbackTz) {
   if (!m) return null;
   const [, y, mo, d, hh, mm, ss, z3] = m;
   if (z3) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
-  const tz = params.TZID ?? fallbackTz;
-  try {
-    return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
-  } catch {
-    return localToUtcMs(fallbackTz, Number(y), Number(mo), Number(d), Number(hh), Number(mm));
-  }
+  const tz = zoneOfTzid(params.TZID, fallbackTz);
+  return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
 }
 function localPartsOf(value, params, fallbackTz) {
   const v = value.trim();
@@ -12452,7 +12612,8 @@ function localPartsOf(value, params, fallbackTz) {
     return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
   }
   return {
-    tz: params.TZID ?? fallbackTz,
+    // A zone the clock reads: the series is stepped with it, and a name it did not know threw there (ics-zones.ts).
+    tz: zoneOfTzid(params.TZID, fallbackTz),
     y: Number(m[1]),
     m: Number(m[2]),
     d: Number(m[3]),
