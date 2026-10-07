@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { routeOf } from "../address";
 
 /**
  * "Delete this person" is the one destructive verb on the profile.
@@ -21,6 +22,9 @@ test.describe("Delete this person", () => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
+    // The list is drawn once its read lands, with a row saying so when there is nobody: counted before that, every
+    // workspace looked empty and the spec skipped itself.
+    await expect(page.locator(".cl-table tbody tr")).not.toHaveCount(0);
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
     await rows.first().click();
     await expect(page.locator(".cl-prof-name")).toBeVisible();
@@ -57,7 +61,9 @@ test.describe("Delete this person", () => {
     await expect.poll(() => seen.length).toBe(1);
     expect(seen[0].method).toBe("DELETE");
     expect(seen[0].url).toContain("workspace=");
-    // Back on the list afterwards.
-    await expect(page.getByTestId("people-standing")).toBeVisible();
+    // Back on the list afterwards. Its standing line is the head's sentence on a desk (page/people-head.tsx; the rail's
+    // own line is a phone's), so the list itself is the proof.
+    await expect.poll(() => routeOf(page.url())).toBe("clients");
+    await expect(page.locator(".cl-table")).toBeVisible();
   });
 });

@@ -36,7 +36,7 @@ import {
   type OwnVersionChannel,
   type StarterTemplate,
 } from "@chanlytics/contracts";
-import { templateStatusOf, templatesNamed, whatsappChannelConfig } from "@chanlytics/db";
+import { templateStatusOf, templatesNamed, whatsappChannelFacts } from "@chanlytics/db";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
 import { fileStarterVersions, startersFiled, type StarterVersionResult } from "@/server/campaigns/template-versions";
@@ -70,7 +70,7 @@ async function starterChannelsOf(ctx: RouteContext, tenantId: string, asked: unk
   if (named && named.length === 0) throw new AppError("validation", LIBRARY_STARTER_WORDS.pickAChannel);
   const whatsapp = named ? named.includes("whatsapp") : true;
   const own: OwnVersionChannel[] = OWN_VERSION_CHANNELS.filter((c) => (named ? named.includes(c) : true));
-  const number = whatsapp && (await whatsappChannelConfig(ctx.supabase, tenantId)) !== null;
+  const number = whatsapp && (await whatsappChannelFacts(ctx.supabase, tenantId)) !== null;
   return { whatsapp, number, own };
 }
 

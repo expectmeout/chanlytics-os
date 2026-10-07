@@ -18,6 +18,8 @@ import {
   nextRunLabel,
   noteRows,
   numberHealth,
+  numberHealthWithStanding,
+  type ChannelDto,
   playbookListRef,
   policyClassOffered,
   resolveList,
@@ -97,6 +99,38 @@ function offeredMessages(messages: readonly CampaignMessage[], tpls: TemplatesRe
 }
 
 /**
+ * The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active WhatsApp
+ * row, its health from the quality Meta assigned it with what Meta holds against the number (campaigns/channels-ready.ts
+ * reads the two as one judgement), and how a proposal that names no channel counts people (whatsappHowOf: by WhatsApp,
+ * the workspace ready on it or not; no number is none, and channels that could not be read count as the pages count
+ * them, WhatsApp able). `number` is what the listing says of it, null where the channels could not be read.
+ */
+function numberFactsOf(chans: ChannelDto[] | null) {
+  const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+  const health = {
+    ...numberHealthWithStanding(
+      numberHealth({
+        quality: wa?.quality ?? null,
+        event: wa?.quality_event ?? null,
+        limit: wa?.messaging_limit ?? null,
+      }),
+      wa?.standing ?? null,
+    ),
+    number: wa?.number_e164 ?? null,
+  };
+  const how = whatsappHowOf(chans === null ? undefined : wa ? health : null, "ours");
+  const number = chans
+    ? {
+        present: !!wa,
+        health: health.label,
+        can_send: health.canSend,
+        limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay,
+      }
+    : null;
+  return { how, number };
+}
+
+/**
  * The audiences a broadcast may go to, counted by the same contracts
  * predicate the route enrols with and the page shows — so the number the
  * assistant says is the number the card will carry.
@@ -125,17 +159,8 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // who had ever texted START; and `said_yes_to_offers` was the REACH, so a list
   // whose one yes to offers had no number read as nobody's yes. The send screen's
   // own counts (audiencePreview): `sending` is the number on its chip.
-  // The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active
-  // WhatsApp row, and its health from the quality Meta assigned it.
-  const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
-  const health = numberHealth({
-    quality: wa?.quality ?? null,
-    event: wa?.quality_event ?? null,
-    limit: wa?.messaging_limit ?? null,
-  });
-  // Counted by WhatsApp, as a proposal names no other channel, the workspace ready on it or not (the composer counts by
-  // the same): no number is none, and channels that could not be read count as the pages count them, WhatsApp able.
-  const how = whatsappHowOf(chans === null ? undefined : wa ? health : null, "ours");
+  // The number it goes out on and how a proposal that names no channel counts (numberFactsOf, above).
+  const { how, number } = numberFactsOf(chans);
   const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
     const offers = audiencePreview(rows, kind, id, ids, "marketing", how);
     const messages = audiencePreview(rows, kind, id, ids, "conversational", how);
@@ -199,14 +224,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     audiences,
     templates: offeredList,
     cannot_send: split?.why ?? null,
-    number: chans
-      ? {
-          present: !!wa,
-          health: health.label,
-          can_send: health.canSend,
-          limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay,
-        }
-      : null,
+    number,
     ...(couldNotRead.length ? { could_not_read: couldNotRead } : {}),
     note: `Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not.`,
   };

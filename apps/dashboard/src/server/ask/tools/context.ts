@@ -208,10 +208,14 @@ export const unread =
  * and undefined where it could not be read, which counts as the pages count then: WhatsApp can send, which their number
  * banner judges.
  */
-export function whatsappHowOf(health: NumberHealth | null | undefined, about: MessageAbout): CampaignHow {
+export function whatsappHowOf(
+  health: (NumberHealth & { number?: string | null }) | null | undefined,
+  about: MessageAbout,
+): CampaignHow {
   return {
     channels: ["whatsapp"],
     ready: channelsReady({
+      // With the number where the read carried it: offers on a US number are held (contracts whatsapp-offers.ts).
       whatsapp: health === undefined ? { canSend: true, refusal: null } : health,
       textLine: null,
       email: { mailbox: false, domain: false },

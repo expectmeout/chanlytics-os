@@ -530,7 +530,7 @@ test("REGRESSION (one gate): the business record shows Save and File to a role t
 
 /* ------------------------------ Billing says where WhatsApp is billed ------------------------------ */
 
-test("Billing says, in contracts' words, that the WhatsApp messages the business starts are billed by Meta to the card on its WhatsApp account and not on this bill, and links what WhatsApp costs, which is on Connections", () => {
+test("Billing says, in contracts' words, that the WhatsApp messages the business starts are billed by Meta to the card on its WhatsApp account and not on this bill, and links Meta's own prices in a new tab", () => {
   asRole("owner");
   for (const over of [{ status: "none" }, { status: "active" }, { mode: "direct" }]) {
     billing(over);
@@ -545,9 +545,9 @@ test("Billing says, in contracts' words, that the WhatsApp messages the business
     );
     const link = byTestId(row, "billing-whatsapp-link");
     assert.deepEqual(
-      [textOf(link), link.props.href],
-      ["What WhatsApp costs", "#/admin/integrations"],
-      "the shell's own address for Settings > Connections, where the explainer is under the WhatsApp row",
+      [textOf(link), link.props.href, link.props.target, link.props.rel],
+      PRICES,
+      "Meta's page of current rates (no rate is written in Chanlytics), in a new tab with nothing of this page's",
     );
   }
 });
@@ -815,9 +815,9 @@ const noteLinks = (tree, kind) =>
     // The kit's link and what it draws carry one test id: the link itself is the first of them.
     (n) => n.props?.["data-testid"] === "connection-note-link" && n.type?.name === "LinkButton",
   ).map((n) => [textOf(n), n.props.href, n.props.target, n.props.rel]);
-/** What WhatsApp costs, said last under a connected row and before Connect (contracts WHATSAPP_COST_WORDS): one line, with Meta's prices after it. */
+/** What WhatsApp costs, said last under the Connect row (contracts WHATSAPP_COST_WORDS): one line, with Meta's prices after it. */
 const COST = [
-  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill: replies within 24 hours of a customer's message are free; reminders sent after that, and every campaign, are charged for each one delivered.",
+  "Meta bills WhatsApp to the card on your WhatsApp account, not your Chanlytics bill, so add one when Meta asks: replies within 24 hours of a customer's message are free; reminders sent after that, and campaigns, are charged for each one Meta delivers.",
 ];
 const PRICES = [
   "Meta's current prices",
@@ -859,17 +859,11 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     await flush();
     let tree = settle(Connections);
     const notes = noteTexts(tree, "whatsapp");
-    assert.equal(notes.length, 6, "the one it left behind, and the five the owner meets before and in Meta's window");
+    assert.equal(notes.length, 4, "the one it left behind, and the three the owner meets before and in Meta's window");
     assert.match(notes[0], /^A WhatsApp sign-up was started here and did not come back to Chanlytics/);
     assert.match(notes[1], /^Meta asks you to sign in with Facebook/);
     assert.match(notes[2], /^Meta texts a code to the number.* Keep this page open until Meta's window closes\.$/);
-    assert.deepEqual(
-      notes.slice(3, 4),
-      COST,
-      "what WhatsApp costs, between the code Meta texts and the payment method it asks for",
-    );
-    assert.match(notes[4], /^Add a payment method when Meta asks for one: without it, replies still go out/);
-    assert.match(notes.at(-1), /^Until Meta verifies your business, it can start conversations with 250 people a day/);
+    assert.deepEqual(notes.slice(3), COST, "what WhatsApp costs and the card Meta asks for, last");
     assert.deepEqual(noteLinks(tree, "whatsapp"), [PRICES], "one link, to Meta's own prices, which opens in a new tab");
     const box = byTestId(tree, "connection-whatsapp-notes");
     assert.match(
@@ -881,7 +875,7 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     tree = settle(Connections);
     assert.equal(
       noteTexts(tree, "whatsapp").length,
-      5,
+      3,
       "pressing Connect again forgets what the earlier page left behind",
     );
     finish({
@@ -892,7 +886,7 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     await flush();
     assert.equal(
       noteTexts(settle(Connections), "whatsapp").length,
-      5,
+      3,
       "and a sign-up that was cancelled does not bring it back",
     );
   } finally {
@@ -1042,7 +1036,7 @@ test("a page that opens on a standing that is missing, or one that is not AVAILA
   }
 });
 
-test("the WhatsApp row draws what Meta holds under its sentence, each note a line of its own: a number Meta will not let send needs attention, says Meta's problem, and gives its fix and the rest", async () => {
+test("the WhatsApp row draws what Meta holds: a number whose account has no payment method waits on the owner, its one act is Meta's billing page in a new tab, and its one note is the verification with Meta's page after it", async () => {
   asRole("owner");
   const blocked = {
     can_send: "BLOCKED",
@@ -1059,7 +1053,7 @@ test("the WhatsApp row draws what Meta holds under its sentence, each note a lin
     name_status: "APPROVED",
     verification: "not_verified",
     limit: "TIER_250",
-    // The account has no payment method on file, and says which business owns it: the row says so, with the way to add one.
+    // The account has no payment method on file, and says which business owns it: the row's act is Meta's page to add one.
     has_payment_method: false,
     owner_business_id: "410540000000001",
     waba_id: "205540000000001",
@@ -1072,26 +1066,38 @@ test("the WhatsApp row draws what Meta holds under its sentence, each note a lin
   assert.equal(row.props["data-state"], "attention");
   assert.equal(
     textOf(find(row, (n) => n.props?.className === "set-team-mail")),
-    "Meta: A payment method is required to send messages.",
+    "Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns.",
+  );
+  const verb = byTestId(row, "connection-whatsapp-verb");
+  assert.deepEqual(
+    [textOf(verb), verb.props.href, verb.props.target, verb.props.rel],
+    [
+      "Add a card",
+      "https://business.facebook.com/billing_hub/accounts/details/?business_id=410540000000001&asset_id=205540000000001&wizard_name=ADD_PM&account_type=whatsapp-business-account",
+      "_blank",
+      "noopener noreferrer",
+    ],
+    "the row's one act: Meta's own page for this business and this account, in a new tab",
   );
   assert.deepEqual(noteTexts(tree, "whatsapp"), [
-    "Add a payment method in WhatsApp Manager.",
-    "No payment method on your WhatsApp account yet.",
-    "Your business isn't verified with Meta: you can start conversations with up to 250 people a day. Replies to customers who write first are not limited.",
-    ...COST,
+    "Not verified with Meta: customers see your number instead of your name, and you can start conversations with up to 250 people a day. Verify when you need more.",
   ]);
   assert.deepEqual(
     noteLinks(tree, "whatsapp"),
     [
       [
-        "Add one in Meta",
-        "https://business.facebook.com/billing_hub/accounts/details/?business_id=410540000000001&asset_id=205540000000001&wizard_name=ADD_PM&account_type=whatsapp-business-account",
+        "Verify in Meta",
+        "https://business.facebook.com/settings/security?business_id=410540000000001",
         "_blank",
         "noopener noreferrer",
       ],
-      PRICES,
     ],
-    "the way to add a payment method, on Meta's own page for this business and this account; and Meta's prices: each opens in a new tab",
+    "Meta's Security Center for the business that owns the account, in a new tab",
+  );
+  const drawn = textOf(row);
+  assert.ok(
+    !drawn.includes("WhatsApp Manager") && !drawn.includes("bills"),
+    "nothing of Meta's prose, nothing of what it costs",
   );
   assert.deepEqual(noteTexts(tree, "google_profile"), [], "a row with no notes draws no box");
   assert.equal(byTestId(tree, "connection-google_profile-notes"), null);

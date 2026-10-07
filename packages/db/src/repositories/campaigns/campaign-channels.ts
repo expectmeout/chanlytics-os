@@ -10,11 +10,18 @@ import { IDS_PER_READ } from "../people";
 
 type Db = SupabaseClient<Database>;
 
-/** The active WhatsApp number's config (its quality and limit, as Meta last said them), or null with none. Throws on a failed read. */
-export async function whatsappChannelConfig(db: Db, tenantId: string): Promise<Record<string, unknown> | null> {
+/**
+ * The active WhatsApp number: its config (its quality, limit and standing, as Meta last said them) and the number itself (E.164:
+ * offers on it are judged by Meta's pause on marketing messages to US numbers, contracts whatsapp-offers.ts), or null with
+ * none. Throws on a failed read.
+ */
+export async function whatsappChannelFacts(
+  db: Db,
+  tenantId: string,
+): Promise<{ config: Record<string, unknown>; number: string | null } | null> {
   const { data, error } = await db
     .from("tenant_channels")
-    .select("config")
+    .select("config, number_e164")
     .eq("tenant_id", tenantId)
     .eq("kind", "whatsapp")
     .eq("status", "active")
@@ -23,7 +30,10 @@ export async function whatsappChannelConfig(db: Db, tenantId: string): Promise<R
   if (error) throw new Error(`whatsapp_channel_config: ${error.message}`);
   if (!data) return null;
   const cfg = data.config;
-  return cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {};
+  return {
+    config: cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {},
+    number: data.number_e164 ?? null,
+  };
 }
 
 /**

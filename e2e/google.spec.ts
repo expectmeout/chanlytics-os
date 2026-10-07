@@ -67,7 +67,8 @@ test.describe("Google on a real workspace", () => {
       if (!linked) await expect(row.getByTestId("setup-verb")).toHaveText(ready ? "Find it" : "Connect");
     }
 
-    await page.goto("/#/reports");
+    // Google is Reports' Reviews lens (surfaces/reports/lenses/reviews.tsx), at its own address since #1424.
+    await page.goto("/#/reports/reviews");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("reports-real")).toBeVisible();
     if (!ready && !profile) {

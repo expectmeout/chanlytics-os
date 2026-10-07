@@ -178,7 +178,9 @@ const tables = () => ({
       tenant_id: A,
       kind: "whatsapp",
       status: "active",
-      number_e164: "+19295550100",
+      // Not a US number: Meta's pause on marketing messages to US numbers (contracts whatsapp-offers.ts) would hold the
+      // offers these tools count, and the pause is ask-turn's to prove, not the names'.
+      number_e164: "+442079460100",
       quality: "GREEN",
       quality_event: null,
       messaging_limit: "TIER_1K",
@@ -697,7 +699,10 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       continue;
     }
     // A refusal that named an old tool names its new one: the one change to the bytes, applied to every old name.
-    let result = want.result;
+    // 7 Oct 2026: the frozen world's WhatsApp number was a US one, and Meta's pause on marketing messages to US numbers
+    // (contracts whatsapp-offers.ts) would now hold every offer these tools count; the world's number is a UK one, and the
+    // one place the frozen bytes say the number (workspace.settings) is rewritten to it. The pause itself is ask-turn's to prove.
+    let result = want.result.replaceAll("+19295550100", "+442079460100");
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
     if (NAMES[old] === "report") result = withCampaigns(withHold(result));

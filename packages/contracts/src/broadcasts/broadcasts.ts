@@ -35,6 +35,7 @@ import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "..
 import type { Audience } from "./broadcast-audience";
 import { broadcastFailureWords } from "./broadcast-failures";
 import { answeredYes } from "./reach-any";
+import { channelRefuses, type ChannelsReady } from "./reach-for";
 export {
   AUDIENCE_KINDS,
   EVERYONE_LABEL,
@@ -335,9 +336,17 @@ export function emptyAudienceRefusal(
   purpose: AskedPurpose,
   label: string,
   pool: readonly Pick<PersonRowVM, "consent">[],
-  how: { channels: readonly string[]; about: MessageAbout },
+  how: { channels: readonly string[]; about: MessageAbout; ready?: ChannelsReady },
 ): string {
   const ticked = CONSENT_CHANNELS.filter((c) => how.channels.includes(c));
+  // No ticked channel carries this message here (reach-for.ts channelRefuses: Meta's pause on offers to US numbers, offers by
+  // email not set up, texts never): the first one's reason, since no yes and no number would change it.
+  const ready = how.ready;
+  if (ready) {
+    const refused = ticked.map((c) => channelRefuses(c, purpose, how.about, ready));
+    const first = refused[0];
+    if (first && refused.every((why) => why !== null)) return `Nobody on “${label}” can be sent this: ${first}`;
+  }
   if (ticked.includes("email"))
     return `Nobody on “${label}” can be sent this yet. ${consentGuardWords(ticked, purpose, how.about).join(" ")}`;
   // Said, as every page reads the answer (reach-any.ts answeredYes: the row's saidYes is the same call).

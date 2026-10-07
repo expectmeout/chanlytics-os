@@ -20,7 +20,7 @@ import {
   textLineFacts,
   touchIndex,
   touchesSince,
-  whatsappChannelConfig,
+  whatsappChannelFacts,
   yesesSince,
   type Database,
   type Json,
@@ -46,7 +46,9 @@ import {
   offerPauseOf,
   ownAddressesOf,
   numberHealth,
+  numberHealthWithStanding,
   parseTenantConfig,
+  standingFromConfig,
   peopleVisitsOf,
   poolListContext,
   consultFirstOf,
@@ -104,9 +106,9 @@ export const CONTEXT_PAUSED = "paused";
  * carries the workspace's pause on offers by email (`offersPause`, 00299), which the same read answers.
  */
 async function channelFacts(db: Db, tenantId: string) {
-  let whatsapp: Awaited<ReturnType<typeof whatsappChannelConfig>>;
+  let whatsapp: Awaited<ReturnType<typeof whatsappChannelFacts>>;
   try {
-    whatsapp = await whatsappChannelConfig(db, tenantId);
+    whatsapp = await whatsappChannelFacts(db, tenantId);
   } catch (e) {
     return {
       whatsapp: null,
@@ -147,7 +149,8 @@ async function channelsNow(
   // the mailbox's pause.
   const campaigns = emailCanSend() ? await campaignsDomainVerified() : false;
   return channelsReady({
-    whatsapp: channels.whatsapp ? health : null,
+    // With the number: offers on it are judged by Meta's pause on marketing messages to US numbers (contracts whatsapp-offers.ts).
+    whatsapp: channels.whatsapp ? { ...health, number: channels.whatsapp.number } : null,
     textLine: channels.textLine,
     email: {
       mailbox: channels.mailbox,
@@ -155,6 +158,18 @@ async function channelsNow(
       offers: { campaigns, address: !!profile?.address?.trim(), paused: channels.offersPause },
     },
   });
+}
+
+/**
+ * The number's rating (its config as Meta last said it), with what Meta holds against the number (its kept standing, 00338): a
+ * number Meta has stopped, or whose account has no payment method, carries no campaign, refused in the sentence the
+ * Connections row says (contracts numberHealthWithStanding: one rule, read by the dashboard's composers too).
+ */
+function numberHealthOf(cfg: Record<string, unknown>, s: (k: string) => string | null) {
+  return numberHealthWithStanding(
+    numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
+    standingFromConfig(cfg.standing),
+  );
 }
 
 /** Read once per tenant: the people, the modes, the number, the touches. */
@@ -205,7 +220,7 @@ export async function loadTenantRunContext(
   if (kept.error) return { error: `lists: ${kept.error}` };
   // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly; Run now refuses it in words.
   if (tenant?.status === "paused") return { error: CONTEXT_PAUSED };
-  const cfg = channels.whatsapp ?? {};
+  const cfg = channels.whatsapp ? channels.whatsapp.config : {};
   const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
   // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
   // hand counts for the breath (byAny) and for no playbook's gap; a proposal follow-up by any playbook, for the
@@ -257,7 +272,7 @@ export async function loadTenantRunContext(
     consultFirst: consultFirstOf(profile?.booking_rules),
     viewer: null,
   });
-  const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
+  const health = numberHealthOf(cfg, s);
   const ready = await channelsNow(channels, health, profile);
   const vms = poolRowsOf(withVisitsOf(rows, visits, { state: calendar, timezone: tz, source: "calendar" }), {
     tz,
