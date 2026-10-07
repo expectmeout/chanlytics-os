@@ -7992,15 +7992,22 @@ function seenBy(marks) {
     const seenMs = Math.max(floorMs, markMs);
     return {
       ...Number.isFinite(seenMs) ? { seen_at: new Date(seenMs).toISOString() } : {},
-      ...mark?.unread_at ? { marked_unread: true } : {}
+      ...mark?.unread_at ? { marked_unread: true } : {},
+      ...mark?.marked_at ? { marked_at: mark.marked_at } : {}
     };
   };
 }
-var heardMs = (lastInboundAt) => lastInboundAt ? Date.parse(lastInboundAt) : 0;
 function isUnseen(heardAt2, seen) {
   if (seen.marked_unread) return true;
   if (!heardAt2 || !seen.seen_at) return false;
   return (typeof heardAt2 === "number" ? heardAt2 : Date.parse(heardAt2)) > Date.parse(seen.seen_at);
+}
+var msOf = (at3) => {
+  const ms2 = typeof at3 === "number" ? at3 : at3 ? Date.parse(at3) : 0;
+  return Number.isFinite(ms2) ? ms2 : 0;
+};
+function readingOf(heardAt2, seen) {
+  return { unseen: isUnseen(heardAt2, seen), heardAtMs: msOf(heardAt2), markAtMs: msOf(seen.marked_at) };
 }
 
 // src/conversations/thread-clock.ts
@@ -18754,6 +18761,10 @@ function askOf(escalation, lastInbound) {
     channel: wireOf(lastInbound)
   };
 }
+function inboxReading(dto) {
+  const { unseen, heardAtMs, markAtMs } = readingOf(dto.last_inbound_at, dto);
+  return { unread: unseen, heardAtMs, markAtMs };
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -18894,8 +18905,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
     // The dot is the reader's own (standing.ts isUnseen, 00346; inbox-thread-vm.ts says what it meant before).
-    unread: isUnseen(dto.last_inbound_at, dto),
-    heardAtMs: heardMs(dto.last_inbound_at),
+    ...inboxReading(dto),
     pinned: false,
     tags: [],
     priority: "P2",
@@ -18976,8 +18986,7 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     standing: v.standing,
-    unseen: isUnseen(dto.last_inbound_at, dto),
-    heardAtMs: heardMs(dto.last_inbound_at),
+    ...readingOf(dto.last_inbound_at, dto),
     outcome,
     snippet: last ? messageWords(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
@@ -23017,7 +23026,7 @@ function lineReleaseAfterDays(raw) {
   const n = Number(raw.trim());
   return n >= LINE_RELEASE_MIN_DAYS ? n : null;
 }
-var msOf = (iso) => {
+var msOf2 = (iso) => {
   if (!iso) return null;
   const ms2 = Date.parse(iso);
   return Number.isFinite(ms2) ? ms2 : null;
@@ -23032,14 +23041,14 @@ function billingEndedAt(b) {
     // An unpaid subscription with no failure on record counts from the reading that made it unpaid, never from an
     // old trial's end.
     unpaid ? b.last_payment_failed_at ?? b.updated_at : b.last_payment_failed_at
-  ].map(msOf).filter((t) => t !== null);
-  return times.length ? Math.max(...times) : msOf(b.updated_at);
+  ].map(msOf2).filter((t) => t !== null);
+  return times.length ? Math.max(...times) : msOf2(b.updated_at);
 }
 function lineReleaseStep(billing, afterDays, warned, nowMs) {
   const endedAt = billingEndedAt(billing);
   if (endedAt === null) return { step: "keep" };
   const releaseAt = endedAt + afterDays * DAY_MS;
-  const warnedAt = warned && msOf(warned.ended_at) === endedAt ? msOf(warned.at) : null;
+  const warnedAt = warned && msOf2(warned.ended_at) === endedAt ? msOf2(warned.at) : null;
   if (warnedAt === null) {
     return nowMs >= releaseAt - LINE_RELEASE_WARN_DAYS * DAY_MS ? { step: "warn", endedAt, releaseAt } : { step: "wait", endedAt, releaseAt };
   }
@@ -23517,10 +23526,12 @@ function rowReplyOf(r2, now, emailStopped) {
   };
 }
 function rowThreadOf(r2, askedMs) {
+  const reading = readingOf(askedMs, r2);
   return {
     threadId: r2.has_chat && r2.latest_conversation_id ? `th-${r2.latest_conversation_id}` : null,
     conversationId: r2.latest_conversation_id,
-    unseen: isUnseen(askedMs, r2)
+    unseen: reading.unseen,
+    markAtMs: reading.markAtMs
   };
 }
 function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null, ready) {

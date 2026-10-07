@@ -4,6 +4,7 @@
  * so do the frame's crumbs and Ask (which took `CV_ROUTE` and `CV_IN_CHANNEL` off the window: the app publishes those two
  * names from here). No React, so it stays light for whoever imports it. And the one row a person has in the list.
  */
+import type { SeenReading } from "@chanlytics/contracts";
 import type { ConversationRow } from "./types";
 
 // Keyed on what the view model says (writtenChannelOf): "email", not "mail".
@@ -84,6 +85,7 @@ export function cvCallsStandAsTheirThread(
       ...(t.standing ? { standing: t.standing } : {}),
       ...(t.unseen !== undefined ? { unseen: t.unseen } : {}),
       ...(t.heardAtMs !== undefined ? { heardAtMs: t.heardAtMs } : {}),
+      ...(t.markAtMs !== undefined ? { markAtMs: t.markAtMs } : {}),
     };
   });
 }
@@ -133,10 +135,14 @@ export const cvWhoseRow = (c: ConversationRow): { personId: string | null; conve
   conversationId: c.threadId && c.threadId.startsWith("th-") ? c.threadId.slice(3) : null,
 });
 
-/** What the last read said of a person's row: new to the reader when any row it stands for is, and when they were last heard from. */
-export const cvSeenOf = (c: ConversationRow): { unseen: boolean; heardAtMs: number } => ({
+/**
+ * What the last read said of a person's row (contracts SeenReading): new to the reader when any row it stands for is, when
+ * they were last heard from, and the stamp of the reader's mark, each the latest among the rows it stands for.
+ */
+export const cvSeenOf = (c: ConversationRow): SeenReading => ({
   unseen: cvPartsOf(c).some((p) => !!p.unseen),
   heardAtMs: Math.max(0, ...cvPartsOf(c).map((p) => p.heardAtMs ?? 0)),
+  markAtMs: Math.max(0, ...cvPartsOf(c).map((p) => p.markAtMs ?? 0)),
 });
 
 /** The row of `rows` that holds `id`, and the part it names: a link to one call opens its person's row at that call. */

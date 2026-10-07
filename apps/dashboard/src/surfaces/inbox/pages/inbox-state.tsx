@@ -25,7 +25,7 @@ import {
   type Flash,
   type SeededLead,
 } from "../shell";
-import { seePerson, threadUnread, threadWhose } from "../../seen";
+import { seePerson, threadReading, threadUnread, threadWhose } from "../../seen";
 import { inboxData, IX_STORE, VW_STORE, VW_UTIL, type Decision } from "../store";
 import { threadVerbs } from "../thread/thread-verbs";
 import type { RealThread, Resolution, SeededThread, Thread, ThreadState, TimelineEntry, VerdictOption } from "../types";
@@ -474,7 +474,7 @@ export const inboxMoves = (ix: InboxState) => {
     setKeepOpenId(null);
     mutate(id, (x) => (x.unread && !x.real ? { ...x, unread: false } : x));
     // A row pressed is read, the one already open too: one put back as unread stays so until it is opened again.
-    if (t && t.real && threadUnread(t)) seePerson(threadWhose(t), t.heardAtMs);
+    if (t && t.real && threadUnread(t)) seePerson(threadWhose(t), threadReading(t));
     // The thread open is the address's: a refresh opens it again and the crumbs name it.
     openThread(id);
   };

@@ -1081,6 +1081,7 @@ export type Database = {
       contact_marks: {
         Row: {
           contact_id: string
+          marked_at: string
           seen_at: string | null
           tenant_id: string
           unread_at: string | null
@@ -1088,6 +1089,7 @@ export type Database = {
         }
         Insert: {
           contact_id: string
+          marked_at?: string
           seen_at?: string | null
           tenant_id: string
           unread_at?: string | null
@@ -1095,6 +1097,7 @@ export type Database = {
         }
         Update: {
           contact_id?: string
+          marked_at?: string
           seen_at?: string | null
           tenant_id?: string
           unread_at?: string | null
@@ -1114,6 +1117,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_marks_user_id_same_workspace"
+            columns: ["user_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["user_id", "tenant_id"]
           },
         ]
       }
@@ -1140,6 +1150,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_reads_user_id_same_workspace"
+            columns: ["user_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["user_id", "tenant_id"]
           },
         ]
       }
@@ -6208,7 +6225,7 @@ export type Database = {
         }[]
       }
       contact_mark: {
-        Args: { p_contact_id: string; p_seen: boolean }
+        Args: { p_contact_id: string; p_heard_at?: string; p_seen: boolean }
         Returns: Json
       }
       contact_seen: {

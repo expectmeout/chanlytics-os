@@ -5,8 +5,14 @@
  * A row says it is new to the reader from the last read: the customer wrote or called after the reader last opened the
  * person. Opening a person is the reader's own mark (PUT contacts/:id/seen), kept, so the row stays read on the next
  * read and on their other screens. This is the moment between: the row reads as read the instant it is opened, and
- * stays so over a read that left before the mark landed, until something newer than the opening comes in. Mark as
- * unread is the same door the other way, and holds the row unread while the reader stays on it.
+ * stays so over a read that left before the mark landed. Mark as unread is the same door the other way, and holds the
+ * row unread while the reader stays on it.
+ *
+ * The tab's word lasts only until a read carries its own mark back. Every mark is stamped by the server as it is
+ * written (`marked_at`), the door answers with that stamp, and every row carries the stamp of the mark it was read
+ * with: a row whose stamp has reached this tab's is the server's word again, whatever it says, so a person put back
+ * on the reader's phone reads unread on their desk too. And no clock of this device's judges a row: the mark says how
+ * far the reader has seen in the customer's own moments (the row's `heardAtMs`), never when this device thinks it is.
  *
  * And the bell's half: a person with a note about them still unread in the bell says so on their row too, and opening
  * them reads the note, so the bell and the lists never disagree about who is new (Ruben, 7 Oct 2026).
@@ -14,7 +20,7 @@
  * One store for the Inbox, Conversations and People, which show the same people: a person opened in one is read in
  * all three at once. Nothing here is kept past the tab; the server's marks, and the bell's, are the record.
  */
-import { noteWhose } from "@chanlytics/contracts";
+import { noteWhose, type SeenReading } from "@chanlytics/contracts";
 import { useEffect, useSyncExternalStore } from "react";
 import { api } from "@/legacy-bridge/api";
 import type { BellApi } from "@/legacy-bridge/notifications";
@@ -26,16 +32,26 @@ interface RowOf {
   conversationId?: string | null;
 }
 
+/** What a row's last read said of its reader, when it said nothing: not new, never heard from, no mark. */
+const NO_READING: SeenReading = { unseen: false, heardAtMs: 0, markAtMs: 0 };
+
 /**
- * What this tab has read of each person, by their id: when they had last written or called as the row opened said it
- * (epoch ms, the server's own clock). Never this device's clock, which may run ahead of the server's: a mark stamped
- * with it hid whatever the customer wrote in the minutes between.
+ * What this tab did to a person and has not yet read back: opened them, having seen up to `upTo` (when they had last
+ * written or called, as the row opened said it), or put them back. `at` is the server's stamp of that mark, null
+ * while the request is out.
  */
-const seenHere = new Map<string, number>();
-/** The people this tab put back as unread: the row says so until a read does, or they are opened. */
-const putBack = new Set<string>();
+interface Mine {
+  seen: boolean;
+  upTo: number;
+  at: number | null;
+}
+const mine = new Map<string, Mine>();
 /** The person put back while open: opening anyone lets go of it, so a row put back is not read again by staying on it. */
 let heldUnread: string | null = null;
+/** The people whose last mark did not land, and when: the row on screen is not marked again at once (seeWhileOpen). */
+const failedAt = new Map<string, number>();
+/** How long a person on screen whose mark failed waits before it is tried again by itself; a press tries at once. */
+const RETRY_AFTER_MS = 30_000;
 
 /**
  * The pages that draw rows draw them again as the store moves: the Inbox, Conversations and People hear it (useSeen).
@@ -57,10 +73,37 @@ const hearStore = (hear: () => void) => {
 };
 const movesNow = () => moves;
 
-/** The mark itself. Quiet: nothing is re-read behind it (refresh-map), and a mark that fails is made again by the next opening. */
-const mark = (personId: string, seen: boolean) => {
-  void api()("PUT contacts/[id]/seen", { params: { id: personId }, body: { seen } }).catch(() => {});
-};
+/**
+ * The mark itself, and the tab's word for it until a read carries it back. Quiet: nothing is re-read behind it
+ * (refresh-map). A mark that does not land takes the tab's word with it, so the row says what the server says again,
+ * and the next opening makes it again: the client answers a refusal, a timeout and a lost connection as `ok: false`,
+ * never a rejection, so a mark left standing on a failed request read as done here and nowhere else.
+ */
+function send(personId: string, did: { seen: boolean; upTo: number }): void {
+  const entry: Mine = { ...did, at: null };
+  mine.set(personId, entry);
+  failedAt.delete(personId);
+  const lost = () => {
+    if (mine.get(personId) !== entry) return;
+    mine.delete(personId);
+    failedAt.set(personId, Date.now());
+    told();
+  };
+  const body =
+    did.seen && did.upTo > 0 ? { seen: true, heard_at: new Date(did.upTo).toISOString() } : { seen: did.seen };
+  // `refresh: false`: the mark re-reads nothing (refresh-map says so too), and its answer is not kept waiting on the
+  // map of what a write makes stale, which a tab loads at its first write.
+  void api()("PUT contacts/[id]/seen", { params: { id: personId }, body, refresh: false }).then((res) => {
+    if (!res.ok) return lost();
+    // A later act of this tab's has taken this one's place: its own answer stamps it.
+    if (mine.get(personId) !== entry) return undefined;
+    const at = Date.parse(res.data.marked_at ?? "");
+    // No stamp to hold a read against: the server's word from here.
+    if (Number.isFinite(at)) entry.at = at;
+    else mine.delete(personId);
+    return undefined;
+  }, lost);
+}
 
 /* ------------------------------------------------------------ the bell's half */
 
@@ -133,10 +176,10 @@ function notesAbout(who: RowOf): string[] {
 
 /**
  * The reader opened this person: their row is read from now, here at once and on the server, and so is every note the
- * bell holds about them. `heardAtMs` is when they had last written or called, as the row opened said it: what this
- * tab has read, until a read brings something newer.
+ * bell holds about them. `reading` is what the row opened said: the mark says they have seen up to when the customer
+ * had last written or called then, so what comes in after is new whatever any clock says.
  */
-export function seePerson(who: RowOf, heardAtMs = 0): void {
+export function seePerson(who: RowOf, reading: SeenReading = NO_READING): void {
   const from = bell();
   for (const key of notesAbout(who)) {
     notesRead.add(key);
@@ -145,50 +188,51 @@ export function seePerson(who: RowOf, heardAtMs = 0): void {
   if (from) notes = readNotes(from);
   // Marked once for what they last said: a note about them read later (the bell's own read landing after the list's)
   // is the note's alone, and asks nothing more of the server.
-  if (who.personId && (putBack.has(who.personId) || seenHere.get(who.personId) !== heardAtMs)) {
-    seenHere.set(who.personId, heardAtMs);
-    putBack.delete(who.personId);
-    mark(who.personId, true);
-  }
+  const id = who.personId;
+  const done = id ? mine.get(id) : undefined;
+  if (id && !(done && done.seen && done.upTo === reading.heardAtMs)) send(id, { seen: true, upTo: reading.heardAtMs });
   heldUnread = null;
   told();
 }
 
 /** The reader put this person back as unread: their row says so until they open it again. */
 export function unseePerson(personId: string): void {
-  seenHere.delete(personId);
-  putBack.add(personId);
   heldUnread = personId;
-  mark(personId, false);
+  send(personId, { seen: false, upTo: 0 });
   told();
 }
 
 /**
- * Whether a row reads as unread now: what the last read said (`unseen`), over what this tab did since, or a note about
- * them the bell still holds unread. `heardAtMs` is when they last wrote or called, as the row holds it: a person opened
- * here at or after it is read, whatever an older read says.
+ * Whether a row reads as unread now: what its last read said (`reading`), under what this tab did since and has not
+ * read back, or a note about them the bell still holds unread.
  */
-export function unreadHere(who: RowOf, unseen: boolean, heardAtMs: number): boolean {
-  const id = who.personId;
-  if (id && putBack.has(id)) {
-    // The read caught up with the mark: the server's word from here, on this screen as on their others.
-    if (unseen) putBack.delete(id);
-    return true;
-  }
+export function unreadHere(who: RowOf, reading: SeenReading): boolean {
   if (notesAbout(who).length) return true;
-  if (!id) return unseen;
-  const at = seenHere.get(id);
-  return at !== undefined && at >= heardAtMs ? false : unseen;
+  const id = who.personId;
+  const did = id ? mine.get(id) : undefined;
+  if (!id || !did) return reading.unseen;
+  // The read carries this tab's mark, or one made since (on another screen of theirs): the server's word from here.
+  if (did.at !== null && reading.markAtMs >= did.at) {
+    mine.delete(id);
+    return reading.unseen;
+  }
+  if (!did.seen) return true;
+  // Read here up to what they had said then; something newer is new, as the read says.
+  return did.upTo >= reading.heardAtMs ? false : reading.unseen;
 }
 
 /**
  * The person on screen got something new while the reader has them open: it is read as it lands, while the tab is in
- * view. Never a person the reader just put back, who stays unread until they open someone.
+ * view. Never a person the reader just put back, who stays unread until they open someone; and not one whose mark has
+ * just failed, which a press makes again and staying on them does only after a while.
  */
-function seeWhileOpen(who: RowOf, unseen: boolean, heardAtMs: number): void {
-  if (who.personId && heldUnread === who.personId) return;
+function seeWhileOpen(who: RowOf, reading: SeenReading): void {
+  const id = who.personId;
+  if (id && heldUnread === id) return;
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-  if (unreadHere(who, unseen, heardAtMs)) seePerson(who, heardAtMs);
+  const failed = id ? failedAt.get(id) : undefined;
+  if (failed !== undefined && Date.now() - failed < RETRY_AFTER_MS) return;
+  if (unreadHere(who, reading)) seePerson(who, reading);
 }
 
 /* ------------------------------------------------------------ for a page */
@@ -205,18 +249,19 @@ export function useSeen(): number {
  * The person on screen is read: as the page opens on them, as something new of theirs lands, and as the tab comes back
  * into view. `who` is null while nobody is on screen (a phone showing its list).
  */
-export function useSeeOpen(who: RowOf | null, unseen: boolean, heardAtMs: number): void {
+export function useSeeOpen(who: RowOf | null, reading: SeenReading = NO_READING): void {
   const personId = who?.personId ?? null;
   const conversationId = who?.conversationId ?? null;
   const on = !!who;
-  const unread = on && unreadHere({ personId, conversationId }, unseen, heardAtMs);
+  const { unseen, heardAtMs, markAtMs } = reading;
+  const unread = on && unreadHere({ personId, conversationId }, reading);
   useEffect(() => {
     if (!on || !unread) return undefined;
-    const see = () => seeWhileOpen({ personId, conversationId }, unseen, heardAtMs);
+    const see = () => seeWhileOpen({ personId, conversationId }, { unseen, heardAtMs, markAtMs });
     see();
     document.addEventListener("visibilitychange", see);
     return () => document.removeEventListener("visibilitychange", see);
-  }, [on, personId, conversationId, unread, unseen, heardAtMs]);
+  }, [on, personId, conversationId, unread, unseen, heardAtMs, markAtMs]);
 }
 
 /* ------------------------------------------------------------ a thread's row */
@@ -228,12 +273,20 @@ interface ThreadSeen {
   conversationId?: string | null;
   unread: boolean;
   heardAtMs?: number;
+  markAtMs?: number;
 }
 
 /** Whose a thread is: the person behind it, and the conversation it is. */
 export const threadWhose = (t: ThreadSeen): RowOf => ({ personId: t.clientId, conversationId: t.conversationId });
 
+/** What a thread's last read said of its reader. */
+export const threadReading = (t: ThreadSeen): SeenReading => ({
+  unseen: t.unread,
+  heardAtMs: t.heardAtMs ?? 0,
+  markAtMs: t.markAtMs ?? 0,
+});
+
 /** A thread's row, as the Inbox draws it: a seeded thread's flag is the page's own; a real thread's is the reader's mark. */
 export function threadUnread(t: ThreadSeen): boolean {
-  return t.real ? unreadHere(threadWhose(t), t.unread, t.heardAtMs ?? 0) : t.unread;
+  return t.real ? unreadHere(threadWhose(t), threadReading(t)) : t.unread;
 }

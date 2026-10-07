@@ -1081,6 +1081,7 @@ type Database = {
             contact_marks: {
                 Row: {
                     contact_id: string;
+                    marked_at: string;
                     seen_at: string | null;
                     tenant_id: string;
                     unread_at: string | null;
@@ -1088,6 +1089,7 @@ type Database = {
                 };
                 Insert: {
                     contact_id: string;
+                    marked_at?: string;
                     seen_at?: string | null;
                     tenant_id: string;
                     unread_at?: string | null;
@@ -1095,6 +1097,7 @@ type Database = {
                 };
                 Update: {
                     contact_id?: string;
+                    marked_at?: string;
                     seen_at?: string | null;
                     tenant_id?: string;
                     unread_at?: string | null;
@@ -1114,6 +1117,13 @@ type Database = {
                         isOneToOne: false;
                         referencedRelation: "tenants";
                         referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "contact_marks_user_id_same_workspace";
+                        columns: ["user_id", "tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "memberships";
+                        referencedColumns: ["user_id", "tenant_id"];
                     }
                 ];
             };
@@ -1140,6 +1150,13 @@ type Database = {
                         isOneToOne: false;
                         referencedRelation: "tenants";
                         referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "contact_reads_user_id_same_workspace";
+                        columns: ["user_id", "tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "memberships";
+                        referencedColumns: ["user_id", "tenant_id"];
                     }
                 ];
             };
@@ -6305,6 +6322,7 @@ type Database = {
             contact_mark: {
                 Args: {
                     p_contact_id: string;
+                    p_heard_at?: string;
                     p_seen: boolean;
                 };
                 Returns: Json;
@@ -10754,6 +10772,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         contact_marks: {
             Row: {
                 contact_id: string;
+                marked_at: string;
                 seen_at: string | null;
                 tenant_id: string;
                 unread_at: string | null;
@@ -10761,6 +10780,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             };
             Insert: {
                 contact_id: string;
+                marked_at?: string;
                 seen_at?: string | null;
                 tenant_id: string;
                 unread_at?: string | null;
@@ -10768,6 +10788,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             };
             Update: {
                 contact_id?: string;
+                marked_at?: string;
                 seen_at?: string | null;
                 tenant_id?: string;
                 unread_at?: string | null;
@@ -10785,6 +10806,12 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 isOneToOne: false;
                 referencedRelation: "tenants";
                 referencedColumns: ["id"];
+            }, {
+                foreignKeyName: "contact_marks_user_id_same_workspace";
+                columns: ["user_id", "tenant_id"];
+                isOneToOne: false;
+                referencedRelation: "memberships";
+                referencedColumns: ["user_id", "tenant_id"];
             }];
         };
         contact_reads: {
@@ -10809,6 +10836,12 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 isOneToOne: false;
                 referencedRelation: "tenants";
                 referencedColumns: ["id"];
+            }, {
+                foreignKeyName: "contact_reads_user_id_same_workspace";
+                columns: ["user_id", "tenant_id"];
+                isOneToOne: false;
+                referencedRelation: "memberships";
+                referencedColumns: ["user_id", "tenant_id"];
             }];
         };
         contacts: {
@@ -15807,6 +15840,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         contact_mark: {
             Args: {
                 p_contact_id: string;
+                p_heard_at?: string;
                 p_seen: boolean;
             };
             Returns: Json;
@@ -19705,6 +19739,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
     contact_marks: {
         Row: {
             contact_id: string;
+            marked_at: string;
             seen_at: string | null;
             tenant_id: string;
             unread_at: string | null;
@@ -19712,6 +19747,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         };
         Insert: {
             contact_id: string;
+            marked_at?: string;
             seen_at?: string | null;
             tenant_id: string;
             unread_at?: string | null;
@@ -19719,6 +19755,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         };
         Update: {
             contact_id?: string;
+            marked_at?: string;
             seen_at?: string | null;
             tenant_id?: string;
             unread_at?: string | null;
@@ -19736,6 +19773,12 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
+        }, {
+            foreignKeyName: "contact_marks_user_id_same_workspace";
+            columns: ["user_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "memberships";
+            referencedColumns: ["user_id", "tenant_id"];
         }];
     };
     contact_reads: {
@@ -19760,6 +19803,12 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
+        }, {
+            foreignKeyName: "contact_reads_user_id_same_workspace";
+            columns: ["user_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "memberships";
+            referencedColumns: ["user_id", "tenant_id"];
         }];
     };
     contacts: {
@@ -25424,6 +25473,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
     contact_marks: {
         Row: {
             contact_id: string;
+            marked_at: string;
             seen_at: string | null;
             tenant_id: string;
             unread_at: string | null;
@@ -25431,6 +25481,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         };
         Insert: {
             contact_id: string;
+            marked_at?: string;
             seen_at?: string | null;
             tenant_id: string;
             unread_at?: string | null;
@@ -25438,6 +25489,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         };
         Update: {
             contact_id?: string;
+            marked_at?: string;
             seen_at?: string | null;
             tenant_id?: string;
             unread_at?: string | null;
@@ -25455,6 +25507,12 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
+        }, {
+            foreignKeyName: "contact_marks_user_id_same_workspace";
+            columns: ["user_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "memberships";
+            referencedColumns: ["user_id", "tenant_id"];
         }];
     };
     contact_reads: {
@@ -25479,6 +25537,12 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
+        }, {
+            foreignKeyName: "contact_reads_user_id_same_workspace";
+            columns: ["user_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "memberships";
+            referencedColumns: ["user_id", "tenant_id"];
         }];
     };
     contacts: {
@@ -31143,6 +31207,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
     contact_marks: {
         Row: {
             contact_id: string;
+            marked_at: string;
             seen_at: string | null;
             tenant_id: string;
             unread_at: string | null;
@@ -31150,6 +31215,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         };
         Insert: {
             contact_id: string;
+            marked_at?: string;
             seen_at?: string | null;
             tenant_id: string;
             unread_at?: string | null;
@@ -31157,6 +31223,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         };
         Update: {
             contact_id?: string;
+            marked_at?: string;
             seen_at?: string | null;
             tenant_id?: string;
             unread_at?: string | null;
@@ -31174,6 +31241,12 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
+        }, {
+            foreignKeyName: "contact_marks_user_id_same_workspace";
+            columns: ["user_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "memberships";
+            referencedColumns: ["user_id", "tenant_id"];
         }];
     };
     contact_reads: {
@@ -31198,6 +31271,12 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
+        }, {
+            foreignKeyName: "contact_reads_user_id_same_workspace";
+            columns: ["user_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "memberships";
+            referencedColumns: ["user_id", "tenant_id"];
         }];
     };
     contacts: {
@@ -38740,12 +38819,18 @@ declare function dismissPersonDoubt(db: Db$8, doubtId: string): Promise<{
 declare function contactSeen(db: Db$8, tenantId: string, contactIds: readonly string[]): Promise<SeenMarksDto>;
 /**
  * The calling member's own mark on a person (contact_mark, 00346): seen, as they open the person, or unread, as they
- * put it back. The door's refusals are thrown as they came (a person not theirs to see is P0002).
+ * put it back. `heardAt` is how far they have seen: the customer's last moment as their screen held it, and where
+ * there is none the door takes its own clock. `marked_at` is the database's stamp of this writing. The door's refusals
+ * are thrown as they came (a person not theirs to see is P0002).
  */
-declare function markContact(db: Db$8, contactId: string, seen: boolean): Promise<{
+declare function markContact(db: Db$8, contactId: string, mark: {
+    seen: boolean;
+    heardAt: string | null;
+}): Promise<{
     contact_id: string;
     seen_at: string | null;
     unread_at: string | null;
+    marked_at: string | null;
 }>;
 
 /**

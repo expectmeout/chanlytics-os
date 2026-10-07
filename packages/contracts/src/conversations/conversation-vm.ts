@@ -15,7 +15,7 @@ import { shortTime, bubbleTime } from "./thread-clock";
 import { mediaVM, type MediaVM } from "./message-media";
 import { sentFactsOf, messageWords, lastExchanged } from "./message-words";
 import { messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
-import { heardMs, isUnseen, standingOfThread, type Standing } from "./standing";
+import { readingOf, standingOfThread, type Standing } from "./standing";
 import type { EscalationDto } from "./escalations";
 
 /* ---- the mockup's conversation shape ---- */
@@ -73,6 +73,8 @@ export interface ConversationVM {
   unseen: boolean;
   /** When the customer last wrote or called, epoch ms; 0 when they never have (the Inbox's `heardAtMs`). */
   heardAtMs: number;
+  /** The stamp of the reader's own mark as this read carried it, epoch ms; 0 where they have none. */
+  markAtMs: number;
   outcome: "escalated" | "handled" | "open";
   snippet: string;
   summary: { headline: string; bullets: string[] };
@@ -166,8 +168,7 @@ export function toConversationVM(
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     standing: v.standing,
-    unseen: isUnseen(dto.last_inbound_at, dto),
-    heardAtMs: heardMs(dto.last_inbound_at),
+    ...readingOf(dto.last_inbound_at, dto),
     outcome,
     snippet: last ? messageWords(last).slice(0, 110) : "",
     hasChat: chat.length > 0,

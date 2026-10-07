@@ -1465,16 +1465,19 @@ $$;
 
 
 --
--- Name: contact_mark(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+-- Name: contact_mark(uuid, boolean, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean) RETURNS jsonb
+CREATE FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
   v_user   uuid := auth.uid();
   v_tenant uuid;
+  -- Said apart: least() skips a null, so a mark with no moment handed in would have reached a day ahead.
+  v_upto   timestamptz := case when p_heard_at is null then now()
+                               else least(p_heard_at, now() + interval '1 day') end;
   v_row    contact_marks;
 begin
   if v_user is null then
@@ -1490,21 +1493,24 @@ begin
           and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Person not found.' using errcode = 'P0002';
   end if;
-  insert into contact_marks (tenant_id, contact_id, user_id, seen_at, unread_at)
-  values (v_tenant, p_contact_id, v_user, case when p_seen then now() end, case when p_seen then null else now() end)
+  -- What they have seen never goes back: an opening that knew less than an earlier one leaves the earlier stand.
+  insert into contact_marks (tenant_id, contact_id, user_id, seen_at, unread_at, marked_at)
+  values (v_tenant, p_contact_id, v_user, case when p_seen then v_upto end, case when p_seen then null else now() end, now())
   on conflict (contact_id, user_id) do update set
-    seen_at   = case when p_seen then now() else contact_marks.seen_at end,
-    unread_at = case when p_seen then null else now() end
+    seen_at   = case when p_seen then greatest(contact_marks.seen_at, v_upto) else contact_marks.seen_at end,
+    unread_at = case when p_seen then null else now() end,
+    marked_at = now()
   returning * into v_row;
-  return jsonb_build_object('contact_id', v_row.contact_id, 'seen_at', v_row.seen_at, 'unread_at', v_row.unread_at);
+  return jsonb_build_object(
+    'contact_id', v_row.contact_id, 'seen_at', v_row.seen_at, 'unread_at', v_row.unread_at, 'marked_at', v_row.marked_at);
 end $$;
 
 
 --
--- Name: FUNCTION contact_mark(p_contact_id uuid, p_seen boolean); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean) IS 'The calling member''s own mark on a person of a workspace they belong to: true stamps seen_at now and clears unread_at (they opened the person); false stamps unread_at now and keeps seen_at (Mark as unread). Any member, a viewer too: it is their own reading. Answers { contact_id, seen_at, unread_at }; refuses a caller not signed in (28000), neither word (22023), and a person not theirs to see (P0002).';
+COMMENT ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone) IS 'The calling member''s own mark on a person of a workspace they belong to: true says they have seen up to p_heard_at (the customer''s last moment as their screen held it; this clock where there is none), never earlier than they had, and clears unread_at; false stamps unread_at now and keeps seen_at (Mark as unread). Either way marked_at is stamped now. Any member, a viewer too, and a partner once the session shows its second factor: it is their own reading. Answers { contact_id, seen_at, unread_at, marked_at }; refuses a caller not signed in (28000), neither word (22023), and a person not theirs to see (P0002).';
 
 
 --
@@ -1551,7 +1557,8 @@ begin
   return jsonb_build_object(
     'floor_at', coalesce(v_floor, v_joined),
     'marks', coalesce((
-      select jsonb_agg(jsonb_build_object('contact_id', k.contact_id, 'seen_at', k.seen_at, 'unread_at', k.unread_at))
+      select jsonb_agg(jsonb_build_object(
+               'contact_id', k.contact_id, 'seen_at', k.seen_at, 'unread_at', k.unread_at, 'marked_at', k.marked_at))
         from contact_marks k
        where k.tenant_id = p_tenant_id and k.user_id = v_user and k.contact_id = any (coalesce(p_contact_ids, '{}'))
     ), '[]'::jsonb));
@@ -20141,7 +20148,8 @@ CREATE TABLE public.contact_marks (
     contact_id uuid NOT NULL,
     user_id uuid NOT NULL,
     seen_at timestamp with time zone,
-    unread_at timestamp with time zone
+    unread_at timestamp with time zone,
+    marked_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -20149,7 +20157,7 @@ CREATE TABLE public.contact_marks (
 -- Name: TABLE contact_marks; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.contact_marks IS 'Per member per person: seen_at is when the member last opened the person (their thread or their page), unread_at when they put it back as unread, cleared by the next opening (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
+COMMENT ON TABLE public.contact_marks IS 'Per member per person: seen_at is how far the member has seen of the person, in the customer''s own moments (the last_inbound_at their screen held as they opened the thread or the page), unread_at when they put it back as unread, cleared by the next opening, and marked_at when the row was last written (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
 
 
 --
@@ -26723,11 +26731,27 @@ ALTER TABLE ONLY public.contact_marks
 
 
 --
+-- Name: contact_marks contact_marks_user_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_marks
+    ADD CONSTRAINT contact_marks_user_id_same_workspace FOREIGN KEY (user_id, tenant_id) REFERENCES public.memberships(user_id, tenant_id) ON DELETE CASCADE;
+
+
+--
 -- Name: contact_reads contact_reads_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.contact_reads
     ADD CONSTRAINT contact_reads_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: contact_reads contact_reads_user_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_reads
+    ADD CONSTRAINT contact_reads_user_id_same_workspace FOREIGN KEY (user_id, tenant_id) REFERENCES public.memberships(user_id, tenant_id) ON DELETE CASCADE;
 
 
 --
@@ -29571,12 +29595,12 @@ GRANT ALL ON FUNCTION public.contact_first_moments(p_tenant_id uuid) TO service_
 
 
 --
--- Name: FUNCTION contact_mark(p_contact_id uuid, p_seen boolean); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean) TO authenticated;
-GRANT ALL ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamp with time zone) TO service_role;
 
 
 --

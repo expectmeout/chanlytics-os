@@ -420,21 +420,33 @@ export async function contactSeen(db: Db, tenantId: string, contactIds: readonly
         contact_id: m.contact_id as string,
         seen_at: stampOf(m.seen_at),
         unread_at: stampOf(m.unread_at),
+        marked_at: stampOf(m.marked_at),
       })),
   };
 }
 
 /**
  * The calling member's own mark on a person (contact_mark, 00346): seen, as they open the person, or unread, as they
- * put it back. The door's refusals are thrown as they came (a person not theirs to see is P0002).
+ * put it back. `heardAt` is how far they have seen: the customer's last moment as their screen held it, and where
+ * there is none the door takes its own clock. `marked_at` is the database's stamp of this writing. The door's refusals
+ * are thrown as they came (a person not theirs to see is P0002).
  */
 export async function markContact(
   db: Db,
   contactId: string,
-  seen: boolean,
-): Promise<{ contact_id: string; seen_at: string | null; unread_at: string | null }> {
-  const { data, error } = await db.rpc("contact_mark", { p_contact_id: contactId, p_seen: seen });
+  mark: { seen: boolean; heardAt: string | null },
+): Promise<{ contact_id: string; seen_at: string | null; unread_at: string | null; marked_at: string | null }> {
+  const { data, error } = await db.rpc("contact_mark", {
+    p_contact_id: contactId,
+    p_seen: mark.seen,
+    ...(mark.heardAt ? { p_heard_at: mark.heardAt } : {}),
+  });
   if (error) throw error;
   const o = (data ?? {}) as Record<string, unknown>;
-  return { contact_id: contactId, seen_at: stampOf(o.seen_at), unread_at: stampOf(o.unread_at) };
+  return {
+    contact_id: contactId,
+    seen_at: stampOf(o.seen_at),
+    unread_at: stampOf(o.unread_at),
+    marked_at: stampOf(o.marked_at),
+  };
 }

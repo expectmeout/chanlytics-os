@@ -8,7 +8,7 @@
  * it is hidden its word sits beside the state. Offers is the fact that gates every campaign. First contact lives in the
  * identity cell; the last column is the row's own actions, shown on hover and on the keyboard's row.
  */
-import type { PersonRowVM } from "@chanlytics/contracts";
+import type { PersonRowVM, SeenReading } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { unreadHere } from "../../seen";
 import { Face } from "../../kit/face/face";
@@ -132,7 +132,14 @@ function PeopleRowActions({
  * did since, or a note about them the bell still holds unread (surfaces/seen.ts). The Inbox's unread, on People's row.
  */
 const plUnread = (p: PersonRowVM): boolean =>
-  unreadHere({ personId: p.id, conversationId: p.conversationId }, !!p.unseen, p.askedMs ?? 0);
+  unreadHere({ personId: p.id, conversationId: p.conversationId }, plReading(p));
+
+/** What a person's row said of its reader at its last read: new or not, when they last wrote or called, the mark's stamp. */
+export const plReading = (p: PersonRowVM): SeenReading => ({
+  unseen: !!p.unseen,
+  heardAtMs: p.askedMs ?? 0,
+  markAtMs: p.markAtMs ?? 0,
+});
 
 export const plNameCell = (
   p: PersonRowVM,

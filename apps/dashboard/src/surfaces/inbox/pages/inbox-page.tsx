@@ -31,7 +31,7 @@ import {
 } from "./inbox-state";
 import { ixKeepPlace } from "../place";
 import { ixBucketOf, ixRank } from "../rules";
-import { threadWhose, useSeeOpen, useSeen } from "../../seen";
+import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";
 import { canDo, gate, presenceAway } from "../shell";
 import { inboxData } from "../store";
 import { ThreadPane } from "../thread/thread-pane";
@@ -458,7 +458,7 @@ export const Inbox = ({
       ? withScreen.activeThread
       : null;
   const reading = open && (!ixOnPhone() || withScreen.phoneThreadOpen) ? open : null;
-  useSeeOpen(reading ? threadWhose(reading) : null, !!reading?.unread, reading?.heardAtMs ?? 0);
+  useSeeOpen(reading ? threadWhose(reading) : null, reading ? threadReading(reading) : undefined);
   useSeen();
   const withBucketMoves = Object.assign(withScreen, inboxBucketMoves(withScreen));
   const full = Object.assign(

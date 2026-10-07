@@ -77,9 +77,11 @@ export interface ConversationDto {
   /**
    * The reader's own reading of this person (00346, standing.ts SeenOf): everything before `seen_at` they have seen,
    * and whether they put the thread back as unread. Absent where the marks were not read; nothing is then new.
+   * `marked_at` is the stamp of their mark's last writing, absent where they have none.
    */
   seen_at?: string | null;
   marked_unread?: boolean;
+  marked_at?: string | null;
   contact: {
     id: string;
     display_name: string | null;

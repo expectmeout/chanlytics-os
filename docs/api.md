@@ -522,6 +522,7 @@ Writes; for a member of the row's own workspace, viewer or above; counts against
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `seen` | boolean | yes |  |
+| `heard_at` | string (date-time) | no |  |
 
 ### `PUT /api/v1/contacts/consent`
 

@@ -140,10 +140,7 @@ const cvEnded = (c: ConversationRow | null | undefined): boolean =>
 // the call that came after it. And a person new to the reader reads heavier, as the Inbox's row does (cvUnread): every
 // row drew at one weight, read or not (Ruben, 7 Oct 2026).
 /** Whether a person's row is new to the reader now: the last read's word, over what this tab did since (surfaces/seen.ts). */
-const cvUnread = (c: ConversationRow): boolean => {
-  const seen = cvSeenOf(c);
-  return unreadHere(cvWhoseRow(c), seen.unseen, seen.heardAtMs);
-};
+const cvUnread = (c: ConversationRow): boolean => unreadHere(cvWhoseRow(c), cvSeenOf(c));
 
 const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; onSelect: (id: string) => void }) => {
   const lead = cvLeadOf(c);
@@ -598,12 +595,11 @@ export const ConversationsPage = ({
   // link's notice is nobody's row. A row pressed is read too, the one already open among them: one put back as unread
   // stays so until it is opened again. And a row opened or put back, here or in the Inbox, draws the list again.
   const onScreen = selected && !requestedMissing && (!cvOnPhone() || phoneOpen) ? (selectedRow ?? selected) : null;
-  const seenOnScreen = onScreen ? cvSeenOf(onScreen) : null;
-  useSeeOpen(onScreen ? cvWhoseRow(onScreen) : null, !!seenOnScreen?.unseen, seenOnScreen?.heardAtMs ?? 0);
+  useSeeOpen(onScreen ? cvWhoseRow(onScreen) : null, onScreen ? cvSeenOf(onScreen) : undefined);
   useSeen();
   const openByHand = (id: string) => {
     const hit = cvFind(visible, id);
-    if (hit && cvUnread(hit.row)) seePerson(cvWhoseRow(hit.row), cvSeenOf(hit.row).heardAtMs);
+    if (hit && cvUnread(hit.row)) seePerson(cvWhoseRow(hit.row), cvSeenOf(hit.row));
     openRow(id);
   };
 

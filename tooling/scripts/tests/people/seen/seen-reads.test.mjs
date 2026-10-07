@@ -74,7 +74,14 @@ test("the Inbox's read says, for the member asking, when they last saw each pers
     // Everything before ten is seen (the floor); Ada was opened at 11:15, after she wrote; Cy was put back.
     contact_reads: [{ tenant_id: T, user_id: USER, seen_at: "2026-10-07T10:00:00Z" }],
     contact_marks: [
-      { tenant_id: T, contact_id: K1, user_id: USER, seen_at: "2026-10-07T11:15:00Z", unread_at: null },
+      {
+        tenant_id: T,
+        contact_id: K1,
+        user_id: USER,
+        seen_at: "2026-10-07T11:15:00Z",
+        unread_at: null,
+        marked_at: "2026-10-07T11:15:02Z",
+      },
       {
         tenant_id: T,
         contact_id: K3,
@@ -87,10 +94,11 @@ test("the Inbox's read says, for the member asking, when they last saw each pers
   const read = await kernel.load(turn(ctx), conversations, { ids: null });
   const by = new Map(read.data.conversations.map((c) => [c.id, c]));
   assert.deepEqual(
-    [by.get("c1").last_inbound_at, by.get("c1").seen_at, by.get("c1").marked_unread],
-    ["2026-10-07T11:00:00Z", "2026-10-07T11:15:00.000Z", undefined],
-    "her own mark, later than the floor",
+    [by.get("c1").last_inbound_at, by.get("c1").seen_at, by.get("c1").marked_unread, by.get("c1").marked_at],
+    ["2026-10-07T11:00:00Z", "2026-10-07T11:15:00.000Z", undefined, "2026-10-07T11:15:02Z"],
+    "her own mark, later than the floor, and the stamp of its writing for the tab that made it",
   );
+  assert.equal(by.get("c2").marked_at, undefined, "no mark of their own: no stamp");
   assert.deepEqual([by.get("c2").seen_at, by.get("c2").marked_unread], ["2026-10-07T10:00:00.000Z", undefined]);
   assert.deepEqual([by.get("c3").seen_at, by.get("c3").marked_unread], ["2026-10-07T11:45:00.000Z", true]);
 
@@ -155,26 +163,39 @@ test("the mark is the door's own answer, said as the row says it; what the door 
     {
       contact_mark: (args) => {
         calls.push(args);
+        const marked_at = "2026-10-07T12:00:01Z";
         return args.p_seen
-          ? { contact_id: args.p_contact_id, seen_at: "2026-10-07T12:00:00Z", unread_at: null }
-          : { contact_id: args.p_contact_id, seen_at: "2026-10-07T11:00:00Z", unread_at: "2026-10-07T12:00:00Z" };
+          ? { contact_id: args.p_contact_id, seen_at: args.p_heard_at, unread_at: null, marked_at }
+          : {
+              contact_id: args.p_contact_id,
+              seen_at: "2026-10-07T11:00:00Z",
+              unread_at: "2026-10-07T12:00:00Z",
+              marked_at,
+            };
       },
     },
   );
-  assert.deepEqual(await markPersonSeen(ctx, K1, true), {
+  // Opened: seen up to the customer's last moment as the member's screen held it, and stamped by the database.
+  assert.deepEqual(await markPersonSeen(ctx, K1, { seen: true, heardAt: "2026-10-07T11:30:00Z" }), {
     contact_id: K1,
-    seen_at: "2026-10-07T12:00:00Z",
+    seen_at: "2026-10-07T11:30:00Z",
     marked_unread: false,
+    marked_at: "2026-10-07T12:00:01Z",
   });
-  assert.deepEqual(await markPersonSeen(ctx, K1, false), {
+  assert.deepEqual(await markPersonSeen(ctx, K1, { seen: false, heardAt: null }), {
     contact_id: K1,
     seen_at: "2026-10-07T11:00:00Z",
     marked_unread: true,
+    marked_at: "2026-10-07T12:00:01Z",
   });
-  assert.deepEqual(calls, [
-    { p_contact_id: K1, p_seen: true },
-    { p_contact_id: K1, p_seen: false },
-  ]);
+  assert.deepEqual(
+    calls,
+    [
+      { p_contact_id: K1, p_seen: true, p_heard_at: "2026-10-07T11:30:00Z" },
+      { p_contact_id: K1, p_seen: false },
+    ],
+    "a moment is handed on where there is one, and left to the door's own clock where there is none",
+  );
 
   const stranger = ctxOf(
     {},
@@ -185,7 +206,7 @@ test("the mark is the door's own answer, said as the row says it; what the door 
     },
   );
   await assert.rejects(
-    () => markPersonSeen(stranger, K1, true),
+    () => markPersonSeen(stranger, K1, { seen: true, heardAt: null }),
     (e) => e.status === 404,
     "not their person: not found, as the door says",
   );

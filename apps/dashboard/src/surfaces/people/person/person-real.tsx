@@ -28,6 +28,7 @@ import { settingsCard } from "./settings-card";
 import { heldPerson, readPerson } from "./read";
 import { usePeopleSeam } from "./use-people";
 import { useSeeOpen } from "../../seen";
+import { plReading } from "../cells/columns";
 
 /** What the page holds of the person: the read under way, the copy it has, that they are not here, or that reading failed. */
 interface PageRead {
@@ -167,8 +168,7 @@ function ClientProfileReal({ id }: { id: string }) {
   const reading = vm && peopleRow ? peopleRow : null;
   useSeeOpen(
     reading ? { personId: id, conversationId: reading.conversationId } : null,
-    !!reading?.unseen,
-    reading?.askedMs ?? 0,
+    reading ? plReading(reading) : undefined,
   );
   if (missing)
     return (

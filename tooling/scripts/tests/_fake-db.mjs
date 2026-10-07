@@ -836,7 +836,12 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       floor_at: (tables.contact_reads ?? []).find((r) => r.tenant_id === p_tenant_id)?.seen_at ?? null,
       marks: (tables.contact_marks ?? [])
         .filter((m) => m.tenant_id === p_tenant_id && (p_contact_ids ?? []).includes(m.contact_id))
-        .map((m) => ({ contact_id: m.contact_id, seen_at: m.seen_at ?? null, unread_at: m.unread_at ?? null })),
+        .map((m) => ({
+          contact_id: m.contact_id,
+          seen_at: m.seen_at ?? null,
+          unread_at: m.unread_at ?? null,
+          marked_at: m.marked_at ?? null,
+        })),
     }),
     /**
      * The hourly sweeps' pages (00245 playbooks_due, calendars_due), answered from the rows a fixture sets the way

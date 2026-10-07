@@ -133,10 +133,13 @@ export function replyWaitsOnYou(
  * may be one you have not. The two are drawn apart too (the amber of Needs you is never this).
  */
 
-/** What the door answers for a member (contact_seen): their floor, and their marks for the people asked about. */
+/**
+ * What the door answers for a member (contact_seen): their floor, and their marks for the people asked about.
+ * `marked_at` is the database's stamp of the mark's last writing, whichever way it went.
+ */
 export interface SeenMarksDto {
   floor_at: string | null;
-  marks: { contact_id: string; seen_at: string | null; unread_at: string | null }[];
+  marks: { contact_id: string; seen_at: string | null; unread_at: string | null; marked_at?: string | null }[];
 }
 
 /**
@@ -147,6 +150,12 @@ export interface SeenMarksDto {
 export interface SeenOf {
   seen_at?: string | null;
   marked_unread?: boolean;
+  /**
+   * When the member's own mark on this person was last written, as the database stamped it; absent where they have
+   * none. A tab that has just marked someone holds its word until a read carries a stamp as late as its own
+   * (surfaces/seen.ts): the one way to tell a read that left before the mark from one made after it.
+   */
+  marked_at?: string | null;
 }
 
 /** Each person's reading, from the door's answer: the later of the floor and their own mark, and whether they put it back. */
@@ -161,6 +170,7 @@ export function seenBy(marks: SeenMarksDto | null): (contactId: string) => SeenO
     return {
       ...(Number.isFinite(seenMs) ? { seen_at: new Date(seenMs).toISOString() } : {}),
       ...(mark?.unread_at ? { marked_unread: true } : {}),
+      ...(mark?.marked_at ? { marked_at: mark.marked_at } : {}),
     };
   };
 }
@@ -170,12 +180,29 @@ export function seenBy(marks: SeenMarksDto | null): (contactId: string) => SeenO
  * Nothing came in, nothing is new; and a reading that is not known is never called new. `heardAt` is when the customer
  * last wrote or called, as the row holds it: the column's own words, or epoch ms where a row has worked it out (People).
  */
-/** When the customer last wrote or called, as epoch ms: 0 when they never have. What a row's reading is judged against. */
-export const heardMs = (lastInboundAt: string | null | undefined): number =>
-  lastInboundAt ? Date.parse(lastInboundAt) : 0;
-
 export function isUnseen(heardAt: string | number | null | undefined, seen: SeenOf): boolean {
   if (seen.marked_unread) return true;
   if (!heardAt || !seen.seen_at) return false;
   return (typeof heardAt === "number" ? heardAt : Date.parse(heardAt)) > Date.parse(seen.seen_at);
+}
+
+/**
+ * What a row says of its reader, for the tab that draws it (surfaces/seen.ts): whether the person is new to them, when
+ * the customer was last heard from, and the stamp of the reader's own mark as the read carried it. Epoch ms, 0 where
+ * there is none.
+ */
+export interface SeenReading {
+  unseen: boolean;
+  heardAtMs: number;
+  markAtMs: number;
+}
+
+const msOf = (at: string | number | null | undefined): number => {
+  const ms = typeof at === "number" ? at : at ? Date.parse(at) : 0;
+  return Number.isFinite(ms) ? ms : 0;
+};
+
+/** A row's reading, from when its person was last heard from and what the read said of the member's marks. */
+export function readingOf(heardAt: string | number | null | undefined, seen: SeenOf): SeenReading {
+  return { unseen: isUnseen(heardAt, seen), heardAtMs: msOf(heardAt), markAtMs: msOf(seen.marked_at) };
 }

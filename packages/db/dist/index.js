@@ -690,15 +690,25 @@ async function contactSeen(db, tenantId, contactIds) {
     marks: marks.filter((m) => typeof m.contact_id === "string").map((m) => ({
       contact_id: m.contact_id,
       seen_at: stampOf(m.seen_at),
-      unread_at: stampOf(m.unread_at)
+      unread_at: stampOf(m.unread_at),
+      marked_at: stampOf(m.marked_at)
     }))
   };
 }
-async function markContact(db, contactId, seen) {
-  const { data, error } = await db.rpc("contact_mark", { p_contact_id: contactId, p_seen: seen });
+async function markContact(db, contactId, mark) {
+  const { data, error } = await db.rpc("contact_mark", {
+    p_contact_id: contactId,
+    p_seen: mark.seen,
+    ...mark.heardAt ? { p_heard_at: mark.heardAt } : {}
+  });
   if (error) throw error;
   const o = data ?? {};
-  return { contact_id: contactId, seen_at: stampOf(o.seen_at), unread_at: stampOf(o.unread_at) };
+  return {
+    contact_id: contactId,
+    seen_at: stampOf(o.seen_at),
+    unread_at: stampOf(o.unread_at),
+    marked_at: stampOf(o.marked_at)
+  };
 }
 
 // src/repositories/ingest.ts

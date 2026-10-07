@@ -328,7 +328,8 @@ test("opening a real thread reads it, and it stays read over the next read: the 
   globalThis.fetch = async (url, init = {}) => {
     const hit = /\/api\/v1\/contacts\/([^/]+)\/seen/.exec(String(url));
     if (hit && init.method === "PUT") marks.push([hit[1], JSON.parse(String(init.body)).seen]);
-    return new Response(JSON.stringify({ ok: true, data: {} }), {
+    // The door's answer: the stamp of the mark it wrote, which the tab holds its own word against.
+    return new Response(JSON.stringify({ ok: true, data: { marked_at: new Date().toISOString() } }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });

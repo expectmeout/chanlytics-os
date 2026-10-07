@@ -238,6 +238,7 @@ export interface SeededThread extends ThreadBase {
   replyVia?: undefined;
   lastAtMs?: undefined;
   heardAtMs?: undefined;
+  markAtMs?: undefined;
   escalatedAtMs?: undefined;
 }
 
@@ -332,8 +333,10 @@ export interface ConversationRow {
   standing?: Standing;
   /** New to the reader, by the one rule (contracts isUnseen); a call's is its thread's, as its standing is. */
   unseen?: boolean;
-  /** When they last wrote or called, epoch ms: what a mark made in this tab is held against (surfaces/seen.ts). */
+  /** When they last wrote or called, epoch ms: how far a mark made in this tab says the reader has seen (surfaces/seen.ts). */
   heardAtMs?: number;
+  /** The stamp of the reader's own mark as this read carried it, epoch ms; a call's is its thread's. */
+  markAtMs?: number;
   snippet: string;
   threadId?: string;
   duration?: string;

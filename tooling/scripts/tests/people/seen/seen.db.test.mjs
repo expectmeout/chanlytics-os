@@ -1,8 +1,9 @@
 /**
  * What a member has seen of a person (00346), proved on a real Postgres with real sessions: a member's floor is the day
  * they joined until they have a row of their own; opening a person stamps their own mark and nobody else's; putting a
- * person back as unread keeps when they last saw them; a member of another workspace can neither read nor mark; the
- * tables are written through the doors alone; and a person erased takes their marks with them.
+ * person back as unread keeps when they last saw them; a mark says how far they have seen in the customer's own
+ * moments and never goes back; every writing is stamped; a member of another workspace can neither read nor mark; the
+ * tables are written through the doors alone; and a person deleted, or a member who leaves, takes their marks with them.
  *
  * Runs the way notifications.db.test.mjs does: against the database `supabase start` builds on this machine, never
  * production. Users are made with the admin API and sign in with a password through the anon key, so RLS and
@@ -223,4 +224,70 @@ test("a person erased takes every member's mark on them", { skip }, async () => 
   assert.equal(gone.error, null, gone.error?.message);
   const after_ = await db.from("contact_marks").select("user_id").eq("contact_id", a);
   assert.deepEqual(after_.data, [], "the marks went with the person");
+});
+
+test(
+  "a mark says how far the member has seen, in the customer's own moments: up to what their screen held, never back, and no further than a day past this clock",
+  { skip },
+  async () => {
+    const a = await person(tenantId, 7);
+    const me = await memberClient("operator");
+    const mark = async (args) => {
+      const r = await me.client.rpc("contact_mark", { p_contact_id: a, ...args });
+      assert.equal(r.error, null, r.error?.message);
+      return r.data;
+    };
+    const at = (iso) => new Date(iso).getTime();
+
+    // The customer's message is stamped by its provider, a few seconds behind this clock when it lands. A member who
+    // opened the person in between has NOT seen it: their mark reaches the moment their screen held, not now().
+    const heard = new Date(Date.now() - 3_600_000).toISOString();
+    const opened = await mark({ p_seen: true, p_heard_at: heard });
+    assert.equal(at(opened.seen_at), at(heard), "REGRESSION: stamped now(), it covered a message that landed after it");
+    assert.ok(opened.marked_at, "and the writing itself is stamped");
+
+    // An opening that knew less leaves the earlier one standing.
+    const earlier = await mark({ p_seen: true, p_heard_at: new Date(Date.now() - 7_200_000).toISOString() });
+    assert.equal(at(earlier.seen_at), at(heard), "what they have seen never goes back");
+    assert.ok(at(earlier.marked_at) >= at(opened.marked_at), "though the writing is stamped again");
+
+    // Something newer, opened.
+    const newer = new Date(Date.now() - 60_000).toISOString();
+    assert.equal(at((await mark({ p_seen: true, p_heard_at: newer })).seen_at), at(newer));
+
+    // A provider's stamp may run ahead of this clock, and is taken; nothing honest runs a year ahead.
+    const far = await mark({ p_seen: true, p_heard_at: new Date(Date.now() + 365 * 86_400_000).toISOString() });
+    assert.ok(at(far.seen_at) <= Date.now() + 86_400_000 + 60_000, "no further than a day past this clock");
+
+    // Put back: how far they have seen is kept, and the stamp moves, which is how their other screens learn of it.
+    const back = await mark({ p_seen: false });
+    assert.equal(at(back.seen_at), at(far.seen_at));
+    assert.ok(back.unread_at);
+    assert.ok(at(back.marked_at) >= at(far.marked_at));
+    const read = await seenOf(me.client, tenantId, [a]);
+    assert.equal(at(markOf(read, a).marked_at), at(back.marked_at), "the read carries the stamp");
+
+    // With no moment handed in (they have never written), this clock.
+    const b = await person(tenantId, 8);
+    const plain = await me.client.rpc("contact_mark", { p_contact_id: b, p_seen: true });
+    assert.equal(plain.error, null, plain.error?.message);
+    assert.ok(Math.abs(at(plain.data.seen_at) - Date.now()) < 120_000);
+  },
+);
+
+test("a member who leaves the workspace takes their floor and their marks with them", { skip }, async () => {
+  const a = await person(tenantId, 9);
+  const me = await memberClient("viewer");
+  assert.equal((await me.client.rpc("contact_mark", { p_contact_id: a, p_seen: true })).error, null);
+  const floor = await db.from("contact_reads").insert({ tenant_id: tenantId, user_id: me.userId });
+  assert.equal(floor.error, null, floor.error?.message);
+  const left = await db.from("memberships").delete().eq("tenant_id", tenantId).eq("user_id", me.userId);
+  assert.equal(left.error, null, left.error?.message);
+  const marks = await db.from("contact_marks").select("contact_id").eq("user_id", me.userId);
+  const reads = await db.from("contact_reads").select("tenant_id").eq("user_id", me.userId);
+  assert.deepEqual(
+    [marks.data, reads.data],
+    [[], []],
+    "REGRESSION: with no key to the membership, an account deleted or a member removed left their reading behind for good",
+  );
 });

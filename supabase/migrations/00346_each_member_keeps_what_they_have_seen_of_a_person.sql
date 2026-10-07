@@ -10,10 +10,21 @@
 --   contact_reads   one row per member of a workspace: everything that came before `seen_at` is seen. Made here for
 --                   every member there is, at now(), so the day this lands no list lights up at once. A member who
 --                   joins later has no row and is held to the day they joined (memberships.created_at).
---   contact_marks   one row per member per person they opened or put back: `seen_at`, when they last opened the
---                   person; `unread_at`, when they marked it unread, cleared by the next opening.
+--   contact_marks   one row per member per person they opened or put back: `seen_at`, how far they have seen of the
+--                   person; `unread_at`, when they marked it unread, cleared by the next opening; `marked_at`, when
+--                   the row was last written, whichever way.
 --   contact_seen    reads a member's own floor and their marks for the people named, in one answer.
 --   contact_mark    writes one mark for the caller: seen (opened), or unread (put back).
+--
+-- `seen_at` is said in the customer's own moments, not the database's clock: opening a person says "I have seen up to
+-- what they last sent" (p_heard_at, the row's last_inbound_at as the member's screen held it), because that column is
+-- the provider's time for a message (ingest's coalesce(channel_ts, now())) and a mark stamped now() was on another
+-- clock: a message stamped 12:00:00 that landed at 12:00:03 read as seen by a member who had opened the person at
+-- 12:00:02, and one stamped ahead of this clock could not be read at all. Where they have never written, now().
+--
+-- `marked_at` is the database's own stamp of each writing, and is what a screen holds its own word against: a tab that
+-- has just marked a person keeps saying so only until a read carries a stamp as late as its mark's, so a person put
+-- back on a member's phone reads unread on their desk too.
 --
 -- Any member's, a viewer's included: it is their own reading. A partner's seat opens the doors as it opens every
 -- other, once the session has shown its second factor (00261, 00280).
@@ -32,7 +43,11 @@ create table if not exists public.contact_reads (
   tenant_id uuid not null references public.tenants (id) on delete cascade,
   user_id   uuid not null,
   seen_at   timestamptz not null default now(),
-  primary key (tenant_id, user_id)
+  primary key (tenant_id, user_id),
+  -- A member's, for as long as they are one: leaving the workspace, or deleting the account (delete_my_account takes
+  -- the memberships), takes the row. Named with the workspace, as every key between two workspace tables is (00279).
+  constraint contact_reads_user_id_same_workspace
+    foreign key (user_id, tenant_id) references public.memberships (user_id, tenant_id) on delete cascade
 );
 alter table public.contact_reads enable row level security;
 drop policy if exists contact_reads_own_select on public.contact_reads;
@@ -51,7 +66,10 @@ create table if not exists public.contact_marks (
   user_id    uuid not null,
   seen_at    timestamptz,
   unread_at  timestamptz,
+  marked_at  timestamptz not null default now(),
   primary key (contact_id, user_id),
+  constraint contact_marks_user_id_same_workspace
+    foreign key (user_id, tenant_id) references public.memberships (user_id, tenant_id) on delete cascade,
   -- The person named with their workspace (the fence every child keeps, 00279; database/fences): a mark cannot name
   -- another workspace's person, whoever writes it.
   constraint contact_marks_contact_id_same_workspace
@@ -67,7 +85,7 @@ revoke all on public.contact_marks from anon, authenticated;
 grant select on public.contact_marks to authenticated;
 grant all on public.contact_marks to service_role;
 comment on table public.contact_marks is
-  'Per member per person: seen_at is when the member last opened the person (their thread or their page), unread_at when they put it back as unread, cleared by the next opening (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
+  'Per member per person: seen_at is how far the member has seen of the person, in the customer''s own moments (the last_inbound_at their screen held as they opened the thread or the page), unread_at when they put it back as unread, cleared by the next opening, and marked_at when the row was last written (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member''s floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.';
 
 -- Every member there is has seen everything up to now: the lists start quiet.
 insert into public.contact_reads (tenant_id, user_id, seen_at)
@@ -102,7 +120,8 @@ begin
   return jsonb_build_object(
     'floor_at', coalesce(v_floor, v_joined),
     'marks', coalesce((
-      select jsonb_agg(jsonb_build_object('contact_id', k.contact_id, 'seen_at', k.seen_at, 'unread_at', k.unread_at))
+      select jsonb_agg(jsonb_build_object(
+               'contact_id', k.contact_id, 'seen_at', k.seen_at, 'unread_at', k.unread_at, 'marked_at', k.marked_at))
         from contact_marks k
        where k.tenant_id = p_tenant_id and k.user_id = v_user and k.contact_id = any (coalesce(p_contact_ids, '{}'))
     ), '[]'::jsonb));
@@ -112,8 +131,10 @@ grant execute on function public.contact_seen(uuid, uuid[]) to authenticated;
 comment on function public.contact_seen(uuid, uuid[]) is
   'What the calling member has seen of the people named, in a workspace they belong to: { floor_at, marks: [{ contact_id, seen_at, unread_at }] }. floor_at is the member''s contact_reads.seen_at, or the day they joined where they have none; marks are their own contact_marks rows for those people. Refuses a caller who is not signed in (28000) or not a member (P0002). The dashboard''s readers judge unseen from it (contracts conversations/unseen.ts).';
 
--- One mark for the caller: true says they opened the person now; false puts the person back as unread.
-create or replace function public.contact_mark(p_contact_id uuid, p_seen boolean)
+-- One mark for the caller: true says they opened the person, having seen up to p_heard_at; false puts the person back
+-- as unread. p_heard_at is the customer's last moment as the caller's screen held it, and is taken as far as a day
+-- past this clock (a provider's stamp may run ahead of it; nothing honest runs further).
+create or replace function public.contact_mark(p_contact_id uuid, p_seen boolean, p_heard_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -122,6 +143,9 @@ as $$
 declare
   v_user   uuid := auth.uid();
   v_tenant uuid;
+  -- Said apart: least() skips a null, so a mark with no moment handed in would have reached a day ahead.
+  v_upto   timestamptz := case when p_heard_at is null then now()
+                               else least(p_heard_at, now() + interval '1 day') end;
   v_row    contact_marks;
 begin
   if v_user is null then
@@ -137,15 +161,18 @@ begin
           and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Person not found.' using errcode = 'P0002';
   end if;
-  insert into contact_marks (tenant_id, contact_id, user_id, seen_at, unread_at)
-  values (v_tenant, p_contact_id, v_user, case when p_seen then now() end, case when p_seen then null else now() end)
+  -- What they have seen never goes back: an opening that knew less than an earlier one leaves the earlier stand.
+  insert into contact_marks (tenant_id, contact_id, user_id, seen_at, unread_at, marked_at)
+  values (v_tenant, p_contact_id, v_user, case when p_seen then v_upto end, case when p_seen then null else now() end, now())
   on conflict (contact_id, user_id) do update set
-    seen_at   = case when p_seen then now() else contact_marks.seen_at end,
-    unread_at = case when p_seen then null else now() end
+    seen_at   = case when p_seen then greatest(contact_marks.seen_at, v_upto) else contact_marks.seen_at end,
+    unread_at = case when p_seen then null else now() end,
+    marked_at = now()
   returning * into v_row;
-  return jsonb_build_object('contact_id', v_row.contact_id, 'seen_at', v_row.seen_at, 'unread_at', v_row.unread_at);
+  return jsonb_build_object(
+    'contact_id', v_row.contact_id, 'seen_at', v_row.seen_at, 'unread_at', v_row.unread_at, 'marked_at', v_row.marked_at);
 end $$;
-revoke execute on function public.contact_mark(uuid, boolean) from public, anon;
-grant execute on function public.contact_mark(uuid, boolean) to authenticated;
-comment on function public.contact_mark(uuid, boolean) is
-  'The calling member''s own mark on a person of a workspace they belong to: true stamps seen_at now and clears unread_at (they opened the person); false stamps unread_at now and keeps seen_at (Mark as unread). Any member, a viewer too: it is their own reading. Answers { contact_id, seen_at, unread_at }; refuses a caller not signed in (28000), neither word (22023), and a person not theirs to see (P0002).';
+revoke execute on function public.contact_mark(uuid, boolean, timestamptz) from public, anon;
+grant execute on function public.contact_mark(uuid, boolean, timestamptz) to authenticated;
+comment on function public.contact_mark(uuid, boolean, timestamptz) is
+  'The calling member''s own mark on a person of a workspace they belong to: true says they have seen up to p_heard_at (the customer''s last moment as their screen held it; this clock where there is none), never earlier than they had, and clears unread_at; false stamps unread_at now and keeps seen_at (Mark as unread). Either way marked_at is stamped now. Any member, a viewer too, and a partner once the session shows its second factor: it is their own reading. Answers { contact_id, seen_at, unread_at, marked_at }; refuses a caller not signed in (28000), neither word (22023), and a person not theirs to see (P0002).';

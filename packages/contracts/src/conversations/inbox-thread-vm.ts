@@ -129,6 +129,8 @@ export interface InboxThreadVM {
    * own reply moves.
    */
   heardAtMs: number;
+  /** The stamp of the reader's own mark on this person as this read carried it, epoch ms; 0 where they have none. */
+  markAtMs: number;
   escalatedAtMs?: number;
   /**
    * New to the reader: the customer wrote or called after they last opened the thread, or they put it back as unread

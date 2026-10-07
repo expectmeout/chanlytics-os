@@ -149,6 +149,8 @@ export interface PersonRowDto {
    */
   seen_at?: string | null;
   marked_unread?: boolean;
+  /** The stamp of their mark's last writing; absent where they have none. */
+  marked_at?: string | null;
 }
 
 export interface PersonIdentityDto {

@@ -9,6 +9,7 @@
  */
 import { seenBy, type SeenOf } from "@chanlytics/contracts";
 import { contactSeen, markContact } from "@chanlytics/db";
+import { log } from "@/server/log";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 
 /** The door is not there yet (the dashboard deployed before 00346), or nobody is signed in on this client (a reader run for Ask by the service). */
@@ -29,20 +30,33 @@ export async function seenOfPeople(
     return seenBy(await contactSeen(ctx.supabase, tenantId, contactIds));
   } catch (e) {
     const code = (e as { code?: string | null }).code;
-    if (code && NO_READING.has(code)) return seenBy(null);
-    throw e;
+    if (!code || !NO_READING.has(code)) throw e;
+    // Said once a read, so a door that has gone missing or changed its shape is not a list that quietly never lights.
+    log.warn("people_seen_unavailable", { tenant_id: tenantId, code });
+    return seenBy(null);
   }
 }
 
 /**
- * The member's own mark on a person: seen, as they open them, or unread, as they put them back. The person was read
- * under RLS by the route's scope first, so one not theirs is a 404 before this. A refusal the door raises is carried
- * back in its own sentence at the status its code says.
+ * The member's own mark on a person: seen, as they open them, or unread, as they put them back. `heardAt` is how far
+ * they have seen, the customer's last moment as their screen held it. The answer carries the mark's stamp
+ * (`marked_at`), which the screen that made it holds its own word against until a read carries it back. The person was
+ * read under RLS by the route's scope first, so one not theirs is a 404 before this. A refusal the door raises is
+ * carried back in its own sentence at the status its code says.
  */
-export async function markPersonSeen(ctx: RouteContext, contactId: string, seen: boolean) {
+export async function markPersonSeen(
+  ctx: RouteContext,
+  contactId: string,
+  did: { seen: boolean; heardAt: string | null },
+) {
   try {
-    const mark = await markContact(ctx.supabase, contactId, seen);
-    return { contact_id: mark.contact_id, seen_at: mark.seen_at, marked_unread: !!mark.unread_at };
+    const mark = await markContact(ctx.supabase, contactId, did);
+    return {
+      contact_id: mark.contact_id,
+      seen_at: mark.seen_at,
+      marked_unread: !!mark.unread_at,
+      marked_at: mark.marked_at,
+    };
   } catch (e) {
     throw dbRefusal(e as { code?: string | null; message: string });
   }

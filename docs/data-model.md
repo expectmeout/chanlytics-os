@@ -635,7 +635,7 @@ Foreign keys:
 
 ### contact_marks
 
-Per member per person: seen_at is when the member last opened the person (their thread or their page), unread_at when they put it back as unread, cleared by the next opening (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member's floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.
+Per member per person: seen_at is how far the member has seen of the person, in the customer's own moments (the last_inbound_at their screen held as they opened the thread or the page), unread_at when they put it back as unread, cleared by the next opening, and marked_at when the row was last written (00346). A person is new to a member when conversations.last_inbound_at is after the later of this seen_at and the member's floor (contact_reads), or unread_at is set. Written only by contact_mark, for the caller.
 
 - Owned by: none
 - Primary key: `contact_id`, `user_id`
@@ -648,11 +648,13 @@ Per member per person: seen_at is when the member last opened the person (their 
 | `user_id` | uuid | no |  |  |
 | `seen_at` | timestamp with time zone | yes |  |  |
 | `unread_at` | timestamp with time zone | yes |  |  |
+| `marked_at` | timestamp with time zone | no | `now()` |  |
 
 Foreign keys:
 
 - `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `user_id`, `tenant_id` → [`memberships`](#memberships) (`user_id`, `tenant_id`), on delete cascade
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
@@ -675,6 +677,7 @@ Per member of a workspace: every message or call a customer made before seen_at 
 Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `user_id`, `tenant_id` → [`memberships`](#memberships) (`user_id`, `tenant_id`), on delete cascade
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
