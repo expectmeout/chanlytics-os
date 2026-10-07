@@ -117,9 +117,75 @@ type Database = {
                     }
                 ];
             };
+            appointment_notices: {
+                Row: {
+                    appointment_id: string | null;
+                    created_at: string;
+                    from_address: string | null;
+                    hold_reason: string | null;
+                    id: string;
+                    notice_id: string;
+                    outcome: string;
+                    read_at: string;
+                    received_at: string;
+                    subject: string | null;
+                    tenant_id: string;
+                    tool: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    appointment_id?: string | null;
+                    created_at?: string;
+                    from_address?: string | null;
+                    hold_reason?: string | null;
+                    id?: string;
+                    notice_id: string;
+                    outcome: string;
+                    read_at?: string;
+                    received_at: string;
+                    subject?: string | null;
+                    tenant_id: string;
+                    tool: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    appointment_id?: string | null;
+                    created_at?: string;
+                    from_address?: string | null;
+                    hold_reason?: string | null;
+                    id?: string;
+                    notice_id?: string;
+                    outcome?: string;
+                    read_at?: string;
+                    received_at?: string;
+                    subject?: string | null;
+                    tenant_id?: string;
+                    tool?: string;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "appointment_notices_appointment_id_same_workspace";
+                        columns: ["tenant_id", "appointment_id"];
+                        isOneToOne: false;
+                        referencedRelation: "appointments";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "appointment_notices_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             appointments: {
                 Row: {
                     all_day: boolean;
+                    client_email: string | null;
+                    client_name: string | null;
+                    client_phone: string | null;
                     consultation: boolean;
                     contact_id: string | null;
                     created_at: string;
@@ -127,18 +193,26 @@ type Database = {
                     ends_at: string;
                     external_id: string | null;
                     id: string;
+                    lead_id: string | null;
+                    note: string | null;
+                    price: string | null;
                     service: string | null;
                     source: string;
+                    staff: string | null;
                     starts_at: string;
                     status: string;
                     tenant_id: string;
                     timezone: string;
                     title: string | null;
+                    tool: string | null;
                     updated_at: string;
                     vanished_at: string | null;
                 };
                 Insert: {
                     all_day?: boolean;
+                    client_email?: string | null;
+                    client_name?: string | null;
+                    client_phone?: string | null;
                     consultation?: boolean;
                     contact_id?: string | null;
                     created_at?: string;
@@ -146,18 +220,26 @@ type Database = {
                     ends_at: string;
                     external_id?: string | null;
                     id?: string;
+                    lead_id?: string | null;
+                    note?: string | null;
+                    price?: string | null;
                     service?: string | null;
                     source: string;
+                    staff?: string | null;
                     starts_at: string;
                     status?: string;
                     tenant_id: string;
                     timezone: string;
                     title?: string | null;
+                    tool?: string | null;
                     updated_at?: string;
                     vanished_at?: string | null;
                 };
                 Update: {
                     all_day?: boolean;
+                    client_email?: string | null;
+                    client_name?: string | null;
+                    client_phone?: string | null;
                     consultation?: boolean;
                     contact_id?: string | null;
                     created_at?: string;
@@ -165,13 +247,18 @@ type Database = {
                     ends_at?: string;
                     external_id?: string | null;
                     id?: string;
+                    lead_id?: string | null;
+                    note?: string | null;
+                    price?: string | null;
                     service?: string | null;
                     source?: string;
+                    staff?: string | null;
                     starts_at?: string;
                     status?: string;
                     tenant_id?: string;
                     timezone?: string;
                     title?: string | null;
+                    tool?: string | null;
                     updated_at?: string;
                     vanished_at?: string | null;
                 };
@@ -181,6 +268,13 @@ type Database = {
                         columns: ["tenant_id", "contact_id"];
                         isOneToOne: false;
                         referencedRelation: "contacts";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "appointments_lead_id_same_workspace";
+                        columns: ["tenant_id", "lead_id"];
+                        isOneToOne: false;
+                        referencedRelation: "leads";
                         referencedColumns: ["tenant_id", "id"];
                     },
                     {
@@ -3650,6 +3744,10 @@ type Database = {
             mailboxes: {
                 Row: {
                     created_at: string;
+                    forward_confirm_account: string | null;
+                    forward_confirm_at: string | null;
+                    forward_confirm_code: string | null;
+                    forward_confirm_link: string | null;
                     from_name: string;
                     id: string;
                     last_error: string | null;
@@ -3666,6 +3764,10 @@ type Database = {
                 };
                 Insert: {
                     created_at?: string;
+                    forward_confirm_account?: string | null;
+                    forward_confirm_at?: string | null;
+                    forward_confirm_code?: string | null;
+                    forward_confirm_link?: string | null;
                     from_name: string;
                     id?: string;
                     last_error?: string | null;
@@ -3682,6 +3784,10 @@ type Database = {
                 };
                 Update: {
                     created_at?: string;
+                    forward_confirm_account?: string | null;
+                    forward_confirm_at?: string | null;
+                    forward_confirm_code?: string | null;
+                    forward_confirm_link?: string | null;
                     from_name?: string;
                     id?: string;
                     last_error?: string | null;
@@ -5921,16 +6027,13 @@ type Database = {
                 };
                 Returns: number;
             };
-            appointments_feed_sync: {
+            appointments_scrub: {
                 Args: {
-                    p_from: string;
-                    p_now?: string;
-                    p_rows: Json;
+                    p_contact_id: string;
+                    p_needles: string[];
                     p_tenant_id: string;
-                    p_timezone: string;
-                    p_to: string;
                 };
-                Returns: Json;
+                Returns: number;
             };
             ask_for_tick: {
                 Args: never;
@@ -7048,6 +7151,13 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: undefined;
+            };
+            member_has_address: {
+                Args: {
+                    p_address: string;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
             };
             member_view_set: {
                 Args: {

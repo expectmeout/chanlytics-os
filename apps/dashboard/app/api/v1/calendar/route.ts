@@ -40,9 +40,9 @@ export const GET = read({
     // for the span, the people and the windows.
     const rc = readerContext(ctx, member);
     const s = (await load(rc, sources, { from, days, fresh })).data;
-    if (s.week) return { calendar: s.week };
     const people = [...s.people];
-    if (canAct)
+    // Only a feed adds people here: a notice's person was put in People when it was read (booking_read, 00345).
+    if (canAct && s.parsed)
       people.push(
         ...(await addPeopleSeen(ctx, member.tenantId, s.parsed.items, s.serviceNames, people, rc.now).catch(
           (e: unknown) => {

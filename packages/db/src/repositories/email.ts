@@ -4,7 +4,10 @@
  *
  *   the mailbox            mailboxById, mailboxFor (a published address, or a reply route: a rotated-out token still
  *                          routes until it is revoked, 00126), mailboxOfTenant (null is a workspace with no email
- *                          line) and stampMailboxReceived (the mailbox's health stamp, which only logs when it fails).
+ *                          line) and stampMailboxReceived (the mailbox's health stamp, which only logs when it fails);
+ *                          keepForwardingConfirmation and clearForwardingConfirmation (Gmail's pending confirmation of
+ *                          a forward here, 00345: kept by the intake, shown by Settings, let go of by the first notice
+ *                          read, packages/jobs/src/booking-read.ts).
  *   taking one in          ingestInboundEmail and sentEmailWithMessageId (how a sent email coming back is known),
  *                          asked by the email_ingest job (packages/jobs/src/handlers.ts); the edge's door finds the
  *                          mailbox with mailboxFor (apps/edge/lib/email/email-ingress.ts).
@@ -252,6 +255,39 @@ export async function mailboxOfTenant(db: Db, tenantId: string): Promise<Mailbox
   const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`mailbox: ${error.message}`);
   return data;
+}
+
+/** Gmail's confirmation that it may forward here (00345), kept on the mailbox until the first notice is read. */
+export async function keepForwardingConfirmation(
+  db: Db,
+  mailboxId: string,
+  p: { account: string; code: string; link: string | null },
+): Promise<void> {
+  const { error } = await db
+    .from("mailboxes")
+    .update({
+      forward_confirm_account: p.account,
+      forward_confirm_code: p.code,
+      forward_confirm_link: p.link,
+      forward_confirm_at: new Date().toISOString(),
+    })
+    .eq("id", mailboxId);
+  if (error) throw new Error(`forwarding_confirmation_keep: ${error.message}`);
+}
+
+/** The forward confirmed, as the first notice that arrived proves: the code and the link are let go of. */
+export async function clearForwardingConfirmation(db: Db, mailboxId: string): Promise<void> {
+  const { error } = await db
+    .from("mailboxes")
+    .update({
+      forward_confirm_account: null,
+      forward_confirm_code: null,
+      forward_confirm_link: null,
+      forward_confirm_at: null,
+    })
+    .eq("id", mailboxId)
+    .not("forward_confirm_code", "is", null);
+  if (error) throw new Error(`forwarding_confirmation_clear: ${error.message}`);
 }
 
 /** The email a reply answers: what the thread stores of the person's latest one. */

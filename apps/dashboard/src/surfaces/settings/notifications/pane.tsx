@@ -86,7 +86,7 @@ function recipientsCard(o: Recipients): ReactNode {
       <div className="set-row">
         <div className="set-row-info" style={{ flex: 1 }}>
           <input
-            className="sd-input"
+            className="rec-input"
             type="email"
             placeholder="owner@yourbusiness.com"
             value={email}

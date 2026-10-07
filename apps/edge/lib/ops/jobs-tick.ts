@@ -28,6 +28,7 @@ import { provisionLineJob } from "../lines/line-provision-job.js";
 import { leadPipeline } from "../leads/lead-pipeline.js";
 import { expoPush } from "./push.js";
 import { replyReader } from "../reach-out/reply-read.js";
+import { bookingReader } from "../calendar/booking-read.js";
 import { answerText } from "../sms/inbound-text.js";
 import {
   runTick,
@@ -138,6 +139,8 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
               // The reading of a reach-out's reply: the model, the spend and the notice. With no model key it
               // reads nothing and says so (no_model), and the reply is read again later.
               replies: replyReader(db),
+              // The reading of a booking tool's notice: the model, the spend and the person it is for.
+              bookings: bookingReader(db),
               // A text its door recorded and acknowledged, answered here (decision 0031, Phase 2).
               inbound: { answer: (claimed) => answerText(db, claimed) },
               // A job that continues itself (a broadcast's next batch) is one

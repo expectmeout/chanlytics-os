@@ -38,7 +38,7 @@ import { domainsReadiness, sendingDomainsFor } from "./sending-domains";
 import { env } from "../env";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
-function emailDomain(): string | null {
+export function emailDomain(): string | null {
   return emailDomainOf(env.EMAIL_DOMAIN);
 }
 

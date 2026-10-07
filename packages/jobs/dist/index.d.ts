@@ -2,7 +2,7 @@ import { Database, Json } from '@chanlytics/db';
 import { JobKind, JobNews, PushMessage, Unread } from '@chanlytics/contracts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ReceivedEmail } from '@chanlytics/channels';
-import { Wire, EmailIngestPorts, ReplyNotice, ReplyReadPorts, IncomingEmail } from '@chanlytics/core';
+import { Wire, EmailIngestPorts, ReplyNotice, ReplyReadPorts, BookingNoticePorts, IncomingEmail } from '@chanlytics/core';
 
 /**
  * The jobs ledger: the rules a row moves by, and the writes that move it.
@@ -425,6 +425,29 @@ interface JobContext {
          * drafted. Throws when it failed; no call runs past `ask.deadline`.
          */
         draft: ReplyReadPorts["draft"];
+    };
+    /**
+     * The reading of a booking tool's notice (docs/plans/2026-10-07-bookings-arrive-by-email.md), as the edge holds it.
+     * INJECTED like `replies`: the model's key, the workspace's spend and the person-making rules live on the edge.
+     * Optional so a test context need not supply one; a booking_read job in a runtime without it fails loudly.
+     */
+    bookings?: {
+        /** The reader's answer, unparsed; null when it answered nothing usable. Throws on a failed call. No call runs past `deadline`. */
+        ask: (system: string, user: string, deadline: number, forWhom: {
+            tenantId: string;
+            subjectId: string;
+        }) => Promise<unknown>;
+        /** Why the model may not be asked now, or null when it may. */
+        mayRead: (tenantId: string, at: Date) => Promise<"no_model" | "may_not_spend" | null>;
+        /** The person the booking is for, matched or made by the calendar sweep's rules; null when nobody can be. */
+        personFor: BookingNoticePorts["personFor"];
+        /** Tell the workspace a notice is held for a person (the bell, once per delivery). Never throws. */
+        tell: (tenantId: string, notice: {
+            noticeId: string;
+            tool: string;
+            subject: string | null;
+            reason: string;
+        }) => Promise<void>;
     };
     /**
      * A text answered after its acknowledgement (decision 0031, Phase 2), as the edge holds it: the line, its sender and

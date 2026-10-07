@@ -31,13 +31,28 @@ import {
   ownAddressesOf,
   personLikeOf,
   type OwnAddresses,
+  withoutVisitsRowsDraw,
+  daysWithAppointments,
+  busyOfAppointments,
+  offeringHorizon,
+  BOOKING_DEFAULTS,
+  isNoticeHold,
+  type AppointmentLike,
+  type BusyBlock,
+  type CalendarFeedDto,
+  type CalendarNoticesDto,
+  type TenantConfig,
 } from "@chanlytics/contracts";
+import { appointmentNoticesOf, appointmentsBetween, heldNoticesOf, mailboxOfTenant } from "@chanlytics/db";
+import { hostedAddress } from "@chanlytics/channels";
 import type { RouteContext } from "@/server/with-route";
+import { emailDomain } from "../connections/email";
 import { tenantFacts } from "@/server/tenant";
 import { everyone } from "@/server/people/people";
 import { readSettings } from "./calendar-settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
 import { addPeopleSeen } from "./people-seen";
+import { recordBusy } from "./record-busy";
 import { log } from "@/server/log";
 
 /**
@@ -138,61 +153,110 @@ export type CalendarSources = {
   base: CalendarWeekDto;
   serviceNames: string[];
   people: PersonLike[];
-} & (
-  | { week: CalendarWeekDto; feed: ParsedRead | null; parsed: null }
-  | { week: null; feed: ParsedRead; parsed: ParsedFeed }
-);
+  /**
+   * The appointments the record holds over the span (00345): the bookings that arrived by email, drawn beside the
+   * feed's events (docs/plans/2026-10-07-bookings-arrive-by-email.md). Empty for a workspace none have reached.
+   */
+  rows: AppointmentLike[];
+  /**
+   * The record's taken time over the days the receptionist may offer, read beside a feed that reads (record-busy.ts):
+   * what the open times subtract with the feed's own, whichever span the page shows. Empty with no readable feed,
+   * where no time is offered.
+   */
+  taken: BusyBlock[];
+  /** The feed's read, null with no address; its parse, null when it could not be read. */
+  feed: ParsedRead | null;
+  parsed: ParsedFeed | null;
+};
 
-/** The week for a calendar that was fetched and could not be read: the empty week, with the reason the board says. */
-function unreadWeek(base: CalendarWeekDto, feed: ParsedRead): CalendarWeekDto {
+/** The feed's state for a calendar that was fetched and could not be read: the reason the board says. */
+function unreadFeed(base: CalendarFeedDto, feed: ParsedRead): CalendarFeedDto {
   return {
     ...base,
-    feed: {
-      ...base.feed,
-      checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
-      reason: feed.reason,
-      status: feed.status,
-      problem: feedProblemWords(feed.reason, feed.status),
-    },
+    checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
+    reason: feed.reason,
+    status: feed.status,
+    problem: feedProblemWords(feed.reason, feed.status),
   };
 }
 
 /**
- * The calendar's one read for a span, and nothing written (D7): calendarWeek's reads, in its order, up to the point an
- * owner's read would put the feed's people in People. The zone and the settings are read here unless a caller that
- * read them this turn hands them in (readers/calendar.ts), so a turn reads the tenant once. What the board shows
- * follows from this alone (weekFrom); a read that adds people does so between the two (calendarWeek, the calendar
- * route). Takes only the client it reads with, as calendarWeek does.
+ * The record's rows over the span and the notices' health line, read beside the feed: the bookings that arrived by
+ * email (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md). One read after the other, so a turn's reads are in
+ * one order (ask/readers.test.mjs pins them). A failed read is an empty board side and a logged line, never a board
+ * that fails to draw the feed.
  */
-export async function calendarSources(
+async function recordOverSpan(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  by: { from: string | null; days: number },
-  now: Date,
-  opts: { fresh?: boolean; timezone?: string; config?: unknown } = {},
-): Promise<CalendarSources> {
-  // The zone and the settings: handed in by a caller that read them this turn (readers/calendar.ts), else read here.
-  const timezone = opts.timezone ?? (await tenantFacts(ctx.supabase, tenantId)).timezone;
-  const span = spanFor(by.from, by.days, timezone, now);
-  let raw = opts.config;
-  if (raw === undefined) {
-    const { data: row, error } = await ctx.supabase
-      .from("tenant_config")
-      .select("config")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    raw = row?.config ?? null;
-  }
-  const { cfg, lostCalendar } = readSettings(tenantId, raw);
-  const url = cfg?.calendar?.ical_url ?? null;
-  const profile = cfg?.brain?.profile ?? null;
-  const rules: BookingRules | null = profile?.booking_rules ?? null;
-  const hours = profile?.hours ?? null;
-  const closures = profile?.closures ?? [];
-  const to = shiftKey(span.from, span.days - 1);
+  tz: string,
+  from: string,
+  to: string,
+  tool: string | null,
+): Promise<{ rows: AppointmentLike[]; notices: Omit<CalendarNoticesDto, "count"> }> {
+  const spanFrom = new Date(zoneMidnight(tz, from)).toISOString();
+  const spanTo = new Date(zoneMidnight(tz, shiftKey(to, 1))).toISOString();
+  const failed = (e: unknown) =>
+    log.error("calendar_notices_read_failed", {
+      tenant_id: tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  const rows: AppointmentLike[] = await appointmentsBetween(ctx.supabase, tenantId, spanFrom, spanTo).catch((e) => {
+    failed(e);
+    return [];
+  });
+  const latest = await appointmentNoticesOf(ctx.supabase, tenantId).catch(() => ({
+    tool: null,
+    last_at: null,
+    held: 0,
+  }));
+  const held = latest.held ? await heldNoticesOf(ctx.supabase, tenantId).catch(() => []) : [];
+  // The workspace's address, as the tool is to send to, and Gmail's pending confirmation of a forward here (00345).
+  const mailbox = await mailboxOfTenant(ctx.supabase, tenantId).catch(() => null);
+  const domain = emailDomain();
+  const notices: Omit<CalendarNoticesDto, "count"> = {
+    tool: tool ?? latest.tool,
+    address: mailbox && domain ? hostedAddress(mailbox.local_part, domain) : null,
+    last_at: latest.last_at,
+    held: latest.held,
+    held_list: held.flatMap((n) =>
+      isNoticeHold(n.hold_reason)
+        ? [
+            {
+              id: n.id,
+              tool: n.tool,
+              from: n.from_address,
+              subject: n.subject,
+              received_at: n.received_at,
+              reason: n.hold_reason,
+            },
+          ]
+        : [],
+    ),
+    forwarding:
+      mailbox?.forward_confirm_code && mailbox.forward_confirm_account && mailbox.forward_confirm_at
+        ? {
+            account: mailbox.forward_confirm_account,
+            code: mailbox.forward_confirm_code,
+            link: mailbox.forward_confirm_link,
+            at: mailbox.forward_confirm_at,
+          }
+        : null,
+  };
+  return { rows, notices };
+}
 
-  const base: CalendarWeekDto = {
+/** The week before anything is read: the settings' own facts, and a feed that says why it is not read yet. */
+function weekBeforeReading(
+  timezone: string,
+  span: { from: string; days: number },
+  to: string,
+  cfg: TenantConfig | null,
+  url: string | null,
+  lostCalendar: boolean,
+): CalendarWeekDto {
+  const profile = cfg?.brain?.profile ?? null;
+  return {
     timezone,
     from: span.from,
     to,
@@ -211,9 +275,9 @@ export async function calendarSources(
       stale: false,
       dropped: 0,
     },
-    hours,
-    closures,
-    rules,
+    hours: profile?.hours ?? null,
+    closures: profile?.closures ?? [],
+    rules: profile?.booking_rules ?? null,
     // The services as Settings keeps them: how long each takes (the assistant
     // sizes windows by it) and which need a consultation first.
     services: (profile?.services ?? []).map((s) => ({
@@ -226,6 +290,48 @@ export async function calendarSources(
     next_opening: null,
     days: Array.from({ length: span.days }, (_, i) => ({ key: shiftKey(span.from, i), items: [], windows: [] })),
   };
+}
+
+/**
+ * The calendar's one read for a span, and nothing written (D7): calendarWeek's reads, in its order, up to the point an
+ * owner's read would put the feed's people in People. The zone and the settings are read here unless a caller that
+ * read them this turn hands them in (readers/calendar.ts), so a turn reads the tenant once. What the board shows
+ * follows from this alone (weekFrom); a read that adds people does so between the two (calendarWeek, the calendar
+ * route). Takes only the client it reads with, as calendarWeek does.
+ */
+export async function calendarSources(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  by: { from: string | null; days: number },
+  now: Date,
+  opts: { fresh?: boolean; timezone?: string; config?: unknown; feedOnly?: boolean } = {},
+): Promise<CalendarSources> {
+  // The zone and the settings: handed in by a caller that read them this turn (readers/calendar.ts), else read here.
+  const timezone = opts.timezone ?? (await tenantFacts(ctx.supabase, tenantId)).timezone;
+  const span = spanFor(by.from, by.days, timezone, now);
+  let raw = opts.config;
+  if (raw === undefined) {
+    const { data: row, error } = await ctx.supabase
+      .from("tenant_config")
+      .select("config")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    raw = row?.config ?? null;
+  }
+  const { cfg, lostCalendar } = readSettings(tenantId, raw);
+  const url = cfg?.calendar?.ical_url ?? null;
+  const profile = cfg?.brain?.profile ?? null;
+  const rules: BookingRules | null = profile?.booking_rules ?? null;
+  const to = shiftKey(span.from, span.days - 1);
+
+  const base = weekBeforeReading(timezone, span, to, cfg, url, lostCalendar);
+  // A caller that asks only whether the feed reads (`feedOnly`: Setup's row) is read nothing of the record.
+  const { rows, notices } = opts.feedOnly
+    ? NO_RECORD
+    : await recordOverSpan(ctx, tenantId, timezone, span.from, to, cfg?.calendar?.tool ?? null);
+  base.feed.notices = { ...notices, count: rows.length };
+
   // What the board needs of the address and the settings, and not them: the calendar's name, the business's own.
   const read = {
     timezone,
@@ -235,13 +341,38 @@ export async function calendarSources(
     profile,
     rules,
     base,
+    rows,
   };
-  if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], people: [], week: base };
+  const sources = await withFeedAndPeople(ctx, tenantId, read, url, profile, now, !!opts.fresh);
+  // Beside a feed that reads, the record's taken time, which the open times subtract; never for a feed-only read.
+  const taken = sources.parsed && !opts.feedOnly ? await takenBesideTheFeed(ctx, tenantId, read, now) : [];
+  return { ...sources, taken };
+}
 
+/** A read that asks nothing of the record: no rows over the span, no notice's health line, no address. */
+const NO_RECORD: { rows: AppointmentLike[]; notices: Omit<CalendarNoticesDto, "count"> } = {
+  rows: [],
+  notices: { tool: null, address: null, last_at: null, held: 0, held_list: [], forwarding: null },
+};
+
+/** What calendarSources reads once the settings are known: the feed, when there is an address, and everyone in People. */
+async function withFeedAndPeople(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  read: Omit<CalendarSources, "feed" | "parsed" | "serviceNames" | "people" | "taken">,
+  url: string | null,
+  profile: BusinessProfile | null,
+  now: Date,
+  fresh: boolean,
+): Promise<Omit<CalendarSources, "taken">> {
+  const { timezone, rows } = read;
   // Everyone in People is read beside the feed, not after it: the two are independent, and a board whose feed is in the
-  // few minutes' cache waited on this read alone. Begun only once there is a calendar to match against (a workspace
-  // with none reads nobody), and its failure is an empty list, as it was, so a read nobody awaits settles quietly.
-  const everyoneRead = everyone(ctx, tenantId).catch(() => []);
+  // few minutes' cache waited on this read alone. Begun only once there is something to match against (a workspace
+  // with no calendar and no rows reads nobody), and its failure is an empty list, as it was, so a read nobody awaits
+  // settles quietly.
+  const everyoneRead = url || rows.length ? everyone(ctx, tenantId).catch(() => []) : Promise.resolve([]);
+  const people = async () => (await everyoneRead).map(personLike);
+  if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], people: await people() };
 
   // One parse per fetch, shared with the profile, the People list and the
   // report. Its horizon — ninety days either side — covers any span the page
@@ -249,19 +380,38 @@ export async function calendarSources(
   // receptionist's own, never computed from a feed cut short. A fresh read is the board's Refresh (C2).
   let feed: ParsedRead;
   try {
-    feed = await parsedFeedFor(tenantId, url, timezone, now, { fresh: !!opts.fresh });
+    feed = await parsedFeedFor(tenantId, url, timezone, now, { fresh });
   } catch (e) {
     log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
-  // Nothing readable, ever: the board says why, in the words the preview uses.
-  if (!feed.parsed) return { ...read, feed, parsed: null, serviceNames: [], people: [], week: unreadWeek(base, feed) };
-  const parsed = feed.parsed;
+  // Nothing readable, ever: the board says why, in the words the preview uses; the record's rows are drawn all the same.
+  if (!feed.parsed) return { ...read, feed, parsed: null, serviceNames: [], people: await people() };
   const serviceNames = (profile?.services ?? []).map((s) => s.name);
   // Everyone, not the first thousand: past it, an appointment of a known person linked to nobody on the board, and
   // an owner's read asked the door for them again.
-  const people = (await everyoneRead).map(personLike);
-  return { ...read, feed, parsed, serviceNames, people, week: null };
+  return { ...read, feed, parsed: feed.parsed, serviceNames, people: await people() };
+}
+
+/**
+ * The record's taken time over the days the receptionist may offer (00345), for a feed that reads. The span's own rows
+ * where the span covers those days, as the window around today does, so the board's first read asks nothing more;
+ * else one read of them (record-busy.ts), so the next open time is the receptionist's own on a board turned to
+ * another month.
+ */
+async function takenBesideTheFeed(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  read: Pick<CalendarSources, "timezone" | "span" | "rules" | "rows">,
+  now: Date,
+): Promise<BusyBlock[]> {
+  const daysAhead = read.rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
+  const offer = offeringHorizon(now, daysAhead);
+  const from = zoneMidnight(read.timezone, read.span.from);
+  const to = zoneMidnight(read.timezone, shiftKey(read.span.from, read.span.days));
+  return from <= offer.from && offer.to <= to
+    ? busyOfAppointments(read.rows)
+    : recordBusy(ctx, tenantId, now, daysAhead);
 }
 
 /**
@@ -271,10 +421,12 @@ export async function calendarSources(
  * nothing, and changes nothing it is handed.
  */
 export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): CalendarWeekDto {
-  if (s.week) return s.week;
-  const { timezone, span, source, ownAddresses, profile, rules, base, feed, parsed, serviceNames } = s;
-  const { days, dropped } = itemsToDays(
-    parsed.items,
+  const { timezone, span, source, ownAddresses, profile, rules, base, feed, parsed, serviceNames, rows, taken } = s;
+  // The feed's events, less those a row already draws (the same client, the same quarter hour): a visit a tool both
+  // emailed and wrote into the calendar is drawn once, from the notice, which states what the event's title hints at.
+  const events = parsed ? withoutVisitsRowsDraw(parsed.items, rows, ownAddresses) : [];
+  const { days: fromFeed, dropped } = itemsToDays(
+    events,
     span.from,
     span.days,
     timezone,
@@ -283,32 +435,47 @@ export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): C
     serviceNames,
     { services: profile?.services ?? [], rules },
   );
-  const openings = profile
-    ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now })
-    : [];
+  const days = daysWithAppointments(fromFeed, rows, timezone, people);
+  // Open times only where a calendar reads: the rows say what was booked online, not what a staff member typed into
+  // the tool, so rows alone offer nothing (the readers lane adds the owner's word on that). Beside a feed, a row is
+  // taken time too: a tool that writes no calendar still took the slot. `taken` is the record over the days on offer,
+  // the receptionist's own subtraction (edge availability.ts), so a window drawn here is one it would offer.
+  const busy = parsed ? [...parsed.busy, ...taken] : [];
+  const openings =
+    profile && parsed
+      ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy, rules, now })
+      : [];
   const windowsOf = new Map(openings.map((o) => [o.key, o.windows]));
   // The receptionist's next open time from now, whatever span the page asked for: the first of every time it would
   // offer. The page worked it out from the span it had loaded, so a board on December had none to name (C1).
   const first = openings.find((o) => o.windows.length)?.windows[0] ?? null;
+  // A reason beside "ok" means the latest try failed and this is the last good read, said so on the chip. A feed that
+  // could not be read keeps the base's state with the reason; no feed at all keeps the base's.
+  const feedDto: CalendarFeedDto =
+    parsed && feed
+      ? {
+          ...base.feed,
+          present: true,
+          source,
+          state: "ok",
+          read_at: feed.at === null ? null : new Date(feed.at).toISOString(),
+          checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
+          events: parsed.events,
+          recurring_expanded: parsed.recurringExpanded,
+          skipped_recurring: parsed.skippedRecurring,
+          reason: feed.reason,
+          status: feed.status,
+          problem: feedProblemWords(feed.reason, feed.status),
+          stale: feed.reason !== null,
+          dropped,
+        }
+      : feed
+        ? unreadFeed(base.feed, feed)
+        : base.feed;
   return {
     ...base,
     next_opening: first ? { start: new Date(first.start).toISOString(), end: new Date(first.end).toISOString() } : null,
-    // A reason beside "ok" means the latest try failed and this is the last good read, said so on the chip.
-    feed: {
-      present: true,
-      source,
-      state: "ok",
-      read_at: feed.at === null ? null : new Date(feed.at).toISOString(),
-      checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(),
-      events: parsed.events,
-      recurring_expanded: parsed.recurringExpanded,
-      skipped_recurring: parsed.skippedRecurring,
-      reason: feed.reason,
-      status: feed.status,
-      problem: feedProblemWords(feed.reason, feed.status),
-      stale: feed.reason !== null,
-      dropped,
-    },
+    feed: feedDto,
     days: days.map((d) => ({
       ...d,
       windows: (windowsOf.get(d.key) ?? []).map((w) => ({
@@ -333,16 +500,16 @@ export async function calendarWeek(
   tenantId: string,
   by: { from: string | null; days: number },
   now = new Date(),
-  opts: { canAct?: boolean; fresh?: boolean } = {},
+  opts: { canAct?: boolean; fresh?: boolean; feedOnly?: boolean } = {},
 ): Promise<CalendarWeekDto> {
-  const s = await calendarSources(ctx, tenantId, by, now, { fresh: !!opts.fresh });
-  if (s.week) return s.week;
+  const s = await calendarSources(ctx, tenantId, by, now, { fresh: !!opts.fresh, feedOnly: !!opts.feedOnly });
   // A copy: the read's own list is never changed.
   const people = [...s.people];
   // The people this feed names are put in People here, so the board an
   // owner is looking at already links to them; the hourly sweep does the
-  // same for everyone else, and for a feed nobody opens.
-  if (opts.canAct)
+  // same for everyone else, and for a feed nobody opens. A notice's person
+  // was put there when it was read (booking_read), so only a feed adds here.
+  if (opts.canAct && s.parsed)
     people.push(
       ...(await addPeopleSeen(ctx, tenantId, s.parsed.items, s.serviceNames, people, now).catch((e: unknown) => {
         log.error("calendar_people_seen_failed", {

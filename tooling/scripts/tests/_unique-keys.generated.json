@@ -14,6 +14,33 @@
       "where": null
     },
     {
+      "table": "appointment_notices",
+      "name": "appointment_notices_delivery_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "notice_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "appointment_notices",
+      "name": "appointment_notices_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "appointments",
       "name": "appointments_pkey",
       "primary": true,
@@ -27,7 +54,7 @@
     },
     {
       "table": "appointments",
-      "name": "appointments_source_key",
+      "name": "appointments_source_uq",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
@@ -41,11 +68,22 @@
           "column": "external_id"
         }
       ],
-      "where": {
-        "notNull": {
-          "column": "external_id"
+      "where": null
+    },
+    {
+      "table": "appointments",
+      "name": "appointments_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
         }
-      }
+      ],
+      "where": null
     },
     {
       "table": "ask_messages",

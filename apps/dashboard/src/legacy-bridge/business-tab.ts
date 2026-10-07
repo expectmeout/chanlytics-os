@@ -146,6 +146,8 @@ export const FOLD_BLOCK = {
   fallbacks: null,
   // The feed's openings follow the prompt, in the block rebuilt for every message and call (prompt-preview.ts `now`).
   calendar: null,
+  // The booking tool the owner named (00345): where the bookings come from, never a word of the prompt.
+  bookings: null,
   // A photo's words go in the customer's own turn (the edge's vision.ts), never in the prompt.
   vision: null,
   // In the prompt (the hours heading names it, and closures pass by its clock), but it is the workspace's

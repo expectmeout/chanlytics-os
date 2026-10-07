@@ -1354,7 +1354,8 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
     },
   });
   const pause = () => new Promise((r) => setTimeout(r, 5));
-  const stop = startSurfaces([calendarOverride]);
+  // The board watches the record's rows (00345), so the runner wants a feed to join: none of these cases exercises it.
+  const stop = startSurfaces([calendarOverride], () => () => {});
   try {
     for (let i = 0; i < 20 && !seen.length; i += 1) await pause();
     await pause();
@@ -1426,7 +1427,8 @@ test("a window the board has read paints at once on the way back, and is read ag
   };
   const home = windowFor(zoneDayKey(Date.now(), TZ)).from;
   const shown = () => globalThis.window.__CALENDAR?.vm?.from;
-  const stop = startSurfaces([calendarOverride]);
+  // The board watches the record's rows (00345), so the runner wants a feed to join: none of these cases exercises it.
+  const stop = startSurfaces([calendarOverride], () => () => {});
   try {
     await release();
     assert.equal(shown(), home, "the weeks around today, read at boot");
@@ -1552,7 +1554,8 @@ test("a window read ahead is held and paints at once when the board gets there; 
   const next = windowFor(monthOf(today, 1)).from;
   const before = windowFor(monthOf(today, -1)).from;
   const shown = () => globalThis.window.__CALENDAR?.vm?.from;
-  const stop = startSurfaces([calendarOverride]);
+  // The board watches the record's rows (00345), so the runner wants a feed to join: none of these cases exercises it.
+  const stop = startSurfaces([calendarOverride], () => () => {});
   try {
     await release();
     assert.equal(shown(), home, "the weeks around today, read at boot");
@@ -1860,6 +1863,37 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
       .includes("Paste the address"),
     "REGRESSION: 'Connect', where Setup and Connections say paste the address",
   );
+  // Bookings arriving by email and no calendar (00345): the card says so, and its one door says what is next in
+  // Settings › Business -- the emails held for a look, else a calendar as the quiet extra it is.
+  const feedNone = {
+    present: false,
+    state: "none",
+    read_at: null,
+    events: 0,
+    recurring_expanded: 0,
+    skipped_recurring: 0,
+  };
+  const byEmail = (over = {}) => ({
+    tool: "booksy",
+    address: "salon@mail.example.com",
+    last_at: "2026-09-08T14:00:00.000Z",
+    count: 3,
+    held: 0,
+    held_list: [],
+    forwarding: null,
+    ...over,
+  });
+  fresh(dto({ feed: { ...feedNone, notices: byEmail() } }));
+  let door = byTestId(page(), "cal-feed-door");
+  assert.equal(textOf(door), "Add a calendar");
+  assert.equal(door.props.variant, "quiet", "the calendar is the quiet extra once emails work");
+  assert.match(textOf(byTestId(page(), "cal-feed-notices")), /Bookings arrive by email from Booksy\./);
+  assert.doesNotMatch(textOf(byTestId(page(), "cal-feed-notices")), /need a look/);
+  fresh(dto({ feed: { ...feedNone, notices: byEmail({ held: 2 }) } }));
+  door = byTestId(page(), "cal-feed-door");
+  assert.equal(textOf(door), "Look at them");
+  assert.equal(door.props.variant, "primary", "emails held for a look are the primary act");
+  assert.match(textOf(byTestId(page(), "cal-feed-notices")), /2 booking emails need a look\./);
   fresh();
   tree = page();
   assert.equal(toCalendarVM(dto(), NOW).zoneCity, "New York");

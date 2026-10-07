@@ -11,9 +11,13 @@ export const SCHEMA_SETS = {
   "ai_usage.port": ["anthropic", "typesafe"],
   "ai_usage.purpose": [
     "receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge",
-    "note_suggest", "reach_out_check", "reply_read",
+    "note_suggest", "reach_out_check", "reply_read", "booking_read",
   ],
-  "appointments.source": ["calendar_feed", "booking_tool", "person"],
+  "appointment_notices.hold_reason": [
+    "no_model", "may_not_spend", "unreadable", "not_a_booking", "no_time", "no_client", "gone",
+  ],
+  "appointment_notices.outcome": ["booked", "changed", "cancelled", "held", "dismissed"],
+  "appointments.source": ["calendar_feed", "booking_email", "booking_tool", "person"],
   "appointments.status": ["proposed", "booked", "kept", "missed", "cancelled"],
   "ask_messages.role": ["user", "assistant"],
   "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
@@ -74,7 +78,7 @@ export const SCHEMA_SETS = {
   "jobs.kind": [
     "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
     "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver",
-    "inbound_answer",
+    "booking_read", "inbound_answer",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -130,7 +134,7 @@ export const SCHEMA_SETS = {
     "handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people",
     "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent",
     "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied",
-    "reach_out_day",
+    "reach_out_day", "booking_notice",
   ],
   "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB"],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],

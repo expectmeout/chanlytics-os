@@ -349,7 +349,8 @@ var MODEL_PURPOSES = [
   "lead_judge",
   "note_suggest",
   "reach_out_check",
-  "reply_read"
+  "reply_read",
+  "booking_read"
 ];
 var MODEL_PORTS = ["anthropic", "typesafe"];
 var RECEPTIONIST_TRY_MS = 2e4;
@@ -392,7 +393,10 @@ var MODEL_ROUTES = {
     retries: 0,
     maxTokens: 400,
     shadow: "typesafe"
-  }
+  },
+  // A booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): a short
+  // email into a fixed shape, as the reply's reading is; an overload is the ledger's retry, as there.
+  booking_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 600 }
 };
 function modelRoute(purpose) {
   return MODEL_ROUTES[purpose];
@@ -2769,7 +2773,7 @@ function isAutomatedSend(meta) {
   const source = metaKey(meta, "source");
   return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
 }
-var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report"];
+var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report", "booking_notice"];
 function isPersonsWords(meta) {
   const claim = metaKey(metaKey(meta, "email"), "claim");
   return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
@@ -10051,9 +10055,6 @@ var HELD_REASONS = {
   // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
   send_failed: "the provider refused it",
   missing_value: "a value was missing",
-  // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
-  // (calendar/appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
-  appointment_changed: "their appointment moved or was cancelled",
   // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
   // this object opaque to the bundler, which then carries the whole map into
   // every package that imports anything from here. core-broadcast.test.mjs
@@ -10900,78 +10901,6 @@ var SEND_WHEN_WORDS = {
   timeLabel: "The time it goes out"
 };
 
-// src/calendar/appointment-key.ts
-function appointmentKeyOf(item) {
-  if (!item.uid) return `ev:${item.start}`;
-  return item.occurrence === void 0 ? item.uid : `${item.uid}:${item.occurrence}`;
-}
-
-// src/calendar/service-offer.ts
-var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-function sameListed(a, b) {
-  const x = foldName(String(a ?? "").trim());
-  return x !== "" && x === foldName(String(b ?? "").trim());
-}
-var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-function matchService(services, asked) {
-  const q = typeof asked === "string" ? foldName(asked.trim()) : "";
-  if (!q || !services?.length) return null;
-  const named = services.map((s) => ({ s, n: foldName(s.name) }));
-  const exact = named.find((x) => x.n === q);
-  if (exact) return exact.s;
-  const contains = named.find((x) => x.n && (x.n.includes(q) || q.includes(x.n)));
-  if (contains) return contains.s;
-  const asks = wordsOf(q).filter((w) => w.length >= 4);
-  let best = null;
-  let bestScore = 0;
-  for (const { s, n } of named) {
-    const own = wordsOf(n);
-    const score = asks.filter((w) => own.includes(w)).length;
-    if (score > bestScore) {
-      best = s;
-      bestScore = score;
-    }
-  }
-  return best;
-}
-function needsConsultation(name, rules) {
-  const n = foldName(name.trim());
-  const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
-  return !!n && list2.some((c) => foldName(String(c).trim()) === n);
-}
-function offerFor(services, rules, asked, opts = {}) {
-  const service = matchService(services, asked);
-  if (!service) return null;
-  if (opts.client)
-    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
-  if (!needsConsultation(service.name, rules))
-    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
-  const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
-  let consultationService = null;
-  let best = -1;
-  for (const s of services ?? []) {
-    const n = foldName(s.name);
-    if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
-    const score = wordsOf(n).filter((w) => own.includes(w)).length;
-    if (score > best) {
-      consultationService = s;
-      best = score;
-    }
-  }
-  return { service, consultation: true, consultationService, minMinutes: consultationService?.duration_min ?? null };
-}
-function offerLead(offer) {
-  if (!offer) return "";
-  if (!offer.consultation)
-    return offer.service.duration_min ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): ` : "";
-  const c = offer.consultationService;
-  const detail = [
-    c && foldName(c.name.trim()) !== "consultation" ? c.name : "",
-    offer.minMinutes ? `about ${offer.minMinutes} minutes` : ""
-  ].filter(Boolean).join(", ");
-  return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
-}
-
 // src/calendar/calendar-people.ts
 function threadOf(p) {
   return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
@@ -11088,15 +11017,6 @@ function indexFeed(items, own) {
   }
   return { byPhone, byEmail, texts, own };
 }
-var visitOf = (it, via) => ({
-  id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
-  key: appointmentKeyOf(it),
-  start: it.start,
-  end: it.end,
-  title: it.title || "Busy",
-  allDay: it.allDay,
-  via
-});
 function allVisitsIn(index, person) {
   if (isOwn(index.own, person)) return [];
   const out = [];
@@ -11104,7 +11024,14 @@ function allVisitsIn(index, person) {
   const take = (it, via) => {
     if (seen.has(it)) return;
     seen.add(it);
-    out.push(visitOf(it, via));
+    out.push({
+      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
+      start: it.start,
+      end: it.end,
+      title: it.title || "Busy",
+      allDay: it.allDay,
+      via
+    });
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
@@ -11123,7 +11050,14 @@ function visitsIn(index, person, nowMs) {
   const take = (it, via) => {
     if (seen.has(it)) return;
     seen.add(it);
-    const v = visitOf(it, via);
+    const v = {
+      id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
+      start: it.start,
+      end: it.end,
+      title: it.title || "Busy",
+      allDay: it.allDay,
+      via
+    };
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
@@ -11211,8 +11145,7 @@ function toVisitDto(v) {
     end: new Date(v.end).toISOString(),
     title: v.title,
     all_day: v.allDay,
-    via: v.via,
-    ...v.key ? { key: v.key } : {}
+    via: v.via
   } : null;
 }
 var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
@@ -11340,341 +11273,306 @@ function toBookingReportVM(dto) {
   };
 }
 
-// src/shared/link.ts
-var MAX_LINK = 500;
-var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
-function normalizeLink(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s || /\s/.test(s)) return null;
-  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
-  if (withScheme.length > MAX_LINK) return null;
-  let u;
-  try {
-    u = new URL(withScheme);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (!HOST.test(u.hostname)) return null;
-  return withScheme;
+// src/calendar/booking-notice.ts
+var BOOKING_TOOL_IDS = [
+  "booksy",
+  "acuity",
+  "fresha",
+  "square",
+  "vagaro",
+  "glossgenius",
+  "calendly",
+  "setmore",
+  "mindbody",
+  "simplybook",
+  "schedulicity",
+  "styleseat"
+];
+var BOOKING_TOOLS = [
+  { tool: "booksy", name: "Booksy", domains: ["booksy.com"] },
+  { tool: "acuity", name: "Acuity", domains: ["acuityscheduling.com", "squarespacescheduling.com"] },
+  { tool: "fresha", name: "Fresha", domains: ["fresha.com"] },
+  { tool: "square", name: "Square", domains: ["squareup.com", "square.com"] },
+  { tool: "vagaro", name: "Vagaro", domains: ["vagaro.com"] },
+  { tool: "glossgenius", name: "GlossGenius", domains: ["glossgenius.com"] },
+  { tool: "calendly", name: "Calendly", domains: ["calendly.com"] },
+  { tool: "setmore", name: "Setmore", domains: ["setmore.com"] },
+  { tool: "mindbody", name: "Mindbody", domains: ["mindbodyonline.com"] },
+  { tool: "simplybook", name: "SimplyBook", domains: ["simplybook.me"] },
+  { tool: "schedulicity", name: "Schedulicity", domains: ["schedulicity.com"] },
+  { tool: "styleseat", name: "StyleSeat", domains: ["styleseat.com"] }
+];
+var isBookingTool = (v) => BOOKING_TOOLS.some((t) => t.tool === v);
+function bookingToolName(tool) {
+  if (!tool) return null;
+  return BOOKING_TOOLS.find((t) => t.tool === tool)?.name ?? tool;
 }
-function whyNotALink(raw) {
-  if (normalizeLink(raw)) return null;
-  const s = String(raw ?? "").trim();
-  if (!s) return "A web address is needed.";
-  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
-  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
-  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
-  return "That needs a full web address, like docs.example.com/proposal.";
+function bookingToolOfAddress(address) {
+  const a = (address ?? "").trim().toLowerCase();
+  const at3 = a.lastIndexOf("@");
+  if (at3 < 1) return null;
+  const host = a.slice(at3 + 1);
+  for (const t of BOOKING_TOOLS) for (const d of t.domains) if (host === d || host.endsWith(`.${d}`)) return t.tool;
+  return null;
 }
-function linkHost(url) {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return url;
-  }
+var FORWARD_SUBJECT = /^\s*(fwd?|fw|tr|wg|rv)\s*:/i;
+function bookingNoticeOf(e) {
+  const direct = bookingToolOfAddress(e.from?.address);
+  if (direct) return { tool: direct, forwarded: false };
+  if (!e.from || !FORWARD_SUBJECT.test(e.subject ?? "") || !e.text) return null;
+  const head = e.text.slice(0, 4e3);
+  const m = /^\s*(?:>\s*)?(?:from|de|von)\s*:\s*(?:"?[^<\n]*"?\s*<)?([^\s<>]+@[^\s<>]+)>?/im.exec(head);
+  const quoted = m ? bookingToolOfAddress(m[1]) : null;
+  return quoted ? { tool: quoted, forwarded: true } : null;
 }
-
-// src/deals/deal-amount.ts
-function amountWords(cents, per, currency = "USD") {
-  if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
-  const whole = cents % 100 === 0;
-  const money2 = numberFormat("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2
-  }).format(cents / 100);
-  const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
-  return p && per !== "once" ? `${money2} ${p}` : money2;
+var NOTICE_KINDS = ["booked", "changed", "cancelled", "other"];
+var LOCAL_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+var NOTICE_SCHEMA = /* @__PURE__ */ (() => ({
+  type: "object",
+  properties: {
+    kind: { type: "string", enum: [...NOTICE_KINDS] },
+    client_name: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_email: { anyOf: [{ type: "string" }, { type: "null" }] },
+    service: { anyOf: [{ type: "string" }, { type: "null" }] },
+    staff: { anyOf: [{ type: "string" }, { type: "null" }] },
+    starts_at: {
+      anyOf: [
+        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
+        { type: "null" }
+      ]
+    },
+    ends_at: {
+      anyOf: [
+        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
+        { type: "null" }
+      ]
+    },
+    previous_starts_at: {
+      anyOf: [
+        { type: "string", description: "For a change only: the time it was before, YYYY-MM-DDTHH:MM." },
+        { type: "null" }
+      ]
+    },
+    price: { anyOf: [{ type: "string" }, { type: "null" }] },
+    note: { anyOf: [{ type: "string" }, { type: "null" }] }
+  },
+  required: [
+    "kind",
+    "client_name",
+    "client_phone",
+    "client_email",
+    "service",
+    "staff",
+    "starts_at",
+    "ends_at",
+    "previous_starts_at",
+    "price",
+    "note"
+  ],
+  additionalProperties: false
+}))();
+var NOTICE_TEXT_MAX = 6e3;
+var NOTICE_READ_MAX_TOKENS = 600;
+function noticePrompt(p) {
+  const system = [
+    "You read one email a booking tool sent a business about one of its appointments, and answer in the JSON shape asked.",
+    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing).`,
+    "client_name, client_phone, client_email: the CLIENT's, as written; never the business's, the staff member's or the tool's own.",
+    "service: the service booked, as written (with its category if the tool writes one: 'Hair Color: Partial highlight'). staff: who it is with, as written.",
+    "starts_at, ends_at: the appointment's start and end on the business's own clock as YYYY-MM-DDTHH:MM, from the date and the time range the email states. For a change, the NEW time; previous_starts_at is the old one. ends_at null when no end is stated.",
+    "price: as written ('$55.00+', 'Varies'), null when none. note: the client's own note, null when none.",
+    "Take only what the email states. Invent nothing; a field the email does not state is null."
+  ].join("\n");
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: p.tz, year: "numeric", month: "2-digit", day: "2-digit" });
+  const user = [
+    `Booking tool: ${bookingToolName(p.tool)}.`,
+    `Received on ${day.format(new Date(p.receivedAtMs))}; the business's zone is ${p.tz}.`,
+    `Subject: ${p.subject ?? "(none)"}`,
+    "",
+    p.text.slice(0, NOTICE_TEXT_MAX)
+  ].join("\n");
+  return { system, user };
 }
-function parseAmount(words2) {
-  const digits2 = String(words2 || "").replace(/[^0-9.-]/g, "");
-  const n = digits2 ? Number(digits2) : NaN;
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
-}
-function amountTotalsWords(items) {
-  const order = ["once", "month", "year"];
-  const sums = /* @__PURE__ */ new Map();
-  for (const i of items) {
-    if (i.amount_cents === null || i.amount_cents === void 0 || !Number.isFinite(i.amount_cents)) continue;
-    const per = i.per === "month" || i.per === "year" ? i.per : "once";
-    const currency = (i.currency || "USD").toUpperCase();
-    const key = `${per}|${currency}`;
-    const s = sums.get(key) ?? { cents: 0, per, currency };
-    s.cents += i.amount_cents;
-    sums.set(key, s);
-  }
-  if (!sums.size) return null;
-  return [...sums.values()].sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency)).map((s) => amountWords(s.cents, s.per, s.currency)).join(" + ");
-}
-
-// src/deals/deal-vm.ts
-function dealFactsOf(r2) {
-  if (!r2 || !isDealStage(r2.deal_stage)) return null;
-  return {
-    stage: r2.deal_stage,
-    service: r2.deal_service ?? null,
-    proposed_at: r2.deal_proposed_at ?? null,
-    decided_at: r2.deal_decided_at ?? null,
-    ended_at: r2.deal_ended_at ?? null,
-    amount_cents: r2.deal_amount_cents ?? null,
-    per: r2.deal_per ?? null,
-    currency: r2.deal_currency ?? null,
-    proposal_url: r2.deal_proposal_url ?? null,
-    valid_until: r2.deal_valid_until ?? null,
-    lost_reason: r2.deal_lost_reason ?? null
-  };
-}
-function pickCurrentDeal(rows) {
-  const sorted = [...rows].sort(
-    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
-  );
-  return sorted[0] ?? null;
-}
-function dealIsOpen(d) {
-  return !!d && (d.stage === "proposed" || d.stage === "won");
-}
-function proposalLinkOf(current, personLink) {
-  if (!current) return personLink?.trim() || null;
-  if (current.stage !== "proposed") return null;
-  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
-}
-function wholeDaysSince(atMs, nowMs) {
-  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
-}
-function dealSinceMs(d) {
-  const at3 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
-  const ms2 = at3 ? Date.parse(at3) : NaN;
+var NOTICE_HOLDS = [
+  "no_model",
+  "may_not_spend",
+  "unreadable",
+  "not_a_booking",
+  "no_time",
+  "no_client",
+  // The provider no longer had the email when the read ran: nothing could be read, and the delivery is still on the ledger.
+  "gone"
+];
+var isNoticeHold = (v) => NOTICE_HOLDS.includes(v);
+var NOTICE_DEFAULT_LENGTH_MS = HOUR_MS;
+var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
+var NOTICE_FIELD_MAX = 200;
+var NOTICE_NOTE_MAX = 1e3;
+function localMs(tz, v) {
+  if (typeof v !== "string") return null;
+  const m = LOCAL_TIME.exec(v.trim());
+  if (!m) return null;
+  const part = (i) => Number(m[i]);
+  const y = part(1);
+  const mo = part(2);
+  const d = part(3);
+  const hh = part(4);
+  const mm = part(5);
+  if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
+  const ms2 = localToUtcMs(tz, y, mo, d, hh, mm);
   return Number.isFinite(ms2) ? ms2 : null;
 }
-function validUntilOf(day, tz, nowMs) {
-  if (!day || !isRealDate(day)) return null;
-  const at3 = wallClockAt(tz, day, 12, 0);
-  if (!Number.isFinite(at3)) return null;
-  const lapsed = zoneDayKey(nowMs, tz) > day;
-  const date = clockDate(at3, tz, nowMs);
-  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
+function trimmedText(v, max) {
+  if (typeof v !== "string") return null;
+  const t = v.replace(/\s+/g, " ").trim();
+  return t ? t.slice(0, max) : null;
 }
-function toDealVM(d, tz, nowMs) {
-  if (!isDealStage(d.stage)) return null;
-  const sinceMs = dealSinceMs(d);
-  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
-  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
-  const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
-  const url = d.proposal_url?.trim() || null;
-  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
-  const word = DEAL_STAGE_WORDS[d.stage];
-  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
-  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
+function noticeAnswerOf(answer, tz, nowMs) {
+  if (!answer || typeof answer !== "object" || Array.isArray(answer)) return { reading: null, hold: "unreadable" };
+  const a = answer;
+  const kind = a.kind;
+  if (kind === "other") return { reading: null, hold: "not_a_booking" };
+  if (kind !== "booked" && kind !== "changed" && kind !== "cancelled") return { reading: null, hold: "unreadable" };
+  const start = localMs(tz, a.starts_at);
+  if (start === null || Math.abs(start - nowMs) > NOTICE_TIME_REACH_MS) return { reading: null, hold: "no_time" };
+  const endRead = localMs(tz, a.ends_at);
+  const end = endRead !== null && endRead > start ? endRead : start + NOTICE_DEFAULT_LENGTH_MS;
+  const client = {
+    name: trimmedText(a.client_name, NOTICE_FIELD_MAX),
+    phone: normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null),
+    email: normalizeEmail(typeof a.client_email === "string" ? a.client_email : null)
+  };
+  if (!client.name && !client.phone && !client.email) return { reading: null, hold: "no_client" };
+  const previous = kind === "changed" ? localMs(tz, a.previous_starts_at) : null;
   return {
-    id: d.id ?? null,
-    version: d.version ?? null,
-    stage: d.stage,
-    word,
-    service: d.service,
-    sinceMs,
-    since,
-    said,
-    line,
-    facts,
-    brief,
-    waitingDays,
-    amount,
-    amountCents: d.amount_cents === null || d.amount_cents === void 0 || !Number.isFinite(d.amount_cents) ? null : d.amount_cents,
-    per: isDealPer(d.per) ? d.per : null,
-    currency: d.currency || "USD",
-    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
-    proposal: url ? { url, host: linkHost(url) } : null,
-    validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
-    reason: d.stage === "lost" && isDealLostReason(d.lost_reason) ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] } : null
+    reading: {
+      kind,
+      client,
+      service: trimmedText(a.service, NOTICE_FIELD_MAX),
+      staff: trimmedText(a.staff, NOTICE_FIELD_MAX),
+      start,
+      end,
+      previousStart: previous !== null && Math.abs(previous - nowMs) <= NOTICE_TIME_REACH_MS ? previous : null,
+      price: trimmedText(a.price, NOTICE_FIELD_MAX),
+      note: trimmedText(a.note, NOTICE_NOTE_MAX)
+    },
+    hold: null
   };
 }
-function dealOf(r2, tz, nowMs) {
-  const f = dealFactsOf(r2);
-  return f ? toDealVM({ ...f, id: r2?.deal_id ?? null }, tz, nowMs) : null;
+function clientKeyOf(client) {
+  if (client.phone) return client.phone;
+  if (client.email) return client.email.toLowerCase();
+  return (client.name ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
-var strOrNull = (v) => typeof v === "string" ? v : null;
-function openDealsFromJson(j) {
-  if (j === void 0) return void 0;
-  if (!Array.isArray(j)) return null;
-  const out = [];
-  for (const x of j) {
-    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
-    const o = x;
-    const id = strOrNull(o.id);
-    const stage = strOrNull(o.stage);
-    if (!id || !stage) continue;
-    out.push({
-      id,
-      stage,
-      service: strOrNull(o.service),
-      proposed_at: strOrNull(o.proposed_at),
-      decided_at: strOrNull(o.decided_at),
-      ended_at: strOrNull(o.ended_at),
-      amount_cents: typeof o.amount_cents === "number" ? o.amount_cents : null,
-      per: strOrNull(o.per),
-      currency: strOrNull(o.currency),
-      proposal_url: strOrNull(o.proposal_url),
-      valid_until: strOrNull(o.valid_until),
-      lost_reason: strOrNull(o.lost_reason)
-    });
+function appointmentKey(tool, client, startMs) {
+  return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
+}
+var SAME_VISIT_MS = 15 * MIN_MS;
+function bookingToolOptions() {
+  return BOOKING_TOOLS.map((t) => ({ value: t.tool, label: t.name }));
+}
+var BOOKING_TOOL_STEPS = {
+  acuity: {
+    way: "recipient",
+    steps: [
+      "In Acuity, open the calendar your appointments land on, then Calendar notifications.",
+      "Under \u201CSend booking notifications to\u201D, add the address above beside your own."
+    ]
+  },
+  fresha: {
+    way: "recipient",
+    steps: [
+      "In Fresha, open Settings \u203A Scheduling \u203A Online bookings \u203A Notifications, then Edit.",
+      "Add the address above to the emails that get booked, rescheduled and cancelled bookings."
+    ]
+  },
+  booksy: {
+    way: "forward",
+    steps: [
+      "Open the inbox your Booksy account emails: its booking emails arrive there.",
+      "Make a filter for mail from no-reply@booksy.com that forwards to the address above."
+    ]
+  },
+  square: {
+    way: "forward",
+    steps: [
+      "In Square, under Team members \u203A your name \u203A Booking notifications, keep email on.",
+      "In that inbox, make a filter for Square's booking emails that forwards to the address above."
+    ]
+  },
+  vagaro: {
+    way: "forward",
+    steps: [
+      "In Vagaro, under Settings \u203A Booking \u203A Email & Text Notifications, keep employee email notifications on.",
+      "In that inbox, make a filter for mail from vagaro.com that forwards to the address above."
+    ]
+  },
+  glossgenius: {
+    way: "forward",
+    steps: [
+      "In GlossGenius, under your personal notifications, keep booking emails on (they go to whoever is booked).",
+      "In that inbox, make a filter for mail from glossgenius.com that forwards to the address above."
+    ]
+  },
+  calendly: {
+    way: "forward",
+    steps: [
+      "Open the inbox Calendly emails your bookings to (each host gets their own).",
+      "Make a filter for mail from calendly.com that forwards to the address above."
+    ]
+  },
+  setmore: {
+    way: "forward",
+    steps: ["In the inbox Setmore emails, make a filter for mail from setmore.com that forwards to the address above."]
+  },
+  mindbody: {
+    way: "forward",
+    steps: [
+      "In the inbox Mindbody emails, make a filter for mail from mindbodyonline.com that forwards to the address above."
+    ]
+  },
+  simplybook: {
+    way: "forward",
+    steps: [
+      "In the inbox SimplyBook emails, make a filter for mail from simplybook.me that forwards to the address above."
+    ]
+  },
+  schedulicity: {
+    way: "forward",
+    steps: [
+      "In the inbox Schedulicity emails, make a filter for mail from schedulicity.com that forwards to the address above."
+    ]
+  },
+  styleseat: {
+    way: "forward",
+    steps: [
+      "In the inbox StyleSeat emails, make a filter for mail from styleseat.com that forwards to the address above."
+    ]
   }
-  return out;
-}
-function openDealsOf(r2, tz, nowMs) {
-  if (!r2) return [];
-  if (r2.open_deals === void 0) {
-    const one = dealOf(r2, tz, nowMs);
-    return one && dealIsOpen(one) ? [one] : [];
-  }
-  return (r2.open_deals ?? []).map(
-    (x) => dealOf(
-      {
-        deal_id: x.id,
-        deal_stage: x.stage,
-        deal_service: x.service,
-        deal_proposed_at: x.proposed_at,
-        deal_decided_at: x.decided_at,
-        deal_ended_at: x.ended_at,
-        deal_amount_cents: x.amount_cents,
-        deal_per: x.per,
-        deal_currency: x.currency,
-        deal_proposal_url: x.proposal_url,
-        deal_valid_until: x.valid_until,
-        deal_lost_reason: x.lost_reason
-      },
-      tz,
-      nowMs
-    )
-  ).filter((d) => d !== null && dealIsOpen(d));
-}
-function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
-  if (!d || !isDealStage(d.stage)) return null;
-  const svc = d.service ? ` (${d.service})` : "";
-  const sinceMs = dealSinceMs(d);
-  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
-  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
-  switch (d.stage) {
-    case "won":
-      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
-    case "proposed":
-      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
-    case "lost":
-      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
-    case "ended":
-      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
-  }
-}
-
-// src/deals/deal-consultations.ts
-var CONSULT_FOLLOW_DAYS = 7;
-function consultServiceOf(title, services, rules) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return null;
-  let best = null;
-  for (const s of services ?? []) {
-    const name = String(s.name ?? "").trim();
-    const folded = foldName(name);
-    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
-    if (!best || folded.length > best.folded.length) best = { name, folded };
-  }
-  return best ? best.name : null;
-}
-function isConsultationTitle(title, services, rules) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return false;
-  if (t.includes("consult")) return true;
-  return consultServiceOf(title, services, rules) !== null;
-}
-function noProposalSince(deal, endedMs) {
-  if (!deal) return true;
-  if (dealIsOpen(deal)) return false;
-  return deal.sinceMs !== null && deal.sinceMs < endedMs;
-}
-function consultationHeld(r2, nowMs) {
-  const at3 = r2.consultedMs;
-  if (typeof at3 !== "number" || !Number.isFinite(at3)) return false;
-  if (at3 > nowMs || nowMs - at3 > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
-  return noProposalSince(r2.deal, at3);
-}
-function dealStageOf(r2, nowMs) {
-  if (consultationHeld(r2, nowMs)) return "consultation";
-  const d = r2.deal;
-  if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
-  if (r2.consultAhead) return "consultation";
-  return d ? d.stage : null;
-}
-function dealStagesOf(stage, open) {
-  const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
-  return [...new Set(stage ? [stage, ...theirs] : theirs)];
-}
-function consultationsWithoutProposal(rows, nowMs) {
-  const endOf = (r2) => r2.consultedMs;
-  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
-    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
-  );
-}
-function consultsHeldWords(n) {
-  return `${n} held in the last week, no proposal yet`;
-}
-
-// src/calendar/appointments.ts
-var APPOINTMENT_SOURCES = ["calendar_feed", "booking_tool", "person"];
-var APPOINTMENT_STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"];
-function serviceNamedIn(title, services) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return null;
-  let best = null;
-  for (const s of services ?? []) {
-    const name = String(s.name ?? "").trim();
-    const folded = foldName(name);
-    if (folded && t.includes(folded) && (!best || folded.length > best.folded.length)) best = { name, folded };
-  }
-  return best ? best.name : null;
-}
-function feedAppointmentRows(items, o) {
-  const out = /* @__PURE__ */ new Map();
-  for (const it of items) {
-    if (it.start < o.window.from || it.start > o.window.to) continue;
-    const key = appointmentKeyOf(it);
-    if (out.has(key)) continue;
-    const title = it.title.trim() || null;
-    out.set(key, {
-      external_id: key,
-      starts_at: new Date(it.start).toISOString(),
-      ends_at: new Date(it.end).toISOString(),
-      all_day: it.allDay,
-      title,
-      service: serviceNamedIn(title, o.services),
-      consultation: isConsultationTitle(title, o.services, o.rules),
-      contact_id: matchPerson(it, o.people, o.own)?.id ?? null
-    });
-  }
-  return [...out.values()];
-}
-var STANDING = /* @__PURE__ */ new Set(["proposed", "booked", "kept"]);
-function appointmentHolds(rows, facts) {
-  const key = typeof facts.appointment === "string" ? facts.appointment : null;
-  const start = typeof facts.visit_start === "string" ? Date.parse(facts.visit_start) : NaN;
-  const row2 = key ? rows.get(key) : void 0;
-  if (!row2 || !Number.isFinite(start)) return true;
-  return STANDING.has(row2.status) && row2.vanished_at === null && Date.parse(row2.starts_at) === start;
-}
-function appointmentKeysOf(rows) {
-  const keys = /* @__PURE__ */ new Set();
-  for (const r2 of rows) {
-    const f = r2.facts;
-    if (f && typeof f === "object" && !Array.isArray(f)) {
-      const k = f.appointment;
-      if (typeof k === "string" && k) keys.add(k);
-    }
-  }
-  return [...keys];
+};
+var GMAIL_FORWARD_NOTE = "If that inbox is Gmail, it asks once to confirm the forward: the code and a one-press confirm appear here.";
+var BOOKING_TRY_NOTE = "To try it now, forward any past booking email to the address above, from the email you sign in with.";
+var NOTICE_HOLD_WORDS = {
+  no_model: "The reader was unavailable. Press Read again.",
+  may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
+  unreadable: "It could not be read as a booking.",
+  not_a_booking: "It is from your booking tool, but not about one booking.",
+  no_time: "No appointment time could be read from it.",
+  no_client: "No client could be read from it.",
+  gone: "The email was gone before it could be read."
+};
+var GMAIL_FORWARDING_SENDER = /^forwarding-noreply@google\.com$/i;
+function forwardingConfirmationOf(e) {
+  if (!e.from || !GMAIL_FORWARDING_SENDER.test(e.from.address.trim())) return null;
+  const subject = e.subject ?? "";
+  if (!/forwarding confirmation/i.test(subject)) return null;
+  const text = e.text ?? "";
+  const code2 = /\(#(\d{5,12})\)/.exec(subject)?.[1] ?? /confirmation code:\s*(\d{5,12})/i.exec(text)?.[1] ?? null;
+  const account = /receive mail from\s+([^\s<>]+@[^\s<>]+)/i.exec(subject)?.[1] ?? /([^\s<>]+@[^\s<>]+)\s+has requested to automatically forward/i.exec(text)?.[1] ?? null;
+  if (!code2 || !account) return null;
+  const link = /https:\/\/[a-z0-9.-]*\.google\.com\/mail\/vf-[^\s<>")]+/i.exec(text)?.[0] ?? null;
+  return { account: account.toLowerCase(), code: code2, link };
 }
 
 // src/calendar/day-keys.ts
@@ -11722,6 +11620,96 @@ function monthLabelOf(key) {
 function zoneMidnight(tz, key) {
   const { y, m, d } = keyParts(key);
   return localToUtcMs(tz, y, m, d, 0, 0);
+}
+
+// src/calendar/appointment-item.ts
+var APPOINTMENT_UNTITLED = "Booked";
+function appointmentTitle(row2) {
+  if (row2.title?.trim()) return row2.title.trim();
+  const parts2 = [row2.service, row2.client_name].map((s) => s?.trim()).filter((s) => !!s);
+  return parts2.length ? parts2.join(" \xB7 ") : APPOINTMENT_UNTITLED;
+}
+function busyOfAppointments(rows) {
+  return rows.map((r2) => ({ start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) }));
+}
+function feedItemOfAppointment(row2) {
+  return {
+    start: Date.parse(row2.starts_at),
+    end: Date.parse(row2.ends_at),
+    title: appointmentTitle(row2),
+    allDay: row2.all_day,
+    uid: `appt:${row2.id}`,
+    description: row2.note,
+    location: null,
+    // The client as a guest, so the one visits index (indexFeed) finds the row by their address as it finds an event.
+    attendees: row2.client_email ? [{ name: row2.client_name, email: row2.client_email }] : [],
+    organizer: null
+  };
+}
+function personOfAppointment(row2, people) {
+  const found = row2.contact_id && people.find((p) => p.id === row2.contact_id) || row2.client_phone && people.find((p) => p.phone === row2.client_phone) || row2.client_email && people.find((p) => p.email === row2.client_email);
+  if (!found) return null;
+  const via = found.phone && found.phone === row2.client_phone ? "phone" : found.email ? "email" : "phone";
+  return {
+    id: found.id,
+    name: found.name || row2.client_name || "",
+    via,
+    ...found.thread !== void 0 ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null } : {}
+  };
+}
+function itemOfAppointment(row2, people) {
+  return {
+    id: `appt:${row2.id}`,
+    start: new Date(Date.parse(row2.starts_at)).toISOString(),
+    end: new Date(Date.parse(row2.ends_at)).toISOString(),
+    title: appointmentTitle(row2),
+    all_day: row2.all_day,
+    person: personOfAppointment(row2, people),
+    description: row2.note,
+    location: null,
+    contacts: {
+      phones: row2.client_phone ? [row2.client_phone] : [],
+      emails: row2.client_email ? [row2.client_email] : []
+    },
+    guess: row2.client_name,
+    source: "notice",
+    tool: bookingToolName(row2.tool),
+    service: row2.service,
+    staff: row2.staff,
+    price: row2.price
+  };
+}
+function withoutVisitsRowsDraw(items, rows, own) {
+  if (!rows.length) return items;
+  const byPhone = /* @__PURE__ */ new Map();
+  const byEmail = /* @__PURE__ */ new Map();
+  for (const r2 of rows) {
+    const at3 = Date.parse(r2.starts_at);
+    if (r2.client_phone) byPhone.set(r2.client_phone, [...byPhone.get(r2.client_phone) ?? [], at3]);
+    if (r2.client_email) byEmail.set(r2.client_email.toLowerCase(), [...byEmail.get(r2.client_email) ?? [], at3]);
+  }
+  if (!byPhone.size && !byEmail.size) return items;
+  const near2 = (starts, at3) => !!starts?.some((s) => Math.abs(s - at3) <= SAME_VISIT_MS);
+  return items.filter((it) => {
+    const c = extractContacts(it, own);
+    const same2 = c.phones.some((p) => near2(byPhone.get(p), it.start)) || c.emails.some((e) => near2(byEmail.get(e.toLowerCase()), it.start));
+    return !same2;
+  });
+}
+function daysWithAppointments(days, rows, tz, people) {
+  if (!rows.length) return days;
+  const items = rows.map((r2) => ({
+    at: { start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) },
+    item: itemOfAppointment(r2, people)
+  }));
+  return days.map((d) => {
+    const dayStart = zoneMidnight(tz, d.key);
+    const dayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
+    const here = items.filter(({ at: at3 }) => at3.end > dayStart && at3.start < dayEnd).map(({ item }) => item);
+    if (!here.length) return d;
+    const merged = [...d.items, ...here].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    return { ...d, items: merged };
+  });
 }
 
 // src/calendar/availability.ts
@@ -11863,6 +11851,72 @@ function describeOpenings(openings, tz, opts) {
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
 ` + (held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
+}
+
+// src/calendar/service-offer.ts
+var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+function sameListed(a, b) {
+  const x = foldName(String(a ?? "").trim());
+  return x !== "" && x === foldName(String(b ?? "").trim());
+}
+var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+function matchService(services, asked) {
+  const q = typeof asked === "string" ? foldName(asked.trim()) : "";
+  if (!q || !services?.length) return null;
+  const named = services.map((s) => ({ s, n: foldName(s.name) }));
+  const exact = named.find((x) => x.n === q);
+  if (exact) return exact.s;
+  const contains = named.find((x) => x.n && (x.n.includes(q) || q.includes(x.n)));
+  if (contains) return contains.s;
+  const asks = wordsOf(q).filter((w) => w.length >= 4);
+  let best = null;
+  let bestScore = 0;
+  for (const { s, n } of named) {
+    const own = wordsOf(n);
+    const score = asks.filter((w) => own.includes(w)).length;
+    if (score > bestScore) {
+      best = s;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+function needsConsultation(name, rules) {
+  const n = foldName(name.trim());
+  const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
+  return !!n && list2.some((c) => foldName(String(c).trim()) === n);
+}
+function offerFor(services, rules, asked, opts = {}) {
+  const service = matchService(services, asked);
+  if (!service) return null;
+  if (opts.client)
+    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
+  if (!needsConsultation(service.name, rules))
+    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
+  const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
+  let consultationService = null;
+  let best = -1;
+  for (const s of services ?? []) {
+    const n = foldName(s.name);
+    if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
+    const score = wordsOf(n).filter((w) => own.includes(w)).length;
+    if (score > best) {
+      consultationService = s;
+      best = score;
+    }
+  }
+  return { service, consultation: true, consultationService, minMinutes: consultationService?.duration_min ?? null };
+}
+function offerLead(offer) {
+  if (!offer) return "";
+  if (!offer.consultation)
+    return offer.service.duration_min ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): ` : "";
+  const c = offer.consultationService;
+  const detail = [
+    c && foldName(c.name.trim()) !== "consultation" ? c.name : "",
+    offer.minMinutes ? `about ${offer.minMinutes} minutes` : ""
+  ].filter(Boolean).join(", ");
+  return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
 }
 
 // src/config/workspace-config/prompt-hours.ts
@@ -12020,6 +12074,47 @@ function serviceOf2(title, personName2) {
   const cut = whole.replace(new RegExp(`^${gap}${quoted}${edge}${gap}`, "iu"), "").replace(new RegExp(`${gap}(?<![\\p{L}\\p{N}])${quoted}${gap}$`, "iu"), "").trim();
   return cut.replace(/[-–—·|,:\s]/gu, "") ? cut : whole;
 }
+function noticeFacts(item) {
+  if (item.source !== "notice") return { tool: null, staff: null, price: null };
+  return { tool: item.tool ?? null, staff: item.staff ?? null, price: item.price ?? null };
+}
+function serviceWordsOf(item) {
+  if (item.source === "notice" && item.service) return item.service;
+  return serviceOf2(item.title || "Busy", item.person?.name ?? null);
+}
+function feedLineOf(state, feedDetail, noticesLine) {
+  if (state === "ok") return feedDetail;
+  if (state === "unavailable") return `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}`;
+  return noticesLine || "No calendar connected";
+}
+function noticesVM(n, now) {
+  const tool = n?.tool ? bookingToolName(n.tool) : null;
+  const lastAgo = readAgoLabel(n?.last_at ?? null, now);
+  const held = n?.held ?? 0;
+  const line = n?.last_at ? `Bookings arrive by email from ${tool ?? "your booking tool"} \xB7 last ${lastAgo ?? "just now"}${held ? ` \xB7 ${held} to look at` : ""}` : "";
+  const state = n?.last_at ? "working" : n?.tool ? "waiting" : "none";
+  const heldList = (n?.held_list ?? []).map((h) => ({
+    id: h.id,
+    tool: bookingToolName(h.tool),
+    from: h.from,
+    subject: h.subject,
+    receivedAgo: readAgoLabel(h.received_at, now),
+    reason: NOTICE_HOLD_WORDS[h.reason]
+  }));
+  const forwarding = n?.forwarding ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link } : null;
+  const address = n?.address ?? null;
+  const row2 = noticeRowOf({ state, address, forwarding: !!forwarding, lastAgo, held });
+  return { tool, address, lastAgo, count: n?.count ?? 0, held, line, state, heldList, forwarding, row: row2 };
+}
+function noticeRowOf(s) {
+  if (s.state === "none") return null;
+  const needsYou = (words2) => ({ tone: "warn", label: "Needs you", words: words2 });
+  if (!s.address) return needsYou("Needs a workspace email address");
+  if (s.forwarding) return needsYou("Confirm the forward in Gmail");
+  if (s.state === "waiting") return { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
+  const last = `Last booking email ${s.lastAgo ?? "just now"}`;
+  return s.held ? needsYou(`${last} \xB7 ${s.held} to look at`) : { tone: "ok", label: "Working", words: last };
+}
 function toBlock(item, tz, dayStartMs, dayEndMs, now) {
   const s = Math.max(Date.parse(item.start), dayStartMs);
   const e = Math.min(Date.parse(item.end), dayEndMs);
@@ -12030,7 +12125,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
     t,
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
-    service: serviceOf2(item.title || "Busy", item.person?.name ?? null),
+    service: serviceWordsOf(item),
     time: spanLabel2(t, tEnd),
     person: item.person ? {
       id: item.person.id,
@@ -12049,6 +12144,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
     guess: item.guess ?? null,
     consultation: !!item.consultation,
     consultService: item.consultation ? item.consult_service ?? null : null,
+    ...noticeFacts(item),
     start: item.start,
     end: item.end,
     lane: 0,
@@ -12176,7 +12272,8 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const stale = dto.feed.state === "ok" && !!dto.feed.stale;
   const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
   const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago3 ? `last read ${ago3}` : ""].filter(Boolean).join(" \xB7 ") : "";
-  const feedLine = dto.feed.state === "ok" ? feedDetail : dto.feed.state === "unavailable" ? `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}` : "No calendar connected";
+  const notices = noticesVM(dto.feed.notices, now);
+  const feedLine = feedLineOf(dto.feed.state, feedDetail, notices.line);
   const feedRead = dto.feed.state === "ok" ? `read ${ago3 ?? "just now"}` : dto.feed.state === "unavailable" && ago3 ? `last read ${ago3}` : "";
   const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
@@ -12216,7 +12313,8 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
       stale,
       skippedRecurring: dto.feed.skipped_recurring || 0,
       dropped: dto.feed.dropped || 0,
-      notes: feedNotes(dto.feed)
+      notes: feedNotes(dto.feed),
+      notices
     },
     stats: { events, windows: windowCount, next },
     offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
@@ -12442,10 +12540,6 @@ function instantsOf(lines, fallbackTz) {
   }
   return out;
 }
-var seriesOf = (occurrence) => occurrence === null ? {} : { occurrence };
-function dueAt(rid, fallbackTz) {
-  return rid ? toMs(rid.value, rid.params, fallbackTz) : null;
-}
 function parseIcs(text, fallbackTz, opts = {}) {
   const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
   const busy = [];
@@ -12519,6 +12613,7 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const title = unescapeText(p.SUMMARY?.value ?? "");
     const description = unescapeText(p.DESCRIPTION?.value ?? "") || null;
     const location = unescapeText(p.LOCATION?.value ?? "") || null;
+    const guests = r2.attendees.slice();
     const allDay = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim());
     const uid = p.UID?.value.trim() || null;
     const org = p.ORGANIZER?.value.trim() ?? "";
@@ -12527,10 +12622,9 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
     const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
-    const words2 = { title, allDay, uid, description, location, attendees: r2.attendees.slice(), organizer };
-    const push = (o, occurrence = null) => {
+    const push = (o) => {
       busy.push(o);
-      items.push({ ...o, ...words2, ...seriesOf(occurrence) });
+      items.push({ ...o, title, allDay, uid, description, location, attendees: guests, organizer });
     };
     if (p.RRULE && !isOverride && rule && local) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
@@ -12540,28 +12634,28 @@ function parseIcs(text, fallbackTz, opts = {}) {
       for (const o of occ) {
         if (!seen.has(o.start)) {
           seen.add(o.start);
-          push(o, o.start);
+          push(o);
         }
       }
       for (const ms2 of instantsOf(r2.rdates, fallbackTz)) {
         if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
         seen.add(ms2);
-        push({ start: ms2, end: ms2 + dur }, ms2);
+        push({ start: ms2, end: ms2 + dur });
       }
       recurringExpanded++;
     } else if (!p.RRULE && r2.rdates.length && !isOverride) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
       const seen = /* @__PURE__ */ new Set([start]);
-      push({ start, end }, start);
+      push({ start, end });
       for (const ms2 of instantsOf(r2.rdates, fallbackTz)) {
         if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
         seen.add(ms2);
-        push({ start: ms2, end: ms2 + dur }, ms2);
+        push({ start: ms2, end: ms2 + dur });
       }
       recurringExpanded++;
     } else {
       if (p.RRULE && !isOverride) skippedRecurring++;
-      push({ start, end }, dueAt(p["RECURRENCE-ID"], fallbackTz));
+      push({ start, end });
     }
   }
   busy.sort((a, b) => a.start - b.start);
@@ -13402,6 +13496,13 @@ var JOB_KINDS = [
    */
   "reply_read",
   /**
+   * One booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
+   * email_ingest that recognised it schedules one per delivery (payload { received_id, mailbox_id }, keyed on the
+   * delivery), the handler fetches the email again, asks the model and writes the row. Internal work written to be run
+   * again: a second claim finds the row by the delivery's id and pays nothing.
+   */
+  "booking_read",
+  /**
    * One event's delivery to one subscriber (00334, decision 0032): the relay writes it beside the event_deliveries row,
    * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
    * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
@@ -13452,12 +13553,6 @@ var EVENT_KINDS = [
    * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
    */
   "person.resolved",
-  /**
-   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00346, decision 0002): { change: added
-   * | moved | vanished | back | kept, source, starts_at }, never its title. On the appointment; hidden from the activity
-   * log unless asked for by name, since a calendar read writes one per appointment.
-   */
-  "appointment.changed",
   "setup.requested",
   "voice.provisioned",
   "line.answering",
@@ -17031,6 +17126,289 @@ function lastWordOf(dto) {
   }
   const said = lastWordLine(false, last, messageAuthor(last));
   return failedBy ? { text: `${said} \u2014 the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" } : { text: `${said} \u2014 no one asked for you.`, tone: "ok", short: null };
+}
+
+// src/deals/deal-amount.ts
+function amountWords(cents, per, currency = "USD") {
+  if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
+  const whole = cents % 100 === 0;
+  const money2 = numberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2
+  }).format(cents / 100);
+  const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
+  return p && per !== "once" ? `${money2} ${p}` : money2;
+}
+function parseAmount(words2) {
+  const digits2 = String(words2 || "").replace(/[^0-9.-]/g, "");
+  const n = digits2 ? Number(digits2) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+function amountTotalsWords(items) {
+  const order = ["once", "month", "year"];
+  const sums = /* @__PURE__ */ new Map();
+  for (const i of items) {
+    if (i.amount_cents === null || i.amount_cents === void 0 || !Number.isFinite(i.amount_cents)) continue;
+    const per = i.per === "month" || i.per === "year" ? i.per : "once";
+    const currency = (i.currency || "USD").toUpperCase();
+    const key = `${per}|${currency}`;
+    const s = sums.get(key) ?? { cents: 0, per, currency };
+    s.cents += i.amount_cents;
+    sums.set(key, s);
+  }
+  if (!sums.size) return null;
+  return [...sums.values()].sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency)).map((s) => amountWords(s.cents, s.per, s.currency)).join(" + ");
+}
+
+// src/shared/link.ts
+var MAX_LINK = 500;
+var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+function normalizeLink(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s || /\s/.test(s)) return null;
+  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
+  if (withScheme.length > MAX_LINK) return null;
+  let u;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (!HOST.test(u.hostname)) return null;
+  return withScheme;
+}
+function whyNotALink(raw) {
+  if (normalizeLink(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "A web address is needed.";
+  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
+  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
+  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
+  return "That needs a full web address, like docs.example.com/proposal.";
+}
+function linkHost(url) {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+// src/deals/deal-vm.ts
+function dealFactsOf(r2) {
+  if (!r2 || !isDealStage(r2.deal_stage)) return null;
+  return {
+    stage: r2.deal_stage,
+    service: r2.deal_service ?? null,
+    proposed_at: r2.deal_proposed_at ?? null,
+    decided_at: r2.deal_decided_at ?? null,
+    ended_at: r2.deal_ended_at ?? null,
+    amount_cents: r2.deal_amount_cents ?? null,
+    per: r2.deal_per ?? null,
+    currency: r2.deal_currency ?? null,
+    proposal_url: r2.deal_proposal_url ?? null,
+    valid_until: r2.deal_valid_until ?? null,
+    lost_reason: r2.deal_lost_reason ?? null
+  };
+}
+function pickCurrentDeal(rows) {
+  const sorted = [...rows].sort(
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
+  return sorted[0] ?? null;
+}
+function dealIsOpen(d) {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
+}
+function proposalLinkOf(current, personLink) {
+  if (!current) return personLink?.trim() || null;
+  if (current.stage !== "proposed") return null;
+  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
+}
+function wholeDaysSince(atMs, nowMs) {
+  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
+}
+function dealSinceMs(d) {
+  const at3 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
+  const ms2 = at3 ? Date.parse(at3) : NaN;
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function validUntilOf(day, tz, nowMs) {
+  if (!day || !isRealDate(day)) return null;
+  const at3 = wallClockAt(tz, day, 12, 0);
+  if (!Number.isFinite(at3)) return null;
+  const lapsed = zoneDayKey(nowMs, tz) > day;
+  const date = clockDate(at3, tz, nowMs);
+  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
+}
+function toDealVM(d, tz, nowMs) {
+  if (!isDealStage(d.stage)) return null;
+  const sinceMs = dealSinceMs(d);
+  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
+  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
+  const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
+  const url = d.proposal_url?.trim() || null;
+  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
+  const word = DEAL_STAGE_WORDS[d.stage];
+  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
+  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
+  return {
+    id: d.id ?? null,
+    version: d.version ?? null,
+    stage: d.stage,
+    word,
+    service: d.service,
+    sinceMs,
+    since,
+    said,
+    line,
+    facts,
+    brief,
+    waitingDays,
+    amount,
+    amountCents: d.amount_cents === null || d.amount_cents === void 0 || !Number.isFinite(d.amount_cents) ? null : d.amount_cents,
+    per: isDealPer(d.per) ? d.per : null,
+    currency: d.currency || "USD",
+    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
+    proposal: url ? { url, host: linkHost(url) } : null,
+    validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
+    reason: d.stage === "lost" && isDealLostReason(d.lost_reason) ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] } : null
+  };
+}
+function dealOf(r2, tz, nowMs) {
+  const f = dealFactsOf(r2);
+  return f ? toDealVM({ ...f, id: r2?.deal_id ?? null }, tz, nowMs) : null;
+}
+var strOrNull = (v) => typeof v === "string" ? v : null;
+function openDealsFromJson(j) {
+  if (j === void 0) return void 0;
+  if (!Array.isArray(j)) return null;
+  const out = [];
+  for (const x of j) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x;
+    const id = strOrNull(o.id);
+    const stage = strOrNull(o.stage);
+    if (!id || !stage) continue;
+    out.push({
+      id,
+      stage,
+      service: strOrNull(o.service),
+      proposed_at: strOrNull(o.proposed_at),
+      decided_at: strOrNull(o.decided_at),
+      ended_at: strOrNull(o.ended_at),
+      amount_cents: typeof o.amount_cents === "number" ? o.amount_cents : null,
+      per: strOrNull(o.per),
+      currency: strOrNull(o.currency),
+      proposal_url: strOrNull(o.proposal_url),
+      valid_until: strOrNull(o.valid_until),
+      lost_reason: strOrNull(o.lost_reason)
+    });
+  }
+  return out;
+}
+function openDealsOf(r2, tz, nowMs) {
+  if (!r2) return [];
+  if (r2.open_deals === void 0) {
+    const one = dealOf(r2, tz, nowMs);
+    return one && dealIsOpen(one) ? [one] : [];
+  }
+  return (r2.open_deals ?? []).map(
+    (x) => dealOf(
+      {
+        deal_id: x.id,
+        deal_stage: x.stage,
+        deal_service: x.service,
+        deal_proposed_at: x.proposed_at,
+        deal_decided_at: x.decided_at,
+        deal_ended_at: x.ended_at,
+        deal_amount_cents: x.amount_cents,
+        deal_per: x.per,
+        deal_currency: x.currency,
+        deal_proposal_url: x.proposal_url,
+        deal_valid_until: x.valid_until,
+        deal_lost_reason: x.lost_reason
+      },
+      tz,
+      nowMs
+    )
+  ).filter((d) => d !== null && dealIsOpen(d));
+}
+function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
+  if (!d || !isDealStage(d.stage)) return null;
+  const svc = d.service ? ` (${d.service})` : "";
+  const sinceMs = dealSinceMs(d);
+  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
+  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  switch (d.stage) {
+    case "won":
+      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+    case "proposed":
+      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
+    case "lost":
+      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
+    case "ended":
+      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
+  }
+}
+
+// src/deals/deal-consultations.ts
+var CONSULT_FOLLOW_DAYS = 7;
+function consultServiceOf(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+function isConsultationTitle(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return false;
+  if (t.includes("consult")) return true;
+  return consultServiceOf(title, services, rules) !== null;
+}
+function noProposalSince(deal, endedMs) {
+  if (!deal) return true;
+  if (dealIsOpen(deal)) return false;
+  return deal.sinceMs !== null && deal.sinceMs < endedMs;
+}
+function consultationHeld(r2, nowMs) {
+  const at3 = r2.consultedMs;
+  if (typeof at3 !== "number" || !Number.isFinite(at3)) return false;
+  if (at3 > nowMs || nowMs - at3 > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+  return noProposalSince(r2.deal, at3);
+}
+function dealStageOf(r2, nowMs) {
+  if (consultationHeld(r2, nowMs)) return "consultation";
+  const d = r2.deal;
+  if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
+  if (r2.consultAhead) return "consultation";
+  return d ? d.stage : null;
+}
+function dealStagesOf(stage, open) {
+  const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
+  return [...new Set(stage ? [stage, ...theirs] : theirs)];
+}
+function consultationsWithoutProposal(rows, nowMs) {
+  const endOf = (r2) => r2.consultedMs;
+  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
+    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
+  );
+}
+function consultsHeldWords(n) {
+  return `${n} held in the last week, no proposal yet`;
 }
 
 // src/deals/deal-report.ts
@@ -27311,6 +27689,8 @@ var ROUTE_KEYS = [
   "POST broadcasts/[id]/approve",
   "POST broadcasts/[id]/cancel",
   "POST broadcasts/[id]/recheck",
+  "POST calendar/notices/[id]/dismiss",
+  "POST calendar/notices/[id]/read-again",
   "POST calendar/preview",
   "POST calls/[id]/end",
   "POST calls/[id]/hand-over",
@@ -27442,9 +27822,20 @@ var SCHEMA_SETS = {
     "lead_judge",
     "note_suggest",
     "reach_out_check",
-    "reply_read"
+    "reply_read",
+    "booking_read"
   ],
-  "appointments.source": ["calendar_feed", "booking_tool", "person"],
+  "appointment_notices.hold_reason": [
+    "no_model",
+    "may_not_spend",
+    "unreadable",
+    "not_a_booking",
+    "no_time",
+    "no_client",
+    "gone"
+  ],
+  "appointment_notices.outcome": ["booked", "changed", "cancelled", "held", "dismissed"],
+  "appointments.source": ["calendar_feed", "booking_email", "booking_tool", "person"],
   "appointments.status": ["proposed", "booked", "kept", "missed", "cancelled"],
   "ask_messages.role": ["user", "assistant"],
   "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
@@ -27589,6 +27980,7 @@ var SCHEMA_SETS = {
     "push_receipts",
     "reply_read",
     "event_deliver",
+    "booking_read",
     "inbound_answer"
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
@@ -27697,7 +28089,8 @@ var SCHEMA_SETS = {
     "leads_question",
     "note_for_you",
     "reach_out_replied",
-    "reach_out_day"
+    "reach_out_day",
+    "booking_notice"
   ],
   "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB"],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
@@ -28226,7 +28619,7 @@ function calendarRow(i) {
       detail: "iCal feed",
       state: "connected",
       stateWords: CALENDAR_FEED_WORDS.ok,
-      sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
+      sentence: "The receptionist offers times from it. Booking emails from your tool add the client and the service.",
       verb: { label: "Open Calendar", to: "calendar", who: "operator" }
     };
   }
@@ -28245,7 +28638,7 @@ function calendarRow(i) {
     detail: null,
     state: "none",
     stateWords: CALENDAR_FEED_WORDS.none,
-    sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
+    sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Booking emails from your tool can fill the board too.",
     verb: { label: "Paste the address", to: "admin/workspace", who: "owner" }
   };
 }
@@ -30150,6 +30543,7 @@ var SERVER_NOTIFICATION_KINDS = [
   "job_failed",
   "playbook",
   "calendar_people",
+  "booking_notice",
   "alert",
   "review",
   "billing",
@@ -30178,6 +30572,9 @@ var JOB_WORK = {
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
   reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
+  // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
+  // visit would be, and Settings › Business where the notices are counted.
+  booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
   // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
   // did not get there, and the activity log is where the fact is.
   event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
@@ -30234,6 +30631,8 @@ var SERVER_LOOK = {
   broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sent", to: "broadcasts" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Campaigns", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+  /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Business. */
+  booking_notice: { icon: "calendar", tone: "warn", action: "Open Settings", to: "admin/workspace" },
   /** A search that finished: good news, on the page the leads are on. */
   leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
   /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
@@ -30353,6 +30752,7 @@ var NOTIFICATION_DELIVERY = {
   job_failed: "email",
   playbook: "email",
   calendar_people: "bell",
+  booking_notice: "bell",
   alert: "email",
   review: "bell",
   billing: "email",
@@ -30512,6 +30912,7 @@ var AWAY_NOUN = {
   job_failed: ["job did not finish", "jobs did not finish"],
   review: ["new rating on Google", "new ratings on Google"],
   calendar_people: ["person added from your calendar", "people added from your calendar"],
+  booking_notice: ["booking email needs a look", "booking emails need a look"],
   handoff: ["conversation needs you", "conversations need you"],
   playbook: ["playbook is ready", "playbooks are ready"],
   // One sync can approve several at once, and several rejections read as one
@@ -32642,9 +33043,7 @@ var ACTIVITY_NOISE_KINDS = [
   "booking_link.sent",
   "channel.quality_rating",
   // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
-  "person.resolved",
-  // The calendar's hourly read, one row per appointment it kept (00346, decision 0002): the calendar is where they read it.
-  "appointment.changed"
+  "person.resolved"
 ];
 var isActivityMoney = (row2) => row2.category === "billing";
 var WORDS2 = {
@@ -32717,7 +33116,6 @@ var WORDS2 = {
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
   "person.resolved": "A door resolved who a person is",
-  "appointment.changed": "An appointment on the calendar changed",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -33679,8 +34077,6 @@ export {
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
   ANGLE_WORDS_MAX,
-  APPOINTMENT_SOURCES,
-  APPOINTMENT_STATUSES,
   APP_KEYS_RESIZE_CLASS,
   APP_ROUTE_RE,
   ASK_ANSWER_CAPS,
@@ -33728,6 +34124,9 @@ export {
   BOOKING_LINK_NEEDED,
   BOOKING_PLATFORM_HOSTS,
   BOOKING_RULE_HINTS,
+  BOOKING_TOOL_IDS,
+  BOOKING_TOOL_STEPS,
+  BOOKING_TRY_NOTE,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
@@ -33894,6 +34293,7 @@ export {
   FORWARD_IS_HANDOFF,
   FREE_MAIL_DOMAINS,
   GET_YES_ROUTE,
+  GMAIL_FORWARD_NOTE,
   GOOGLE_SHOWN_REVIEWS,
   GREETING_DEFAULT,
   GUARDRAIL_KEYS,
@@ -34097,6 +34497,10 @@ export {
   NOTE_SUGGEST_MODEL,
   NOTE_SUGGEST_SCHEMA,
   NOTE_WORDS,
+  NOTICE_DEFAULT_LENGTH_MS,
+  NOTICE_HOLD_WORDS,
+  NOTICE_READ_MAX_TOKENS,
+  NOTICE_SCHEMA,
   NOTIFICATION_KIND_GROUPS,
   NOTIFICATION_PANE_WORDS,
   NO_CHANNEL_REACH,
@@ -34327,6 +34731,7 @@ export {
   RUN_REPORT_STEPS,
   RUN_VERBS,
   SAME_SITTING_MS,
+  SAME_VISIT_MS,
   SCHEMA_SETS,
   SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
@@ -34460,9 +34865,8 @@ export {
   answeredYes,
   applyReadState,
   applySettingsChange,
-  appointmentHolds,
-  appointmentKeyOf,
-  appointmentKeysOf,
+  appointmentKey,
+  appointmentTitle,
   approvalWordsOf,
   areaCodeOf,
   asContactId,
@@ -34499,12 +34903,16 @@ export {
   bookingLinkAction,
   bookingLinkOptional,
   bookingLinkRowWords,
+  bookingNoticeOf,
   bookingPageKept,
   bookingPageOf,
   bookingPageOffered,
   bookingRuleRefusal,
   bookingRulesWords,
   bookingTemplate,
+  bookingToolName,
+  bookingToolOfAddress,
+  bookingToolOptions,
   brainMetaOf,
   breathEndsAt,
   breathHolds,
@@ -34524,6 +34932,7 @@ export {
   businessRecordLine,
   businessRecordProblems,
   businessTypeOf,
+  busyOfAppointments,
   cacheHitOf,
   calendarOwnerOf,
   calendarPeekDeal,
@@ -34585,6 +34994,7 @@ export {
   cleanPartnerCode,
   cleanTimezone,
   clientErrorOf,
+  clientKeyOf,
   clip,
   clipAtWord,
   clockDate,
@@ -34645,6 +35055,7 @@ export {
   dayProblems,
   dayWords,
   daysToSunset,
+  daysWithAppointments,
   dealCardsOf,
   dealFactsOf,
   dealIsOpen,
@@ -34739,8 +35150,8 @@ export {
   fallbackMessages,
   fallbackModel,
   fallbacksWords,
-  feedAppointmentRows,
   feedBodyProblem,
+  feedItemOfAppointment,
   feedNotes,
   feedProblemWords,
   feedSourceLabel,
@@ -34784,6 +35195,7 @@ export {
   forwardedLineOf,
   forwardingCarrierOf,
   forwardingCodes,
+  forwardingConfirmationOf,
   forwardingDialLabel,
   forwardingMatch,
   forwardingProof,
@@ -34861,6 +35273,7 @@ export {
   isActivityNoise,
   isAutomatedSend,
   isBaselinePrompt,
+  isBookingTool,
   isCampaignEmail,
   isCarrier,
   isChatMessage,
@@ -34886,6 +35299,7 @@ export {
   isLiveCall,
   isLookPref,
   isModelId,
+  isNoticeHold,
   isOfferByEmail,
   isOpeningFactKey,
   isOpeningProblem,
@@ -34923,6 +35337,7 @@ export {
   isWinBack,
   isYes,
   itemFocus,
+  itemOfAppointment,
   jittered,
   jobNewsWords,
   judgeDomain,
@@ -35118,6 +35533,8 @@ export {
   noteSuggestSystemPrompt,
   noteSuggestUserContent,
   notesWords,
+  noticeAnswerOf,
+  noticePrompt,
   numberHealth,
   numberHealthWithStanding,
   numberedSlots,
@@ -35213,6 +35630,7 @@ export {
   personLikeOf,
   personName,
   personNotesVM,
+  personOfAppointment,
   personReachOf,
   personStanding,
   personStateFor,
@@ -35481,7 +35899,6 @@ export {
   sendingDomainsFootWords,
   sentByWords,
   serverNotificationRows,
-  serviceNamedIn,
   serviceOf2 as serviceOf,
   serviceSuggestionsOf,
   serviceUndoName,
@@ -35739,6 +36156,7 @@ export {
   wireFailure,
   withReplies,
   withVisitsOf,
+  withoutVisitsRowsDraw,
   withoutWrongPerson,
   wordCount,
   wordsIssueWords,

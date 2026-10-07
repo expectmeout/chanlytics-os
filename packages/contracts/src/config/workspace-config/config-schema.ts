@@ -9,6 +9,7 @@
  * business-profile.ts and brain-config.ts beside it, and the numbers they are built from config-rules.ts.
  */
 import { feedProblemWords, feedUrlOk } from "../../calendar/feed-url";
+import { BOOKING_TOOL_IDS } from "../../calendar/booking-notice";
 import { normalizeEmail } from "../../shared/email-address";
 import { z } from "zod";
 import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-keys";
@@ -53,10 +54,15 @@ export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
  */
 export const CalendarConfigSchema = z
   .object({
+    // The feed's address, when the workspace reads one. Optional since 00345: a workspace whose bookings arrive by
+    // email names its tool here and may read no calendar at all.
     ical_url: z
       .string()
       .max(2000)
-      .refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address"),
+      .refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+      .optional(),
+    // The booking tool the owner named (contracts BOOKING_TOOLS): what the card's steps and the board's words say.
+    tool: z.enum(BOOKING_TOOL_IDS).optional(),
   })
   .strip();
 export type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
@@ -139,7 +145,7 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
 /** The rules only a save has, over the shape the read keeps (TenantConfigWriteSchema). */
 const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
-  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
+  if (cfg.calendar?.ical_url !== undefined && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["calendar", "ical_url"],

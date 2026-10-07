@@ -56,6 +56,8 @@ export {
   sentEmailWithMessageId,
   stampMailboxReceived,
   mailboxOfTenant,
+  keepForwardingConfirmation,
+  clearForwardingConfirmation,
   lastInboundEmail,
   answeredReachOutEmail,
   stampEmailSent,
@@ -426,4 +428,26 @@ export {
   keepChannelStanding,
 } from "./sweeps";
 export type { DuePage, DuePlaybook, DueCalendar, WhatsappNumber } from "./sweeps";
+export {
+  appointmentByKey,
+  appointmentByClientStart,
+  insertAppointment,
+  updateAppointment,
+  appointmentsBetween,
+  appointmentsForClient,
+  appointmentsScrub,
+  contactIdByPhone,
+  contactIdByEmail,
+} from "./repositories/calendar/appointments";
+export type { AppointmentRow, AppointmentInsert, AppointmentUpdate } from "./repositories/calendar/appointments";
+export {
+  appointmentNoticeOf,
+  keepAppointmentNotice,
+  appointmentNoticesOf,
+  memberHasAddress,
+  heldNoticesOf,
+  appointmentNoticeById,
+  dismissAppointmentNotice,
+} from "./repositories/calendar/notices";
+export type { AppointmentNoticeRow, AppointmentNoticeInsert } from "./repositories/calendar/notices";
 export type { Database, Json } from "./database.types";

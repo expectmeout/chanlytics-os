@@ -13,20 +13,22 @@
 --                    so erase_contact cancels and scrubs one still waiting, as it does every job that names them.
 --   jobs.lane        the kind runs in lane 0, a reply's: a customer is waiting for it. The column is generated, so its
 --                    expression is set again with one more case (PostgreSQL 17's set expression: no column dropped).
+--                    The CHECK and the lane are 00345's as it left them (a booking notice's read, lane 1), with the one
+--                    kind more.
 --
 -- Either deploy order: an edge before this migration has its job refused by the CHECK and answers the text in the
 -- door, as before (sms_answer_unscheduled); a database before the edge holds no job of the kind. Re-runnable throughout.
 
 alter table public.jobs drop constraint if exists jobs_kind_check;
 alter table public.jobs add constraint jobs_kind_check
-  check (kind in ('outbound_send', 'broadcast_send', 'line_provision', 'email_ingest', 'lead_round_start', 'lead_collect', 'lead_check', 'push_send', 'push_receipts', 'reply_read', 'event_deliver', 'inbound_answer'));
+  check (kind in ('outbound_send', 'broadcast_send', 'line_provision', 'email_ingest', 'lead_round_start', 'lead_collect', 'lead_check', 'push_send', 'push_receipts', 'reply_read', 'event_deliver', 'booking_read', 'inbound_answer'));
 
 alter table public.jobs alter column lane set expression as (
   case
     when kind = 'inbound_answer' then 0
     when kind in ('outbound_send', 'email_ingest', 'push_send')
          and coalesce(payload->>'purpose', '') <> 'outreach' then 0
-    when kind in ('line_provision', 'reply_read') then 1
+    when kind in ('line_provision', 'reply_read', 'booking_read') then 1
     when kind in ('broadcast_send', 'outbound_send', 'lead_round_start', 'lead_collect', 'lead_check',
                   'push_receipts') then 2
     when kind = 'event_deliver' then
@@ -34,4 +36,4 @@ alter table public.jobs alter column lane set expression as (
   end
 );
 comment on column public.jobs.lane is
-  'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+  'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';

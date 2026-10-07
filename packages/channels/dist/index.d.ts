@@ -2047,7 +2047,7 @@ declare function messageIdsIn(header: string | null | undefined): string[];
  *              day one is parsed, its source is tested before this.)
  *   person     none of the above.
  */
-type EmailClaim = "report" | "auto_reply" | "automated" | "person";
+type EmailClaim = "report" | "auto_reply" | "automated" | "person" | "booking_notice" | "forwarding_confirmation";
 /**
  * Whether the receiving side PROVES the sender is who the From line says, from the Authentication-Results header it
  * writes (RFC 8601), as the fetched email carries it: an aligned DMARC pass for the From domain (`dmarc=pass` with
@@ -2066,7 +2066,7 @@ type EmailClaim = "report" | "auto_reply" | "automated" | "person";
  * copy of it, and a mail with two is read as proving nothing rather than as whichever sits on top.
  */
 declare function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "authResults">, authservId: string | null): boolean;
-declare function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from">): EmailClaim;
+declare function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">): EmailClaim;
 
 type EmailReceiptType = "sent" | "delivered" | "delivery_delayed" | "bounced" | "complained" | "failed" | "suppressed";
 interface EmailReceipt {

@@ -106,6 +106,13 @@ export const JOB_KINDS = [
    */
   "reply_read",
   /**
+   * One booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
+   * email_ingest that recognised it schedules one per delivery (payload { received_id, mailbox_id }, keyed on the
+   * delivery), the handler fetches the email again, asks the model and writes the row. Internal work written to be run
+   * again: a second claim finds the row by the delivery's id and pays nothing.
+   */
+  "booking_read",
+  /**
    * One event's delivery to one subscriber (00334, decision 0032): the relay writes it beside the event_deliveries row,
    * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
    * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an

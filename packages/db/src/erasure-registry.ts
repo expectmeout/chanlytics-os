@@ -41,6 +41,8 @@ export const ERASURE_LEGS = {
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
+  appointments_scrub:
+    "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)",
 } as const;
 
 export type ErasureLeg = keyof typeof ERASURE_LEGS;
@@ -155,6 +157,27 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id"),
   },
+  // A visit is the business's fact; the client in it is the person's (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md).
+  appointments: {
+    ...all(
+      scrubbedBy("appointments_scrub"),
+      "client_name",
+      "client_phone",
+      "client_email",
+      "note",
+      "title",
+      "external_id",
+    ),
+    ...all(NOT_PERSONAL, "tool", "service", "staff", "price", "timezone"),
+  },
+  appointment_notices: {
+    subject: scrubbedBy("appointments_scrub"),
+    // The tool's own sender and its id for the delivery: nobody's.
+    ...all(NOT_PERSONAL, "notice_id", "tool", "from_address"),
+  },
+  // Gmail's pending confirmation of a forward to the workspace's address (00345): the owner's own account, and
+  // Google's code and link for it. The workspace's, never a person's.
+  mailboxes: all(NOT_PERSONAL, "forward_confirm_account", "forward_confirm_code", "forward_confirm_link"),
   person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
   platform_metrics: all(
     NOT_PERSONAL,

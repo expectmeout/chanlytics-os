@@ -206,6 +206,32 @@ before(async () => {
   await seed("segment_members", { tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact }, null);
   await seed("deals", { tenant_id: A, contact_id: ctx.contact, stage: "proposed" }, null);
   await seed("person_notes", { tenant_id: A, contact_id: ctx.contact, body: "tenancy note" }, null);
+  // The appointments record and the notices ledger (00345): members read; the booking_read job writes.
+  await seed(
+    "appointments",
+    {
+      tenant_id: A,
+      contact_id: ctx.contact,
+      source: "booking_email",
+      tool: "booksy",
+      external_id: "booksy:+15550001001:1791486000000",
+      starts_at: "2026-10-08T19:00:00.000Z",
+      ends_at: "2026-10-08T20:00:00.000Z",
+      timezone: "America/New_York",
+    },
+    null,
+  );
+  await seed(
+    "appointment_notices",
+    {
+      tenant_id: A,
+      notice_id: "rcv_tenancy",
+      tool: "booksy",
+      received_at: "2026-10-06T16:00:00.000Z",
+      outcome: "booked",
+    },
+    null,
+  );
   await seed("person_doubts", { tenant_id: A, contact_id: ctx.contact, other_id: ctx.contact2, seen: "email" }, null);
   await ensure("policies", { tenant_id: A, class: "reply", mode: "auto" });
   await ensure("tenant_config", { tenant_id: A });
@@ -622,6 +648,30 @@ const TENANT_TABLES = {
   segment_members: ["member", () => ({ tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact2 })],
   deals: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, stage: "proposed" })],
   person_notes: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, body: "stranger note" })],
+  // The record and the ledger (00345): members read; nobody but the service role writes.
+  appointments: [
+    "member",
+    () => ({
+      tenant_id: A,
+      contact_id: ctx.contact2,
+      source: "booking_email",
+      tool: "booksy",
+      external_id: "booksy:+15550001002:1791489600000",
+      starts_at: "2026-10-08T20:00:00.000Z",
+      ends_at: "2026-10-08T21:00:00.000Z",
+      timezone: "America/New_York",
+    }),
+  ],
+  appointment_notices: [
+    "member",
+    () => ({
+      tenant_id: A,
+      notice_id: `rcv_stranger_${Date.now()}`,
+      tool: "booksy",
+      received_at: "2026-10-06T16:00:00.000Z",
+      outcome: "booked",
+    }),
+  ],
   person_doubts: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, other_id: ctx.contact, seen: "name" })],
   // A person's moments (00259, 0021): members read; only the triggers on contacts, messages and calls, and the fill,
   // write. Every person has a row from their insert, so the stranger's is refused for the privilege, not the key.

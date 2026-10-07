@@ -2930,6 +2930,7 @@ async function verifyResendWebhook(secret, h, rawBody, nowMs) {
 }
 
 // src/email/intake.ts
+import { bookingNoticeOf, forwardingConfirmationOf } from "../../contracts/dist/index.js";
 function platformRecipient(address, domain, coldReplyDomains = null) {
   const a = address.trim().toLowerCase();
   const at = a.lastIndexOf("@");
@@ -3052,6 +3053,8 @@ function classifyReceived(e) {
   const h = e.headers;
   const local = e.from?.address.split("@")[0] ?? "";
   if (/multipart\/report/i.test(h["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/.test(local)) return "report";
+  if (bookingNoticeOf({ from: e.from, subject: e.subject, text: e.text })) return "booking_notice";
+  if (forwardingConfirmationOf({ from: e.from, subject: e.subject, text: e.text })) return "forwarding_confirmation";
   const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
   if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim()))
     return "auto_reply";

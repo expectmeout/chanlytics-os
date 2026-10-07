@@ -48,10 +48,13 @@ import {
   subscriptionPaused,
   deliveryOf,
   settleDelivery,
+  memberHasAddress,
+  keepForwardingConfirmation,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
 import { replyRead } from "./reply-read";
+import { bookingRead } from "./booking-read";
 import { type ClaimedJob, type JobContext, must, type PushTicket } from "./context";
 export type { PushReceipt, PushPort, JobContext, ClaimedJob } from "./context";
 
@@ -173,6 +176,16 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
         const e = await email.fetch(receivedId);
         return e ? incomingEmailOf(e, email.authservId ?? null) : null;
       },
+      // A booking tool's notice is read into an appointment by its own job, once per delivery (dedupe_key), as this
+      // job's own tenant: the intake run again finds it already on the ledger. The tool rides along, so a delivery the
+      // provider no longer has when the read runs is still kept on the ledger as the tool's.
+      readBooking: async (_tenantId, mailboxId, receivedId, tool) => {
+        await ctx.scheduleOnce("booking_read", new Date(), { received_id: receivedId, mailbox_id: mailboxId, tool });
+      },
+      // A forward by hand is trusted from a member of the workspace (member_has_address, 00345).
+      memberAddress: (tenantId, address) => memberHasAddress(db, tenantId, address),
+      // Gmail's confirmation of a forward here, kept on the mailbox for Settings to show (00345).
+      keepForwarding: (mailboxId, p) => keepForwardingConfirmation(db, mailboxId, p),
       erasedBefore: email.erasedBefore,
       ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
       record: (p) => ingestInboundEmail(db, p),
@@ -466,6 +479,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   push_receipts: pushReceipts,
   reply_read: replyRead,
   event_deliver: eventDeliver,
+  booking_read: bookingRead,
   inbound_answer: inboundAnswer,
 };
 

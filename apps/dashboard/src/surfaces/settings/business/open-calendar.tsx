@@ -382,11 +382,15 @@ export const BtoFeedBox = ({
       <BtoFeedCheck check={check} />
       {readOnly ? null : <BtoFeedGuides />}
       <p className="bt-fold-note">
-        The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly
-        and the rest sync into one). It is only ever read. Nothing is booked from here;{" "}
+        The private iCal address of the calendar your appointments land in (Google, Apple or Outlook), or the feed your
+        booking tool offers. It is only ever read. Nothing is booked from here;{" "}
         {offers
           ? "the booking link does that, whichever tool is behind it."
           : "your team does that, from the details it takes."}
+      </p>
+      {/* For the tool that offers no feed at all: the other way in, one row down. */}
+      <p className="bt-fold-note" data-testid="bto-notices-note">
+        No calendar feed? Booking emails from your tool work too: see Where your bookings come from, below.
       </p>
       {/* Only an owner is sent the address whole (the settings route masks it for everyone else), and a masked address
           edited in part would be saved as written. */}
