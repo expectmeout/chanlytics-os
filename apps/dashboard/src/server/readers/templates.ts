@@ -1,6 +1,7 @@
 import "server-only";
 import {
   bookingTemplate,
+  campaignMessagesOf,
   runsWords,
   templateBlocked,
   templateHolds,
@@ -43,7 +44,11 @@ async function everyRow<T>(
   }
 }
 
-/** GET templates' body, as the route ran it: its answer's type is the body's own, as the route's was. */
+/**
+ * GET templates' body, as the route ran it: its answer's type is the body's own, as the route's was. `templates` are the
+ * rows (the composers' unless `all`), `messages` the workspace's messages made of EVERY row (contracts
+ * campaignMessagesOf), and `held` what the composers' rows left out of WhatsApp's, counted by why.
+ */
 async function templatesOf(rc: ReaderContext, all: boolean) {
   const tenantId = rc.tenantId;
   const { data, error } = await rc.ctx.supabase
@@ -55,11 +60,13 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   // The message as the customer receives it -- heading, footer, buttons -- and
   // why this product cannot send it, if it cannot. Meta's array stays behind:
   // three composers digging the same shapes out of it would put Meta's schema
-  // in a .jsx file, where the compiler cannot see it.
+  // in a .jsx file, where the compiler cannot see it. Only a WhatsApp row is
+  // judged: an email's subject may hold a value ({{1}}), which reads as "a
+  // heading that takes a value" on Meta's array and is no reason to hold the email.
   const every = (data ?? []).map(({ components, ...t }) => ({
     ...t,
     ...templateParts(components),
-    blocked: templateBlocked({ components }),
+    blocked: t.channel === "whatsapp" ? templateBlocked({ components }) : null,
   }));
   // The composers: approved, and not hidden by the workspace. Settings sees everything. The ones left out are counted by
   // why, so an empty picker can say it (contracts noTemplateWords) -- the read that left them out is the one that knows.
@@ -67,12 +74,16 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
     t.meta_status === "approved" && !t.hidden_at;
   const templates = all ? every : every.filter(offered);
   const held = templateHolds(every.filter((t) => !offered(t)));
+  // The messages, from every row, the ones the composers leave out included: a WhatsApp version still in review keeps
+  // its standing inside its message, and a message with no WhatsApp row is one. Whether a picker lists one is the
+  // message's own `offered`.
+  const messages = campaignMessagesOf(every);
   // What sends each of them, and how many of each went out, for the page that
   // lists every one. The composers (`!all`) are choosing a template to send and
   // never ask, so they do not pay for the reads. A workspace can carry a message
   // nothing has ever sent -- one written in WhatsApp Manager, or a starter added
   // and never wired up -- and this list was the one place that could not say so.
-  if (!all) return { templates, held };
+  if (!all) return { templates, held, messages };
   const [pb, runs, recipients, inbox] = await Promise.all([
     // Its clock, for the line under what sends it ("runs daily at 10:00").
     rc.ctx.supabase
@@ -127,23 +138,27 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   const usedBy = templateUsage({
     playbooks: (pb.data ?? []).map((p) => ({ ...p, runs: runsWords(p) })),
     broadcasts: runs,
-    bookingName: bookingTemplate(templates)?.name ?? null,
+    // The booking message is a WhatsApp template the receptionist sends: an email or a text of the same name is none.
+    bookingName: bookingTemplate(every.filter((t) => t.channel === "whatsapp"))?.name ?? null,
   });
   const sends = templateSends({ runs, recipients, inbox });
-  return { templates, held, usedBy, sends };
+  return { templates, held, messages, usedBy, sends };
 }
 
-/** GET templates' answer: the rows, and for Settings (`all`) what sends each and how many went out. */
+/** GET templates' answer: the rows and their messages, and for Settings (`all`) what sends each and how many went out. */
 export type TemplatesRead = Awaited<ReturnType<typeof templatesOf>>;
 
 /**
  * GET templates, as the route answers it: ONE workspace's templates, scoped explicitly and not by RLS alone. Unless
- * `all`, the composers' read: approved and not hidden by the workspace, since Meta refuses anything else at the wire,
- * each row the message as the customer receives it (templateParts) and why this product cannot send it (`blocked`).
- * `all` is Settings': every template with its status, what sends each and how many went out. The route's body, moved
- * here whole, so the composers and Ask's campaigns.audiences read the same rows the same way; the route checks
- * `?all=`. Each template is a row a citation names, with no address of its own: it opens Templates, whichever read
- * returned it.
+ * `all`, the composers' read: `templates` are the rows of every channel that are approved and not hidden by the
+ * workspace (an email or a text is written approved; Meta refuses anything else at the wire), each row the message as
+ * the customer receives it (templateParts) and why this product cannot send it (`blocked`, judged on a WhatsApp row
+ * alone: null on an email's or a text's). `all` is Settings': every template with its status, what sends each and how
+ * many went out. Both answer `messages`, beside `templates` and `held`: the messages (a name in a language) made of EVERY
+ * row of the workspace by contracts campaignMessagesOf, not of the rows left in the list, so a WhatsApp version in
+ * review keeps its status inside its message, and a message with no WhatsApp row is one. The route's body, moved here
+ * whole, so the composers and Ask's campaigns.audiences read the same rows the same way; the route checks `?all=`. Each
+ * template is a row a citation names, with no address of its own: it opens Templates, whichever read returned it.
  */
 export const templates: Reader<{ all: boolean }, TemplatesRead> = {
   name: "templates",

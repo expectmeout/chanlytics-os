@@ -8,11 +8,13 @@
 import {
   OWN_VERSION_CHANNELS,
   STARTER_TEMPLATES,
+  campaignMessagesOf,
   isReachOutRow,
   templateSentWords,
   templateUnused,
   templateUseNote,
   templateUseWords,
+  type CampaignMessage,
   type TemplateSentWords,
   type ResolvedFacts,
   type FactConflict,
@@ -89,6 +91,15 @@ export interface SettingsSurface {
    * own list), and null is a read that failed, as it is for `templatesAll`.
    */
   templateVersions?: TemplateDto[] | null;
+  /**
+   * The workspace's messages, one a name and language, each with the versions it holds on WhatsApp, email and text
+   * (contracts campaignMessagesOf): a WhatsApp version still in review keeps its status inside its message, and a message
+   * with no WhatsApp row is one. The read's own, made of every row; where the read does not carry them (an older server
+   * answering this bridge) they are made here of `templatesAll` and `templateVersions` (settingsMessagesOf).
+   * `templatesAll` stays WhatsApp's alone, as the Inbox, setup and the phone read it. Null is a read that failed, as it
+   * is for `templatesAll`.
+   */
+  messages: CampaignMessage[] | null;
   templateUse: TemplateUse | null;
   templateSent: Record<string, TemplateSentWords> | null;
   /**
@@ -107,6 +118,21 @@ function versionRowsOf(tpl: Error | { templates?: TemplateDto[] }): TemplateDto[
   return (tpl.templates ?? []).filter(
     (t) => (OWN_VERSION_CHANNELS as readonly string[]).includes(t.channel) && !isReachOutRow(t),
   );
+}
+
+/**
+ * The workspace's messages as the surface holds them: the read's own, or, where it carries none (a server from before the
+ * read answered them), made of the rows the surface keeps, which are every row a message is made of: WhatsApp's in
+ * `templatesAll` and the email and text rows in `templateVersions` (a reach-out's emails belong to no message). Null where
+ * the read failed.
+ */
+function settingsMessagesOf(
+  tpl: Error | { messages?: CampaignMessage[] },
+  whatsapp: readonly TemplateDto[] | null,
+  versions: readonly TemplateDto[] | null,
+): CampaignMessage[] | null {
+  if (tpl instanceof Error) return null;
+  return tpl.messages ?? campaignMessagesOf([...(whatsapp ?? []), ...(versions ?? [])]);
 }
 
 /** The policies read as the autonomy matrix draws it. */
@@ -267,12 +293,14 @@ export const settingsOverride: SurfaceOverride = {
       w.__TEAM_INVITES = team.invites ?? [];
     }
     // The slice a TSX surface reads (Campaigns' Templates), published beside the globals it copies.
+    const versions = versionRowsOf(tpl);
     setSurfaceValue("settings", {
       settings: w.__SETTINGS ?? null,
       facts: w.__FACTS ?? null,
       channels: w.__CHANNELS ?? null,
       templatesAll: w.__TEMPLATES_ALL ?? null,
-      templateVersions: versionRowsOf(tpl),
+      templateVersions: versions,
+      messages: settingsMessagesOf(tpl, w.__TEMPLATES_ALL ?? null, versions),
       templateUse: w.__TEMPLATE_USE ?? null,
       templateSent: w.__TEMPLATE_SENT ?? null,
       policies: w.__POLICIES ?? null,

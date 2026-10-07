@@ -324,6 +324,7 @@ const messagesPage = () => {
     settings: { config: { brain: { business_name: "Northside Studio" } } },
     channels: [{ kind: "whatsapp" }],
     templatesAll: [],
+    messages: [],
   });
   return TemplatesPage();
 };

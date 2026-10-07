@@ -109,6 +109,7 @@ function surfaces(over = {}) {
   setSurfaceValue("reach_outs", over.reachOuts ?? []);
   setSurfaceValue("settings", {
     templatesAll: pb.templates,
+    messages: contracts.campaignMessagesOf(pb.templates),
     ...(over.settings ?? {}),
   });
 }
@@ -923,12 +924,14 @@ test("the Library's count is the Library page's own: the same templates, languag
     next: { run_hour: 9, last_run_for: null, mode: "ask", may_spend: true, waiting_run_id: null },
     domains: [],
   });
-  surfaces({ reachOuts: [email(1)], settings: { templatesAll: rows } });
+  const messages = contracts.campaignMessagesOf(rows);
+  surfaces({ reachOuts: [email(1)], settings: { templatesAll: rows, messages } });
   // The page's head says "N templates"; the home's act carries N.
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: "Northside Studio" } } },
     channels: [{ kind: "whatsapp" }],
     templatesAll: rows,
+    messages,
   });
   fresh();
   TemplatesPage();

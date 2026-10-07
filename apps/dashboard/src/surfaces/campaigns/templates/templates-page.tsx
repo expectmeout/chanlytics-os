@@ -118,6 +118,7 @@ function MessagesReal() {
   const settings = useSurface("settings");
   const chains = useSurface("reach_outs");
   const templates = settings ? settings.templatesAll : undefined;
+  const messages = settings?.messages;
   // The workspace's email and text rows (not a reach-out's): each message finds its own among them. Unread is none.
   const versions = settings?.templateVersions ?? NO_VERSIONS;
   const S = library;
@@ -131,8 +132,8 @@ function MessagesReal() {
   const hasWhatsApp = (channels || []).some((c) => c.kind === "whatsapp");
   const bizName = brainOf(settings ? settings.settings : undefined).business_name || null;
 
-  if (templates === undefined) return readingNow();
-  if (templates === null) return couldntLoad();
+  if (templates === undefined || messages === undefined) return readingNow();
+  if (templates === null || messages === null) return couldntLoad();
 
   const listing = listingOf(templates, S);
   const { langs, starters, customGroups, hiddenGroups, missingTotal, allMissing } = listing;
@@ -221,7 +222,7 @@ function MessagesReal() {
       <CmHead
         title={LIBRARY_WORDS.title}
         testid="messages-standing"
-        sub={headSub({ listing, emails })}
+        sub={headSub({ listing, messages, emails })}
         right={headRight({ hasWhatsApp, onNew: startNew })}
       />
       {/* The top of the list, as the Inbox's opens: the search, and beside it when WhatsApp was last asked. */}

@@ -25865,9 +25865,9 @@ It kept trying through the day. If today's message matters, you can send it your
 // src/templates/library-count.ts
 var LIBRARY_SAMPLES = /* @__PURE__ */ new Set(["hello_world"]);
 var isLibrarySample = (name) => LIBRARY_SAMPLES.has(name);
-function libraryCount(templates, emailRows) {
-  if (!templates) return null;
-  return templates.filter((t) => !isLibrarySample(t.name) && !t.hidden_at).length + emailRows;
+function libraryCount(messages, emailRows) {
+  if (!messages) return null;
+  return messages.filter((m) => !isLibrarySample(m.name) && !m.hidden).length + emailRows;
 }
 
 // src/templates/message-languages.ts
@@ -26947,7 +26947,7 @@ function lifecycleHeadOf(input, stages) {
   return {
     title: LIFECYCLE_WORDS.title,
     sentence: parts2,
-    library: { label: LIFECYCLE_WORDS.library, count: libraryCount(input.library, emailRowsOf(input.reachOuts)) },
+    library: { label: LIFECYCLE_WORDS.library, count: libraryCount(input.messages, emailRowsOf(input.reachOuts)) },
     newMessage: LIFECYCLE_WORDS.newMessage,
     // The email channel's own read carries whether its offers are paused: said under the sentence while they are.
     pausedLine: offersPausedLine(input.broadcasts?.ready?.email.offers)

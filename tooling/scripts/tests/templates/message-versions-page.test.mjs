@@ -139,6 +139,8 @@ const page = ({ rows = [], versions = [], role = "owner" } = {}) => {
     channels: [{ kind: "whatsapp" }],
     templatesAll: rows,
     templateVersions: versions,
+    // The messages the surface holds, made of those rows as the bridge makes them where the read carries none.
+    messages: contracts.campaignMessagesOf([...rows, ...(versions ?? [])]),
     templateUse: null,
     templateSent: null,
   });

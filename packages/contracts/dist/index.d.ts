@@ -22669,6 +22669,121 @@ declare function playbookFailedWords(name: string, why: "calendar" | "other"): {
 };
 
 /**
+ * A campaign message, read once: what a broadcast or a playbook sends is a name in a language, and its versions are the
+ * workspace's template rows of that name and language, one a channel (message-versions.ts). WhatsApp's is Meta's, with
+ * Meta's status; an email's and a text's are written here and are approved the moment they are saved. A message needs no
+ * WhatsApp version: any non-empty set of the three is a message, and each channel it is sent by needs only its own.
+ *
+ * This is the one reading of it, so every page, verb and send that asks "which version anchors it, which channels does
+ * it hold, what is it for, how many values does it fill" gets one answer:
+ *
+ *  1. The input is the workspace's rows. A reach-out's email (a name of its own, edited in place) and a row on a channel
+ *     a message has no version on (voice, Instagram) belong to no message.
+ *  2. The anchor, which any campaign's `template_id` may point at, is the WhatsApp row if there is one, else the email,
+ *     else the text.
+ *  3. The slots are the WhatsApp row's `variables`, else the anchor's: the highest numbered slot a row names, or the
+ *     slots it lists.
+ *  4. The category is the WhatsApp row's, in any status: it is Meta's word, and it stands even when the row is
+ *     waiting, refused or paused. With no WhatsApp row it is the category the own rows carry, the strictest of them:
+ *     marketing beats utility, and a row with none is marketing, as the send reads it (consent purposeOfTemplate).
+ *     The purpose is that category's. Nobody declares a custom message utility here: the door that files an email or a
+ *     text decides the category it writes.
+ *  5. A channel is held when the message can be sent on it now: WhatsApp when its row is approved and this product can
+ *     put it on the wire whole (templateBlocked, of the WhatsApp row alone: an email's subject may carry a value, which
+ *     the reader reads as "a heading that takes a value" on every row, and that is no reason to hold the email); email
+ *     and text when the row exists. Whether the workspace is ready on a channel is channelsReady's, not this module's.
+ *  6. The message is hidden when its anchor is, and offered when it is not hidden and holds at least one channel.
+ *  7. A channel the message does not hold has one sentence for it (messageWhyNot), whichever page or verb says it.
+ */
+
+/**
+ * A template row as a reader hands it down (apps/dashboard server/readers/templates.ts) or the database holds it: the
+ * columns a message is read from. A row that carries `blocked` is believed (the reader worked it out where it still had
+ * the components); one with only `components` is judged here (templateBlocked).
+ */
+interface CampaignMessageRow {
+    id: string;
+    name: string;
+    language: string;
+    channel: string;
+    meta_status?: string | null;
+    category?: string | null;
+    variables?: unknown;
+    title?: string | null;
+    hidden_at?: string | null;
+    /** Meta's reason for a refusal, as its status update gave it. */
+    rejected_reason?: string | null;
+    blocked?: string | null;
+    components?: unknown;
+}
+/** A message in one language, with its versions. */
+interface CampaignMessage {
+    name: string;
+    language: string;
+    /** What the message is called for people: the anchor's title, else the starter's, else its name made words. */
+    title: string;
+    /** The version a campaign's `template_id` may point at (rule 2). */
+    anchor: {
+        id: string;
+        channel: VersionChannel;
+    };
+    /** How many numbered values the message fills; every version fills these and no others. */
+    slots: number;
+    /** Meta's word where the message has a WhatsApp row, else the strictest of the own rows' (rule 4); null is a row that said none. */
+    category: string | null;
+    /** What the message is, as a send judges a yes (consent purposeOfTemplate of the category). */
+    purpose: AskedPurpose;
+    /** The workspace hid it (the anchor's `hidden_at`). */
+    hidden: boolean;
+    /** A picker may list it: not hidden, and at least one channel held. */
+    offered: boolean;
+    versions: {
+        /** WhatsApp's row with its standing: `blocked` is why this product cannot send it whole, `reason` why Meta refused it. */
+        whatsapp: {
+            id: string;
+            status: TemplateStatus;
+            hidden: boolean;
+            blocked: string | null;
+            reason: string | null;
+        } | null;
+        email: {
+            id: string;
+        } | null;
+        sms: {
+            id: string;
+        } | null;
+    };
+}
+/**
+ * The message of this name in this language among the workspace's rows, or null where it has no version. `rows` is every
+ * row of the workspace, whatever its channel or name: the message is picked out of them (rules 1 and 2).
+ */
+declare function campaignMessageOf(rows: readonly CampaignMessageRow[], name: string, language: string): CampaignMessage | null;
+/**
+ * Every message the rows make, one a name and language, in the order each first appears in the rows: what a picker or the
+ * Library lists, with a message that has no WhatsApp row among them.
+ */
+declare function campaignMessagesOf(rows: readonly CampaignMessageRow[]): CampaignMessage[];
+/**
+ * The channels a message can be sent on now (rule 5): WhatsApp's row approved and whole, and a row of its own on email
+ * and on text. It replaces the callers' own `versionsHeld(own, whatsapp)`.
+ */
+declare function messageHolds(m: Pick<CampaignMessage, "versions">): Record<ConsentChannel, boolean>;
+/**
+ * The sentence for a channel the message does not hold (rule 7), null for one it does: the one set of words a page, a
+ * verb and Ask say it in. Whether the workspace is ready on the channel keeps its own reason, which wins over this
+ * (core readyForMessage closes only a channel that is ready).
+ */
+declare function messageWhyNot(m: Pick<CampaignMessage, "versions">, channel: ConsentChannel): string | null;
+/**
+ * What the owner is told when a run stops before it sends a thing: the message's WhatsApp version is not one this product
+ * can send now, and everyone on the run goes by WhatsApp (core sendBroadcastBatch; a run with anyone on email or text goes
+ * on for them). It says why the version is held in the words messageWhyNot has for it, then what that left. A message the
+ * workspace no longer holds a row of (null) has no WhatsApp version either.
+ */
+declare function whatsappStoppedRunWords(m: Pick<CampaignMessage, "versions"> | null): string;
+
+/**
  * Campaigns' home, as the page reads it: what goes into the view model (`campaignsHomeOf`, lifecycle.ts) and what comes
  * out. The input is the shape of what the surfaces already carry (the playbooks' rows and pools, the broadcasts' runs and
  * reach, the library's templates, the reach-outs' chains), so the page hands them over as they are and derives nothing;
@@ -22811,13 +22926,12 @@ interface LifecycleBroadcasts {
     /** Null where the campaign report could not be read: the funnel says so, and the runs still stand. */
     report: LifecycleReport | null;
 }
-/** A template row, as far as the home reads it: the library's count, and the call's text. */
+/** A template row, as far as the home reads it: the call's text. */
 interface LifecycleTemplate {
     name: string;
     language: string;
     meta_status?: string | null;
     variables: unknown;
-    hidden_at?: string | null;
     /** Why this product cannot send it, as the reader answers (templateBlocked): the call's text is never one of those. */
     blocked?: string | null;
 }
@@ -22828,8 +22942,10 @@ interface LifecycleInput {
     playbooks: LifecyclePlaybooks | undefined;
     /** The broadcasts surface: undefined before it is read, null where it could not be (the tiles made from it say which). */
     broadcasts: LifecycleBroadcasts | null | undefined;
-    /** The workspace's WhatsApp rows (the settings surface's `templatesAll`); null where they could not be read. */
+    /** The workspace's WhatsApp rows (the settings surface's `templatesAll`): the call's text; null where unread. */
     library: readonly LifecycleTemplate[] | null | undefined;
+    /** The workspace's messages (the settings surface's `messages`), which the Library counts; null where unread. */
+    messages: readonly Pick<CampaignMessage, "name" | "hidden">[] | null | undefined;
     /** The reach-outs' chains; null where they could not be read. */
     reachOuts: readonly ReachOutChainDto[] | null | undefined;
 }
@@ -27026,121 +27142,6 @@ declare function starterDraft(s: StarterTemplate, language: string): {
 };
 
 /**
- * A campaign message, read once: what a broadcast or a playbook sends is a name in a language, and its versions are the
- * workspace's template rows of that name and language, one a channel (message-versions.ts). WhatsApp's is Meta's, with
- * Meta's status; an email's and a text's are written here and are approved the moment they are saved. A message needs no
- * WhatsApp version: any non-empty set of the three is a message, and each channel it is sent by needs only its own.
- *
- * This is the one reading of it, so every page, verb and send that asks "which version anchors it, which channels does
- * it hold, what is it for, how many values does it fill" gets one answer:
- *
- *  1. The input is the workspace's rows. A reach-out's email (a name of its own, edited in place) and a row on a channel
- *     a message has no version on (voice, Instagram) belong to no message.
- *  2. The anchor, which any campaign's `template_id` may point at, is the WhatsApp row if there is one, else the email,
- *     else the text.
- *  3. The slots are the WhatsApp row's `variables`, else the anchor's: the highest numbered slot a row names, or the
- *     slots it lists.
- *  4. The category is the WhatsApp row's, in any status: it is Meta's word, and it stands even when the row is
- *     waiting, refused or paused. With no WhatsApp row it is the category the own rows carry, the strictest of them:
- *     marketing beats utility, and a row with none is marketing, as the send reads it (consent purposeOfTemplate).
- *     The purpose is that category's. Nobody declares a custom message utility here: the door that files an email or a
- *     text decides the category it writes.
- *  5. A channel is held when the message can be sent on it now: WhatsApp when its row is approved and this product can
- *     put it on the wire whole (templateBlocked, of the WhatsApp row alone: an email's subject may carry a value, which
- *     the reader reads as "a heading that takes a value" on every row, and that is no reason to hold the email); email
- *     and text when the row exists. Whether the workspace is ready on a channel is channelsReady's, not this module's.
- *  6. The message is hidden when its anchor is, and offered when it is not hidden and holds at least one channel.
- *  7. A channel the message does not hold has one sentence for it (messageWhyNot), whichever page or verb says it.
- */
-
-/**
- * A template row as a reader hands it down (apps/dashboard server/readers/templates.ts) or the database holds it: the
- * columns a message is read from. A row that carries `blocked` is believed (the reader worked it out where it still had
- * the components); one with only `components` is judged here (templateBlocked).
- */
-interface CampaignMessageRow {
-    id: string;
-    name: string;
-    language: string;
-    channel: string;
-    meta_status?: string | null;
-    category?: string | null;
-    variables?: unknown;
-    title?: string | null;
-    hidden_at?: string | null;
-    /** Meta's reason for a refusal, as its status update gave it. */
-    rejected_reason?: string | null;
-    blocked?: string | null;
-    components?: unknown;
-}
-/** A message in one language, with its versions. */
-interface CampaignMessage {
-    name: string;
-    language: string;
-    /** What the message is called for people: the anchor's title, else the starter's, else its name made words. */
-    title: string;
-    /** The version a campaign's `template_id` may point at (rule 2). */
-    anchor: {
-        id: string;
-        channel: VersionChannel;
-    };
-    /** How many numbered values the message fills; every version fills these and no others. */
-    slots: number;
-    /** Meta's word where the message has a WhatsApp row, else the strictest of the own rows' (rule 4); null is a row that said none. */
-    category: string | null;
-    /** What the message is, as a send judges a yes (consent purposeOfTemplate of the category). */
-    purpose: AskedPurpose;
-    /** The workspace hid it (the anchor's `hidden_at`). */
-    hidden: boolean;
-    /** A picker may list it: not hidden, and at least one channel held. */
-    offered: boolean;
-    versions: {
-        /** WhatsApp's row with its standing: `blocked` is why this product cannot send it whole, `reason` why Meta refused it. */
-        whatsapp: {
-            id: string;
-            status: TemplateStatus;
-            hidden: boolean;
-            blocked: string | null;
-            reason: string | null;
-        } | null;
-        email: {
-            id: string;
-        } | null;
-        sms: {
-            id: string;
-        } | null;
-    };
-}
-/**
- * The message of this name in this language among the workspace's rows, or null where it has no version. `rows` is every
- * row of the workspace, whatever its channel or name: the message is picked out of them (rules 1 and 2).
- */
-declare function campaignMessageOf(rows: readonly CampaignMessageRow[], name: string, language: string): CampaignMessage | null;
-/**
- * Every message the rows make, one a name and language, in the order each first appears in the rows: what a picker or the
- * Library lists, with a message that has no WhatsApp row among them.
- */
-declare function campaignMessagesOf(rows: readonly CampaignMessageRow[]): CampaignMessage[];
-/**
- * The channels a message can be sent on now (rule 5): WhatsApp's row approved and whole, and a row of its own on email
- * and on text. It replaces the callers' own `versionsHeld(own, whatsapp)`.
- */
-declare function messageHolds(m: Pick<CampaignMessage, "versions">): Record<ConsentChannel, boolean>;
-/**
- * The sentence for a channel the message does not hold (rule 7), null for one it does: the one set of words a page, a
- * verb and Ask say it in. Whether the workspace is ready on the channel keeps its own reason, which wins over this
- * (core readyForMessage closes only a channel that is ready).
- */
-declare function messageWhyNot(m: Pick<CampaignMessage, "versions">, channel: ConsentChannel): string | null;
-/**
- * What the owner is told when a run stops before it sends a thing: the message's WhatsApp version is not one this product
- * can send now, and everyone on the run goes by WhatsApp (core sendBroadcastBatch; a run with anyone on email or text goes
- * on for them). It says why the version is held in the words messageWhyNot has for it, then what that left. A message the
- * workspace no longer holds a row of (null) has no WhatsApp version either.
- */
-declare function whatsappStoppedRunWords(m: Pick<CampaignMessage, "versions"> | null): string;
-
-/**
  * One piece of a version's words: words as they are written, or a slot by its key. A slot written in any way but its key
  * between plain braces (`{{01}}`, `{{ Your Name }}`) says how, in `written`; the usual way says nothing.
  */
@@ -27791,27 +27792,26 @@ declare function bookingTemplate<T extends {
 }>(templates: readonly T[]): T | null;
 
 /**
- * How many templates the Library holds, said once (3 Oct 2026): the Library page's head and Campaigns' home, whose Library
+ * How many messages the Library holds, said once (3 Oct 2026): the Library page's head and Campaigns' home, whose Library
  * act carries the same number, both call `libraryCount`, so the two cannot say different things of one list.
  *
- * A template is a row, one for each language it is written in, beside the emails a reach-out's chains send. Meta's own
- * sample lives in every account and is nobody's message, and a template the workspace hid is on file but not listed: neither
- * is counted.
+ * A message is a name in a language (contracts campaignMessagesOf), with a version on whichever channels it was written
+ * for and perhaps none on WhatsApp, so a message written for email alone counts as one; it is counted beside the emails a
+ * reach-out's chains send. Meta's own sample lives in every account and is nobody's message, and a message the workspace
+ * hid is on file but not listed: neither is counted.
  */
+
 /** Whether a template name is Meta's sample rather than a message of the workspace's. */
 declare const isLibrarySample: (name: string) => boolean;
-/** A template row, as far as the count reads it. */
-interface CountedTemplate {
-    name: string;
-    hidden_at?: string | null;
-}
+/** A message, as far as the count reads it. */
+type CountedMessage = Pick<CampaignMessage, "name" | "hidden">;
 /**
- * The Library's count: every row of WhatsApp the page lists (a language is a row) and every email a reach-out writes
- * (`emailRows`, which is none where the chains are unread or could not be). Null where the templates could not be read:
- * a read that failed is no zero.
+ * The Library's count: every message the page lists (one a name and language, whatever channels it has versions on) and
+ * every email a reach-out writes (`emailRows`, which is none where the chains are unread or could not be). Null where the
+ * messages could not be read: a read that failed is no zero.
  */
-declare function libraryCount(templates: readonly CountedTemplate[], emailRows: number): number;
-declare function libraryCount(templates: readonly CountedTemplate[] | null | undefined, emailRows: number): number | null;
+declare function libraryCount(messages: readonly CountedMessage[], emailRows: number): number;
+declare function libraryCount(messages: readonly CountedMessage[] | null | undefined, emailRows: number): number | null;
 
 /**
  * What Today's brief reads from the metrics summary (server/metrics.ts): the workspace, its wires and the day's

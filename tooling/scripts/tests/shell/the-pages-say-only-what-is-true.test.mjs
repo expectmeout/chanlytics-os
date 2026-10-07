@@ -1117,6 +1117,7 @@ test("REGRESSION: approving a run the server moved to nine says so -- the toast 
 
 const mountMessages = async ({ channels = [], templatesAll = [] } = {}) => {
   const { TemplatesPage, setSurfaceValue } = await campaignsWorld();
+  const { campaignMessagesOf } = await import("@chanlytics/contracts");
   setSurfaceValue("settings", {
     settings: {
       config: { brain: { business_name: "Marisa's Beauty Salon", booking_link: "https://book.example.com/marisa" } },
@@ -1124,6 +1125,7 @@ const mountMessages = async ({ channels = [], templatesAll = [] } = {}) => {
     facts: null,
     channels,
     templatesAll,
+    messages: campaignMessagesOf(templatesAll),
     templateUse: null,
     templateSent: null,
   });

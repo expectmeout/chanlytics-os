@@ -10,7 +10,6 @@ import {
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_VETO_DELAY_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
-  campaignMessagesOf,
   cleanParam,
   dealPaceOf,
   dealsAreOn,
@@ -121,17 +120,17 @@ function proposedSpecs(
 
 /**
  * The message a moment's starter is on file as: the set's starter for the moment, else one it replaced that this workspace
- * still has (2 Oct 2026), among the messages the composers offer (contracts campaignMessagesOf over the rows they read: not
- * hidden, and a version in hand that can be sent, whichever channel it is on), its id the message's anchor; or the refusal
- * that says neither is. Of a starter's languages the first by code is the one held, as the read once ordered them.
+ * still has (2 Oct 2026), among the messages the composers offer (the composers' read's `messages`, made of every row: not
+ * hidden, and a version in hand that can be sent, whichever channel it is on, a WhatsApp version still in review among
+ * them), its id the message's anchor; or the refusal that says neither is. Of a starter's languages the first by code is
+ * the one held, as the read once ordered them.
  */
 async function heldStarter(
   t: ToolContext,
   trig: { id: string; label: string },
 ): Promise<{ id: string } | { refusal: string }> {
   const written = startersForTrigger(trig.id);
-  const rows = (await load(t.rc, templatesReader, { all: false })).data.templates;
-  const offered = campaignMessagesOf(rows)
+  const offered = (await load(t.rc, templatesReader, { all: false })).data.messages
     .filter((m) => m.offered)
     .sort((a, b) => (a.language < b.language ? -1 : a.language > b.language ? 1 : 0));
   const starter = written.map((x) => offered.find((m) => m.name === x.name)).find(Boolean);

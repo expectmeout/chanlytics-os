@@ -7,7 +7,6 @@ import {
   PLAYBOOK_VETO_DELAY_WORDS,
   REPLY_WINDOW_MS,
   audiencePreview,
-  campaignMessagesOf,
   clockStamp,
   compareTemplates,
   listToken,
@@ -33,6 +32,7 @@ import {
   type AudienceKind,
   type BroadcastDto,
   type ListRef,
+  type CampaignMessage,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
@@ -55,22 +55,32 @@ import {
 } from "../context";
 
 /**
- * The messages a broadcast may be made on, as the composers' read gave them (contracts campaignMessagesOf over its rows: one
- * message a name and language, with or without a WhatsApp row, and the ones the composers offer), in the library's order,
- * each as the model reads it: the id a proposal takes (the message's anchor), the channels it can be sent by now (contracts
- * messageHolds), its values and its words, which are the WhatsApp version's where there is one and the anchor's otherwise.
+ * The messages a broadcast may be made on, as the composers' read gave them (its `messages`: one a name and language, with
+ * or without a WhatsApp row, a version in review among their versions, and the ones the composers offer), in the library's
+ * order, each as the model reads it: the id a proposal takes (the id of the version whose words it lists, which names the
+ * message as any version's does, and which the read's rows cite), the channels it can be sent by now (contracts
+ * messageHolds), its values and its words, which are the WhatsApp version's where the composers' rows have it, else the
+ * email's, else the text's.
  */
-function offeredMessages(tpls: TemplatesRead["templates"]) {
+function offeredMessages(messages: readonly CampaignMessage[], tpls: TemplatesRead["templates"]) {
   const byId = new Map(tpls.map((r) => [r.id, r]));
-  return campaignMessagesOf(tpls)
+  // The row a message is listed by: the first of its versions the composers' rows hold (not one still in review).
+  const rowOf = (m: CampaignMessage) => {
+    for (const v of [m.versions.whatsapp, m.versions.email, m.versions.sms]) {
+      const row = v ? byId.get(v.id) : undefined;
+      if (row) return row;
+    }
+    return null;
+  };
+  return messages
     .filter((m) => m.offered)
     .flatMap((m) => {
-      const row = byId.get(m.anchor.id);
+      const row = rowOf(m);
       return row ? [{ m, row }] : [];
     })
     .sort((a, b) => compareTemplates(a.row, b.row))
     .map(({ m, row }) => ({
-      template_id: m.anchor.id,
+      template_id: row.id,
       name: m.name,
       language: m.language,
       category: m.category,
@@ -105,6 +115,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "campaigns.audiences", "channels")),
   ]);
   const tpls = tplRead ? tplRead.data.templates : null;
+  const messages = tplRead ? tplRead.data.messages : null;
   const rows = pool.rows;
   // FOUR sizes for every audience: this listing is read BEFORE a template is
   // chosen, the two answers differ, and who gave an answer is not who can be sent
@@ -164,9 +175,9 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // split as the Broadcasts composer splits them (broadcasts-real.jsx): one sentence, the page's, for the ones it cannot
   // send whole. A card never checks this: a template offered here that the wire refuses became a card whose send failed
   // for everyone on it. The rows carry `blocked`, the answer the reader worked out from Meta's array, which the split
-  // believes (contracts templateBlocked); its type names the array they no longer carry. Built here from the rows the
-  // composers' read gives, which leave out a WhatsApp version still in review.
-  const offeredList = tpls ? offeredMessages(tpls) : null;
+  // believes (contracts templateBlocked); its type names the array they no longer carry. The messages are the read's own,
+  // made of every row, so a WhatsApp version still in review is among a message's versions with its standing.
+  const offeredList = tpls && messages ? offeredMessages(messages, tpls) : null;
   const split = tpls
     ? sendableTemplates<TemplatesRead["templates"][number] & { components?: unknown }>(
         tpls.filter((x) => x.channel === "whatsapp" && x.meta_status === "approved").sort(compareTemplates),

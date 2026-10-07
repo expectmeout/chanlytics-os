@@ -7,7 +7,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { LIBRARY_WORDS } from "@chanlytics/contracts";
 import { libraryCount } from "@chanlytics/contracts";
-import type { ChannelVM } from "@chanlytics/contracts";
+import type { CampaignMessage, ChannelVM } from "@chanlytics/contracts";
 import { gate } from "../../legacy-verbs";
 import type { useLegacyToast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -26,6 +26,7 @@ type Emails = Parameters<typeof tplHeadTip>[0];
 
 interface HeadSubProps {
   listing: TemplateListing;
+  messages: readonly CampaignMessage[];
   emails: Emails;
 }
 
@@ -36,9 +37,9 @@ interface HeadSubProps {
  * "messages": that word is a thread in the Inbox and a send in a broadcast's numbers. The count is the one Campaigns' home
  * carries on its Library act (contracts libraryCount).
  */
-export function headSub({ listing, emails }: HeadSubProps) {
+export function headSub({ listing, messages, emails }: HeadSubProps) {
   const { shown, approved, pending } = listing;
-  const total = libraryCount(listing.list, emails.length);
+  const total = libraryCount(messages, emails.length);
   return (
     <>
       <span className="tabular" data-tip={tplHeadTip(emails)} data-testid="messages-count">

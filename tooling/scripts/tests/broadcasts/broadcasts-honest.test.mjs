@@ -381,12 +381,14 @@ const settingsOf = (over = {}) => {
     templateSent: null,
     ...over,
   };
+  // The messages the surface holds, made of the WhatsApp rows as the bridge makes them where the read carries none.
+  held.messages ??= held.templatesAll ? contracts.campaignMessagesOf(held.templatesAll) : null;
   setSurfaceValue("settings", held);
   globalThis.__TEMPLATES_ALL = held.templatesAll;
   return held;
 };
 /** The settings surface read again with one thing changed, as its next read lands: the rest as it was. */
-const settingsChanged = (over) => settingsOf({ ...surfaceValue("settings"), ...over });
+const settingsChanged = (over) => settingsOf({ ...surfaceValue("settings"), messages: undefined, ...over });
 /**
  * Messages on a workspace with a WhatsApp number, over the starter library the page imports. No playbooks unless a test
  * gives them: a row reads which language a running playbook sends, and one left by a Playbooks test (the default

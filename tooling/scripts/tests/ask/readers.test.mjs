@@ -4077,15 +4077,15 @@ const TEMPLATES_ALL_ASKED_AT_MAIN = [
 test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and each template a row a citation names, with no address of its own: it opens the page it came from", async () => {
   for (const [q, all, names, keys, reads] of [
     // `held`: what the composers' read left out, counted by why, so an empty picker can say it (contracts noTemplateWords).
-    ["", false, ["visit_reminder"], ["templates", "held"], ["templates.select"]],
+    ["", false, ["visit_reminder"], ["templates", "held", "messages"], ["templates.select"]],
     [
       "&all=1",
       true,
       ["hello_world", "offer", "visit_reminder"],
-      ["templates", "held", "usedBy", "sends"],
+      ["templates", "held", "messages", "usedBy", "sends"],
       TEMPLATES_ALL_ASKED_AT_MAIN,
     ],
-    ["&all=0", false, ["visit_reminder"], ["templates", "held"], ["templates.select"]],
+    ["&all=0", false, ["visit_reminder"], ["templates", "held", "messages"], ["templates.select"]],
   ]) {
     const routed = dayCtx(templatesWorld());
     const page = await templatesRoute.GET.run(req(`?workspace=${B}${q}`), routed);
@@ -4146,6 +4146,163 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
   );
   assert.deepEqual(u.data.sends.winback_offer, { count: 2, lastAt: "2026-09-17T14:00:00Z" });
   assert.equal(u.data.usedBy.elsewhere, undefined, "another workspace's are not this one's");
+});
+
+/**
+ * Lane 1 (a message needs no WhatsApp row), T7: the read answers the workspace's messages, made of EVERY row, beside the
+ * list. An email's and a text's rows are written approved and a WhatsApp row is Meta's, so the composers' list holds the
+ * first and not a version still in review, and a message made of the list alone lost that version's standing.
+ */
+const EM1 = "77777777-7777-4777-8777-777777777781";
+const EM2 = "77777777-7777-4777-8777-777777777782";
+const EM3 = "77777777-7777-4777-8777-777777777783";
+const messagesWorld = (rows) => ({
+  memberships: templatesWorld().memberships,
+  templates: rows,
+  playbooks: [],
+  broadcasts: [],
+  broadcast_recipients: [],
+  messages: [],
+});
+/** An email's or a text's version as the library files it: Meta's component shape, the subject a HEADER, the words the BODY. */
+const ownRow = (id, channel, over = {}) =>
+  tplRow(id, B, {
+    channel,
+    category: null,
+    source: "chanlytics",
+    components: [
+      ...(channel === "email" ? [{ type: "HEADER", format: "TEXT", text: "We miss you" }] : []),
+      { type: "BODY", text: "Hi {{1}}" },
+    ],
+    ...over,
+  });
+const messagesOfRead = async (rows, all = false) =>
+  (await kernel.load(turnIn(dayCtx(messagesWorld(rows)), B), templatesReader, { all })).data;
+
+test("the read answers one message for a WhatsApp version in review and the approved email of its name and language, its standing kept inside it, while the list still leaves the version out", async () => {
+  const rows = [
+    tplRow(TP1, B, {
+      name: "winback_offer",
+      meta_status: "pending",
+      category: "marketing",
+      variables: [{ position: 1 }],
+    }),
+    ownRow(EM1, "email", { name: "winback_offer", category: "marketing", variables: [{ position: 1 }] }),
+  ];
+  for (const all of [false, true]) {
+    const data = await messagesOfRead(rows, all);
+    assert.equal(data.messages.length, 1, `one message, not a row for each version (all: ${all})`);
+    const [message] = data.messages;
+    assert.equal(message.name, "winback_offer");
+    assert.equal(message.versions.whatsapp?.status, "pending", "the version in review keeps its status");
+    assert.equal(message.versions.whatsapp?.id, TP1);
+    assert.equal(message.versions.email?.id, EM1);
+    assert.equal(message.versions.sms, null);
+    assert.equal(message.offered, true, "the email version is one the message can be sent on");
+    assert.deepEqual(
+      [message.anchor, message.category, message.slots],
+      [{ id: TP1, channel: "whatsapp" }, "marketing", 1],
+      "Meta's row anchors it and gives it its category, whatever its status",
+    );
+    // Today's list is as it was: the composers' omits the version in review, Settings' holds every row.
+    assert.deepEqual(
+      data.templates.map((t) => t.id),
+      all ? [TP1, EM1] : [EM1],
+    );
+    assert.deepEqual(
+      data.held,
+      { pending: 1, rejected: 0, paused: 0, disabled: 0, hidden: 0 },
+      "what the list left out",
+    );
+  }
+  // A WhatsApp version in review alone is a message the composers do not offer, and it is still one.
+  const alone = (await messagesOfRead([rows[0]])).messages;
+  assert.deepEqual(
+    alone.map((m) => [m.name, m.offered, m.versions.whatsapp?.status, m.versions.email]),
+    [["winback_offer", false, "pending", null]],
+  );
+});
+
+test("the read answers a message with no WhatsApp row, one a name and language, in the order its rows appear; a hidden one and a reach-out's email are not offered or not messages", async () => {
+  const data = await messagesOfRead([
+    ownRow(EM1, "email", { name: "harbor_note", language: "en_US", category: "utility" }),
+    ownRow(EM2, "sms", { name: "harbor_note", language: "en_US", category: "utility" }),
+    ownRow(EM3, "email", {
+      name: "harbor_note",
+      language: "es_MX",
+      category: "utility",
+      hidden_at: "2026-09-01T00:00:00Z",
+    }),
+    ownRow(TP3, "email", { name: "reach_out_0a1b2c3d4e5f60718293a4b5c6d7e8f9", language: "en" }),
+  ]);
+  assert.deepEqual(
+    data.messages.map((m) => [m.name, m.language, m.anchor.channel, m.hidden, m.offered, m.versions.whatsapp]),
+    [
+      ["harbor_note", "en_US", "email", false, true, null],
+      ["harbor_note", "es_MX", "email", true, false, null],
+    ],
+    "a reach-out's email belongs to no message; the hidden language is a message the pickers do not list",
+  );
+  assert.deepEqual(
+    data.messages.map((m) => m.versions.sms?.id ?? null),
+    [EM2, null],
+    "the text beside the email",
+  );
+});
+
+test("an email whose subject holds a value is not blocked, and a WhatsApp row with a document for a heading still is: blocked is judged on a WhatsApp row alone", async () => {
+  const HEADING = [
+    { type: "HEADER", format: "TEXT", text: "Hi {{1}}" },
+    { type: "BODY", text: "Hi {{1}}" },
+  ];
+  const data = await messagesOfRead(
+    [
+      ownRow(EM1, "email", { name: "subject_note", components: HEADING }),
+      ownRow(EM2, "sms", { name: "subject_note" }),
+      tplRow(TP1, B, {
+        name: "pdf_note",
+        components: [
+          { type: "HEADER", format: "DOCUMENT" },
+          { type: "BODY", text: "Hi" },
+        ],
+      }),
+      // The same heading on Meta's array is "a heading that takes a value": WhatsApp's row is held, the email's is not.
+      tplRow(TP2, B, { name: "subject_note", components: HEADING }),
+    ],
+    true,
+  );
+  const blockedOf = (id) => data.templates.find((t) => t.id === id).blocked;
+  assert.equal(blockedOf(EM1), null, "an email's subject may take a value");
+  assert.equal(blockedOf(EM2), null, "a text has none to judge");
+  assert.equal(blockedOf(TP1), "a document for a heading", "WhatsApp's row is still judged");
+  assert.equal(blockedOf(TP2), "a heading that takes a value");
+  // The message holds the email whatever its WhatsApp version is held for.
+  const subject = data.messages.find((m) => m.name === "subject_note");
+  assert.equal(subject.versions.whatsapp?.blocked, "a heading that takes a value");
+  assert.equal(subject.versions.email?.id, EM1);
+  assert.equal(subject.offered, true, "by its email and its text");
+  assert.equal(data.messages.find((m) => m.name === "pdf_note").offered, false, "a WhatsApp row alone it cannot send");
+});
+
+test("the booking message is chosen among WhatsApp rows alone: an email named like the booking starter is not it", async () => {
+  const KEPT = "booking_link";
+  const world = [
+    // The call's text, as an email: the starter the call prefers, on the wrong channel.
+    ownRow(EM1, "email", { name: "call_text", variables: [{ position: 1 }, { position: 2 }, { position: 3 }] }),
+    tplRow(TP4, B, { name: KEPT, variables: [{ position: 1 }, { position: 2 }, { position: 3 }] }),
+  ];
+  const { usedBy } = await messagesOfRead(world, true);
+  assert.deepEqual(
+    Object.entries(usedBy).map(([name, u]) => [name, u.booking]),
+    [[KEPT, true]],
+    "the Inbox books with the WhatsApp starter; the email of the other's name is used by nothing",
+  );
+  // With a WhatsApp row of that name it is the one chosen, as it always was.
+  const both = await messagesOfRead([...world, tplRow(TP3, B, { name: "call_text", variables: [] })], true);
+  assert.deepEqual(
+    Object.entries(both.usedBy).map(([name, u]) => [name, u.booking]),
+    [["call_text", true]],
+  );
 });
 
 const LIST_HAND = "bbbbbbbb-1111-4111-8111-bbbbbbbbbbb1";

@@ -652,3 +652,50 @@ test("a hidden message is refused a playbook, and a message whose WhatsApp row i
   assert.equal(mail.isError, false, mail.result);
   assert.doesNotMatch(mail.proposal.summary, /On WhatsApp/);
 });
+
+test("a WhatsApp version in review is no longer lost to Ask: its message is listed by the channels it holds now, and a starter whose WhatsApp row is in review is held by its email", async () => {
+  // The composers' read answers the messages made of every row (readers/templates.ts), so a version still in review keeps
+  // its standing inside its message: it is among the message's versions, and what holds the message is the email.
+  const EMAIL = "ffffffff-ffff-4fff-8fff-ffffffffff31";
+  const reviewing = [
+    template(REMINDER, "visit_reminder", { meta_status: "pending" }),
+    own("email", "visit_reminder", EMAIL, "Your visit", "Your visit is tomorrow."),
+    // A message whose only version is in review is not one the composers offer, as it never was.
+    template(OFFER, "month_offer", { meta_status: "pending", category: "marketing" }),
+    // A message the workspace hid is hidden whole: its WhatsApp row anchors it, and an email beside it does not list it again.
+    template(NUDGE, "nudge_note", { hidden_at: ago(DAY) }),
+    own("email", "nudge_note", "ffffffff-ffff-4fff-8fff-ffffffffff33", "A nudge", "Hi {{1}}."),
+  ];
+  const supabase = fakeDb(tables({ templates: reviewing }), {}, { people_list: () => PEOPLE });
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  const out = await runTool(t, { name: "campaigns", input: { action: "audiences" } });
+  assert.equal(out.isError, false, out.result);
+  const { templates } = JSON.parse(out.result);
+  assert.deepEqual(
+    templates.map((x) => [x.name, x.template_id, x.channels]),
+    [["visit_reminder", EMAIL, { whatsapp: false, email: true, sms: false }]],
+    "listed by the email it can go by, under the id of the row its words are read from; the one in review alone and the one the workspace hid are not listed",
+  );
+  assert.ok(t.read.template.has(EMAIL), "and the id it lists is a row an answer may cite");
+  // The starter the quiet moment's playbook is written on: held by the email, its anchor the WhatsApp row in review.
+  const starter = "winback_reply";
+  const WAITING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd6";
+  const waiting = template(WAITING, starter, {
+    meta_status: "pending",
+    category: "marketing",
+    variables: [{ position: 1 }, { position: 2 }],
+  });
+  const email = {
+    ...own("email", starter, "ffffffff-ffff-4fff-8fff-ffffffffff32", "We miss you", "Hi {{1}}, from {{2}}."),
+    category: "marketing",
+    variables: [{ position: 1 }, { position: 2 }],
+  };
+  const quiet = { action: "playbook", trigger: "quiet_30", channels: ["email"] };
+  const found = await propose(quiet, { templates: [waiting, email] });
+  assert.equal(found.isError, false, found.result);
+  assert.equal(found.proposal.payload.template_id, WAITING, "the message's anchor, whichever of its rows is held");
+  endsWith(found, "Says: By email: “We miss you” — Hi Dani, from the business.");
+  // With its WhatsApp row in review alone, no version of the starter can be sent: not held, as before.
+  const alone = await propose(quiet, { templates: [waiting] });
+  assert.match(said(alone), /starter has no version this workspace can send yet/);
+});

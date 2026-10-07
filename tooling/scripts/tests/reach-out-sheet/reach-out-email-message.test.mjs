@@ -121,6 +121,7 @@ const page = (opts = {}) => {
     channels,
     templatesAll: rows,
     templateVersions: [],
+    messages: contracts.campaignMessagesOf(rows),
     templateUse: null,
     templateSent: null,
   });
