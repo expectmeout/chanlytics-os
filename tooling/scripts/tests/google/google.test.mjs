@@ -935,17 +935,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   assert.ok(bridge.includes("export const googleVerbs: GoogleApi = {") && !bridge.includes("__GOOGLE"));
   assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT"]]);
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
-  const reports = readCode("apps/dashboard/src/surfaces/reports/google.tsx");
-  // The page draws the section under the period (executed: reports-page.test.mjs, Google's reviews under the period).
-  assert.ok(
-    reports.includes('useSurface("google")') &&
-      reports.includes("export const googleReadable = ") &&
-      reports.includes("if (!googleReadable(G)) return null;"),
-  );
-  assert.ok(
-    reports.includes("vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source"),
-    "the source is named, and what the receptionist does under a new review beside it",
-  );
+  // Reports' Reviews page draws the section from its own read (`reports_reviews`) and holds no `google` value when it does, the source
+  // named and what the receptionist does under a new review beside it (executed: reports-page.test.mjs, Google's reviews under the period).
   const brief = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
   assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
   assert.ok(brief.includes('useSurface("google")'), "Today's line reads the seam's Google, the one value there is");

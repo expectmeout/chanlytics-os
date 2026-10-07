@@ -7,7 +7,16 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
-import { DEALS, REVIEWS_NOW, campaignDto, cday, reviewsDto, surface } from "../_report-world.mjs";
+import {
+  DEALS,
+  REVIEWS_NOW,
+  campaignDto,
+  cday,
+  reviewsDto,
+  reviewsGoogle,
+  reviewsLedger,
+  surface,
+} from "../_report-world.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.window.fetch = async () =>
@@ -73,10 +82,34 @@ const workspace = () => {
   ];
   globalThis.__ACTIVE_WORKSPACE = "w1";
 };
-const draw = (lens, R) => {
+/** The Reviews read for seven days as the surface holds it, folded once by contracts. */
+const held = (dto) => ({
+  dto,
+  vm: toReviewsReportVM(dto, { days: 7, nowMs: REVIEWS_NOW }),
+  period: "7d",
+  fetchedAt: 1,
+});
+/** Google's public listing alone: the five reviews it shows, the Business Profile not connected. */
+const PUBLIC_LISTING = held(
+  reviewsDto({
+    days: 7,
+    google: GOOGLE,
+    ledger: reviewsLedger({
+      written: [],
+      on_record: { profile: 0, places: 1, oldest_at: null },
+      waiting_total: 0,
+      waiting: [],
+      replies: [],
+      held: [],
+    }),
+  }),
+);
+/** Harbor Studio with its Business Profile synced: the reviews on record are counted. */
+const PROFILE_SYNCED = held(reviewsDto({ days: 7, google: reviewsGoogle() }));
+const draw = (lens, R, reviews = PUBLIC_LISTING) => {
   workspace();
   setSurfaceValue("reports", R);
-  setSurfaceValue("google", { dto: GOOGLE, fetchedAt: 1 });
+  setSurfaceValue("reports_reviews", reviews);
   fresh();
   return ReportsPage({ pathname: `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}` });
 };
@@ -167,6 +200,21 @@ test("Google's four figures say what they count too", () => {
       ["reviews", true],
       ["ratings_gained", true],
       ["newest_review", true],
+    ],
+  );
+});
+
+test("with the Business Profile synced the Reviews lens draws five figures, and the three the reviews on record add say what they count too", () => {
+  const strip = byTestId(draw("reviews", surface({ deals: DEALS }), PROFILE_SYNCED), "google-tiles");
+  assert.ok(strip, "the strip stands under a synced profile");
+  assert.deepEqual(
+    figures(strip).map((f) => [said(f).metric, said(f).tip === metricWordsOf(said(f).metric)]),
+    [
+      ["rating", true],
+      ["reviews", true],
+      ["reviews_written", true],
+      ["reviews_answered", true],
+      ["review_reply_time", true],
     ],
   );
 });

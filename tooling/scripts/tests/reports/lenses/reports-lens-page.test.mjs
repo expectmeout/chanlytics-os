@@ -7,7 +7,16 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
-import { DEALS, NO_DEALS, campaignDto, quiet, surface } from "../_report-world.mjs";
+import {
+  DEALS,
+  NO_DEALS,
+  REVIEWS_NOW,
+  campaignDto,
+  quiet,
+  reviewsDto,
+  reviewsGoogle,
+  surface,
+} from "../_report-world.mjs";
 
 const reads = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
@@ -22,7 +31,7 @@ const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { standingSaid, forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
-const { lensAnswerOf } = await import("@chanlytics/contracts");
+const { lensAnswerOf, toReviewsReportVM } = await import("@chanlytics/contracts");
 after(() => forgetStanding());
 
 const at = (lens) => `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}`;
@@ -40,26 +49,30 @@ const workspace = (sellsBy) => {
   ];
   globalThis.__ACTIVE_WORKSPACE = "w1";
 };
-const GOOGLE_NONE = {
-  dto: {
-    ready: { places: true, profile: false },
-    listing: null,
-    connection: null,
-    reviews: [],
-    days: [],
-    reply_mode: "ask",
-  },
+/** The Reviews read as the surface holds it: the answer, its fold, the period it is of and when it was made. */
+const held = (dto, period = "7d") => ({
+  dto,
+  vm: toReviewsReportVM(dto, { days: dto.days, nowMs: REVIEWS_NOW }),
+  period,
   fetchedAt: 1,
-};
+});
+const NOTHING_LINKED = { listing: null, connection: null, reviews: [], days: [] };
+/** Google answered, and nothing is linked: this deployment can look a listing up, and none is kept. */
+const REVIEWS_NONE = held(reviewsDto({ days: 7, google: reviewsGoogle(NOTHING_LINKED), ledger: null }));
 /** Google answered, and nothing is linked: this deployment cannot look a listing up and none is kept. */
-const GOOGLE_UNLINKED = {
-  dto: { ...GOOGLE_NONE.dto, ready: { places: false, profile: false } },
-  fetchedAt: 1,
-};
+const REVIEWS_UNLINKED = held(
+  reviewsDto({
+    days: 7,
+    google: reviewsGoogle({ ...NOTHING_LINKED, ready: { places: false, profile: false } }),
+    ledger: null,
+  }),
+);
+/** A listing linked and the Business Profile synced: Harbor Studio's reviews over seven days, the period the page shows. */
+const REVIEWS_LINKED = held(reviewsDto({ days: 7 }));
 /** The lens drawn over a surface: the page for its address. */
 const draw = (lens, opts = {}) => {
   setSurfaceValue("reports", opts.R ?? surface({ deals: DEALS }));
-  setSurfaceValue("google", "google" in opts ? opts.google : GOOGLE_NONE);
+  setSurfaceValue("reports_reviews", "reviews" in opts ? opts.reviews : REVIEWS_NONE);
   fresh();
   return ReportsPage({ pathname: at(lens) });
 };
@@ -113,9 +126,43 @@ test("the head says Reports and the lens's own answer, from contracts, on every 
     draw(lens, { R });
     const said = standingSaid();
     assert.equal(said.title, "Reports", lens);
-    assert.equal(said.sentence, lensAnswerOf(lens, R), `${lens}: its answer`);
+    assert.equal(said.sentence, lensAnswerOf(lens, { ...R, reviews: REVIEWS_NONE.vm }), `${lens}: its answer`);
   }
-  assert.equal(standingSaid().sentence, undefined, "Reviews says nothing of itself");
+  assert.equal(standingSaid().sentence, undefined, "with no listing linked, Reviews says nothing of itself");
+});
+
+test("the Reviews head says the sentence of the fold its figures are drawn from, and nothing while that read is out", () => {
+  workspace("proposal");
+  draw("reviews", { reviews: REVIEWS_LINKED });
+  assert.equal(
+    standingSaid().sentence,
+    "4.8 on Google from 213 reviews; 2 new in the last 7 days, all answered.",
+    "the sentence, from the profile's reviews on record",
+  );
+  assert.equal(standingSaid().sentence, REVIEWS_LINKED.vm.lines.head, "the one the lens's own fold says");
+  draw("overview", { reviews: REVIEWS_LINKED });
+  assert.equal(standingSaid().sentence, lensAnswerOf("overview", surface({ deals: DEALS })), "no other lens says it");
+  draw("reviews", { reviews: undefined });
+  assert.equal(standingSaid().sentence, undefined, "a read still out: the name alone");
+});
+
+test("the Reviews body dims while its read is of another period than the strip shows, by the one rule, and not when they agree", () => {
+  workspace("proposal");
+  const dimmed = (tree) => all(tree, (n) => n.props?.["data-loading"] === "");
+  /** The lens's own body: the innermost dimming element, the page's own being the one around it. */
+  const body = (tree) =>
+    all(
+      byTestId(tree, "reports-real"),
+      (n) => n.props?.["data-dims"] === true && n.props["aria-busy"] !== undefined && !!byTestId(n, "google-tiles"),
+    ).at(-1);
+  const same = draw("reviews", { reviews: REVIEWS_LINKED });
+  assert.deepEqual(dimmed(same), [], "the same period: nothing on its way");
+  assert.equal(body(same).props["aria-busy"], "false");
+  const behind = draw("reviews", { reviews: held(reviewsDto({ days: 30 }), "30d") });
+  assert.equal(dimmed(behind).length, 1, "one thing on its way, and it is not the page");
+  assert.equal(byTestId(behind, "reports-real").props["data-loading"], undefined);
+  assert.ok(byTestId(dimmed(behind)[0], "google-tiles"), "the lens's own body is what is on its way");
+  assert.equal(body(behind).props["aria-busy"], "true");
 });
 
 test("a lens the workspace has no use for says so at its address, in the registry's words, and draws none of its cards", () => {
@@ -140,17 +187,17 @@ test("a period with nothing in it says so on each lens that draws sections, and 
       lens,
     );
   }
-  const reviews = draw("reviews", { google: GOOGLE_UNLINKED });
+  const reviews = draw("reviews", { reviews: REVIEWS_UNLINKED });
   assert.ok(textOf(byTestId(reviews, "lens-empty")).includes("Find your business on Google once."));
 });
 
-test("Reviews draws nothing while Google is unread: a read still out is not 'nothing is linked'", () => {
+test("Reviews draws nothing while its own read is out: a read still out is not 'nothing is linked'", () => {
   workspace("booking");
-  const unread = draw("reviews", { google: undefined });
+  const unread = draw("reviews", { reviews: undefined });
   assert.equal(
     byTestId(unread, "lens-empty"),
     null,
-    "REGRESSION: the empty that says nothing is linked, drawn before Google's first read",
+    "REGRESSION: the empty that says nothing is linked, drawn before the Reviews read's first answer",
   );
   assert.equal(byTestId(unread, "reviews-failed"), null, "and no failure: nothing has failed");
   assert.ok(byTestId(unread, "reports-real"), "the page itself stands");
@@ -174,14 +221,18 @@ test("a lens that waits on how the workspace sells draws nothing until the works
   assert.ok(byTestId(draw("pipeline", { R: surface({ deals: DEALS }) }), "rpt-deals"), "the list held: the lens draws");
 });
 
-// LAST in the file: a surface's failure cannot be taken back (surface-status.ts has no reset), and every test above draws Google.
-test("Reviews says the read failed, with its Retry, where Google could not be read, and never the empty that says nothing is linked", () => {
+// LAST in the file: a surface's failure cannot be taken back (surface-status.ts has no reset), and every test above draws Reviews.
+test("Reviews says the read failed, with its Retry, where its read could not be made, and never the empty that says nothing is linked", () => {
   workspace("booking");
-  setStatus("google", "seeded");
-  const failed = draw("reviews", { google: undefined });
+  setStatus("reports_reviews", "seeded");
+  const failed = draw("reviews", { reviews: undefined });
   const words = byTestId(failed, "reviews-failed");
   assert.ok(words, "the house's failed read, as Today draws one");
   assert.ok(textOf(words).includes("Couldn't read your Google reviews"), textOf(words));
+  assert.ok(
+    find(failed, (n) => n.props?.surface === "reports_reviews"),
+    "its Retry reads the Reviews surface again",
+  );
   assert.equal(
     byTestId(failed, "lens-empty"),
     null,

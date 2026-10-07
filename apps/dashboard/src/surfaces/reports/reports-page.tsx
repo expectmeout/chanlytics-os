@@ -2,8 +2,8 @@
  * Chanlytics, Reports: the page on its App Router route (`reports/[[...lens]]`, decision 0015, and the lenses spec). One page of
  * lenses, each at its own address (`/w/<slug>/reports/<lens>`, the Overview at `/w/<slug>/reports`). The page follows its own
  * address, as People's does (the path the App Router page hands it), so a move between two lenses is a pushed or replaced entry and
- * never a request for a page, and every lens draws from the one read the surface holds, so a move asks for nothing and never
- * blanks the body. The frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the period is the page's
+ * never a request for a page, and every lens but Reviews draws from the one read the surface holds, so a move asks for nothing and
+ * never blanks the body (Reviews draws from a read of its own, reviews-surface.ts, made as it comes on screen). The frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the period is the page's
  * act at the strip's right, a round button that opens it (period-picker.tsx), with its days beside it on a desk; the page draws
  * the lens's body (lenses/). A real workspace draws the bridge's own numbers
  * (`useSurface("reports")`); a demo session draws the same page from the contracts sample (sample.ts); without either, the page says

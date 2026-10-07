@@ -1,29 +1,30 @@
 /**
- * Google's reviews on the Reports page (moved from legacy/pages/reports.jsx, decision 0015): the listing as the edge last
- * read it, over the period above. Four measured tiles, the ratings gained day by day (the count is the tiles'; the
- * card draws its days, with their table), and the latest reviews with their words: the five Google shows first, and
- * said so. Nothing linked: an honest card that leads to Setup. Nothing at all when this deployment cannot look
- * listings up.
+ * Google's reviews on the Reports page (moved from legacy/pages/reports.jsx, decision 0015), drawn from the one fold of the
+ * Reviews read (contracts `toReviewsReportVM`, held by reviews-surface.ts) that the sentence at the head is said from. With the
+ * owner's Business Profile synced, the reviews on record are counted: five figures (the rating, the count, what was written
+ * against the period before, how many were answered and how fast), the mix of the period's stars, the weeks, the reviews that
+ * wait for a reply with the reply the receptionist held back, and the latest. From the five Google shows first, which count
+ * nothing: four figures, the ratings gained day by day, a line on what the profile would add, and the latest, said to be those
+ * five. Nothing linked: an honest card that leads to Setup.
  *
- * Both cards take the whole row, one above the other. Beside each other, a list of five reviews set the row's height
- * and a period of days that gained one rating apiece was stretched to match it, which is a picture of nothing. A run
+ * The cards of one row take the whole row, or the share a list needs. Beside each other, a list of five reviews set the row's
+ * height and a period of days that gained one rating apiece was stretched to match it, which is a picture of nothing. A run
  * of days wants width; the reviews want a readable measure, which reports.css gives them in columns.
  */
 import { useState } from "react";
-import { lensEmpty, toGoogleVM } from "@chanlytics/contracts";
-import type { GoogleReviewVM, GoogleVM, LensRange } from "@chanlytics/contracts";
-import { draftReply, replyToReview, type GoogleSurface } from "@/legacy-bridge/google";
+import { lensEmpty } from "@chanlytics/contracts";
+import type { GoogleDto, GoogleReviewVM, GoogleVM, LensRange, ReviewsReportVM } from "@chanlytics/contracts";
+import { draftReply, replyToReview } from "@/legacy-bridge/google";
 import { canDo, useLegacyToast } from "../legacy-verbs";
-import { BarChart } from "../kit/charts/bar";
+import { BarChart, BarList } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
 import { EmptyState } from "../kit/empty/empty";
 import { Button } from "../kit/button/button";
 import { Field } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
-import { useSurface } from "../use-surface";
 import { RptFigure, RptSection } from "./blocks";
-import { RPT_GAINED } from "./series";
+import { RPT_GAINED, RPT_WRITTEN } from "./series";
 
 /** What the receptionist does under a new review: the mode Settings holds, `never` opening the box empty. */
 type ReplyMode = GoogleVM["reply"]["mode"];
@@ -127,8 +128,11 @@ function ReviewReply({ r, mode }: { r: GoogleReviewVM; mode: ReplyMode }) {
   );
 }
 
-/** One review: its stars, who and when, its words (or that there are none), and the reply, or the door to write one. */
-function reviewRow(r: GoogleReviewVM, vm: GoogleVM, operator: boolean) {
+/**
+ * One review: its stars, who and when, its words (or that there are none), the reply the receptionist wrote and held back
+ * (`held`, where the row is one that waits), and the reply, or the door to write one.
+ */
+function reviewRow(r: GoogleReviewVM, vm: GoogleVM, operator: boolean, held: string | null) {
   return (
     <div key={r.id} className={"rp2-review" + (r.isNew ? " is-new" : "")} data-testid="google-review">
       <div className="rp2-review-head">
@@ -146,6 +150,11 @@ function reviewRow(r: GoogleReviewVM, vm: GoogleVM, operator: boolean) {
         <p className="rp2-review-text">{r.text}</p>
       ) : (
         <p className="rp2-review-text dim">A rating without words.</p>
+      )}
+      {held && (
+        <span className="rp2-review-drafted" data-testid="google-review-held">
+          {held}
+        </span>
       )}
       {vm.canReply && operator && r.fromProfile ? (
         <ReviewReply r={r} mode={vm.reply.mode} />
@@ -190,20 +199,109 @@ function gainedCard(vm: GoogleVM, days: number) {
   );
 }
 
-/** The latest reviews with their words, and the listing's own address for the rest. */
-function latestCard(vm: GoogleVM, mapsUri: string | null, operator: boolean) {
+/** The mix of the period's stars, a row to each, over the reviews that carry one; where there is none to count, the words that say why. */
+function starsCard(V: ReviewsReportVM) {
+  const stars = V.stars;
+  return (
+    <ChartCard
+      className="rpt-span-5"
+      title="The mix of stars"
+      testid="chart-reviews-stars"
+      takeaway={stars ? V.lines.mix : null}
+      table={stars ? stars.table : null}
+    >
+      {stars ? (
+        <BarList max={stars.rated} rows={stars.rows} />
+      ) : (
+        <EmptyState kind="line" title={V.lines.mix ?? V.lines.history} />
+      )}
+    </ChartCard>
+  );
+}
+
+/** The reviews written week by week, over the weeks the history on record covers, with their table. */
+function weeklyCard(V: ReviewsReportVM) {
+  const weekly = V.weekly;
+  return (
+    <ChartCard
+      className="rpt-span-7"
+      title="Written, week by week"
+      testid="chart-reviews-weekly"
+      config={RPT_WRITTEN}
+      takeaway={weekly ? V.lines.weekly : null}
+      twin={weekly ? { data: weekly.points, keys: ["written"], first: "Week of" } : null}
+    >
+      {weekly ? (
+        <BarChart
+          data={weekly.points}
+          keys={["written"]}
+          config={RPT_WRITTEN}
+          height={150}
+          yTicks={2}
+          animKey={V.days}
+          ariaLabel="Reviews written per week. The arrow keys read each week."
+          describe={(d) => `${d.label}: ${d.written} ${d.written === 1 ? "review" : "reviews"} written`}
+        />
+      ) : (
+        <EmptyState kind="line" title={V.lines.weekly ?? V.lines.history} />
+      )}
+    </ChartCard>
+  );
+}
+
+/** The reviews that wait for a reply, the oldest first, each with the reply the receptionist held back where it did, and the door to answer. */
+function waitingCard(V: ReviewsReportVM, operator: boolean) {
+  const { total, rows } = V.waiting;
+  return (
+    <ChartCard
+      className="rpt-span-12"
+      title={`Waiting for a reply (${total})`}
+      testid="reviews-waiting"
+      takeaway={total > rows.length ? `Showing the oldest ${rows.length}.` : null}
+    >
+      {rows.length ? (
+        <div className="rp2-reviews">{rows.map((r) => reviewRow(r, V.google, operator, r.held))}</div>
+      ) : (
+        <EmptyState kind="line" title="Nothing is waiting for a reply." />
+      )}
+    </ChartCard>
+  );
+}
+
+/** From the five Google shows first: what the Business Profile would add, or the location still to choose, and the door to Connections. */
+function connectCard(V: ReviewsReportVM) {
+  const c = V.google.connection;
+  const words = V.lines.connect ?? (c?.pending ? c.words : null);
+  if (!words) return null;
+  return (
+    <ChartCard className="rpt-span-12" title="Every review, from your Business Profile" testid="reviews-connect">
+      <EmptyState kind="line" title={words} action={{ label: "Open Connections", to: "admin/integrations" }} />
+    </ChartCard>
+  );
+}
+
+/** The latest reviews with their words, and the listing's own address for the rest. A review that waits for a reply is drawn once, above. */
+function latestCard(V: ReviewsReportVM, mapsUri: string | null, operator: boolean) {
+  const G = V.google;
   return (
     <ChartCard
       className="rpt-span-12"
       title="Latest reviews"
       testid="chart-google-latest"
-      table={vm.table}
-      takeaway={vm.latest.length ? (vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source) : null}
+      table={G.table}
+      takeaway={V.latest.length ? (G.reply.words ? `${G.source} · ${G.reply.words}` : G.source) : null}
     >
-      {vm.latest.length ? (
-        <div className="rp2-reviews">{vm.latest.map((r) => reviewRow(r, vm, operator))}</div>
+      {V.latest.length ? (
+        <div className="rp2-reviews">{V.latest.map((r) => reviewRow(r, G, operator, null))}</div>
       ) : (
-        <EmptyState kind="line" title="Google shows no written reviews for this listing yet." />
+        <EmptyState
+          kind="line"
+          title={
+            G.latest.length
+              ? "The latest reviews are the ones waiting for a reply, above."
+              : "Google shows no written reviews for this listing yet."
+          }
+        />
       )}
       {/* The card shows what Google hands back, which is never the whole listing: the rest are on Google, and the
           listing's own address is the one place that has all of them. Google's `maps_uri`, as Setup links it. */}
@@ -219,16 +317,20 @@ function latestCard(vm: GoogleVM, mapsUri: string | null, operator: boolean) {
   );
 }
 
-/** Whether Reviews has anything to draw: this deployment can look listings up, or a listing is kept (the one predicate: the lens and the section ask it). */
-export const googleReadable = (G: GoogleSurface | undefined): G is GoogleSurface =>
-  !!G && (G.dto.ready.places || G.dto.ready.profile || !!G.dto.listing);
+/** Whether Reviews has anything to draw: this deployment can look listings up, or connect a profile, or a listing is kept (the one predicate: the lens asks it). */
+export const googleReadable = (g: GoogleDto): boolean => g.ready.places || g.ready.profile || !!g.listing;
 
-export function GoogleSection({ days, range }: { days: number; range: LensRange }) {
-  const G = useSurface("google");
-  if (!googleReadable(G)) return null;
-  const vm = toGoogleVM(G.dto, days);
+/** What the section says of where its figures come from: the listing and when Google was read, the Business Profile's own words, and where the history on record starts. */
+function sectionMeta(V: ReviewsReportVM, L: NonNullable<GoogleVM["listing"]>): string {
+  const checked = `${L.checked.charAt(0).toLowerCase()}${L.checked.slice(1)}`;
+  return [`${L.name} · ${checked}`, V.google.connection?.words ?? null, V.lines.history]
+    .filter((part): part is string => !!part)
+    .join(" · ");
+}
+
+export function GoogleSection({ V, range }: { V: ReviewsReportVM; range: LensRange }) {
   const operator = canDo("approve");
-  const L = vm.listing;
+  const L = V.google.listing;
   if (!L) {
     const none = lensEmpty("reviews", range);
     return (
@@ -246,17 +348,29 @@ export function GoogleSection({ days, range }: { days: number; range: LensRange 
       </RptSection>
     );
   }
+  const profile = V.source === "profile";
   return (
-    <RptSection title="Google reviews" meta={`${L.name} · ${L.checked.charAt(0).toLowerCase()}${L.checked.slice(1)}`}>
-      {/* The strip's own pattern (RptTiles in blocks.tsx): the kit's figure in a list of terms, named by its metric; four, not five. */}
-      <dl className="rpt-figures four" data-testid="google-tiles">
-        {vm.tiles.map((t) => (
+    <RptSection title="Google reviews" meta={sectionMeta(V, L)}>
+      {/* The strip's own pattern (RptTiles in blocks.tsx): the kit's figure in a list of terms, named by its metric; five from the profile, four without it. */}
+      <dl className={`rpt-figures${profile ? "" : " four"}`} data-testid="google-tiles">
+        {V.tiles.map((t) => (
           <RptFigure key={t.id} t={t} />
         ))}
       </dl>
       <div className="rpt-grid">
-        {gainedCard(vm, days)}
-        {latestCard(vm, L.mapsUri, operator)}
+        {profile ? (
+          <>
+            {starsCard(V)}
+            {weeklyCard(V)}
+            {waitingCard(V, operator)}
+          </>
+        ) : (
+          <>
+            {gainedCard(V.google, V.days)}
+            {connectCard(V)}
+          </>
+        )}
+        {latestCard(V, L.mapsUri, operator)}
       </div>
     </RptSection>
   );
