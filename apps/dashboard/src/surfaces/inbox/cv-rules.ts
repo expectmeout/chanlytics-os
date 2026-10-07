@@ -64,6 +64,23 @@ export const cvAddress = (channel: string | null | undefined, id: string | null 
 
 /* ------------------------------ one row per person ------------------------------ */
 
+/**
+ * Each call stands as its thread does (contracts standingOf, the Inbox's word). A person who has only ever phoned has
+ * no chat row (the surface leaves out a thread with nothing written), so without it their row could never say what
+ * the Inbox says of them: a call-back flagged at noon read "Hung up early" under the call at one.
+ */
+export function cvCallsStandAsTheirThread(
+  calls: ReadonlyArray<ConversationRow>,
+  threads: ReadonlyArray<ConversationRow>,
+): ConversationRow[] {
+  const standing = new Map<string, NonNullable<ConversationRow["standing"]>>();
+  for (const t of threads) if (t.threadId && t.standing) standing.set(t.threadId, t.standing);
+  return calls.map((c) => {
+    const s = c.threadId ? standing.get(c.threadId) : undefined;
+    return s ? { ...c, standing: s } : c;
+  });
+}
+
 // Whose a row is: the person, else their thread, else the row alone (a caller who withheld their number is nobody's).
 const cvWhose = (c: ConversationRow): string =>
   c.clientId ? `p:${c.clientId}` : c.threadId ? `t:${c.threadId}` : `r:${c.id}`;
@@ -113,7 +130,10 @@ export function cvFind(
   return null;
 }
 
-/** How many calls a person's row holds, said where the row does not already: "5 calls", or a thread's "1 call". */
+/**
+ * How many calls a person's row holds, said where the row does not already: "5 calls", or a thread's "1 call". Counted
+ * from what the page read, the workspace's newest hundred calls (readers/calls.ts); the thread holds every one.
+ */
 export function cvCallsWords(c: ConversationRow): string | null {
   const calls = cvPartsOf(c).filter((p) => p.callId || p.channel === "phone").length;
   if (calls >= 2) return `${calls} calls`;

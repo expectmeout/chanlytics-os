@@ -15,15 +15,24 @@ import type { Thread } from "../types";
 
 /**
  * The words a row says and the wire they came on: what they asked where a person is needed (their last words, or what
- * the call left behind), anywhere else the last thing that happened. One glyph, the wire of those words: the row drew one
- * for every wire the thread had used, and WhatsApp and a text are both the chat bubble, so a person on both with a call
- * read bubble, bubble, phone beside the words of the call. Every wire is said once, in words, in the thread's header.
- * A seeded thread has no such fact, and wears its first wire.
+ * the call left behind), anywhere else the last thing that happened. The wire is one badge on the face (rowWire): the
+ * row drew a glyph for every wire the thread had used beside the words, and WhatsApp and a text are both the chat
+ * bubble, so a person on both with a call read bubble, bubble, phone beside the words of the call. Every wire is said
+ * once, in words, in the thread's header. A seeded thread has no such fact, and wears its first wire.
  */
 function rowSaidOn(t: Thread): { text: string; wire: string } {
   if (!t.real) return { text: t.preview, wire: t.primaryChannel };
   if (t.ask && t.ask.text) return { text: t.ask.text, wire: t.ask.channel };
   return { text: t.preview, wire: t.previewChannel ?? t.primaryChannel };
+}
+
+/** The wire a row's words came on, worn by the face as a badge at its foot (inbox.css .ix-thread-wire), named for a screen reader. */
+function rowWire(wire: string) {
+  return (
+    <span className="ix-thread-wire" role="img" aria-label={inboxData().CHANNEL_LABELS[wire] || wire}>
+      <Icon name={channelIconOf(wire)} size={9} />
+    </span>
+  );
 }
 
 /**
@@ -59,16 +68,20 @@ function rowTime(t: Thread, sending: number | null) {
   return <span className="ix-thread-time tabular">{t.lastAt}</span>;
 }
 
-/** What is under a row's words: the agent, how sure it is, the tags and what the person is worth. */
+/**
+ * What is under a row's words: the agent, how sure it is, the tags and what the person is worth. A real thread's
+ * receptionist is its wire's ("WhatsApp Receptionist"), which the face's badge already says, so a real row never names
+ * it: the mockup's agents differ by name, and a seeded row still says which where they do.
+ */
 function rowFoot(L: ListCtx, t: Thread) {
-  const { multipleAgents } = L;
+  const agentNamed = L.multipleAgents && !t.real;
   const confidence = t.confidence ?? 0;
   const value = t.value ?? 0;
-  const footed = multipleAgents || confidence > 0 || (t.tags || []).length > 0 || value > 0;
+  const footed = agentNamed || confidence > 0 || (t.tags || []).length > 0 || value > 0;
   return (
     footed && (
       <div className="ix-thread-foot">
-        {multipleAgents && (
+        {agentNamed && (
           <span className="ix-thread-agent">
             <span>{t.agent.name}</span>
           </span>
@@ -145,10 +158,7 @@ function rowLine1(L: ListCtx, t: Thread) {
 }
 
 /** A row's body: the line of who, the subject, what you chose, the words and the foot. */
-function rowBody(L: ListCtx, t: Thread) {
-  // What they asked, where a person is needed: their last words, or what the call left behind. The row showed
-  // the last message there, often the receptionist's holding reply. Anywhere else, the last thing that happened.
-  const words = rowSaidOn(t);
+function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
   return (
     <div className="ix-thread-body">
       {rowLine1(L, t)}
@@ -161,9 +171,6 @@ function rowBody(L: ListCtx, t: Thread) {
       )}
       {words.text && (
         <div className="ix-thread-line3">
-          <span className="ix-thread-wire" role="img" aria-label={inboxData().CHANNEL_LABELS[words.wire] || words.wire}>
-            <Icon name={channelIconOf(words.wire)} size={11} />
-          </span>
           <span className="ix-thread-preview">{words.text}</span>
         </div>
       )}
@@ -176,6 +183,9 @@ export function threadRow(L: ListCtx, t: Thread, i: number) {
   const { activeThreadId, selected, tabStopId, onSelectThread, onToggleSelect, onRowKey } = L;
   const isActive = activeThreadId === t.id;
   const isSelected = selected.includes(t.id);
+  // What they asked, where a person is needed: their last words, or what the call left behind. The row showed
+  // the last message there, often the receptionist's holding reply. Anywhere else, the last thing that happened.
+  const words = rowSaidOn(t);
   return (
     <div
       key={t.id}
@@ -204,9 +214,10 @@ export function threadRow(L: ListCtx, t: Thread, i: number) {
 
       <div className="ix-thread-avatar" data-priority={t.priority}>
         {t.avatar}
+        {rowWire(words.wire)}
       </div>
 
-      {rowBody(L, t)}
+      {rowBody(L, t, words)}
     </div>
   );
 }

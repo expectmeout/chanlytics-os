@@ -327,7 +327,7 @@ export interface ConversationRow {
   agent: { glyph: string; name: string };
   at: string;
   outcome: string;
-  /** Who has the thread, by the one rule (contracts standingOf): the pill reads it before `outcome`. A call's row has none. */
+  /** Who has the thread, by the one rule (contracts standingOf): the pill reads it before `outcome`. A call's is its thread's. */
   standing?: Standing;
   snippet: string;
   threadId?: string;

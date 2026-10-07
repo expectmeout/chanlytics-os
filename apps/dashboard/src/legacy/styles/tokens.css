@@ -432,6 +432,10 @@
   --control-radius-sm: var(--radius-full);
   --selected-fill: oklch(1 0 0 / 0.82);
   --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.95), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  /* A row under a pointer: the selected fill at half strength, so the lozenge it becomes when pressed is the same
+     glass a step up. Read by the Inbox's, Conversations' and People's rows, and written once: a mix of the selected
+     fill, so the dark side and the opaque fallbacks below follow it. */
+  --hover-fill: color-mix(in oklab, var(--selected-fill) 55%, transparent);
   /* The canvases' accent text on the lozenge (#B93A26): a step brighter than the accent's ink (0.45), which read as a dark
      brown on the white lozenge. */
   --tab-ink: oklch(0.532 0.167 31.7);

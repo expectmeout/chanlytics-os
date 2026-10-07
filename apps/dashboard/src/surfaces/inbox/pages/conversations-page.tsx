@@ -78,16 +78,17 @@ export const OutcomePill = ({
       />
     );
   if (outcome === "live") return <StatePill kind="call" value="live" />;
+  // Who has the person's thread is the Inbox's rule, said in the Inbox's words, and a call stands as its thread does
+  // (cv-rules.ts cvCallsStandAsTheirThread). "Needs you" here read "Receptionist replied" over an open escalation, and
+  // "Needs you" over a thread you had taken over (the 2 Oct 2026 audit); a call after it read "Hung up early".
+  if (standing === "needs_you") return <StatePill kind="thread" value="escalated" />;
+  if (standing === "yours" || standing === "theirs") return <StatePill kind="thread" value={standing} />;
+  if (standing === "snoozed") return <StatePill kind="thread" value="snoozed" />;
   if (outcome === "missed") return <StatePill kind="call" value="missed" />;
   // A call's own story beats "handled": the caller who asked for a call back, the one who hung up in seconds, the
   // one who reached the voicemail, and the dial the provider could not place (contracts toCallVM decides each).
   if (outcome === "callback" || outcome === "abandoned" || outcome === "voicemail" || outcome === "failed")
     return <StatePill kind="call" value={outcome} />;
-  // A chat row: who has it is the Inbox's rule, said in the Inbox's words. "Needs you" here read "Receptionist
-  // replied" over an open escalation, and "Needs you" over a thread you had taken over (the 2 Oct 2026 audit).
-  if (standing === "needs_you") return <StatePill kind="thread" value="escalated" />;
-  if (standing === "yours" || standing === "theirs") return <StatePill kind="thread" value={standing} />;
-  if (standing === "snoozed") return <StatePill kind="thread" value="snoozed" />;
   if (outcome === "booked") return <StatePill kind="thread" value="booked" />;
   if (outcome === "escalated") return <StatePill kind="thread" value="escalated" />;
   if (outcome === "handled")
@@ -118,8 +119,14 @@ const cvEnded = (c: ConversationRow | null | undefined): boolean =>
   !!(c && c.outcome === "live" && liveCallEnded(c.id));
 
 // ---------- List row ----------
-// A person's one row (cv-rules.ts cvOnePerPerson): their newest says the time, the words and the wire, and the pill is
-// its lead's (cvLeadOf), so a thread that needs you still says so under the call that came after it.
+// A person's one row (cv-rules.ts cvOnePerPerson), in the shape of the Inbox's beside it (list-rows.tsx): the face
+// wearing the wire of the words shown as a badge, then who it is, how it stands and when on the first line, the words
+// on the second, and under them how many calls the row holds, where it holds more than its one. The row said the wire
+// three times (a glyph before the name, the receptionist's name in the foot -- a receptionist is its wire's, and the
+// thread's by-lines name who answered -- and the tab), the time in the foot, where the Inbox's row says it at the first
+// line's end, and a call's length in the foot under words that say it ("Inbound call · 1:35 — …"). The newest row says
+// the time, the words and the wire; the pill is its lead's (cvLeadOf), so a thread that needs you still says so under
+// the call that came after it.
 const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; onSelect: (id: string) => void }) => {
   const lead = cvLeadOf(c);
   const dec = cvDecision(lead);
@@ -130,13 +137,14 @@ const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; o
       className={`cv-row ${active ? "active" : ""} ${c.live && !cvEnded(c) ? "is-live" : ""}`}
       onClick={() => onSelect(c.id)}
     >
-      <span className="cv-row-avatar">{c.initials.slice(0, 2)}</span>
+      <span className="cv-row-avatar">
+        {c.initials.slice(0, 2)}
+        <span className="cv-row-wire" role="img" aria-label={inboxData().CHANNEL_LABELS[c.channel] || c.channel}>
+          <Icon name={CV_ICON[c.channel]} size={9} />
+        </span>
+      </span>
       <span className="cv-row-body">
-        {/* People's row (tokens.css --row-*, conversations.css): who it is and how it stands on the first line, what
-          was said on the second, and the facts under them -- the agent, how long it ran, and when. The outcome
-          used to stand in the foot beside them, where its pill made the row a sixth taller than a person's. */}
         <span className="cv-row-line1">
-          <Icon name={CV_ICON[c.channel]} size={11} />
           <span className="cv-row-who">{c.who}</span>
           <OutcomePill
             outcome={endedLive ? "handled" : lead.outcome}
@@ -145,16 +153,14 @@ const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; o
             channel={lead.channel}
             answeredBy={lead.answeredBy}
           />
-        </span>
-        <span className="cv-row-snippet">{c.snippet}</span>
-        <span className="cv-row-foot">
-          <span className="cv-row-agent">
-            {c.agent.name}
-            {calls && ` · ${calls}`}
-          </span>
-          {c.duration && <span className="cv-row-dur mono tabular">{c.duration}</span>}
           <span className="cv-row-at tabular">{c.at}</span>
         </span>
+        <span className="cv-row-snippet">{c.snippet}</span>
+        {calls && (
+          <span className="cv-row-foot">
+            <span className="cv-row-agent">{calls}</span>
+          </span>
+        )}
       </span>
     </button>
   );
@@ -571,7 +577,6 @@ export const ConversationsPage = ({
       ),
     [CONVERSATIONS, CV_CHANNELS],
   );
-
   return (
     <div className="conversations" data-takeover={phoneOpen || undefined}>
       {listPane({ data, rows: visible, query, setQuery, channel, counts, selectedRow, openRow, swap })}
