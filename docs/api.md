@@ -1658,6 +1658,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `channel` | one of `"email"`, `"sms"` | yes |  |
 | `subject` | string or null | no |  |
 | `body` | string | yes |  |
+| `message` | object | no |  |
 
 ### `DELETE /api/v1/templates/versions/[id]`
 

@@ -345,7 +345,7 @@ What Meta holds about a connected number is read by one function, `numberStandin
 
 ### 5.6 Templates
 
-`templates` rows hold Meta's truth: status (`approved | pending | rejected | paused | disabled`), category (utility or marketing — which decides the consent a send needs), components, quality score and origin. Only the edge writes them: sync from Meta (`templates-sync`, which never deletes a row Meta did not return), create (submit for review) and delete; status, category and quality changes arrive on the webhook (a quality is one of Meta's four words, `mapQuality`, whether the sync or the webhook says it). The starter library (`contracts/templates/starter-templates.ts`) offers seven — win-back, welcome, save our number, the month's offer, visit reminder, after the visit, a quick note — in English and Spanish, each passing the same checks a hand-written template passes. The assistant drafts templates (`claude-sonnet-5`, validated by the submission checks) and returns a draft, never a submission. Hiding a template and giving it a title are the workspace's own presentation (definer doors). A template goes out with the values its own slots ask for, and the Inbox offers only the templates that can send.
+`templates` rows hold Meta's truth: status (`approved | pending | rejected | paused | disabled`), category (utility or marketing — which decides the consent a send needs), components, quality score and origin. Only the edge writes them: sync from Meta (`templates-sync`, which never deletes a row Meta did not return), create (submit for review) and delete; status, category and quality changes arrive on the webhook (a quality is one of Meta's four words, `mapQuality`, whether the sync or the webhook says it). The starter library (`contracts/templates/starter-templates.ts`) offers seven — win-back, welcome, save our number, the month's offer, visit reminder, after the visit, a quick note — in English and Spanish, each passing the same checks a hand-written template passes. The assistant drafts templates (`claude-sonnet-5`, validated by the submission checks) and returns a draft, never a submission. Hiding a template and giving it a title are the workspace's own presentation (definer doors). A template goes out with the values its own slots ask for, and the Inbox offers only the templates that can send. A row is one version of a campaign's message, on one channel and language, and contracts `campaignMessageOf` reads the message from its rows: WhatsApp's version is Meta's, and an email's or a text's is written in the Library and approved the moment it is saved (`save_template_version` beside a row of its name, `create_message_version` for the first), so a message needs no WhatsApp row and is sent on the channels it holds.
 
 ## S-06 · Channels: voice
 
@@ -749,17 +749,17 @@ Since 00095 each person carries two consent answers, because the carriers requir
 
 **WhatsApp's report is a no to offers**: a message Meta refuses because the person chose, in WhatsApp, to stop marketing messages from the business (Cloud API error 131050 in a failed receipt) is recorded as their no to offers, with the source `whatsapp`. Messages about their own visit still reach them.
 
-One predicate decides: `mayMessageFor(contact, purpose, { proactive })`. A template's purpose comes from Meta's category (`purposeOfTemplate`, which fails closed to marketing when the category is unknown); a playbook's comes from its class. It is asked at the inbound gate, in the reply route, in the `outbound_send` job (the last gate, failing closed), at broadcast enrolment and again at every send, in playbook eligibility, and before the voice booking link.
+One predicate decides: `mayMessageFor(contact, purpose, { proactive })`. A message's purpose comes from Meta's category on its WhatsApp version where it has one, else from the category its email and text versions were filed with (`purposeOfTemplate`, which fails closed to marketing when the category is unknown; only a starter of the registry is filed utility); a playbook's comes from its class. It is asked at the inbound gate, in the reply route, in the `outbound_send` job (the last gate, failing closed), at broadcast enrolment and again at every send, in playbook eligibility, and before the voice booking link.
 
 The yes is always the customer's own message. `/yes/<slug>` asks twice, each with its own keyword and disclosures, and collects no number; `/api/v1/consent/qr` encodes WhatsApp opened on the workspace's number with the phrase ready to send; the People page and every list say how many said yes to offers, which is the number a broadcast reaches, and where to get the rest.
 
 ### 14.2 Broadcasts — send this once
 
-`POST /api/v1/broadcasts` (operator; ten a minute) is core's `createBroadcast`: it checks that the template is approved and its values are ones Meta accepts, crosses the audience — one of People's lists, a list kept by hand, or everyone — with who may receive it (`assemble`), **enrols** the recipients so the owner sees who and how many (at most 2,000; a number's daily limit is said when the audience exceeds it), records `send_broadcast`, and schedules `broadcast_send` now or at the chosen time. States: `pending_approval → scheduled → sending → sent | canceled | failed`, kept by a trigger (00106); a recipient's state too (00116; the send's claim settles, 00182). Every number is a row's: sent, skipped and failed from the recipients; delivered and read from the status webhook; replied means an inbound message within 72 hours.
+`POST /api/v1/broadcasts` (operator; ten a minute) is core's `createBroadcast`: it reads the message the template id names (any one of its versions' ids), checks that its values fit and that each channel ticked can carry it (WhatsApp needs an approved WhatsApp version, an email or a text its own version), crosses the audience — one of People's lists, a list kept by hand, or everyone — with who may receive it (`assemble`), **enrols** the recipients so the owner sees who and how many (at most 2,000; a number's daily limit is said when the audience exceeds it), records `send_broadcast`, and schedules `broadcast_send` now or at the chosen time. States: `pending_approval → scheduled → sending → sent | canceled | failed`, kept by a trigger (00106); a recipient's state too (00116; the send's claim settles, 00182). Every number is a row's: sent, skipped and failed from the recipients; delivered and read from the status webhook; replied means an inbound message within 72 hours.
 
 ### 14.3 Playbooks — keep doing this
 
-A standing rule that sends one approved template to people who newly qualify.
+A standing rule that sends one message, on the channels it holds, to people who newly qualify.
 
 | Trigger            | Who                                                                       | Class     |
 | ------------------ | ------------------------------------------------------------------------- | --------- |
@@ -778,8 +778,9 @@ playbook sent the follow-up; one per workspace. It is conversational, as a remin
 in a slot or is not made, and keeps that link on each recipient row as a visit run keeps its words. Where one runs,
 each proposal waiting it will reach says so on the Pipeline and on its deal card, by the day its run goes
 ("Follow-up tomorrow"; "Follow-up to approve tomorrow" under ask), and the card then offers no follow-up of its
-own. It says so only where its run would send: its template approved, its number not flagged, the workspace not
-paused, a WhatsApp number, and a yes to offers where Meta filed the message as marketing. Today's proposals-waiting
+own. It says so only where its run would send: its WhatsApp version approved where WhatsApp is all it goes by, its
+number not flagged where it ticks WhatsApp, the workspace not paused, and a yes to offers where its message is filed as
+marketing. Today's proposals-waiting
 row counts only the ones it will not reach, never naming someone who asked to stop, and Ask lists and proposes it.
 
 ### 14.4 Reach out — cold email, built (nothing sends until a reach-out exists and its secrets are set)
@@ -1036,7 +1037,7 @@ Every table has RLS. Writers: **E** the edge (service role), **S** the dashboard
 |               | `sweep_status`, the clock register                                               | Each sweep's pg_net request and backlog; every clock and what it is judged on (00107)                                          | D                                   |
 |               | `rate_hits`                                                                      | Shared rate limiting                                                                                                           | D (`take_rate`)                     |
 |               | `operator_pages`                                                                 | The pager's memory: when each condition last paged, and how many times (00105)                                                 | E                                   |
-| Campaigns     | `templates`                                                                      | WhatsApp templates, as Meta holds them                                                                                         | E                                   |
+| Campaigns     | `templates`                                                                      | A message's versions, one a channel and language: WhatsApp's as Meta holds them, an email's and a text's as written here       | E; D (email and text)               |
 |               | `broadcasts`, `broadcast_recipients`                                             | What was sent, and who got it; states guarded (00106, 00116; a claim settles, 00182)                                           | S, J                                |
 |               | `playbooks`                                                                      | Standing rules                                                                                                                 | S                                   |
 |               | `segments`, `segment_members`                                                    | Lists kept by hand                                                                                                             | S                                   |
@@ -1171,7 +1172,8 @@ Closed since the first edition: QStash (Δ1 then — the responder and its varia
 | Steer                     | Rewriting a held draft to one instruction                                                                  |
 | Whisper · hand over · end | The three things a person can do to a live call                                                            |
 | The window                | WhatsApp's 24 hours after a customer's last message, when free text is allowed; outside it, templates only |
-| Template                  | A message Meta approved; its category, utility or marketing, decides the consent it needs                  |
+| Template                  | A version of a message on one channel: Meta approves WhatsApp's; the message's category sets the consent   |
+| Campaign message          | What a broadcast or playbook sends: a name with a version on each channel it holds                         |
 | Broadcast · playbook      | Send this once · keep doing this                                                                           |
 | Line                      | A phone number the platform bought or forwards                                                             |
 | Channel                   | A routing row: which workspace a provider's delivery belongs to                                            |

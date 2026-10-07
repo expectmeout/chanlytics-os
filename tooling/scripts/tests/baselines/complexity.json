@@ -134,19 +134,14 @@
     "branches": 41,
     "depth": 2
   },
-  "apps/dashboard/src/server/ask/tools/act/broadcast.ts::proposeBroadcast#1": {
-    "lines": 95,
-    "branches": 32,
-    "depth": 2
-  },
   "apps/dashboard/src/server/ask/tools/act/deal.ts::proposeDeal#1": {
     "lines": 109,
     "branches": 66,
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
-    "lines": 148,
-    "branches": 36,
+    "lines": 145,
+    "branches": 34,
     "depth": 2
   },
   "apps/dashboard/src/server/calendar/calendar-week.ts::calendarSources#1": {

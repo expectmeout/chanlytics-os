@@ -24,7 +24,9 @@ export {
   TEMPLATE_BODY_MAX,
   TEMPLATE_FOOTER_MAX,
   TEMPLATE_EXAMPLE_MAX,
+  TEMPLATE_LABEL_MAX,
   TEMPLATE_NAME_MAX,
+  TEMPLATE_NAME_WORDS,
   TEMPLATE_BUTTON_TEXT_MAX,
   PARAM_SOURCES,
   PARAM_SOURCE_LABELS,
@@ -87,6 +89,7 @@ export {
   reachOutRowName,
   reachOutStepOf,
   versionsOf,
+  noVersionWords,
 } from "./message-versions";
 export type {
   VersionChannel,
@@ -97,6 +100,21 @@ export type {
   EmailIssue,
   EmailRules,
 } from "./message-versions";
+export {
+  campaignMessageOf,
+  campaignMessagesOf,
+  messageHolds,
+  messageWhyNot,
+  readyForMessage,
+  messageStandingWords,
+  variablesSlotCount,
+  MESSAGE_GONE_WORDS,
+  MESSAGE_BEGIN_WORDS,
+  RUN_NOW_WITHOUT_VERSION_WORDS,
+  STARTER_LINE_WORDS,
+  whatsappStoppedRunWords,
+} from "./campaign-message";
+export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";
 export { fillSlots, numberedSlots, slotValueOf, slotWritten } from "./slot-sets";
 export type { SlotKey, SlotSet, SlotValue } from "./slot-sets";
 export {

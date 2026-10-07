@@ -5,7 +5,7 @@
  */
 import type { EmailHold, JobNews, SendPurpose } from "@chanlytics/contracts";
 import type { EmailRequest } from "@chanlytics/channels";
-import type { Json } from "@chanlytics/db";
+import type { Json, MessageVersionRow } from "@chanlytics/db";
 import type { Channel, Delivered, Delivery } from "../deliver";
 
 /** The door, handed in: a verb never builds it, so a test can answer whatever the case needs. */
@@ -145,20 +145,14 @@ export interface BroadcastBatchPorts {
   /** scheduled → sending, only while scheduled. True iff the row changed: false is a cancel that landed first. */
   startSending(id: string): Promise<boolean>;
   /**
-   * The template of this name and language on a channel: WhatsApp's as Meta has it, or the email or text version of the
-   * message (a templates row of that name and language on that channel): its status, its words (`components` is where an
-   * email's subject is stored), its category. Null when gone; throws when it cannot be read.
+   * The message of this name and language, as the rows the workspace holds of it now, whatever their channel: WhatsApp's as
+   * Meta has it (its status, its category, its words), and the email's and the text's, written here and approved the moment
+   * they were saved (`components` is where an email's subject is stored). contracts campaignMessageOf picks the versions out of
+   * them. None when it has no row; THROWS when it cannot be read: a message that could not be looked for is not one WhatsApp
+   * withdrew, and none fails the whole run and tells the owner WhatsApp no longer approves it, a lie about their account told
+   * over a statement timeout.
    */
-  template(
-    name: string,
-    language: string,
-    channel: Channel,
-  ): Promise<{
-    meta_status: string | null;
-    body_preview: string | null;
-    category: string | null;
-    components?: unknown;
-  } | null>;
+  message(name: string, language: string): Promise<MessageVersionRow[]>;
   /**
    * The workspace's own words for the slots that name it, and its clock (IANA zone), which the sending hours are kept
    * by; and the postal address its emails' foot gives (the Business record's), null when it has none.

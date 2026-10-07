@@ -1,8 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, EmailHold, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, EmailHold, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignMessage, CampaignHow, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
-import { Json, Database, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
+import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
 /**
  * The wires a workspace's words leave on: WhatsApp's from its credentials, and email's bound to its own addresses.
@@ -837,16 +837,14 @@ interface BroadcastBatchPorts {
     /** scheduled → sending, only while scheduled. True iff the row changed: false is a cancel that landed first. */
     startSending(id: string): Promise<boolean>;
     /**
-     * The template of this name and language on a channel: WhatsApp's as Meta has it, or the email or text version of the
-     * message (a templates row of that name and language on that channel): its status, its words (`components` is where an
-     * email's subject is stored), its category. Null when gone; throws when it cannot be read.
+     * The message of this name and language, as the rows the workspace holds of it now, whatever their channel: WhatsApp's as
+     * Meta has it (its status, its category, its words), and the email's and the text's, written here and approved the moment
+     * they were saved (`components` is where an email's subject is stored). contracts campaignMessageOf picks the versions out of
+     * them. None when it has no row; THROWS when it cannot be read: a message that could not be looked for is not one WhatsApp
+     * withdrew, and none fails the whole run and tells the owner WhatsApp no longer approves it, a lie about their account told
+     * over a statement timeout.
      */
-    template(name: string, language: string, channel: Channel): Promise<{
-        meta_status: string | null;
-        body_preview: string | null;
-        category: string | null;
-        components?: unknown;
-    } | null>;
+    message(name: string, language: string): Promise<MessageVersionRow[]>;
     /**
      * The workspace's own words for the slots that name it, and its clock (IANA zone), which the sending hours are kept
      * by; and the postal address its emails' foot gives (the Business record's), null when it has none.
@@ -1459,8 +1457,8 @@ declare const BROADCAST_STALLS_MAX = 30;
  * BROADCAST_CHUNK of them, each on their own channel -- WhatsApp's template, a text's version, an email's version from
  * the hosted mailbox -- re-checking each person at the wire, the one place a miss is unrecoverable, and records why
  * anyone was held back. Then it schedules itself again for the rest, or closes the broadcast and tells the workspace.
- * A canceled broadcast stops at the next batch; a template that is no longer approved fails it before a single send; a
- * wire that is down fails it at the first person it cannot reach.
+ * A canceled broadcast stops at the next batch; a WhatsApp version that is no longer approved fails a run that goes by
+ * WhatsApp alone before a single send; a wire that is down fails it at the first person it cannot reach.
  */
 declare function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: BroadcastBatchCommand): Promise<void>;
 
@@ -1736,20 +1734,14 @@ type RunOutcome =
 };
 interface RunPlaybookPorts extends AssemblePorts {
     /**
-     * The template as Meta has it now, by name and language; null when gone. Its category is the message's purpose, which
-     * the run enrols by with its moment's class (contracts enrolPurpose). Throws when it cannot be read: unreadable is not
-     * withdrawn.
+     * The message of this name and language, as the rows the workspace holds of it now, whatever their channel (db
+     * messageVersionRowsOf): WhatsApp's as Meta has it, and the email's and the text's, written here and approved the
+     * moment they were saved. contracts campaignMessageOf picks the versions out of them: which of the playbook's ticks the
+     * message can be said on, and its category, its purpose, which the run enrols by with its moment's class (contracts
+     * enrolPurpose). None when it has no row (gone). Throws when it cannot be read: unreadable is not withdrawn, and a
+     * version that could not be looked for is not one the workspace lacks.
      */
-    template(name: string, language: string): Promise<{
-        meta_status: string | null;
-        category: string | null;
-    } | null>;
-    /**
-     * The channels, of email and text, that hold a version of this message in this language (a templates row of that name
-     * and language on that channel): which of the playbook's ticks the message can be said on. Throws when it cannot be
-     * read: a version that could not be looked for is not one the workspace lacks.
-     */
-    versions(name: string, language: string): Promise<readonly string[]>;
+    message(name: string, language: string): Promise<MessageVersionRow[]>;
     /** Whether a run for this local day was already made (the unique index's fact, read first). */
     alreadyRan(playbookId: string, runFor: string): Promise<boolean>;
     /** The run recorded: the event, and the playbook's last run. Never throws. */
@@ -1773,19 +1765,14 @@ interface RunPlaybookCommand {
     runFor?: string;
     by: RunBy;
 }
-/** The template as Meta holds it, read by id in this workspace. */
-interface TemplateRow {
-    id: string;
-    name: string;
-    language: string;
-    meta_status: string | null;
-    category: string | null;
-    variables: unknown;
-    title: string | null;
-}
 interface TemplateValuesPorts {
-    /** Null when there is no such template here; throws when it cannot be read. */
-    template(id: string): Promise<TemplateRow | null>;
+    /**
+     * The rows of the message this id names, whatever their channel (db messageVersionRowsOf, by id): the version the id
+     * belongs to and its siblings on the other channels, WhatsApp's as Meta has it, an email's and a text's as they were
+     * written here. Any version's id names the message, and contracts campaignMessageOf picks its versions out of the rows.
+     * `[]` when this workspace holds no such version. Throws when it cannot be read: unreadable is not absent.
+     */
+    message(id: string): Promise<MessageVersionRow[]>;
     /** The booking link on file, or null. */
     bookingLink(): Promise<string | null>;
 }
@@ -1831,11 +1818,6 @@ interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
         ready: ChannelsReady;
         health: NumberHealth | null;
     }>;
-    /**
-     * The channels, of email and text, that hold a version of this message in this language: which ticks it can be said
-     * on (message-channels.ts). Throws when it cannot be read.
-     */
-    versions(name: string, language: string): Promise<readonly string[]>;
     record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
 }
 interface CreateBroadcastCommand {
@@ -1911,25 +1893,12 @@ declare function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): 
  * campaigns-on-every-channel spec, 4.4 and 4.10).
  *
  * A channel is usable for a send only if the workspace is ready on it (contracts reach-for.ts `channelsReady`: its
- * number, its texting line, its mailbox) AND the message has a version there: WhatsApp's approved row, and for email
- * and text a row of the same name and language on that channel (contracts message-versions.ts). `readyForMessage` puts
- * the second into the first, so every reader of "can this go by email" asks one answer, and `reachFor` never enrols a
- * person on a channel the message cannot be said on.
+ * number, its texting line, its mailbox) AND the message holds a version there (contracts messageHolds: WhatsApp's row
+ * approved and whole, and for email and text a row of the same name and language on that channel). Contracts'
+ * `readyForMessage` puts the second into the first; what is here is which channels a request ticks and the refusal of a
+ * tick the send cannot keep.
  */
 
-/**
- * The channels a message holds a version on: WhatsApp's when its row is approved (the caller has read it), and each of
- * email and text when the workspace has filed a version of that name and language there. `own` is the channels, of
- * email and text, that hold one (a port's answer); a channel it does not name has none.
- */
-declare function versionsHeld(own: readonly string[], whatsapp: boolean): Record<ConsentChannel, boolean>;
-/**
- * The workspace's channels now, with the message in them: a channel that is ready but has no version of the message
- * is not ready, and says so in a sentence ("This message has no email version yet."). A channel the workspace is not
- * ready on keeps its own reason. What else the channel carries stays (email's `offers`, which the news by email and an
- * offer are judged by: closing the channel for a missing version must not make it say the campaigns domain is missing).
- */
-declare function readyForMessage(ready: ChannelsReady, has: Record<ConsentChannel, boolean>): ChannelsReady;
 /**
  * The channels a request ticks: `channels` as the body names them, WhatsApp alone when it names none (so nothing made
  * before changes), in the product's order (contracts CONSENT_CHANNELS). Anything but a list of the three is refused.
@@ -1938,11 +1907,18 @@ declare function readyForMessage(ready: ChannelsReady, has: Record<ConsentChanne
 declare function parseChannels(asked: unknown, kept?: readonly string[] | null): ConsentChannel[];
 
 /**
- * The template as Meta holds it and the values as Meta will accept them:
- * what a broadcast and a playbook both name, judged once. Approved; as many
- * values as the template takes; each typed text once or a value the job
- * fills per person; a booking-link slot needs a link on file. Every refusal
- * is a sentence for the person composing.
+ * The message a version's id names, read once from the rows this workspace holds of it (contracts campaignMessageOf):
+ * the one verb a broadcast, a playbook and Ask's proposals read a message by. The id is any version's, WhatsApp's or an
+ * email's or a text's, and names the same message; a message needs no WhatsApp row. Refused: an id that is not one
+ * ("Pick a template.") and a version this workspace does not hold ("Template not found.", a 404). Whether a channel can
+ * send the message is each tick's to say (message-channels.ts), so a version WhatsApp has not approved is no refusal here.
+ */
+declare function readCampaignMessage(ports: Pick<TemplateValuesPorts, "message">, id: string): Promise<CampaignMessage>;
+/**
+ * The message and the values as its channels will accept them: what a broadcast and a playbook both name, judged once.
+ * As many values as the message takes (contracts' one count, whichever version carries it); each typed text once or a
+ * value the job fills per person; a booking-link slot needs a link on file. Every refusal is a sentence for the person
+ * composing.
  */
 declare function templateValues(ports: TemplateValuesPorts, 
 /** `visits`: a visit playbook, whose run knows each visit; `proposal`: the follow-up, whose run knows each link. */
@@ -1952,7 +1928,7 @@ cmd: {
     visits: boolean;
     proposal: boolean;
 }): Promise<{
-    template: TemplateRow;
+    message: CampaignMessage;
     specs: ParamSpec[];
 }>;
 
@@ -1974,11 +1950,11 @@ interface BroadcastReceipt {
 }
 /**
  * The channels a send goes by as its message can carry them, and the WhatsApp number's health the day's limit is judged
- * by: the workspace's channels now (its number, its texting line, its mailbox) with the message's own versions laid
- * over them (message-channels.ts readyForMessage). Refuses nothing: a playbook keeps a tick that cannot send yet, and
- * Ask counts a proposal by it.
+ * by: the workspace's channels now (its number, its texting line, its mailbox) with the versions the message holds laid
+ * over them (contracts readyForMessage), WhatsApp's among them: a version WhatsApp has not approved is no
+ * version to send. Refuses nothing: a playbook keeps a tick that cannot send yet, and Ask counts a proposal by it.
  */
-declare function campaignHow(ports: Pick<CreateBroadcastPorts, "channels" | "versions">, tpl: Pick<TemplateRow, "name" | "language">, channels: ConsentChannel[], 
+declare function campaignHow(ports: Pick<CreateBroadcastPorts, "channels">, message: Pick<CampaignMessage, "versions">, channels: ConsentChannel[], 
 /** What the message is about: a broadcast's is ours, a visit or proposal moment's theirs (contracts MessageAbout). */
 about: MessageAbout): Promise<{
     how: CampaignHow;
@@ -1993,24 +1969,27 @@ about: MessageAbout): Promise<{
  * The one rule for a broadcast's ticks: the route asks it, and so does Ask before it proposes one, so a card the route
  * would refuse is never shown.
  */
-declare function campaignHowOf(ports: Pick<CreateBroadcastPorts, "channels" | "versions">, tpl: Pick<TemplateRow, "name" | "language">, channels: ConsentChannel[], purpose: AskedPurpose): Promise<{
+declare function campaignHowOf(ports: Pick<CreateBroadcastPorts, "channels">, message: Pick<CampaignMessage, "versions">, channels: ConsentChannel[], purpose: AskedPurpose): Promise<{
     how: CampaignHow;
     health: NumberHealth | null;
 }>;
 /**
- * A person's broadcast: one approved template to the people who said yes.
+ * A person's broadcast: one message to the people who said yes.
  *
  * { template_id, params, audience: { kind, id }, channels?, scheduled_for?, name? }.
- * The template must be approved by WhatsApp; the values must be ones Meta
- * accepts; the audience is one of People's lists, a list kept by hand, or
- * everyone — crossed with who said yes and a way to reach them, for the yes this
- * template's category needs. It goes by WhatsApp, text or email (`channels`,
- * WhatsApp alone when none is named), each person once, on the first channel the
- * send can reach them on (contracts reachFor), written on their row. The
- * recipients are enrolled now, so the owner sees who and how many; the job
- * re-checks each person at the wire. The ledger records the decision to send.
- * The body is judged here, in sentences for the person composing: the values are
- * judged against the template Meta holds, which no schema knows.
+ * `template_id` is any version of the message, and the message needs no WhatsApp
+ * version: each channel ticked needs only its own (WhatsApp's approved by Meta, an
+ * email's and a text's written here), and a tick whose version the message does not
+ * hold is refused with that version's standing; the values must fill the message's
+ * slots; the audience is one of People's lists, a list kept by hand, or everyone —
+ * crossed with who said yes and a way to reach them, for the yes this message's
+ * category needs. It goes by WhatsApp, text or email (`channels`, WhatsApp alone
+ * when none is named), each person once, on the first channel the send can reach
+ * them on (contracts reachFor), written on their row. The recipients are enrolled
+ * now, so the owner sees who and how many; the job re-checks each person at the
+ * wire. The ledger records the decision to send. The body is judged here, in
+ * sentences for the person composing: the values are judged against the message
+ * the workspace holds, which no schema knows.
  */
 declare function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBroadcastCommand): Promise<BroadcastReceipt>;
 
@@ -2075,7 +2054,7 @@ interface PlaybookInput {
     /** The channels it may go by: WhatsApp alone when none is named (an edit that names none keeps the ones it has). */
     channels: ConsentChannel[];
 }
-/** What a playbook's check reads beyond its template: the name of a list it runs on, or null when there is none. */
+/** What a playbook's check reads beyond its message: the name of a list it runs on, or null when there is none. */
 interface CheckPlaybookPorts extends TemplateValuesPorts {
     listName(id: string): Promise<string | null>;
     /** Whether deals are on here (dealsAreOn, 0008): a proposal follow-up is made only then (0006). */
@@ -2088,8 +2067,8 @@ interface CheckPlaybookPorts extends TemplateValuesPorts {
 }
 /**
  * Everything a playbook names, checked the way a broadcast is: the trigger,
- * then the template and its values through the one judgement, then the
- * whole numbers. A playbook can never name a template a broadcast could not
+ * then the message and its values through the one judgement, then the
+ * whole numbers. A playbook can never name a message a broadcast could not
  * send or a slot the workspace cannot fill. `existing` is the playbook being changed, null for a new one.
  */
 declare function checkPlaybook(ports: CheckPlaybookPorts, body: Record<string, unknown> | null, existing: {
@@ -3926,4 +3905,4 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
 type Subscriber = (event: DeliveredEvent) => Promise<void>;
 declare const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>>;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type Subscriber, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readReply, readyForMessage, reconcileUnknownRuns, refusalScript, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, versionsHeld, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type Subscriber, type TakeOverPorts, type TakeOverResult, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readCampaignMessage, readReply, reconcileUnknownRuns, refusalScript, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };

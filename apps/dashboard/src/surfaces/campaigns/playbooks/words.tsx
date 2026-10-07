@@ -23,6 +23,7 @@ import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
 import { surfaceValue } from "../../surface-values";
 import { bcWhenWords } from "../broadcasts/when-words";
+import { cmOfferedBy } from "../parts/channels";
 import { mpFill } from "../parts/message-preview";
 import { starters } from "../templates/verbs";
 import type { PlaybookTriggerOption } from "./surface";
@@ -103,8 +104,9 @@ export const pbExample = (kind: string, businessName: string | null | undefined)
         ? "your booking link"
         : PB_EXAMPLES[kind] || "";
 
-// A card's message: its template among the approved, with the playbook's own
-// values in the slots; null when it is not among them. The body and the values
+// A card's message: its message among the offered, found by its name and language (a WhatsApp version added since moves the
+// id the message is offered by; a stored id is the fallback), with the playbook's own values in the slots; null when it is
+// not among them. The body and the values
 // stay apart -- the preview marks what fills per person, and `words` is the same
 // thing joined up, for the one line a closed card shows.
 // A slot a playbook fills with what it cannot take (contracts slotChoices), in
@@ -137,11 +139,14 @@ export const pbWrongSlot = (
 };
 
 export const pbMessage = (
-  p: Pick<PlaybookDto, "template_id" | "params">,
+  p: Pick<PlaybookDto, "template_id" | "template_name" | "template_language" | "params">,
   templates: readonly TemplateDto[],
   businessName: string | null | undefined,
 ) => {
-  const t = templates.find((x) => x.id === p.template_id) || null;
+  const t =
+    cmOfferedBy(templates, p.template_name, p.template_language) ||
+    templates.find((x) => x.id === p.template_id) ||
+    null;
   if (!t) return null;
   const values = (p.params || PB_NONE).map((s) =>
     s && s.kind === "text" ? s.value : s && s.kind ? pbExample(s.kind, businessName) : String(s ?? ""),

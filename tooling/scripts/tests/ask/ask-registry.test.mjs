@@ -90,6 +90,41 @@ const RUN_CHANNEL_WORDS = [
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
 ];
 /**
+ * 7 Oct 2026 (lane 1, T11): campaigns says a message where it said an approved WhatsApp template, and says what its
+ * audiences listing gives of each: the `channels` a version of it can be sent on now. The four sentences that moved, each
+ * once (the listing's, the playbooks', the playbooks' starter, the tail's), and nothing else it says. And (the lane's
+ * review): the listing's four counts are said to be by WhatsApp, a message held on email or text is proposed with the
+ * channels its `channels` name and its card counts them, and the tail quotes a zero only for a message that goes by
+ * WhatsApp. Three more sentences, each once, said over the words above.
+ */
+const MESSAGE_WORDS = [
+  [
+    "It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit,",
+    "It also lists, under templates, the messages a broadcast may be made on, each with its template_id (any of its versions' ids names the message), category, channels (true for each of whatsapp, email and sms it can be sent on now), values and body, why a WhatsApp version this product cannot send whole is left out (cannot_send), and whether the number may send and its daily limit,",
+  ],
+  [
+    "standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock",
+    "standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), its clock",
+  ],
+  ["and each one's starter template.", "and each one's starter message (starter_template)."],
+  [
+    "Pick the template first, then quote its can_be_sent count as who the broadcast reaches",
+    "Pick the message first, then quote its can_be_sent count as who the broadcast reaches",
+  ],
+  [
+    "four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and",
+    "four counts, all by WhatsApp, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches on WhatsApp) and",
+  ],
+  [
+    "channels (true for each of whatsapp, email and sms it can be sent on now),",
+    "channels (true for each of whatsapp, email and sms it can be sent on now; a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached),",
+  ],
+  [
+    "never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have.",
+    "never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have.",
+  ],
+];
+/**
  * What the report tool's description gained after PR 4.7 (the Reports fix wave, spec D14): its median and p90 reply time
  * include the hold the owner set, and reply_time.hold splits the replies against it. Nothing else of it moved.
  */
@@ -280,7 +315,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, report (its reply times say the hold, and it says the Campaigns lens) and campaigns (a run's channels) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, report (its reply times say the hold, and it says the Campaigns lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -321,10 +356,14 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       role,
     );
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
-    // campaigns (0030): a run's line says its channels and a read WhatsApp's alone; nothing else it says moved.
+    // campaigns (0030): a run's line says its channels and a read WhatsApp's alone; (lane 1, T11): a message, where it said
+    // an approved WhatsApp template; nothing else it says moved.
     assert.equal(
       tool(role, "campaigns").description,
-      was(role, "campaigns").description.replace(...RUN_CHANNEL_WORDS),
+      MESSAGE_WORDS.reduce(
+        (said, [from, to]) => said.replace(from, to),
+        was(role, "campaigns").description.replace(...RUN_CHANNEL_WORDS),
+      ),
       role,
     );
     assert.deepEqual(words(tool(role, "campaigns")), words(was(role, "campaigns")), role);

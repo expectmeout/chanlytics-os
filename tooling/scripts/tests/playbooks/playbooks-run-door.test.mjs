@@ -677,6 +677,116 @@ test("a proposal follow-up (0006): where deals are on, a run reaches the proposa
   nothingMade(w.tables);
 });
 
+test("the message is read from its rows by the edge's own port, with or without a WhatsApp row: a follow-up that goes by text runs on a message with only a text version; one filed as an offer cannot go by text; a message with no row at all is a template that is gone; a row that cannot be read fails the run and takes no day", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: IN_HOURS });
+  const people = [
+    person("c1", {
+      deal_id: "deal-c1",
+      deal_stage: "proposed",
+      deal_proposed_at: iso(20 * D),
+      deal_proposal_url: "https://docs.example.com/proposal/c1",
+      consent_channels: ["whatsapp", "sms"],
+    }),
+  ];
+  // Five yeses that took twelve days each: the workspace's pace, so a proposal waits fourteen days before its nudge.
+  const yeses = Array.from({ length: 5 }, (_, i) => ({
+    id: `yes-${i}`,
+    tenant_id: A,
+    contact_id: `z${i}`,
+    stage: "won",
+    proposed_at: iso((40 + i) * D),
+    decided_at: iso((28 + i) * D),
+  }));
+  /** A row of the follow-up's message on a channel, as the templates table holds it (the columns the port answers). */
+  const version = (channel, over = {}) => ({
+    id: `tpl-${channel}`,
+    tenant_id: A,
+    channel,
+    name: "proposal_follow_up",
+    language: "en_US",
+    meta_status: "approved",
+    category: "utility",
+    variables: [],
+    hidden_at: null,
+    title: null,
+    source: channel === "whatsapp" ? "meta" : "chanlytics",
+    components: [],
+    body_preview: null,
+    rejected_reason: null,
+    ...over,
+  });
+  /** A workspace with a texting line, a number, deals on, and the follow-up ticking `channels`, over the message's `rows`. */
+  const set = (rows, channels, faults = {}) => {
+    // The month's texts counted (a text is metered), none sent yet.
+    const w = world({ people: { [A]: people }, faults, rpcs: { campaign_month_sent: () => 0 } });
+    workspace(w.tables, A, "ask", { sells_by: "proposal" });
+    w.tables.lines = [
+      {
+        tenant_id: A,
+        sms_state: "active",
+        reg_mock: false,
+        messaging_service_sid: "MG-harbor-studio",
+        voice_state: "active",
+        created_at: iso(30 * D),
+      },
+    ];
+    w.tables.templates.push(...rows);
+    w.tables.deals = yeses.map((y) => ({ ...y }));
+    w.tables.playbooks.push(
+      playbook(A, P, {
+        name: "Proposal follow-up",
+        trigger: "proposal_waiting",
+        template_id: "tpl-follow",
+        template_name: "proposal_follow_up",
+        params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }],
+        policy_class: "follow_up",
+        channels,
+      }),
+    );
+    return w;
+  };
+
+  // A message with a text version and no WhatsApp row, filed about their proposal: it goes by text, to the person who said
+  // yes by text, and nothing about WhatsApp stops it.
+  let w = set([version("sms")], ["sms"]);
+  const [status, body] = await answer(await knock(press));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual([body.outcome, body.eligible], ["sent", 1]);
+  assert.deepEqual(
+    w.tables.broadcast_recipients.map((r) => [r.contact_id, r.channel]),
+    [["c1", "sms"]],
+    "on the one version the message has",
+  );
+  assert.deepEqual(w.tables.broadcasts[0].channels, ["sms"]);
+
+  // The same rows filed as an offer: a text carries no offers, and the run enrols by the message's yes, not the moment's.
+  w = set([version("sms", { category: "marketing" })], ["sms"]);
+  assert.deepEqual(await answer(await knock(press)), [200, { ok: true, outcome: "empty", eligible: 0, mode: "ask" }]);
+  nothingMade(w.tables);
+
+  // A message with no row of any channel is a template that is gone: WhatsApp is what the run goes by, and it is recorded off.
+  w = set([], ["whatsapp"]);
+  assert.deepEqual(await answer(await knock(press)), [
+    200,
+    { ok: true, outcome: "off", mode: "ask", skipped: "template_not_approved" },
+  ]);
+  nothingMade(w.tables);
+  assert.deepEqual(
+    w.tables.events.map((e) => [e.kind, e.data.skipped]),
+    [["playbook.run", "template_not_approved"]],
+  );
+
+  // A read that fails is the run failing, not the message withdrawn: nothing is recorded and the day is not taken.
+  w = set([version("sms")], ["sms"], { "templates.select": { message: "templates down" } });
+  assert.deepEqual(await answer(await knock(press)), [
+    500,
+    { ok: false, error: "run_failed", detail: "template: messageVersionRowsOf: templates down" },
+  ]);
+  nothingMade(w.tables);
+  assert.deepEqual(w.tables.events, []);
+  assert.equal(w.tables.playbooks[0].last_run_for, null, "the next press may succeed");
+});
+
 test("a proposal is followed up once, whoever sent it (0006): not again after the playbook that did was deleted, nor after its run was stopped once it had sent; a waiting run whose day has passed holds nobody", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: IN_HOURS });
   const out = person("c1", {

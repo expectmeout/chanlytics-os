@@ -27,6 +27,7 @@ import {
   emitEvent,
   insertQueuedEmail,
   mailboxOfTenant,
+  messageVersionRowsOf,
   queuedRecipients,
   recordEvent,
   resolveOutboundTarget,
@@ -386,24 +387,11 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
         return !!rows && rows.length > 0;
       },
-      // `category` is Meta's verdict on what kind of message this is, and it
-      // decides which consent the send needs. A template that cannot be READ is
-      // not a template Meta withdrew: null here fails the whole broadcast and
-      // emails the owner that WhatsApp rejected it, which would be a lie about
-      // their Meta account told over a statement timeout. An email's or a text's
-      // version of the message is the row of its name and language on its channel.
-      template: async (name, language, channel) =>
-        must(
-          `broadcast_send: cannot read template ${name}`,
-          await db
-            .from("templates")
-            .select("meta_status, body_preview, category, components")
-            .eq("tenant_id", job.tenant_id)
-            .eq("channel", channel)
-            .eq("name", name)
-            .eq("language", language)
-            .maybeSingle(),
-        ),
+      // The message is its rows of that name and language on every channel: WhatsApp's `category` is Meta's verdict on
+      // what kind of message this is, and it decides which consent the send needs. A message that cannot be READ is not
+      // one Meta withdrew: the read throws, where none would fail the whole broadcast and email the owner that WhatsApp
+      // no longer approves it, which would be a lie about their Meta account told over a statement timeout.
+      message: (name, language) => messageVersionRowsOf(db, job.tenant_id, { name, language }),
       facts: () => workspaceFacts(db, job.tenant_id),
       ...peoplePorts(ctx, job.tenant_id),
       // Offers by email go only where this runtime holds a verified campaigns domain (the edge binds it for this job). An

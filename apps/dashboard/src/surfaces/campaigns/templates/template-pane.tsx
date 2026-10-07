@@ -85,10 +85,13 @@ export function TemplatePane(p: PaneProps) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState("");
   const [arm, setArm] = useState(false);
-  // Which of the message's channels is in view: WhatsApp's words as they always were, or its email or its text.
-  const [channel, setChannel] = useState<VersionChannel>("whatsapp");
+  // Which of the message's channels is in view: where it opens is the one its anchor is on (contracts rule 2: WhatsApp's,
+  // else the email's, else the text's), WhatsApp's words as they always were where it has them.
+  const [channel, setChannel] = useState<VersionChannel>(
+    () => g.rows.find((r) => r.lang.id === first.langId)?.message?.anchor.channel ?? "whatsapp",
+  );
   const facts = messageFacts({ g, langs, S, canAdd, addWhy, versions, view: { langId, back, adding, sentLang } });
-  const { present, lang, words, usage, marks, note, has } = facts;
+  const { present, onFile, lang, words, usage, marks, note, has, standing } = facts;
   const { view, row } = lang;
   const closeActs = () => {
     setRenaming(false);
@@ -127,6 +130,8 @@ export function TemplatePane(p: PaneProps) {
     onDelete,
     onWritten,
     present,
+    onFile,
+    standing,
     renaming,
     draft,
     arm,
@@ -157,7 +162,8 @@ export function TemplatePane(p: PaneProps) {
       />
     </div>
   );
-  const fills = channel === "whatsapp" ? null : versionFills({ g, S, present, row, view, values: words.values });
+  const own = [...has.email, ...has.sms];
+  const fills = channel === "whatsapp" ? null : versionFills({ g, S, present, row, own, view, values: words.values });
   const filedRow = channel === "whatsapp" ? null : (has[channel].find((r) => r.language === view) ?? null);
   const version =
     channel !== "whatsapp" && fills ? (
@@ -167,12 +173,17 @@ export function TemplatePane(p: PaneProps) {
         channel={channel}
         lang={lang.cur.lang}
         row={filedRow ? versionRowOf(filedRow) : null}
-        start={startingWords({ channel, g, language: view, whatsapp: words.body })}
+        start={startingWords({
+          channel,
+          g,
+          language: view,
+          copy: words.body || (own.find((r) => r.language === view)?.body_preview ?? ""),
+        })}
         slots={fills.slots}
         values={fills.values}
-        neverCarried={neverCarried(channel, g, row, present)}
+        neverCarried={neverCarried(channel, g, lang.message)}
         starterHas={!!(channel === "email" ? g.starter?.email?.[view] : g.starter?.sms?.[view])}
-        filed={g.rows.some((r) => r.row)}
+        filed={onFile.length > 0}
         canWrite={canWrite}
         busy={busy}
         onSave={(written) => onSaveVersion(g, lang.cur.lang, written)}

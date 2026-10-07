@@ -8429,7 +8429,9 @@ var TEMPLATE_CATEGORIES = ["marketing", "utility"];
 var TEMPLATE_BODY_MAX = 1024;
 var TEMPLATE_FOOTER_MAX = 60;
 var TEMPLATE_EXAMPLE_MAX = 100;
+var TEMPLATE_LABEL_MAX = 40;
 var TEMPLATE_NAME_MAX = 60;
+var TEMPLATE_NAME_WORDS = "The name needs letters, digits or underscores.";
 var TEMPLATE_BUTTON_TEXT_MAX = 25;
 var NAME = /^[a-z0-9_]{1,512}$/;
 function templateNameOk(name) {
@@ -8448,7 +8450,7 @@ function placeholdersSequential(positions) {
 }
 function validateTemplateDraft(d) {
   const name = slugTemplateName(d.name);
-  if (!name || !templateNameOk(name)) return { ok: false, error: "The name needs letters, digits or underscores." };
+  if (!name || !templateNameOk(name)) return { ok: false, error: TEMPLATE_NAME_WORDS };
   if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language))
     return { ok: false, error: "Pick a language from the list." };
   if (!TEMPLATE_CATEGORIES.includes(d.category))
@@ -9053,7 +9055,7 @@ function readFailure(stored) {
 var wordsFor = (w, channel) => typeof w === "string" ? w : w[channel];
 var BROADCAST_FAILURE_WORDS = {
   paused: "the workspace was paused",
-  template_not_approved: "WhatsApp no longer approves its template",
+  template_not_approved: "its WhatsApp version is no longer approved",
   wire_unavailable: {
     whatsapp: "WhatsApp could not be reached",
     sms: "the texting provider could not be reached",
@@ -9112,9 +9114,10 @@ var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not
 function wireFailure(code2, channel) {
   return channel === "whatsapp" ? code2 : `${code2}:${channel}`;
 }
+var WHATSAPP_VERSION_FIX_WORDS = "Open it in the Library \u2014 its WhatsApp version can be resubmitted, or the message written as an email or a text.";
 var BROADCAST_FAILURE_FIX = {
   paused: "Unpause it under Settings, then send it again.",
-  template_not_approved: "Open it in the Library \u2014 it can be resubmitted.",
+  template_not_approved: WHATSAPP_VERSION_FIX_WORDS,
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
   throttled: {
@@ -9151,7 +9154,7 @@ var BROADCAST_FAILURE_FIX_AFTER = {
   email_offers_paused: (n) => `The first ${n === 1 ? "one" : n} got it, then the workspace's offers by email were paused. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
 };
 var PLAYBOOK_RUN_REMEDY = {
-  template_not_approved: "Open it in the Library \u2014 it can be resubmitted.",
+  template_not_approved: WHATSAPP_VERSION_FIX_WORDS,
   wire_unavailable: null,
   run_interrupted: null,
   throttled: {
@@ -10024,8 +10027,8 @@ var HELD_REASONS = {
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
-  // Meta no longer approves the message's WhatsApp template: it holds the people who go by WhatsApp, and only them.
-  template_not_approved: "WhatsApp no longer approves its template",
+  // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
+  template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored
   // number that does not normalise, or one no contact row matches.
   no_thread: "no thread for that number",
@@ -10602,6 +10605,9 @@ var VERSION_CHANNEL_WORDS = {
   email: "Email",
   sms: "Text"
 };
+function noVersionWords(channel) {
+  return channel === "whatsapp" ? "This message has no WhatsApp version." : `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version yet.`;
+}
 var EMAIL_SUBJECT_MAX = 60;
 var EMAIL_BODY_MAX = 2e3;
 var SMS_SEGMENTS_MAX = 4;
@@ -10789,8 +10795,8 @@ var PREVIEW_WORDS = {
   heldBack: "Who's held back",
   /** A stand-in on a playbook's walk: how many people the run reaches on a channel. */
   people: (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`,
-  /** The message has no version on the channel the person is reached on, so its words cannot be drawn here. */
-  noVersion: (channel) => `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version to show here.`,
+  /** What a held-back person's stand-in says of itself: they are drawn the message's words, and nothing goes to them. */
+  notSent: "Not sent",
   /** Where an offer's foot puts the link, which is each person's own: the preview cannot make it. */
   unsubscribeLink: "(their own unsubscribe link)",
   /** The line under the business's name in the frame, as each channel's own app says it. */
@@ -10819,7 +10825,7 @@ function previewOn(channel, o) {
   const label = PREVIEW_CHANNEL_WORDS[channel];
   if (channel === "whatsapp") return { channel, label, version: null, foot: null, missing: null };
   const version = o.versions[channel] ?? null;
-  if (!version) return { channel, label, version: null, foot: null, missing: PREVIEW_WORDS.noVersion(channel) };
+  if (!version) return { channel, label, version: null, foot: null, missing: noVersionWords(channel) };
   if (channel === "email" && o.offer && !o.address?.trim())
     return { channel, label, version: null, foot: null, missing: OFFERS_BY_EMAIL_WORDS.noAddress };
   const foot = channel === "sms" ? smsStopLine(o.language) : emailFoot(
@@ -10846,7 +10852,7 @@ function previewSays(channels, o) {
       continue;
     }
     const words2 = o.versions[channel];
-    if (!words2) return { missing: channel, why: PREVIEW_WORDS.noVersion(channel) };
+    if (!words2) return { missing: channel, why: noVersionWords(channel) };
     const sent2 = renderOwnVersion(channel, words2, o.values, o.language);
     parts2.push(`${label}: ${sent2.subject ? `\u201C${sent2.subject}\u201D \u2014 ` : ""}${clip2(sent2.body)}`);
   }
@@ -12992,6 +12998,7 @@ function isBaselinePrompt(text) {
 var TENANT_STATUSES = ["active", "paused", "test"];
 var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
 var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
+var IDENTITY_ASSURANCES = ["observed", "asserted", "found"];
 var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
 var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
 var MESSAGE_DIRECTIONS = ["inbound", "outbound"];
@@ -13364,8 +13371,8 @@ var DECISION_VERBS = [
    */
   "consent_change",
   /**
-   * A broadcast: one approved template to the people who said yes. The
-   * decision to send (subject 'broadcast', payload the template, the
+   * A broadcast: one message, on the channels it holds, to the people who said
+   * yes. The decision to send (subject 'broadcast', payload the message, the
    * audience and the count) and the decision to stop one.
    */
   "send_broadcast",
@@ -24735,9 +24742,9 @@ function campaignsOf(d, tz, nowMs) {
 // src/templates/library-count.ts
 var LIBRARY_SAMPLES = /* @__PURE__ */ new Set(["hello_world"]);
 var isLibrarySample = (name) => LIBRARY_SAMPLES.has(name);
-function libraryCount(templates, emailRows) {
-  if (!templates) return null;
-  return templates.filter((t) => !isLibrarySample(t.name) && !t.hidden_at).length + emailRows;
+function libraryCount(messages, emailRows) {
+  if (!messages) return null;
+  return messages.filter((m) => !isLibrarySample(m.name) && !m.hidden).length + emailRows;
 }
 
 // src/templates/message-languages.ts
@@ -24758,7 +24765,7 @@ function languageLabels(codes) {
   return out;
 }
 var LANGUAGE_GROUP_WORDS = {
-  on: "On WhatsApp",
+  on: "On file",
   ready: "Ready to add",
   add: "Translate into"
 };
@@ -25138,23 +25145,63 @@ var PLAYBOOK_DELETE_WORDS = {
   detail: `Its runs stay in ${sent} with their numbers.`
 };
 var NO_TEMPLATE_WORDS = {
-  lead: "No approved template yet \u2014 add the starter set, write one here, or sync yours from WhatsApp Manager in the",
+  lead: "No message to send yet \u2014 add the starter set, or write one in the",
   link: library
 };
 function noMessageWords(forThisMoment) {
   return {
-    lead: `No approved message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one, or sync yours from WhatsApp Manager, in the`,
+    lead: `No message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one in the`,
     link: library
   };
 }
 var LIBRARY_WORDS = {
   title: library,
-  demo: `The ${library} reads a real workspace \u2014 what WhatsApp has approved for it.`,
+  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
   reading: `Reading the ${library}\u2026`,
   failed: `The ${library} couldn\u2019t be loaded right now`,
   failedWhat: `the ${library}`,
   failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
-  noNumber: `The ${library} holds what WhatsApp approves for a number, so it needs one.`
+  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
+  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
+  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
+  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
+  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
+  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
+  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
+};
+var NEW_MESSAGE_WORDS = {
+  /** The first choice's name: Email, Text or WhatsApp. */
+  where: "Where is it sent",
+  /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
+  sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
+  /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
+  own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+  /** What a text says after the carriers' sentence: the way out. */
+  textGoesByEmail: "This one can go by email.",
+  writeAsEmail: "Write it as an email",
+  /** The act that takes the last of a message's values away: only the last, so no value is renumbered under words that use it. */
+  removeValue: "Remove the last value",
+  /** Under the title: the name the message is filed under, which WhatsApp would know it by. */
+  knownAs: "WhatsApp would know it as",
+  titleMissing: "Give it a title.",
+  titleTooLong: (max) => `A title is at most ${max} characters.`,
+  titleNeedsWords: "A title needs letters or digits in it.",
+  nameTaken: "There is a message by that name already. Give this one another title.",
+  valuesNeedWords: "Give each value a name and an example.",
+  valueTooLong: (what, max) => `A value's ${what} is at most ${max} characters.`
+};
+var LIBRARY_STARTER_WORDS = {
+  /** The banner's second line: the languages it comes in, and what is written now. */
+  banner: (languages, hasNumber) => hasNumber ? `In ${languages} \u2014 email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.` : `In ${languages} \u2014 email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
+  /** The toast's clauses: what was written, what could not be, and what waits. */
+  versionsWritten: (n) => `${n} email and text version${n === 1 ? "" : "s"} written`,
+  versionsFailed: (n, why) => `${n} email and text version${n === 1 ? "" : "s"} could not be written${why ? `: ${why}` : ""}`,
+  waitsForNumber: "WhatsApp versions wait for a number",
+  /** The route's refusal when the channels it is asked for are none it knows. */
+  pickAChannel: "Pick at least one channel: WhatsApp, email or text."
+};
+var BROADCAST_WORDS = {
+  tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
 };
 var OFFERS_IN_WRITING_WORDS = {
   lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
@@ -25817,7 +25864,7 @@ function lifecycleHeadOf(input, stages) {
   return {
     title: LIFECYCLE_WORDS.title,
     sentence: parts2,
-    library: { label: LIFECYCLE_WORDS.library, count: libraryCount(input.library, emailRowsOf(input.reachOuts)) },
+    library: { label: LIFECYCLE_WORDS.library, count: libraryCount(input.messages, emailRowsOf(input.reachOuts)) },
     newMessage: LIFECYCLE_WORDS.newMessage,
     // The email channel's own read carries whether its offers are paused: said under the sentence while they are.
     pausedLine: offersPausedLine(input.broadcasts?.ready?.email.offers)
@@ -29526,6 +29573,153 @@ function pageVitalsWords(rows) {
   }
   return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
 }
+
+// src/templates/campaign-message.ts
+function variablesSlotCount(variables) {
+  if (!Array.isArray(variables)) return 0;
+  const positions = variables.map((v) => Number(v?.position)).filter((position) => Number.isFinite(position));
+  return Math.max(variables.length, ...positions);
+}
+function statusOf(raw) {
+  return TEMPLATE_STATUSES.find((s) => s === raw) ?? "pending";
+}
+function strictestCategory(categories) {
+  if (categories.some((c) => purposeOfTemplate(c) === "marketing")) return "marketing";
+  return categories.find((c) => c !== null) ?? null;
+}
+function whatsappVersionOf(row2) {
+  const status = statusOf(row2.meta_status);
+  return {
+    id: row2.id,
+    status,
+    hidden: Boolean(row2.hidden_at),
+    blocked: templateBlocked(row2),
+    reason: status === "rejected" ? refusedWords(row2.rejected_reason) : null
+  };
+}
+function messageFrom(name, language, rows) {
+  const {
+    whatsapp: [w = null],
+    email: [e = null],
+    sms: [s = null]
+  } = versionsOf(rows, name);
+  const anchorRow = w ?? e ?? s;
+  if (anchorRow === null) return null;
+  const category = w ? w.category ?? null : strictestCategory([e, s].flatMap((r2) => r2 ? [r2.category ?? null] : []));
+  const versions = {
+    whatsapp: w ? whatsappVersionOf(w) : null,
+    email: e ? { id: e.id } : null,
+    sms: s ? { id: s.id } : null
+  };
+  const held = messageHolds({ versions });
+  const hidden = Boolean(anchorRow.hidden_at);
+  const titled = [w, e, s].map((r2) => r2?.title ?? null).find((t) => t !== null && t.trim() !== "") ?? null;
+  return {
+    name,
+    language,
+    title: templateTitle(name, titled),
+    anchor: { id: anchorRow.id, channel: w ? "whatsapp" : e ? "email" : "sms" },
+    slots: variablesSlotCount((w ?? anchorRow).variables),
+    category,
+    purpose: purposeOfTemplate(category),
+    hidden,
+    offered: !hidden && CONSENT_CHANNELS.some((c) => held[c]),
+    versions
+  };
+}
+function campaignMessageOf(rows, name, language) {
+  return messageFrom(
+    name,
+    language,
+    rows.filter((r2) => r2.language === language)
+  );
+}
+function campaignMessagesOf(rows) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const r2 of rows) {
+    if (isReachOutRow(r2)) continue;
+    const key = JSON.stringify([r2.name, r2.language]);
+    const group = groups.get(key) ?? { name: r2.name, language: r2.language, rows: [] };
+    group.rows.push(r2);
+    groups.set(key, group);
+  }
+  return [...groups.values()].flatMap((g) => {
+    const message = messageFrom(g.name, g.language, g.rows);
+    return message ? [message] : [];
+  });
+}
+function messageHolds(m) {
+  const w = m.versions.whatsapp;
+  return {
+    whatsapp: w !== null && w.status === "approved" && w.blocked === null,
+    email: m.versions.email !== null,
+    sms: m.versions.sms !== null
+  };
+}
+var NOT_APPROVED_WORDS = {
+  pending: "WhatsApp is still reviewing this message's WhatsApp version.",
+  rejected: "WhatsApp refused this message's WhatsApp version.",
+  paused: "WhatsApp has paused this message's WhatsApp version.",
+  disabled: "WhatsApp has disabled this message's WhatsApp version."
+};
+function messageWhyNot(m, channel) {
+  if (messageHolds(m)[channel]) return null;
+  const w = m.versions.whatsapp;
+  if (channel !== "whatsapp" || w === null) return noVersionWords(channel);
+  if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
+  return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
+}
+var HOLDS_NOTHING = { versions: { whatsapp: null, email: null, sms: null } };
+function readyForMessage(ready, message) {
+  const out = { ...ready };
+  for (const c of CONSENT_CHANNELS) {
+    const why = messageWhyNot(message ?? HOLDS_NOTHING, c);
+    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
+  }
+  return out;
+}
+var WHATSAPP_STANDING_WORDS = {
+  approved: "approved",
+  pending: "in review",
+  rejected: "refused",
+  paused: "paused",
+  disabled: "disabled"
+};
+function messageStandingWords(m) {
+  const at3 = (channel, word) => `${VERSION_CHANNEL_WORDS[channel]} \xB7 ${word}`;
+  const w = m?.versions.whatsapp ?? null;
+  return {
+    whatsapp: at3("whatsapp", w ? WHATSAPP_STANDING_WORDS[w.status] : "not added"),
+    email: at3("email", m?.versions.email ? "ready" : "not written"),
+    sms: at3("sms", m?.versions.sms ? "ready" : m?.purpose === "marketing" ? "not for offers" : "not written")
+  };
+}
+function whatsappStoppedRunWords(m) {
+  const why = m === null ? null : messageWhyNot(m, "whatsapp");
+  return `${why ?? noVersionWords("whatsapp")} Everyone on this run goes by WhatsApp, so nothing was sent.`;
+}
+var NO_RUN_VERSION_WORDS = "has no version its runs can send";
+var MESSAGE_GONE_WORDS = {
+  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the playbook sends another.`,
+  composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
+};
+var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the playbook.";
+var STARTER_LINE_WORDS = {
+  /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
+  reviewing: (n) => `Your starter messages' WhatsApp versions are in review (${n}) \u2014 they appear here once approved, usually within minutes.`,
+  /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
+  standing: (status) => {
+    const at3 = statusOf(status);
+    return at3 === "pending" ? "has its WhatsApp version in review \u2014 it appears here once approved, usually within minutes." : `has its WhatsApp version ${WHATSAPP_STANDING_WORDS[at3]} \u2014 see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}.`;
+  },
+  /** The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number is. */
+  add: "Add it \u2014 its email and text versions are written at once, and where a number is connected WhatsApp reviews its WhatsApp version, usually within minutes"
+};
+var MESSAGE_BEGIN_WORDS = {
+  customIsAnOffer: "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
+  starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.",
+  doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet."
+};
 
 // src/templates/message-version-slots.ts
 var partWritten = (part) => part.written ?? slotWritten(part.slot);
@@ -33401,6 +33595,7 @@ export {
   BROADCAST_STATES,
   BROADCAST_STATE_LABELS,
   BROADCAST_THROTTLE_WAITS_MS,
+  BROADCAST_WORDS,
   BROKEN_CONFIG_WORDS,
   BUILTIN_LISTS,
   BUSINESS_INDUSTRIES,
@@ -33562,6 +33757,7 @@ export {
   HELD_WORDS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
+  IDENTITY_ASSURANCES,
   INSTRUCTIONS_MAX,
   INTENT_LABELS,
   INVOICE_STATUS_WORDS,
@@ -33679,6 +33875,7 @@ export {
   LEAD_UNREACHABLE_WORD,
   LEAD_WORDS,
   LENS_ROUTES,
+  LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
@@ -33718,8 +33915,10 @@ export {
   MERGE_CONSENT_SOURCE,
   MERGE_REFUSALS,
   MERGE_WORDS,
+  MESSAGE_BEGIN_WORDS,
   MESSAGE_CHANNELS,
   MESSAGE_DIRECTIONS,
+  MESSAGE_GONE_WORDS,
   MESSAGE_MOMENT_WORDS,
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
@@ -33737,6 +33936,7 @@ export {
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
   NEEDS_TITLE,
+  NEW_MESSAGE_WORDS,
   NEW_WINDOW_DAYS,
   NOTE_MAX,
   NOTE_REFUSALS,
@@ -33971,6 +34171,7 @@ export {
   RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,
+  RUN_NOW_WITHOUT_VERSION_WORDS,
   RUN_REPORT_STEPS,
   RUN_VERBS,
   SAME_SITTING_MS,
@@ -34018,6 +34219,7 @@ export {
   SPEND_NUMBER,
   SPEND_TEXTING,
   STARTER_LANGUAGES,
+  STARTER_LINE_WORDS,
   STARTER_TEMPLATES,
   START_PLAN_WORDS,
   STEP_SHEET_WORDS,
@@ -34029,8 +34231,10 @@ export {
   TEMPLATE_CATEGORIES,
   TEMPLATE_EXAMPLE_MAX,
   TEMPLATE_FOOTER_MAX,
+  TEMPLATE_LABEL_MAX,
   TEMPLATE_LANGUAGES,
   TEMPLATE_NAME_MAX,
+  TEMPLATE_NAME_WORDS,
   TEMPLATE_STATUSES,
   TEMPLATE_TITLE_MAX,
   TENANT_STATUSES,
@@ -34186,6 +34390,8 @@ export {
   callsToday,
   cameFromOf,
   campaignEmailRules,
+  campaignMessageOf,
+  campaignMessagesOf,
   campaignsHomeOf,
   cannotRows,
   capabilityStatus,
@@ -34700,11 +34906,14 @@ export {
   messageAt,
   messageAuthor,
   messageFitsMoment,
+  messageHolds,
   messageLanguageChoices,
+  messageStandingWords,
   messageStatusLabel,
   messageText,
   messageVia,
   messageWhy,
+  messageWhyNot,
   messageWords,
   missedCall,
   missedCallIsNews,
@@ -34737,6 +34946,7 @@ export {
   noNumberWords,
   noProposalSince,
   noTemplateWords,
+  noVersionWords,
   nonBlankOrNull,
   normalizeAnswer,
   normalizeEmail,
@@ -35003,6 +35213,7 @@ export {
   readingSystemPrompt,
   readingUserContent,
   readsAsModel,
+  readyForMessage,
   readyOrWhatsApp,
   reasonLabelOf,
   reasonShort,
@@ -35310,6 +35521,7 @@ export {
   validateReachOutWords,
   validateSmsVersion,
   validateTemplateDraft,
+  variablesSlotCount,
   verbForRoute,
   verbalOptInScript,
   verifyCodeWords,
@@ -35347,6 +35559,7 @@ export {
   weekHoursOf,
   weekOf,
   whatsappOffersOpen,
+  whatsappStoppedRunWords,
   whenLabel,
   whisperText,
   wholeDaysSince,

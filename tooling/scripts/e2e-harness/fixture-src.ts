@@ -38,6 +38,7 @@ import { pipelineHelpers } from "@/surfaces/people/pipeline-helpers";
 import { installTabMemory } from "@/legacy-bridge/tab-memory";
 import { installNotifications } from "@/legacy-bridge/notifications";
 import { installAsk } from "@/legacy-bridge/ask";
+import { templatesRead } from "./templates-read.mjs";
 
 interface Scenario {
   name: string;
@@ -53,6 +54,8 @@ interface Scenario {
   sellsBy?: string;
   /** The bell's kept rows, as GET notifications hands them over (scenarios.mjs bellNotes). */
   notifications?: C.NotificationDto[];
+  /** The workspace's template rows, as the table holds them, whatever channel: WhatsApp's and a message's email and text. */
+  templates?: C.CampaignMessageRow[];
 }
 
 const w = window as unknown as Record<string, any>;
@@ -183,8 +186,17 @@ w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };
 // width; and the template list was a constant HERE until the messages moved to the scenario, which handed the seeded
 // workspace an approved message its own seed writes no row for.
 const profile = (S.config.brain.profile ?? {}) as Record<string, any>;
-// The scenario's own approved messages, counted rather than claimed.
-const approvedTemplates = (S.templates ?? []).filter((t: any) => t.meta_status === "approved");
+// The scenario's own templates as GET templates?all=1 hands them over (templates-read.mjs), and the WhatsApp ones among
+// them, which are all Settings publishes as __TEMPLATES_ALL (legacy-bridge/surfaces/settings.ts): the Inbox, Setup and the
+// phone read WhatsApp's alone, and a message's email and text versions belong to the Library's own list.
+const whatsappTemplates: any[] = templatesRead(S.templates ?? [], { all: true }).templates.filter(
+  (t: any) => t.channel === "whatsapp",
+);
+// Meta's verdicts, counted rather than claimed and as the real read counts them (server/workspace/setup.ts
+// templatesSection): a WhatsApp row Meta approved or is still reading, not hidden. An email or a text version is approved
+// the moment it is written, nobody's verdict but its author's, so a record's messages with no WhatsApp row add nothing here.
+const verdicts = (status: string) => whatsappTemplates.filter((t) => t.meta_status === status && !t.hidden_at);
+const approvedTemplates = verdicts("approved");
 const answered = new Date(Date.now() - 3_600_000).toISOString();
 const channel = (kind: string) => {
   const c = S.known.channels?.find((x: any) => x.kind === kind) ?? null;
@@ -202,7 +214,11 @@ const setupDto = {
     broken: false,
   },
   channels: { whatsapp: { ...channel("whatsapp"), quality: null }, voice: channel("voice") },
-  templates: { approved: approvedTemplates.length, pending: 0, startersApproved: approvedTemplates.length },
+  templates: {
+    approved: approvedTemplates.length,
+    pending: verdicts("pending").length,
+    startersApproved: approvedTemplates.filter((t) => C.starterByName(t.name) !== null).length,
+  },
   calendar: { state: (S.config as any).calendar ? ("ok" as const) : ("none" as const) },
   team: { members: 1, invitesOpen: 0, alertEmails: 0 },
   consent: { yes: 0, offers: 0, offersSaidYes: 0 },
@@ -230,7 +246,7 @@ w.__POLICIES = {
   ],
   role: S.role,
 };
-w.__TEMPLATES_ALL = S.templates ?? [];
+w.__TEMPLATES_ALL = whatsappTemplates;
 // No __CHANNELS. The bridge publishes `toChannelVM(c, now)` (surface-data.ts), and defining the global at all flips
 // Settings' Connections pane -- so a hand-built row would draw a pane no spec here opens, out of a shape
 // the product does not use. The channels reach the page where the page reads them: in the facts, resolved above.

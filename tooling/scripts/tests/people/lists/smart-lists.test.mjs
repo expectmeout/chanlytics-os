@@ -411,7 +411,23 @@ const { checkPlaybook } = await import(at("packages/core/src/campaigns/check-pla
 
 function runPorts() {
   const log = [];
-  const answer = { template: { meta_status: "approved" }, alreadyRan: false, create: "b1" };
+  // The message's rows (db messageVersionRowsOf): the approved WhatsApp row of the playbook's message, pbRow's.
+  const row = {
+    id: "tpl-1",
+    channel: "whatsapp",
+    name: "offer",
+    language: "en_US",
+    meta_status: "approved",
+    category: null,
+    variables: [],
+    hidden_at: null,
+    title: null,
+    source: "meta",
+    components: [],
+    body_preview: null,
+    rejected_reason: null,
+  };
+  const answer = { message: [row], alreadyRan: false, create: "b1" };
   const ports = new Proxy(
     {},
     {
@@ -523,19 +539,25 @@ test("a run on a list: its people, and a list deleted under it runs nobody and s
 });
 
 test("a playbook on a list names it, the workspace's own, and takes its name when none was given", async () => {
+  // The message's rows (db messageVersionRowsOf): the approved WhatsApp row the body's template_id names.
   const template = {
-    id: "tpl-1",
+    id: "11111111-1111-4111-8111-111111111111",
+    channel: "whatsapp",
     name: "autumn_offer",
     language: "en_US",
     category: "marketing",
     meta_status: "approved",
     variables: [],
+    hidden_at: null,
+    source: "meta",
+    components: [],
     body_preview: "Hi",
     title: "Autumn offer",
+    rejected_reason: null,
   };
   const L = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
   const ports = {
-    template: async () => template,
+    message: async () => [template],
     bookingLink: async () => null,
     businessName: async () => "Studio",
     listName: async (id) => (id === L ? "Regulars" : null),

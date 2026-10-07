@@ -5995,6 +5995,21 @@ type Database = {
                 };
                 Returns: Json;
             };
+            create_message_version: {
+                Args: {
+                    p_body: string;
+                    p_category: string;
+                    p_channel: string;
+                    p_language: string;
+                    p_name: string;
+                    p_subject: string;
+                    p_tenant_id: string;
+                    p_title: string;
+                    p_user: string;
+                    p_variables: Json;
+                };
+                Returns: Json;
+            };
             create_person: {
                 Args: {
                     p_display_name: string;

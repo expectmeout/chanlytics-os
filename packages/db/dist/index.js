@@ -2824,8 +2824,13 @@ async function releaseControl(db, p) {
 }
 
 // src/repositories/templates.ts
+import {
+  isReachOutRow,
+  variablesSlotCount
+} from "../../contracts/dist/index.js";
 async function templatesFor(db, tenantId, channel = "whatsapp") {
-  const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId).eq("channel", channel);
+  const ofTenant = db.from("templates").select("id, channel, name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId);
+  const { data, error } = await (channel === null ? ofTenant : ofTenant.eq("channel", channel));
   if (error) throw new Error(`templatesFor: ${error.message}`);
   return data ?? [];
 }
@@ -2833,11 +2838,6 @@ async function templatesToSend(db, tenantId, channel = "whatsapp") {
   const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables, components").eq("tenant_id", tenantId).eq("channel", channel);
   if (error) throw new Error(`templatesToSend: ${error.message}`);
   return data ?? [];
-}
-function slotsOf(variables) {
-  if (!Array.isArray(variables)) return 0;
-  const positions = variables.map((v) => Number(v?.position)).filter(Number.isFinite);
-  return Math.max(variables.length, ...positions);
 }
 async function messageSlots(db, tenantId, name, language) {
   const { data, error } = await db.from("templates").select("channel, language, variables").eq("tenant_id", tenantId).eq("name", name);
@@ -2847,7 +2847,20 @@ async function messageSlots(db, tenantId, name, language) {
     return wa || Number(b.language === language) - Number(a.language === language);
   });
   const row = rows[0];
-  return row ? slotsOf(row.variables) : null;
+  return row ? variablesSlotCount(row.variables) : null;
+}
+async function messageOfVersion(db, tenantId, id) {
+  const { data, error } = await db.from("templates").select("name, language").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data;
+}
+var MESSAGE_COLUMNS = "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
+async function messageVersionRowsOf(db, tenantId, by) {
+  const message = "id" in by ? await messageOfVersion(db, tenantId, by.id) : by;
+  if (message === null || isReachOutRow(message)) return [];
+  const { data, error } = await db.from("templates").select(MESSAGE_COLUMNS).eq("tenant_id", tenantId).eq("name", message.name).eq("language", message.language);
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data ?? [];
 }
 async function ownVersionsFiled(db, tenantId, names) {
   if (names.length === 0) return [];
@@ -2872,6 +2885,27 @@ async function saveTemplateVersion(db, p) {
   const version = versionRefOf(data);
   if (!version) throw new Error("saveTemplateVersion: the door answered without the version it wrote");
   return { ok: true, version };
+}
+async function createMessageVersion(db, p) {
+  const { data, error } = await db.rpc("create_message_version", {
+    p_tenant_id: p.tenantId,
+    p_user: p.userId,
+    p_name: p.name,
+    p_language: p.language,
+    p_channel: p.channel,
+    p_subject: p.subject ?? "",
+    p_body: p.body,
+    p_category: p.category,
+    p_variables: p.variables,
+    p_title: p.title ?? ""
+  });
+  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  const version = versionRefOf(data);
+  if (!version) throw new Error("createMessageVersion: the door answered without the version it wrote");
+  return { ok: true, version };
+}
+function isMissingDoor(error) {
+  return error.code === "PGRST202" || error.code === "42883";
 }
 async function removeTemplateVersion(db, templateId) {
   const { data, error } = await db.rpc("remove_template_version", { p_template_id: templateId });
@@ -3835,6 +3869,7 @@ export {
   countSendingDomains,
   countSentToday,
   createList,
+  createMessageVersion,
   createServiceClient,
   createWorkspaceFn,
   createWorkspaceForBusiness,
@@ -3896,6 +3931,7 @@ export {
   insertVoiceSession,
   invitePartner,
   inviteUserByEmail,
+  isMissingDoor,
   isWorkspaceCall,
   keepChannelQuality,
   keepChannelStanding,
@@ -3928,6 +3964,7 @@ export {
   messageByExternalId,
   messageSenders,
   messageSlots,
+  messageVersionRowsOf,
   migrationHead,
   monthSent,
   moveSend,

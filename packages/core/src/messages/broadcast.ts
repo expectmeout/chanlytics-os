@@ -7,16 +7,20 @@ import {
   type EmailHold,
   type JobNews,
   audienceTrigger,
+  campaignMessageOf,
   firstNameOf,
   isOfferByEmail,
   isReachOutRun,
   jittered,
   messageAboutOfTrigger,
+  messageHolds,
   nextOpenMoment,
   parseParamSpecs,
   purposeOfTemplate,
   resolveParams,
   triggerOf,
+  versionsOf,
+  whatsappStoppedRunWords,
   wireFailure,
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
@@ -277,8 +281,8 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
  * BROADCAST_CHUNK of them, each on their own channel -- WhatsApp's template, a text's version, an email's version from
  * the hosted mailbox -- re-checking each person at the wire, the one place a miss is unrecoverable, and records why
  * anyone was held back. Then it schedules itself again for the rest, or closes the broadcast and tells the workspace.
- * A canceled broadcast stops at the next batch; a template that is no longer approved fails it before a single send; a
- * wire that is down fails it at the first person it cannot reach.
+ * A canceled broadcast stops at the next batch; a WhatsApp version that is no longer approved fails a run that goes by
+ * WhatsApp alone before a single send; a wire that is down fails it at the first person it cannot reach.
  */
 export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: BroadcastBatchCommand): Promise<void> {
   const b = await ports.broadcast(cmd.broadcastId);
@@ -301,11 +305,16 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // and this write is the row's answer, and the batch sends nothing.
   if (b.state === "scheduled" && !(await ports.startSending(b.id))) return;
 
-  // WhatsApp's template must still be what Meta approved. When it is not, that holds the run's WhatsApp people alone
-  // (sendOne skips them, template_not_approved) and the run goes on for whoever is on email or text, on their own
-  // versions; only a run with nobody else on it fails, before a single send.
-  const tpl = await ports.template(b.template_name, b.template_language, "whatsapp");
-  const whatsappApproved = tpl?.meta_status === "approved";
+  // The message, read once: its rows on every channel. Its WhatsApp version must still be what Meta approved (and whole,
+  // contracts messageHolds). When it is not, that holds the run's WhatsApp people alone (sendOne skips them,
+  // template_not_approved) and the run goes on for whoever is on email or text, on their own versions; only a run with
+  // nobody else on it fails, before a single send. A message with no row at all holds nobody's WhatsApp, as a missing row did.
+  const rows = await ports.message(b.template_name, b.template_language);
+  const message = campaignMessageOf(rows, b.template_name, b.template_language);
+  const {
+    whatsapp: [whatsappRow = null],
+  } = versionsOf(rows, b.template_name);
+  const whatsappApproved = message !== null && messageHolds(message).whatsapp;
   if (!whatsappApproved && !(await ports.byOtherChannels(b.id, "whatsapp"))) {
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
@@ -313,16 +322,18 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       route: "broadcasts",
       about: { type: "broadcast", id: b.id },
       subject: `Broadcast “${b.name}” stopped`,
-      body: `The template “${b.template_name}” is no longer approved by WhatsApp, so nothing was sent.`,
+      body: whatsappStoppedRunWords(message),
     });
     return;
   }
 
-  // WHICH yes this send needs. Meta's category is the authority — it can recategorise a live template — and
-  // purposeOfTemplate fails closed, so a template whose category we do not have reads as marketing and needs the stronger
-  // consent rather than the weaker one. Whichever channel it goes by. (What fills each slot, typed text once and the rest
-  // per person, and the workspace's own words for the slots that name it, are `facts`, read once above.)
-  const purpose = purposeOfTemplate(tpl?.category);
+  // WHICH yes this send needs. The message's own purpose (contracts campaignMessageOf): Meta's category is the authority
+  // where it has a WhatsApp row, in any status — it can recategorise a live template — and else the category its email's
+  // and text's rows carry. purposeOfTemplate fails closed, so a message whose category we do not have (or that has no row at
+  // all) reads as marketing and needs the stronger consent rather than the weaker one. Whichever channel it goes by. (What
+  // fills each slot, typed text once and the rest per person, and the workspace's own words for the slots that name it, are
+  // `facts`, read once above.)
+  const purpose = message?.purpose ?? purposeOfTemplate(undefined);
   // The moment a playbook's run was made for (contracts audienceTrigger), null for a broadcast: a visit run is never held by the
   // month's allowance, and what its message is about, the pause it passes and whether it is an offer by email follow from it.
   const trigger = audienceTrigger(b.audience);
@@ -334,15 +345,15 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     ports,
     cmd,
     b,
-    // The message's own purpose, kept when Meta no longer approves its WhatsApp row (a row that is gone reads as marketing).
+    // The message's own purpose, kept when Meta no longer approves its WhatsApp row (a message that is gone reads as marketing).
     purpose,
-    tpl: tpl ?? { body_preview: null },
+    tpl: whatsappRow ?? { body_preview: null },
     whatsappApproved,
+    rows,
     specs: parseParamSpecs(b.params),
     facts,
     people,
     priors,
-    versions: {},
     month: {},
     offersClosed: head === "closed",
     // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.
