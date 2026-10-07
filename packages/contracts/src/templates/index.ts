@@ -97,7 +97,13 @@ export type {
   EmailIssue,
   EmailRules,
 } from "./message-versions";
-export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot } from "./campaign-message";
+export {
+  campaignMessageOf,
+  campaignMessagesOf,
+  messageHolds,
+  messageWhyNot,
+  whatsappStoppedRunWords,
+} from "./campaign-message";
 export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";
 export { fillSlots, numberedSlots, slotValueOf, slotWritten } from "./slot-sets";
 export type { SlotKey, SlotSet, SlotValue } from "./slot-sets";

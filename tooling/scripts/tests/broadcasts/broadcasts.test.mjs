@@ -346,9 +346,11 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
   assert.ok(h.includes("batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit })"));
   assert.ok(BROADCAST_CHUNK === 25);
   assert.ok(
-    // And its components, where an email version keeps its subject: a version is a row of the same name on its channel.
-    h.includes('.select("meta_status, body_preview, category, components")'),
-    "the category is selected: it decides which yes the send needs",
+    // The message is db's read too (templates.ts messageVersionRowsOf, run against the database in memory by
+    // message-version-rows.test.mjs): every row of its name and language, whatever its channel, with the category and the
+    // components an email version keeps its subject in.
+    h.includes("message: (name, language) => messageVersionRowsOf(db, job.tenant_id, { name, language })"),
+    "the message is read whole: its category decides which yes the send needs",
   );
   assert.ok(
     // (The list is long enough to stand on its own lines, and ends with their answer about offers by email: an offer's
@@ -443,11 +445,14 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
   // and a paid template blast then goes out under a subscription that stopped.
   await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "tenants.select": blip })), job), /cannot read the workspace/);
 
-  // The worst of the three. A null template reads as "no longer approved by
-  // WhatsApp": the broadcast is terminally failed and the owner is emailed
+  // The worst of the three. A message with no rows reads as one WhatsApp no
+  // longer approves: the broadcast is terminally failed and the owner is emailed
   // something untrue about their Meta account, over a statement timeout.
   const w = world();
-  await assert.rejects(dispatchJob(ctx(fakeDb(w, { "templates.select": blip })), job), /cannot read template/);
+  await assert.rejects(
+    dispatchJob(ctx(fakeDb(w, { "templates.select": blip })), job),
+    /messageVersionRowsOf: canceling statement due to statement timeout/,
+  );
   assert.notEqual(w.broadcasts[0].state, "failed", "not failed over a read that did not happen");
   assert.deepEqual(sent, [], "and nobody is told WhatsApp rejected a template it did not reject");
 

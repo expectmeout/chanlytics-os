@@ -2,7 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
 import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, EmailHold, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignHow, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
-import { Json, Database, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
+import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
 /**
  * The wires a workspace's words leave on: WhatsApp's from its credentials, and email's bound to its own addresses.
@@ -837,16 +837,14 @@ interface BroadcastBatchPorts {
     /** scheduled → sending, only while scheduled. True iff the row changed: false is a cancel that landed first. */
     startSending(id: string): Promise<boolean>;
     /**
-     * The template of this name and language on a channel: WhatsApp's as Meta has it, or the email or text version of the
-     * message (a templates row of that name and language on that channel): its status, its words (`components` is where an
-     * email's subject is stored), its category. Null when gone; throws when it cannot be read.
+     * The message of this name and language, as the rows the workspace holds of it now, whatever their channel: WhatsApp's as
+     * Meta has it (its status, its category, its words), and the email's and the text's, written here and approved the moment
+     * they were saved (`components` is where an email's subject is stored). contracts campaignMessageOf picks the versions out of
+     * them. None when it has no row; THROWS when it cannot be read: a message that could not be looked for is not one WhatsApp
+     * withdrew, and none fails the whole run and tells the owner WhatsApp no longer approves it, a lie about their account told
+     * over a statement timeout.
      */
-    template(name: string, language: string, channel: Channel): Promise<{
-        meta_status: string | null;
-        body_preview: string | null;
-        category: string | null;
-        components?: unknown;
-    } | null>;
+    message(name: string, language: string): Promise<MessageVersionRow[]>;
     /**
      * The workspace's own words for the slots that name it, and its clock (IANA zone), which the sending hours are kept
      * by; and the postal address its emails' foot gives (the Business record's), null when it has none.
@@ -1459,8 +1457,8 @@ declare const BROADCAST_STALLS_MAX = 30;
  * BROADCAST_CHUNK of them, each on their own channel -- WhatsApp's template, a text's version, an email's version from
  * the hosted mailbox -- re-checking each person at the wire, the one place a miss is unrecoverable, and records why
  * anyone was held back. Then it schedules itself again for the rest, or closes the broadcast and tells the workspace.
- * A canceled broadcast stops at the next batch; a template that is no longer approved fails it before a single send; a
- * wire that is down fails it at the first person it cannot reach.
+ * A canceled broadcast stops at the next batch; a WhatsApp version that is no longer approved fails a run that goes by
+ * WhatsApp alone before a single send; a wire that is down fails it at the first person it cannot reach.
  */
 declare function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: BroadcastBatchCommand): Promise<void>;
 

@@ -196,7 +196,7 @@
   "apps/edge/lib/whatsapp/template-admin.ts": 9,
   "apps/edge/lib/whatsapp/waba-events.ts": 6,
   "packages/core/src/deliver.ts": 5,
-  "packages/jobs/src/broadcast-send.ts": 12,
+  "packages/jobs/src/broadcast-send.ts": 11,
   "packages/jobs/src/escalate.ts": 3,
   "packages/jobs/src/handlers.ts": 9,
   "packages/jobs/src/ledger.ts": 3,

@@ -29520,6 +29520,7 @@ var NOT_APPROVED_WORDS = {
   paused: "WhatsApp has paused this message's WhatsApp version.",
   disabled: "WhatsApp has disabled this message's WhatsApp version."
 };
+var NO_WHATSAPP_VERSION_WORDS = "This message has no WhatsApp version.";
 var NO_OWN_VERSION_WORDS = {
   email: `This message has no ${VERSION_CHANNEL_WORDS.email.toLowerCase()} version yet.`,
   sms: `This message has no ${VERSION_CHANNEL_WORDS.sms.toLowerCase()} version yet.`
@@ -29528,9 +29529,13 @@ function messageWhyNot(m, channel) {
   if (messageHolds(m)[channel]) return null;
   if (channel !== "whatsapp") return NO_OWN_VERSION_WORDS[channel];
   const w = m.versions.whatsapp;
-  if (w === null) return "This message has no WhatsApp version.";
+  if (w === null) return NO_WHATSAPP_VERSION_WORDS;
   if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
   return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
+}
+function whatsappStoppedRunWords(m) {
+  const why = m === null ? null : messageWhyNot(m, "whatsapp");
+  return `${why ?? NO_WHATSAPP_VERSION_WORDS} Everyone on this run goes by WhatsApp, so nothing was sent.`;
 }
 
 // src/templates/message-version-slots.ts
@@ -35352,6 +35357,7 @@ export {
   websiteHostOf,
   weekHoursOf,
   weekOf,
+  whatsappStoppedRunWords,
   whenLabel,
   whisperText,
   wholeDaysSince,

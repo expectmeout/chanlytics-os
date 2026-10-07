@@ -213,6 +213,9 @@ const NOT_APPROVED_WORDS: Record<Exclude<TemplateStatus, "approved">, string> = 
   disabled: "WhatsApp has disabled this message's WhatsApp version.",
 };
 
+/** What WhatsApp says when the message has no row there. */
+const NO_WHATSAPP_VERSION_WORDS = "This message has no WhatsApp version.";
+
 /** What an email or a text says when the message has no row there. */
 const NO_OWN_VERSION_WORDS: Record<OwnVersionChannel, string> = {
   email: `This message has no ${VERSION_CHANNEL_WORDS.email.toLowerCase()} version yet.`,
@@ -228,9 +231,20 @@ export function messageWhyNot(m: Pick<CampaignMessage, "versions">, channel: Con
   if (messageHolds(m)[channel]) return null;
   if (channel !== "whatsapp") return NO_OWN_VERSION_WORDS[channel];
   const w = m.versions.whatsapp;
-  if (w === null) return "This message has no WhatsApp version.";
+  if (w === null) return NO_WHATSAPP_VERSION_WORDS;
   if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
   return w.blocked === null
     ? null
     : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
+}
+
+/**
+ * What the owner is told when a run stops before it sends a thing: the message's WhatsApp version is not one this product
+ * can send now, and everyone on the run goes by WhatsApp (core sendBroadcastBatch; a run with anyone on email or text goes
+ * on for them). It says why the version is held in the words messageWhyNot has for it, then what that left. A message the
+ * workspace no longer holds a row of (null) has no WhatsApp version either.
+ */
+export function whatsappStoppedRunWords(m: Pick<CampaignMessage, "versions"> | null): string {
+  const why = m === null ? null : messageWhyNot(m, "whatsapp");
+  return `${why ?? NO_WHATSAPP_VERSION_WORDS} Everyone on this run goes by WhatsApp, so nothing was sent.`;
 }

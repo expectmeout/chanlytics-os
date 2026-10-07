@@ -505,3 +505,63 @@ test("a door that throws before the wire leaves no email queued: the row it was 
     "the claim stands: nobody knows the door did not reach the wire",
   );
 });
+
+/** The email and text versions of the reminder as the workspace writes them: approved at once, with no WhatsApp row beside them. */
+const ownRows = (category) => [
+  template("sms", { source: "chanlytics", category, components: [{ type: "BODY", text: VISIT_WORDS }] }),
+  template("email", {
+    source: "chanlytics",
+    category,
+    components: [
+      { type: "HEADER", format: "TEXT", text: "Your visit, {{1}}" },
+      { type: "BODY", text: VISIT_WORDS },
+    ],
+  }),
+];
+
+test("a message with no WhatsApp row goes by text and by email to the people who said yes only to messages, through the real job and door, and nobody is skipped for the row it has not got", async () => {
+  const t = world({
+    templates: ownRows("utility"),
+    broadcast_recipients: [recipient("k2", "sms"), recipient("k3", "email")],
+  });
+  const w = context(t);
+  try {
+    await dispatchJob(w.ctx, JOB);
+  } finally {
+    w.restore();
+  }
+  assert.deepEqual(
+    t.broadcast_recipients.map((r) => [r.contact_id, r.channel, r.state, r.reason ?? null]),
+    [
+      ["k2", "sms", "sent", null],
+      ["k3", "email", "sent", null],
+    ],
+  );
+  assert.equal(t.broadcasts[0].state, "sent");
+  assert.equal(w.wa.length, 0, "no WhatsApp message, no WhatsApp number asked for");
+  assert.deepEqual(
+    w.sms.map((s) => [s.to, s.p.body]),
+    [["+15551230002", "Hi Bo, your visit is tomorrow at 2:00 PM.\nReply STOP to opt out"]],
+  );
+  assert.equal(w.posted.length, 1);
+  assert.equal(w.posted[0].body.subject, "Your visit, Cy");
+});
+
+test("the category of a message with no WhatsApp row is its own rows': filed as an offer, a text of it is refused at the door, which asks it as an offer: texts carry none", async () => {
+  const t = world({
+    templates: ownRows("marketing"),
+    broadcast_recipients: [recipient("k2", "sms")],
+  });
+  const w = context(t);
+  try {
+    await dispatchJob(w.ctx, JOB);
+  } finally {
+    w.restore();
+  }
+  assert.equal(w.sms.length, 0, "nothing left");
+  assert.deepEqual(
+    t.broadcast_recipients.map((r) => [r.contact_id, r.state, r.reason ?? null]),
+    [["k2", "skipped", "sms_carries_no_promotions"]],
+    "judged as an offer by the door, and not as a message about their visit",
+  );
+});

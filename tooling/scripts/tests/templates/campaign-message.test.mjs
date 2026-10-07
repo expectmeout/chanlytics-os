@@ -17,6 +17,7 @@ import {
   messageHolds,
   messageWhyNot,
   reachOutRowName,
+  whatsappStoppedRunWords,
 } from "@chanlytics/contracts";
 
 const NAME = "autumn_note";
@@ -363,6 +364,33 @@ test("a channel the message does not hold has one sentence, and the words an ema
   assert.equal(messageWhyNot(m(W(), E(), T()), "whatsapp"), null);
   assert.equal(messageWhyNot(m(W(), E(), T()), "email"), null);
   assert.equal(messageWhyNot(m(W(), E(), T()), "sms"), null);
+});
+
+test("a run that stops for a WhatsApp version it cannot send says why in the words a channel not held has, then what that left; a message with no row at all has no WhatsApp version", () => {
+  const stopped = (...rows) => whatsappStoppedRunWords(campaignMessageOf(rows, NAME, LANGUAGE));
+  const LEFT = "Everyone on this run goes by WhatsApp, so nothing was sent.";
+  assert.equal(
+    stopped(W({ meta_status: "pending" })),
+    `WhatsApp is still reviewing this message's WhatsApp version. ${LEFT}`,
+  );
+  assert.equal(
+    stopped(W({ meta_status: "rejected" }), E()),
+    `WhatsApp refused this message's WhatsApp version. ${LEFT}`,
+  );
+  assert.equal(stopped(W({ meta_status: "paused" })), `WhatsApp has paused this message's WhatsApp version. ${LEFT}`);
+  assert.equal(
+    stopped(W({ meta_status: "disabled" })),
+    `WhatsApp has disabled this message's WhatsApp version. ${LEFT}`,
+  );
+  assert.equal(
+    stopped(W({ blocked: "a picture for a heading" })),
+    `This message's WhatsApp version has a picture for a heading, so it cannot be sent from here. ${LEFT}`,
+    "an approved version that cannot go whole is not called withdrawn",
+  );
+  assert.equal(stopped(E()), `This message has no WhatsApp version. ${LEFT}`, "a message of an email alone");
+  assert.equal(whatsappStoppedRunWords(null), `This message has no WhatsApp version. ${LEFT}`, "no row of it at all");
+  // Every sentence is its channel's own, never one that calls the version a template.
+  assert.ok(!/template/i.test(stopped(W({ meta_status: "pending" }))));
 });
 
 test("WhatsApp's refusal carries Meta's reason when it gave one, and a status that is not a refusal carries none", () => {

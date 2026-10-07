@@ -1260,16 +1260,20 @@ import {
   finishedRunHeldWhy,
   OUTCOME_UNKNOWN,
   audienceTrigger as audienceTrigger3,
+  campaignMessageOf,
   firstNameOf as firstNameOf2,
   isOfferByEmail as isOfferByEmail5,
   isReachOutRun,
   jittered as jittered3,
   messageAboutOfTrigger as messageAboutOfTrigger2,
+  messageHolds,
   nextOpenMoment as nextOpenMoment2,
   parseParamSpecs,
   purposeOfTemplate as purposeOfTemplate3,
   resolveParams as resolveParams2,
   triggerOf,
+  versionsOf as versionsOf2,
+  whatsappStoppedRunWords,
   wireFailure
 } from "../../contracts/dist/index.js";
 import { errField as errField3, logger as logger4 } from "../../channels/dist/index.js";
@@ -1284,7 +1288,8 @@ import {
   messageAboutOfTrigger,
   renderOwnVersion,
   renderTemplate as renderTemplate2,
-  versionWords
+  versionWords,
+  versionsOf
 } from "../../contracts/dist/index.js";
 
 // src/uuid-v5.ts
@@ -1321,12 +1326,9 @@ function metaOf2(b) {
     ...b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: typeof label === "string" ? label : b.name } : {}
   };
 }
-async function versionOf(w, channel) {
-  if (!(channel in w.versions)) {
-    const row = await w.ports.template(w.b.template_name, w.b.template_language, channel);
-    w.versions[channel] = row && row.meta_status === "approved" ? versionWords({ channel, components: row.components, body_preview: row.body_preview }) : null;
-  }
-  return w.versions[channel] ?? null;
+function versionOf(w, channel) {
+  const [row = null] = versionsOf(w.rows, w.b.template_name)[channel];
+  return row ? versionWords({ channel, components: row.components, body_preview: row.body_preview }) : null;
 }
 async function overAllowance(w, channel) {
   if (!heldByAllowance(w.trigger, w.purpose)) return false;
@@ -1337,7 +1339,7 @@ function countSent(w, channel) {
   if (channel !== "whatsapp") w.month[channel] = (w.month[channel] ?? 0) + 1;
 }
 async function emailDelivery(w, i, base) {
-  const version = await versionOf(w, "email");
+  const version = versionOf(w, "email");
   if (!version) return { held: "no_channel" };
   const said = renderOwnVersion("email", version, i.params, w.b.template_language);
   if (!said.subject) return { held: "no_channel" };
@@ -1418,7 +1420,7 @@ async function prepare(w, i) {
     };
   }
   if (i.channel === "email") return emailDelivery(w, i, base);
-  const version = await versionOf(w, "sms");
+  const version = versionOf(w, "sms");
   if (!version) return { held: "no_channel" };
   const said = renderOwnVersion("sms", version, i.params, b.template_language);
   return { delivery: { ...base, channel: "sms", body: said.body } };
@@ -1714,8 +1716,12 @@ async function sendBroadcastBatch(ports, cmd) {
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   if (await wireIsUnbound(ports, b, cmd, batch)) return;
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
-  const tpl = await ports.template(b.template_name, b.template_language, "whatsapp");
-  const whatsappApproved = tpl?.meta_status === "approved";
+  const rows = await ports.message(b.template_name, b.template_language);
+  const message = campaignMessageOf(rows, b.template_name, b.template_language);
+  const {
+    whatsapp: [whatsappRow = null]
+  } = versionsOf2(rows, b.template_name);
+  const whatsappApproved = message !== null && messageHolds(message).whatsapp;
   if (!whatsappApproved && !await ports.byOtherChannels(b.id, "whatsapp")) {
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
@@ -1723,11 +1729,11 @@ async function sendBroadcastBatch(ports, cmd) {
       route: "broadcasts",
       about: { type: "broadcast", id: b.id },
       subject: `Broadcast \u201C${b.name}\u201D stopped`,
-      body: `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.`
+      body: whatsappStoppedRunWords(message)
     });
     return;
   }
-  const purpose = purposeOfTemplate3(tpl?.category);
+  const purpose = message?.purpose ?? purposeOfTemplate3(void 0);
   const trigger = audienceTrigger3(b.audience);
   const offers = isOfferByEmail5({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger2(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
@@ -1737,15 +1743,15 @@ async function sendBroadcastBatch(ports, cmd) {
     ports,
     cmd,
     b,
-    // The message's own purpose, kept when Meta no longer approves its WhatsApp row (a row that is gone reads as marketing).
+    // The message's own purpose, kept when Meta no longer approves its WhatsApp row (a message that is gone reads as marketing).
     purpose,
-    tpl: tpl ?? { body_preview: null },
+    tpl: whatsappRow ?? { body_preview: null },
     whatsappApproved,
+    rows,
     specs: parseParamSpecs(b.params),
     facts,
     people,
     priors,
-    versions: {},
     month: {},
     offersClosed: head === "closed",
     // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.
