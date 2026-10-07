@@ -11,7 +11,9 @@ import { installLegacyReact, fresh, again, byTestId, find, press, settle } from 
 
 installLegacyReact({ __DEMO_MODE: false });
 const S = "../../../../../apps/dashboard/src";
-const { PeriodPicker, loadPeriodPopover } = await import(`${S}/surfaces/reports/period-picker.tsx`);
+// A path written out, so the dead-exports check (knip) sees what the test reads of the module.
+const { PeriodPicker, loadPeriodPopover } =
+  await import("../../../../../apps/dashboard/src/surfaces/reports/period-picker.tsx");
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
 
 const props = { chosen: "30d", today: "2026-10-06", timezone: "America/New_York", pick: async () => undefined };
