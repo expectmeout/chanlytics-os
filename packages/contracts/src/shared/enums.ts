@@ -351,7 +351,7 @@ export const EVENT_KINDS = [
   "workspace.activated",
   /**
    * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00348, decision 0002): { change: added
-   * | moved | vanished | back | kept, source, starts_at }, never its title. On the appointment; hidden from the activity
+   * | moved | vanished | back, source, starts_at }, never its title. On the appointment; hidden from the activity
    * log unless asked for by name, since a calendar read writes one per appointment.
    */
   "appointment.changed",

@@ -113,7 +113,7 @@ function world({ ticks = 1, faults = {}, booked = () => 0, rpcs = {} } = {}) {
     // what each read handed it.
     appointments_feed_sync: (a) => {
       kept.push(a);
-      return { added: a.p_rows.length, moved: 0, back: 0, vanished: 0, kept: 0, seen: a.p_rows.length };
+      return { added: a.p_rows.length, moved: 0, back: 0, vanished: 0, seen: a.p_rows.length, stale: false };
     },
     ...rpcs,
   });
@@ -629,12 +629,21 @@ test("each read is kept as the workspace's appointments (decision 0002): every e
     const maria = w.tables.contacts.find((c) => c.phone_e164 === "+13055550142");
     assert.ok(maria, "the read put Maria in People first");
     assert.deepEqual(
-      k.p_rows.map((r) => [r.external_id, r.title, r.service, r.consultation, r.contact_id]),
+      k.p_rows.map((r) => [r.external_id, r.service, r.consultation, r.contact_id]),
       [
-        ["a1", "Maria Lopez - Balayage", "Balayage", false, maria.id],
-        ["a2", "Balayage consult", "Balayage", true, null],
+        ["a1", "Balayage", false, maria.id],
+        ["a2", "Balayage", true, null],
       ],
       "keyed by the event's UID; the person by the number in the event; the service the title names; a consultation by its words",
+    );
+    assert.ok(
+      k.p_rows.every((r) => !("title" in r)),
+      "never the event's title: the owner's words about a visit name the person",
+    );
+    assert.equal(
+      k.p_now,
+      checkedAt(w, "books"),
+      "the read's time is the stamp's, so an older read is refused as stale",
     );
   } finally {
     line.restore();

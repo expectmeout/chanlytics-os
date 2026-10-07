@@ -39196,7 +39196,8 @@ declare function keepChannelStanding(db: Db$2, tenantId: string, channelId: stri
  *   the person          contactIdByPhone, contactIdByEmail: the one row a number or an address names in People.
  *
  * Written by the booking_read job and the calendar sweep on the service role; read by the dashboard on the member's
- * client, where RLS decides, by the edge for a caller's own visits, and by a reminder's send. A failed read or write throws, so the caller's retry meets it.
+ * client, where RLS decides, by the edge for a caller's own visits, and by a reminder's send. A failed read or write
+ * throws, so the caller's retry meets it.
  */
 
 type Db$1 = SupabaseClient<Database>;
@@ -39250,14 +39251,17 @@ declare function appointmentsScrub(db: Db$1, p: {
 declare function contactIdByPhone(db: Db$1, tenantId: string, phone: string): Promise<string | null>;
 /** The one person in People this address names, matched and never made from an address alone (00125). */
 declare function contactIdByEmail(db: Db$1, tenantId: string, email: string): Promise<string | null>;
-/** What one read of the feed changed: rows added, moved, back after vanishing, vanished, kept by time; and how many it named. */
+/**
+ * What one read of the feed changed: rows added, moved, back after vanishing, vanished; how many it named; and whether it
+ * was refused as older than the read the workspace last had (1, nothing changed).
+ */
 interface AppointmentSync {
     added: number;
     moved: number;
     back: number;
     vanished: number;
-    kept: number;
     seen: number;
+    stale: number;
 }
 declare function syncFeedAppointments(db: Db$1, p: {
     tenantId: string;

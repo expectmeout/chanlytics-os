@@ -661,7 +661,7 @@ test("a visit run keeps each person's words on their row, from the visit the run
   ]);
 });
 
-test("a visit read from the calendar keeps its appointment's key and start on the row (decision 0002), so the send can ask whether it still stands; a visit with no key keeps the words alone", async () => {
+test("a visit read from the calendar keeps its appointment's key, its start and when the run read it on the row (decision 0002), so the send can ask whether it still stands; a visit with no key keeps the words alone", async () => {
   const next = { ...visit("2026-09-07T18:00:00Z", "Balayage"), key: "evt-1:1788804000000" };
   const read = { timezone: TZ, source: "calendar", state: "ok", next, last: null };
   const row = toPersonRowVM(dto("a", { visits: read }), TZ, NOW);
@@ -689,6 +689,7 @@ test("a visit read from the calendar keeps its appointment's key and start on th
     visit_service: "Balayage",
     appointment: "evt-1:1788804000000",
     visit_start: "2026-09-07T18:00:00Z",
+    appointment_read_at: NOW.toISOString(),
   });
 });
 

@@ -184,7 +184,6 @@ declare
   v_moved    integer := 0;
   v_back     integer := 0;
   v_vanished integer := 0;
-  v_kept     integer := 0;
 begin
   if p_tenant_id is null or not exists (select 1 from tenants t where t.id = p_tenant_id) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
@@ -195,15 +194,20 @@ begin
   if p_from is null or p_to is null or p_to <= p_from then
     raise exception 'The window runs forward.' using errcode = '22023';
   end if;
-  -- One read of a workspace's feed at a time: two sweeps that overlap never vanish each other's rows.
+  -- One read of a workspace's feed at a time, and never one older than the read the workspace last had: the sweep
+  -- stamps the workspace with its tick's time once the read is kept, so a tick that overlapped a later one finds the
+  -- later stamp and leaves the newer rows as they are.
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|appointments|calendar_feed', 42));
+  if exists (select 1 from tenant_config tc where tc.tenant_id = p_tenant_id and tc.calendar_checked_at > v_now) then
+    return jsonb_build_object('added', 0, 'moved', 0, 'back', 0, 'vanished', 0, 'seen', 0, 'stale', true);
+  end if;
 
   for v_in in
     select distinct on (r.external_id) r.*
       from jsonb_to_recordset(p_rows) as r(
-             external_id text, starts_at timestamptz, ends_at timestamptz, all_day boolean, title text,
-             service text, consultation boolean, contact_id uuid)
-     where nullif(btrim(r.external_id), '') is not null
+             external_id text, starts_at timestamptz, ends_at timestamptz, all_day boolean, service text,
+             consultation boolean, contact_id uuid)
+     where nullif(btrim(r.external_id), '') is not null and char_length(r.external_id) <= 512
        and r.starts_at is not null and r.ends_at is not null and r.ends_at > r.starts_at
        and r.starts_at between p_from and p_to
      order by r.external_id
@@ -219,11 +223,11 @@ begin
      where a.tenant_id = p_tenant_id and a.source = 'calendar_feed' and a.external_id = v_in.external_id
      for update;
     if v_row.id is null then
-      insert into appointments (tenant_id, contact_id, source, external_id, status, starts_at, ends_at, all_day, title,
+      insert into appointments (tenant_id, contact_id, source, external_id, status, starts_at, ends_at, all_day,
                                 service, consultation, timezone)
-      values (p_tenant_id, v_contact, 'calendar_feed', left(v_in.external_id, 1024), 'booked', v_in.starts_at,
-              v_in.ends_at, coalesce(v_in.all_day, false), left(nullif(btrim(v_in.title), ''), 500),
-              left(nullif(btrim(v_in.service), ''), 200), coalesce(v_in.consultation, false), v_tz)
+      values (p_tenant_id, v_contact, 'calendar_feed', v_in.external_id, 'booked', v_in.starts_at, v_in.ends_at,
+              coalesce(v_in.all_day, false), left(nullif(btrim(v_in.service), ''), 200),
+              coalesce(v_in.consultation, false), v_tz)
       returning id into v_id;
       v_change := 'added';
       v_added := v_added + 1;
@@ -238,13 +242,11 @@ begin
       end if;
       update appointments
          set contact_id = v_contact, starts_at = v_in.starts_at, ends_at = v_in.ends_at,
-             all_day = coalesce(v_in.all_day, false), title = left(nullif(btrim(v_in.title), ''), 500),
-             service = left(nullif(btrim(v_in.service), ''), 200), consultation = coalesce(v_in.consultation, false),
-             timezone = v_tz, vanished_at = null
+             all_day = coalesce(v_in.all_day, false), service = left(nullif(btrim(v_in.service), ''), 200),
+             consultation = coalesce(v_in.consultation, false), timezone = v_tz, vanished_at = null
        where id = v_id
          and (contact_id is distinct from v_contact or starts_at is distinct from v_in.starts_at
               or ends_at is distinct from v_in.ends_at or all_day is distinct from coalesce(v_in.all_day, false)
-              or title is distinct from left(nullif(btrim(v_in.title), ''), 500)
               or service is distinct from left(nullif(btrim(v_in.service), ''), 200)
               or consultation is distinct from coalesce(v_in.consultation, false)
               or timezone is distinct from v_tz or vanished_at is not null);
@@ -271,23 +273,8 @@ begin
             jsonb_build_object('change', 'vanished', 'source', 'calendar_feed', 'starts_at', v_row.starts_at));
   end loop;
 
-  -- Kept, from time alone: booked, still named, and over for a day with nobody saying otherwise. The feed's own rows: a
-  -- booking tool's word on its visits is its notices', which may still say cancelled.
-  for v_row in
-    update appointments a
-       set status = 'kept'
-     where a.tenant_id = p_tenant_id and a.source = 'calendar_feed' and a.status = 'booked' and a.vanished_at is null
-       and a.ends_at <= v_now - interval '1 day'
-    returning a.*
-  loop
-    v_kept := v_kept + 1;
-    insert into events (tenant_id, kind, category, subject_type, subject_id, data)
-    values (p_tenant_id, 'appointment.changed', 'appointment', 'appointment', v_row.id,
-            jsonb_build_object('change', 'kept', 'source', v_row.source, 'starts_at', v_row.starts_at));
-  end loop;
-
-  return jsonb_build_object('added', v_added, 'moved', v_moved, 'back', v_back, 'vanished', v_vanished, 'kept', v_kept,
-                            'seen', cardinality(v_seen));
+  return jsonb_build_object('added', v_added, 'moved', v_moved, 'back', v_back, 'vanished', v_vanished,
+                            'seen', cardinality(v_seen), 'stale', false);
 end $$;
 
 
@@ -295,7 +282,7 @@ end $$;
 -- Name: FUNCTION appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone) IS 'The hourly sweep''s door (decision 0002, 00348): one read of a workspace''s feed kept on the appointments record (00345) as calendar_feed rows, in one transaction. Each row inserted or updated by its key; a row the read no longer names, starting inside the window it covered, vanished (never cancelled); a booked feed row over for a day, kept. appointment.changed for each added, moved, vanished, back or kept. Answers the counts. Service role only.';
+COMMENT ON FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone) IS 'The hourly sweep''s door (decision 0002, 00348): one read of a workspace''s feed kept on the appointments record (00345) as calendar_feed rows, in one transaction, never its titles. Each row inserted or updated by its key; a row the read no longer names, starting inside the window it covered, vanished (never cancelled). A read older than the workspace''s last (tenant_config.calendar_checked_at) is refused as stale. appointment.changed for each added, moved, vanished or back. Answers the counts. Service role only.';
 
 
 --

@@ -100,6 +100,18 @@ test("the rows: inside the window the read covered only, one per key, the person
       attendees: [],
       organizer: null,
     },
+    // A key past what the record keeps: left out, never cut short (a cut key is never found again).
+    {
+      start: T0 + 2 * D,
+      end: T0 + 2 * D + 3600_000,
+      title: "Long key",
+      allDay: false,
+      uid: "u".repeat(513),
+      description: null,
+      location: null,
+      attendees: [],
+      organizer: null,
+    },
     // Outside the window: not written, and so never vanished either.
     {
       start: T0 + 90 * D,
@@ -126,43 +138,77 @@ test("the rows: inside the window the read covered only, one per key, the person
     window: horizon,
   });
   assert.deepEqual(
-    rows.map((r) => [r.external_id, r.title, r.service, r.consultation, r.contact_id, r.starts_at]),
+    rows.map((r) => [r.external_id, r.service, r.consultation, r.contact_id, r.starts_at]),
     [
-      ["a1", "Maria Lopez - Balayage", "Balayage", false, "p-maria", new Date(T0).toISOString()],
-      [
-        "a2",
-        "Kitchen remodel consult with Tom Baker",
-        "Kitchen remodel",
-        true,
-        "p-tom",
-        new Date(T0 + D).toISOString(),
-      ],
+      ["a1", "Balayage", false, "p-maria", new Date(T0).toISOString()],
+      ["a2", "Kitchen remodel", true, "p-tom", new Date(T0 + D).toISOString()],
     ],
+  );
+  assert.ok(
+    rows.every((r) => !("title" in r)),
+    "the owner's words about a visit are read for its service and left: they name the person",
   );
   assert.equal(serviceNamedIn("Haircut and colour", [{ name: "Colour" }, { name: "Haircut" }]), "Haircut");
   assert.equal(serviceNamedIn("", services), null);
+  assert.equal(
+    serviceNamedIn("Kitchen remodel and Balayage", services, (name) => name === "Balayage"),
+    "Balayage",
+    "the longest of those the caller keeps: a consultation's service is the same rule over consult-first services",
+  );
 });
 
-test("the question a reminder asks at its send: a run drawn with no key, or an appointment the sync has not written, goes; one cancelled, missed, gone from the calendar or moved is held", () => {
+test("the question a reminder asks at its send: a person's cancellation or a missed visit holds it; a row the feed stopped naming, or that moved, holds it only when the row read the calendar after the run did; a run drawn with no key, or an appointment the sync has not written, goes", () => {
   const start = new Date(T0).toISOString();
+  const READ = T0 - 12 * 3600_000; // the run read the calendar the evening before
+  const before = new Date(READ - 3600_000).toISOString();
+  const after = new Date(READ + 3600_000).toISOString();
   const facts = {
     visit_when: "tomorrow at 10:00 AM",
     visit_service: "Balayage",
     appointment: "a1",
     visit_start: start,
+    appointment_read_at: new Date(READ).toISOString(),
   };
-  const row = (o = {}) => new Map([["a1", { status: "booked", starts_at: start, vanished_at: null, ...o }]]);
+  const row = (o = {}) =>
+    new Map([["a1", { status: "booked", starts_at: start, vanished_at: null, updated_at: before, ...o }]]);
+  const moved = new Date(T0 + 3600_000).toISOString();
   assert.equal(appointmentHolds(row(), facts), true, "booked, at the time it was drawn for");
   assert.equal(appointmentHolds(row({ status: "kept" }), facts), true, "a thank-you after it happened");
   assert.equal(appointmentHolds(row({ status: "proposed" }), facts), true);
-  assert.equal(appointmentHolds(row({ status: "cancelled" }), facts), false);
-  assert.equal(appointmentHolds(row({ status: "missed" }), facts), false);
-  assert.equal(appointmentHolds(row({ vanished_at: new Date(T0 - D).toISOString() }), facts), false);
+  assert.equal(appointmentHolds(row({ status: "cancelled" }), facts), false, "a person's word, whenever it was said");
+  assert.equal(appointmentHolds(row({ status: "missed", updated_at: before }), facts), false);
   assert.equal(
-    appointmentHolds(row({ starts_at: new Date(T0 + 3600_000).toISOString() }), facts),
+    appointmentHolds(row({ vanished_at: after, updated_at: after }), facts),
     false,
-    "moved an hour: the words would name the wrong time",
+    "the feed stopped naming it after the run read it",
   );
+  assert.equal(
+    appointmentHolds(row({ vanished_at: before }), facts),
+    true,
+    "vanished at an older read, and on the calendar when the run read it: back before the next sync",
+  );
+  assert.equal(
+    appointmentHolds(row({ starts_at: moved, updated_at: after }), facts),
+    false,
+    "moved an hour after the run: the words would name the wrong time",
+  );
+  assert.equal(
+    appointmentHolds(row({ starts_at: moved, updated_at: before }), facts),
+    true,
+    "the row is the older read: the run saw the visit at its new time, and its words say that time",
+  );
+  const unread = { ...facts, appointment_read_at: undefined };
+  assert.equal(
+    appointmentHolds(row({ status: "cancelled" }), unread),
+    false,
+    "no read time: a cancellation still holds",
+  );
+  assert.equal(
+    appointmentHolds(row({ starts_at: moved, updated_at: after }), unread),
+    true,
+    "no read time: nothing else",
+  );
+  assert.equal(appointmentHolds(row({ vanished_at: after }), unread), true);
   assert.equal(appointmentHolds(new Map(), facts), true, "not written yet: the run read the live calendar");
   assert.equal(appointmentHolds(row({ status: "cancelled" }), { visit_when: "x" }), true, "a run before the record");
   assert.deepEqual(

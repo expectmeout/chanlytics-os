@@ -54,9 +54,9 @@ export { spanForView, windowFor, coversSpan, frameOf } from "./calendar/calendar
 export { clockLabel, closureDatesLabel, closuresFrom, readAgoLabel, ruleParts, rulesLine, feedNotes, hoursLines, CALENDAR_FEED_WORDS } from "./calendar/calendar-words";
 export { shiftKey, mondayOf, isDayKey, monthSpan, shiftMonth, monthLabelOf, zoneMidnight } from "./calendar/day-keys";
 export { parseIcs } from "./calendar/feed";
-export { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, appointmentHolds, appointmentKeysOf, feedAppointmentRows, serviceNamedIn } from "./calendar/feed-appointments";
+export { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, appointmentHolds, appointmentKeysOf, feedAppointmentRows } from "./calendar/feed-appointments";
 export { feedUrlOk, fetchPublic, feedProblemWords, feedBodyProblem, offeringHorizon, seasonHorizon, previewHorizon, FEED_GUIDES, FEED_CHECK_WORDS, FEED_MAX_BYTES } from "./calendar/feed-url";
-export { sameListed, matchService, needsConsultation, offerFor, offerLead, foldName } from "./calendar/service-offer";
+export { sameListed, matchService, needsConsultation, offerFor, offerLead, foldName, serviceNamedIn } from "./calendar/service-offer";
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./calendar/zone-math";
 export { brainMetaOf, replyWhy, BRAIN_INTENTS, INTENT_LABELS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, CONFIDENCE_STEPS } from "./config/brain";
 export { abilityRows, cannotRows } from "./config/business-tab/abilities";

@@ -11892,6 +11892,18 @@ function matchService(services, asked) {
   }
   return best;
 }
+function serviceNamedIn(title, services, only) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || only && !only(name)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
 function needsConsultation(name, rules) {
   const n = foldName(name.trim());
   const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
@@ -12915,16 +12927,7 @@ function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
 // src/deals/deal-consultations.ts
 var CONSULT_FOLLOW_DAYS = 7;
 function consultServiceOf(title, services, rules) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return null;
-  let best = null;
-  for (const s of services ?? []) {
-    const name = String(s.name ?? "").trim();
-    const folded = foldName(name);
-    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
-    if (!best || folded.length > best.folded.length) best = { name, folded };
-  }
-  return best ? best.name : null;
+  return serviceNamedIn(title, services, (name) => needsConsultation(name, rules));
 }
 function isConsultationTitle(title, services, rules) {
   const t = foldName(String(title ?? "").trim());
@@ -12967,30 +12970,19 @@ function consultsHeldWords(n) {
 // src/calendar/feed-appointments.ts
 var APPOINTMENT_SOURCES = ["calendar_feed", "booking_email", "booking_tool", "person"];
 var APPOINTMENT_STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"];
-function serviceNamedIn(title, services) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return null;
-  let best = null;
-  for (const s of services ?? []) {
-    const name = String(s.name ?? "").trim();
-    const folded = foldName(name);
-    if (folded && t.includes(folded) && (!best || folded.length > best.folded.length)) best = { name, folded };
-  }
-  return best ? best.name : null;
-}
+var APPOINTMENT_KEY_MAX = 512;
 function feedAppointmentRows(items, o) {
   const out = /* @__PURE__ */ new Map();
   for (const it of items) {
     if (it.start < o.window.from || it.start > o.window.to) continue;
     const key = appointmentKeyOf(it);
-    if (out.has(key)) continue;
+    if (key.length > APPOINTMENT_KEY_MAX || out.has(key)) continue;
     const title = it.title.trim() || null;
     out.set(key, {
       external_id: key,
       starts_at: new Date(it.start).toISOString(),
       ends_at: new Date(it.end).toISOString(),
       all_day: it.allDay,
-      title,
       service: serviceNamedIn(title, o.services),
       consultation: isConsultationTitle(title, o.services, o.rules),
       contact_id: matchPerson(it, o.people, o.own)?.id ?? null
@@ -12998,13 +12990,17 @@ function feedAppointmentRows(items, o) {
   }
   return [...out.values()];
 }
-var STANDING = /* @__PURE__ */ new Set(["proposed", "booked", "kept"]);
+var OFF = /* @__PURE__ */ new Set(["missed", "cancelled"]);
 function appointmentHolds(rows, facts) {
   const key = typeof facts.appointment === "string" ? facts.appointment : null;
   const start = typeof facts.visit_start === "string" ? Date.parse(facts.visit_start) : NaN;
   const row2 = key ? rows.get(key) : void 0;
   if (!row2 || !Number.isFinite(start)) return true;
-  return STANDING.has(row2.status) && row2.vanished_at === null && Date.parse(row2.starts_at) === start;
+  if (OFF.has(row2.status)) return false;
+  const read = typeof facts.appointment_read_at === "string" ? Date.parse(facts.appointment_read_at) : NaN;
+  if (!Number.isFinite(read)) return true;
+  if (row2.vanished_at !== null && Date.parse(row2.vanished_at) > read) return false;
+  return Date.parse(row2.starts_at) === start || !(Date.parse(row2.updated_at) > read);
 }
 function appointmentKeysOf(rows) {
   const keys = /* @__PURE__ */ new Set();
@@ -14065,7 +14061,7 @@ var EVENT_KINDS = [
   "workspace.activated",
   /**
    * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00348, decision 0002): { change: added
-   * | moved | vanished | back | kept, source, starts_at }, never its title. On the appointment; hidden from the activity
+   * | moved | vanished | back, source, starts_at }, never its title. On the appointment; hidden from the activity
    * log unless asked for by name, since a calendar read writes one per appointment.
    */
   "appointment.changed"

@@ -350,6 +350,6 @@
     "00345_an_appointment_is_a_record.sql": "3869a4cf6a8fe237fb03a93e21f58509231a2fa2f1cd4ecf8d2a8a0a77f148e5",
     "00346_a_lead_is_linked_on_every_identity_its_person_gains.sql": "0311b692e7040f09e6894928f0b5aad658099a1e73af6a84f711f194b284e39e",
     "00347_a_text_is_answered_after_its_acknowledgement.sql": "72b3dbb7cc4aff61876705958a7f722bb375401ccda67604d53255b626a37b74",
-    "00348_the_calendar_feed_is_kept_on_the_appointments_record.sql": "280edae329ac5050e77df77508b40924c00d9e34478ce22d64c695331bd6243e"
+    "00348_the_calendar_feed_is_kept_on_the_appointments_record.sql": "a5837d86538d7405cf41784cb40ccfe06860e5cb9fd0062d78efa402a3b743ac"
   }
 }

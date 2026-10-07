@@ -2420,7 +2420,7 @@ function recipientFacts(r, goesAt) {
     const onDay = v && day ? visitOnDay(v, day, tomorrow ? "next" : "last", (via) => theirs(person, via)) : null;
     const visit = onDay ?? (tomorrow ? v?.next ?? null : v?.last ?? null);
     const words = visitFactsFor(p.trigger, visit, ctx.tz, [person.givenName, person.waName], goesAt);
-    return words && visit?.key ? { ...words, appointment: visit.key, visit_start: visit.start } : words;
+    return words && visit?.key ? { ...words, appointment: visit.key, visit_start: visit.start, appointment_read_at: ctx.now.toISOString() } : words;
   };
 }
 function touchEnrolled(r, goesAt, eligible, held) {

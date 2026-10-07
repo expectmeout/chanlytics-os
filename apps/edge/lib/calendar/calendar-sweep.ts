@@ -21,8 +21,9 @@
  *
  * The same read is then kept as the workspace's appointments (keepAppointments, lib/calendar/calendar-appointments.ts,
  * decision 0002): inserted or moved by the calendar's own key, a row the read no longer names vanished, never
- * cancelled, a booked appointment over for a day kept. A keep that fails is logged (calendar_appointments_failed) and
- * counts the workspace as read: People has been filled, and the next hour's read keeps what this one could not.
+ * cancelled; a read older than the one the workspace last had is refused (stale). A keep that fails is logged
+ * (calendar_appointments_failed) and counts the workspace as read: People has been filled, and the next hour's read
+ * keeps what this one could not.
  *
  * A workspace read is stamped (markCalendarChecked, tenant_config.calendar_checked_at). So is one that could not be
  * read (a feed that fails, settings that do not parse, no address, a throw): it is retried next hour, behind the feeds
@@ -83,7 +84,7 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
     remaining: page.remaining,
   };
   // What the reads kept as appointments, for the tick's log line: the answer stays the sweep's own counts.
-  const kept = { added: 0, moved: 0, back: 0, vanished: 0, kept: 0, seen: 0 };
+  const kept = { added: 0, moved: 0, back: 0, vanished: 0, seen: 0, stale: 0 };
   const startedAt = Date.now();
   for (const [i, row] of page.rows.entries()) {
     // Out of time: the rest of the page is remaining, not read, and not stamped.

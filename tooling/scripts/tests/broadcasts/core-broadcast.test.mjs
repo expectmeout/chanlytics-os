@@ -2696,9 +2696,12 @@ test("a read of the message that throws leaves the batch unsent and the error up
 
 /* --------------------------------------------------------------------- an appointment asked again (decision 0002) */
 
-test("a reminder asks its appointment again at the send: one cancelled, gone from the calendar or moved holds its person (appointment_changed) and nobody else; one that stands, one the record has not written, and a run drawn before the record go; the rows are read once for the batch, and a read that fails holds nobody", async () => {
+test("a reminder asks its appointment again at the send: one cancelled, or gone from the calendar or moved after the run read it, holds its person (appointment_changed) and nobody else; one that stands, one the record has not written, a run drawn before the record, and one whose row is older than the run go; the rows are read once for the batch, and a read that fails holds nobody", async () => {
   const start = "2026-09-12T14:00:00.000Z";
-  const drawn = (key) => ({ ...VISIT, appointment: key, visit_start: start });
+  const read = "2026-09-11T13:05:00.000Z"; // the run read the calendar the day before
+  const older = "2026-09-11T12:23:00.000Z"; // the hourly sync before the run
+  const later = "2026-09-11T13:23:00.000Z"; // the one after it
+  const drawn = (key) => ({ ...VISIT, appointment: key, visit_start: start, appointment_read_at: read });
   const batch = [
     on("sms", "k1", drawn("cancelled-one")),
     on("sms", "k2", drawn("stands")),
@@ -2706,8 +2709,8 @@ test("a reminder asks its appointment again at the send: one cancelled, gone fro
     on("sms", "k4", VISIT),
   ];
   const rows = new Map([
-    ["cancelled-one", { status: "cancelled", starts_at: start, vanished_at: null }],
-    ["stands", { status: "booked", starts_at: start, vanished_at: null }],
+    ["cancelled-one", { status: "cancelled", starts_at: start, vanished_at: null, updated_at: older }],
+    ["stands", { status: "booked", starts_at: start, vanished_at: null, updated_at: older }],
   ]);
   const asked = [];
   const { f } = world({
@@ -2737,16 +2740,30 @@ test("a reminder asks its appointment again at the send: one cancelled, gone fro
   );
   assert.equal(HELD_REASONS.appointment_changed, "their appointment moved or was cancelled");
 
-  // Gone from the calendar, or moved: held too.
+  // Gone from the calendar, or moved, at a read after the run's: held too.
   for (const row of [
-    { status: "booked", starts_at: start, vanished_at: "2026-09-11T11:00:00Z" },
-    { status: "booked", starts_at: "2026-09-12T15:00:00.000Z", vanished_at: null },
+    { status: "booked", starts_at: start, vanished_at: later, updated_at: later },
+    { status: "booked", starts_at: "2026-09-12T15:00:00.000Z", vanished_at: null, updated_at: later },
   ]) {
     const { f: g } = world({ batch: [on("sms", "k1", drawn("x"))], appointments: () => new Map([["x", row]]) });
     await sendBroadcastBatch(g.ports, cmd());
     assert.deepEqual(
       g.marks().filter(([, s]) => s !== "failed"),
       [["k1", "skipped", "appointment_changed"]],
+    );
+  }
+
+  // The row is the older read: the owner moved the visit, or put it back, after the sync and before the run, and the
+  // run's words say the time it saw. Sent, never held for the record's older word.
+  for (const row of [
+    { status: "booked", starts_at: "2026-09-12T13:00:00.000Z", vanished_at: null, updated_at: older },
+    { status: "booked", starts_at: start, vanished_at: older, updated_at: older },
+  ]) {
+    const { f: g } = world({ batch: [on("sms", "k1", drawn("x"))], appointments: () => new Map([["x", row]]) });
+    await sendBroadcastBatch(g.ports, cmd());
+    assert.deepEqual(
+      g.marks().filter(([, s]) => s !== "failed"),
+      [["k1", "sent", null]],
     );
   }
 

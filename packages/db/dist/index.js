@@ -4019,7 +4019,6 @@ async function syncFeedAppointments(db, p) {
       starts_at: r.starts_at,
       ends_at: r.ends_at,
       all_day: r.all_day,
-      title: r.title,
       service: r.service,
       consultation: r.consultation,
       contact_id: r.contact_id
@@ -4035,8 +4034,8 @@ async function syncFeedAppointments(db, p) {
     moved: count(o, "moved"),
     back: count(o, "back"),
     vanished: count(o, "vanished"),
-    kept: count(o, "kept"),
-    seen: count(o, "seen")
+    seen: count(o, "seen"),
+    stale: o.stale === true ? 1 : 0
   };
 }
 var KEYS_PER_READ = 25;
@@ -4044,12 +4043,17 @@ var isStatus = (s) => APPOINTMENT_STATUSES.includes(s);
 async function appointmentStates(db, tenantId, keys) {
   const out = /* @__PURE__ */ new Map();
   for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
-    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", keys.slice(i, i + KEYS_PER_READ));
+    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", keys.slice(i, i + KEYS_PER_READ));
     if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
     if (error) throw new Error(`appointments: ${error.message}`);
     for (const r of data ?? []) {
       if (r.external_id && isStatus(r.status))
-        out.set(r.external_id, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at });
+        out.set(r.external_id, {
+          status: r.status,
+          starts_at: r.starts_at,
+          vanished_at: r.vanished_at,
+          updated_at: r.updated_at
+        });
     }
   }
   return out;

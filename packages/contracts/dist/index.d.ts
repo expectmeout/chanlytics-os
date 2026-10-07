@@ -9436,6 +9436,14 @@ declare function sameListed(a: string, b: string): boolean;
  * two pieces too short to count, so a caller asking for nails matched nothing.
  */
 declare function matchService<S extends ServiceLike>(services: readonly S[] | undefined, asked: unknown): S | null;
+/**
+ * The longest service the workspace lists that a calendar title names, as Settings spells it, so "Kitchen remodel" wins
+ * over "Remodel"; null where it names none, or none that `only` keeps. The one rule for a service a title names: the
+ * appointment record's service (feed-appointments.ts) and a consultation's (deals consultServiceOf) both ask it.
+ */
+declare function serviceNamedIn(title: string | null | undefined, services: readonly {
+    name: string;
+}[] | undefined, only?: (name: string) => boolean): string | null;
 /** The booking rules as far as a consultation needs them. */
 interface ConsultRules {
     consult_first?: readonly string[];
@@ -9482,8 +9490,8 @@ declare function offerLead(offer: ServiceOffer | null): string;
 declare const CONSULT_FOLLOW_DAYS = 7;
 /**
  * The consult-first service a calendar title names, as Settings spells it: what a proposal started from that
- * consultation is for (0008). The longest name the title holds, so "Kitchen remodel" wins over "Remodel"; null where
- * it names none. The fold is availability's.
+ * consultation is for (0008): the longest a title names (calendar serviceNamedIn) of those that need one; null where
+ * it names none.
  */
 declare function consultServiceOf(title: string | null | undefined, services: readonly {
     name: string;
@@ -11795,38 +11803,42 @@ declare function sellsBySaved(was: string | null | undefined, now: SellsBy): str
 declare const APPOINTMENT_SOURCES: readonly ["calendar_feed", "booking_email", "booking_tool", "person"];
 type AppointmentSource = (typeof APPOINTMENT_SOURCES)[number];
 /**
- * Where it stands. A feed says only booked; kept is inferred from time alone (an end that passed with nobody saying
- * otherwise); missed and cancelled are a person's or a booking tool's word, never inferred. The guard (00345) holds the
- * moves: proposed to booked or cancelled, booked to kept, missed or cancelled, the last three final.
+ * Where it stands. A feed says only booked; kept, missed and cancelled are a person's or a booking tool's word (decision
+ * 0002 step 8 adds the sweep that infers kept from time, with the routes that let a person say missed). The guard (00345)
+ * holds the moves: proposed to booked or cancelled, booked to kept, missed or cancelled, the last three final.
  */
 declare const APPOINTMENT_STATUSES: readonly ["proposed", "booked", "kept", "missed", "cancelled"];
 type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
-/** What a send asks of the row again: how it stands, when it starts, and whether the feed still names it. */
+/**
+ * What a send asks of the row again: how it stands, when it starts, whether the feed still names it, and when the row
+ * last changed, which says whether the row or the run read the calendar later.
+ */
 interface AppointmentState {
     status: AppointmentStatus;
     starts_at: string;
     vanished_at: string | null;
+    updated_at: string;
 }
-/** One event of the feed as the sync door takes it (appointments_feed_sync). */
+/**
+ * One event of the feed as the sync door takes it (appointments_feed_sync). Never its title: the owner's words about a
+ * visit name the person, the board reads them from the feed itself, and a title kept here would come back on the next
+ * read after an erasure took it (appointments_scrub), linked to nobody the scrub could find.
+ */
 interface FeedAppointmentRow {
     external_id: string;
     starts_at: string;
     ends_at: string;
     all_day: boolean;
-    title: string | null;
     service: string | null;
     consultation: boolean;
     contact_id: string | null;
 }
-/** The longest service the workspace lists that the title names, as Settings spells it; null where it names none. */
-declare function serviceNamedIn(title: string | null | undefined, services: readonly {
-    name: string;
-}[] | undefined): string | null;
 /**
  * The rows a feed's events become, inside the window the sync covers: each keyed as appointment-key.ts keys it (the
- * first of two events under one key wins), the person it is for by the match the board makes (calendar-people.ts
- * matchPerson: a number in the event, then an address, then a whole name), the service its title names, and whether it
- * is a consultation (0004's one predicate, isConsultationTitle), decided once when the row is written.
+ * first of two events under one key wins; one keyed past APPOINTMENT_KEY_MAX is left out), the person it is for by the match the board makes (calendar-people.ts
+ * matchPerson: a number in the event, then an address, then a whole name), the service its title names (serviceNamedIn),
+ * and whether it is a consultation (0004's one predicate, isConsultationTitle), decided once when the row is written. The
+ * title itself is read and left (FeedAppointmentRow).
  */
 declare function feedAppointmentRows(items: readonly FeedItem[], o: {
     people: PersonLike[];
@@ -11841,11 +11853,16 @@ declare function feedAppointmentRows(items: readonly FeedItem[], o: {
     };
 }): FeedAppointmentRow[];
 /**
- * Whether the appointment a recipient's words were drawn for still stands as it was drawn (decision 0002): kept on
- * their row as `appointment` (its key) and `visit_start`, and asked at the send against the row the hourly sync keeps.
- * A recipient drawn with no key (a run made before the record), or one whose appointment the sync has not written yet,
- * goes as before; one whose appointment was cancelled or marked missed, that the feed stopped naming, or that moved to
- * another time, is held (appointment_changed).
+ * Whether the appointment a recipient's words were drawn for still stands as it was drawn (decision 0002): kept on their
+ * row as `appointment` (its key), `visit_start`, and `appointment_read_at` (when the run read the calendar), and asked at
+ * the send against the row the hourly sync keeps.
+ *
+ * The row is the later word only where it changed after the run read the calendar: a row the sync wrote before the run
+ * is older than what the run saw, and an appointment moved, or put back on the calendar, between the sync and the run
+ * goes as the run drew it. So one cancelled or marked missed is held whenever that was said; one the feed stopped naming,
+ * or that starts at another time, is held when the row says so from a read after the run's. A recipient drawn with no
+ * key (a run made before the record), or whose appointment the sync has not written, goes as before; one drawn with no
+ * read time is held only for a cancellation or a missed visit.
  */
 declare function appointmentHolds(rows: ReadonlyMap<string, AppointmentState>, facts: Record<string, unknown>): boolean;
 /** The keys a batch's recipients were drawn for: what the send reads the rows of, once. */

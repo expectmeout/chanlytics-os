@@ -7,8 +7,8 @@
  * (appointmentKeyOf), matched to the person the board would name (a number in the event, then an address, then a whole
  * name, against everyone in People now, after this sweep put the calendar's new people there), with the service its
  * title names and whether it is a consultation. The database keeps them in one transaction per workspace
- * (appointments_feed_sync, 00348): inserted or moved by key, a row the read no longer names vanished, never cancelled, a
- * booked appointment over for a day kept. A read that could not be made never reaches here, so it vanishes nothing.
+ * (appointments_feed_sync, 00348): inserted or moved by key, a row the read no longer names vanished, never cancelled,
+ * and never its title. A read that could not be made never reaches here, so it vanishes nothing.
  *
  * The match reads the whole of People and asks each event of it, as the board does when it opens; at a workspace's size
  * today that is the cost of one page of People an hour.

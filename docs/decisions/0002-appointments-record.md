@@ -5,11 +5,13 @@ the table (step 1, with a `booking_email` source and the client's name, number a
 writer (a booking tool's notice, read by the `booking_read` job: the `booking_tool` door of step 7, arriving by email
 rather than a signed webhook), the board drawing its rows, and a caller's own visit said from them. Then step 2
 (migration 00348): the hourly calendar sweep keeps each read of the feed as `calendar_feed` rows through
-`appointments_feed_sync` (inserted or moved by the event's key, vanished and never cancelled, a booked feed row kept a
-day after its end), which the board and the openings leave out since they read the feed itself; and step 5 in part:
-a visit run's reminder asks its row again at the send and is held for one cancelled, missed, moved or gone from the
-calendar. Still owed to the readers lane: the backfill (3), Reports and People reading rows (4), the playbooks drawing
-from rows (the rest of 5), `kept` for a booking tool's rows and `missed` (8). The paths below are the ones at `e3d9dc6c`; `packages/contracts/src/calendar/`
+`appointments_feed_sync` (inserted or moved by the event's key, vanished and never cancelled, never the event's title,
+and a read older than the workspace's last refused), which the board and the openings leave out since they read the
+feed itself; and step 5 in part: a visit run's reminder asks its row again at the send and is held for one cancelled or
+missed, or that a read after the run's found moved or gone from the calendar (a row older than the run's read is the
+older word). Still owed to the readers lane: the backfill (3), Reports and People reading rows (4), the playbooks
+drawing from rows (the rest of 5), and `kept` from time with a person's `missed` (8), which come together so a visit
+inferred kept can still be said missed. The paths below are the ones at `e3d9dc6c`; `packages/contracts/src/calendar/`
 holds what `availability.ts` and `calendar-people.ts` held. Written against commit `b729bdf` (21 September 2026) and refreshed against `e3d9dc6c` (PR #885, 23 September 2026): every file
 and line below was re-read at that commit, with deals (0004), the proposal link
 and smart lists on main. _What has changed since it was written_ says what moved

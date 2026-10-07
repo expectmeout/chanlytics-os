@@ -13,7 +13,8 @@
  *   the person          contactIdByPhone, contactIdByEmail: the one row a number or an address names in People.
  *
  * Written by the booking_read job and the calendar sweep on the service role; read by the dashboard on the member's
- * client, where RLS decides, by the edge for a caller's own visits, and by a reminder's send. A failed read or write throws, so the caller's retry meets it.
+ * client, where RLS decides, by the edge for a caller's own visits, and by a reminder's send. A failed read or write
+ * throws, so the caller's retry meets it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -222,14 +223,17 @@ export async function contactIdByEmail(db: Db, tenantId: string, email: string):
 
 /* ------------------------------------------------------------------ the feed */
 
-/** What one read of the feed changed: rows added, moved, back after vanishing, vanished, kept by time; and how many it named. */
+/**
+ * What one read of the feed changed: rows added, moved, back after vanishing, vanished; how many it named; and whether it
+ * was refused as older than the read the workspace last had (1, nothing changed).
+ */
 export interface AppointmentSync {
   added: number;
   moved: number;
   back: number;
   vanished: number;
-  kept: number;
   seen: number;
+  stale: number;
 }
 
 const count = (o: Record<string, unknown>, k: keyof AppointmentSync): number => (typeof o[k] === "number" ? o[k] : 0);
@@ -252,7 +256,6 @@ export async function syncFeedAppointments(
       starts_at: r.starts_at,
       ends_at: r.ends_at,
       all_day: r.all_day,
-      title: r.title,
       service: r.service,
       consultation: r.consultation,
       contact_id: r.contact_id,
@@ -268,8 +271,8 @@ export async function syncFeedAppointments(
     moved: count(o, "moved"),
     back: count(o, "back"),
     vanished: count(o, "vanished"),
-    kept: count(o, "kept"),
     seen: count(o, "seen"),
+    stale: o.stale === true ? 1 : 0,
   };
 }
 
@@ -288,7 +291,7 @@ export async function appointmentStates(
   for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
     const { data, error } = await db
       .from("appointments")
-      .select("external_id, status, starts_at, vanished_at")
+      .select("external_id, status, starts_at, vanished_at, updated_at")
       .eq("tenant_id", tenantId)
       .eq("source", "calendar_feed")
       .in("external_id", keys.slice(i, i + KEYS_PER_READ));
@@ -296,7 +299,12 @@ export async function appointmentStates(
     if (error) throw new Error(`appointments: ${error.message}`);
     for (const r of data ?? []) {
       if (r.external_id && isStatus(r.status))
-        out.set(r.external_id, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at });
+        out.set(r.external_id, {
+          status: r.status,
+          starts_at: r.starts_at,
+          vanished_at: r.vanished_at,
+          updated_at: r.updated_at,
+        });
     }
   }
   return out;

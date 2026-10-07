@@ -8,7 +8,6 @@ export {
   appointmentHolds,
   appointmentKeysOf,
   feedAppointmentRows,
-  serviceNamedIn,
 } from "./feed-appointments";
 export type { AppointmentSource, AppointmentState, AppointmentStatus, FeedAppointmentRow } from "./feed-appointments";
 export type { BusyBlock, FeedAttendee, FeedItem, ParsedFeed, ParseOptions } from "./feed";
@@ -23,7 +22,15 @@ export {
   BOOKING_DEFAULTS,
 } from "./availability";
 export type { BookingRulesLike, Opening, FreeWindowsInput } from "./availability";
-export { sameListed, matchService, needsConsultation, offerFor, offerLead, foldName } from "./service-offer";
+export {
+  sameListed,
+  matchService,
+  needsConsultation,
+  offerFor,
+  offerLead,
+  foldName,
+  serviceNamedIn,
+} from "./service-offer";
 export type { ServiceLike, ConsultRules, ServiceOffer } from "./service-offer";
 export {
   feedUrlOk,
