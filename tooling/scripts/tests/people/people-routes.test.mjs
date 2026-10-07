@@ -11,7 +11,14 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { DEAL_REFUSALS, MERGE_REFUSALS } from "@chanlytics/contracts";
+import {
+  DEAL_REFUSALS,
+  MERGE_REFUSALS,
+  channelsReady,
+  dealPaceOf,
+  followUpStandOf,
+  poolRowsOf,
+} from "@chanlytics/contracts";
 import { asText } from "../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -2038,7 +2045,6 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
       [{ deals: [] }, "no proposal out: nobody to say anything of"],
       [{ tenants: [tenant({ sells_by: "booking" })] }, "deals off"],
       [{ tenants: [tenant({ status: "paused" })] }, "the workspace paused: the sweep runs nothing"],
-      [{ tenant_channels: [] }, "no WhatsApp number"],
       [{ templates: [] }, "its template gone"],
       [{ templates: [template({ meta_status: "pending" })] }, "its template not one Meta approved"],
       [{ tenant_channels: [number({ quality_rating: "RED" })] }, "its number flagged"],
@@ -2048,6 +2054,61 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
     console.error = was;
   }
   assert.deepEqual(stopped, [], "every stop is the rule's, none a failure");
+  // No WhatsApp number is no stop: the edge's run reads a workspace with none as a number that can send (numberHealth of
+  // nothing), holds WhatsApp's people and goes on for the rest. So the facts are answered, ticking WhatsApp alone or WhatsApp
+  // and email, and who is promised a follow-up is decided person by person against what the workspace can send on
+  // (contracts followUpStandOf), as the page does with the route's own answer.
+  const holder = (id, name, over) =>
+    personRow(id, {
+      display_name: name,
+      deal_id: `deal-${name}`,
+      deal_stage: "proposed",
+      deal_proposed_at: iso(now - 20 * DAY),
+      deal_proposal_url: `https://docs.example.com/proposal/${name}`,
+      ...over,
+    });
+  const onWhatsApp = holder(P1, "Ada", {});
+  const byEmail = holder(P2, "Grace", { phone_e164: null, email: "grace@example.com" });
+  const noNumber = (channels) => world({ tenant_channels: [], playbooks: [playbook({ channels })] });
+  const answer = async (channels) =>
+    contacts.GET.run(get(inA), ctxFor(noNumber(channels), {}, { people_list: () => [onWhatsApp, byEmail] }));
+  const stands = (page, ready = page.channels_ready) =>
+    Object.fromEntries(
+      poolRowsOf(page.people, {
+        tz: "America/New_York",
+        now: new Date(now),
+        viewer: null,
+        dealsOn: page.deals_on,
+        ready,
+      }).map((vm) => [
+        vm.id,
+        followUpStandOf(vm, page.follow_up, "America/New_York", now, dealPaceOf(page.deal_pace), ready)?.kind ?? null,
+      ]),
+    );
+  const withEmail = await answer(["whatsapp", "email"]);
+  assert.deepEqual(
+    [withEmail.follow_up.run_hour, withEmail.follow_up.asks, withEmail.follow_up.purpose, withEmail.follow_up.channels],
+    [10, true, "conversational", ["whatsapp", "email"]],
+    "no number, WhatsApp and email: the facts are answered, as its run would go for the people it can reach",
+  );
+  assert.equal(
+    withEmail.channels_ready.whatsapp.ready,
+    false,
+    "and the route says the workspace cannot send on WhatsApp",
+  );
+  assert.deepEqual(
+    stands(withEmail),
+    { [P1]: null, [P2]: null },
+    "against what this workspace can send on (no number, no mailbox read here): the person on WhatsApp alone is held, not promised",
+  );
+  // With a mailbox set up (the route reads none in this world), the same facts promise the person with an address, by
+  // email, and still hold the one reachable on WhatsApp alone.
+  const mailbox = channelsReady({ whatsapp: null, textLine: null, email: { mailbox: true, domain: true } });
+  assert.deepEqual(stands(withEmail, mailbox), { [P1]: null, [P2]: "will" });
+  // WhatsApp alone, with no number: the facts are answered too, and nobody is promised one.
+  const alone = await answer(["whatsapp"]);
+  assert.deepEqual(alone.follow_up.channels, ["whatsapp"]);
+  assert.deepEqual(stands(alone, mailbox), { [P1]: null, [P2]: null }, "the run draws nobody on WhatsApp with none");
   assert.equal(await read(world(), "&q=ro"), null, "a search reads none: People keeps its first page's");
   // A read that fails costs the facts, never the list, and says so in the log.
   const logged = [];

@@ -10,7 +10,6 @@ export type {
   RunOutcome,
   RunPlaybookPorts,
   RunPlaybookCommand,
-  TemplateRow,
   TemplateValuesPorts,
   BroadcastRef,
   ListCount,
@@ -21,8 +20,8 @@ export type {
 } from "./ports";
 export { assembleRun } from "./assemble";
 export { runPlaybook } from "./run-playbook";
-export { parseChannels, readyForMessage, versionsHeld } from "./message-channels";
-export { templateValues } from "./template-values";
+export { parseChannels } from "./message-channels";
+export { readCampaignMessage, templateValues } from "./template-values";
 export { campaignHow, campaignHowOf, createBroadcast } from "./create-broadcast";
 export type { BroadcastReceipt } from "./create-broadcast";
 export { approveRun } from "./approve";

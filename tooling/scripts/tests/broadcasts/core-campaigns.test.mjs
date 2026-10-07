@@ -19,6 +19,7 @@ import {
   MOMENTS_RETIRED,
   WIN_BACK_WORDS,
   broadcastName,
+  campaignMessageOf,
   channelsReady,
   emptyAudienceRefusal,
   noNumberWords,
@@ -55,16 +56,49 @@ const WRITES = new Set([
   "cancel",
 ]);
 
+/** A template row as the port answers it (db messageVersionRowsOf): WhatsApp's, as Meta holds it. */
 const template = (over = {}) => ({
   id: T1,
+  channel: "whatsapp",
   name: "month_offer",
   language: "en_US",
   meta_status: "approved",
   category: "marketing",
   variables: [],
+  hidden_at: null,
   title: null,
+  source: "meta",
+  components: [],
+  body_preview: null,
+  rejected_reason: null,
   ...over,
 });
+/** The ids of an email's and a text's version of the message, which a broadcast may be made on as well as WhatsApp's. */
+const EMAIL_V = "77777777-7777-4777-8777-777777777772";
+const TEXT_V = "77777777-7777-4777-8777-777777777773";
+/** One of the message's own versions, written here and approved the moment it was saved. */
+const ownRow = (channel, over = {}) =>
+  template({
+    id: channel === "email" ? EMAIL_V : TEXT_V,
+    channel,
+    meta_status: "approved",
+    category: null,
+    source: "chanlytics",
+    ...over,
+  });
+/**
+ * The port's answer for a message (db messageVersionRowsOf, by id): the rows of the name and language that id belongs to,
+ * and none for an id the workspace does not hold. `whatsapp` is Meta's row as it stands (null: the message has none), `own`
+ * the channels, of email and text, that hold a version of it, `ownCategory` the category those rows carry and `ownOver`
+ * what else they differ in.
+ */
+const messageOf =
+  ({ whatsapp = template(), own = [], ownCategory = null, ownOver = {} } = {}) =>
+  (id) => {
+    const rows = [...(whatsapp ? [whatsapp] : []), ...own.map((c) => ownRow(c, { category: ownCategory, ...ownOver }))];
+    const hit = rows.find((r) => r.id === id);
+    return hit ? rows.filter((r) => r.name === hit.name && r.language === hit.language) : [];
+  };
 /** A person as the People page reads them: quiet for 40 days, said yes to both. */
 const person = (id, over = {}) => ({
   id,
@@ -126,16 +160,16 @@ const OFFERS_OPEN = { campaigns: true, address: true, paused: null };
 function fakes(over = {}) {
   const log = [];
   const answers = {
-    template: template(),
+    // The message the id names, as every row the workspace holds of it (db messageVersionRowsOf): Meta's approved row, and no
+    // email or text version beside it.
+    message: messageOf(),
     bookingLink: "https://book.example/m",
     people,
     // One list, resolved and counted the one way (the adapter's poolList): here, a People list over the people these
     // fakes hold, and no list of the workspace's own unless a test gives one.
     list: null,
-    // Step 3: the number's health and the workspace's other channels come from one read; the message's email and text
-    // versions (a templates row of its name and language on that channel) from another.
+    // Step 3: the number's health and the workspace's other channels come from one read.
     channels: workspace(),
-    versions: [],
     // 14:00 UTC is 10:00 in New York: inside the hours a send may go out in.
     timezone: "America/New_York",
     // Whether the workspace is paused (tenants.status): not, unless a test says so.
@@ -221,19 +255,26 @@ test("a broadcast is refused in the person's words, in order, before anything is
     "Pick a list.",
   );
   await refused(
-    make(fakes({ template: null }), { template_id: T1, audience: everyone }),
+    make(fakes({ message: messageOf({ whatsapp: null }) }), { template_id: T1, audience: everyone }),
     "not_found",
     404,
     "Template not found.",
   );
   await refused(
-    make(fakes({ template: template({ meta_status: "pending" }) }), { template_id: T1, audience: everyone }),
+    make(fakes({ message: messageOf({ whatsapp: template({ meta_status: "pending" }) }) }), {
+      template_id: T1,
+      audience: everyone,
+    }),
     "conflict",
     409,
-    "not approved by WhatsApp",
+    "WhatsApp is still reviewing this message's WhatsApp version.",
   );
   await refused(
-    make(fakes({ template: template({ variables: ["1"] }) }), { template_id: T1, params: [], audience: everyone }),
+    make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
+      template_id: T1,
+      params: [],
+      audience: everyone,
+    }),
     "validation",
     400,
     "This template takes 1 value.",
@@ -245,7 +286,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     "This template takes no values.",
   );
   await refused(
-    make(fakes({ template: template({ variables: ["1"] }) }), {
+    make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
       template_id: T1,
       params: [{ kind: "moon_phase" }],
       audience: everyone,
@@ -255,7 +296,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     "Each value is typed text",
   );
   await refused(
-    make(fakes({ template: template({ variables: ["1"] }) }), {
+    make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
       template_id: T1,
       params: ["line\nbreak"],
       audience: everyone,
@@ -265,7 +306,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     "without line breaks or tabs",
   );
   await refused(
-    make(fakes({ template: template({ variables: ["1"] }), bookingLink: null }), {
+    make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }), bookingLink: null }), {
       template_id: T1,
       params: ["@booking_link"],
       audience: everyone,
@@ -276,7 +317,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
   );
   // REGRESSION (C6): a one-off broadcast has no visit, so a visit's slot left every person held back as a missing value and the broadcast read as sent.
   await refused(
-    make(fakes({ template: template({ variables: ["1"] }) }), {
+    make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
       template_id: T1,
       params: ["@visit_when"],
       audience: everyone,
@@ -286,7 +327,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.",
   );
   await refused(
-    make(fakes({ template: template({ variables: ["1"] }) }), {
+    make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
       template_id: T1,
       params: [{ kind: "visit_service" }],
       audience: everyone,
@@ -330,7 +371,7 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
     "marketing: the yes to offers",
   );
   assert.equal(all.of("assemble")[0][1].audience.label, EVERYONE_LABEL);
-  const utility = fakes({ template: template({ category: "utility" }) });
+  const utility = fakes({ message: messageOf({ whatsapp: template({ category: "utility" }) }) });
   await make(utility, { template_id: T1, audience: everyone });
   assert.deepEqual(
     utility.of("assemble")[0][2].map((r) => r.contact_id),
@@ -378,7 +419,7 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
     emptyAudienceRefusal("marketing", EVERYONE_LABEL, noOne, { channels: ["whatsapp"], about: "ours" }),
   );
   await refused(
-    make(fakes({ people: noOne, template: template({ category: "utility" }) }), {
+    make(fakes({ people: noOne, message: messageOf({ whatsapp: template({ category: "utility" }) }) }), {
       template_id: T1,
       audience: everyone,
     }),
@@ -503,7 +544,7 @@ test("REGRESSION: an empty audience says which of its two causes it has -- a yes
     const f = fakes({
       people: rows,
       list: (ref) => (lists[ref.id] ? { label: lists[ref.id].name, memberIds: lists[ref.id].memberIds } : null),
-      template: template({ category }),
+      message: messageOf({ whatsapp: template({ category }) }),
     });
     try {
       await make(f, { template_id: T1, audience: { kind: "saved", id: list } });
@@ -591,7 +632,7 @@ test("a broadcast goes by the channels it ticks, each person once on the first t
     reachable("d", { email: null, lastChannel: "sms" }), // wrote by text last, and said yes by text: text
     reachable("e", { phone: null, email: null }), // nowhere to send: held
   ];
-  const f = fakes({ template: utility, people, channels: ready, versions: ["email", "sms"] });
+  const f = fakes({ message: messageOf({ whatsapp: utility, own: ["email", "sms"] }), people, channels: ready });
   await make(f, { template_id: T1, audience: everyone, channels: ["whatsapp", "sms", "email"] });
   const [, row, recipients] = f.of("assemble")[0];
   assert.deepEqual(row.channels, ["whatsapp", "sms", "email"]);
@@ -627,7 +668,7 @@ test("a broadcast is the business's own news, whatever its template's category: 
     byEmail("f", { relationship: true, emailMarketing: "opted_out" }), // they pressed Unsubscribe: held, whatever else
     byEmail("g", { state: "opted_out", relationship: true }), // STOP: held
   ];
-  const f = fakes({ template: utility, people, channels: ready, versions: ["email"] });
+  const f = fakes({ message: messageOf({ whatsapp: utility, own: ["email"] }), people, channels: ready });
   const r = await make(f, { template_id: T1, audience: everyone, channels: ["email"] });
   assert.deepEqual(
     f.of("assemble")[0][2].map((x) => [x.contact_id, x.channel]),
@@ -640,10 +681,9 @@ test("a broadcast is the business's own news, whatever its template's category: 
   assert.equal(r.recipient_count, 2);
   // Nobody qualifies: the broadcast is refused before a row, as one to an audience that has nobody to send to is.
   const strangers = fakes({
-    template: utility,
+    message: messageOf({ whatsapp: utility, own: ["email"] }),
     people: [byEmail("a"), byEmail("d", { state: "opted_in", channels: ["whatsapp", "sms"] })],
     channels: ready,
-    versions: ["email"],
   });
   // Said as what an email of the business's news asks (consent-asks.ts, from the one predicate), never as "a number".
   await refused(
@@ -657,10 +697,9 @@ test("a broadcast is the business's own news, whatever its template's category: 
   // them; a yes recorded before the channels were covers it, with no relationship asked of anyone).
   const withNumber = (id, consent) => ({ ...byEmail(id, consent), phone: "+15551230009" });
   const wa = fakes({
-    template: utility,
+    message: messageOf({ whatsapp: utility, own: ["email"] }),
     people: [withNumber("a", {}), withNumber("e", { state: "opted_in", channels: null })],
     channels: ready,
-    versions: ["email"],
   });
   await make(wa, { template_id: T1, audience: everyone, channels: ["whatsapp"] });
   assert.deepEqual(
@@ -690,7 +729,8 @@ test("a broadcast is refused while the workspace is paused, in the words the com
     );
   // The one rule a broadcast's ticks keep, which Ask asks before it proposes one: a card the route would refuse is never shown.
   const asked = fakes({ channels: workspace({ paused: true }) });
-  await refused(campaignHowOf(asked.ports, template(), ["whatsapp"], "marketing"), "payment_required", 402, "paused");
+  const message = campaignMessageOf([template()], "month_offer", "en_US");
+  await refused(campaignHowOf(asked.ports, message, ["whatsapp"], "marketing"), "payment_required", 402, "paused");
   // Not paused, the same broadcast is made.
   const fine = fakes({ channels: workspace({ paused: false }) });
   await make(fine, { template_id: T1, audience: everyone });
@@ -701,10 +741,9 @@ test("a broadcast of the business's news by email is refused at create while the
   const utility = template({ category: "utility" });
   const news = (offers) =>
     fakes({
-      template: utility,
+      message: messageOf({ whatsapp: utility, own: ["email"] }),
       people: [reachable("a")],
       channels: workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, ...(offers ? { offers } : {}) }),
-      versions: ["email"],
     });
   const tick = (f, channels = ["whatsapp", "email"]) => make(f, { template_id: T1, audience: everyone, channels });
   const f = news();
@@ -745,7 +784,7 @@ test("a broadcast that ticks nothing goes by WhatsApp alone, as every one went b
 
 test("a tick the send cannot keep is refused at create, in the words the composer's greyed tick says: the purpose never carries it, the workspace is not ready on it, the message has no version there", async () => {
   const ready = workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true });
-  const offer = (over = {}) => fakes({ channels: ready, versions: ["email", "sms"], ...over });
+  const offer = (over = {}) => fakes({ channels: ready, message: messageOf({ own: ["email", "sms"] }), ...over });
   const tick = (f, channels) => make(f, { template_id: T1, audience: everyone, channels });
   // Offers: texts carry none (a request that is wrong), and an email goes only once the workspace can send offers by
   // email (a state of the workspace, with the reason that is true).
@@ -776,7 +815,12 @@ test("a tick the send cannot keep is refused at create, in the words the compose
   const utility = template({ category: "utility" });
   const opened = workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, offers: OFFERS_OPEN });
   const visit = (over = {}) =>
-    fakes({ template: utility, channels: opened, versions: ["email", "sms"], people: [reachable("a")], ...over });
+    fakes({
+      message: messageOf({ whatsapp: utility, own: ["email", "sms"] }),
+      channels: opened,
+      people: [reachable("a")],
+      ...over,
+    });
   await tick(visit(), ["email"]);
   await refused(
     tick(visit({ channels: ready }), ["email"]),
@@ -811,19 +855,19 @@ test("a tick the send cannot keep is refused at create, in the words the compose
   );
   // Ready on the channel but no version of the message there: it cannot be said on it.
   await refused(
-    tick(visit({ versions: ["sms"] }), ["email"]),
+    tick(visit({ message: messageOf({ whatsapp: utility, own: ["sms"] }) }), ["email"]),
     "conflict",
     409,
     "This message has no email version yet.",
   );
   await refused(
-    tick(visit({ versions: ["email"] }), ["sms"]),
+    tick(visit({ message: messageOf({ whatsapp: utility, own: ["email"] }) }), ["sms"]),
     "conflict",
     409,
     "This message has no text version yet.",
   );
   // Refused before anyone is enrolled, a row or a decision.
-  const f = visit({ versions: [] });
+  const f = visit({ message: messageOf({ whatsapp: utility }) });
   await refused(tick(f, ["whatsapp", "email"]), "conflict", 409, "no email version");
   assert.deepEqual(f.ops(), []);
 });
@@ -832,12 +876,16 @@ test("the WhatsApp number is asked about only when WhatsApp is ticked; the day's
   const utility = template({ category: "utility" });
   const noNumber = workspace({ health: null, mailbox: true, domain: true, offers: OFFERS_OPEN });
   // No number at all, and an email send goes: it never asks.
-  const email = fakes({ template: utility, channels: noNumber, versions: ["email"], people: [reachable("a")] });
+  const email = fakes({
+    message: messageOf({ whatsapp: utility, own: ["email"] }),
+    channels: noNumber,
+    people: [reachable("a")],
+  });
   await make(email, { template_id: T1, audience: everyone, channels: ["email"] });
   assert.deepEqual(email.of("assemble")[0][2], [{ contact_id: "a", facts: null, channel: "email" }]);
   // Ticking WhatsApp with none refuses.
   await refused(
-    make(fakes({ template: utility, channels: noNumber, versions: ["email"] }), {
+    make(fakes({ message: messageOf({ whatsapp: utility, own: ["email"] }), channels: noNumber }), {
       template_id: T1,
       audience: everyone,
       channels: ["whatsapp", "email"],
@@ -855,14 +903,17 @@ test("the WhatsApp number is asked about only when WhatsApp is ticked; the day's
   });
   const crowd = (n, over) => Array.from({ length: n }, (_, i) => reachable(`${over?.lastChannel ?? "w"}${i}`, over));
   const mixed = fakes({
-    template: utility,
+    message: messageOf({ whatsapp: utility, own: ["email"] }),
     channels: tier,
-    versions: ["email"],
     people: [...crowd(40), ...crowd(30, { lastChannel: "email" })],
   });
   const r = await make(mixed, { template_id: T1, audience: everyone, channels: ["whatsapp", "email"] });
   assert.equal(r.recipient_count, 70, "forty on WhatsApp, thirty by email: Meta's fifty a day is not past");
-  const past = fakes({ template: utility, channels: tier, versions: ["email"], people: crowd(51) });
+  const past = fakes({
+    message: messageOf({ whatsapp: utility, own: ["email"] }),
+    channels: tier,
+    people: crowd(51),
+  });
   await refused(
     make(past, { template_id: T1, audience: everyone, channels: ["whatsapp", "email"] }),
     "validation",
@@ -938,7 +989,7 @@ test("when, and what it is called: not a time, past the window, a past time is n
 });
 
 test("the rows, then the job, then the ledger: the row as the person composed it, the people with no words to keep, the send at its time, the decision, the receipt", async () => {
-  const f = fakes({ template: template({ variables: ["1", "2"], title: "Monthly offer" }) });
+  const f = fakes({ message: messageOf({ whatsapp: template({ variables: ["1", "2"], title: "Monthly offer" }) }) });
   const r = await make(f, { template_id: T1, params: ["@first_name", "  20% off  "], audience: everyone });
   const specs = [{ kind: "first_name" }, { kind: "text", value: "20% off" }];
   const name = broadcastName("month_offer", ZONE, NOW, "Monthly offer");
@@ -1288,8 +1339,10 @@ test("cancel: scheduled withdraws the job; sending stops at the next batch; wait
 
 test("the playbook's check refuses a tick its purpose never carries, accepts one the workspace is not ready on (a run holds those people), and keeps the channels an edit does not name", async () => {
   const visit = { trigger: "visit_tomorrow", template_id: T1, params: [] };
-  const reminder = () => fakes({ template: template({ category: "utility" }) }).ports;
-  // A reminder goes by email and text, ready or not: the check has no readiness, a run holds whom it cannot reach.
+  const reminder = () =>
+    fakes({ message: messageOf({ whatsapp: template({ category: "utility" }), own: ["email", "sms"] }) }).ports;
+  // A reminder goes by email and text, ready or not: the check has no readiness, a run holds whom it cannot reach. It
+  // asks only that the message holds a version of one of the ticks (a message that holds none could not be sent).
   const both = await checkPlaybook(reminder(), { ...visit, channels: ["email", "whatsapp", "sms"] });
   assert.deepEqual(both.channels, ["whatsapp", "sms", "email"], "in the product's order, whatever order they came in");
   // An offer never goes by text; by email it is kept ticked whether or not the workspace can send it yet (a run holds those
@@ -1348,27 +1401,30 @@ test("the playbook's check: the trigger first, then the template through the one
     "Pick a template.",
   );
   await refused(
-    checkPlaybook(fakes({ template: template({ meta_status: "rejected" }) }).ports, {
+    checkPlaybook(fakes({ message: messageOf({ whatsapp: template({ meta_status: "rejected" }) }) }).ports, {
       trigger: "quiet_30",
       template_id: T1,
     }),
     "conflict",
     409,
-    "not approved by WhatsApp",
+    "WhatsApp refused this message's WhatsApp version.",
   );
   await refused(
-    checkPlaybook(fakes({ template: template({ variables: ["1"] }), bookingLink: null }).ports, {
-      trigger: "quiet_30",
-      template_id: T1,
-      params: ["@booking_link"],
-    }),
+    checkPlaybook(
+      fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }), bookingLink: null }).ports,
+      {
+        trigger: "quiet_30",
+        template_id: T1,
+        params: ["@booking_link"],
+      },
+    ),
     "conflict",
     409,
     "This message takes the booking link, and none is on file.",
   );
   // REGRESSION (C6): only a visit playbook has a visit to name; a win-back's visit slot reached nobody.
   await refused(
-    checkPlaybook(fakes({ template: template({ variables: ["1"] }) }).ports, {
+    checkPlaybook(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }).ports, {
       trigger: "quiet_30",
       template_id: T1,
       params: ["@visit_service"],
@@ -1380,7 +1436,7 @@ test("the playbook's check: the trigger first, then the template through the one
   for (const trigger of ["visit_tomorrow", "visited"]) {
     // 2 Oct 2026: both visit moments run under Bookings, so their message is about the visit (utility), not an offer.
     const visit = await checkPlaybook(
-      fakes({ template: template({ variables: ["1", "2"], category: "utility" }) }).ports,
+      fakes({ message: messageOf({ whatsapp: template({ variables: ["1", "2"], category: "utility" }) }) }).ports,
       { trigger, template_id: T1, params: ["@visit_when", "@visit_service"] },
       null,
     );
@@ -1398,12 +1454,15 @@ test("the playbook's check: the trigger first, then the template through the one
     params: ["@first_name", "@business_name", "@proposal_link"],
   };
   await refused(
-    checkPlaybook(fakes({ template: threeSlots }).ports, followUp),
+    checkPlaybook(fakes({ message: messageOf({ whatsapp: threeSlots }) }).ports, followUp),
     "validation",
     400,
     FOLLOW_UP_NEEDS_DEALS,
   );
-  const made = await checkPlaybook(fakes({ template: threeSlots, dealsOn: true }).ports, followUp);
+  const made = await checkPlaybook(
+    fakes({ message: messageOf({ whatsapp: threeSlots }), dealsOn: true }).ports,
+    followUp,
+  );
   assert.deepEqual(
     [made.name, made.policy_class, made.params],
     ["Proposal follow-up", "follow_up", [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }]],
@@ -1412,28 +1471,35 @@ test("the playbook's check: the trigger first, then the template through the one
   // A follow-up with no slot filled by the link would be a bare "just checking in": refused. (A utility message, since
   // 2 Oct 2026 the follow-up's class and its message's category must agree: an offer is refused before the link.)
   await refused(
-    checkPlaybook(fakes({ template: template({ variables: ["1"], category: "utility" }), dealsOn: true }).ports, {
-      trigger: "proposal_waiting",
-      template_id: T1,
-      params: ["@first_name"],
-    }),
+    checkPlaybook(
+      fakes({ message: messageOf({ whatsapp: template({ variables: ["1"], category: "utility" }) }), dealsOn: true })
+        .ports,
+      {
+        trigger: "proposal_waiting",
+        template_id: T1,
+        params: ["@first_name"],
+      },
+    ),
     "validation",
     400,
     FOLLOW_UP_NEEDS_LINK,
   );
   // A win-back never asks whether deals are on (the port throws if it is asked), and cannot carry a proposal's link.
   await refused(
-    checkPlaybook(fakes({ template: template({ variables: ["1"] }), dealsOn: new Error("asked") }).ports, {
-      trigger: "quiet_30",
-      template_id: T1,
-      params: ["@proposal_link"],
-    }),
+    checkPlaybook(
+      fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }), dealsOn: new Error("asked") }).ports,
+      {
+        trigger: "quiet_30",
+        template_id: T1,
+        params: ["@proposal_link"],
+      },
+    ),
     "validation",
     400,
     "Only the proposal follow-up can fill in a proposal's link.",
   );
   const starter = starterForTrigger("quiet_30").name;
-  const own = await checkPlaybook(fakes({ template: template({ name: starter }) }).ports, {
+  const own = await checkPlaybook(fakes({ message: messageOf({ whatsapp: template({ name: starter }) }) }).ports, {
     trigger: "quiet_30",
     template_id: T1,
     params: [],
@@ -1459,19 +1525,25 @@ test("the playbook's check: the trigger first, then the template through the one
     },
     "its own starter: the trigger's name alone, and the defaults",
   );
-  const given = await checkPlaybook(fakes({ template: template({ title: "Monthly offer" }) }).ports, {
-    trigger: "everyone_monthly",
-    template_id: T1,
-    params: [],
-    name: "  The   month's  offer ",
-  });
+  const given = await checkPlaybook(
+    fakes({ message: messageOf({ whatsapp: template({ title: "Monthly offer" }) }) }).ports,
+    {
+      trigger: "everyone_monthly",
+      template_id: T1,
+      params: [],
+      name: "  The   month's  offer ",
+    },
+  );
   assert.equal(given.name, "The month's offer", "given, its spaces made one");
   assert.equal(given.policy_class, "campaign");
-  const titled = await checkPlaybook(fakes({ template: template({ title: "Monthly offer" }) }).ports, {
-    trigger: "everyone_monthly",
-    template_id: T1,
-    params: [],
-  });
+  const titled = await checkPlaybook(
+    fakes({ message: messageOf({ whatsapp: template({ title: "Monthly offer" }) }) }).ports,
+    {
+      trigger: "everyone_monthly",
+      template_id: T1,
+      params: [],
+    },
+  );
   assert.equal(
     titled.name,
     `The month's offer · ${templateTitle("month_offer", "Monthly offer")}`,
@@ -1530,7 +1602,7 @@ test("the moments a new playbook may start from (2 Oct 2026): a retired one is r
   const threeSlots = template({ name: "proposal_follow_up", category: "utility", variables: ["1", "2", "3"] });
   await refused(
     checkPlaybook(
-      fakes({ template: threeSlots }).ports,
+      fakes({ message: messageOf({ whatsapp: threeSlots }) }).ports,
       { trigger: "proposal_waiting", template_id: T1, params: ["@first_name", "@business_name", "@proposal_link"] },
       { trigger: "proposal_waiting" },
     ),
@@ -1547,14 +1619,22 @@ test("a moment and its message agree on the yes they need (decision 7): a playbo
   // A message that is an offer on a moment that reaches anyone who said yes to texts.
   for (const trigger of ["visit_tomorrow", "visited"])
     await refused(
-      checkPlaybook(fakes({ template: offer }).ports, { trigger, template_id: T1, params: [] }, null),
+      checkPlaybook(
+        fakes({ message: messageOf({ whatsapp: offer }) }).ports,
+        { trigger, template_id: T1, params: [] },
+        null,
+      ),
       "validation",
       400,
       MESSAGE_MOMENT_WORDS.offer_on_texts,
     );
   // One no channel ever filed is an offer, as the send reads it (purposeOfTemplate).
   await refused(
-    checkPlaybook(fakes({ template: unfiled }).ports, { trigger: "visited", template_id: T1, params: [] }, null),
+    checkPlaybook(
+      fakes({ message: messageOf({ whatsapp: unfiled }) }).ports,
+      { trigger: "visited", template_id: T1, params: [] },
+      null,
+    ),
     "validation",
     400,
     MESSAGE_MOMENT_WORDS.offer_on_texts,
@@ -1566,7 +1646,11 @@ test("a moment and its message agree on the yes they need (decision 7): a playbo
     { trigger: "saved_list", list_key: "lapsed", policy_class: "reengage" },
   ])
     await refused(
-      checkPlaybook(fakes({ template: visit }).ports, { ...body, template_id: T1, params: [] }, null),
+      checkPlaybook(
+        fakes({ message: messageOf({ whatsapp: visit }) }).ports,
+        { ...body, template_id: T1, params: [] },
+        null,
+      ),
       "validation",
       400,
       MESSAGE_MOMENT_WORDS.texts_on_offers,
@@ -1574,7 +1658,8 @@ test("a moment and its message agree on the yes they need (decision 7): a playbo
   // The proposal follow-up is about their own proposal: an offer is refused there too.
   await refused(
     checkPlaybook(
-      fakes({ template: template({ category: "marketing", variables: ["1"] }), dealsOn: true }).ports,
+      fakes({ message: messageOf({ whatsapp: template({ category: "marketing", variables: ["1"] }) }), dealsOn: true })
+        .ports,
       { trigger: "proposal_waiting", template_id: T1, params: ["@proposal_link"] },
       null,
     ),
@@ -1586,23 +1671,30 @@ test("a moment and its message agree on the yes they need (decision 7): a playbo
   // thank-you, is refused when it is saved, and saved once it sends a message about the visit.
   const after = { trigger: "visited", template_id: T1, params: [] };
   await refused(
-    checkPlaybook(fakes({ template: offer }).ports, after, { trigger: "visited" }),
+    checkPlaybook(fakes({ message: messageOf({ whatsapp: offer }) }).ports, after, { trigger: "visited" }),
     "validation",
     400,
     MESSAGE_MOMENT_WORDS.offer_on_texts,
   );
-  const saved = await checkPlaybook(fakes({ template: visit }).ports, after, { trigger: "visited" });
+  const saved = await checkPlaybook(fakes({ message: messageOf({ whatsapp: visit }) }).ports, after, {
+    trigger: "visited",
+  });
   assert.deepEqual([saved.trigger, saved.policy_class], ["visited", "booking"], "now under Bookings, as it is classed");
   // And where they agree, nothing is said: an offer on an offer's moment, a visit's message on a visit's.
   assert.equal(
-    (await checkPlaybook(fakes({ template: offer }).ports, { trigger: "quiet_30", template_id: T1, params: [] }, null))
-      .policy_class,
+    (
+      await checkPlaybook(
+        fakes({ message: messageOf({ whatsapp: offer }) }).ports,
+        { trigger: "quiet_30", template_id: T1, params: [] },
+        null,
+      )
+    ).policy_class,
     "reengage",
   );
   assert.equal(
     (
       await checkPlaybook(
-        fakes({ template: visit }).ports,
+        fakes({ message: messageOf({ whatsapp: visit }) }).ports,
         { trigger: "visit_tomorrow", template_id: T1, params: [] },
         null,
       )
@@ -1669,9 +1761,8 @@ const byEmailAndText = () => [
   ...["t1", "t2", "t3"].map((id) => reachable(id, { email: null, lastChannel: "sms" })),
 ];
 const MONTH = {
-  template: template({ category: "utility" }),
+  message: messageOf({ whatsapp: template({ category: "utility" }), own: ["email", "sms"] }),
   channels: workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, offers: OFFERS_OPEN }),
-  versions: ["email", "sms"],
 };
 const ALL_THREE = { template_id: T1, audience: everyone, channels: ["sms", "email"] };
 
@@ -1799,4 +1890,211 @@ test("a hold that could not be written leaves the people queued, and the run is 
   const kept = await make(ok, { template_id: T1, audience: everyone, channels: ["email"] });
   assert.equal(kept.held_for_allowance, 4);
   assert.ok(!("hold_unwritten" in ok.of("record")[0][4]), "nothing unwritten, nothing said of it");
+});
+
+/* ---- A message needs no WhatsApp row (lane 1): the create path reads the message, whichever version is picked ---- */
+
+/** A workspace with no WhatsApp number at all, a mailbox on the campaigns domain, and offers open by email. */
+const EMAIL_ONLY = workspace({ health: null, mailbox: true, domain: true, offers: OFFERS_OPEN });
+/** A workspace with a number, a texting line and a mailbox: every channel ready. */
+const EVERY_CHANNEL = workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true, offers: OFFERS_OPEN });
+/** A message with an email version and no other, filed utility as only a starter may be. */
+const EMAIL_VISIT = () => messageOf({ whatsapp: null, own: ["email"], ownCategory: "utility" });
+/** A message WhatsApp is still reviewing, with an email version beside it. */
+const IN_REVIEW = (own = ["email"]) =>
+  messageOf({ whatsapp: template({ meta_status: "pending", category: "utility" }), own });
+const STILL_REVIEWING = "WhatsApp is still reviewing this message's WhatsApp version.";
+const NO_WHATSAPP = "This message has no WhatsApp version.";
+
+test("a broadcast by email on a message with no WhatsApp row, on a workspace with no WhatsApp number, is made: for the people who said yes to messages and have an address, on the email version", async () => {
+  const unsaid = (id) => {
+    const r = reachable(id, { phone: null });
+    return { ...r, consent: { ...r.consent, state: "unknown", channels: null, relationship: false } };
+  };
+  const people = [
+    reachable("a", { phone: null }), // an address, a yes to messages and a relationship: enrolled
+    reachable("b", { email: null }), // a number and no address: nothing to send an email to
+    unsaid("c"), // an address, and no yes, and no relationship: held
+  ];
+  const f = fakes({ message: EMAIL_VISIT(), channels: EMAIL_ONLY, people });
+  const r = await make(f, { template_id: EMAIL_V, audience: everyone, channels: ["email"] });
+  const [, row, recipients] = f.of("assemble")[0];
+  assert.equal(row.template_id, EMAIL_V, "the email version's id: the message's anchor where it has no other version");
+  assert.deepEqual([row.template_name, row.template_language, row.channels], ["month_offer", "en_US", ["email"]]);
+  assert.deepEqual(recipients, [{ contact_id: "a", facts: null, channel: "email" }]);
+  assert.equal(r.recipient_count, 1);
+  assert.deepEqual(f.ops(), ["assemble", "record"], "no number is asked for: an email send never needs one");
+  assert.equal(f.of("record")[0][4].category, "utility", "the category the message's own version carries");
+  // WhatsApp is the tick when none is named, and there is no WhatsApp number: the workspace's reason wins.
+  await refused(
+    make(fakes({ message: EMAIL_VISIT(), channels: EMAIL_ONLY }), { template_id: EMAIL_V, audience: everyone }),
+    "conflict",
+    409,
+    "Connect a WhatsApp number first.",
+  );
+  // With a number, the message has no WhatsApp version: that is the sentence, for the tick alone and beside the email's.
+  for (const channels of [["whatsapp"], ["whatsapp", "email"], undefined]) {
+    const g = fakes({ message: EMAIL_VISIT(), channels: EVERY_CHANNEL });
+    await refused(
+      make(g, { template_id: EMAIL_V, audience: everyone, ...(channels ? { channels } : {}) }),
+      "conflict",
+      409,
+      NO_WHATSAPP,
+    );
+    assert.deepEqual(g.ops(), [], "refused at create, before a row");
+  }
+});
+
+test("ticks WhatsApp's version of a message WhatsApp is still reviewing: refused at create in its standing, alone and beside the email that would go; the email tick alone is made on the anchor", async () => {
+  for (const channels of [["whatsapp"], ["whatsapp", "email"], undefined]) {
+    const f = fakes({ message: IN_REVIEW(), channels: EVERY_CHANNEL });
+    await refused(
+      make(f, { template_id: T1, audience: everyone, ...(channels ? { channels } : {}) }),
+      "conflict",
+      409,
+      STILL_REVIEWING,
+    );
+    assert.deepEqual(f.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
+  }
+  // Meta's other verdicts say themselves, by the same sentence a page greys the tick with.
+  for (const [meta_status, said] of [
+    ["rejected", "WhatsApp refused this message's WhatsApp version."],
+    ["paused", "WhatsApp has paused this message's WhatsApp version."],
+    ["disabled", "WhatsApp has disabled this message's WhatsApp version."],
+  ])
+    await refused(
+      make(fakes({ message: messageOf({ whatsapp: template({ meta_status }) }), channels: EVERY_CHANNEL }), {
+        template_id: T1,
+        audience: everyone,
+      }),
+      "conflict",
+      409,
+      said,
+    );
+  // By email alone it is made, whichever version's id was picked: the message is kept on its anchor, WhatsApp's row as it stands.
+  for (const id of [T1, EMAIL_V]) {
+    const f = fakes({ message: IN_REVIEW(), channels: EVERY_CHANNEL, people: [reachable("a")] });
+    await make(f, { template_id: id, audience: everyone, channels: ["email"] });
+    assert.deepEqual(
+      [f.of("assemble")[0][1].template_id, f.of("assemble")[0][1].channels],
+      [T1, ["email"]],
+      `picked by ${id}`,
+    );
+  }
+});
+
+test("any version's id names the message: WhatsApp's, an email's and a text's make the same broadcast, kept on the anchor's id; an id of no version is no message", async () => {
+  const all = messageOf({ whatsapp: template({ category: "utility" }), own: ["email", "sms"] });
+  for (const id of [T1, EMAIL_V, TEXT_V]) {
+    const f = fakes({ message: all, channels: EVERY_CHANNEL, people: [reachable("a")] });
+    await make(f, { template_id: id, audience: everyone });
+    const [, row] = f.of("assemble")[0];
+    assert.deepEqual(
+      [row.template_id, row.template_name, row.template_language, row.channels],
+      [T1, "month_offer", "en_US", ["whatsapp"]],
+      `picked by ${id}`,
+    );
+  }
+  await refused(
+    make(fakes({ message: all }), { template_id: "77777777-7777-4777-8777-777777777799", audience: everyone }),
+    "not_found",
+    404,
+    "Template not found.",
+  );
+  // With no WhatsApp row the anchor is the email, and a text's id lands on it.
+  const own = messageOf({ whatsapp: null, own: ["email", "sms"], ownCategory: "utility" });
+  const f = fakes({ message: own, channels: EMAIL_ONLY, people: [reachable("a", { phone: null })] });
+  await make(f, { template_id: TEXT_V, audience: everyone, channels: ["email"] });
+  assert.equal(f.of("assemble")[0][1].template_id, EMAIL_V, "picked by the text's id, kept on the email's: the anchor");
+  // The playbook is kept on the anchor the same way.
+  const kept = await checkPlaybook(fakes({ message: own }).ports, {
+    trigger: "visit_tomorrow",
+    template_id: TEXT_V,
+    params: [],
+    channels: ["sms", "email"],
+  });
+  assert.deepEqual([kept.template_id, kept.template_name, kept.channels], [EMAIL_V, "month_offer", ["sms", "email"]]);
+});
+
+test("a message takes as many values as it has slots, by contracts' one count: positions 1 and 3 in a list of two are three slots, and the refusal says so, for a broadcast and a playbook", async () => {
+  const slot = (position) => ({ position, label: `Value ${position}`, example: "example" });
+  const gapped = messageOf({ whatsapp: template({ variables: [slot(1), slot(3)] }) });
+  const two = ["@first_name", "hello"];
+  const three = ["@first_name", "hello", "again"];
+  await refused(
+    make(fakes({ message: gapped }), { template_id: T1, params: two, audience: everyone }),
+    "validation",
+    400,
+    "This template takes 3 values.",
+  );
+  const f = fakes({ message: gapped });
+  await make(f, { template_id: T1, params: three, audience: everyone });
+  assert.equal(f.of("assemble")[0][1].params.length, 3);
+  await refused(
+    checkPlaybook(fakes({ message: gapped }).ports, { trigger: "quiet_30", template_id: T1, params: two }),
+    "validation",
+    400,
+    "This template takes 3 values.",
+  );
+  // A message with no WhatsApp row counts its anchor's: the email's two slots.
+  const emailSlots = messageOf({
+    whatsapp: null,
+    own: ["email"],
+    ownCategory: "utility",
+    ownOver: { variables: [slot(1), slot(2)] },
+  });
+  await refused(
+    make(fakes({ message: emailSlots, channels: EMAIL_ONLY }), {
+      template_id: EMAIL_V,
+      params: three,
+      audience: everyone,
+      channels: ["email"],
+    }),
+    "validation",
+    400,
+    "This template takes 2 values.",
+  );
+});
+
+test("a playbook on a message with no WhatsApp row keeps the ticks that cannot send yet but is made only where a tick is held: email alone is kept, WhatsApp alone is refused in its words, the two together are kept", async () => {
+  const visit = { trigger: "visit_tomorrow", params: [] };
+  const check = (channels, message = EMAIL_VISIT(), id = EMAIL_V) =>
+    checkPlaybook(fakes({ message }).ports, { ...visit, template_id: id, channels });
+  const byEmail = await check(["email"]);
+  assert.deepEqual([byEmail.template_id, byEmail.channels], [EMAIL_V, ["email"]]);
+  await refused(check(["whatsapp"]), "conflict", 409, NO_WHATSAPP);
+  // None named is WhatsApp alone, as every playbook went before.
+  await refused(check(undefined), "conflict", 409, NO_WHATSAPP);
+  // A tick that cannot send yet is kept beside one that can: the run holds WhatsApp's people (core run-playbook).
+  const both = await check(["whatsapp", "email"]);
+  assert.deepEqual([both.template_id, both.channels], [EMAIL_V, ["whatsapp", "email"]]);
+  // No tick held says each one's reason, one after another.
+  await refused(check(["whatsapp", "sms"]), "conflict", 409, `${NO_WHATSAPP} This message has no text version yet.`);
+  // A WhatsApp version still in review is WhatsApp's standing, alone; beside the email version that is held it is kept.
+  await refused(check(["whatsapp"], IN_REVIEW([]), T1), "conflict", 409, STILL_REVIEWING);
+  const waiting = await check(["whatsapp", "email"], IN_REVIEW(), T1);
+  assert.deepEqual([waiting.template_id, waiting.channels], [T1, ["whatsapp", "email"]]);
+  // What a purpose never carries is a request that is wrong, and is said first: an offer by text.
+  await refused(
+    checkPlaybook(fakes({ message: messageOf({ whatsapp: null, own: ["email"], ownCategory: "marketing" }) }).ports, {
+      trigger: "everyone_monthly",
+      template_id: EMAIL_V,
+      params: [],
+      channels: ["sms"],
+    }),
+    "validation",
+    400,
+    "Texts carry no offers.",
+  );
+  // A message that is an offer is refused on a moment about a visit, as it is with a WhatsApp row (decision 7).
+  await refused(
+    checkPlaybook(fakes({ message: messageOf({ whatsapp: null, own: ["email"] }) }).ports, {
+      ...visit,
+      template_id: EMAIL_V,
+      channels: ["email"],
+    }),
+    "validation",
+    400,
+    MESSAGE_MOMENT_WORDS.offer_on_texts,
+  );
 });

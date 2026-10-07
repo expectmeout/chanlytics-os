@@ -311,7 +311,7 @@ function BubbleFrame({
         )}
         {held && (
           <span className="mp-mark" data-testid="mp-held">
-            <Icon name="x" size={11} /> Not sent
+            <Icon name="x" size={11} /> {PREVIEW_WORDS.notSent}
           </span>
         )}
       </div>
@@ -398,8 +398,9 @@ export function MessagePreview({
           keyer={keyer}
         />
       )}
-      {/* Why the channel's own version is not drawn: the page holds none for it, so WhatsApp's words stand (preview-by.ts). */}
-      {note && (
+      {/* Why the channel's own version is not drawn: the page holds none for it, so WhatsApp's words stand (preview-by.ts); and
+          Not sent under a stand-in, which a bubble marked held already says. */}
+      {note && !(held && !mail && note === PREVIEW_WORDS.notSent) && (
         <p className="mp-note warn" data-testid="mp-version-note">
           {note}
         </p>

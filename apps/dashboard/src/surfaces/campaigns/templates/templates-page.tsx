@@ -1,16 +1,22 @@
 /**
- * Campaigns > Library (the route's `messages`, the path's `templates`): the wording the receptionist and the campaigns send on WhatsApp, shown as the customer sees it
+ * Campaigns > Library (the route's `messages`, the path's `templates`): the wording the receptionist and the campaigns send, on each channel, shown as the customer sees it
  * (moved from legacy/pages/messages.jsx, decision 0015). One row per message -- the starter set in the library's order,
  * then what the workspace wrote or synced -- opening, beside the list, on the bubble for the language in view, its
  * languages (approved, in review, or one tap to add), and the verbs an operator has under a menu. Meta's own sample is
- * never shown; a template the workspace hid sits under a fold, still on file. Written here or in WhatsApp Manager,
- * WhatsApp approves either way; a marketing template can only go to people who said yes to offers. Every verb goes
- * through the templates verbs and the surface is re-fetched, so the cards are the server's.
+ * never shown; a message the workspace hid sits under a fold, still on file. A WhatsApp version is approved by WhatsApp
+ * whether it is written here or in WhatsApp Manager, an email or a text is ready when it is saved, and a marketing message
+ * can only go to people who said yes to offers. Every verb goes through the templates verbs and the surface is re-fetched,
+ * so the cards are the server's.
  *
  * A message is a name with a version on each channel it has (One message, every channel, step 1): its row says which
  * ("WhatsApp · Email · Text") and the pane has a switch for them. The email and text rows come from the settings surface
  * beside the WhatsApp ones (`templateVersions`), which no other page reads; a reach-out's emails are their own list, from
  * its chains, and each is a message with an email version that is written in its pane (step 5).
+ *
+ * The page lists the workspace's messages (the surface's `messages`), not its WhatsApp rows: a message written for email
+ * or text alone is a row, and the starter set is offered with or without a WhatsApp number (its email and text versions
+ * are written at once, its WhatsApp versions wait for a number). The number gates only what is WhatsApp's: a WhatsApp
+ * version's rename, hide and delete, a WhatsApp language, a template written to a number's account.
  *
  * It is the Inbox's shape (parts/split.tsx): the list in a pane and, while something is open, that thing in a second
  * pane beside it -- a message, a reach-out's email, or the composer writing a new one. The route has no address per
@@ -118,6 +124,7 @@ function MessagesReal() {
   const settings = useSurface("settings");
   const chains = useSurface("reach_outs");
   const templates = settings ? settings.templatesAll : undefined;
+  const messages = settings?.messages;
   // The workspace's email and text rows (not a reach-out's): each message finds its own among them. Unread is none.
   const versions = settings?.templateVersions ?? NO_VERSIONS;
   const S = library;
@@ -131,23 +138,20 @@ function MessagesReal() {
   const hasWhatsApp = (channels || []).some((c) => c.kind === "whatsapp");
   const bizName = brainOf(settings ? settings.settings : undefined).business_name || null;
 
-  if (templates === undefined) return readingNow();
-  if (templates === null) return couldntLoad();
+  if (templates === undefined || messages === undefined) return readingNow();
+  if (templates === null || messages === null) return couldntLoad();
 
-  const listing = listingOf(templates, S);
+  const listing = listingOf(templates, messages, S);
   const { langs, starters, customGroups, hiddenGroups, missingTotal, allMissing } = listing;
-  const partialSet = !!(hasWhatsApp && missingTotal > 0 && !allMissing);
+  const partialSet = missingTotal > 0 && !allMissing;
   const addingAll = doing === `add:all:${langs.map((l) => l.id).join(",")}`;
   const acts = pageActs({ doingRef, setDoing, flash });
   const { rename, toggleHidden, remove, addStarters, sync, written } = acts;
   // A new language is written and sent from the pane that opened it, by whoever may
   // add a template and only with a number to add it to; anyone else is told why in
-  // the picker, where the languages it cannot add would have been.
-  const addWhy = !hasWhatsApp
-    ? "Connect a WhatsApp number to add a language."
-    : !canAct
-      ? gateTitle("approve", "add a language")
-      : null;
+  // the picker, where the languages it cannot add would have been. (An email's or a text's
+  // version of a message needs no number: only a WhatsApp version does.)
+  const addWhy = !hasWhatsApp ? LIBRARY_WORDS.addNeedsNumber : !canAct ? gateTitle("approve", "add a language") : null;
   // A row opens its message beside the list, or closes it again; the composer gives way to it (its words are kept in
   // the tab, and come back with New), as New gives way to the message.
   const openOne = (key: string) => {
@@ -159,13 +163,14 @@ function MessagesReal() {
     setComposing(true);
   };
   const read = { langs, S, versions };
+  const held = { templates, messages };
   const card = (g: TemplateGroup) => (
     <MessageRow key={g.key} g={g} {...read} open={openKey === g.key} onOpen={() => openOne(g.key)} />
   );
 
   const needle = q.trim().toLowerCase();
-  const matches = matchesOf(needle, langs, S);
-  const listStarters = hasWhatsApp ? starters.filter(matches) : [];
+  const matches = matchesOf(needle, langs, S, versions);
+  const listStarters = starters.filter(matches);
   const listCustom = customGroups.filter(matches);
   // A reach-out's emails (Reach out Part 4 PR 8, R19): contracts' rows over the chains, found by their words too.
   const emails = tplEmails(chains);
@@ -175,12 +180,12 @@ function MessagesReal() {
   // What is open beside the list: the composer, a message or a reach-out's email. A message the list no longer has
   // (deleted, or a number that went) is nothing open.
   const openGroup = openKey
-    ? [...(hasWhatsApp ? starters : []), ...customGroups, ...hiddenGroups].find((g) => g.key === openKey)
+    ? [...starters, ...customGroups, ...hiddenGroups].find((g) => g.key === openKey)
     : undefined;
   const openEmail = tplEmailOpen(emails, openKey);
   const closeOpen = () => setOpenKey(null);
   const pane = composing ? (
-    composerPane({ bizName, setComposing, flash })
+    composerPane({ bizName, setComposing, setOpenKey, flash, hasWhatsApp, beginMessage: acts.beginMessage, held })
   ) : openGroup ? (
     <TemplatePane
       key={openGroup.key}
@@ -221,8 +226,8 @@ function MessagesReal() {
       <CmHead
         title={LIBRARY_WORDS.title}
         testid="messages-standing"
-        sub={headSub({ listing, emails })}
-        right={headRight({ hasWhatsApp, onNew: startNew })}
+        sub={headSub({ listing, messages, emails })}
+        right={headRight({ onNew: startNew })}
       />
       {/* The top of the list, as the Inbox's opens: the search, and beside it when WhatsApp was last asked. */}
       {listBar({ q, setQ, hasWhatsApp, lastSync: listing.lastSync, doing, busy, sync })}
@@ -234,20 +239,17 @@ function MessagesReal() {
         </span>
       )}
       {numberNotice({ channels, hasWhatsApp })}
-      {hasWhatsApp && allMissing && startersOffer({ S, langs, busy, addingAll, addStarters })}
+      {allMissing && startersOffer({ S, langs, busy, addingAll, addStarters, hasNumber: hasWhatsApp })}
       {templateList({
         listed,
         listStarters,
         listCustom,
         listEmails,
-        emails,
         openKey,
         onOpenKey: openOne,
         card,
         needle,
         q,
-        hasWhatsApp,
-        customN: customGroups.length,
       })}
       {listFoot({ listing, partialSet, busy, addingAll, addStarters, showHidden, setShowHidden, card })}
     </div>

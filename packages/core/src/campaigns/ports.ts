@@ -19,7 +19,7 @@ import type {
   PersonVisitsDto,
   TenantId,
 } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import type { Json, MessageVersionRow } from "@chanlytics/db";
 
 /* ---- The assembly: the rows, then the job ---- */
 
@@ -182,17 +182,14 @@ export type RunOutcome =
 
 export interface RunPlaybookPorts extends AssemblePorts {
   /**
-   * The template as Meta has it now, by name and language; null when gone. Its category is the message's purpose, which
-   * the run enrols by with its moment's class (contracts enrolPurpose). Throws when it cannot be read: unreadable is not
-   * withdrawn.
+   * The message of this name and language, as the rows the workspace holds of it now, whatever their channel (db
+   * messageVersionRowsOf): WhatsApp's as Meta has it, and the email's and the text's, written here and approved the
+   * moment they were saved. contracts campaignMessageOf picks the versions out of them: which of the playbook's ticks the
+   * message can be said on, and its category, its purpose, which the run enrols by with its moment's class (contracts
+   * enrolPurpose). None when it has no row (gone). Throws when it cannot be read: unreadable is not withdrawn, and a
+   * version that could not be looked for is not one the workspace lacks.
    */
-  template(name: string, language: string): Promise<{ meta_status: string | null; category: string | null } | null>;
-  /**
-   * The channels, of email and text, that hold a version of this message in this language (a templates row of that name
-   * and language on that channel): which of the playbook's ticks the message can be said on. Throws when it cannot be
-   * read: a version that could not be looked for is not one the workspace lacks.
-   */
-  versions(name: string, language: string): Promise<readonly string[]>;
+  message(name: string, language: string): Promise<MessageVersionRow[]>;
   /** Whether a run for this local day was already made (the unique index's fact, read first). */
   alreadyRan(playbookId: string, runFor: string): Promise<boolean>;
   /** The run recorded: the event, and the playbook's last run. Never throws. */
@@ -215,20 +212,14 @@ export interface RunPlaybookCommand {
 
 /* ---- The dashboard's verbs ---- */
 
-/** The template as Meta holds it, read by id in this workspace. */
-export interface TemplateRow {
-  id: string;
-  name: string;
-  language: string;
-  meta_status: string | null;
-  category: string | null;
-  variables: unknown;
-  title: string | null;
-}
-
 export interface TemplateValuesPorts {
-  /** Null when there is no such template here; throws when it cannot be read. */
-  template(id: string): Promise<TemplateRow | null>;
+  /**
+   * The rows of the message this id names, whatever their channel (db messageVersionRowsOf, by id): the version the id
+   * belongs to and its siblings on the other channels, WhatsApp's as Meta has it, an email's and a text's as they were
+   * written here. Any version's id names the message, and contracts campaignMessageOf picks its versions out of the rows.
+   * `[]` when this workspace holds no such version. Throws when it cannot be read: unreadable is not absent.
+   */
+  message(id: string): Promise<MessageVersionRow[]>;
   /** The booking link on file, or null. */
   bookingLink(): Promise<string | null>;
 }
@@ -267,11 +258,6 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
    * it (null when none is connected): one read of the rows each is judged by.
    */
   channels(): Promise<{ ready: ChannelsReady; health: NumberHealth | null }>;
-  /**
-   * The channels, of email and text, that hold a version of this message in this language: which ticks it can be said
-   * on (message-channels.ts). Throws when it cannot be read.
-   */
-  versions(name: string, language: string): Promise<readonly string[]>;
   record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
 }
 export interface CreateBroadcastCommand {

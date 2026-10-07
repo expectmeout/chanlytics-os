@@ -99,9 +99,22 @@ const broadcasts = (over = {}) => ({
 /** A starter as WhatsApp holds it once approved: the library's words and slots, which the booking rule reads. */
 const template = (name, over = {}) => {
   const s = C.starterByKey(name);
-  if (!s) return { name, language: "en_US", meta_status: "approved", variables: [], hidden_at: null, ...over };
+  const id = `t-${name}-${over.language ?? "en_US"}-${over.channel ?? "whatsapp"}`;
+  if (!s)
+    return {
+      id,
+      channel: "whatsapp",
+      name,
+      language: "en_US",
+      meta_status: "approved",
+      variables: [],
+      hidden_at: null,
+      ...over,
+    };
   const t = C.starterText(s, "en_US");
   return {
+    id,
+    channel: "whatsapp",
     name: s.name,
     language: "en_US",
     meta_status: "approved",
@@ -111,12 +124,15 @@ const template = (name, over = {}) => {
   };
 };
 
+const LIBRARY = [template("call_text"), template("visit_reminder"), template("winback_offer")];
 const input = (over = {}) => ({
   nowMs: NOW,
   tz: ZONE,
   playbooks: playbooks(),
   broadcasts: broadcasts(),
-  library: [template("call_text"), template("visit_reminder"), template("winback_offer")],
+  library: LIBRARY,
+  // The workspace's messages (the settings surface's `messages`): the Library's count reads these.
+  messages: C.campaignMessagesOf(LIBRARY),
   reachOuts: [],
   ...over,
 });
@@ -516,7 +532,7 @@ const emailChain = () => ({
   next: { waiting_run_id: null },
 });
 
-test("the library's count is the Library page's own: a row for each language, the emails of the reach-outs, never a hidden one or the sample", () => {
+test("the library's count is the Library page's own: a message for each language, the emails of the reach-outs, never a hidden one or the sample", () => {
   const rows = [
     template("call_text"),
     template("call_text", { language: "es" }),
@@ -524,22 +540,46 @@ test("the library's count is the Library page's own: a row for each language, th
     template("hello_world"),
     template("old_offer", { hidden_at: "2026-09-01T00:00:00Z" }),
   ];
-  assert.equal(C.libraryCount(rows, 0), 3, "a language is a row, as the page's head counts them");
-  assert.equal(C.libraryCount(rows, 2), 5, "and the emails a reach-out writes are listed beside them");
+  const messages = C.campaignMessagesOf(rows);
+  assert.equal(C.libraryCount(messages, 0), 3, "two languages of one name are two, a hidden one and the sample none");
+  assert.equal(C.libraryCount(messages, 2), 5, "and the emails a reach-out writes are listed beside them");
   assert.equal(C.libraryCount(null, 2), null, "a read that failed is no zero");
   assert.equal(C.libraryCount(undefined, 0), null);
   assert.equal(C.libraryCount([], 0), 0);
   assert.equal(C.isLibrarySample("hello_world"), true);
   assert.equal(C.isLibrarySample("call_text"), false);
-  // The home's Library act carries that count: the same function, over the same rows and the chains' emails.
-  const h = home({ library: rows, reachOuts: [emailChain()] });
-  assert.equal(h.head.library.count, 5, "WhatsApp's three rows and the two emails");
+  // A message is one however many channels it has versions on, and needs no WhatsApp row to be counted.
+  const email = (name, over = {}) => template(name, { channel: "email", ...over });
   assert.equal(
-    home({ library: rows, reachOuts: null }).head.library.count,
+    C.libraryCount(C.campaignMessagesOf([...rows, email("visit_reminder"), email("call_text")]), 0),
+    3,
+    "an email beside a WhatsApp version is the same message, not another",
+  );
+  assert.equal(
+    C.libraryCount(C.campaignMessagesOf([...rows, email("harbor_note")]), 0),
+    4,
+    "a message written for email alone is counted",
+  );
+  assert.equal(
+    C.libraryCount(C.campaignMessagesOf([...rows, email("fall_note", { hidden_at: "2026-09-01T00:00:00Z" })]), 0),
+    3,
+    "and a hidden one is not, with or without a WhatsApp row",
+  );
+  assert.equal(
+    C.libraryCount(C.campaignMessagesOf([email("hello_world")]), 0),
+    0,
+    "the sample is nobody's, on any channel",
+  );
+  // The home's Library act carries that count: the same function, over the same messages and the chains' emails.
+  const h = home({ library: rows, messages, reachOuts: [emailChain()] });
+  assert.equal(h.head.library.count, 5, "three messages and the two emails");
+  assert.equal(
+    home({ library: rows, messages, reachOuts: null }).head.library.count,
     3,
     "chains that could not be read list no emails, as the page has it",
   );
-  assert.equal(home({ library: rows, reachOuts: undefined }).head.library.count, 3);
+  assert.equal(home({ library: rows, messages, reachOuts: undefined }).head.library.count, 3);
+  assert.equal(home({ messages: null }).head.library.count, null, "messages that could not be read are no zero");
 });
 
 test("the toasts the home raises are contracts' words: a name in the page's emphasis, a new playbook's run said where it now is, a phrase a browser would not copy said whole", () => {

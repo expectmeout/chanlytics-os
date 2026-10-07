@@ -1260,16 +1260,20 @@ import {
   finishedRunHeldWhy,
   OUTCOME_UNKNOWN,
   audienceTrigger as audienceTrigger3,
+  campaignMessageOf,
   firstNameOf as firstNameOf2,
   isOfferByEmail as isOfferByEmail5,
   isReachOutRun,
   jittered as jittered3,
   messageAboutOfTrigger as messageAboutOfTrigger2,
+  messageHolds,
   nextOpenMoment as nextOpenMoment2,
   parseParamSpecs,
   purposeOfTemplate as purposeOfTemplate3,
   resolveParams as resolveParams2,
   triggerOf,
+  versionsOf as versionsOf2,
+  whatsappStoppedRunWords,
   wireFailure
 } from "../../contracts/dist/index.js";
 import { errField as errField3, logger as logger4 } from "../../channels/dist/index.js";
@@ -1284,7 +1288,8 @@ import {
   messageAboutOfTrigger,
   renderOwnVersion,
   renderTemplate as renderTemplate2,
-  versionWords
+  versionWords,
+  versionsOf
 } from "../../contracts/dist/index.js";
 
 // src/uuid-v5.ts
@@ -1321,12 +1326,9 @@ function metaOf2(b) {
     ...b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: typeof label === "string" ? label : b.name } : {}
   };
 }
-async function versionOf(w, channel) {
-  if (!(channel in w.versions)) {
-    const row = await w.ports.template(w.b.template_name, w.b.template_language, channel);
-    w.versions[channel] = row && row.meta_status === "approved" ? versionWords({ channel, components: row.components, body_preview: row.body_preview }) : null;
-  }
-  return w.versions[channel] ?? null;
+function versionOf(w, channel) {
+  const [row = null] = versionsOf(w.rows, w.b.template_name)[channel];
+  return row ? versionWords({ channel, components: row.components, body_preview: row.body_preview }) : null;
 }
 async function overAllowance(w, channel) {
   if (!heldByAllowance(w.trigger, w.purpose)) return false;
@@ -1337,7 +1339,7 @@ function countSent(w, channel) {
   if (channel !== "whatsapp") w.month[channel] = (w.month[channel] ?? 0) + 1;
 }
 async function emailDelivery(w, i, base) {
-  const version = await versionOf(w, "email");
+  const version = versionOf(w, "email");
   if (!version) return { held: "no_channel" };
   const said = renderOwnVersion("email", version, i.params, w.b.template_language);
   if (!said.subject) return { held: "no_channel" };
@@ -1418,7 +1420,7 @@ async function prepare(w, i) {
     };
   }
   if (i.channel === "email") return emailDelivery(w, i, base);
-  const version = await versionOf(w, "sms");
+  const version = versionOf(w, "sms");
   if (!version) return { held: "no_channel" };
   const said = renderOwnVersion("sms", version, i.params, b.template_language);
   return { delivery: { ...base, channel: "sms", body: said.body } };
@@ -1714,8 +1716,12 @@ async function sendBroadcastBatch(ports, cmd) {
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   if (await wireIsUnbound(ports, b, cmd, batch)) return;
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
-  const tpl = await ports.template(b.template_name, b.template_language, "whatsapp");
-  const whatsappApproved = tpl?.meta_status === "approved";
+  const rows = await ports.message(b.template_name, b.template_language);
+  const message = campaignMessageOf(rows, b.template_name, b.template_language);
+  const {
+    whatsapp: [whatsappRow = null]
+  } = versionsOf2(rows, b.template_name);
+  const whatsappApproved = message !== null && messageHolds(message).whatsapp;
   if (!whatsappApproved && !await ports.byOtherChannels(b.id, "whatsapp")) {
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
@@ -1723,11 +1729,11 @@ async function sendBroadcastBatch(ports, cmd) {
       route: "broadcasts",
       about: { type: "broadcast", id: b.id },
       subject: `Broadcast \u201C${b.name}\u201D stopped`,
-      body: `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.`
+      body: whatsappStoppedRunWords(message)
     });
     return;
   }
-  const purpose = purposeOfTemplate3(tpl?.category);
+  const purpose = message?.purpose ?? purposeOfTemplate3(void 0);
   const trigger = audienceTrigger3(b.audience);
   const offers = isOfferByEmail5({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger2(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
@@ -1737,15 +1743,15 @@ async function sendBroadcastBatch(ports, cmd) {
     ports,
     cmd,
     b,
-    // The message's own purpose, kept when Meta no longer approves its WhatsApp row (a row that is gone reads as marketing).
+    // The message's own purpose, kept when Meta no longer approves its WhatsApp row (a message that is gone reads as marketing).
     purpose,
-    tpl: tpl ?? { body_preview: null },
+    tpl: whatsappRow ?? { body_preview: null },
     whatsappApproved,
+    rows,
     specs: parseParamSpecs(b.params),
     facts,
     people,
     priors,
-    versions: {},
     month: {},
     offersClosed: head === "closed",
     // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.
@@ -2073,8 +2079,10 @@ async function assembleRun(ports, cmd) {
 
 // src/campaigns/run-playbook.ts
 import {
+  campaignMessageOf as campaignMessageOf2,
   clockWhen,
   localDate,
+  messageHolds as messageHolds2,
   nextOpenMoment as nextOpenMoment3,
   parseParamSpecs as parseParamSpecs2,
   listToken,
@@ -2086,6 +2094,7 @@ import {
   enrolPurpose,
   messageAboutOfTrigger as messageAboutOfTrigger3,
   proposalFactsFor,
+  readyForMessage,
   touchesAfterRun,
   triggerOf as triggerOf2,
   triggerOffered,
@@ -2104,20 +2113,6 @@ import {
   channelChoices,
   channelNeverCarries
 } from "../../contracts/dist/index.js";
-var NO_VERSION = {
-  whatsapp: "This message has no approved WhatsApp version.",
-  email: "This message has no email version yet.",
-  sms: "This message has no text version yet."
-};
-function versionsHeld(own, whatsapp) {
-  return { whatsapp, email: own.includes("email"), sms: own.includes("sms") };
-}
-function readyForMessage(ready, has) {
-  const out = { ...ready };
-  for (const c of CONSENT_CHANNELS)
-    if (ready[c].ready && !has[c]) out[c] = { ...ready[c], ready: false, why: NO_VERSION[c] };
-  return out;
-}
 function parseChannels(asked2, kept = null) {
   if (asked2 === void 0 || asked2 === null) {
     const base = kept && kept.length > 0 ? kept : DEFAULT_CAMPAIGN_CHANNELS;
@@ -2141,22 +2136,25 @@ function refuseTicks(how, purpose) {
 async function readMessage(r) {
   const { ports, p } = r;
   try {
-    const row = await ports.template(p.template_name, p.template_language);
-    const own = r.channels.some((c) => c !== "whatsapp") ? await ports.versions(p.template_name, p.template_language) : [];
-    return { row, own, approved: row?.meta_status === "approved" };
+    const m = campaignMessageOf2(
+      await ports.message(p.template_name, p.template_language),
+      p.template_name,
+      p.template_language
+    );
+    return { m, held: m ? messageHolds2(m) : { whatsapp: false, email: false, sms: false } };
   } catch (e) {
     return { error: `template: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
-var templateHolds = (r, m, drawn) => drawn === 0 && !m.approved && r.channels.includes("whatsapp");
+var templateHolds = (r, m, drawn) => drawn === 0 && !m.held.whatsapp && r.channels.includes("whatsapp");
 async function withoutCalendar(r) {
   return r.ctx.calendar === "unavailable" ? { outcome: "failed", error: PLAYBOOK_CALENDAR_UNREAD } : r.off("no_calendar");
 }
-async function allowed(r, tpl) {
+async function allowed(r, message) {
   const { p, ctx } = r;
   const stop = playbookStopBy({
     channels: r.channels,
-    templateStatus: tpl?.meta_status ?? null,
+    templateStatus: message.m?.versions.whatsapp?.status ?? null,
     numberCanSend: ctx.health.canSend
   });
   if (stop) return { ended: await r.off(stop) };
@@ -2307,21 +2305,21 @@ async function runPlaybook(ports, cmd) {
   const run = { ports, p, ctx, by, runFor, mode, channels, record, off };
   const message = await readMessage(run);
   if ("error" in message) return { outcome: "failed", error: message.error };
-  const gate = await allowed(run, message.row);
+  const gate = await allowed(run, message);
   if (gate.ended) return gate.ended;
   const how = {
     channels,
-    ready: readyForMessage(ctx.ready, versionsHeld(message.own, message.approved)),
+    ready: readyForMessage(ctx.ready, message.m),
     // A visit's or a follow-up's message is theirs; any other moment's, the business's news (decision D1).
     about: messageAboutOfTrigger3(p.trigger)
   };
-  const { eligible, reach, channelOf: channelOf2, dropped } = draw(run, message.row, how, gate.listIds);
+  const { eligible, reach, channelOf: channelOf2, dropped } = draw(run, message.m, how, gate.listIds);
   if (templateHolds(run, message, eligible.length)) return off("template_not_approved");
   if (eligible.length === 0) {
     await record({ mode, eligible: 0, reach, ...dropped ? { dropped } : {} });
     return { outcome: "empty", eligible: 0, mode };
   }
-  const past = await pastTheRoom(run, message.row, { eligible, channelOf: channelOf2 }, goesAt);
+  const past = await pastTheRoom(run, message.m, { eligible, channelOf: channelOf2 }, goesAt);
   if ("error" in past) return { outcome: "failed", error: past.error };
   const specs = parseParamSpecs2(p.params);
   const facts = recipientFacts(run, goesAt);
@@ -2385,14 +2383,24 @@ async function runPlaybook(ports, cmd) {
 }
 
 // src/campaigns/template-values.ts
-import { AppError as AppError10, cleanParam, parseParamSpec, UUID } from "../../contracts/dist/index.js";
+import {
+  AppError as AppError10,
+  campaignMessageOf as campaignMessageOf3,
+  cleanParam,
+  parseParamSpec,
+  UUID
+} from "../../contracts/dist/index.js";
+async function readCampaignMessage(ports, id) {
+  if (!UUID.test(id)) throw new AppError10("validation", "Pick a template.");
+  const rows = await ports.message(id);
+  const row = rows.find((r) => r.id === id);
+  const message = row ? campaignMessageOf3(rows, row.name, row.language) : null;
+  if (!message) throw new AppError10("not_found", "Template not found.", 404);
+  return message;
+}
 async function templateValues(ports, cmd) {
-  if (!UUID.test(cmd.templateId)) throw new AppError10("validation", "Pick a template.");
-  const tpl = await ports.template(cmd.templateId);
-  if (!tpl) throw new AppError10("not_found", "Template not found.", 404);
-  if (tpl.meta_status !== "approved")
-    throw new AppError10("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);
-  const expected = Array.isArray(tpl.variables) ? tpl.variables.length : 0;
+  const message = await readCampaignMessage(ports, cmd.templateId);
+  const expected = message.slots;
   const rawParams = Array.isArray(cmd.params) ? cmd.params : [];
   if (rawParams.length !== expected) {
     throw new AppError10(
@@ -2436,7 +2444,7 @@ async function templateValues(ports, cmd) {
       409
     );
   }
-  return { template: tpl, specs };
+  return { message, specs };
 }
 
 // src/campaigns/create-broadcast.ts
@@ -2455,7 +2463,7 @@ import {
   enrolFor,
   overLimitRefusal,
   paramLabel,
-  purposeOfTemplate as purposeOfTemplate4,
+  readyForMessage as readyForMessage2,
   UUID as UUID2,
   listToken as listToken2,
   DAY_MS as DAY_MS2
@@ -2496,16 +2504,12 @@ function askedTime(scheduledFor, now) {
     throw new AppError11("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
   return t.getTime() > now.getTime() ? t : now;
 }
-async function campaignHow(ports, tpl, channels, about) {
-  const [{ ready, health }, own] = await Promise.all([
-    ports.channels(),
-    // WhatsApp's row is the template itself, read above; the other two are looked for only when ticked.
-    channels.some((c) => c !== "whatsapp") ? ports.versions(tpl.name, tpl.language) : Promise.resolve([])
-  ]);
-  return { how: { channels, ready: readyForMessage(ready, versionsHeld(own, true)), about }, health };
+async function campaignHow(ports, message, channels, about) {
+  const { ready, health } = await ports.channels();
+  return { how: { channels, ready: readyForMessage2(ready, message), about }, health };
 }
-async function campaignHowOf(ports, tpl, channels, purpose) {
-  const made = await campaignHow(ports, tpl, channels, "ours");
+async function campaignHowOf(ports, message, channels, purpose) {
+  const made = await campaignHow(ports, message, channels, "ours");
   if (made.how.ready.paused) throw new AppError11("payment_required", CAMPAIGNS_PAUSED_WORDS);
   refuseTicks(made.how, purpose);
   return made;
@@ -2526,15 +2530,15 @@ async function audienceOf(ports, ref, now) {
 async function createBroadcast(ports, cmd) {
   const { now } = cmd;
   const want = asked(cmd.body);
-  const { template: tpl, specs } = await templateValues(ports, {
+  const { message, specs } = await templateValues(ports, {
     templateId: want.templateId,
     params: want.params,
     visits: false,
     proposal: false
   });
   let when = askedTime(want.scheduledFor, now);
-  const purpose = purposeOfTemplate4(tpl.category);
-  const { how, health } = await campaignHowOf(ports, tpl, want.channels, purpose);
+  const purpose = message.purpose;
+  const { how, health } = await campaignHowOf(ports, message, want.channels, purpose);
   const { pool, label, kept } = await audienceOf(ports, want.ref, now);
   const enrolled = enrolFor(pool, "everyone", null, null, purpose, how);
   if (enrolled.length === 0) throw new AppError11("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
@@ -2561,7 +2565,7 @@ async function createBroadcast(ports, cmd) {
       500
     );
   });
-  const name = typeof want.name === "string" && want.name.trim() ? want.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, tz, now, tpl.title);
+  const name = typeof want.name === "string" && want.name.trim() ? want.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(message.name, tz, now, message.title);
   const audience = {
     kind: want.kind,
     id: want.audienceId,
@@ -2571,9 +2575,10 @@ async function createBroadcast(ports, cmd) {
   const made = await assembleRun(ports, {
     broadcast: {
       name,
-      template_id: tpl.id,
-      template_name: tpl.name,
-      template_language: tpl.language,
+      // The message's anchor, whichever version's id was picked: the one id every version of it resolves to.
+      template_id: message.anchor.id,
+      template_name: message.name,
+      template_language: message.language,
       params: specs,
       audience,
       state: "scheduled",
@@ -2592,8 +2597,8 @@ async function createBroadcast(ports, cmd) {
   }
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name,
-    template: `${tpl.name}/${tpl.language}`,
-    category: tpl.category,
+    template: `${message.name}/${message.language}`,
+    category: message.category,
     // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
     audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
     channels: [...how.channels],
@@ -2728,6 +2733,8 @@ import {
   enrolPurpose as enrolPurpose2,
   isWinBack,
   messageFitsMoment,
+  messageHolds as messageHolds3,
+  messageWhyNot,
   momentOffered,
   playbookName,
   ruleNeeds,
@@ -2775,6 +2782,12 @@ function refuseMessageThatDisagrees(cls, category) {
   const fit = messageFitsMoment(cls, category);
   if (!fit.ok) throw new AppError14("validation", fit.words);
 }
+function refuseMessageNoTickHolds(message, channels) {
+  const held = messageHolds3(message);
+  if (channels.some((c) => held[c])) return;
+  const words = channels.flatMap((c) => messageWhyNot(message, c) ?? []);
+  throw new AppError14("conflict", words.join(" "), 409);
+}
 async function checkPlaybook(ports, body, existing) {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
   const trig = typeof body?.trigger === "string" ? triggerOf3(body.trigger) : null;
@@ -2788,29 +2801,31 @@ async function checkPlaybook(ports, body, existing) {
   const { listName, listKey, listId } = await listOf(ports, trig, body);
   const cls = trig.kind === "saved" && LIST_PLAYBOOK_CLASSES.includes(String(body?.policy_class)) ? body.policy_class : trig.cls;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  const { template: tpl, specs } = await templateValues(ports, {
+  const { message, specs } = await templateValues(ports, {
     templateId,
     params: body?.params,
     visits: trig.kind === "visit",
     proposal: trig.kind === "deal"
   });
-  refuseMessageThatDisagrees(cls, tpl.category);
+  refuseMessageThatDisagrees(cls, message.category);
   const channels = parseChannels(body?.channels, existing?.channels ?? null);
-  const purpose = enrolPurpose2(cls, tpl);
+  const purpose = enrolPurpose2(cls, message);
   const never = channels.map((c) => channelNeverCarries2(c, purpose)).find((words) => words !== null);
   if (never) throw new AppError14("validation", never);
+  refuseMessageNoTickHolds(message, channels);
   if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
     throw new AppError14("validation", FOLLOW_UP_NEEDS_LINK);
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
     // list's own name for a playbook on a list.
-    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
+    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, message).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
     list_id: listId,
     list_key: listKey,
-    template_id: tpl.id,
-    template_name: tpl.name,
-    template_language: tpl.language,
+    // The message's anchor, whichever version's id was picked: the one id every version of it resolves to.
+    template_id: message.anchor.id,
+    template_name: message.name,
+    template_language: message.language,
     params: specs,
     policy_class: cls,
     run_hour: int(body?.run_hour, {
@@ -38710,8 +38725,8 @@ export {
   radiusFromSpread,
   raiseLateFailure,
   reachOutRunIdFor,
+  readCampaignMessage,
   readReply,
-  readyForMessage,
   reconcileUnknownRuns,
   refusalScript,
   rejudgeProbe,
@@ -38743,7 +38758,6 @@ export {
   threadVerdict,
   toBase64,
   unreadableThread,
-  versionsHeld,
   wake,
   whatsappSender,
   whatsappWire,

@@ -239,10 +239,19 @@ test("the one sentence under each campaign card: who said yes to messages or sto
   const nothing = toCampaignReportVM(dto({ series: dto().series.map((d) => day(d.day)), sources: [] }));
   assert.equal(nothing.lines.funnel, "Nobody said yes to messages or asked to stop.");
   assert.equal(nothing.lines.sent, null, "no run sent anything");
+  // The yes and the stop are drawn as figures, each with the period before in counts beside it (the Overview's strip does the same);
+  // the sent, the delivered and the replied are drawn as the funnel and the day chart, which compare nothing.
   assert.deepEqual(
     vm.tiles.map((t) => t.compare),
+    [null, null, null, "up from 1", "none the 7 days before"],
+    "a count against the period before, in counts: one yes before and three now; no stop before and two now",
+  );
+  // A workspace with nothing before this period has nothing to compare with: never "none the 7 days before".
+  const young = toCampaignReportVM(dto({ series: dto().series.slice(-7) }));
+  assert.deepEqual(
+    young.tiles.map((t) => t.compare),
     [null, null, null, null, null],
-    "a campaign tile compares nothing on Reports",
+    "no period before: nothing is said of one",
   );
 });
 

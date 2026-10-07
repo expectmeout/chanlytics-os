@@ -29,7 +29,6 @@ import {
   reachCountsOf,
   toBroadcastVM,
   toCampaignReportVM,
-  purposeOfTemplate,
   type AudienceKind,
   type AudiencePreview,
   type BroadcastVM,
@@ -39,17 +38,15 @@ import {
   type MonthSent,
   type NumberHealth,
   type AskedPurpose,
-  type PreviewVersions,
   type ReachCounts,
 } from "@chanlytics/contracts";
 import { otherChannelSets } from "@/lib/campaign-channels";
 import { type SurfaceOverride, workspaceOverride } from "@/legacy-bridge/surface-data";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
-import type { TemplateDto } from "@/surfaces/inbox/types";
 import { everyPerson, viewerId } from "@/surfaces/people/surface";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
-import { cmAddressOf, cmChannelsOf, cmReadyOf, cmVersionsOf } from "../parts/channels";
+import { cmAddressOf, cmOfferedMessages, cmReadyOf, type CmOffered } from "../parts/channels";
 
 // The frame (its tab counts and the route table's crumbs) reads this under its old name until it moves.
 declareSurfaceValue("broadcasts", "__BROADCASTS");
@@ -98,31 +95,17 @@ export interface AudienceOption {
 }
 
 /**
- * An approved template with the one thing the composer cannot work out for
- * itself: WHICH consent sending it needs.
- *
- * Stamped here rather than derived in the page, so the composer, the enrolment
- * route and the send job all read `purposeOfTemplate` of the same column and no
- * third rule can appear in a `.jsx` file where the compiler cannot see it.
+ * A message a broadcast may be sent on, with the one thing the composer cannot work out for itself: WHICH consent sending it
+ * needs (`purpose`, contracts campaignMessageOf's), the channels it holds now (`channels`, contracts messageHolds: a
+ * broadcast may go only by these) and the words of its email and text versions for the preview (`versions`). Stamped here
+ * rather than derived in the page, so the composer, the enrolment route and the send job all read one rule and no third can
+ * appear where the compiler cannot see it (parts/channels.ts cmOfferedMessages says the shape).
  */
-export type BroadcastTemplate = TemplateDto & {
-  purpose: AskedPurpose;
-  /**
-   * The channels the message has a version on, in this row's language (contracts versionsOf): WhatsApp, which it is a row
-   * of, and an email or a text beside it where one was written. A broadcast may go only by these.
-   */
-  channels: ConsentChannel[];
-  /**
-   * The words of that email and text version, in this row's language, for the preview to draw a person on those channels
-   * as they read it (parts/preview-by.ts). Absent on a template stamped before they were kept: the preview then says
-   * so rather than draw WhatsApp's words for an email.
-   */
-  versions?: PreviewVersions;
-};
+export type BroadcastTemplate = CmOffered;
 
 export interface BroadcastsSurface {
   rows: BroadcastVM[];
-  /** The approved WhatsApp templates, with their variables and their purpose. */
+  /** The messages a broadcast may be sent on, by the channels each holds, with their variables and their purpose. */
   /** Null: the templates read failed -- its own state, never "no template yet". */
   templates: BroadcastTemplate[] | null;
   /**
@@ -210,21 +193,11 @@ function listIsAnAudience(
 }
 
 /**
- * The approved WhatsApp templates with the consent each needs and the channels each has a version on; null where the
- * templates read failed. The read holds every channel's rows, so an email or a text of the same name and language is a
- * version of the message.
+ * The messages a broadcast may be sent on, by the channels each holds (parts/channels.ts cmOfferedMessages); null where the
+ * templates read failed.
  */
-function approvedTemplates(tpl: { templates?: TemplateDto[] } | Error): BroadcastTemplate[] | null {
-  if (tpl instanceof Error) return null;
-  const all = tpl.templates ?? [];
-  return all
-    .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
-    .map((t) => ({
-      ...t,
-      purpose: purposeOfTemplate(t.category),
-      channels: cmChannelsOf(all, t.name, t.language),
-      versions: cmVersionsOf(all, t.name, t.language),
-    }));
+function offeredMessages(tpl: Parameters<typeof cmOfferedMessages>[0] | Error): BroadcastTemplate[] | null {
+  return tpl instanceof Error ? null : cmOfferedMessages(tpl);
 }
 
 /** What a saved list's chip says under its name: kept by hand, or keeping itself current. */
@@ -405,7 +378,7 @@ export const broadcastsOverride: SurfaceOverride = {
       scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
       more: bc.more === true,
       listsRead: !(saved instanceof Error),
-      templates: approvedTemplates(tpl),
+      templates: offeredMessages(tpl),
       audiences,
       reach: reachCountsOf(rows),
       report: reportOf(campaigns),

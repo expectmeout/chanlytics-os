@@ -44,8 +44,8 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
-  // Meta no longer approves the message's WhatsApp template: it holds the people who go by WhatsApp, and only them.
-  template_not_approved: "WhatsApp no longer approves its template",
+  // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
+  template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored
   // number that does not normalise, or one no contact row matches.
   no_thread: "no thread for that number",

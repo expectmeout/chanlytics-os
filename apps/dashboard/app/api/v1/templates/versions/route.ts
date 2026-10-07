@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { OWN_VERSION_CHANNELS, type OwnVersionChannel } from "@chanlytics/contracts";
+import { OWN_VERSION_CHANNELS, TEMPLATE_CATEGORIES, type OwnVersionChannel } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { saveVersion } from "@/server/campaigns/template-versions";
 
 /**
  * POST /api/v1/templates/versions — the email or text version of a message, in a language, written or rewritten.
- * { name, language, channel: "email" | "sms", subject?, body }. Owner or operator.
+ * { name, language, channel: "email" | "sms", subject?, body, message? }. Owner or operator.
  *
  * A message is a name; a version is a template row of that name on a channel and in a language (One message, every
  * channel). WhatsApp's versions are Meta's and go through POST templates; an email's and a text's are written here, in
@@ -19,8 +19,35 @@ import { saveVersion } from "@/server/campaigns/template-versions";
  * and what that save guarantees, new words sending what waits for the step back to the check (`rechecked` says how
  * many). It is edited here and in the reach-out's sheet alike, and removed by taking its step out of the chain.
  *
+ * A message may begin as an email or a text, with no WhatsApp row (create_message_version, 00343): the first version of a
+ * NEW name carries what its message is and the values it takes, as `message` { category: "marketing" | "utility",
+ * variables: [{ position, label, example? }] (numbered 1, 2, 3 in order, as a WhatsApp row's are), title? }. A name that is a
+ * starter of the registry begins as the starter (its category and its values; `message` is not read) and only on a
+ * channel the starter writes for in that language, with the starter's own words there (anything else is refused: add the
+ * starter set, then change the words in the Library). Any other name needs `message`, and is an offer or news: `utility` is
+ * the starter's alone, and a text of an offer is refused (texts carry no offers). A name the workspace already holds a row
+ * of is a message that exists, so its version is written as above and `message`, if sent, is ignored. With no row, no
+ * starter and no `message` the message is not found. A database that has not applied 00343 answers one sentence, 409.
+ *
  * The answer is the row's `template` ({ id, name, language, channel }) and the check's `warnings`.
  */
+const VALUES_WORDS = "Give each value a number, in order from 1, and a name.";
+
+const Message = z.object({
+  category: z.enum(TEMPLATE_CATEGORIES, {
+    message: "A message is an offer or news, or about their own visit or proposal.",
+  }),
+  variables: z.array(
+    z.object({
+      position: z.number({ message: VALUES_WORDS }).int(VALUES_WORDS),
+      label: z.string({ message: VALUES_WORDS }),
+      example: z.string().nullish(),
+    }),
+    { message: VALUES_WORDS },
+  ),
+  title: z.string().nullish(),
+});
+
 const Body = z.object({
   name: z.string({ message: "Say which message." }).min(1, "Say which message."),
   language: z.string({ message: "Pick a language from the list." }),
@@ -29,6 +56,7 @@ const Body = z.object({
   }),
   subject: z.string().nullish(),
   body: z.string({ message: "Write the message." }),
+  message: Message.optional(),
 });
 
 export const POST = write({

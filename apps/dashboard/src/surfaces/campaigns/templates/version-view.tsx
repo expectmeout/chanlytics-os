@@ -46,7 +46,7 @@ interface VersionViewProps {
   neverCarried: string | null;
   /** For a starter, whether the library wrote it a version on this channel in this language (the words in `start`). */
   starterHas: boolean;
-  /** Whether the message is on file (a WhatsApp row of it): a version is filed under a message that is. */
+  /** Whether the message is on file (it has a version on some channel): a version is filed under a message that is. */
   filed: boolean;
   /** Who may write: the role store's answer. */
   canWrite: boolean;

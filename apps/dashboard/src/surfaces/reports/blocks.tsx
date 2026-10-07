@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
   bookedTileOf,
+  metricWordsOf,
   plural,
   type BookingReportVM,
   type CampaignSourceVM,
@@ -155,6 +156,25 @@ export function RptFacts({ facts }: { facts: ReportFactVM[] }) {
   );
 }
 
+/**
+ * A tile as the kit's figure: its value, the period before in counts beside it, its line under it, and over its label the
+ * words for what it counts (contracts metricWordsOf), named by its metric. Every strip of the page draws its tiles with it,
+ * so a figure says the same on every lens; the grid, the dividers and the padding are the page's.
+ */
+export function RptFigure({ t }: { t: ReportStripTile }) {
+  return (
+    <Figure
+      className="rpt-cell"
+      id={t.metric}
+      label={t.label}
+      value={t.value}
+      change={t.compare}
+      meta={t.meta}
+      definition={metricWordsOf(t.metric)}
+    />
+  );
+}
+
 // The strip: three of the receptionist's counts, the one conversion and the handovers, each the kit's figure with the period
 // before in counts beside its value. The answered share and the reply time are the hero's. Each figure is named by its tile's
 // metric (contracts report-tiles.ts); the grid, the dividers and the padding are the page's.
@@ -166,15 +186,7 @@ export function RptTiles({ vm, booking }: { vm: ReportVM; booking: BookingReport
   return (
     <dl className="rpt-figures" data-testid="reports-tiles">
       {tiles.map((t) => (
-        <Figure
-          key={t.id}
-          className="rpt-cell"
-          id={t.metric}
-          label={t.label}
-          value={t.value}
-          change={t.compare}
-          meta={t.meta}
-        />
+        <RptFigure key={t.id} t={t} />
       ))}
     </dl>
   );

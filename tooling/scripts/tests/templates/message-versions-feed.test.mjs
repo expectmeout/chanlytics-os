@@ -8,6 +8,9 @@
  *   `__TEMPLATE_SENT` are what they were), and hands the page the email and text rows as `templateVersions`.
  * - A reach-out's emails (`reach_out_*`) are not among them: they have their own list.
  * - A read that failed is null, as it is for the WhatsApp rows, never an empty list that says there are none.
+ * - The page is handed the workspace's messages (lane 1, T7): the read's own, which are made of every row; and where the
+ *   read carries none (an older server answering this bridge), the bridge makes them of the rows it keeps, so a page never
+ *   sees them undefined. `templatesAll` is WhatsApp's alone whichever way they arrive.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -54,6 +57,7 @@ console.error = () => {};
 const SRC = "../../../../apps/dashboard/src";
 const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
 const { surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { campaignMessagesOf } = await import("@chanlytics/contracts");
 console.error = quiet;
 
 const row = (id, channel, name, over = {}) => ({
@@ -131,6 +135,35 @@ test("the page is handed a message's email and text rows beside its WhatsApp one
   assert.ok(named.includes("visit_reminder") && !named.includes("reach_out_9f2c"), "the usage names no reach-out");
 });
 
+test("what sends a message and how much of it went out is read of every message by its name, one written for email or text alone included, and of no reach-out's email", async () => {
+  const when = new Date(Date.now() - 60_000).toISOString();
+  wire({
+    templates: [
+      row("w1", "whatsapp", "visit_reminder"),
+      row("e1", "email", "spring_news", { category: "marketing", header: "Spring" }),
+      row("e2", "email", "reach_out_9f2c", { header: "Hello" }),
+    ],
+    usedBy: {
+      spring_news: {
+        playbooks: [{ id: "pb-1", name: "Spring", paused: false }],
+        broadcasts: 0,
+        recent: [],
+        booking: false,
+      },
+    },
+    sends: { spring_news: { count: 3, lastAt: when } },
+  });
+  await settingsOverride.apply();
+  const use = globalThis.window.__TEMPLATE_USE;
+  assert.equal(use.spring_news.unused, false, "a playbook sends the email-only message, and the row can say so");
+  assert.equal(use.spring_news.playbook, "pb-1");
+  assert.equal(use.visit_reminder.unused, true, "a WhatsApp message nothing sends says so, as it did");
+  const sent = globalThis.window.__TEMPLATE_SENT;
+  assert.equal(sent.spring_news.count, "3", "and how many went out");
+  assert.deepEqual(sent.visit_reminder, { count: null, when: "Never sent" });
+  for (const map of [use, sent]) assert.ok(!("reach_out_9f2c" in map), "a reach-out's email is nobody's message");
+});
+
 test("a workspace with no email or text row is handed an empty list, and a failed read is null, never none", async () => {
   wire({ templates: [row("w1", "whatsapp", "visit_reminder")], usedBy: {} });
   await settingsOverride.apply();
@@ -139,4 +172,97 @@ test("a workspace with no email or text row is handed an empty list, and a faile
   await settingsOverride.apply();
   assert.equal(surfaceValue("settings").templateVersions, null, "not read is not none");
   assert.equal(surfaceValue("settings").templatesAll, null, "as the WhatsApp rows say of the same read");
+});
+
+/** What a message reads as, for the cases below: where it is anchored, which versions it holds, and whether it is offered. */
+const shape = (m) => [
+  m.name,
+  m.language,
+  m.anchor,
+  m.versions.whatsapp?.status ?? null,
+  m.versions.email?.id ?? null,
+  m.versions.sms?.id ?? null,
+  m.offered,
+];
+
+test("the page is handed the read's own messages as they are, a version in review inside its message, and the WhatsApp list is what it was", async () => {
+  const rows = [
+    row("w1", "whatsapp", "winback_offer", { meta_status: "pending", category: "marketing" }),
+    row("e1", "email", "winback_offer", { category: "marketing", header: "We miss you" }),
+  ];
+  // What the server made of every row (readers/templates.ts); the title is the read's, so a page that made its own would show.
+  const made = campaignMessagesOf(rows).map((m) => ({ ...m, title: "From the read" }));
+  wire({ templates: rows, messages: made, usedBy: {}, sends: {} });
+  await settingsOverride.apply();
+  const held = surfaceValue("settings");
+  assert.deepEqual(held.messages, made, "the read's messages, not made again");
+  assert.deepEqual(shape(held.messages[0]), [
+    "winback_offer",
+    "en_US",
+    { id: "w1", channel: "whatsapp" },
+    "pending",
+    "e1",
+    null,
+    true,
+  ]);
+  assert.deepEqual(
+    held.templatesAll.map((t) => t.id),
+    ["w1"],
+    "WhatsApp's rows alone: the Inbox, setup and the phone read them",
+  );
+  assert.deepEqual(
+    held.templateVersions.map((t) => t.id),
+    ["e1"],
+  );
+});
+
+test("a read without messages (an older server) is handed messages made of the WhatsApp rows and the email and text rows the surface keeps", async () => {
+  wire({
+    templates: [
+      row("w1", "whatsapp", "visit_reminder"),
+      row("e1", "email", "visit_reminder", { header: "Your appointment tomorrow" }),
+      row("s1", "sms", "visit_reminder"),
+      // A version in review keeps its standing in the message it is made into.
+      row("w2", "whatsapp", "quick_note", { meta_status: "pending" }),
+      row("e2", "email", "quick_note"),
+      // A message with no WhatsApp row at all, and one WhatsApp has not approved with nothing beside it.
+      row("e3", "email", "harbor_note"),
+      row("w3", "whatsapp", "autumn_offer", { meta_status: "pending" }),
+      // A reach-out's email is no message's.
+      row("r1", "email", "reach_out_9f2c", { language: "en", header: "Quick one" }),
+    ],
+    usedBy: {},
+    sends: {},
+  });
+  await settingsOverride.apply();
+  const held = surfaceValue("settings");
+  assert.deepEqual(held.messages.map(shape), [
+    ["visit_reminder", "en_US", { id: "w1", channel: "whatsapp" }, "approved", "e1", "s1", true],
+    ["quick_note", "en_US", { id: "w2", channel: "whatsapp" }, "pending", "e2", null, true],
+    ["autumn_offer", "en_US", { id: "w3", channel: "whatsapp" }, "pending", null, null, false],
+    ["harbor_note", "en_US", { id: "e3", channel: "email" }, null, "e3", null, true],
+  ]);
+  // The same messages contracts makes of those rows, whichever way a page asks.
+  assert.deepEqual(
+    held.messages,
+    campaignMessagesOf([...held.templatesAll, ...held.templateVersions]),
+    "derived from templatesAll and templateVersions, as the page keeps them",
+  );
+  assert.deepEqual(
+    held.templatesAll.map((t) => t.id),
+    ["w1", "w2", "w3"],
+    "still WhatsApp's alone",
+  );
+});
+
+test("a failed read is no messages (null), and a workspace with no template has none (an empty list), never undefined", async () => {
+  wire(500);
+  await settingsOverride.apply();
+  assert.equal(surfaceValue("settings").messages, null, "not read is not none");
+  wire({ templates: [], usedBy: {}, sends: {} });
+  await settingsOverride.apply();
+  assert.deepEqual(surfaceValue("settings").messages, [], "read, and there are none");
+  wire({ templates: [], messages: [], usedBy: {}, sends: {} });
+  await settingsOverride.apply();
+  assert.deepEqual(surfaceValue("settings").messages, []);
 });

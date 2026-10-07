@@ -2,7 +2,7 @@
  * Chanlytics, Broadcasts: the ledger of runs, by playbook and by week, and a run's card (moved from
  * legacy/pages/broadcasts-ledger.jsx, decision 0015).
  */
-import { DAY_MS, DELIVERY_RECEIPTS_WORDS, HOUR_MS, mmss } from "@chanlytics/contracts";
+import { BROADCAST_WORDS, DAY_MS, DELIVERY_RECEIPTS_WORDS, HOUR_MS, mmss } from "@chanlytics/contracts";
 import type { BroadcastVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -83,10 +83,7 @@ export function BcHistoryStats({
   return (
     <div className="cm-standing" data-testid="bc-standing">
       {!counted && (
-        <span
-          className="cm-standing-lead"
-          data-tip="One approved template to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
-        >
+        <span className="cm-standing-lead" data-tip={BROADCAST_WORDS.tip}>
           {sent === 0 ? "Nothing sent yet" : `${sent} ${sent === 1 ? "broadcast" : "broadcasts"} sent`}
         </span>
       )}

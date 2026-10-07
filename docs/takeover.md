@@ -34,7 +34,7 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit             88   of which over 200 lines: 13
+functions over the limit             87   of which over 200 lines: 13
 files over 800 lines                  3
 directories over 20 modules           3
 window globals                      100   names
@@ -44,25 +44,25 @@ as unknown as                       140
 as never                             13
 non-null assertions, x!             111
 index reads the compiler lets pass  476   in 127 files
-table names outside packages/db     484
+table names outside packages/db     477
 SQL functions outside packages/db   129   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 event-shaped clocks                   9   of the registered clocks (invariant 6)
-tables with more than one writer     56   388 writers among them
+tables with more than one writer     56   389 writers among them
 personal columns with no erasure strategy  195   in 44 tables
 breakpoints outside the set          35   in 11 files
 literal style values                985   in 23 stylesheets
 primitives outside the kit         1872   selectors naming 771 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     297
+dead exports, types and modules     295
 source-text reads in tests          767
 lint warnings                       355   in 153 files, 59 of them exhaustive-deps
-workspace route JS, KB gzipped      718   the shell included
+workspace route JS, KB gzipped      722   the shell included
 workspace route CSS, KB gzipped     144
-workspace pages' own JS, KB        1210   gzipped, beyond the route, summed over 14 pages
+workspace pages' own JS, KB        1238   gzipped, beyond the route, summed over 14 pages
 trees the lint's limits hold         45   15 of them with max-params waiting
 ```
 

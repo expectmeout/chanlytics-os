@@ -10,12 +10,10 @@ import {
   PEOPLE_LISTS,
   REPLY_WINDOW_WORDS,
   numberHealth,
-  purposeOfTemplate,
   type ChannelsReady,
   type ConsentChannel,
   type MonthSent,
   type NumberHealth,
-  type PreviewVersions,
   FOLLOW_UP_NEEDS_DEALS,
   PLAYBOOK_TRIGGERS,
   momentOffered,
@@ -30,9 +28,8 @@ import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import { sameChannels } from "@/lib/campaign-channels";
-import type { TemplateDto } from "@/surfaces/inbox/types";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
-import { cmAddressOf, cmChannelsOf, cmVersionsOf } from "../parts/channels";
+import { cmAddressOf, cmOfferedMessages, type CmOffered } from "../parts/channels";
 
 // The frame (its tab counts and the route table's crumbs) and Today read this under its old name until they move.
 declareSurfaceValue("playbooks", "__PLAYBOOKS");
@@ -210,11 +207,11 @@ export interface PlaybookTriggerOption {
 }
 
 /**
- * A template a playbook may send, with the channels its message has a version on, in this row's language (contracts
- * versionsOf), and those versions' words, for the preview to draw a person on an email or a text as they read it
- * (parts/preview-by.ts; absent on a template stamped before they were kept).
+ * A message a playbook may send, with the channels it holds now (contracts messageHolds) and its email and text versions'
+ * words, for the preview to draw a person on an email or a text as they read it (parts/preview-by.ts; absent on a template
+ * stamped before they were kept): the same offered message the broadcast composer reads (parts/channels.ts cmOfferedMessages).
  */
-export type PlaybookTemplate = TemplateDto & { channels: ConsentChannel[]; versions?: PreviewVersions };
+export type PlaybookTemplate = CmOffered;
 
 export interface PlaybooksSurface {
   rows: PlaybookCardVM[];
@@ -253,7 +250,7 @@ export interface PlaybooksSurface {
     held: number | null;
     named: PlaybookNamed | null;
   }[];
-  /** The approved WhatsApp templates, with their variables and the channels each has a version on. */
+  /** The messages a playbook may send, with their variables and the channels each holds. */
   /** Null: the templates read failed -- its own state, never "no template yet". */
   templates: PlaybookTemplate[] | null;
   number: { present: boolean; health: NumberHealth };
@@ -273,7 +270,7 @@ export interface PlaybooksSurface {
  * count of people a run would pick now and how many wait for the week's
  * breath -- counted on the server over everyone, by the runner's own
  * predicate, so the number on the chip is the number a run starts from --
- * and the approved templates a playbook may send.
+ * and the messages a playbook may send.
  */
 export const playbooksOverride: SurfaceOverride = {
   key: "playbooks",
@@ -381,17 +378,7 @@ export const playbooksOverride: SurfaceOverride = {
         named: named(t.id),
       })),
       // Every channel's rows are read: an email or a text of a message's name and language is a version of it.
-      templates:
-        tpl instanceof Error
-          ? null
-          : (tpl.templates ?? [])
-              .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
-              .map((t) => ({
-                ...t,
-                purpose: purposeOfTemplate(t.category),
-                channels: cmChannelsOf(tpl.templates ?? [], t.name, t.language),
-                versions: cmVersionsOf(tpl.templates ?? [], t.name, t.language),
-              })),
+      templates: tpl instanceof Error ? null : cmOfferedMessages(tpl),
       number: {
         present: !!wa,
         health: numberHealth({

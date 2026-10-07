@@ -10,6 +10,7 @@ import { surfaceValue } from "../../../surface-values";
 import { BcRunCard, bcOrigin } from "../ledger";
 import { BC_LIVE, BC_NONE, BcRunVerbs, BroadcastDetail } from "../run";
 import type { BcApproving, BcBase, BcLedgerOf, BcRunActs, BcSheet, BcV } from "./types";
+import { cmOfferedBy } from "../../parts/channels";
 import { BC_TEXT, bcKey, bcSlots } from "./words";
 
 /** What the acts on a run's card and sheet read of the page. */
@@ -146,7 +147,7 @@ type AgainIn = Pick<
 >;
 
 // Send it again: the send screen, filled with what this run sent -- its template, its list and its values -- when
-// all three can still go. A template WhatsApp no longer approves or a broadcast cannot fill, a list since deleted, or
+// all three can still go. A message with no version a broadcast can send or fill, a list since deleted, or
 // a playbook's run (whose playbook sends it again) offers no button rather than a composer quietly filled with
 // something else.
 export function bcAgainOf({
@@ -165,7 +166,8 @@ export function bcAgainOf({
 }: AgainIn) {
   const againFor = (b: BroadcastDto) => {
     if (!canSend || b.playbook_id) return null;
-    const t = templates.find((x) => x.id === b.template_id);
+    // The message it sent, by its name and language: a WhatsApp version added since moves the id the picker lists it by.
+    const t = cmOfferedBy(templates, b.template_name, b.template_language);
     const a = audiences.find((x) => bcKey(x) === bcKey(b.audience || {}));
     if (!t || !a) return null;
     // What filled each slot, where the slot may still take it; else its first choice. A run whose first name was

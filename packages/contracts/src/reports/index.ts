@@ -57,6 +57,7 @@ export type { LensId, LensRow, LensRange, LensEmpty, LensWho } from "./lenses";
 export { lensAnswerOf } from "./lens-answer";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./report-tiles";
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
+export { metricWordsOf } from "./report-metrics";
 export {
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_IDS,

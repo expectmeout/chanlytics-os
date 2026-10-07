@@ -29,6 +29,7 @@ import {
   renderOwnVersion,
   renderTemplate,
   versionWords,
+  versionsOf,
   type ParamSpec,
   type SendPurpose,
   type VersionWords,
@@ -56,19 +57,22 @@ export interface Work {
   b: BroadcastRow;
   /** Which yes this send needs: Meta's category for the message, whichever channel it goes by (purposeOfTemplate). */
   purpose: SendPurpose;
-  /** WhatsApp's template as Meta has it: the words of those who go by WhatsApp. */
+  /** The words of the message's WhatsApp row as Meta has it, those who go by WhatsApp are sent; none where it has no such row. */
   tpl: { body_preview: string | null };
   /**
-   * Whether Meta approves that template. When it does not, it holds the run's WhatsApp people alone (broadcast.ts): the
-   * people of the other channels go on their own versions.
+   * Whether the message's WhatsApp version is one to send now (contracts messageHolds): approved by Meta and whole. When it is
+   * not, it holds the run's WhatsApp people alone (broadcast.ts): the people of the other channels go on their own versions.
    */
   whatsappApproved: boolean;
+  /**
+   * The message's rows, read once for the batch (ports.message): the words of an email and of a text are read out of them, so
+   * no person's send asks again.
+   */
+  rows: Awaited<ReturnType<BroadcastBatchPorts["message"]>>;
   specs: ParamSpec[];
   facts: Awaited<ReturnType<BroadcastBatchPorts["facts"]>>;
   people: Map<string, ContactRow>;
   priors: Map<string, { id: string; sentAt: string | null }>;
-  /** The email and text versions this batch has read, once each: null is a message with none (any more) on that channel. */
-  versions: Partial<Record<"email" | "sms", VersionWords | null>>;
   /** The month's emails and texts already sent, read once for the first person who needs it and counted as the batch sends. */
   month: Partial<Record<"email" | "sms", number>>;
   /**
@@ -116,19 +120,13 @@ function metaOf(b: BroadcastRow) {
 }
 
 /**
- * The email or text version of the message in its language, as the workspace holds it now; null when it holds none, or
- * not an approved one. Read once per batch: the first person on that channel asks, the rest reuse it. A read that
- * fails throws, and the person is left queued: a version that could not be looked for is not one the workspace lacks.
+ * The words of the message's email or text version in its language, as the batch's one read of the message has them; null
+ * when it holds none there. An email's and a text's row is approved the moment it is saved (contracts messageHolds), so
+ * having one is being sent on it.
  */
-async function versionOf(w: Work, channel: "email" | "sms"): Promise<VersionWords | null> {
-  if (!(channel in w.versions)) {
-    const row = await w.ports.template(w.b.template_name, w.b.template_language, channel);
-    w.versions[channel] =
-      row && row.meta_status === "approved"
-        ? versionWords({ channel, components: row.components, body_preview: row.body_preview })
-        : null;
-  }
-  return w.versions[channel] ?? null;
+function versionOf(w: Work, channel: "email" | "sms"): VersionWords | null {
+  const [row = null] = versionsOf(w.rows, w.b.template_name)[channel];
+  return row ? versionWords({ channel, components: row.components, body_preview: row.body_preview }) : null;
 }
 
 /**
@@ -175,7 +173,7 @@ async function emailDelivery(
   i: { r: RecipientRow; c: ContactRow; to: string; conversationId: string; params: string[] },
   base: Omit<Delivery, "channel" | "body">,
 ): Promise<Prepared> {
-  const version = await versionOf(w, "email");
+  const version = versionOf(w, "email");
   if (!version) return { held: "no_channel" };
   const said = renderOwnVersion("email", version, i.params, w.b.template_language);
   if (!said.subject) return { held: "no_channel" };
@@ -274,7 +272,7 @@ export async function prepare(
     };
   }
   if (i.channel === "email") return emailDelivery(w, i, base);
-  const version = await versionOf(w, "sms");
+  const version = versionOf(w, "sms");
   if (!version) return { held: "no_channel" };
   const said = renderOwnVersion("sms", version, i.params, b.template_language);
   return { delivery: { ...base, channel: "sms", body: said.body } };

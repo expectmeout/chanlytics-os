@@ -5,12 +5,22 @@
  * WhatsApp's rows are the edge's: its admin doors own creating, syncing and deleting them, because that is where the
  * number's credentials live. What is read here is the one question the rest of the product asks -- which templates may
  * this workspace send, right now -- so that no caller has to name one by a literal again. An email or a text version
- * (00296) is written and removed through the two doors below, on the member's own session: a member may only read the
- * table, and the doors say who may write it and which rows. The one write Meta's webhook makes between two syncs is here
- * too: a WhatsApp template's quality, as Meta just said it (setTemplateQuality).
+ * (00296) is written and removed through the doors below, on the member's own session: a member may only read the table,
+ * and the doors say who may write it and which rows. The first version of a message with no row yet is a third door
+ * (00343), the service role's, which the route calls after its own role check and which asks the member it acts for. The
+ * one write Meta's webhook makes between two syncs is here
+ * too: a WhatsApp template's quality, as Meta just said it (setTemplateQuality). A message's rows, on whatever channel,
+ * are read once (messageVersionRowsOf) for contracts' campaignMessageOf to pick its versions out of.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { OwnVersionChannel } from "@chanlytics/contracts";
+import {
+  isReachOutRow,
+  variablesSlotCount,
+  type CampaignMessageRow,
+  type Holds,
+  type OwnVersionChannel,
+  type Within,
+} from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -33,19 +43,49 @@ export interface TemplateToSend extends TemplateRow {
 }
 
 /**
- * Every template this workspace holds on a channel.
+ * A template row as a message is read from it, whatever its channel: the columns contracts' campaignMessageOf picks the
+ * versions out of (the status and category, the slots, the title, a refusal's words, the components a WhatsApp row is
+ * judged by) and the ones a page draws a version from (the words an email or a text holds, and who wrote it).
+ */
+export interface MessageVersionRow {
+  id: string;
+  channel: string;
+  name: string;
+  language: string;
+  meta_status: string;
+  category: string | null;
+  variables: unknown;
+  hidden_at: string | null;
+  title: string | null;
+  source: string;
+  components: unknown;
+  body_preview: string | null;
+  rejected_reason: string | null;
+}
+
+// A caller hands these rows to campaignMessageOf as they are, with no mapping: the compiler holds the two shapes together.
+type _MessageVersionRowIsACampaignMessageRow = Holds<Within<MessageVersionRow, CampaignMessageRow>>;
+
+/**
+ * Every template this workspace holds on a channel, or on every channel when `channel` is null: the rows of all its
+ * messages' versions, each with its id and channel so that contracts' campaignMessagesOf can pick the messages out of them
+ * (a message with no WhatsApp row among them).
  *
  * A read that fails THROWS. "We could not read the templates" is not "this
  * workspace has none": the second is an answer a caller can be told, and
  * telling them it when we simply could not look is how a working feature reads
  * as a missing one.
  */
-export async function templatesFor(db: Db, tenantId: string, channel = "whatsapp"): Promise<TemplateRow[]> {
-  const { data, error } = await db
+export async function templatesFor(
+  db: Db,
+  tenantId: string,
+  channel: string | null = "whatsapp",
+): Promise<Array<TemplateRow & Pick<MessageVersionRow, "id" | "channel">>> {
+  const ofTenant = db
     .from("templates")
-    .select("name, language, category, meta_status, body_preview, title, variables")
-    .eq("tenant_id", tenantId)
-    .eq("channel", channel);
+    .select("id, channel, name, language, category, meta_status, body_preview, title, variables")
+    .eq("tenant_id", tenantId);
+  const { data, error } = await (channel === null ? ofTenant : ofTenant.eq("channel", channel));
   if (error) throw new Error(`templatesFor: ${error.message}`);
   return data ?? [];
 }
@@ -66,15 +106,6 @@ export async function templatesToSend(db: Db, tenantId: string, channel = "whats
   return data ?? [];
 }
 
-/** How many slots a message fills: the highest numbered one its row names, or the rows it lists. */
-function slotsOf(variables: unknown): number {
-  if (!Array.isArray(variables)) return 0;
-  const positions = variables
-    .map((v) => Number((v as { position?: unknown } | null)?.position))
-    .filter(Number.isFinite);
-  return Math.max(variables.length, ...positions);
-}
-
 /**
  * How many slots a message has, for the version being written in `language`: the row of its name the door
  * (save_template_version) would take them from, WhatsApp's first, then the one in this language. Null when the
@@ -92,7 +123,51 @@ export async function messageSlots(db: Db, tenantId: string, name: string, langu
     return wa || Number(b.language === language) - Number(a.language === language);
   });
   const row = rows[0];
-  return row ? slotsOf(row.variables) : null;
+  return row ? variablesSlotCount(row.variables) : null;
+}
+
+/** The name and language of the message a version of this workspace's is, or null when it holds no version of that id. */
+async function messageOfVersion(
+  db: Db,
+  tenantId: string,
+  id: string,
+): Promise<{ name: string; language: string } | null> {
+  const { data, error } = await db
+    .from("templates")
+    .select("name, language")
+    .eq("tenant_id", tenantId)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data;
+}
+
+const MESSAGE_COLUMNS =
+  "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
+
+/**
+ * Every row of one message, whatever its channel: the rows of this workspace that share its name and language, which are
+ * its versions on WhatsApp, email and text (and any other channel a row of that name sits on; contracts campaignMessageOf
+ * picks the versions out of them). The message is named by one of its versions' ids, which answers its siblings and the
+ * version itself, or by its name and language. An id the workspace does not hold is no message: `[]`. So is a reach-out's
+ * email (contracts isReachOutRow), which is filed under a name of its own and belongs to no message. A read that fails
+ * THROWS, as `templatesFor` does.
+ */
+export async function messageVersionRowsOf(
+  db: Db,
+  tenantId: string,
+  by: { id: string } | { name: string; language: string },
+): Promise<MessageVersionRow[]> {
+  const message = "id" in by ? await messageOfVersion(db, tenantId, by.id) : by;
+  if (message === null || isReachOutRow(message)) return [];
+  const { data, error } = await db
+    .from("templates")
+    .select(MESSAGE_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("name", message.name)
+    .eq("language", message.language);
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data ?? [];
 }
 
 /** The email and text versions of these messages the workspace holds: each one's channel, name and language. */
@@ -162,6 +237,65 @@ export async function saveTemplateVersion(
   const version = versionRefOf(data);
   if (!version) throw new Error("saveTemplateVersion: the door answered without the version it wrote");
   return { ok: true, version };
+}
+
+/**
+ * A value a message fills, as the edge writes it on a WhatsApp row's `variables` and as the first version of a message
+ * with no WhatsApp row files it: its number (1, 2, 3 in order), the name a person sees for it, and an example or none.
+ */
+export type MessageVariable = { position: number; label: string; example: string | null };
+
+/**
+ * Write the FIRST version of a message, on email or text (create_message_version, 00343): a name the workspace holds no
+ * row of, so there is no WhatsApp row to take the message's category and values from, and this version says them. The
+ * words are already checked (contracts validateOwnVersion) and so is the category's rule (only a starter is utility), by
+ * the route that calls this after its role check. The door is the service role's alone (`db` is the service client) and
+ * names the member it acts for (`userId`): it holds that this person is an owner, a partner or an operator of the
+ * workspace, who wrote the version, the lengths, that the values are numbered in order, that a text is never an offer,
+ * and that no row of that name exists on any channel or in any language. A text takes no subject and a message with no
+ * title none. A database that has not run 00343 answers `PGRST202` (PostgREST) or `42883` (Postgres), which
+ * `isMissingDoor` reads.
+ */
+export async function createMessageVersion(
+  db: Db,
+  p: {
+    tenantId: string;
+    userId: string;
+    name: string;
+    language: string;
+    channel: OwnVersionChannel;
+    subject: string | null;
+    body: string;
+    category: "marketing" | "utility";
+    variables: MessageVariable[];
+    title: string | null;
+  },
+): Promise<VersionDoor> {
+  const { data, error } = await db.rpc("create_message_version", {
+    p_tenant_id: p.tenantId,
+    p_user: p.userId,
+    p_name: p.name,
+    p_language: p.language,
+    p_channel: p.channel,
+    p_subject: p.subject ?? "",
+    p_body: p.body,
+    p_category: p.category,
+    p_variables: p.variables,
+    p_title: p.title ?? "",
+  });
+  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  const version = versionRefOf(data);
+  if (!version) throw new Error("createMessageVersion: the door answered without the version it wrote");
+  return { ok: true, version };
+}
+
+/**
+ * Whether a door's refusal says the function is not on this database at all (a migration not applied yet): PostgREST's
+ * `PGRST202`, which is what a schema cache without the function answers, or Postgres's own `42883`, undefined_function,
+ * which a cache that still lists a function the database has dropped answers.
+ */
+export function isMissingDoor(error: { code: string | null }): boolean {
+  return error.code === "PGRST202" || error.code === "42883";
 }
 
 /** Remove an email or text version a member wrote (remove_template_version, 00296); never a WhatsApp template. */

@@ -3,10 +3,10 @@
  * campaigns-on-every-channel spec, 4.4 and 4.10).
  *
  * A channel is usable for a send only if the workspace is ready on it (contracts reach-for.ts `channelsReady`: its
- * number, its texting line, its mailbox) AND the message has a version there: WhatsApp's approved row, and for email
- * and text a row of the same name and language on that channel (contracts message-versions.ts). `readyForMessage` puts
- * the second into the first, so every reader of "can this go by email" asks one answer, and `reachFor` never enrols a
- * person on a channel the message cannot be said on.
+ * number, its texting line, its mailbox) AND the message holds a version there (contracts messageHolds: WhatsApp's row
+ * approved and whole, and for email and text a row of the same name and language on that channel). Contracts'
+ * `readyForMessage` puts the second into the first; what is here is which channels a request ticks and the refusal of a
+ * tick the send cannot keep.
  */
 import {
   AppError,
@@ -16,38 +16,8 @@ import {
   channelNeverCarries,
   type AskedPurpose,
   type CampaignHow,
-  type ChannelsReady,
   type ConsentChannel,
 } from "@chanlytics/contracts";
-
-/** What a channel says when the message has no version on it. */
-const NO_VERSION: Record<ConsentChannel, string> = {
-  whatsapp: "This message has no approved WhatsApp version.",
-  email: "This message has no email version yet.",
-  sms: "This message has no text version yet.",
-};
-
-/**
- * The channels a message holds a version on: WhatsApp's when its row is approved (the caller has read it), and each of
- * email and text when the workspace has filed a version of that name and language there. `own` is the channels, of
- * email and text, that hold one (a port's answer); a channel it does not name has none.
- */
-export function versionsHeld(own: readonly string[], whatsapp: boolean): Record<ConsentChannel, boolean> {
-  return { whatsapp, email: own.includes("email"), sms: own.includes("sms") };
-}
-
-/**
- * The workspace's channels now, with the message in them: a channel that is ready but has no version of the message
- * is not ready, and says so in a sentence ("This message has no email version yet."). A channel the workspace is not
- * ready on keeps its own reason. What else the channel carries stays (email's `offers`, which the news by email and an
- * offer are judged by: closing the channel for a missing version must not make it say the campaigns domain is missing).
- */
-export function readyForMessage(ready: ChannelsReady, has: Record<ConsentChannel, boolean>): ChannelsReady {
-  const out: ChannelsReady = { ...ready };
-  for (const c of CONSENT_CHANNELS)
-    if (ready[c].ready && !has[c]) out[c] = { ...ready[c], ready: false, why: NO_VERSION[c] };
-  return out;
-}
 
 /**
  * The channels a request ticks: `channels` as the body names them, WhatsApp alone when it names none (so nothing made

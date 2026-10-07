@@ -23,12 +23,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
 import {
+  campaignMessagesOf,
+  channelsReady,
   dealsAreOn,
   hoursLines,
   MEMBERSHIP_ROLES,
   pipelineOf,
   resolveFacts,
   roleAtLeast,
+  starterByName,
   toPersonRowVM,
   toPersonVM,
   MAX_CLOSURES,
@@ -38,6 +41,7 @@ import { NAME, TIMEZONE, workspaceChannel, workspaceConfig } from "../../ops/e2e
 import { scenario, SCENARIOS, WORKSPACE } from "../../e2e-harness/scenarios.mjs";
 import { buildFixture } from "../../e2e-harness/fixture.mjs";
 import { answer, appRules, BUSINESS_TAB_SCRIPT, documentWithFixture, pageOf } from "../../e2e-harness/server.mjs";
+import { templatesRead } from "../../e2e-harness/templates-read.mjs";
 
 const NOW = Date.parse("2026-09-22T09:00:00Z");
 
@@ -63,7 +67,7 @@ test("the salon record reaches the branches the nightly's data cannot: a list at
   assert.equal(p.languages.length, PROFILE_LIMITS.languages - 1, "one Add must fill the languages list");
   assert.equal(new Set(p.languages).size, p.languages.length, "each language once, whatever the cap is");
   assert.ok(p.services.length > 1 && Object.keys(p.hours).length === 7);
-  assert.deepEqual(SCENARIOS, ["nightly", "salon", "pipeline", "kit"]);
+  assert.deepEqual(SCENARIOS, ["nightly", "salon", "pipeline", "email-only", "kit"]);
 });
 
 test("the kit record's page is the kit's gallery, and every other record's the mockup with its fixture first", () => {
@@ -175,15 +179,20 @@ test("the fixture makes the role store, with the shell's own reading, so an owne
   }
 });
 
-test("the messages the fixture publishes are the scenario's own, and the nightly has none", async () => {
+test("the messages the fixture publishes are the scenario's own, the nightly has none, and a message with no WhatsApp row is none of Meta's", async () => {
   // The fixture published one approved booking_link template and templates.approved = 1 for EVERY scenario,
   // hand-written beside the payload it derives everything else in. Neither the seed (e2e-workspace.mjs) nor the
   // scenarios write a template row, so the nightly workspace was shown an approved message it does not have -- and
   // an approved booking-link template is exactly what decides whether a call can send the link at all
   // (contracts bookingTemplate, and the openings row's ", then the link" clause).
+  // A workspace's messages with no WhatsApp version (the email-only record's three rows, two messages) are approved the moment
+  // they are written and are nobody's verdict but their author's: they are not what the bridge publishes as __TEMPLATES_ALL
+  // (legacy-bridge/surfaces/settings.ts keeps WhatsApp's rows alone), and Setup, which counts Meta's verdicts
+  // (server/workspace/setup.ts templatesSection), counts none of them.
   for (const [name, approved] of [
     ["nightly", []],
     ["salon", ["booking_link"]],
+    ["email-only", []],
   ]) {
     const w = await publishedGlobals(name);
     assert.deepEqual(
@@ -193,10 +202,14 @@ test("the messages the fixture publishes are the scenario's own, and the nightly
       approved,
       `${name}: the approved messages`,
     );
-    assert.deepEqual(
-      plain(w.__TEMPLATES_ALL),
-      plain(scenario(name, NOW).templates),
-      `${name}: the scenario's own list, not a copy`,
+    // The WhatsApp rows of the read the route would answer for the scenario's rows (templates-read.mjs), not a copy.
+    const whatsapp = templatesRead(scenario(name, NOW).templates, { all: true }).templates.filter(
+      (t) => t.channel === "whatsapp",
+    );
+    assert.deepEqual(plain(w.__TEMPLATES_ALL), whatsapp, `${name}: the scenario's own list, not a copy`);
+    assert.ok(
+      w.__TEMPLATES_ALL.every((t) => t.channel === "whatsapp"),
+      `${name}: WhatsApp's rows alone, as the bridge publishes them`,
     );
     // And the count Setup states is that list counted, never a number typed beside it.
     assert.equal(
@@ -205,7 +218,90 @@ test("the messages the fixture publishes are the scenario's own, and the nightly
       `${name}: Setup counts the messages the workspace has`,
     );
     assert.equal(w.__SETUP.dto.templates.startersApproved, approved.length, name);
+    assert.equal(w.__SETUP.dto.templates.pending, 0, name);
   }
+});
+
+test("the email-only record is the nightly's with no WhatsApp number, a mailbox and messages that need no WhatsApp row, derived and not copied", () => {
+  const nightly = scenario("nightly", NOW);
+  const record = scenario("email-only", NOW);
+
+  // The seeded workspace's own config, clock and name: what the nightly is derived from, not restated. The one thing added
+  // is the business's postal address, which every offer's foot names and without which its news cannot go by email.
+  const { profile, ...brain } = record.config.brain;
+  assert.deepEqual({ ...record.config, brain }, workspaceConfig());
+  assert.deepEqual(Object.keys(profile), ["address"]);
+  assert.match(profile.address, /Example/, "an address from the block kept for fiction");
+  assert.equal(record.zone, TIMEZONE);
+  assert.deepEqual(record.known.workspace, { name: NAME, timezone: TIMEZONE });
+  // No WhatsApp line: the one channel the seed provisions is the one thing taken away.
+  assert.deepEqual(
+    nightly.known.channels.map((c) => c.kind),
+    ["whatsapp"],
+  );
+  assert.deepEqual(record.known.channels, []);
+  assert.deepEqual(
+    record.ready,
+    channelsReady({
+      whatsapp: null,
+      textLine: null,
+      email: { mailbox: true, domain: true, offers: { campaigns: true, address: true, paused: null } },
+    }),
+    "a mailbox the campaigns send from, in contracts' own words for the rest",
+  );
+  assert.equal(record.ready.whatsapp.ready, false);
+  assert.equal(record.ready.email.ready, true);
+  assert.equal(record.ready.email.offers.ok, true, "and its news by email can go: the address is on file");
+
+  // Two messages, none with a WhatsApp version: the registry's starter as an email and a text, in its category and values,
+  // and an offer as an email alone (a text never carries one, and a message written here is always an offer).
+  const messages = campaignMessagesOf(record.templates);
+  const starter = starterByName("after_visit_check");
+  assert.deepEqual(
+    messages.map((m) => [m.name, m.versions.whatsapp, m.versions.email !== null, m.versions.sms !== null, m.category]),
+    [
+      [starter.name, null, true, true, starter.category],
+      ["spring_offer", null, true, false, "marketing"],
+    ],
+  );
+  assert.equal(starter.category, "utility", "the starter is the utility one a text may carry");
+  assert.ok(
+    messages.every((m) => m.offered),
+    "each is offered by the channels it holds",
+  );
+  assert.ok(
+    record.templates.every(
+      (t) => t.channel !== "whatsapp" && t.meta_status === "approved" && t.source === "chanlytics",
+    ),
+    "an own version is approved the moment it is written, and ours",
+  );
+  assert.equal(
+    new Set(record.templates.map((t) => t.id)).size,
+    record.templates.length,
+    "every row has an id of its own",
+  );
+
+  // Three people who wrote by email, each with an address and no phone, in people_list's row shape and on one saved list.
+  assert.equal(record.people.length, 3);
+  const shape = Object.keys(scenario("pipeline", NOW).people[0]).join();
+  assert.ok(
+    record.people.every((r) => Object.keys(r).join() === shape),
+    "the real shape, as the pipeline's rows are",
+  );
+  assert.ok(
+    record.people.every((r) => /^[a-z]+@example[.]com$/.test(r.email) && r.phone_e164 === null),
+    "an address from the block kept for fiction, and no phone",
+  );
+  assert.ok(record.people.every((r) => r.came_from === "email" && r.message_channels.join() === "email"));
+  assert.ok(
+    record.people.every((r) => r.latest_wa_inbound_at === null),
+    "nobody has a WhatsApp window open",
+  );
+  assert.ok(record.people.every((r) => toPersonRowVM(r, TIMEZONE, new Date(NOW)).calendar === "none"));
+  assert.deepEqual(
+    record.lists.map((l) => [l.name, l.ids, l.rule, l.archived_at]),
+    [["Spring regulars", record.people.map((p) => p.id), null, null]],
+  );
 });
 
 test("the document runs the fixture's install of the tab's helpers, not the dist-built copy after it", () => {
@@ -266,6 +362,56 @@ test("the server answers the two auth calls signIn() makes, and the settings rea
   assert.equal(answer("GET", "/api/v1/nothing-here", scoped, record).status, 404);
   // Anything that is not a JSON route is the mockup's to serve.
   assert.equal(answer("GET", "/Chanlytics.html", new URLSearchParams(), record), null);
+});
+
+test("the server answers the templates read as the route does, from the record's own rows, and the channels it knows", () => {
+  const scoped = new URLSearchParams({ workspace: WORKSPACE.id });
+  const asked = (name, query = {}) =>
+    answer("GET", "/api/v1/templates", new URLSearchParams({ workspace: WORKSPACE.id, ...query }), scenario(name, NOW));
+
+  // The composers' read: the rows, the messages made of EVERY row (contracts campaignMessagesOf), and what the list left out.
+  const record = scenario("email-only", NOW);
+  const read = asked("email-only");
+  assert.equal(read.status, 200);
+  assert.equal(read.body.ok, true, "the app's own envelope");
+  assert.deepEqual(Object.keys(read.body.data), ["templates", "held", "messages"]);
+  assert.deepEqual(
+    read.body.data.templates.map((t) => t.id),
+    record.templates.map((t) => t.id),
+  );
+  assert.ok(
+    read.body.data.templates.every((t) => t.blocked === null && !("components" in t)),
+    "an email's and a text's is judged by no one, and Meta's array stays behind",
+  );
+  assert.deepEqual(read.body.data.messages, campaignMessagesOf(read.body.data.templates));
+  assert.deepEqual(
+    read.body.data.messages.map((m) => m.name),
+    ["after_visit_check", "spring_offer"],
+  );
+  assert.deepEqual(read.body.data.held, { pending: 0, rejected: 0, paused: 0, disabled: 0, hidden: 0 });
+
+  // Settings' read, `all`: the same, and what sends each message and how many went out, none on a harness that sends nothing.
+  const all = asked("email-only", { all: "1" }).body.data;
+  assert.deepEqual(Object.keys(all), ["templates", "held", "messages", "usedBy", "sends"]);
+  assert.deepEqual([all.usedBy, all.sends], [{}, {}]);
+  assert.deepEqual(all.messages, read.body.data.messages);
+
+  // A record with no row answers none, and the salon's booking message is the one WhatsApp row it holds, marked as the Inbox books by it.
+  assert.deepEqual(asked("nightly").body.data.messages, []);
+  assert.equal(asked("salon", { all: "1" }).body.data.usedBy.booking_link.booking, true);
+
+  // The channels: the rows the record knows, and none for a workspace with no line.
+  const channels = (name) => answer("GET", "/api/v1/channels", scoped, scenario(name, NOW)).body.data.channels;
+  assert.deepEqual(channels("email-only"), []);
+  assert.deepEqual(
+    channels("nightly").map((c) => [c.kind, c.status]),
+    [["whatsapp", "active"]],
+  );
+  // And a read of either names its workspace, as every read does, and is a read alone.
+  for (const path of ["/api/v1/templates", "/api/v1/channels"]) {
+    assert.equal(answer("GET", path, new URLSearchParams(), record).status, 400, path);
+    assert.equal(answer("POST", path, scoped, record).status, 405, path);
+  }
 });
 
 test("the harness never writes: every method but a read is refused, whatever it asks for", () => {
@@ -499,6 +645,24 @@ test("in a browser, the pipeline record's page stands at its workspace's address
   const person = await w.__personDetail(record.people[3].id);
   assert.equal(person.name, record.people[3].display_name);
   assert.equal(person.proposal.sent !== null, true, "the proposal went out, and the page says so");
+});
+
+test("in a browser, the email-only record's page reads its three people and its saved list through the same surface, by the slug", async () => {
+  const record = scenario("email-only", NOW);
+  const { w, asked } = browserWindow(record, "#/clients");
+  vm.runInNewContext(await buildFixture(record), vm.createContext(w));
+  await until(() => w.__PEOPLE);
+  assert.deepEqual(
+    plain(w.__PEOPLE.rows.map((r) => r.id)),
+    record.people.map((r) => r.id),
+    "People is the three who wrote by email",
+  );
+  assert.deepEqual([...new Set(asked.map((a) => `${a.method} ${a.workspace}`))], [`GET ${WORKSPACE.slug}`]);
+  const byId = new URLSearchParams({ workspace: WORKSPACE.id });
+  assert.deepEqual(answer("GET", "/api/v1/segments", byId, record).body.data.lists, record.lists);
+  assert.deepEqual(answer("GET", "/api/v1/segments", byId, scenario("pipeline", NOW)).body.data.lists, []);
+  // A person's own page is not served for this record: no detail was invented for it.
+  assert.equal(answer("GET", `/api/v1/contacts/${record.people[0].id}`, byId, record).status, 404);
 });
 
 // The People pages read nothing off the window (surfaces/people is TSX that imports its verbs), so there is no list of the

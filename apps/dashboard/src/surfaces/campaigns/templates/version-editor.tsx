@@ -23,6 +23,7 @@ import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { useSlotSeats } from "./slots/slot-seats";
+import type { BoxName } from "./slots/slot-seats";
 import { ValuesMenu, WordsField } from "./slots/words-field";
 import { VersionPreview } from "./version-preview";
 import type { VersionDraft } from "./verbs";
@@ -55,35 +56,43 @@ interface VersionEditorProps {
   rules?: EmailRules<string>;
   /** Another act is under way: nothing here may start one. */
   busy: boolean;
+  /**
+   * Set where a composer holds the words itself (a new message's: the composer keeps them with the rest of what it holds,
+   * so the editor keeps none of its own in the tab and draws no Cancel, which is the composer's): it is told the words as
+   * they change, and opens on `start`.
+   */
+  within?: { onWords: (words: VersionWords) => void };
   /** The save, answered with the server's word; null when it did not start. */
   onSave: (draft: VersionDraft) => Promise<ApiResult<unknown> | null>;
   onClose: () => void;
 }
 
 export function VersionEditor(p: VersionEditorProps) {
-  const { name, channel, language, start, slots, values, busy, onSave, onClose } = p;
+  const { name, channel, language, start, slots, values, busy, within, onSave, onClose } = p;
   const kind = p.rules ?? campaignEmailRules(slots);
   // An email with no subject of its own (a reach-out's later step answers the one before) has one box of words.
   const hasSubject = channel === "email" && kind.subject;
-  const [first] = useState(() => keptWords(name, language, channel) ?? start);
+  const [first] = useState(() => (within ? start : (keptWords(name, language, channel) ?? start)));
   const [subject, setSubject] = useState(first.subject ?? "");
   const [body, setBody] = useState(first.body);
   // What the server refused with, until the words change; the check's own sentence is read as they are typed.
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const typed = (words: string, set: (words: string) => void) => {
+  const typed = (field: BoxName, words: string) => {
     setProblem(null);
-    set(words);
+    (field === "subject" ? setSubject : setBody)(words);
+    const now = { subject: field === "subject" ? words : subject, body: field === "body" ? words : body };
+    within?.onWords({ subject: hasSubject ? now.subject : null, body: now.body });
   };
-  const seats = useSlotSeats({ subject, body }, (to, words) => typed(words, to === "subject" ? setSubject : setBody));
+  const seats = useSlotSeats({ subject, body }, typed);
   const written = { subject: hasSubject ? subject : null, body };
   const check =
     channel === "email"
       ? validateEmailVersion({ subject, body }, kind)
       : validateSmsVersion({ body }, slots.keys.length, language);
-  const work = useUnsavedWork(DRAFT_KIND, draftKey(name, language, channel), {
+  const work = useUnsavedWork(DRAFT_KIND, within ? null : draftKey(name, language, channel), {
     value: { subject, body },
-    dirty: subject !== (start.subject ?? "") || body !== start.body,
+    dirty: !within && (subject !== (start.subject ?? "") || body !== start.body),
     onLeave: onClose,
   });
   const save = async () => {
@@ -117,7 +126,7 @@ export function VersionEditor(p: VersionEditorProps) {
               lines={1}
               value={subject}
               maxLength={kind.subjectMax}
-              onType={(words) => typed(words, setSubject)}
+              onType={(words) => typed("subject", words)}
             />
           ) : null}
           <WordsField
@@ -126,7 +135,7 @@ export function VersionEditor(p: VersionEditorProps) {
             label={WORDS.bodyLabel}
             lines={channel === "email" ? 8 : 4}
             value={body}
-            onType={(words) => typed(words, setBody)}
+            onType={(words) => typed("body", words)}
           />
           {slots.keys.length > 0 ? (
             <div className="tpl-ver-values">
@@ -167,9 +176,11 @@ export function VersionEditor(p: VersionEditorProps) {
             >
               {saving ? WORDS.saving : WORDS.save}
             </Button>
-            <Button variant="quiet" size="sm" onClick={work.leave} data-testid="template-version-cancel">
-              {WORDS.cancel}
-            </Button>
+            {within ? null : (
+              <Button variant="quiet" size="sm" onClick={work.leave} data-testid="template-version-cancel">
+                {WORDS.cancel}
+              </Button>
+            )}
           </>
         )}
       </div>

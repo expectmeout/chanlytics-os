@@ -324,6 +324,7 @@ const messagesPage = () => {
     settings: { config: { brain: { business_name: "Northside Studio" } } },
     channels: [{ kind: "whatsapp" }],
     templatesAll: [],
+    messages: [],
   });
   return TemplatesPage();
 };
@@ -952,6 +953,33 @@ test("a template half-written is kept, comes back with the page, and Close asks 
   } finally {
     Object.assign(templates, keep);
   }
+});
+
+test("a template composer drawn where there is no number to write to says so in place of its rows, and its submit stays shut over words the tab kept", () => {
+  const compose = (over = {}) =>
+    TemplateComposer({ pane: true, businessName: "Northside Studio", onDone() {}, onCancel() {}, ...over });
+  // Words kept in the tab from a composer that had a number, as a person typed them.
+  let tree = TemplateComposer({ businessName: "Northside Studio", onDone() {}, onCancel() {} });
+  type(byTestId(tree, "tpl-body"), "Hi {{1}}, 20% off any colour service this week.");
+  type(byTestId(tree, "tpl-name"), "autumn_colour");
+  tree = redraw(() => TemplateComposer({ businessName: "Northside Studio", onDone() {}, onCancel() {} }));
+  type(
+    find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").includes("what a real value")),
+    "Dani",
+  );
+  redraw(() => TemplateComposer({ businessName: "Northside Studio", onDone() {}, onCancel() {} }));
+  unmount();
+  // With a number the same words are ready to submit.
+  tree = compose();
+  assert.equal(byTestId(tree, "tpl-submit").props.disabled, false, "the words the tab kept are a template to submit");
+  assert.equal(byTestId(tree, "tpl-no-number"), null);
+  // Without one the composer says why, once, where its rows were, and submits nothing.
+  unmount();
+  const why = "Connect a WhatsApp number first — templates belong to a number's account.";
+  tree = compose({ numberWhy: why });
+  assert.ok(textOf(byTestId(tree, "tpl-no-number")).startsWith(why));
+  assert.equal(byTestId(tree, "tpl-composer"), null, "none of its rows");
+  assert.equal(byTestId(tree, "tpl-submit").props.disabled, true, "shut over words that would otherwise be ready");
 });
 
 test("the registry's hold: a composer's words hold the tab and the rail, as an open fold's do, and never stand between two folds", () => {

@@ -4,16 +4,29 @@
  * template-versions.db.test.mjs).
  *
  * What is proved here is what the dashboard does around the doors: who may ask, what is checked before the database is
- * (the slots of the message, a subject, a text's length), what the door is given, how its refusals are answered, and
- * that the starter set files each starter's email and text versions beside its WhatsApp one, once, whatever one of
- * them does.
+ * (the slots of the message, a subject, a text's length), what the door is given, how its refusals are answered, that
+ * a message may begin as an email or a text (a starter begins as itself, with its own words, any other name says what it
+ * is in `message`, and a name the workspace holds a row of ignores it), that the door which begins one is the service
+ * role's and is told which member it acts for, and that the starter set files each starter's email and text versions
+ * beside its WhatsApp one, once, whatever one of them does.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { starterByKey, starterEmailText, starterSmsText } from "@chanlytics/contracts";
+import {
+  LIBRARY_STARTER_WORDS,
+  LIBRARY_WORDS,
+  MESSAGE_BEGIN_WORDS,
+  TEMPLATE_NAME_WORDS,
+  channelNeverCarries,
+  starterByKey,
+  starterByName,
+  starterEmailText,
+  starterSmsText,
+  starterText,
+} from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -24,6 +37,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const versions = await import(at("apps/dashboard/app/api/v1/templates/versions/route.ts"));
 const version = await import(at("apps/dashboard/app/api/v1/templates/versions/[id]/route.ts"));
 const starter = await import(at("apps/dashboard/app/api/v1/templates/starter/route.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -85,9 +99,11 @@ const tpl = (n, tenant_id, over = {}) => ({
 });
 
 /**
- * A model of save_template_version and remove_template_version over the same tables: enough of the doors' own rules
- * that a route test finds what the route does around them (the SQL is run in template-versions.db.test.mjs). Every call
- * is kept, and `refuse` makes the next call to a door refuse as the database would.
+ * A model of save_template_version, create_message_version and remove_template_version over the same tables: enough of
+ * the doors' own rules that a route test finds what the route does around them (the SQL is run in
+ * template-versions.db.test.mjs). Every call is kept, and `refuse` makes the next call to a door refuse as the database
+ * would. The member's own session holds the first and the last; create_message_version is on the service client only,
+ * as it is granted, so a call of it on the session would find no such function.
  */
 function world(tables) {
   const calls = [];
@@ -124,6 +140,29 @@ function world(tables) {
       );
       return { id: kept.id, channel: a.p_channel, name: a.p_name, language: a.p_language };
     },
+    create_message_version: (a) => {
+      calls.push(["create", a]);
+      if (refuse.create) throw refuse.create;
+      // The service role has no session, so the door asks the member it acts for.
+      const seat = (tables.memberships ?? []).find((m) => m.tenant_id === a.p_tenant_id && m.user_id === a.p_user);
+      if (!seat || !["owner", "operator", "partner"].includes(seat.role))
+        throw doorError("Message not found.", "P0002");
+      if (tables.templates.some((t) => t.tenant_id === a.p_tenant_id && t.name === a.p_name))
+        throw doorError("This message already exists. Write its other versions in the Library.", "23505");
+      const row = tpl(next++, a.p_tenant_id, {
+        channel: a.p_channel,
+        name: a.p_name,
+        language: a.p_language,
+        source: "chanlytics",
+        body_preview: a.p_body,
+        category: a.p_category,
+        variables: a.p_variables,
+        title: a.p_title || null,
+        created_by: a.p_user,
+      });
+      tables.templates.push(row);
+      return { id: row.id, channel: row.channel, name: row.name, language: row.language };
+    },
     remove_template_version: (a) => {
       calls.push(["remove", a]);
       if (refuse.remove) throw refuse.remove;
@@ -134,8 +173,13 @@ function world(tables) {
       return { id: row.id, channel: row.channel, name: row.name, language: row.language };
     },
   };
+  setServiceClient(fakeDb(tables, {}, { create_message_version: rpcs.create_message_version }));
   const ctx = (params = {}) => ({
-    supabase: fakeDb(tables, {}, rpcs),
+    supabase: fakeDb(
+      tables,
+      {},
+      { save_template_version: rpcs.save_template_version, remove_template_version: rpcs.remove_template_version },
+    ),
     userId: USER,
     email: "ada@example.com",
     params,
@@ -290,15 +334,51 @@ test("writing a version: the slots are the message's own, from its WhatsApp row,
   assert.equal((await post(write({ name: "no_slots", subject: "Hello", body: "Hi there" }))).template.name, "no_slots");
 });
 
-test("writing a version of a starter the workspace has not added: its slots are the starter's, and the door says it is not on file", async () => {
+test("writing a version: a message's values are counted as contracts counts them, the highest number its row names", async () => {
+  // The row lists two values and numbers them 1 and 3: the message fills three, so a version may use {{3}} and not {{4}}.
+  const tables = {
+    memberships: both("viewer", "operator"),
+    templates: [
+      tpl(1, B, {
+        name: "gapped_note",
+        variables: [
+          { position: 1, label: "First name" },
+          { position: 3, label: "Time" },
+        ],
+      }),
+    ],
+  };
+  const w = world(tables);
+  const post = (body) => versions.POST.run(send("POST", body, inB), w.ctx());
+  const note = (body) => write({ name: "gapped_note", subject: "A note", body });
+  await refused(
+    post(note("Hi {{4}}")),
+    "validation",
+    400,
+    "{{4}} is not one of this message's values: it has {{1}} to {{3}}.",
+  );
+  assert.deepEqual(w.calls, []);
+  assert.equal((await post(note("Hi {{1}}, at {{3}}"))).template.name, "gapped_note");
+});
+
+test("writing a version of a starter the workspace has not added: its slots are the starter's, checked before the door", async () => {
   const tables = { memberships: both("viewer", "operator"), templates: [] };
   const w = world(tables);
   const post = (body) => versions.POST.run(send("POST", body, inB), w.ctx());
   // quick_note has three slots; a fourth is refused by the starter's own count, before the door.
   await refused(post(write({ name: "quick_note", body: "Hi {{4}}" })), "validation", 400, "{{4}} is not one of");
   assert.deepEqual(w.calls, []);
-  await refused(post(write({ name: "quick_note", body: "Hi {{3}}" })), "not_found", 404, "Message not found.");
-  assert.equal(w.calls.length, 1, "the door is the one that says the message is not there");
+  // Its third is the starter's own, in the starter's own words: the message begins (the tests below say as what).
+  const note = starterEmailText(starterByName("quick_note"), "en_US");
+  assert.ok(note.body.includes("{{3}}"), "the starter's own words fill its third value");
+  assert.equal(
+    (await post(write({ name: "quick_note", subject: note.subject, body: note.body }))).template.name,
+    "quick_note",
+  );
+  assert.deepEqual(
+    w.calls.map(([door]) => door),
+    ["create"],
+  );
 });
 
 test("writing a version: the door's own refusals are answered in its words, and a fault is no one's to read", async () => {
@@ -487,8 +567,11 @@ test("a version that cannot be filed is said and stops nothing: the rest are fil
   ]);
 });
 
-test("a starter whose WhatsApp version is not on file gets no versions: the message is not there for the door to find", async () => {
-  const tables = { memberships: both("viewer", "operator"), templates: [] };
+/** A WhatsApp number the workspace B has: the starter set's WhatsApp versions are made only where there is one. */
+const NUMBER = { tenant_id: B, kind: "whatsapp", status: "active", config: {} };
+
+test("with a number, a starter whose WhatsApp version cannot be made stops at the guard and files no version; one the set no longer offers is not added", async () => {
+  const tables = { memberships: both("viewer", "operator"), templates: [], tenant_channels: [NUMBER] };
   const w = world(tables);
   // Nothing on file, so the submission is the production guard here, as it is for the whole set.
   await refused(
@@ -502,4 +585,550 @@ test("a starter whose WhatsApp version is not on file gets no versions: the mess
   // And a starter the set no longer offers is not added, asked for or not.
   await refused(post(w, { keys: ["welcome_new"] }), "validation", 400, "Pick at least one starter template");
   await refused(post(w, {}, inA), "forbidden", 403);
+});
+
+const NO_CHANNEL = "Connect a WhatsApp number first — templates belong to a number's account.";
+/** Each result of the answer: the starter, the language, what became of its WhatsApp version and of each version beside it. */
+const detailed = (r) =>
+  r.results.map((x) => [x.key, x.language, x.status, x.detail, x.versions.map((v) => `${v.channel}:${v.status}`)]);
+
+test("with no number the set is written as emails and texts: the first version of a name begins the message as the starter, the other is written beside it, the WhatsApp version is skipped and Meta is not asked", async () => {
+  const { tables, w } = empty();
+  // A preview answers a submission with its guard, a thrown refusal (the test above): a call to Meta would end this run.
+  const r = await post(w, { keys: ["visit_reminder", "quick_note", "call_text"], languages: ["en_US"] });
+  assert.deepEqual(detailed(r), [
+    ["visit_reminder", "en_US", "skipped", NO_CHANNEL, ["email:saved", "sms:saved"]],
+    ["quick_note", "en_US", "skipped", NO_CHANNEL, ["email:saved"]],
+    ["call_text", "en_US", "skipped", NO_CHANNEL, ["sms:saved"]],
+  ]);
+  assert.deepEqual(
+    [r.submitted, r.existing, r.synced, r.failed, r.skipped, r.versions_saved, r.versions_existing, r.versions_failed],
+    [0, 0, 0, 0, 3, 4, 0, 0],
+  );
+  assert.equal(NO_CHANNEL, LIBRARY_WORDS.writeNeedsNumber, "the sentence is contracts', the one the composer says too");
+  // The door is asked as saveVersion asks it: a name with no row is begun, the next version of it written beside.
+  assert.deepEqual(
+    w.calls.map(([door, a]) => `${door}:${a.p_name}/${a.p_channel}`),
+    ["create:visit_reminder/email", "save:visit_reminder/sms", "create:quick_note/email", "create:call_text/sms"],
+  );
+  const created = Object.fromEntries(w.calls.filter(([d]) => d === "create").map(([, a]) => [a.p_name, a]));
+  assert.deepEqual(
+    [created.visit_reminder.p_category, created.quick_note.p_category, created.call_text.p_category],
+    ["utility", "marketing", "utility"],
+    "only a starter is a message about their own visit: the starter's category, whichever number there is",
+  );
+  assert.deepEqual(created.visit_reminder.p_variables, valuesOf(starterByName("visit_reminder"), "en_US"));
+  assert.equal(created.visit_reminder.p_title, "", "the starter's title is the registry's, not a row's");
+  assert.deepEqual(
+    tables.templates.map((t) => [t.name, t.channel, t.source]),
+    [
+      ["visit_reminder", "email", "chanlytics"],
+      ["visit_reminder", "sms", "chanlytics"],
+      ["quick_note", "email", "chanlytics"],
+      ["call_text", "sms", "chanlytics"],
+    ],
+    "no WhatsApp row is made, and a message with versions on its own channels needs none",
+  );
+  assert.equal(tables.templates.find((t) => t.name === "visit_reminder" && t.channel === "sms").category, "utility");
+
+  // Said again, nothing is filed twice.
+  const before = w.calls.length;
+  const second = await post(w, { keys: ["visit_reminder", "quick_note", "call_text"], languages: ["en_US"] });
+  assert.equal(w.calls.length, before, "no door was called");
+  assert.deepEqual(
+    detailed(second).map((x) => x[4]),
+    [["email:exists", "sms:exists"], ["email:exists"], ["sms:exists"]],
+  );
+  assert.deepEqual([second.versions_saved, second.versions_existing, second.skipped], [0, 4, 3]);
+});
+
+test("a language of a starter is written beside the message that exists in another, in its own words, whichever channel began it", async () => {
+  const { w } = empty();
+  const r = await post(w, { keys: ["visit_reminder"], languages: ["en_US", "es"] });
+  assert.deepEqual(
+    detailed(r).map((x) => [x[1], x[4]]),
+    [
+      ["en_US", ["email:saved", "sms:saved"]],
+      ["es", ["email:saved", "sms:saved"]],
+    ],
+  );
+  assert.deepEqual(
+    w.calls.map(([door, a]) => `${door}:${a.p_language}/${a.p_channel}`),
+    ["create:en_US/email", "save:en_US/sms", "save:es/email", "save:es/sms"],
+    "only the first version of the name begins it: the door refuses a name that has any row, in any language",
+  );
+  const visit = starterByKey("visit_reminder");
+  const es = w.calls.map(([, a]) => a).find((a) => a.p_language === "es" && a.p_channel === "email");
+  assert.equal(es.p_subject, starterEmailText(visit, "es").subject);
+});
+
+test("the channels asked for are the ones written: a number and WhatsApp alone asks Meta and writes no email or text; a number and email alone never asks Meta", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    templates: [
+      tpl(1, B, { name: "visit_reminder", variables: [SLOTS[0], SLOTS[1], { position: 3 }, { position: 4 }] }),
+    ],
+    tenant_channels: [NUMBER],
+  };
+  const w = world(tables);
+  // WhatsApp alone: a starter with a version on file is left as it is and no email or text is written beside it; one with
+  // none is submitted, which a preview refuses at its guard, as it always did.
+  const only = await post(w, { keys: ["visit_reminder"], languages: ["en_US"], channels: ["whatsapp"] });
+  assert.deepEqual(detailed(only), [["visit_reminder", "en_US", "exists", undefined, []]]);
+  assert.deepEqual(w.calls, [], "no door was called");
+  await refused(
+    post(w, { keys: ["quick_note"], languages: ["en_US"], channels: ["whatsapp"] }),
+    "upstream_meta",
+    502,
+    "Adding templates only works on the production dashboard.",
+  );
+  // Email alone, with a number: nothing is asked of Meta (its guard would have refused), its version is skipped without
+  // a word (it was not asked for), and the email is written, beginning the message.
+  const mail = await post(w, { keys: ["quick_note"], languages: ["en_US"], channels: ["email"] });
+  assert.deepEqual(detailed(mail), [["quick_note", "en_US", "skipped", undefined, ["email:saved"]]]);
+  assert.deepEqual(
+    w.calls.map(([door, a]) => `${door}:${a.p_name}/${a.p_channel}`),
+    ["create:quick_note/email"],
+  );
+  // The default, with a number, asks for every channel: a starter with none on file meets the guard.
+  await refused(
+    post(w, { keys: ["call_text"], languages: ["en_US"] }),
+    "upstream_meta",
+    502,
+    "Adding templates only works on the production dashboard.",
+  );
+  // A request that names no channel it knows is refused in one plain sentence.
+  for (const channels of [[], ["fax"]])
+    await refused(post(w, { keys: ["quick_note"], channels }), "validation", 400, LIBRARY_STARTER_WORDS.pickAChannel);
+  assert.equal(LIBRARY_STARTER_WORDS.pickAChannel, "Pick at least one channel: WhatsApp, email or text.");
+});
+
+test("with no number and the door not switched on, each version says so in one plain sentence and the answer arrives whole", async () => {
+  const { tables, w } = empty();
+  w.refuse.create = doorError(
+    "Could not find the function public.create_message_version in the schema cache",
+    "PGRST202",
+  );
+  const r = await post(w, { keys: ["visit_reminder", "quick_note"], languages: ["en_US"] });
+  assert.deepEqual(detailed(r), [
+    ["visit_reminder", "en_US", "skipped", NO_CHANNEL, ["email:failed", "sms:failed"]],
+    ["quick_note", "en_US", "skipped", NO_CHANNEL, ["email:failed"]],
+  ]);
+  assert.equal(r.results[0].versions[0].detail, MESSAGE_BEGIN_WORDS.doorNotSwitchedOn);
+  assert.deepEqual([r.versions_saved, r.versions_failed], [0, 3]);
+  assert.equal(tables.templates.length, 0, "nothing was written");
+});
+
+/* ------------------------ a message may begin as an email or a text ------------------------ */
+
+/** Nothing on file: the workspace B holds no row of any name. */
+function empty() {
+  const tables = { memberships: both("viewer", "operator"), templates: [] };
+  return { tables, w: world(tables) };
+}
+const begin = (w, body, q = inB) => versions.POST.run(send("POST", body, q), w.ctx());
+/** What a member says a message is, with its first version. */
+const OFFER = {
+  category: "marketing",
+  variables: [
+    { position: 1, label: "First name", example: "Dani" },
+    { position: 2, label: "The offer" },
+  ],
+  title: "Spring news",
+};
+const news = (over = {}) =>
+  write({
+    name: "spring_news",
+    subject: "News from {{2}}",
+    body: "Hi {{1}}, spring is here: {{2}}",
+    message: OFFER,
+    ...over,
+  });
+const valuesOf = (s, language) =>
+  starterText(s, language).slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example }));
+
+test("a starter's first version, with no row of its name, begins the message as the starter: its category, its values and no title, whatever `message` says", async () => {
+  const { tables, w } = empty();
+  const visit = starterByName("visit_reminder");
+  const visitMail = starterEmailText(visit, "en_US");
+  const email = await begin(
+    w,
+    write({
+      subject: visitMail.subject,
+      body: visitMail.body,
+      message: { category: "marketing", variables: [], title: "My own title" },
+    }),
+  );
+  assert.deepEqual(w.calls, [
+    [
+      "create",
+      {
+        p_tenant_id: B,
+        p_user: USER,
+        p_name: "visit_reminder",
+        p_language: "en_US",
+        p_channel: "email",
+        p_subject: visitMail.subject,
+        p_body: visitMail.body,
+        p_category: "utility",
+        p_variables: valuesOf(visit, "en_US"),
+        p_title: "",
+      },
+    ],
+  ]);
+  assert.deepEqual(email.template, {
+    id: tables.templates.at(-1).id,
+    channel: "email",
+    name: "visit_reminder",
+    language: "en_US",
+  });
+  assert.deepEqual(email.warnings, []);
+
+  // It exists now, so its other versions are written beside it, taking what the first said.
+  const text = await begin(w, write({ channel: "sms", subject: null, body: starterSmsText(visit, "en_US").body }));
+  assert.equal(w.calls.at(-1)[0], "save", "the door for the versions after the first");
+  assert.equal(text.template.channel, "sms");
+  const row = tables.templates.find((t) => t.channel === "sms");
+  assert.equal(row.category, "utility");
+  assert.deepEqual(row.variables, valuesOf(visit, "en_US"));
+  assert.equal(w.calls.filter(([door]) => door === "create").length, 1);
+
+  // Its words are the starter's in the language it is begun in.
+  const check = starterByName("after_visit_check");
+  const checkEs = starterEmailText(check, "es");
+  await begin(w, write({ name: "after_visit_check", language: "es", subject: checkEs.subject, body: checkEs.body }));
+  const es = w.calls.at(-1)[1];
+  assert.deepEqual(es.p_variables, valuesOf(check, "es"));
+  assert.notEqual(es.p_variables[0].label, valuesOf(check, "en_US")[0].label, "Spanish labels, not English ones");
+  assert.equal(es.p_category, "utility");
+
+  // A text of a starter that is about a visit begins it too, and an offer begins as marketing.
+  const callText = starterSmsText(starterByName("call_text"), "en_US");
+  await begin(w, write({ name: "call_text", channel: "sms", subject: null, body: callText.body }));
+  assert.equal(w.calls.at(-1)[1].p_category, "utility");
+  const note = starterEmailText(starterByName("quick_note"), "en_US");
+  await begin(w, write({ name: "quick_note", subject: note.subject, body: note.body }));
+  assert.equal(w.calls.at(-1)[1].p_category, "marketing");
+  assert.deepEqual(w.calls.at(-1)[1].p_variables, valuesOf(starterByName("quick_note"), "en_US"));
+});
+
+test("a starter begins only with its own words: a member's are refused in one sentence, so a utility category is never put on words the member wrote", async () => {
+  const { tables, w } = empty();
+  const mail = starterEmailText(starterByName("visit_reminder"), "en_US");
+  const sms = starterSmsText(starterByName("visit_reminder"), "en_US");
+  const sentence = "A starter begins with its own words. Add the starter set, then change the words in the Library.";
+  assert.equal(MESSAGE_BEGIN_WORDS.starterNeedsItsOwnWords, sentence);
+  for (const [why, over] of [
+    [
+      "an offer's words under a visit's name and category",
+      { subject: "Spring sale", body: "Hi {{1}}, 20% off today." },
+    ],
+    ["the starter's body with a subject of the member's", { subject: "Buy now", body: mail.body }],
+    ["the starter's subject with a body of the member's", { subject: mail.subject, body: "Hi {{1}}, a sale." }],
+    ["one word changed", { subject: mail.subject, body: mail.body.replace("Hi", "Hello") }],
+    ["a text's words in an email", { subject: mail.subject, body: sms.body }],
+    ["words that say nothing of a visit, with a message that says utility", { body: "Hi {{1}}", message: OFFER }],
+    ["an extra line", { subject: mail.subject, body: `${mail.body}\n\nAnd 10% off.` }],
+  ]) {
+    await refused(begin(w, write(over)), "validation", 400, sentence);
+    assert.deepEqual(w.calls, [], why);
+  }
+  // A text of the starter is held to the starter's text.
+  await refused(
+    begin(w, write({ channel: "sms", subject: null, body: `${sms.body} Reply now for 10% off.` })),
+    "validation",
+    400,
+    sentence,
+  );
+  assert.deepEqual(w.calls, []);
+  assert.equal(tables.templates.length, 0);
+
+  // The starter's words as the route cleans them are the starter's still: padding and Windows line endings change none.
+  const padded = await begin(
+    w,
+    write({ subject: `  ${mail.subject}  `, body: `\r\n${mail.body.replace(/\n/g, "\r\n")}  ` }),
+  );
+  assert.equal(padded.template.name, "visit_reminder");
+  assert.deepEqual(
+    w.calls.map(([door, a]) => [door, a.p_subject, a.p_body, a.p_category]),
+    [["create", mail.subject, mail.body, "utility"]],
+  );
+  // The message exists now, and a version beside it is the member's to word: the rule is about beginning one.
+  const mine = await begin(w, write({ channel: "sms", subject: null, body: "Hi {{1}}, my own words." }));
+  assert.equal(mine.template.channel, "sms");
+  assert.equal(w.calls.at(-1)[0], "save");
+});
+
+test("the first version of a message is the service role's, naming the member who asked, and the session never calls it", async () => {
+  const tables = {
+    memberships: [
+      ...both("viewer", "operator"),
+      { ...membership(B, "owner", "bayside", "2026-03-01T00:00:00Z"), user_id: "u2" },
+    ],
+    templates: [],
+  };
+  const w = world(tables);
+  // The door is modelled on the service client alone: a call on the session would find no such function and throw.
+  const asOwner = await versions.POST.run(send("POST", news(), inB), { ...w.ctx(), userId: "u2" });
+  assert.equal(w.calls.length, 1);
+  assert.equal(w.calls[0][1].p_user, "u2", "the member who asked, not a fixed one");
+  assert.equal(tables.templates.find((t) => t.id === asOwner.template.id).created_by, "u2");
+  const asOperator = await begin(w, news({ name: "second_news" }));
+  assert.equal(w.calls.at(-1)[1].p_user, USER);
+  assert.equal(tables.templates.find((t) => t.id === asOperator.template.id).created_by, USER);
+});
+
+test("a starter has no first version on a channel it writes nothing for in that language: it is not found, as it was, and the door is not asked", async () => {
+  const { w } = empty();
+  for (const [why, over] of [
+    [
+      "an offer has no text: texts carry no offers",
+      { name: "quick_note", channel: "sms", subject: null, body: "Hi {{1}}" },
+    ],
+    ["so does the month's offer", { name: "this_months_offer", channel: "sms", subject: null, body: "Hi {{1}}" }],
+    ["a call's text has no email: a caller has a phone", { name: "call_text", body: "Hi {{1}}" }],
+    ["the starter writes no French", { name: "visit_reminder", language: "fr", body: "Bonjour {{1}}" }],
+    ["a retired starter is no longer written", { name: "welcome_new", body: "Hi {{1}}" }],
+    [
+      "a custom message cannot take a starter's name, retired or not",
+      { name: "welcome_new", body: "Hi {{1}}", message: OFFER },
+    ],
+  ]) {
+    await refused(begin(w, write(over)), "not_found", 404, "Message not found.");
+    assert.deepEqual(w.calls, [], why);
+  }
+  // The starter's own count of values is held before the door: a fifth is not its.
+  await refused(
+    begin(w, write({ name: "visit_reminder", body: "Hi {{5}}" })),
+    "validation",
+    400,
+    "{{5}} is not one of",
+  );
+  assert.deepEqual(w.calls, []);
+});
+
+test("a custom message's first version: an email that is an offer or news begins it, with the values and the title it says", async () => {
+  const { tables, w } = empty();
+  const r = await begin(w, news());
+  assert.deepEqual(w.calls, [
+    [
+      "create",
+      {
+        p_tenant_id: B,
+        p_user: USER,
+        p_name: "spring_news",
+        p_language: "en_US",
+        p_channel: "email",
+        p_subject: "News from {{2}}",
+        p_body: "Hi {{1}}, spring is here: {{2}}",
+        p_category: "marketing",
+        p_variables: [
+          { position: 1, label: "First name", example: "Dani" },
+          { position: 2, label: "The offer", example: null },
+        ],
+        p_title: "Spring news",
+      },
+    ],
+  ]);
+  assert.deepEqual(Object.keys(r).sort(), ["template", "warnings"]);
+  assert.deepEqual(r.template, {
+    id: tables.templates.at(-1).id,
+    channel: "email",
+    name: "spring_news",
+    language: "en_US",
+  });
+
+  // No title and no values are a message too: its name made words, and a message that takes nothing.
+  const plain = await begin(
+    w,
+    news({
+      name: "plain_news",
+      subject: "Spring",
+      body: "Spring is here.",
+      message: { category: "marketing", variables: [] },
+    }),
+  );
+  assert.equal(plain.template.name, "plain_news");
+  assert.deepEqual(w.calls.at(-1)[1].p_variables, []);
+  assert.equal(w.calls.at(-1)[1].p_title, "", "none, which the door reads as no title");
+
+  // Its second version is written beside the first, and takes the first's values: the message exists now.
+  const again = await begin(
+    w,
+    news({ language: "es", message: undefined, subject: "Novedades de {{2}}", body: "Hola {{1}}: {{2}}" }),
+  );
+  assert.equal(w.calls.at(-1)[0], "save");
+  assert.equal(again.template.language, "es");
+});
+
+test("a custom message is an offer or news: utility is a starter's alone, a text of an offer is refused, and the words are checked first", async () => {
+  const { tables, w } = empty();
+  const post = (over) => begin(w, news(over));
+  await refused(
+    post({ message: { ...OFFER, category: "utility" } }),
+    "validation",
+    400,
+    MESSAGE_BEGIN_WORDS.customIsAnOffer,
+  );
+  assert.equal(
+    MESSAGE_BEGIN_WORDS.customIsAnOffer,
+    "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
+  );
+  // A text of an offer: contracts' own sentence, the one the ticks and the sends say.
+  await refused(
+    post({ channel: "sms", subject: null, body: "Hi {{1}}" }),
+    "validation",
+    400,
+    channelNeverCarries("sms", "marketing"),
+  );
+  await refused(post({ channel: "sms", subject: null, body: "Hi {{1}}" }), "validation", 400, "Texts carry no offers.");
+  // And a text of a message a member writes cannot be utility either, so none is begun by text.
+  await refused(
+    post({ channel: "sms", subject: null, body: "Hi {{1}}", message: { ...OFFER, category: "utility" } }),
+    "validation",
+    400,
+    MESSAGE_BEGIN_WORDS.customIsAnOffer,
+  );
+  // The words are checked against the values it says, before the rule about the message.
+  await refused(
+    post({ body: "Hi {{3}}", message: { ...OFFER, category: "utility" } }),
+    "validation",
+    400,
+    "{{3}} is not one of this message's values: it has {{1}} to {{2}}.",
+  );
+  await refused(
+    post({ subject: "Spring", body: "Hi {{1}}", message: { category: "marketing", variables: [] } }),
+    "validation",
+    400,
+    "This message fills no values, so {{1}} has nothing to take.",
+  );
+  await refused(post({ subject: null }), "validation", 400, "Give the email a subject.");
+  // The name is the shape Meta takes, in contracts' words.
+  for (const name of ["Spring News", "spring news", "spring-news", "été"])
+    await refused(post({ name }), "validation", 400, TEMPLATE_NAME_WORDS);
+  assert.equal(TEMPLATE_NAME_WORDS, "The name needs letters, digits or underscores.");
+  assert.deepEqual(w.calls, [], "none of them reached the door");
+  assert.equal(tables.templates.length, 0);
+});
+
+test("a name with no row, no starter and no message is not found; a name with a row ignores message and is written beside its rows", async () => {
+  const { tables, w } = empty();
+  await refused(begin(w, write({ name: "spring_news" })), "not_found", 404, "Message not found.");
+  assert.deepEqual(w.calls, []);
+
+  // The message exists: its slots are its row's (two), whatever `message` says (none), and its category stays its own.
+  tables.templates.push(tpl(1, B, { name: "spring_news", category: "marketing" }));
+  const r = await begin(
+    w,
+    write({
+      name: "spring_news",
+      message: { category: "utility", variables: [], title: "Ignored" },
+      body: "Hi {{1}}, {{2}}",
+    }),
+  );
+  assert.deepEqual(
+    w.calls.map(([door]) => door),
+    ["save"],
+  );
+  assert.equal(r.template.name, "spring_news");
+  assert.equal(
+    tables.templates.find((t) => t.channel === "email").category,
+    "marketing",
+    "the message's own, not the one sent",
+  );
+  await refused(
+    begin(w, write({ name: "spring_news", message: { category: "marketing", variables: [] }, body: "Hi {{3}}" })),
+    "validation",
+    400,
+    "{{3}} is not one of this message's values: it has {{1}} to {{2}}.",
+  );
+});
+
+test("the door that begins a message answers in its own words, a missing door in one plain sentence with nothing else changed, and a fault in none", async () => {
+  const { tables, w } = empty();
+  const post = (over) => begin(w, news(over));
+  w.refuse.create = doorError("This message already exists. Write its other versions in the Library.", "23505");
+  await refused(post(), "conflict", 409, "This message already exists. Write its other versions in the Library.");
+  w.refuse.create = doorError("A title is at most 60 characters.", "22023");
+  await refused(post(), "validation", 400, "A title is at most 60 characters.");
+  w.refuse.create = doorError("Message not found.", "P0002");
+  await refused(post(), "not_found", 404, "Message not found.");
+  w.refuse.create = doorError("canceling statement due to statement timeout", "57014");
+  await refused(post(), "internal", 503, "Something went wrong.");
+
+  // A database that has not applied 00343: PostgREST says its schema cache lacks the function (PGRST202), and Postgres
+  // itself says undefined_function (42883) when the cache still lists one it has dropped.
+  const sentence = "Writing a message with no WhatsApp version is not switched on here yet.";
+  assert.equal(MESSAGE_BEGIN_WORDS.doorNotSwitchedOn, sentence);
+  for (const code of ["PGRST202", "42883"]) {
+    w.refuse.create = doorError("Could not find the function public.create_message_version in the schema cache", code);
+    await refused(post(), "conflict", 409, sentence);
+    // A starter begins through the same door, so it says the same.
+    await refused(
+      begin(
+        w,
+        write({
+          name: "call_text",
+          channel: "sms",
+          subject: null,
+          body: starterSmsText(starterByName("call_text"), "en_US").body,
+        }),
+      ),
+      "conflict",
+      409,
+      sentence,
+    );
+  }
+  assert.equal(tables.templates.length, 0, "nothing was written");
+  w.refuse.create = undefined;
+
+  // And nothing else changes while it is missing: a version beside a row on file is the old door's.
+  tables.templates.push(tpl(1, B, { name: "spring_news", category: "marketing" }));
+  w.refuse.create = doorError("Could not find the function", "PGRST202");
+  assert.equal((await post({ message: undefined, body: "Hi {{1}}, {{2}}" })).template.channel, "email");
+  assert.equal(w.calls.at(-1)[0], "save");
+});
+
+test("the body takes `message` as the wire names it, and refuses one that is not a category and numbered values", async () => {
+  const { w } = empty();
+  const post = (message) => begin(w, news({ message }));
+  await refused(
+    post({ category: "authentication", variables: [] }),
+    "validation",
+    400,
+    "message.category: A message is an offer or news",
+  );
+  await refused(post({ variables: [] }), "validation", 400, "message.category: A message is an offer or news");
+  await refused(
+    post({ category: "marketing" }),
+    "validation",
+    400,
+    "message.variables: Give each value a number, in order from 1, and a name.",
+  );
+  await refused(
+    post({ category: "marketing", variables: [{ position: "1", label: "First name" }] }),
+    "validation",
+    400,
+    "Give each value a number, in order from 1, and a name.",
+  );
+  await refused(
+    post({ category: "marketing", variables: [{ position: 1 }] }),
+    "validation",
+    400,
+    "Give each value a number, in order from 1, and a name.",
+  );
+  await refused(post("marketing"), "validation", 400, "message");
+  assert.deepEqual(w.calls, []);
+  // A title may be left out or null, an example too, and the door is given them as null and "".
+  await begin(
+    w,
+    news({
+      name: "bare_news",
+      subject: "Spring",
+      message: { category: "marketing", variables: [{ position: 1, label: "Name", example: null }], title: null },
+      body: "Hi {{1}}",
+    }),
+  );
+  assert.deepEqual(w.calls.at(-1)[1].p_variables, [{ position: 1, label: "Name", example: null }]);
+  assert.equal(w.calls.at(-1)[1].p_title, "");
 });
