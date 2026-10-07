@@ -5,7 +5,7 @@
 import type { KeyboardEvent } from "react";
 import type { LiveCallVM, LiveLineVM } from "@chanlytics/contracts";
 import { navigate } from "../legacy-verbs";
-import { FailedRead } from "../kit/empty/empty";
+import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { LrPill, lrClock } from "./call-parts";
 
@@ -79,6 +79,9 @@ const LrRow = ({ c, active, elapsed, onSelect, order = [] }: LrRowProps) => {
   );
 };
 
+// A phone's layout, where the calls are the screen: live.css's breakpoint.
+const lrOnPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+
 const LrLineNote = ({ line, lineRead = true }: { line: LiveLineVM | null; lineRead?: boolean }) => {
   // The channels read failed: the line's state is unknown, not absent.
   if (!lineRead)
@@ -91,26 +94,28 @@ const LrLineNote = ({ line, lineRead = true }: { line: LiveLineVM | null; lineRe
         testid="live-line-failed"
       />
     );
-  if (line === null)
-    return <div className="lm-line-note">No call in progress. This workspace has no phone line yet.</div>;
-  if (!line.on)
-    return (
-      <div className="lm-line-note">
-        No call in progress. The line is switched off — the receptionist is not picking up.
-      </div>
+  const state =
+    line === null ? (
+      "This workspace has no phone line yet."
+    ) : !line.on ? (
+      "The line is switched off — the receptionist is not picking up."
+    ) : (
+      <>
+        The line is on
+        {line.number ? (
+          <>
+            {" "}
+            — <span className="tabular">{line.number}</span>
+          </>
+        ) : null}
+        .
+      </>
     );
-  return (
-    <div className="lm-line-note">
-      No call in progress. The line is on
-      {line.number ? (
-        <>
-          {" "}
-          — <span className="tabular">{line.number}</span>
-        </>
-      ) : null}
-      .
-    </div>
-  );
+  // On a phone the calls are the screen (live.css: the panel stands down while nobody is on the line), so nobody on the
+  // line is said as the Inbox says it has nothing: centred, with its glyph.
+  if (lrOnPhone())
+    return <EmptyState kind="page" glyph="phone" title="No call in progress" body={state} testid="live-idle" />;
+  return <div className="lm-line-note">No call in progress. {state}</div>;
 };
 
 interface LrListProps {
