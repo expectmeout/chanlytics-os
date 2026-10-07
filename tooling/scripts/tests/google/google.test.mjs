@@ -571,6 +571,9 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
   );
   assert.equal(vm.tiles[0].meta, "213 reviews · checked 3h ago");
   assert.equal(vm.tiles[0].delta, null, "no day before the period to compare the rating with");
+  assert.equal(vm.tiles[0].compare, null, "…so the period before says nothing of the rating");
+  for (const t of vm.tiles)
+    assert.equal(t.delta, null, `${t.id}: the period before is said in counts (compare), never a percentage`);
   assert.equal(vm.tiles[2].meta, "since Aug 31, the first day on record");
   assert.equal(vm.tiles[3].meta, "★★★★★ · Ana P.");
   assert.deepEqual(
@@ -587,6 +590,65 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
     text: "New on Google: ★★★★★ from Ana P. — “Fast, careful, and on time. Would hire again.”",
     to: "reports",
   });
+  const longer = toGoogleVM(
+    dto({
+      days: [
+        { day: "2026-07-01", rating: 4.6, review_count: 190 },
+        { day: "2026-08-31", rating: 4.7, review_count: 205 },
+        { day: "2026-09-07", rating: 4.8, review_count: 213 },
+      ],
+    }),
+    30,
+    NOW,
+  );
+  assert.equal(longer.tiles[0].compare, "up from 4.6", "the rating on the last day before the period, in words");
+  assert.equal(longer.tiles[2].value, "23");
+  assert.equal(longer.tiles[2].compare, null, "no period before it to compare the gain with");
+  const flat = toGoogleVM(
+    dto({
+      days: [
+        { day: "2026-08-01", rating: 4.8, review_count: 213 },
+        { day: "2026-09-07", rating: 4.8, review_count: 213 },
+      ],
+    }),
+    30,
+    NOW,
+  );
+  assert.equal(flat.tiles[0].compare, "same as the 30 days before");
+  const slid = toGoogleVM(
+    dto({
+      listing: listing({ rating: 4.7 }),
+      days: [
+        { day: "2026-08-01", rating: 4.9, review_count: 200 },
+        { day: "2026-09-07", rating: 4.7, review_count: 213 },
+      ],
+    }),
+    30,
+    NOW,
+  );
+  assert.equal(slid.tiles[0].compare, "down from 4.9");
+  const earlier = [
+    { day: "2026-06-20", rating: 4.5, review_count: 150 },
+    { day: "2026-07-20", rating: 4.6, review_count: 190 },
+    { day: "2026-08-20", rating: 4.7, review_count: 205 },
+    { day: "2026-09-07", rating: 4.8, review_count: 213 },
+  ];
+  assert.equal(
+    toGoogleVM(dto({ days: earlier }), 30, NOW).tiles[2].compare,
+    "down from 40",
+    "23 against the 40 before, in counts",
+  );
+  const unrated = toGoogleVM(
+    dto({
+      days: [
+        { day: "2026-09-06", rating: null, review_count: 200 },
+        { day: "2026-09-07", rating: 4.8, review_count: 213 },
+      ],
+    }),
+    7,
+    NOW,
+  );
+  assert.deepEqual(unrated.tiles[0].spark, [4.8], "a read day with no rating is no point on the line, never a zero");
   const quiet = toGoogleVM(dto({ reviews: [review({ first_seen_at: "2026-09-01T14:00:00Z" })] }), 30, NOW);
   assert.equal(quiet.todayLine, null);
   assert.equal(quiet.tiles[2].value, "—");

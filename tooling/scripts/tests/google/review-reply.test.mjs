@@ -14,7 +14,10 @@ import {
   cleanDraft,
   autoReplyCandidates,
   autoReplyBell,
+  autoReplyHold,
+  reviewHeldWords,
   reviewReplyWords,
+  activityWords,
   REVIEW_AUTO_REPLIES_PER_SYNC,
   REVIEW_REPLY_MAX_WORDS,
   REVIEW_REPLY_MAX_CHARS,
@@ -177,6 +180,24 @@ test("the bell after the receptionist answered: one by name, several by count; n
       { author: "Luis", text: "c" },
     ]),
     { title: "Replied to 3 reviews on Google", body: "Under the reviews from Ana, Luis. Each reply is on Reports." },
+  );
+});
+
+test("why a reply was held, in words: one set for each answer autoReplyHold gives, read by the feed and by Reports", () => {
+  const holds = ["Sorry about that, we will refund your visit.", "Next time it's 20% off for you."].map(autoReplyHold);
+  assert.deepEqual(holds, ["money", "price"]);
+  assert.deepEqual(holds.map(reviewHeldWords), ["it named money", "it named a price"]);
+  for (const why of holds)
+    assert.equal(
+      activityWords("google.reply_held", { review_id: "r1", why }),
+      `A review reply was written and not posted · ${reviewHeldWords(why)}`,
+      "the feed finishes its sentence with the same words",
+    );
+  for (const none of ["tone", "toString", "", null, undefined]) assert.equal(reviewHeldWords(none), null, String(none));
+  assert.equal(
+    activityWords("google.reply_held", { review_id: "r1", why: "tone" }),
+    "A review reply was written and not posted",
+    "a reason the set does not hold is never guessed",
   );
 });
 

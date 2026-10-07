@@ -127,7 +127,7 @@ export { emailDomainOf, normalizeLocalPart, whyNotALocalPart, whyNotAFromName, s
 export { domainDailyCap, reachOutSendsFrom, normalizeHost, whyNotASendingHost, normalizeFromLocal, whyNotAFromLocal, reputationHoldOf, judgeDomain, resumeDomain, domainPatchOf, ownDomainAddress, sendingDomainActs, sendingDomainDtoOf, domainStatsWords, domainHoldWords, sendingDomainWords, domainHoldFixWords, domainHoldNoticeWords, domainRecordRows, domainRecordsIntro, domainRegistrarHint, checkResultWords, sendingDomainsFootWords, SENDING_DOMAIN_STATES, DOMAIN_HOLDS, REPUTATION_HOLDS, DOMAIN_RESUMERS, REPUTATION_MEMORY_MS, PLATFORM_HOLD_REFUSAL, PLATFORM_HOLD_READD, DMARC_STATES, DNS_HOLDS, SELF_LIFTING_HOLDS, PROVIDER_STATUSES, SENDING_DOMAINS_MAX, DMARC_RECOMMENDED, DOMAIN_RAMP, PLATFORM_HOLD_NOTICE } from "./email/sending-domains";
 export { onDomain, bookingPageOf, BOOKING_PLATFORM_HOSTS } from "./google/booking-page";
 export { listingFactsOf, bookingPageKept, bookingPageOffered, hoursFromGoogle, placesQueryOf, ratingWords, starsOf, reviewsWords, listingLine, checkedWords, connectionWords, reviewSnippet, reviewIsNew, toGoogleReviewVM, gainedOver, toGoogleVM, GOOGLE_SHOWN_REVIEWS, REVIEW_NEWS_MS, REVIEW_NEWS_MAX_AGE_MS } from "./google/google";
-export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, autoReplyBell, autoReplyHold, reviewReplyWords, REVIEW_REPLY_MAX_WORDS, REVIEW_REPLY_MAX_CHARS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS } from "./google/review-reply";
+export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, autoReplyBell, autoReplyHold, reviewHeldWords, reviewReplyWords, REVIEW_REPLY_MAX_WORDS, REVIEW_REPLY_MAX_CHARS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS } from "./google/review-reply";
 export { LEAD_CHECK_KEYS } from "./leads/lead-dtos";
 export { leadTodayLine, leadHoursShort, leadWhere, leadUndoable, leadExclusionWord, leadCheckWord, leadSlots, leadTintOf, leadTileSrc, LEAD_UNDO_MS, LEAD_SLOT_WORDS, LEAD_TILE_PX } from "./leads/lead-facts";
 export { leadsFirstDayWays } from "./leads/lead-first-day";
@@ -222,6 +222,7 @@ export { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, isReportPeriod, fixedDaysOf, 
 export { holdOf, replyHoldDtoOf } from "./reports/report-speed";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./reports/report-tiles";
 export { dayDate, fmtDay, quantile, priorOf, weekOf, reportHourWords, hoursOf, channelsOf, runningTotal, speedOf, callMoodTone, toReportVM, headlineOf, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_SHORT, REPORT_WEEK_LONG } from "./reports/reports";
+export { toReviewsReportVM, reviewsWindowOf, reviewsReadSince, REVIEWS_WAITING_SHOWN } from "./reports/review-report";
 export { ROUTE_KEYS } from "./route-keys.generated";
 export { SCHEMA_SETS } from "./schema-sets.generated";
 export { capabilityStatus, CAPABILITY_KINDS } from "./setup/capabilities";

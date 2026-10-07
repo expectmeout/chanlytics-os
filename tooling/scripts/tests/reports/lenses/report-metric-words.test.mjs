@@ -7,7 +7,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
-import { DEALS, campaignDto, cday, surface } from "../_report-world.mjs";
+import { DEALS, REVIEWS_NOW, campaignDto, cday, reviewsDto, surface } from "../_report-world.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.window.fetch = async () =>
@@ -16,7 +16,7 @@ const S = "../../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
-const { bookedTileOf, metricWordsOf, toGoogleVM, REPLY_WINDOW_WORDS, DELIVERY_RECEIPTS_WORDS } =
+const { bookedTileOf, metricWordsOf, toGoogleVM, toReviewsReportVM, REPLY_WINDOW_WORDS, DELIVERY_RECEIPTS_WORDS } =
   await import("@chanlytics/contracts");
 after(() => forgetStanding());
 
@@ -90,9 +90,20 @@ const said = (fig) => ({
 
 test("every figure the reports build names a metric that has words, and no two metrics say the same", () => {
   const R = surface({ deals: DEALS });
-  const tiles = [...R.vm.tiles, bookedTileOf(R.booking), ...R.campaigns.tiles, ...toGoogleVM(GOOGLE, 7, NOW).tiles];
+  const reviews = toReviewsReportVM(reviewsDto({ days: 7 }), { days: 7, nowMs: REVIEWS_NOW });
+  const tiles = [
+    ...R.vm.tiles,
+    bookedTileOf(R.booking),
+    ...R.campaigns.tiles,
+    ...toGoogleVM(GOOGLE, 7, NOW).tiles,
+    ...reviews.tiles,
+  ];
   const metrics = [...new Set(tiles.map((t) => t.metric))];
-  assert.equal(metrics.length, 16, "the receptionist's six, booked, the campaigns' five and Google's four");
+  assert.equal(
+    metrics.length,
+    19,
+    "the receptionist's six, booked, the campaigns' five, Google's four and the three more the profile's reviews add",
+  );
   for (const m of metrics) {
     const words = metricWordsOf(m);
     assert.ok(typeof words === "string" && words.length > 40 && words.endsWith("."), `${m}: a sentence of words`);

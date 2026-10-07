@@ -18,8 +18,8 @@ import type { SchemaSet } from "../shared/schema-sets";
 import { agoWords, DATE_FMT, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
-import { dayDate, fmtDay } from "../reports/reports";
-import { deltaOf, type ReportTileVM } from "../reports/report-tiles";
+import { dayDate, fmtDay, rangeLabelOf } from "../reports/reports";
+import { compareWords, type ReportTileVM } from "../reports/report-tiles";
 import type { Hours } from "../config/workspace-config/business-profile";
 import { DAYS, dayProblems } from "../config/workspace-config/config-rules";
 import { WEEKDAY_KEYS } from "../calendar/zone-math";
@@ -353,6 +353,17 @@ export function connectionWords(c: GoogleConnectionDto, nowMs: number): string {
   return `${who} · not synced yet`;
 }
 
+/**
+ * Whether the reviews on record are the owner's Business Profile's: a location is chosen and a sync has finished. A sync
+ * stores every review it read before it stamps itself (the edge's syncProfile), so before the stamp the rows are still the
+ * five Google shows, though the connection is there. The one test, for the source's words here and for the reviews report.
+ */
+export function reviewsFromProfile(
+  c: Pick<GoogleConnectionDto, "location_name" | "last_synced_at"> | null | undefined,
+): boolean {
+  return !!c && !!c.location_name && !!c.last_synced_at;
+}
+
 /** A review's words, cut for a line: the first sentence or so. */
 export function reviewSnippet(body: string | null | undefined, max = 90): string {
   const t = (body ?? "").replace(/\s+/g, " ").trim();
@@ -424,6 +435,14 @@ export interface GoogleVM {
   table: { columns: string[]; rows: (string | number)[][] };
   /** Today's one line when a review is news, and where it leads. */
   todayLine: { text: string; to: string } | null;
+}
+
+/** The rating against the one before the period, in words: "up from 4.7", "down from 4.9", "same as the 30 days before". */
+function ratingCompareWords(rating: number, before: number, rangeLabel: string): string {
+  const now = Math.round(rating * 10);
+  const was = Math.round(before * 10);
+  if (now === was) return `same as the ${rangeLabel} before`;
+  return `${now > was ? "up" : "down"} from ${(was / 10).toFixed(1)}`;
 }
 
 function whenWords(iso: string | null, nowMs: number): string {
@@ -548,7 +567,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     .sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0))
     .map((r) => toGoogleReviewVM(r, l.linked_at, nowMs));
   table.rows = latest.map((r) => [r.author, r.rating ?? "—", r.when || "—", r.text || "—"]);
-  const source = canReply
+  const source = reviewsFromProfile(c)
     ? "every review, from your Business Profile"
     : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
 
@@ -558,7 +577,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
   const inPeriod = days.length
     ? days.filter((d) => d.day >= shiftDay(days[days.length - 1].day, -(periodDays - 1)))
     : [];
-  const ratingSpark = inPeriod.map((d) => d.rating ?? 0);
+  const ratingSpark = inPeriod.flatMap((d) => (d.rating === null ? [] : [d.rating]));
   const countSpark = inPeriod.map((d) => d.review_count);
   const baselineRating = (() => {
     if (!days.length) return null;
@@ -566,14 +585,11 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     const before = days.filter((d) => d.day < since);
     return before.length ? before[before.length - 1].rating : null;
   })();
-  const ratingDelta: ReportTileVM["delta"] =
+  // The period before sits beside the figure in counts (compareWords): a percentage of a rating, or of counts this small, lies.
+  const rangeLabel = rangeLabelOf(periodDays);
+  const ratingCompare =
     typeof l.rating === "number" && typeof baselineRating === "number"
-      ? Math.abs(l.rating - baselineRating) < 0.05
-        ? { text: `same as ${noun} ago`, tone: "" }
-        : {
-            text: `${l.rating - baselineRating > 0 ? "+" : ""}${(l.rating - baselineRating).toFixed(1)} vs ${noun} ago`,
-            tone: l.rating > baselineRating ? "pos" : "neg",
-          }
+      ? ratingCompareWords(l.rating, baselineRating, rangeLabel)
       : null;
   const newest = latest[0] ?? null;
   const checked = checkedWords(l, nowMs);
@@ -585,9 +601,9 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       label: "Rating on Google",
       value: typeof l.rating === "number" ? l.rating.toFixed(1) : "—",
       meta: `${reviewsWords(l.review_count)} · ${checked.toLowerCase()}`,
-      delta: ratingDelta,
+      delta: null,
       spark: ratingSpark,
-      compare: null,
+      compare: ratingCompare,
     },
     {
       id: "reviews",
@@ -610,9 +626,10 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
           : gained.sinceLabel
             ? `since ${gained.sinceLabel}, the first day on record`
             : `new ratings, words or not`,
-      delta: gained.total !== null && previous !== null ? deltaOf(gained.total, previous, true, noun) : null,
+      delta: null,
       spark: gained.points.map((p) => p.gained),
-      compare: null,
+      compare:
+        gained.total !== null && previous !== null ? compareWords(gained.total, previous, rangeLabel, true) : null,
     },
     {
       id: "newest",

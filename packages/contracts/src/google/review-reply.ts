@@ -131,6 +131,14 @@ export function autoReplyHold(text: string): "price" | "money" | null {
   return null;
 }
 
+/** Why a reply was held, as autoReplyHold names it, finishing "…and held it:" -- the one set the activity feed and Reports read. */
+const REVIEW_HELD_WORDS: Readonly<Record<string, string>> = { price: "it named a price", money: "it named money" };
+
+/** The reason a held reply gives in words, from google.reply_held's `why`; null for one this set does not hold (never a guess). */
+export function reviewHeldWords(why: string | null | undefined): string | null {
+  return why != null && Object.hasOwn(REVIEW_HELD_WORDS, why) ? (REVIEW_HELD_WORDS[why] ?? null) : null;
+}
+
 export interface ReviewOnRecord {
   id: string;
   review_id: string;

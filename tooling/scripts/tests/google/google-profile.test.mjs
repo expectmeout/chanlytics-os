@@ -589,6 +589,24 @@ test("the connection in words, and the view model that says replies are possible
   );
   assert.equal(pending.canReply, false);
   assert.equal(pending.connection.pending, true);
+  const unsynced = toGoogleVM(
+    {
+      ready: { places: true, profile: true },
+      listing,
+      connection: conn({ last_synced_at: null }),
+      reviews: [{ ...review, origin: "places", reply_text: null }],
+      days: [],
+      role: "owner",
+    },
+    30,
+    NOW,
+  );
+  assert.equal(unsynced.canReply, true, "a location is chosen: a reply can go out");
+  assert.equal(
+    unsynced.source,
+    "the one Google shows first",
+    "…but until a sync has stored the profile's reviews, these are still the public five",
+  );
   const publicOnly = toGoogleVM(
     {
       ready: { places: true, profile: false },

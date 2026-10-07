@@ -30,7 +30,10 @@ export type ReportMetric =
   | "rating"
   | "reviews"
   | "ratings_gained"
-  | "newest_review";
+  | "newest_review"
+  | "reviews_written"
+  | "reviews_answered"
+  | "review_reply_time";
 
 export interface ReportTileVM {
   id: string;

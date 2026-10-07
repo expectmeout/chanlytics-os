@@ -44,6 +44,7 @@ export {
   autoReplyCandidates,
   autoReplyBell,
   autoReplyHold,
+  reviewHeldWords,
   reviewReplyWords,
   REVIEW_REPLY_MAX_WORDS,
   REVIEW_REPLY_MAX_CHARS,

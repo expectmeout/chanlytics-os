@@ -7,12 +7,19 @@ import type { DealReportVM } from "../deals/deal-report";
 import type { CampaignReportVM } from "./campaign-report";
 import type { LensId } from "./lenses";
 import type { ReportVM } from "./reports";
+import type { ReviewsReportVM } from "./review-report";
 
 export function lensAnswerOf(
   lens: LensId,
-  parts: { vm: ReportVM; campaigns: CampaignReportVM | null; deals: DealReportVM | null | undefined },
+  parts: {
+    vm: ReportVM;
+    campaigns: CampaignReportVM | null;
+    deals: DealReportVM | null | undefined;
+    /** The Reviews lens's own read, which the page holds beside the report; absent where it has not landed. */
+    reviews?: ReviewsReportVM | null;
+  },
 ): string | undefined {
-  const { vm, campaigns, deals } = parts;
+  const { vm, campaigns, deals, reviews } = parts;
   switch (lens) {
     case "overview":
       return vm.empty ? undefined : vm.lines.hero;
@@ -25,6 +32,6 @@ export function lensAnswerOf(
     case "campaigns":
       return campaigns && !campaigns.empty ? campaigns.lines.funnel : undefined;
     case "reviews":
-      return undefined;
+      return reviews && !reviews.empty ? (reviews.lines.head ?? undefined) : undefined;
   }
 }

@@ -55,6 +55,14 @@ export {
 } from "./lenses";
 export type { LensId, LensRow, LensRange, LensEmpty, LensWho } from "./lenses";
 export { lensAnswerOf } from "./lens-answer";
+export { toReviewsReportVM, reviewsWindowOf, reviewsReadSince, REVIEWS_WAITING_SHOWN } from "./review-report";
+export type {
+  ReviewsLedgerDto,
+  ReviewsReportDto,
+  ReviewsFiguresVM,
+  ReviewWaitingVM,
+  ReviewsReportVM,
+} from "./review-report";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./report-tiles";
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
 export { metricWordsOf } from "./report-metrics";
