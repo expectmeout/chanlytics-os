@@ -2173,6 +2173,7 @@ type Database = {
                     last_synced_at: string | null;
                     location_name: string | null;
                     location_title: string | null;
+                    reviews_complete: boolean;
                     scopes: string[];
                     sync_error: string | null;
                     tenant_id: string;
@@ -2191,6 +2192,7 @@ type Database = {
                     last_synced_at?: string | null;
                     location_name?: string | null;
                     location_title?: string | null;
+                    reviews_complete?: boolean;
                     scopes?: string[];
                     sync_error?: string | null;
                     tenant_id: string;
@@ -2209,6 +2211,7 @@ type Database = {
                     last_synced_at?: string | null;
                     location_name?: string | null;
                     location_title?: string | null;
+                    reviews_complete?: boolean;
                     scopes?: string[];
                     sync_error?: string | null;
                     tenant_id?: string;
@@ -8400,6 +8403,13 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: boolean;
+            };
+            reviews_ledger: {
+                Args: {
+                    p_days?: number;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
             };
             runtime_stamp: {
                 Args: {

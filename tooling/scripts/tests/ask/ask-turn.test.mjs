@@ -228,6 +228,17 @@ const RPCS = {
   people_list: () => [],
   metrics_summary: () => ({ error: "not modelled here" }),
   report_series: () => ({ error: "not modelled here" }),
+  // The Reviews lens's ledger (readers/report.ts reviewsReport), which the report tool reads beside the series: no review on
+  // record. The fake's refusal of a door nobody modelled would be caught into the tool's `error`, and say so.
+  reviews_ledger: (a) => ({
+    timezone: TZ,
+    today: "2026-09-14",
+    days: a.p_days,
+    on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+    written: [],
+    waiting_total: 0,
+    waiting: [],
+  }),
   // The rail's counts (server/leads/lead-searches.ts listCounts), so Today's searches read as none inside a turn rather
   // than as a read that failed: the fake's refusal of an unmodelled door must never be caught into a quiet null.
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
@@ -1070,27 +1081,30 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
     review(4, "2026-08-15T10:00:00Z", { reply_text: "Thanks!", replied_at: "2026-08-15T12:00:00Z" }),
     review(5, "2026-09-13T10:00:00Z", { origin: "places", rating: 1 }),
   ];
-  const event = (kind, n, data) => ({
-    id: `e-${kind}-${n}`,
-    tenant_id: A,
-    kind,
-    category: "google",
-    subject_type: "review",
-    subject_id: reviews[n - 1].id,
-    data,
-    created_at: "2026-09-10T20:00:00Z",
+  // What reviews_ledger answers for the profile's four (the database counts in SQL: google-reviews-ledger.db.test.mjs): the
+  // one the receptionist answered, the one that waits with the reply it held, and the two answered by their owner.
+  const drawn = ({ tenant_id: _tenant, last_seen_at: _seen, ...row }) => row;
+  const ledger = (a) => ({
+    timezone: TZ,
+    today,
+    days: a.p_days,
+    on_record: { profile: 4, places: 1, oldest_day: "2026-08-15", complete: true },
+    written: [
+      { id: reviews[3].id, d: "2026-08-15", rating: 5, replied: true, secs: 7_200, by: null },
+      { id: reviews[2].id, d: "2026-09-02", rating: 4, replied: true, secs: 86_400, by: null },
+      { id: reviews[0].id, d: "2026-09-10", rating: 5, replied: true, secs: 21_600, by: "receptionist" },
+      { id: reviews[1].id, d: "2026-09-12", rating: 2, replied: false, secs: null, by: null },
+    ],
+    waiting_total: 1,
+    waiting: [{ ...drawn(reviews[1]), held: "price" }],
   });
   const profile = tables({
     google_listings: [listing()],
     google_connections: [connection()],
     google_reviews: reviews,
-    events: [
-      event("google.replied", 1, { review_id: "g-01", by: "receptionist" }),
-      event("google.reply_held", 2, { review_id: "g-02", why: "price" }),
-    ],
   });
-  const run = async (t, faults = {}) => {
-    const tc = newToolContext(ctxFor(t, rpcs, faults), A, "owner", TZ, NOW);
+  const run = async (t, over = {}) => {
+    const tc = newToolContext(ctxFor(t, { ...rpcs, reviews_ledger: ledger, ...over }), A, "owner", TZ, NOW);
     const out = await runTool(tc, { name: "report", input: { days: 7 } });
     assert.equal(out.isError, false, out.result);
     return JSON.parse(out.result);
@@ -1127,25 +1141,32 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
       { label: "Gained in 7 days", value: "—", meta: "needs a second day of reading", change: null },
       { label: "Newest review", value: "1d ago", meta: "★☆☆☆☆ · Ana P.", change: null },
     ],
+    connect: "Connect your Business Profile to see every review, who answered, and how fast.",
   });
   assert.deepEqual(
     Object.keys(places),
-    ["head", "tiles"],
-    "no answered, stars or waiting from five reviews that are a sample of nothing",
+    ["head", "tiles", "connect"],
+    "no answered, stars or waiting from five reviews that are a sample of nothing, and what the profile would add",
   );
-  // A profile connected whose first sync has not yet run holds none of the reviews: it says what the public listing says.
+  // A profile connected whose first sync has not yet run holds none of the reviews: it says what the public listing says,
+  // and offers no connection to one that is already there.
   const unsynced = tables({
     ...publicOnly,
     google_connections: [connection({ last_synced_at: null })],
   });
-  assert.deepEqual((await run(unsynced)).reviews, places);
+  assert.deepEqual((await run(unsynced)).reviews, { ...places, connect: null });
 
-  // No listing linked: that, and nothing else, which a person reads as nothing to say, never as no reviews.
+  // No listing linked: that, and nothing else, which a person reads as nothing to say, never as no reviews. The fold has no
+  // words for it yet (the connect line is for a listing that lacks the profile), and the field says so.
   const unlinked = await run(tables());
-  assert.deepEqual(unlinked.reviews, { linked: false });
+  assert.deepEqual(unlinked.reviews, { linked: false, words: null });
 
-  // Its read failed (the ledger's events here): said so, never as no reviews, and the report stands.
-  const failed = await run(profile, { "events.select": { message: "connection refused" } });
+  // Its read failed (the ledger's here): said so, never as no reviews, and the report stands.
+  const failed = await run(profile, {
+    reviews_ledger: () => {
+      throw new Error("connection refused");
+    },
+  });
   assert.deepEqual(failed.reviews, { error: "the review numbers could not be read just now" });
   assert.deepEqual(
     [failed.range, failed.tiles.length, failed.campaigns.error],
@@ -2826,11 +2847,14 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
     const { read, asked, rc, ctx } = await turnOver(world(true));
     assert.deepEqual(asked, [
       "rpc:report_series",
-      // The Reviews lens's own read, beside it (7 Oct 2026, Reports phase C, lens 1): Google as GET google reads it, the
-      // listing, the connection and the Autonomy row for reviews. This workspace has no listing, so no review is read.
+      // The Reviews lens's own read, beside it (7 Oct 2026, Reports phase C, lens 1): the ledger the database counts, and
+      // Google as GET google reads it at once -- the listing, the connection, the newest reviews and the daily readings;
+      // the Autonomy row for reviews is the turn's policies, read once below for every reader that asks.
+      "rpc:reviews_ledger",
       "google_listings.select",
       "google_connections.select",
-      "policies.select",
+      "google_reviews.select",
+      "google_listing_days.select",
       // Everyone, once, for the booking line and the deals alike.
       "rpc:people_list",
       "policies.select",

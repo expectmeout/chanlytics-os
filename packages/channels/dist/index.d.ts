@@ -3092,6 +3092,11 @@ interface ProfileSyncPlan {
     replied: string[];
     bells: ReviewBell[];
     synced_at: string;
+    /**
+     * Whether Google's list of the location's reviews ended on this pass, with no page left when the pages the sync may
+     * read ran out: the reviews on record are then every one Google lists (google_connections.reviews_complete).
+     */
+    complete: boolean;
 }
 declare function planProfileSync(before: ProfileBefore, known: ReadonlyMap<string, KnownReview>, page: GbpReviewsPage, day: string, nowMs: number): ProfileSyncPlan;
 

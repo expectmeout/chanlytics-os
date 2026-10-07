@@ -1,16 +1,17 @@
 /**
  * Reviews, drawn from what is stored (contracts reports/review-report.ts): the window the counts are made over, which reviews
  * are the Business Profile's, the counts of a period and the one before it, the mix, who answered and how fast, what waits,
- * and every sentence the lens, its head and Ask say, character for character. EXECUTED over the rows the one bounded read
- * returns (the world's Harbor Studio, Fri Sep 4, 2026, New York): the real functions, no page.
+ * and every sentence the lens, its head and Ask say, character for character. EXECUTED over the ledger the database answers
+ * (reviews_ledger: the world's Harbor Studio, Fri Sep 4, 2026, New York): the real functions, no page.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   REVIEWS_WAITING_SHOWN,
+  isReviewsLedgerDto,
   lensAnswerOf,
   metricWordsOf,
-  reviewsReadSince,
+  reviewsAreOnRecord,
   reviewsWindowOf,
   toGoogleVM,
   toReviewsReportVM,
@@ -23,6 +24,7 @@ import {
   reviewsDto,
   reviewsGoogle,
   reviewsLedger,
+  waitingReview,
   writtenReview,
 } from "../_report-world.mjs";
 
@@ -32,10 +34,8 @@ const tile = (vm, id) => vm.tiles.find((t) => t.id === id);
 const said = (t) => ({ value: t.value, meta: t.meta, compare: t.compare });
 /** The profile's reviews of one period, the whole record on hand: `written` rows, each also waiting when it has no reply. */
 const ledgerOf = (written, over = {}) => {
-  const waiting = written
-    .filter((r) => !r.has_reply)
-    .map((r) => googleReview(r.id, r.published_at, { rating: r.rating }));
-  return reviewsLedger({ written, waiting, waiting_total: waiting.length, replies: [], held: [], ...over });
+  const waiting = written.filter((r) => !r.replied).map((r) => waitingReview(r.id, at(r.d), { rating: r.rating }));
+  return reviewsLedger({ written, waiting, waiting_total: waiting.length, ...over });
 };
 /** A listing with its reviews counted, the profile synced; `google` holds what the page's own read does. */
 const dtoOf = (ledger, google = {}) => reviewsDto({ ledger, google: reviewsGoogle(google) });
@@ -55,9 +55,19 @@ test("the window: a period ends today, the one before it as long, and the one re
     { since: "2026-02-26", priorSince: "2026-02-21" },
     "across a month's end",
   );
-  assert.equal(reviewsReadSince("2026-09-04", 30), "2026-07-06T00:00:00.000Z");
-  assert.equal(reviewsReadSince("2026-09-04", 7), "2026-08-21T00:00:00.000Z");
   assert.equal(REVIEWS_WAITING_SHOWN, 5);
+});
+
+test("the database's answer is told from its own refusal, and the report is made of it only where a profile has synced", () => {
+  assert.equal(isReviewsLedgerDto(reviewsLedger()), true);
+  assert.equal(isReviewsLedgerDto({ error: "unknown_tenant" }), false);
+  assert.equal(isReviewsLedgerDto(null), false);
+  assert.equal(isReviewsLedgerDto({ ...reviewsLedger(), written: null }), false);
+  assert.equal(reviewsAreOnRecord(reviewsGoogle()), true);
+  assert.equal(reviewsAreOnRecord(reviewsGoogle({ listing: null })), false, "no listing, no record");
+  assert.equal(reviewsAreOnRecord(reviewsGoogle({ connection: null })), false);
+  assert.equal(reviewsAreOnRecord(reviewsGoogle({ connection: googleConnection({ last_synced_at: null }) })), false);
+  assert.equal(reviewsAreOnRecord(reviewsGoogle({ connection: googleConnection({ location_name: null }) })), false);
 });
 
 test("the Business Profile's reviews are the source only once a sync has stored them", () => {
@@ -219,15 +229,14 @@ test("what waits: the oldest reviews with no reply, the reply the receptionist h
   for (const [row, r] of vm.latestTable.rows.map((row, i) => [row, vm.latest[i]]))
     assert.deepEqual(row, [r.author, r.rating ?? "—", r.when || "—", r.text || "—"]);
   const money = reviewsLedger({
-    held: [
-      { review_id: "d", why: "money" },
-      { review_id: "e", why: "tone" },
-    ],
+    waiting: reviewsLedger().waiting.map((r) =>
+      r.id === "d" ? { ...r, held: "money" } : r.id === "e" ? { ...r, held: "tone" } : r,
+    ),
   });
   const rows = vmOf(reviewsDto({ ledger: money })).waiting.rows;
   assert.equal(rows[3].held, "The receptionist wrote a reply and held it: it named money.");
   assert.equal(rows[2].held, null, "a reason this set does not hold is never guessed");
-  const many = Array.from({ length: 7 }, (_, i) => googleReview(`w${i}`, at(`2026-05-0${i + 1}`)));
+  const many = Array.from({ length: 7 }, (_, i) => waitingReview(`w${i}`, at(`2026-05-0${i + 1}`)));
   const capped = vmOf(reviewsDto({ ledger: reviewsLedger({ waiting: many, waiting_total: 9 }) })).waiting;
   assert.equal(capped.total, 9, "how many wait is the read's count");
   assert.equal(capped.rows.length, REVIEWS_WAITING_SHOWN, "the list shows the oldest few");
@@ -296,36 +305,26 @@ test("two replies say how many there are; the third gives the middle", () => {
   assert.equal(tile(four, "reply_time").value, "3h 30m", "an even count takes the middle of the two between");
 });
 
-test("who answered: the latest reply Chanlytics recorded under a review, and every other reply is the owner's", () => {
+test("who answered: the reply the database says is the receptionist's, and every other reply is the owner's", () => {
+  // Which reply is whose is the database's (reviews_ledger, held by google-reviews-ledger.db.test.mjs): the last reply
+  // Chanlytics recorded under the review, if it is the automatic mode's and is the one on Google. The fold counts what it says.
+  const reply = (id, day, by) => writtenReview(id, at(day, 10), 5, at(day, 16), { by });
   const written = [
-    writtenReview("r1", at("2026-09-03"), 5, at("2026-09-03", 16)),
-    writtenReview("r2", at("2026-09-02"), 5, at("2026-09-02", 16)),
-    writtenReview("r3", at("2026-09-01"), 5, at("2026-09-01", 16)),
-    writtenReview("r4", at("2026-08-31"), 5, at("2026-08-31", 16)),
+    reply("r1", "2026-09-03", "receptionist"),
+    reply("r2", "2026-09-02", null),
+    reply("r3", "2026-09-01", "receptionist"),
+    reply("r4", "2026-08-31", null),
   ];
-  const replies = [
-    { review_id: "r1", by: "receptionist", at: at("2026-09-03", 16) },
-    // r2: the receptionist replied, then the owner replaced it: the owner's, though events arrive in any order
-    { review_id: "r2", by: null, at: at("2026-09-02", 18) },
-    { review_id: "r2", by: "receptionist", at: at("2026-09-02", 16) },
-    // r3: the owner's, then the receptionist's own: the receptionist's
-    { review_id: "r3", by: "receptionist", at: at("2026-09-01", 18) },
-    { review_id: "r3", by: null, at: at("2026-09-01", 16) },
-    // r4 has none: written on Google, so the owner's
-    // another workspace's review, or one outside the period, is no part of the count
-    { review_id: "elsewhere", by: "receptionist", at: at("2026-09-01", 16) },
-  ];
-  const vm = vmOf(dtoOf(ledgerOf(written, { replies })));
+  const vm = vmOf(dtoOf(ledgerOf(written)));
   assert.equal(tile(vm, "answered").meta, "2 by the receptionist, 2 by you");
   assert.equal(vm.figures.receptionist, 2);
-  const none = vmOf(dtoOf(ledgerOf(written, { replies: [] })));
+  const none = vmOf(dtoOf(ledgerOf(written.map((r) => ({ ...r, by: null })))));
   assert.equal(tile(none, "answered").meta, "4 by you");
-  const all = vmOf(
-    dtoOf(
-      ledgerOf(written, { replies: written.map((r) => ({ review_id: r.id, by: "receptionist", at: r.replied_at })) }),
-    ),
-  );
+  const all = vmOf(dtoOf(ledgerOf(written.map((r) => ({ ...r, by: "receptionist" })))));
   assert.equal(tile(all, "answered").meta, "4 by the receptionist");
+  // a review with no reply has no writer to count, whatever the row says
+  const unanswered = vmOf(dtoOf(ledgerOf([writtenReview("u", at("2026-09-03"), 5, null, { by: "receptionist" })])));
+  assert.equal(unanswered.figures.receptionist, 0);
 });
 
 test("a period with no review in it: a real zero where the history is known, and the period before beside it", () => {
@@ -348,8 +347,9 @@ test("a period with no review in it: a real zero where the history is known, and
   assert.equal(tile(quiet, "written").compare, null, "nothing against nothing says nothing");
 });
 
-test("the workspace's day decides which period a review is in, at the edge of each", () => {
-  // New York is four hours behind UTC: 04:00Z is its midnight.
+test("the day the database gives a review decides which period it is in, at the edge of each", () => {
+  // The day is the database's, in the workspace's zone (reviews_ledger; google-reviews-ledger.db.test.mjs holds the edge in
+  // Auckland and in New York). New York is four hours behind UTC: 04:00Z is its midnight, which the world's rows are dated by.
   const written = [
     writtenReview("pe", "2026-08-06T03:59:00Z", 5), // Aug 5, 23:59 there: the period before
     writtenReview("se", "2026-08-06T04:00:00Z", 5), // Aug 6, 00:00: the period's first day
@@ -371,31 +371,17 @@ test("the workspace's day decides which period a review is in, at the edge of ea
       ["2026-08-31", 1],
     ],
   );
-  // The same instants in Auckland (twelve hours ahead) fall on other days: both of Aug 6's are in the period, Sep 5's in none.
-  const auckland = vmOf({ ...dtoOf(ledgerOf(written)), timezone: "Pacific/Auckland" });
-  assert.equal(auckland.figures.written, 2);
-  assert.deepEqual(
-    auckland.weekly.points.map((w) => [w.day, w.written]),
-    [
-      ["2026-08-06", 2],
-      ["2026-08-10", 0],
-      ["2026-08-17", 0],
-      ["2026-08-24", 0],
-      ["2026-08-31", 0],
-    ],
-  );
 });
 
-test("a review with no date is in no period, and one with no stars is in no mix", () => {
+test("a review with no stars is in no mix, and a reply with no time answers without a speed", () => {
+  // A review with no date has no day: the database leaves it out of `written` (the db test holds that), so it is in no period.
   const written = [
     writtenReview("d1", at("2026-09-03"), 5),
     writtenReview("d2", at("2026-09-02"), null, at("2026-09-02", 16)),
-    writtenReview("d3", null, 5),
-    writtenReview("d4", "not a date", 4),
     writtenReview("d5", at("2026-09-01"), 0),
   ];
   const vm = vmOf(dtoOf(ledgerOf(written)));
-  assert.equal(vm.figures.written, 3, "d1, d2 and d5: the ones with a day");
+  assert.equal(vm.figures.written, 3, "d1, d2 and d5");
   assert.equal(vm.stars.rated, 1, "only d1 has one of the five stars");
   assert.equal(
     vm.lines.mix,
@@ -418,7 +404,7 @@ test("a review with no date is in no period, and one with no stars is in no mix"
   assert.equal(unrated.stars, null);
   // a reply with no time, or one dated before its review, answers it but says nothing of speed
   const odd = [
-    writtenReview("o1", at("2026-09-03"), 5, null, { has_reply: true }),
+    writtenReview("o1", at("2026-09-03"), 5, null, { replied: true }),
     writtenReview("o2", at("2026-09-02", 12), 5, at("2026-09-02", 8)),
   ];
   const timed = vmOf(dtoOf(ledgerOf(odd)));
@@ -434,10 +420,10 @@ test("history that does not reach the period is a dash and says where it starts,
     writtenReview("c", at("2026-08-25"), 5),
     writtenReview("old", at("2026-08-20"), 3),
   ];
-  // 40 of Google's 213 are on record, the oldest written Aug 20: the period began Aug 6
-  const short = vmOf(
-    dtoOf(ledgerOf(written, { on_record: { profile: 40, places: 0, oldest_at: at("2026-08-20", 12) } })),
-  );
+  // 40 of Google's 213 are on record and the sync did not read the whole list; the connection began Aug 20, the period Aug 6
+  const began = (day) => ({ connection: googleConnection({ connected_at: at(day, 12) }) });
+  const partial = { profile: 40, places: 0, oldest_day: "2026-08-20", complete: false };
+  const short = vmOf(dtoOf(ledgerOf(written, { on_record: partial }), began("2026-08-20")));
   const startsAug20 = "history on record starts Aug 20";
   for (const id of ["written", "answered", "reply_time"]) {
     assert.deepEqual(said(tile(short, id)), { value: "—", meta: startsAug20, compare: null }, id);
@@ -465,24 +451,33 @@ test("history that does not reach the period is a dash and says where it starts,
   );
   assert.equal(short.weekly.total, 3);
   // the record reaches the period but not the one before it: the count is exact, its comparison is not made
-  const reaches = vmOf(
-    dtoOf(ledgerOf(written, { on_record: { profile: 40, places: 0, oldest_at: at("2026-07-30", 12) } })),
-  );
+  const reaches = vmOf(dtoOf(ledgerOf(written, { on_record: partial }), began("2026-07-30")));
   assert.deepEqual(said(tile(reaches, "written")), { value: "4", meta: "with words or without", compare: null });
   assert.equal(reaches.figures.prior, null);
   assert.equal(reaches.lines.history, "history on record starts Jul 30");
   assert.equal(reaches.lines.head, "4.8 on Google from 213 reviews; 4 new in the last 30 days, 1 answered.");
   assert.equal(reaches.lines.mix, "3 of the 4 reviews written in the last 30 days are 4 or 5 stars.");
-  // none of it dated: the record exists in name only
-  const nothing = vmOf(dtoOf(ledgerOf([], { on_record: { profile: 0, places: 0, oldest_at: null } })));
+  // the record's start is the connection's, never the oldest review's date (a sync reads the newest, so the record has gaps)
+  const gaps = vmOf(
+    dtoOf(ledgerOf(written, { on_record: { ...partial, oldest_day: "2019-05-02" } }), began("2026-08-20")),
+  );
+  assert.equal(gaps.lines.history, startsAug20, "an old review on record does not stretch the history");
+  // a connection with no date to start from: the record exists in name only
+  const nothing = vmOf(
+    dtoOf(ledgerOf([], { on_record: { ...partial, profile: 0, oldest_day: null } }), {
+      connection: googleConnection({ connected_at: "not a date" }),
+    }),
+  );
   assert.equal(tile(nothing, "written").meta, "no review history on record yet");
   assert.equal(nothing.lines.head, "4.8 on Google from 213 reviews; no review history on record yet.");
-  // the record is complete when the workspace holds as many as Google counts, or more (a review Google later removed)
+  // the record is complete when the sync read the whole list, whatever the count says (Google's own may be on another basis)
   const whole = vmOf(
-    dtoOf(ledgerOf(written, { on_record: { profile: 214, places: 0, oldest_at: at("2026-08-20", 12) } })),
+    dtoOf(ledgerOf(written, { on_record: { profile: 40, places: 0, oldest_day: "2026-08-20", complete: true } })),
   );
   assert.equal(whole.figures.written, 4);
   assert.equal(whole.lines.history, null);
+  const counted = vmOf(dtoOf(ledgerOf(written, { on_record: { ...partial, profile: 214 } }), began("2026-08-20")));
+  assert.equal(counted.lines.history, startsAug20, "as many as Google counts is no proof of a whole record");
 });
 
 test("with no review on Google the sentence says so, and the figures are the listing's", () => {
@@ -491,9 +486,7 @@ test("with no review on Google the sentence says so, and the figures are the lis
     written: [],
     waiting: [],
     waiting_total: 0,
-    replies: [],
-    held: [],
-    on_record: { profile: 0, places: 0, oldest_at: null },
+    on_record: { profile: 0, places: 0, oldest_day: null, complete: true },
   };
   const vm = vmOf(dtoOf(reviewsLedger(empty), none));
   assert.equal(vm.lines.head, "No reviews on Google yet.");
@@ -542,7 +535,6 @@ const placesOnly = (days, over = {}) =>
   reviewsDto({
     google: reviewsGoogle({
       connection: null,
-      ready: { places: true, profile: true },
       reviews: [googleReview("p1", at("2026-09-03"), { origin: "places", author: "Ben R." })],
       days,
       ...over,

@@ -370,8 +370,9 @@ test("GET google answers the Google DTO whole, from one read of each: what the d
   });
   assert.equal((await read.GET.run(get(inA), ctxFor(world("never")))).google.reply_mode, "never");
   assert.equal((await read.GET.run(get(inA), ctxFor({ ...world("auto"), policies: [] }))).google.reply_mode, "ask");
-  // No listing: the account if there is one, and no review or day is read.
-  const bare = ctxFor({ ...world("ask"), google_listings: [] });
+  // No listing: the account if there is one. A review and a day hang off the listing (a foreign key that cascades), so the
+  // four reads, made at once, find none.
+  const bare = ctxFor({ ...world("ask"), google_listings: [], google_reviews: [], google_listing_days: [] });
   assert.deepEqual((await read.GET.run(get(inA), bare)).google, {
     ready: { places: false, profile: false, audience: null },
     listing: null,
@@ -381,7 +382,11 @@ test("GET google answers the Google DTO whole, from one read of each: what the d
     reply_mode: "ask",
   });
   assert.deepEqual(
-    bare.supabase.seen.map((q) => q.table).filter((t) => t === "google_reviews" || t === "google_listing_days"),
-    [],
+    bare.supabase.seen
+      .map((q) => q.table)
+      .filter((t) => t?.startsWith("google_"))
+      .sort(),
+    ["google_connections", "google_listing_days", "google_listings", "google_reviews"],
+    "each read once, none waiting for the listing to say whether there is one",
   );
 });

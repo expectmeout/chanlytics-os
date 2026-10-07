@@ -13,7 +13,7 @@ import {
 import { load } from "../../../readers";
 import { campaignReport } from "../../../readers/campaign-report";
 import { report, reviewsReport } from "../../../readers/report";
-import { defineRead, unlessNotFound, type ToolContext } from "../context";
+import { defineRead, unlessNotFound, unread, type ToolContext } from "../context";
 
 /** The counts of days the table offers (Month is no count: it is the days since the 1st, and the page's own), as the model is told them. */
 const PERIOD_DAYS = REPORT_RANGES.flatMap((r) => (r.days === null ? [] : [r.days]));
@@ -58,16 +58,17 @@ function campaignsSaid(cm: CampaignReportVM) {
  * The Reviews lens as the page draws it (Reports, lens 1): the sentence at its head and its figures, made once by
  * toReviewsReportVM, and, where the owner's Business Profile has handed over the reviews, the mix of the period's stars
  * and how many wait for a reply. From the five reviews Google shows of a public listing there is the head and the
- * listing's four figures alone, and with no listing linked there is `linked: false` and nothing else.
+ * listing's four figures alone, with what the Business Profile would add (`connect`) where none is connected, and with
+ * no listing linked there is `linked: false` and the words the fold has for it.
  */
 function reviewsSaid(rv: ReviewsReportVM) {
-  if (rv.empty) return { linked: false };
+  if (rv.empty) return { linked: false, words: rv.lines.connect };
   const said = {
     head: rv.lines.head,
     // What the figure draws beside its value is its `compare` (no Reviews tile has a percentage); null where history falls short.
     tiles: rv.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.compare })),
   };
-  if (rv.source === "places") return said;
+  if (rv.source === "places") return { ...said, connect: rv.lines.connect };
   return {
     ...said,
     // The mix as the card says it (the line holds how many were rated) and its five rows; null where there is none to say.
@@ -83,18 +84,17 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
   // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
   // beside it, with how the workspace's customers buy taken from the turn (ledger #1). A report the function will not
   // answer is the reader's 404, said as the tool always said it.
-  const [r, campaigns, reviews] = await Promise.all([
+  const [r, campaignRead, reviewRead] = await Promise.all([
     unlessNotFound(load(t.rc, report, { days })),
-    // The Campaigns lens's own read (readers/campaign-report.ts), beside it: one that fails is said as null.
-    load(t.rc, campaignReport, { days })
-      .then((x) => toCampaignReportVM(x.data.report))
-      .catch(() => null),
+    // The Campaigns lens's own read (readers/campaign-report.ts), beside it: one that fails is said as null, and in the log.
+    load(t.rc, campaignReport, { days }).then((x) => x.data.report, unread(t, "report", "campaigns")),
     // The Reviews lens's own read (readers/report.ts reviewsReport: Google as its page reads it, and the reviews on
-    // record), folded on the turn's clock: one that fails, a slow edge or a ledger that cannot be read, is null too.
-    load(t.rc, reviewsReport, { days })
-      .then((x) => toReviewsReportVM(x.data, { nowMs: t.rc.now.getTime() }))
-      .catch(() => null),
+    // record): one that fails, a slow edge or a ledger that cannot be read, is null too. Folded below, outside the catch:
+    // a fold that throws is a bug to see, never "could not be read".
+    load(t.rc, reviewsReport, { days }).then((x) => x.data, unread(t, "report", "reviews")),
   ]);
+  const campaigns = campaignRead ? toCampaignReportVM(campaignRead) : null;
+  const reviews = reviewRead ? toReviewsReportVM(reviewRead, { nowMs: t.rc.now.getTime() }) : null;
   if (!r) return { error: "report unavailable" };
   // The page's own builders over the page's own payload, as the bridge applies them (legacy-bridge/surface-data.ts).
   const vm = toReportVM(r.data.report, { profile: r.data.profile });

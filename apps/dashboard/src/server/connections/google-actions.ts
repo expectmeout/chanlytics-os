@@ -12,9 +12,12 @@ import {
   parseTenantConfigResult,
   placesQueryOf,
   type GoogleCandidateDto,
+  type GoogleDto,
 } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db";
-import { googleDtoFor, googleReadiness, afterGoogle, edgeGoogle, stateSecret } from "@/server/connections/google";
+import { googleReadiness, afterGoogle, edgeGoogle, stateSecret } from "@/server/connections/google";
+import { load, readerContext } from "@/server/readers";
+import { googleReader } from "@/server/readers/connections";
 import { memberContext, type RouteContext } from "@/server/with-route";
 import { verifyState, authorizeUrl, newNonce, signState, STATE_TTL_MS, cleanReply } from "@chanlytics/channels";
 import { log } from "@/server/log";
@@ -23,8 +26,15 @@ import { recordDecision } from "@/server/verbs";
 import { tenantFacts } from "@/server/tenant";
 import type { Member, Params } from "@/server/route";
 
-export async function readGoogle(ctx: RouteContext, member: Member) {
-  return { google: await googleDtoFor(ctx.supabase, member.tenantId) };
+/** `GET google`: Google as the Google reader holds it (once a turn, the Reviews report's too), and what this deployment can do with it. */
+export async function readGoogle(ctx: RouteContext, member: Member): Promise<{ google: GoogleDto }> {
+  const [held, ready] = await Promise.all([
+    load(readerContext(ctx, member), googleReader, undefined),
+    googleReadiness(),
+  ]);
+  return {
+    google: { ready: { places: ready.places, profile: ready.profile, audience: ready.audience }, ...held.data },
+  };
 }
 
 export async function googleCallback(ctx: RouteContext, req: Request) {

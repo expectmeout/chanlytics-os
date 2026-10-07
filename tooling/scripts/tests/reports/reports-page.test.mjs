@@ -36,6 +36,7 @@ import {
   rday,
   cday,
   REVIEWS_NOW,
+  googleConnection,
   reviewsDto,
   reviewsGoogle,
   reviewsLedger,
@@ -805,11 +806,8 @@ const northsideLedger = (over = {}) => {
   const [ana] = NORTHSIDE.reviews;
   return reviewsLedger({
     written: [writtenReview(ana.id, ana.published_at, 5)],
-    on_record: { profile: 213, places: 0, oldest_at: "2019-05-02T12:00:00Z" },
     waiting_total: 1,
-    waiting: [ana],
-    replies: [],
-    held: [{ review_id: ana.id, why: "price" }],
+    waiting: [{ ...ana, held: "price" }],
     ...over,
   });
 };
@@ -962,7 +960,6 @@ test("a review that waits is drawn once, above Latest, which keeps the ones that
       written: [writtenReview(ana.id, ana.published_at, 5, "2026-09-03T20:00:00Z")],
       waiting_total: 0,
       waiting: [],
-      held: [],
     }),
   );
   try {
@@ -988,9 +985,10 @@ test("a review that waits is drawn once, above Latest, which keeps the ones that
 });
 
 test("a record that starts after the period says where, in the section's meta and where the figures would be, and draws a dash for what it cannot count: never a zero", () => {
+  // 100 of Google's 213 on record, the sync did not read the whole list, and the connection began Aug 30: the week began Aug 29
   holdReviews(
-    reviewsGoogle(),
-    reviewsLedger({ on_record: { profile: 100, places: 0, oldest_at: "2026-08-30T12:00:00Z" } }),
+    reviewsGoogle({ connection: googleConnection({ connected_at: "2026-08-30T12:00:00Z" }) }),
+    reviewsLedger({ on_record: { profile: 100, places: 0, oldest_day: "2026-08-30", complete: false } }),
   );
   try {
     const tree = page();
@@ -1015,8 +1013,8 @@ test("a record that starts after the period says where, in the section's meta an
 
 test("Google's reviews from the five it shows first: four figures, the ratings gained day by day, the latest, and what the Business Profile would add", () => {
   const places = { ...NORTHSIDE, connection: null, reviews: [{ ...NORTHSIDE.reviews[0], origin: "places" }] };
-  const none = { written: [], on_record: { profile: 0, places: 1, oldest_at: null }, waiting_total: 0, waiting: [] };
-  const V = holdReviews(places, reviewsLedger({ ...none, replies: [], held: [] }));
+  // The reader keeps no ledger where no profile has synced: the five public reviews are no record to count.
+  const V = holdReviews(places, null);
   try {
     const tree = page();
     assert.deepEqual(
@@ -1053,7 +1051,7 @@ test("Google's reviews from the five it shows first: four figures, the ratings g
         ...places,
         connection: { ...NORTHSIDE.connection, location_name: null, location_title: null, last_synced_at: null },
       },
-      reviewsLedger({ ...none, replies: [], held: [] }),
+      null,
     );
     const pending = page();
     assert.ok(sectionMeta(pending).includes("Connected as owner@example.com · choose the location to finish"));
@@ -1084,7 +1082,6 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
       written: [writtenReview(ana.id, ana.published_at, 5, answered.replied_at)],
       waiting_total: 0,
       waiting: [],
-      held: [],
     }),
   });
   const settled = async () => {

@@ -36,6 +36,6 @@ export function ReviewsLens({ R }: LensProps) {
   const lag = useReviewsLag(R);
   if (!V) return failed ? readFailed() : null;
   if (lag === "failed") return readFailed();
-  if (!googleReadable(V.dto.google)) return <LensEmpty lens="reviews" vm={R.vm} />;
+  if (!googleReadable(V.dto)) return <LensEmpty lens="reviews" vm={R.vm} />;
   return <GoogleSection V={V.vm} range={{ since: R.vm.since, until: R.vm.until }} />;
 }

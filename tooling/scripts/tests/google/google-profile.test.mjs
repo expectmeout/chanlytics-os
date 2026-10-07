@@ -398,6 +398,19 @@ test("the first sync is history: every review kept, the rating and the count tak
   });
   assert.deepEqual(p.day, { day: "2026-09-07", rating: 4.8, review_count: 213 });
   assert.equal(p.synced_at, new Date(NOW).toISOString());
+  assert.equal(p.complete, true, "Google's list ended on this pass: nothing was left unread");
+  const capped = planProfileSync(
+    { last_synced_at: null },
+    new Map(),
+    page([gbp()], { next_page_token: "more" }),
+    "2026-09-07",
+    NOW,
+  );
+  assert.equal(
+    capped.complete,
+    false,
+    "a page left when the pages it may read ran out: the record is the newest reviews",
+  );
 });
 
 test("after that, a review not on record and written since the last sync is news; a reply that appeared is noted, never announced", () => {

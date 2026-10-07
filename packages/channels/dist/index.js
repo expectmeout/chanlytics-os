@@ -4290,7 +4290,8 @@ function planProfileSync(before, known, page, day, nowMs) {
     fresh: news,
     replied,
     bells: reviewBells(news, 0, { rating: listing?.rating ?? null, review_count: count }),
-    synced_at: now
+    synced_at: now,
+    complete: page.next_page_token === null
   };
 }
 

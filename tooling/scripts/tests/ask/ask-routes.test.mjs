@@ -539,6 +539,15 @@ test("the reports: the three presets and no other, the series from the function 
   const rpcs = {
     report_series: (a) => ({ days: a.p_days, tenant: a.p_tenant_id }),
     campaign_series: (a) => (a.p_tenant_id === A ? { days: a.p_days } : { error: "no" }),
+    reviews_ledger: (a) => ({
+      timezone: "America/New_York",
+      today: "2026-10-07",
+      days: a.p_days,
+      on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+      written: [],
+      waiting_total: 0,
+      waiting: [],
+    }),
     people_list: () => [],
   };
   const tables = { memberships: both("viewer", "viewer"), tenants: [], tenant_config: [], policies: [] };
@@ -568,8 +577,8 @@ test("the reports: the three presets and no other, the series from the function 
     404,
     "No workspace found for this report.",
   );
-  // The reviews' twin: the same four periods, Google's read and, where a listing is linked, the ledger beside it. No
-  // listing links here, so the ledger is none; no function answers it, so there is no 404 to give.
+  // The reviews' twin: the same four periods, Google's read and, where a listing is linked and a profile has synced, the
+  // ledger beside it. Nothing links here, so the ledger is none and the lens has nothing to draw.
   const unlinked = { ...tables, google_listings: [], google_connections: [] };
   await refused(
     reviews.GET.run(get(`?period=14d&workspace=${A}&workspace=${A}`), ctxFor(unlinked, {}, rpcs)),
@@ -577,8 +586,8 @@ test("the reports: the three presets and no other, the series from the function 
     400,
   );
   const none = await reviews.GET.run(get(`?period=90d&workspace=${A}&workspace=${A}`), ctxFor(unlinked, {}, rpcs));
-  assert.deepEqual(Object.keys(none), ["timezone", "today", "days", "google", "ledger"]);
-  assert.deepEqual([none.days, none.ledger, none.google.listing], [90, null, null]);
+  assert.deepEqual(Object.keys(none), ["timezone", "today", "days", "google", "readable", "ledger"]);
+  assert.deepEqual([none.days, none.ledger, none.google.listing, none.readable], [90, null, null, false]);
   assert.equal((await reviews.GET.run(get(inA), ctxFor(unlinked, {}, rpcs))).days, 30, "thirty by default");
 });
 

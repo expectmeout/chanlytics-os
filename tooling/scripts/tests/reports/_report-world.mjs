@@ -262,15 +262,33 @@ export const googleReview = (id, published, over = {}) => ({
   first_seen_at: published,
   ...over,
 });
-/** A review as the counts read it: its stars, the day Google dates it, and when it was answered (null: it was not). */
+/** The day an instant falls on in the world's zone, as the database says it ("2026-09-03"). */
+const worldDay = (iso) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+/**
+ * A review as the database counts it (reviews_ledger's `written`): its stars, the day Google dates it in the world's zone,
+ * whether it has a reply and how many seconds after the review the reply came (none where the reply is dated before it), and
+ * who wrote the reply where the receptionist's own event names it (`over.by`).
+ */
 export const writtenReview = (id, published, rating, repliedAt = null, over = {}) => ({
   id,
+  d: worldDay(published),
   rating,
-  published_at: published,
-  has_reply: repliedAt !== null,
-  replied_at: repliedAt,
+  replied: repliedAt !== null,
+  secs:
+    repliedAt !== null && Date.parse(repliedAt) >= Date.parse(published)
+      ? (Date.parse(repliedAt) - Date.parse(published)) / 1000
+      : null,
+  by: null,
   ...over,
 });
+/** A review that waits, as the database lists it: the page's read of it, and why a reply written for it was held (`held`: null where none was). */
+export const waitingReview = (id, published, over = {}) => ({ ...googleReview(id, published), held: null, ...over });
 
 /**
  * Six reviews written in the last 30 days (Aug 6 to Sep 4), three of them answered, 5 of 6 at four or five stars; three in
@@ -279,7 +297,7 @@ export const writtenReview = (id, published, rating, repliedAt = null, over = {}
  * price), e, f unanswered; g, h, i the period before; j just before it.
  */
 const REVIEWS_WRITTEN = [
-  writtenReview("a", "2026-09-03T14:00:00Z", 5, "2026-09-03T20:00:00Z"),
+  writtenReview("a", "2026-09-03T14:00:00Z", 5, "2026-09-03T20:00:00Z", { by: "receptionist" }),
   writtenReview("b", "2026-09-01T14:00:00Z", 5, "2026-09-01T14:10:00Z"),
   writtenReview("c", "2026-08-20T10:00:00Z", 4, "2026-08-21T10:00:00Z"),
   writtenReview("d", "2026-08-14T12:00:00Z", 2),
@@ -290,17 +308,16 @@ const REVIEWS_WRITTEN = [
   writtenReview("i", "2026-07-07T04:00:00Z", 4),
   writtenReview("j", "2026-07-07T03:59:00Z", 5),
 ];
-/** The reviews with no reply, oldest first, as the page's read holds them (GoogleReviewDto). */
+/** The reviews with no reply, oldest first, as the database lists them (the page's read of each, and the reason a reply was held). */
 const UNANSWERED = [
-  googleReview("old", "2026-06-01T12:00:00Z", { rating: 3 }),
-  googleReview("f", "2026-08-06T04:00:00Z", { rating: 4 }),
-  googleReview("e", "2026-08-12T12:00:00Z"),
-  googleReview("d", "2026-08-14T12:00:00Z", { rating: 2 }),
+  waitingReview("old", "2026-06-01T12:00:00Z", { rating: 3 }),
+  waitingReview("f", "2026-08-06T04:00:00Z", { rating: 4 }),
+  waitingReview("e", "2026-08-12T12:00:00Z"),
+  waitingReview("d", "2026-08-14T12:00:00Z", { rating: 2, held: "price" }),
 ];
 
 /** `GET reports/reviews`'s `google`: the listing, the profile connected and synced, the newest reviews and three days' counts. */
 export const reviewsGoogle = (over = {}) => ({
-  ready: { places: true, profile: true },
   listing: googleListing(),
   connection: googleConnection(),
   reviews: [
@@ -322,17 +339,15 @@ export const reviewsGoogle = (over = {}) => ({
   ...over,
 });
 
-/** The ledger the one bounded read returns (reviewsReadSince): the whole record is on hand, 213 of 213. */
+/** The ledger the database answers (reviews_ledger) for 30 days: the whole record is on hand, 213 of 213, and the sync says so. */
 export const reviewsLedger = (over = {}) => ({
+  timezone: "America/New_York",
+  today: REVIEWS_TODAY,
+  days: 30,
+  on_record: { profile: 213, places: 0, oldest_day: "2019-05-02", complete: true },
   written: REVIEWS_WRITTEN,
-  on_record: { profile: 213, places: 0, oldest_at: "2019-05-02T12:00:00Z" },
   waiting_total: UNANSWERED.length,
   waiting: UNANSWERED,
-  replies: [
-    { review_id: "a", by: "receptionist", at: "2026-09-03T20:00:00Z" },
-    { review_id: "b", by: null, at: "2026-09-01T14:10:00Z" },
-  ],
-  held: [{ review_id: "d", why: "price" }],
   ...over,
 });
 
@@ -342,6 +357,7 @@ export const reviewsDto = (over = {}) => ({
   today: REVIEWS_TODAY,
   days: 30,
   google: reviewsGoogle(),
+  readable: true,
   ledger: reviewsLedger(),
   ...over,
 });

@@ -224,10 +224,8 @@ export interface GoogleConnectionDto {
 /** Google's consent-screen audience for our app, as the operator set it on the edge; null = nothing to say. */
 export type GoogleAudience = "testing" | "unverified" | "verified";
 
-/** What `GET /api/v1/google` returns. */
-export interface GoogleDto {
-  /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge), and which audience Google's consent screen has. */
-  ready: { places: boolean; profile: boolean; audience?: GoogleAudience | null };
+/** What the database holds of Google for a workspace, as the dashboard reads it (the Google reader): everything `GET /api/v1/google` returns but what the deployment can do. */
+export interface GoogleReadDto {
   listing: GoogleListingDto | null;
   connection: GoogleConnectionDto | null;
   /** The newest first; at most a screenful. */
@@ -236,6 +234,12 @@ export interface GoogleDto {
   days: GoogleDayDto[];
   /** The Autonomy row for reviews: what the receptionist does under a new one. */
   reply_mode: ReviewReplyMode;
+}
+
+/** What `GET /api/v1/google` returns. */
+export interface GoogleDto extends GoogleReadDto {
+  /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge), and which audience Google's consent screen has. */
+  ready: { places: boolean; profile: boolean; audience?: GoogleAudience | null };
 }
 
 /** What a search found: what the owner confirms with one tap. */
@@ -543,7 +547,7 @@ export function gainedOver(
   return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
 }
 
-export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now()): GoogleVM {
+export function toGoogleVM(dto: GoogleReadDto, periodDays: number, nowMs = Date.now()): GoogleVM {
   const l = dto.listing;
   const c = dto.connection ?? null;
   const connection: GoogleVM["connection"] = c

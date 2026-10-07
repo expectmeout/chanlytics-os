@@ -1,5 +1,5 @@
 import { SupabaseClient, AuthMFAAdminDeleteFactorResponse, UserResponse, AuthMFAAdminListFactorsResponse, AuthResponse, PostgrestError } from '@supabase/supabase-js';
-import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, AiUsageBody, RETENTION_DAYS, PurposeBearing, Handled, BrainIntent, OfferCounts, OfferPause, OfferPauseReason, SchemaSet, ReviewsLedgerDto, ConsentChannel, DealFacts, LeadChannel, VoiceEndReason, SCHEMA_SETS, OwnVersionChannel, PersonRowDto, NameableContact, PersonDecisionDto, NumberStanding } from '@chanlytics/contracts';
+import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, AiUsageBody, RETENTION_DAYS, PurposeBearing, Handled, BrainIntent, OfferCounts, OfferPause, OfferPauseReason, SchemaSet, ConsentChannel, DealFacts, LeadChannel, VoiceEndReason, SCHEMA_SETS, OwnVersionChannel, PersonRowDto, NameableContact, PersonDecisionDto, NumberStanding } from '@chanlytics/contracts';
 export { VoiceEndReason } from '@chanlytics/contracts';
 import * as _supabase_postgrest_js from '@supabase/postgrest-js';
 
@@ -2176,6 +2176,7 @@ type Database = {
                     last_synced_at: string | null;
                     location_name: string | null;
                     location_title: string | null;
+                    reviews_complete: boolean;
                     scopes: string[];
                     sync_error: string | null;
                     tenant_id: string;
@@ -2194,6 +2195,7 @@ type Database = {
                     last_synced_at?: string | null;
                     location_name?: string | null;
                     location_title?: string | null;
+                    reviews_complete?: boolean;
                     scopes?: string[];
                     sync_error?: string | null;
                     tenant_id: string;
@@ -2212,6 +2214,7 @@ type Database = {
                     last_synced_at?: string | null;
                     location_name?: string | null;
                     location_title?: string | null;
+                    reviews_complete?: boolean;
                     scopes?: string[];
                     sync_error?: string | null;
                     tenant_id?: string;
@@ -8404,6 +8407,13 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            reviews_ledger: {
+                Args: {
+                    p_days?: number;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             runtime_stamp: {
                 Args: {
                     p_tenant_id: string;
@@ -11495,6 +11505,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
                 last_synced_at: string | null;
                 location_name: string | null;
                 location_title: string | null;
+                reviews_complete: boolean;
                 scopes: string[];
                 sync_error: string | null;
                 tenant_id: string;
@@ -11513,6 +11524,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
                 last_synced_at?: string | null;
                 location_name?: string | null;
                 location_title?: string | null;
+                reviews_complete?: boolean;
                 scopes?: string[];
                 sync_error?: string | null;
                 tenant_id: string;
@@ -11531,6 +11543,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
                 last_synced_at?: string | null;
                 location_name?: string | null;
                 location_title?: string | null;
+                reviews_complete?: boolean;
                 scopes?: string[];
                 sync_error?: string | null;
                 tenant_id?: string;
@@ -17581,6 +17594,13 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             };
             Returns: boolean;
         };
+        reviews_ledger: {
+            Args: {
+                p_days?: number;
+                p_tenant_id: string;
+            };
+            Returns: Json;
+        };
         runtime_stamp: {
             Args: {
                 p_tenant_id: string;
@@ -20122,6 +20142,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             last_synced_at: string | null;
             location_name: string | null;
             location_title: string | null;
+            reviews_complete: boolean;
             scopes: string[];
             sync_error: string | null;
             tenant_id: string;
@@ -20140,6 +20161,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id: string;
@@ -20158,6 +20180,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id?: string;
@@ -25553,6 +25576,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             last_synced_at: string | null;
             location_name: string | null;
             location_title: string | null;
+            reviews_complete: boolean;
             scopes: string[];
             sync_error: string | null;
             tenant_id: string;
@@ -25571,6 +25595,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id: string;
@@ -25589,6 +25614,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id?: string;
@@ -30984,6 +31010,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             last_synced_at: string | null;
             location_name: string | null;
             location_title: string | null;
+            reviews_complete: boolean;
             scopes: string[];
             sync_error: string | null;
             tenant_id: string;
@@ -31002,6 +31029,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id: string;
@@ -31020,6 +31048,7 @@ declare function builderOf<T extends TenantTable>(db: Db$u, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id?: string;
@@ -35892,10 +35921,11 @@ declare function markHeldNotice(db: Db$l, p: {
 }): Promise<boolean>;
 
 /**
- * The report functions Reports reads (00251, 00304, 00241): the receptionist's series, the campaigns' and the reach-outs',
- * each over a period of days and the period before it. The one place they are called by name; the dashboard asks on the
- * session client, so RLS decides what a member reads (`report_series` and `campaign_series` are SECURITY INVOKER;
- * `reach_out_report` is a definer that checks the member again). A read that fails throws: "we could not read" is never "none".
+ * The report functions Reports reads (00251, 00304, 00241, 00346): the receptionist's series, the campaigns', the reviews'
+ * and the reach-outs', each over a period of days and the period before it. The one place they are called by name; the
+ * dashboard asks on the session client, so RLS decides what a member reads (`report_series`, `campaign_series` and
+ * `reviews_ledger` are SECURITY INVOKER; `reach_out_report` is a definer that checks the member again). A read that
+ * fails throws: "we could not read" is never "none".
  */
 
 type Db$k = SupabaseClient<Database>;
@@ -35903,6 +35933,12 @@ type Db$k = SupabaseClient<Database>;
 declare function reportSeries(db: Db$k, tenantId: string, days: number): Promise<Json>;
 /** What the broadcasts and playbooks sent, day by day for `days` and the same number before, and the period by source (`campaign_series`, 00251). */
 declare function campaignSeries(db: Db$k, tenantId: string, days: number): Promise<Json>;
+/**
+ * The reviews on record for the Reviews lens, over `days` and the period before (`reviews_ledger`, 00346): the profile's
+ * reviews dated in the workspace's own zone, the counts, the oldest few that wait. Contracts' `isReviewsLedgerDto` tells
+ * its answer from `{ error: "unknown_tenant" }`.
+ */
+declare function reviewsLedger(db: Db$k, tenantId: string, days: number): Promise<Json>;
 /**
  * What the workspace's reach-outs wrote over `days`, and what came of it (`reach_out_report`, 00241). The function raises
  * contracts' own refusals with a code the door words (not found, not as it may be); they come back as they are, not thrown.
@@ -35935,26 +35971,6 @@ declare function firstReplies(db: Db$j, tenantId: string, since: Date): Promise<
     s: number;
     hold: number;
 }[]>;
-
-/**
- * The reviews on record, read once for a report (google_reviews, and the two kinds of event filed under a review): the one
- * place Reports reads them. What the owner's Business Profile handed over and the database kept: the profile's reviews dated
- * since the instant the caller names (contracts reviewsReadSince, so the read is bounded), how many reviews of each origin
- * the workspace holds and when the oldest profile review was written, the ones still waiting for a reply and how many there
- * are, and the events that say who wrote a reply (google.replied) and which one was written and held back
- * (google.reply_held). The dashboard asks on the session client, so RLS decides what a member reads, and every read names
- * the workspace as well. The period's rows and the replies are paged (readAllRows, ordered by id); the rest are counts or
- * a handful of rows. A read that fails throws: "we could not read" is never "no reviews".
- */
-
-type ReviewsDb = SupabaseClient<Database>;
-/**
- * What the Reviews report is made from, in one bounded read (contracts toReviewsReportVM folds it): the profile's reviews
- * dated since `sinceIso`, the counts of each origin and the oldest profile review's date, the reviews waiting for a reply,
- * and who answered and what was held. `sinceIso` is contracts' reviewsReadSince. A review is filed in its events under the
- * google_reviews row's own id, which is the id every row here carries.
- */
-declare function reviewsLedger(db: ReviewsDb, tenantId: string, sinceIso: string): Promise<ReviewsLedgerDto>;
 
 /**
  * What a person is told, as the edge reads and writes it: a kept notification taken back (apps/edge/lib/ops/notify.ts),

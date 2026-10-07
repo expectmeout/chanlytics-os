@@ -290,13 +290,8 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     "a draft is not a decision; sending is",
   );
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("google_draft: {"));
-  // The Autonomy row rides on the DTO googleDtoFor makes, which GET google (google-actions.ts) answers.
-  const get = readCode(
-    "apps/dashboard/app/api/v1/google/route.ts",
-    "apps/dashboard/src/server/connections/google-actions.ts",
-    "apps/dashboard/src/server/connections/google.ts",
-  );
-  assert.ok(get.includes("reply_mode: reviewReplyModeOf(policies)"));
+  // The Autonomy row rides on the Google reader's read, which GET google (google-actions.ts) answers: google-routes.test.mjs
+  // runs it for each mode.
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {} }'));
 

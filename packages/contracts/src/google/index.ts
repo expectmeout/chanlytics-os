@@ -29,6 +29,7 @@ export type {
   GoogleDayDto,
   GoogleConnectionDto,
   GoogleAudience,
+  GoogleReadDto,
   GoogleDto,
   GoogleCandidateDto,
   GoogleLocationDto,

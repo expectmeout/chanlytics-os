@@ -27990,53 +27990,39 @@ function lensAnswerOf(lens, parts2) {
 // src/reports/review-report.ts
 var REVIEWS_WAITING_SHOWN = 5;
 var REVIEW_REPLY_TIME_MIN = 3;
+function isReviewsLedgerDto(answer) {
+  return typeof answer === "object" && answer !== null && "timezone" in answer && typeof answer.timezone === "string" && "today" in answer && typeof answer.today === "string" && "days" in answer && typeof answer.days === "number" && "on_record" in answer && typeof answer.on_record === "object" && "written" in answer && Array.isArray(answer.written) && "waiting" in answer && Array.isArray(answer.waiting);
+}
+function reviewsAreOnRecord(google) {
+  return google.listing !== null && reviewsFromProfile(google.connection);
+}
 function reviewsWindowOf(today, days) {
   const since = shiftKey(today, -(days - 1));
   return { since, priorSince: shiftKey(since, -days) };
 }
-function reviewsReadSince(today, days) {
-  return `${shiftKey(reviewsWindowOf(today, days).priorSince, -1)}T00:00:00.000Z`;
-}
 function reviewsHistoryOf(dto, ledger) {
-  if (ledger.on_record.profile >= (dto.google.listing?.review_count ?? 0)) return { complete: true, from: null };
-  const oldest = ledger.on_record.oldest_at ? Date.parse(ledger.on_record.oldest_at) : NaN;
-  return { complete: false, from: Number.isNaN(oldest) ? null : zoneDayKey(oldest, dto.timezone) };
+  if (ledger.on_record.complete) return { complete: true, from: null };
+  const began = dto.google.connection ? Date.parse(dto.google.connection.connected_at) : NaN;
+  return { complete: false, from: Number.isNaN(began) ? null : zoneDayKey(began, dto.timezone) };
 }
 var historyReaches = (h, day) => h.complete || h.from !== null && h.from <= day;
 var historyWords = (h) => h.complete ? null : h.from ? `history on record starts ${fmtDay(h.from)}` : "no review history on record yet";
-function reviewsDatedOf(rows, timezone) {
-  return rows.flatMap((r2) => {
-    const wrote = r2.published_at ? Date.parse(r2.published_at) : NaN;
-    if (Number.isNaN(wrote)) return [];
-    const replied = r2.replied_at ? Date.parse(r2.replied_at) : NaN;
-    const timed = r2.has_reply && !Number.isNaN(replied) && replied >= wrote;
-    return [
-      {
-        id: r2.id,
-        rating: r2.rating,
-        day: zoneDayKey(wrote, timezone),
-        hasReply: r2.has_reply,
-        replySeconds: timed ? (replied - wrote) / 1e3 : null
-      }
-    ];
-  });
+function reviewsDatedOf(rows) {
+  return rows.map((r2) => ({
+    id: r2.id,
+    rating: r2.rating,
+    day: r2.d,
+    hasReply: r2.replied,
+    replySeconds: r2.secs,
+    by: r2.by
+  }));
 }
-function reviewsWritersOf(events) {
-  const last = /* @__PURE__ */ new Map();
-  for (const e of events) {
-    const parsed = Date.parse(e.at);
-    const at3 = Number.isNaN(parsed) ? -Infinity : parsed;
-    const seen = last.get(e.review_id);
-    if (!seen || at3 >= seen.at) last.set(e.review_id, { at: at3, by: e.by });
-  }
-  return new Map([...last].map(([id, v]) => [id, v.by]));
-}
-function reviewsAnswersOf(current, writers) {
+function reviewsAnswersOf(current) {
   const answered = current.filter((r2) => r2.hasReply);
   const waits = answered.flatMap((r2) => r2.replySeconds === null ? [] : [r2.replySeconds]).sort((a, b) => a - b);
   return {
     answered: answered.length,
-    receptionist: answered.filter((r2) => writers.get(r2.id) === "receptionist").length,
+    receptionist: answered.filter((r2) => r2.by === "receptionist").length,
     timed: waits.length,
     replySeconds: waits.length >= REVIEW_REPLY_TIME_MIN ? quantile(waits, 0.5) : null
   };
@@ -28174,7 +28160,7 @@ var NO_LINES = {
 };
 function reviewsPeriodOf(dto, ledger, days) {
   const { since, priorSince } = reviewsWindowOf(dto.today, days);
-  const dated = reviewsDatedOf(ledger.written, dto.timezone);
+  const dated = reviewsDatedOf(ledger.written);
   const current = dated.filter((r2) => r2.day >= since && r2.day <= dto.today);
   const history = reviewsHistoryOf(dto, ledger);
   const mix = reviewsStarMixOf(current);
@@ -28184,7 +28170,7 @@ function reviewsPeriodOf(dto, ledger, days) {
     priorExact: historyReaches(history, priorSince),
     written: current.length,
     prior: dated.filter((r2) => r2.day >= priorSince && r2.day < since).length,
-    ...reviewsAnswersOf(current, reviewsWritersOf(ledger.replies)),
+    ...reviewsAnswersOf(current),
     rated: mix.rated,
     good: mix.good,
     history
@@ -28192,9 +28178,8 @@ function reviewsPeriodOf(dto, ledger, days) {
   return { period, current, mix, since };
 }
 function reviewsWaitingOf(ledger, linkedAt, nowMs) {
-  const whyHeld = new Map(ledger.held.map((h) => [h.review_id, h.why]));
   const rows = ledger.waiting.slice(0, REVIEWS_WAITING_SHOWN).map((r2) => {
-    const why = reviewHeldWords(whyHeld.get(r2.id));
+    const why = reviewHeldWords(r2.held);
     return {
       ...toGoogleReviewVM(r2, linkedAt, nowMs),
       held: why ? `The receptionist wrote a reply and held it: ${why}.` : null
@@ -28255,8 +28240,7 @@ function toReviewsReportVM(dto, opts) {
       latestTable: googleReviewsTable([]),
       lines: NO_LINES
     };
-  if (ledger && reviewsFromProfile(dto.google.connection))
-    return reviewsFromLedger({ dto, ledger, google, l, days, nowMs });
+  if (ledger && reviewsAreOnRecord(dto.google)) return reviewsFromLedger({ dto, ledger, google, l, days, nowMs });
   const onRecord = ledger ? ledger.on_record.profile + ledger.on_record.places : dto.google.reviews.length;
   return {
     ...base,
@@ -36557,6 +36541,7 @@ export {
   isReplyUndoRefusal,
   isReportDto,
   isReportPeriod,
+  isReviewsLedgerDto,
   isSellsBy,
   isSidebarPref,
   isSiteRoot,
@@ -37097,7 +37082,7 @@ export {
   reviewReplyPrompt,
   reviewReplyWords,
   reviewSnippet,
-  reviewsReadSince,
+  reviewsAreOnRecord,
   reviewsWindowOf,
   reviewsWords,
   rightNowCounts,

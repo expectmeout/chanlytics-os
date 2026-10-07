@@ -14,7 +14,7 @@ const { readerContext } = await importSrc("apps/dashboard/src/server/readers/ind
 const { reportDaysFor } = await importSrc("apps/dashboard/src/server/readers/report.ts");
 const { fakeDb } = await import("../../_fake-db.mjs");
 const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/rate-limit.ts");
-const { REPORT_RANGES, REPORT_PERIOD_IDS, reviewsReadSince } = await import("@chanlytics/contracts");
+const { REPORT_RANGES, REPORT_PERIOD_IDS } = await import("@chanlytics/contracts");
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 /** A reader context for a workspace in `timezone` at `iso`; its supabase is never touched (the facts are seeded). */
@@ -81,27 +81,41 @@ test("a route sent period=month answers the days since the 1st in the workspace'
     );
 });
 
-test("the reviews' route takes the same query: Month is the days since the 1st in the workspace's zone, the one ledger read starts from the day that zone and those days say, and any other period is refused at the door", async () => {
+test("the reviews' route takes the same query: Month is the days since the 1st in the workspace's zone, the ledger is asked for those days, and any other period is refused at the door", async () => {
   setRateStore(memoryStore());
   const route = await importSrc("apps/dashboard/app/api/v1/reports/reviews/route.ts");
   const ctx = () => ({
-    supabase: fakeDb({
-      memberships: [
-        {
-          user_id: "u1",
-          tenant_id: W,
-          role: "viewer",
-          tenants: { slug: "harbor", name: "Harbor Studio", timezone: "America/New_York" },
-          created_at: "2026-01-01",
-        },
-      ],
-      policies: [],
-      google_listings: [{ tenant_id: W, place_id: "place-1", name: "Harbor Studio", rating: 4.8, review_count: 213 }],
-      google_connections: [],
-      google_reviews: [],
-      google_listing_days: [],
-      events: [],
-    }),
+    supabase: fakeDb(
+      {
+        memberships: [
+          {
+            user_id: "u1",
+            tenant_id: W,
+            role: "viewer",
+            tenants: { slug: "harbor", name: "Harbor Studio", timezone: "America/New_York" },
+            created_at: "2026-01-01",
+          },
+        ],
+        policies: [],
+        google_listings: [{ tenant_id: W, place_id: "place-1", name: "Harbor Studio", rating: 4.8, review_count: 213 }],
+        google_connections: [],
+        google_reviews: [],
+        google_listing_days: [],
+        events: [],
+      },
+      {},
+      {
+        reviews_ledger: (a) => ({
+          timezone: "America/New_York",
+          today: "2026-10-07",
+          days: a.p_days,
+          on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+          written: [],
+          waiting_total: 0,
+          waiting: [],
+        }),
+      },
+    ),
     userId: "u1",
     email: "ada@example.com",
     params: {},
@@ -113,14 +127,11 @@ test("the reviews' route takes the same query: Month is the days since the 1st i
   );
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   assert.deepEqual([out.timezone, out.today, out.days], ["America/New_York", today, Number(today.slice(8, 10))]);
-  assert.notEqual(out.ledger, null, "a listing is linked: the ledger is read");
+  assert.equal(out.ledger, null, "no Business Profile has synced: the five public reviews are no record");
   assert.deepEqual(
-    c.supabase.seen
-      .filter((q) => q.table === "google_reviews" && q.op === "select")
-      .flatMap((q) => q.filters)
-      .filter(([op, col]) => op === "gte" && col === "published_at"),
-    [["gte", "published_at", reviewsReadSince(out.today, out.days)]],
-    "from the day before the period before the month begins",
+    c.supabase.seen.filter((q) => q.rpc),
+    [{ rpc: "reviews_ledger", args: { p_tenant_id: W, p_days: out.days } }],
+    "the database counts the month's days, and the period before them",
   );
   for (const bad of ["14d", "7", "MONTH"])
     await assert.rejects(

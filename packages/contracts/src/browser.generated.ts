@@ -222,7 +222,7 @@ export { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, isReportPeriod, fixedDaysOf, 
 export { holdOf, replyHoldDtoOf } from "./reports/report-speed";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./reports/report-tiles";
 export { dayDate, fmtDay, quantile, priorOf, weekOf, reportHourWords, hoursOf, channelsOf, runningTotal, speedOf, callMoodTone, toReportVM, headlineOf, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_SHORT, REPORT_WEEK_LONG } from "./reports/reports";
-export { toReviewsReportVM, reviewsWindowOf, reviewsReadSince, REVIEWS_WAITING_SHOWN } from "./reports/review-report";
+export { toReviewsReportVM, reviewsWindowOf, reviewsAreOnRecord, isReviewsLedgerDto, REVIEWS_WAITING_SHOWN } from "./reports/review-report";
 export { ROUTE_KEYS } from "./route-keys.generated";
 export { SCHEMA_SETS } from "./schema-sets.generated";
 export { capabilityStatus, CAPABILITY_KINDS } from "./setup/capabilities";

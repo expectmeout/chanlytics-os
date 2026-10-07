@@ -14,11 +14,11 @@
 import { useState } from "react";
 import { lensEmpty } from "@chanlytics/contracts";
 import type {
-  GoogleDto,
   GoogleReviewVM,
   GoogleVM,
   LensRange,
   ReviewWaitingVM,
+  ReviewsReportDto,
   ReviewsReportVM,
 } from "@chanlytics/contracts";
 import { draftReply, replyToReview } from "@/legacy-bridge/google";
@@ -328,8 +328,8 @@ function latestCard(V: ReviewsReportVM, mapsUri: string | null, operator: boolea
   );
 }
 
-/** Whether Reviews has anything to draw: this deployment can look listings up, or connect a profile, or a listing is kept (the one predicate: the lens asks it). */
-export const googleReadable = (g: GoogleDto): boolean => g.ready.places || g.ready.profile || !!g.listing;
+/** Whether Reviews has anything to draw: the read says so (the reader asks what this deployment can do only where no listing is kept). */
+export const googleReadable = (dto: ReviewsReportDto): boolean => dto.readable;
 
 /** What the section says of where its figures come from: the listing and when Google was read, the Business Profile's own words, and where the history on record starts. */
 function sectionMeta(V: ReviewsReportVM, L: NonNullable<GoogleVM["listing"]>): string {

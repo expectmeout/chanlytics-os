@@ -17,12 +17,10 @@ import {
   newReceptionistDefaults,
   personName,
   reportFacts,
-  reviewsReadSince,
   toCallVM,
   toPersonVM,
   toReportVM,
 } from "@chanlytics/contracts";
-import { reviewsLedger } from "@chanlytics/db";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
@@ -1882,7 +1880,39 @@ const googleRow = (id, published, over = {}) => ({
   last_seen_at: published,
   ...over,
 });
-const reviewsWorld = ({ listing = true } = {}) => ({
+/** What reviews_ledger answers for a workspace with the profile's two reviews: the database counts in SQL (google-reviews-ledger.db.test.mjs holds the function), the day in Auckland, where 14:00 UTC on 6 October is already the 7th. */
+const waitingRow = () => {
+  const {
+    tenant_id: _tenant,
+    last_seen_at: _seen,
+    ...drawn
+  } = googleRow(REVIEW_B, "2026-10-05T09:00:00Z", { rating: 2 });
+  return { ...drawn, held: null };
+};
+const reviewsLedgerOf = (args, { listing = true } = {}) =>
+  listing
+    ? {
+        timezone: "Pacific/Auckland",
+        today: "2026-10-07",
+        days: args.p_days,
+        on_record: { profile: 2, places: 1, oldest_day: "2026-10-04", complete: true },
+        written: [
+          { id: REVIEW_A, d: "2026-10-04", rating: 5, replied: true, secs: 21_600, by: "receptionist" },
+          { id: REVIEW_B, d: "2026-10-06", rating: 2, replied: false, secs: null, by: null },
+        ],
+        waiting_total: 1,
+        waiting: [waitingRow()],
+      }
+    : {
+        timezone: "Pacific/Auckland",
+        today: "2026-10-07",
+        days: args.p_days,
+        on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+        written: [],
+        waiting_total: 0,
+        waiting: [],
+      };
+const reviewsWorld = ({ listing = true, synced = true } = {}) => ({
   tables: {
     memberships: reportMembers(),
     tenants: [{ id: A, slug: "harbor", name: "Harbor Studio", timezone: "Pacific/Auckland" }],
@@ -1925,47 +1955,41 @@ const reviewsWorld = ({ listing = true } = {}) => ({
             location_name: "locations/1",
             location_title: "Harbor Studio",
             connected_at: "2026-08-01T12:00:00Z",
-            last_synced_at: "2026-10-06T12:00:00Z",
+            last_synced_at: synced ? "2026-10-06T12:00:00Z" : null,
             sync_error: null,
           },
         ]
       : [],
-    google_reviews: [
-      googleRow(REVIEW_A, "2026-10-03T14:00:00Z", {
-        reply_text: "Thank you, Ana!",
-        replied_at: "2026-10-03T20:00:00Z",
-      }),
-      googleRow(REVIEW_B, "2026-10-05T09:00:00Z", { rating: 2 }),
-      googleRow(REVIEW_C, "2026-10-04T09:00:00Z", { origin: "places" }),
-    ],
+    // A review and a day's reading hang off the listing (a foreign key that cascades): none without one.
+    google_reviews: listing
+      ? [
+          googleRow(REVIEW_A, "2026-10-03T14:00:00Z", {
+            reply_text: "Thank you, Ana!",
+            replied_at: "2026-10-03T20:00:00Z",
+          }),
+          googleRow(REVIEW_B, "2026-10-05T09:00:00Z", { rating: 2 }),
+          googleRow(REVIEW_C, "2026-10-04T09:00:00Z", { origin: "places" }),
+        ]
+      : [],
     // The day before the machine's own, so the 92 days the Google read keeps always hold it.
-    google_listing_days: [
-      {
-        tenant_id: A,
-        day: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
-        rating: 4.8,
-        review_count: 213,
-      },
-    ],
-    events: [
-      {
-        id: "e-reply-a",
-        tenant_id: A,
-        kind: "google.replied",
-        category: "google",
-        subject_type: "review",
-        subject_id: REVIEW_A,
-        data: { review_id: "g-01", by: "receptionist" },
-        created_at: "2026-10-03T20:00:00Z",
-      },
-    ],
+    google_listing_days: listing
+      ? [
+          {
+            tenant_id: A,
+            day: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
+            rating: 4.8,
+            review_count: 213,
+          },
+        ]
+      : [],
+    events: [],
   },
-  rpcs: {},
+  rpcs: { reviews_ledger: (args) => reviewsLedgerOf(args, { listing }) },
 });
 
-test("the reviews' report, for Ask and for the page: GET reports/reviews answers its reader's payload, key for key and byte for byte, for each preset -- Google as GET google answers it and the ledger beside it, the Reviews address of the Reports page the row a citation names", async () => {
+test("the reviews' report, for Ask and for the page: GET reports/reviews answers its reader's payload, key for key and byte for byte, for each preset -- Google as GET google reads it and the ledger the database counted beside it, no row of its own", async () => {
   const w = reviewsWorld();
-  const google = (await googleRoute.GET.run(req(`?workspace=${A}`), worldCtx(w))).google;
+  const { ready: _ready, ...google } = (await googleRoute.GET.run(req(`?workspace=${A}`), worldCtx(w))).google;
   for (const [period, days] of [
     ["7d", 7],
     ["30d", 30],
@@ -1974,12 +1998,15 @@ test("the reviews' report, for Ask and for the page: GET reports/reviews answers
     const page = await reviewsRoute.GET.run(req(`?period=${period}&workspace=${A}`), worldCtx(w));
     const r = await kernel.load(turnIn(worldCtx(w)), reviewsReport, { days });
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "the route's payload, byte for byte");
-    assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "google", "ledger"]);
+    assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "google", "readable", "ledger"]);
     assert.deepEqual([page.timezone, page.days], ["Pacific/Auckland", days]);
-    assert.equal(JSON.stringify(page.google), JSON.stringify(google), "the one Google DTO: GET google's bytes");
-    assert.deepEqual(r.rows, [
-      { kind: "page", id: "reports", route: "reports/reviews", label: `Reviews, ${days} days` },
-    ]);
+    assert.equal(
+      JSON.stringify(page.google),
+      JSON.stringify(google),
+      "the one Google read: GET google's bytes, less what this deployment can do",
+    );
+    assert.equal(page.readable, true, "a listing is kept");
+    assert.deepEqual(r.rows, [], "drawn on the Reports page, whose row the report names");
   }
   const month = await reviewsRoute.GET.run(req(`?period=month&workspace=${A}`), worldCtx(w));
   assert.ok(month.days >= 1 && month.days <= 31, "Month is the days since the 1st in the workspace's own zone");
@@ -1990,64 +2017,99 @@ test("the reviews' report, for Ask and for the page: GET reports/reviews answers
   );
 });
 
-test("the reviews' ledger is read once, as the workspace's day in its zone says: the turn's clock, never the machine's, names the day the read starts from, and only the profile's reviews, the replies and what waits are read", async () => {
+test("the reviews' ledger is the database's, asked once for the days and beside Google, whose one read serves every period of a turn: the window is the database's day, and the dashboard reads no review of the period itself", async () => {
   const w = reviewsWorld();
   const ctx = worldCtx(w);
-  // 14:00 UTC on 6 October is 03:00 on the 7th in Auckland.
+  // 14:00 UTC on 6 October is 03:00 on the 7th in Auckland, which the database says.
   const clock = new Date("2026-10-06T14:00:00Z");
-  const r = await kernel.load(kernel.readerContext(ctx, { tenantId: A, role: "viewer" }, clock), reviewsReport, {
-    days: 30,
-  });
+  const turn = kernel.readerContext(ctx, { tenantId: A, role: "viewer" }, clock);
+  const r = await kernel.load(turn, reviewsReport, { days: 30 });
   assert.deepEqual([r.data.timezone, r.data.today, r.data.days], ["Pacific/Auckland", "2026-10-07", 30]);
-  const since = reviewsReadSince("2026-10-07", 30);
+  assert.deepEqual(r.data.ledger, reviewsLedgerOf({ p_days: 30 }), "the database's answer, as it answered");
   assert.deepEqual(
-    selects(ctx, "google_reviews")
-      .flatMap((q) => q.filters)
-      .filter(([op, col]) => op === "gte" && col === "published_at"),
-    [["gte", "published_at", since]],
-    "one read of the period's reviews, from the day before the period before begins",
+    ctx.supabase.seen.filter((q) => q.rpc),
+    [{ rpc: "reviews_ledger", args: { p_tenant_id: A, p_days: 30 } }],
   );
-  assert.deepEqual(r.data.ledger, await reviewsLedger(fakeDb(w.tables), A, since), "reviewsLedger's own answer");
-  assert.deepEqual(
-    r.data.ledger.written.map((x) => x.id),
-    [REVIEW_A, REVIEW_B],
-    "the profile's, not the public five",
-  );
-  assert.deepEqual(
-    r.data.ledger.waiting.map((x) => x.id),
-    [REVIEW_B],
-  );
-  assert.deepEqual(r.data.ledger.replies, [{ review_id: REVIEW_A, by: "receptionist", at: "2026-10-03T20:00:00Z" }]);
-  assert.deepEqual(r.data.ledger.on_record, { profile: 2, places: 1, oldest_at: "2026-10-03T14:00:00Z" });
   assert.deepEqual(
     [r.data.google.listing.name, r.data.google.reply_mode, r.data.google.reviews.length],
     ["Harbor Studio", "auto", 3],
     "Google as GET google reads it: the Autonomy row for reviews rides along",
   );
+  assert.equal(r.data.ledger.waiting[0].id, REVIEW_B);
   assert.deepEqual(
-    asked(ctx).filter((q) => q === "tenants.select"),
-    ["tenants.select"],
-    "the zone is read once, with Google beside it",
+    asked(ctx).sort(),
+    [
+      "google_connections.select",
+      "google_listing_days.select",
+      "google_listings.select",
+      "google_reviews.select",
+      "policies.select",
+      "rpc:reviews_ledger",
+    ],
+    "the lens is six requests, made at once: the four of Google, the Autonomy row and the ledger",
+  );
+  assert.equal(
+    selects(ctx, "google_reviews").length,
+    1,
+    "the newest twenty, once; the period's reviews are the database's",
+  );
+  assert.deepEqual(
+    asked(ctx).filter((q) => q.startsWith("events") || q === "tenants.select"),
+    [],
+    "no event and no zone is read by the dashboard: the function says both",
+  );
+  // The report at three periods in one turn (Ask's report tool) reads Google once.
+  for (const days of [7, 90]) await kernel.load(turn, reviewsReport, { days });
+  for (const table of ["google_listings", "google_connections", "google_reviews", "google_listing_days", "policies"])
+    assert.equal(selects(ctx, table).length, 1, `${table}: read once for the turn`);
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc).map((q) => q.args.p_days),
+    [30, 7, 90],
+    "the ledger is of the days asked",
   );
 });
 
-test("the reviews' report of a workspace with no listing answers `ledger: null` and reads no review; a ledger that cannot be read is the route's failure, never a null -- no listing and could not read are not one answer", async () => {
+test("the reviews' report keeps no ledger where no profile has synced: the five public reviews are no record, and the day is the turn's", async () => {
+  const w = reviewsWorld({ synced: false });
+  const ctx = worldCtx(w);
+  const clock = new Date("2026-10-06T14:00:00Z");
+  const r = await kernel.load(kernel.readerContext(ctx, { tenantId: A, role: "viewer" }, clock), reviewsReport, {
+    days: 30,
+  });
+  assert.equal(r.data.ledger, null);
+  assert.deepEqual([r.data.timezone, r.data.today, r.data.days], ["Pacific/Auckland", "2026-10-07", 30]);
+  assert.equal(r.data.readable, true);
+  assert.equal(asked(ctx).filter((q) => q === "tenants.select").length, 1, "the zone is the turn's, read once");
+});
+
+test("the reviews' report of a workspace with no listing answers `ledger: null`; a ledger that cannot be read is the route's failure and a function with no workspace is its 404 -- no listing, could not read and not found are three answers", async () => {
   const none = reviewsWorld({ listing: false });
   const ctx = worldCtx(none);
   const r = await kernel.load(turnIn(ctx), reviewsReport, { days: 30 });
   assert.equal(r.data.ledger, null);
   assert.deepEqual([r.data.google.listing, r.data.google.reviews, r.data.google.days], [null, [], []]);
+  assert.equal(r.data.readable, false, "none is kept and this deployment can look none up");
   assert.deepEqual(
-    asked(ctx).filter((q) => q.startsWith("google_reviews") || q.startsWith("events")),
+    asked(ctx).filter((q) => q.startsWith("events")),
     [],
-    "no listing, no review and no event read",
+    "no event is read",
   );
   assert.deepEqual(await reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(none)), r.data);
 
-  const down = { "events.select": { message: "connection refused" } };
-  const failed = /reviewsLedger replies: connection refused/;
-  await assert.rejects(kernel.load(turnIn(worldCtx(reviewsWorld(), down)), reviewsReport, { days: 30 }), failed);
-  await assert.rejects(reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(reviewsWorld(), down)), failed);
+  const down = {
+    ...reviewsWorld(),
+    rpcs: {
+      reviews_ledger: () => {
+        throw new Error("connection refused");
+      },
+    },
+  };
+  const failed = /reviews_ledger: connection refused/;
+  await assert.rejects(kernel.load(turnIn(worldCtx(down)), reviewsReport, { days: 30 }), failed);
+  await assert.rejects(reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(down)), failed);
+  const unknown = { ...reviewsWorld(), rpcs: { reviews_ledger: () => ({ error: "unknown_tenant" }) } };
+  await assert.rejects(kernel.load(turnIn(worldCtx(unknown)), reviewsReport, { days: 30 }), noReport);
+  await assert.rejects(reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(unknown)), noReport);
 });
 
 /* ----------------------------------------------------------------------- the calendar (PR 1.5) */

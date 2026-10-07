@@ -7,16 +7,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
-import {
-  DEALS,
-  REVIEWS_NOW,
-  campaignDto,
-  cday,
-  reviewsDto,
-  reviewsGoogle,
-  reviewsLedger,
-  surface,
-} from "../_report-world.mjs";
+import { DEALS, REVIEWS_NOW, campaignDto, cday, reviewsDto, reviewsGoogle, surface } from "../_report-world.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.window.fetch = async () =>
@@ -89,21 +80,8 @@ const held = (dto) => ({
   period: "7d",
   fetchedAt: 1,
 });
-/** Google's public listing alone: the five reviews it shows, the Business Profile not connected. */
-const PUBLIC_LISTING = held(
-  reviewsDto({
-    days: 7,
-    google: GOOGLE,
-    ledger: reviewsLedger({
-      written: [],
-      on_record: { profile: 0, places: 1, oldest_at: null },
-      waiting_total: 0,
-      waiting: [],
-      replies: [],
-      held: [],
-    }),
-  }),
-);
+/** Google's public listing alone: the five reviews it shows, the Business Profile not connected, and so no ledger. */
+const PUBLIC_LISTING = held(reviewsDto({ days: 7, google: GOOGLE, ledger: null }));
 /** Harbor Studio with its Business Profile synced: the reviews on record are counted. */
 const PROFILE_SYNCED = held(reviewsDto({ days: 7, google: reviewsGoogle() }));
 const draw = (lens, R, reviews = PUBLIC_LISTING) => {

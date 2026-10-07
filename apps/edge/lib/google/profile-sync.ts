@@ -125,7 +125,7 @@ export async function syncProfile(
   }
   const done = await db
     .from("google_connections")
-    .update({ last_synced_at: plan.synced_at, sync_error: null })
+    .update({ last_synced_at: plan.synced_at, sync_error: null, reviews_complete: plan.complete })
     .eq("tenant_id", conn.tenant_id);
   if (done.error) throw new Error(done.error.message);
   for (const b of plan.bells) {

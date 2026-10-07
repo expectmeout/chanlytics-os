@@ -351,6 +351,16 @@ const RPCS = {
     sentiments: {},
     voicemail: 0,
   }),
+  // The Reviews lens's ledger, which the report reads beside the series (readers/report.ts reviewsReport): nothing on record.
+  reviews_ledger: ({ p_days: days }) => ({
+    timezone: TZ,
+    today: dayKey(NOW.getTime()),
+    days,
+    on_record: { profile: 0, places: 0, oldest_day: null, complete: false },
+    written: [],
+    waiting_total: 0,
+    waiting: [],
+  }),
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
   lead_niche_prior: () => null,
 };
@@ -527,16 +537,24 @@ function withCampaigns(result) {
 
 /**
  * 7 Oct 2026 (Reports phase C, lens 1, T4): the report says the Reviews lens after the Campaigns lens, from the lens's own
- * read (readers/report.ts reviewsReport: Google as GET google reads it, and the reviews on record where a listing is
- * linked). This world has no Google listing, so it says `linked: false`, and the read is three reads more: the listing, the
- * connection and the Autonomy row for reviews (the zone is the turn's, read once). The one change to the bytes and to the
- * reads of a report it answers.
+ * read (readers/report.ts reviewsReport: Google as GET google reads it, and the reviews the database counted where a
+ * profile has synced). This world has no Google listing, so it says `linked: false` and the fold's words for it (none yet),
+ * and the read is six reads more: the ledger function, the listing, the connection, the newest reviews, the daily readings
+ * and the Autonomy row for reviews. The one change to the bytes and to the reads of a report it answers.
  */
 function withReviews(result) {
   const said = JSON.parse(result);
-  return said.error ? result : JSON.stringify({ ...said, reviews: { linked: false } });
+  return said.error ? result : JSON.stringify({ ...said, reviews: { linked: false, words: null } });
 }
-const withReviewReads = (reads) => [...reads, "google_listings.select", "google_connections.select", "policies.select"];
+const withReviewReads = (reads) => [
+  ...reads,
+  "rpc:reviews_ledger",
+  "google_listings.select",
+  "google_connections.select",
+  "google_reviews.select",
+  "google_listing_days.select",
+  "policies.select",
+];
 
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
@@ -787,7 +805,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       NAMES[old] === "people.get" && !reachReads.includes("decisions.select")
         ? [...reachReads, "decisions.select"]
         : reachReads;
-    // 7 Oct 2026 (Reports phase C, lens 1, T4): the report reads the Reviews lens too: three reads more (withReviewReads).
+    // 7 Oct 2026 (Reports phase C, lens 1, T4): the report reads the Reviews lens too: six reads more (withReviewReads).
     const reads = NAMES[old] === "report" ? withReviewReads(personReads) : personReads;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"

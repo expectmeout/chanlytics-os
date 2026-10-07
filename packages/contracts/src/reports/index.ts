@@ -55,7 +55,13 @@ export {
 } from "./lenses";
 export type { LensId, LensRow, LensRange, LensEmpty, LensWho } from "./lenses";
 export { lensAnswerOf } from "./lens-answer";
-export { toReviewsReportVM, reviewsWindowOf, reviewsReadSince, REVIEWS_WAITING_SHOWN } from "./review-report";
+export {
+  toReviewsReportVM,
+  reviewsWindowOf,
+  reviewsAreOnRecord,
+  isReviewsLedgerDto,
+  REVIEWS_WAITING_SHOWN,
+} from "./review-report";
 export type {
   ReviewsLedgerDto,
   ReviewsReportDto,

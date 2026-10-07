@@ -34,6 +34,7 @@ import {
   PLACES_SEARCH_MASK,
   PLACES_DETAILS_MASK,
   PLACES_SEARCH_LIMIT,
+  GBP_REVIEWS_MAX_PAGES,
 } from "@chanlytics/channels";
 import { lensRoute, localDate } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
@@ -212,6 +213,7 @@ const connRow = (over = {}) => ({
   connected_at: ago(DAY),
   last_synced_at: ago(22 * HOUR),
   sync_error: null,
+  reviews_complete: false,
   ...over,
 });
 /** A review on record, from the profile, unanswered. */
@@ -1020,6 +1022,11 @@ test("connect: the code from Google becomes the connection -- the token traded w
     [PLACE, "Harbor Moving", 4.7, 12],
     "the listing carries the profile's numbers now",
   );
+  assert.equal(
+    tables.google_connections.find((c) => c.tenant_id === A).reviews_complete,
+    true,
+    "Google's list of the location's reviews ended on that first pass: the record is every review",
+  );
 
   assert.deepEqual(
     net.asked(),
@@ -1544,6 +1551,36 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   assert.ok(
     !net.calls.some((c) => c.url.startsWith("https://places.googleapis.com")),
     "with the profile connected the reviews come from there: the public listing is not read here",
+  );
+  assert.equal(
+    tables.google_connections[0].reviews_complete,
+    true,
+    "Google's list ended on this pass (no page left): the reviews on record are all of them",
+  );
+
+  // A location with more reviews than the pages the sync may read: the list does not end, and the record says it is not whole.
+  net = wired((req) => {
+    const u = req.url.split("?")[0];
+    if (u === TOKEN_URL)
+      return { status: 200, body: { access_token: "at-newer", expires_in: 3600, scope: SCOPE, token_type: "Bearer" } };
+    if (u === REVIEWS_URL("accounts/111", "222"))
+      return {
+        status: 200,
+        body: { reviews: [GBP_REVIEW], averageRating: 4.8, totalReviewCount: 900, nextPageToken: "more" },
+      };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  const [s3] = await answer(await knock({ op: "refresh" }));
+  assert.equal(s3, 200);
+  assert.equal(
+    net.calls.filter((c) => c.url.startsWith(REVIEWS_URL("accounts/111", "222"))).length,
+    GBP_REVIEWS_MAX_PAGES,
+    "the pages it may read, and no more",
+  );
+  assert.equal(
+    tables.google_connections[0].reviews_complete,
+    false,
+    "Google's list had a page left when the pages ran out: the record is the newest reviews, not every one",
   );
 });
 

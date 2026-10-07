@@ -38,11 +38,11 @@ what the script writes.
 | [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
-| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/reports/review-report.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
+| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
 | [`google_listings`](#google_listings) | none | on, 1 policy |
-| [`google_reviews`](#google_reviews) | `packages/db/src/repositories/reports/review-report.ts` | on, 1 policy |
+| [`google_reviews`](#google_reviews) | none | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
 | [`invitations`](#invitations) | none | on, 1 policy |
 | [`job_capacity`](#job_capacity) | none | on, no policy, so only the service role reaches it |
@@ -821,7 +821,7 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 
 ### events
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/reports/review-report.ts`, `packages/db/src/repositories/sending-domains.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts`
 - Primary key: `id`, `created_at`
 - Row-level security: on, 1 policy
 - Partitioned by range (created_at): `events_default` (default); and one per month, `events_yYYYYmMM`, made as the months come (not in the snapshot)
@@ -871,6 +871,7 @@ A workspace's Google Business Profile, connected by its owner: the account, the 
 | `facts` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `reviews_complete` | boolean | no | `false` | True when the last successful sync read the whole of Google's list of this location's reviews (no page was left), so the reviews on record are all of them; false when it stopped at its page limit, and before the first sync. |
 
 Foreign keys:
 
@@ -941,7 +942,7 @@ Foreign keys:
 
 Reviews of the workspace's listing as Google showed them, one row per review, kept from the first time it was seen. Members read; the edge writes.
 
-- Owned by: `packages/db/src/repositories/reports/review-report.ts`
+- Owned by: none
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

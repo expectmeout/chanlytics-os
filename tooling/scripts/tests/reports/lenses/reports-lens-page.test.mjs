@@ -63,7 +63,8 @@ const REVIEWS_NONE = held(reviewsDto({ days: 7, google: reviewsGoogle(NOTHING_LI
 const REVIEWS_UNLINKED = held(
   reviewsDto({
     days: 7,
-    google: reviewsGoogle({ ...NOTHING_LINKED, ready: { places: false, profile: false } }),
+    google: reviewsGoogle(NOTHING_LINKED),
+    readable: false,
     ledger: null,
   }),
 );

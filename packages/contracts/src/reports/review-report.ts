@@ -11,8 +11,8 @@
  * A review is on the day Google dates it, in the workspace's zone. A count over the profile's reviews is exact only where
  * the history on record reaches the period's first day; where it does not, the figure is a dash and the words say where the
  * history starts, never a zero. The sentence at the head of the lens, the lines under its cards and the figures are made
- * once, here, from one read (reviewsReadSince bounds it): the page, the head and Ask say what this says. Pure: the reader
- * feeds it rows, the tests feed it fixtures.
+ * once, here, from one read (the database's reviews_ledger, which bounds it): the page, the head and Ask say what this
+ * says. Pure: the reader feeds it rows, the tests feed it fixtures.
  */
 import { mondayOf, shiftKey } from "../calendar/day-keys";
 import { zoneDayKey } from "../shared/clock";
@@ -24,8 +24,8 @@ import {
   reviewsFromProfile,
   toGoogleReviewVM,
   toGoogleVM,
-  type GoogleDto,
   type GoogleListingDto,
+  type GoogleReadDto,
   type GoogleReviewDto,
   type GoogleReviewVM,
   type GoogleVM,
@@ -40,56 +40,85 @@ export const REVIEWS_WAITING_SHOWN = 5;
 /** A middle time needs this many replies to be said: two are an anecdote. */
 const REVIEW_REPLY_TIME_MIN = 3;
 
-/** One profile review as the period's counts read it. */
+/** One profile review as the period's counts read it, the day and the writer already said by the database. */
 interface ReviewWrittenDto {
   /** The google_reviews row's id: the subject the reply events are filed under, not Google's own review id. */
   id: string;
+  /** The day Google dates it, in the workspace's zone: "2026-10-06". */
+  d: string;
   rating: number | null;
-  published_at: string | null;
-  has_reply: boolean;
-  /** When the reply was written, or last changed (Google's updateTime on it). */
-  replied_at: string | null;
-}
-
-/** One `google.replied` event: the review row it was filed under, who wrote the reply, and when. */
-interface ReviewReplyEventDto {
-  review_id: string;
-  /** "receptionist" where the automatic mode wrote it; a reply written through Chanlytics by a person files none. */
+  /** Whether it holds a reply. */
+  replied: boolean;
+  /** From the review being written to its reply, in seconds; null where the reply is not there or is dated before the review. */
+  secs: number | null;
+  /** "receptionist" where the last reply Chanlytics recorded under it was the automatic mode's and is the one on Google; no one else is recorded. */
   by: "receptionist" | null;
-  at: string;
 }
 
-/** One `google.reply_held` event: the review row it was filed under and why the reply was not posted ("price" or "money"). */
-interface ReviewHeldDto {
-  review_id: string;
-  why: string;
+/** A review that waits for a reply as the database lists it: the Google read's own columns, and why a reply written for it was held. */
+interface ReviewWaitingDto extends GoogleReviewDto {
+  /** google.reply_held's `why` ("price" or "money") of the last reply written for it and not posted; null where none was held. */
+  held: string | null;
 }
 
-/** What the profile's reviews hold, read once and bounded (reviewsReadSince). */
+/**
+ * What the profile's reviews hold, read once by the database in the workspace's own zone (reviews_ledger, 00346): the
+ * window it is of, the counts the record holds, the reviews of the period and the one before it, and the ones that wait.
+ */
 export interface ReviewsLedgerDto {
-  /** The profile reviews dated since `reviewsReadSince`, as the counts read them. */
+  timezone: string;
+  /** The workspace's day in that zone when the read was made: "2026-10-06". */
+  today: string;
+  /** The period the ledger was read for, as the database clamped it. */
+  days: number;
+  on_record: {
+    /** How many profile reviews and how many of the public listing's the workspace holds. */
+    profile: number;
+    places: number;
+    /** The day the oldest dated profile review was written, in the zone; null with none dated. */
+    oldest_day: string | null;
+    /** Whether the profile's last sync read the whole of Google's list, so the record is every review (google_connections.reviews_complete). */
+    complete: boolean;
+  };
+  /** The profile reviews dated from the period before's first day to now, oldest first. */
   written: ReviewWrittenDto[];
-  /** How many reviews of each origin the workspace holds, and when the oldest dated profile review was written. */
-  on_record: { profile: number; places: number; oldest_at: string | null };
   /** The profile reviews with no reply, however old. */
   waiting_total: number;
-  /** The oldest of them first, at most REVIEWS_WAITING_SHOWN. */
-  waiting: GoogleReviewDto[];
-  /** The `google.replied` events of the reviews in `written`. */
-  replies: ReviewReplyEventDto[];
-  /** The `google.reply_held` events of the reviews in `waiting`. */
-  held: ReviewHeldDto[];
+  /** The oldest of them first, at most REVIEWS_WAITING_SHOWN, the ones with no date last. */
+  waiting: ReviewWaitingDto[];
 }
 
-/** What `GET /api/v1/reports/reviews` returns: Google's own read, and the ledger beside it when a listing is linked. */
+/** Whether the database answered a Reviews ledger (reviews_ledger): the window and the reviews, and not its own `{ error }`. */
+export function isReviewsLedgerDto(answer: unknown): answer is ReviewsLedgerDto {
+  return (
+    typeof answer === "object" &&
+    answer !== null &&
+    "timezone" in answer &&
+    typeof answer.timezone === "string" &&
+    "today" in answer &&
+    typeof answer.today === "string" &&
+    "days" in answer &&
+    typeof answer.days === "number" &&
+    "on_record" in answer &&
+    typeof answer.on_record === "object" &&
+    "written" in answer &&
+    Array.isArray(answer.written) &&
+    "waiting" in answer &&
+    Array.isArray(answer.waiting)
+  );
+}
+
+/** What `GET /api/v1/reports/reviews` returns: Google's own read, and the ledger beside it when the Business Profile has synced. */
 export interface ReviewsReportDto {
   timezone: string;
   /** The workspace's day in that zone when the read was made: "2026-10-06". */
   today: string;
-  /** The period the ledger was read for. */
+  /** The period the report is of. */
   days: number;
-  google: GoogleDto;
-  /** Null with no listing. */
+  google: GoogleReadDto;
+  /** Whether the lens has anything to draw: a listing is kept, or this deployment can look one up or connect a profile. */
+  readable: boolean;
+  /** Null without a listing linked and a Business Profile synced: the reviews on record are then the five Google shows. */
   ledger: ReviewsLedgerDto | null;
 }
 
@@ -167,18 +196,18 @@ export interface ReviewsReportVM {
   };
 }
 
+/**
+ * Whether the report is made from the reviews on record: a listing is linked and the owner's Business Profile has synced.
+ * The one test, for the reader that asks the database for the ledger and for the fold that counts it.
+ */
+export function reviewsAreOnRecord(google: Pick<GoogleReadDto, "listing" | "connection">): boolean {
+  return google.listing !== null && reviewsFromProfile(google.connection);
+}
+
 /** The days of a period at a business day, and of the one before it. */
 export function reviewsWindowOf(today: string, days: number): { since: string; priorSince: string } {
   const since = shiftKey(today, -(days - 1));
   return { since, priorSince: shiftKey(since, -days) };
-}
-
-/**
- * How far back the one read goes, as an instant: UTC midnight, a day before the period before begins, so the zone the
- * workspace keeps (up to fourteen hours either side of UTC) decides where a day starts, here, and not in the read.
- */
-export function reviewsReadSince(today: string, days: number): string {
-  return `${shiftKey(reviewsWindowOf(today, days).priorSince, -1)}T00:00:00.000Z`;
 }
 
 /** What the profile's reviews on record cover: all of them back to the first, or those written from `from` on. */
@@ -188,11 +217,15 @@ interface ReviewsHistory {
   from: string | null;
 }
 
-/** The record is complete when the workspace holds as many profile reviews as Google counts; else it starts at the oldest. */
+/**
+ * The record is complete when the sync read the whole of Google's list; else it reaches from the day the connection began,
+ * for the sync reads the newest reviews from then on (neither Google's count, which two writers keep on different bases, nor
+ * the oldest review's date, which the newest-first read leaves with gaps, says where a record begins).
+ */
 function reviewsHistoryOf(dto: ReviewsReportDto, ledger: ReviewsLedgerDto): ReviewsHistory {
-  if (ledger.on_record.profile >= (dto.google.listing?.review_count ?? 0)) return { complete: true, from: null };
-  const oldest = ledger.on_record.oldest_at ? Date.parse(ledger.on_record.oldest_at) : NaN;
-  return { complete: false, from: Number.isNaN(oldest) ? null : zoneDayKey(oldest, dto.timezone) };
+  if (ledger.on_record.complete) return { complete: true, from: null };
+  const began = dto.google.connection ? Date.parse(dto.google.connection.connected_at) : NaN;
+  return { complete: false, from: Number.isNaN(began) ? null : zoneDayKey(began, dto.timezone) };
 }
 
 const historyReaches = (h: ReviewsHistory, day: string): boolean => h.complete || (h.from !== null && h.from <= day);
@@ -208,46 +241,29 @@ interface DatedReview {
   hasReply: boolean;
   /** From the review being written to its reply, in seconds; null where either time is missing or the reply is dated first. */
   replySeconds: number | null;
+  /** Who wrote the reply on Google, where Chanlytics recorded it: the receptionist, or no one. */
+  by: "receptionist" | null;
 }
 
-/** The reviews that have a date, each on its business day; a review with none is in no period. */
-function reviewsDatedOf(rows: readonly ReviewWrittenDto[], timezone: string): DatedReview[] {
-  return rows.flatMap((r): DatedReview[] => {
-    const wrote = r.published_at ? Date.parse(r.published_at) : NaN;
-    if (Number.isNaN(wrote)) return [];
-    const replied = r.replied_at ? Date.parse(r.replied_at) : NaN;
-    const timed = r.has_reply && !Number.isNaN(replied) && replied >= wrote;
-    return [
-      {
-        id: r.id,
-        rating: r.rating,
-        day: zoneDayKey(wrote, timezone),
-        hasReply: r.has_reply,
-        replySeconds: timed ? (replied - wrote) / 1000 : null,
-      },
-    ];
-  });
-}
-
-/** The latest `google.replied` event of each review: its writer, where the event names one. */
-function reviewsWritersOf(events: readonly ReviewReplyEventDto[]): Map<string, "receptionist" | null> {
-  const last = new Map<string, { at: number; by: "receptionist" | null }>();
-  for (const e of events) {
-    const parsed = Date.parse(e.at);
-    const at = Number.isNaN(parsed) ? -Infinity : parsed;
-    const seen = last.get(e.review_id);
-    if (!seen || at >= seen.at) last.set(e.review_id, { at, by: e.by });
-  }
-  return new Map([...last].map(([id, v]) => [id, v.by]));
+/** The reviews the database dated, each on its business day (a review with no date is in no period, and not among them). */
+function reviewsDatedOf(rows: readonly ReviewWrittenDto[]): DatedReview[] {
+  return rows.map((r) => ({
+    id: r.id,
+    rating: r.rating,
+    day: r.d,
+    hasReply: r.replied,
+    replySeconds: r.secs,
+    by: r.by,
+  }));
 }
 
 /** The counts of a period's reviews that say who answered and how fast. */
-function reviewsAnswersOf(current: readonly DatedReview[], writers: Map<string, "receptionist" | null>) {
+function reviewsAnswersOf(current: readonly DatedReview[]) {
   const answered = current.filter((r) => r.hasReply);
   const waits = answered.flatMap((r) => (r.replySeconds === null ? [] : [r.replySeconds])).sort((a, b) => a - b);
   return {
     answered: answered.length,
-    receptionist: answered.filter((r) => writers.get(r.id) === "receptionist").length,
+    receptionist: answered.filter((r) => r.by === "receptionist").length,
     timed: waits.length,
     replySeconds: waits.length >= REVIEW_REPLY_TIME_MIN ? quantile(waits, 0.5) : null,
   };
@@ -441,7 +457,7 @@ const NO_LINES: ReviewsReportVM["lines"] = {
 /** What the period holds of the profile's reviews on record, counted once. */
 function reviewsPeriodOf(dto: ReviewsReportDto, ledger: ReviewsLedgerDto, days: number) {
   const { since, priorSince } = reviewsWindowOf(dto.today, days);
-  const dated = reviewsDatedOf(ledger.written, dto.timezone);
+  const dated = reviewsDatedOf(ledger.written);
   const current = dated.filter((r) => r.day >= since && r.day <= dto.today);
   const history = reviewsHistoryOf(dto, ledger);
   const mix = reviewsStarMixOf(current);
@@ -451,7 +467,7 @@ function reviewsPeriodOf(dto: ReviewsReportDto, ledger: ReviewsLedgerDto, days: 
     priorExact: historyReaches(history, priorSince),
     written: current.length,
     prior: dated.filter((r) => r.day >= priorSince && r.day < since).length,
-    ...reviewsAnswersOf(current, reviewsWritersOf(ledger.replies)),
+    ...reviewsAnswersOf(current),
     rated: mix.rated,
     good: mix.good,
     history,
@@ -461,9 +477,8 @@ function reviewsPeriodOf(dto: ReviewsReportDto, ledger: ReviewsLedgerDto, days: 
 
 /** The oldest reviews with no reply, each with the reason a reply written for it was held, where one was. */
 function reviewsWaitingOf(ledger: ReviewsLedgerDto, linkedAt: string, nowMs: number): ReviewsReportVM["waiting"] {
-  const whyHeld = new Map(ledger.held.map((h) => [h.review_id, h.why]));
   const rows = ledger.waiting.slice(0, REVIEWS_WAITING_SHOWN).map((r): ReviewWaitingVM => {
-    const why = reviewHeldWords(whyHeld.get(r.id));
+    const why = reviewHeldWords(r.held);
     return {
       ...toGoogleReviewVM(r, linkedAt, nowMs),
       held: why ? `The receptionist wrote a reply and held it: ${why}.` : null,
@@ -543,8 +558,7 @@ export function toReviewsReportVM(dto: ReviewsReportDto, opts: { nowMs?: number 
       latestTable: googleReviewsTable([]),
       lines: NO_LINES,
     };
-  if (ledger && reviewsFromProfile(dto.google.connection))
-    return reviewsFromLedger({ dto, ledger, google, l, days, nowMs });
+  if (ledger && reviewsAreOnRecord(dto.google)) return reviewsFromLedger({ dto, ledger, google, l, days, nowMs });
   const onRecord = ledger ? ledger.on_record.profile + ledger.on_record.places : dto.google.reviews.length;
   return {
     ...base,
