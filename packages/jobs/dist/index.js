@@ -19,6 +19,7 @@ var MAX_ATTEMPTS = 3;
 var MAX_RESUMES = 5;
 var RELAY_LIMIT = 500;
 var SPEAKS_TO_A_PERSON = /* @__PURE__ */ new Set(["outbound_send", "broadcast_send"]);
+var TOLD_ELSEWHERE = /* @__PURE__ */ new Set(["inbound_answer"]);
 var RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 function verdictFor(job) {
   if (job.attempts <= 1) return "run";
@@ -56,7 +57,11 @@ var RETRY_WAITS_MS = {
   booking_read: [2 * MIN_MS, 10 * MIN_MS],
   // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
   // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
-  event_deliver: [2 * MIN_MS, 10 * MIN_MS]
+  event_deliver: [2 * MIN_MS, 10 * MIN_MS],
+  // A text answered after its acknowledgement (00347): a thrown read or write is the database's bad minute. One more
+  // try, after a wait that outlasts the lease; a second throw fails it, and the deadman sweep then hands the message to
+  // a person (lib/receptionist/unfinished.ts), as it would a turn that died in the door.
+  inbound_answer: [2 * MIN_MS]
 };
 function retryWait(job, random = Math.random) {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
@@ -112,6 +117,8 @@ function dedupeKeyOf(kind, payload) {
     // provider's webhook replayed, finds the read already on the ledger.
     case "booking_read":
       return field("received_id") ? `booking_read:${field("received_id")}` : null;
+    case "inbound_answer":
+      return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
     default:
       return null;
   }
@@ -137,7 +144,7 @@ async function scheduleJobOnce(db, p) {
   if (error?.code === "PGRST204" && key) ({ error } = await insert(null));
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
-  throw new Error(`schedule_job: ${error.message}`);
+  throw Object.assign(new Error(`schedule_job: ${error.message}`), { code: error.code });
 }
 async function cancelJobsFor(db, tenantId, kind, payloadKey, payloadValue) {
   if (!/^[a-z][a-z0-9_]*$/.test(payloadKey)) throw new Error(`cancel_jobs_for: ${payloadKey} is not a payload key`);
@@ -263,6 +270,7 @@ import {
   sendBroadcastBatch
 } from "../../core/dist/index.js";
 import {
+  appointmentStates,
   campaignMonthSent,
   emitEvent,
   insertQueuedEmail,
@@ -387,6 +395,8 @@ function peoplePorts(ctx, tenantId) {
       if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
       return new Map((data ?? []).map((c) => [c.id, c]));
     },
+    // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
+    appointments: (keys) => appointmentStates(db, tenantId, keys),
     // create: false — a broadcast never opens a contact. touch: false — the
     // door below still has to refuse some of these people, and a thread they
     // were not messaged in has nothing new in it.
@@ -1169,6 +1179,10 @@ async function eventDeliver(ctx, job) {
   }
   await settle("done", null);
 }
+async function inboundAnswer(ctx, job) {
+  if (!ctx.inbound) throw new Error("inbound_answer: this runtime holds no receptionist");
+  await ctx.inbound.answer(job);
+}
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -1181,7 +1195,8 @@ var HANDLERS = {
   push_receipts: pushReceipts,
   reply_read: replyRead,
   event_deliver: eventDeliver,
-  booking_read: bookingRead
+  booking_read: bookingRead,
+  inbound_answer: inboundAnswer
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];
@@ -1479,6 +1494,7 @@ async function conclude(ports, job, reason, certain, end) {
     attempts: job.attempts,
     reason
   });
+  if (TOLD_ELSEWHERE.has(job.kind)) return;
   try {
     const words = jobNewsWords(job.kind, end, { attempts: job.attempts, resumed });
     const reference = `Reference: job ${job.id} (${job.kind}): ${reason}.`;

@@ -6018,6 +6018,17 @@ export type Database = {
         }[]
       }
       ai_usage_purge: { Args: { p_keep?: string }; Returns: number }
+      appointments_feed_sync: {
+        Args: {
+          p_from: string
+          p_now?: string
+          p_rows: Json
+          p_tenant_id: string
+          p_timezone: string
+          p_to: string
+        }
+        Returns: Json
+      }
       appointments_scrub: {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
@@ -7178,6 +7189,17 @@ export type Database = {
         }[]
       }
       person_doubt_dismiss: { Args: { p_doubt_id: string }; Returns: Json }
+      person_link_lead: {
+        Args: {
+          p_assurance: string
+          p_contact_id: string
+          p_made?: boolean
+          p_skip_lead?: string
+          p_source: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       person_moments_check: {
         Args: { p_after?: string; p_limit?: number; p_tenant_id: string }
         Returns: {

@@ -260,11 +260,11 @@ test(
   "a person a lead names who then writes first: the lead's own event is written before their message, so the lead is their first touch and the message finds it taken, written once",
   { skip },
   async () => {
-    // contacts_link_lead (00140) runs inside ingest_inbound, between the person's insert and the message's: it converts
-    // the lead onto the person and writes their contact.added event, whose source is `lead`. 00307's trigger
-    // (events_note_first_touch) reads that event as it is written, so the order of the writers in that transaction is the
-    // lead's event, then the message: the lead stands and the message finds the touch taken (People's came_from reads a
-    // lead first, too). That conversion's event names no lead id, so the ref is null.
+    // The door's link (person_link_lead, 00346) runs inside ingest_inbound, between the person's insert and the
+    // message's: it converts the lead onto the person and writes their contact.added event, whose source is `lead`.
+    // 00307's trigger (events_note_first_touch) reads that event as it is written, so the order of the writers in that
+    // transaction is the lead's event, then the message: the lead stands and the message finds the touch taken (People's
+    // came_from reads a lead first, too). The event names the lead, so the ref is the lead's id.
     const number = newPhone();
     const lead = ok(
       await db
@@ -295,11 +295,15 @@ test(
     );
     assert.deepEqual(
       await touchOf(first.contact_id),
-      ["lead", null],
+      ["lead", lead.id],
       "the lead's event came first and wrote it; the message, whose own wire would have been whatsapp, found it taken",
     );
     await arrive({ number, channel: "sms", meta: { raw_type: "text" } });
-    assert.deepEqual(await touchOf(first.contact_id), ["lead", null], "written once: a second touch changes nothing");
+    assert.deepEqual(
+      await touchOf(first.contact_id),
+      ["lead", lead.id],
+      "written once: a second touch changes nothing",
+    );
   },
 );
 

@@ -248,14 +248,15 @@ function recipientFacts(r: Run, goesAt: Date): (person: PersonRowVM) => Record<s
     const day = v ? visitMomentDay(p.trigger, v.timezone, ctx.now.getTime()) : null;
     const tomorrow = p.trigger === "visit_tomorrow";
     const onDay = v && day ? visitOnDay(v, day, tomorrow ? "next" : "last", (via) => theirs(person, via)) : null;
+    const visit = onDay ?? (tomorrow ? (v?.next ?? null) : (v?.last ?? null));
     // The service alone: the person's own name comes out of the event's title (visitFactsFor).
-    return visitFactsFor(
-      p.trigger,
-      onDay ?? (tomorrow ? (v?.next ?? null) : (v?.last ?? null)),
-      ctx.tz,
-      [person.givenName, person.waName],
-      goesAt,
-    );
+    const words = visitFactsFor(p.trigger, visit, ctx.tz, [person.givenName, person.waName], goesAt);
+    // Which appointment the words are about, when it starts, and when the run read it from the calendar (the context's
+    // now), so the send asks its row again (decision 0002, contracts appointmentHolds): a reminder never goes for one
+    // that moved or was cancelled since the run, and the record's older word never holds one the run saw newer.
+    return words && visit?.key
+      ? { ...words, appointment: visit.key, visit_start: visit.start, appointment_read_at: ctx.now.toISOString() }
+      : words;
   };
 }
 

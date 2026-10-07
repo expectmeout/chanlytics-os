@@ -1512,7 +1512,7 @@ test(
 );
 
 test(
-  "a write-in whose number a lead holds is that lead (linked, converted, came from a lead you found); the desk's Add a person never links; erasing the person blanks the lead and suppresses its place and number",
+  "a person whose number a lead holds is that lead, whoever brought them (decision 0034 step 5): the desk's Add a person and a write-in both link and convert it, and say how; a write-in came from a lead you found; erasing the person blanks the lead and suppresses its place and number",
   { skip },
   async () => {
     const lead = await leadByPlace("ChIJfixture0003");
@@ -1524,16 +1524,43 @@ test(
         p_source: "manual",
       }),
     );
-    assert.equal((await leadByPlace("ChIJfixture0003")).contact_id, null, "the desk never links");
-    ok(await db.from("contacts").delete().eq("id", desk.contact_id));
-    const person = ok(
-      await db.from("contacts").insert({ tenant_id: A, phone_e164: lead.phone_e164 }).select("id").single(),
+    const byDesk = await leadByPlace("ChIJfixture0003");
+    assert.deepEqual(
+      [byDesk.contact_id, byDesk.stage],
+      [desk.contact_id, "converted"],
+      "the desk's person is that lead too, since 00346 (it never linked before)",
     );
+    ok(await db.from("contacts").delete().eq("id", desk.contact_id));
+    // The edge taking in a customer's first message, through the door: no session.
+    const person = {
+      id: ok(
+        await db.rpc("resolve_person", {
+          p_tenant_id: A,
+          p_channel: "sms",
+          p_external: lead.phone_e164,
+          p_phone: lead.phone_e164,
+          p_assurance: "observed",
+          p_source: "inbound",
+        }),
+      ).contact_id,
+    };
     const linked = await leadByPlace("ChIJfixture0003");
     assert.deepEqual(
       [linked.contact_id, linked.stage],
       [person.id, "converted"],
       "a write-in whose number a lead holds is that lead",
+    );
+    assert.deepEqual(
+      ok(
+        await db
+          .from("events")
+          .select("data")
+          .eq("subject_id", lead.id)
+          .eq("kind", "lead.converted")
+          .order("created_at"),
+      ).map((e) => e.data.how),
+      ["added", "arrived"],
+      "each conversion says how: a member's person, then one who wrote",
     );
     const came = ok(
       await db.from("events").select("data").eq("tenant_id", A).eq("kind", "contact.added").eq("subject_id", person.id),

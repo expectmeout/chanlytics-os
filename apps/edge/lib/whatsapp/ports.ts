@@ -25,7 +25,7 @@ import { readLeadContext, personReplyMode, offersAnswerOf, describeLead } from "
 import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../calendar/availability.js";
 import { tokensLast24h } from "../receptionist/budget.js";
-import { pgThread, pgIngest, pgSink, queueReply, replyTurn } from "./persist.js";
+import { pgThread, pgIngest, pgSink, queueReply, replyTurn, pgAnswered } from "./persist.js";
 import { alertStaff } from "./alerts.js";
 import { pageOperator } from "../ops/page-operator.js";
 import { whatsappSender, type InboundPorts as CoreInboundPorts } from "../packages/core.js";
@@ -52,6 +52,8 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
     queueReply: typeof queueReply;
     /** The thread's reply turn (00284); a test's world may leave it out, and every message then holds its turn. */
     turn?: typeof replyTurn;
+    /** Whether a reply names a message already (a text's answer taken up again); a test's world may leave it out. */
+    answered?: typeof pgAnswered;
   };
   alertStaff: typeof alertStaff;
   page: typeof pageOperator;
@@ -94,7 +96,7 @@ export function realPorts(): InboundPorts {
     leads: { read: readLeadContext, personReplyMode, offersAnswer: offersAnswerOf },
     calendar: { openings: openingsFor, visits: visitsFor },
     budget: { tokensLast24h },
-    persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply, turn: replyTurn },
+    persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply, turn: replyTurn, answered: pgAnswered },
     alertStaff,
     page: pageOperator,
     sender: whatsappSender,

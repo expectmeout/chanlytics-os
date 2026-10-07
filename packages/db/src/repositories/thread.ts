@@ -13,6 +13,8 @@
  *     number across channels, and the plain lines a model is told about them. Called by the edge's WhatsApp ports,
  *     voice call start and steer door; the availability door asks readDealForPhone.
  *   - Finding words (searchMessages, messageSenders): Ask's message search, called by the dashboard's message reader.
+ *   - Whether a message has its answer (repliedTo): a reply that names it (meta.reply_to), whatever became of it. What a
+ *     text's answer taken up again after its runner died asks before it speaks twice.
  * Every read names the tenant, so a service-role caller cannot cross workspaces and a session client is narrowed by
  * RLS as well. A failed read throws, because a thread the database could not produce is unknown and never empty (a
  * blank thread reads as no pause, nothing said and no replies spent: core's inbound/thread.ts); only a lead's deal and
@@ -714,4 +716,23 @@ export async function messageSenders(db: Db, tenantId: string, ids: readonly str
     out.push(...(data ?? []));
   }
   return out;
+}
+
+/**
+ * Whether a reply names a message (`meta.reply_to`, written by the edge's sink and draft writer), in the message's own
+ * thread, whatever became of it: one that left, a draft waiting or withdrawn (the owner's veto, a newer message's turn),
+ * or one the wire refused. Any of them means the turn that answered the message reached its answer. Throws when it
+ * cannot be read: a reply that could not be looked for is not one that is known to be missing.
+ */
+export async function repliedTo(db: Db, tenantId: string, conversationId: string, messageId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("messages")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("conversation_id", conversationId)
+    .eq("direction", "outbound")
+    .eq("meta->>reply_to", messageId)
+    .limit(1);
+  if (error) throw new Error(`repliedTo: ${error.message}`);
+  return (data ?? []).length > 0;
 }

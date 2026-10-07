@@ -346,6 +346,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
   // did not get there, and the activity log is where the fact is.
   event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
+  // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
+  // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.
+  inbound_answer: { stopped: "A text could not be answered", to: "inbox" },
 };
 
 /** A job this runner has no words for: said as what it is, on the page that says what happened today. */

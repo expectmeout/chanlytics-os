@@ -21,6 +21,7 @@ import {
   verdictFor,
   retryWait,
   RUN_INTERRUPTED,
+  TOLD_ELSEWHERE,
   UNKNOWN_KIND_GIVE_UP_MS,
   UNKNOWN_KIND_WAIT_MS,
   type LedgerRow,
@@ -301,6 +302,7 @@ async function conclude(
     reason,
   });
 
+  if (TOLD_ELSEWHERE.has(job.kind)) return;
   try {
     // conclude() is only ever reached for a job that failed or never came
     // back, so this is the one place job_failed is the truth.

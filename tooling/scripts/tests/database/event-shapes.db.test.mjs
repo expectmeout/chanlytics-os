@@ -10,7 +10,8 @@
  *   - contact.added <- resolve_person (00342 and 00344, decision 0034: the one door every writer matches through, so a
  *     person added by hand, a calendar guest, a lead converted with or without a number, an imported line and the
  *     person a reach-out is written to are its rows; a person who wrote or called is not, 00306's trigger says their
- *     wire), and the lead-insert trigger lead_link_contact;
+ *     wire), and person_link_lead (00346, 0034 step 5: the door's link, which says a person who wrote or called came from
+ *     the lead holding their number);
  *   - contact.consent_changed <- ingest_inbound (a STOP and a START), note_yes_on_channel (a START by text from
  *     someone already opted in), set_contact_consent, set_marketing_consent, set_email_marketing (a no, and a reply's
  *     no taken back), set_email_offers_yes (a yes to offers by email, 00299), stop_all_messages (the unsubscribe page's
@@ -59,7 +60,7 @@ const skip =
 
 /** Every SQL writer of each shared kind, by function name: what the catalog must answer, and what the tests run. */
 const WRITERS = {
-  "contact.added": ["lead_link_contact", "resolve_person"],
+  "contact.added": ["person_link_lead", "resolve_person"],
   "contact.consent_changed": [
     "contact_stop_ends_offers_yes",
     "ingest_inbound",
@@ -265,15 +266,25 @@ test("lead_set_stage: a lead converted, with a number and without one", { skip }
   assert.deepEqual([b.source, b.by, typeof b.lead_id], ["lead", w.owner.id, "string"]);
 });
 
-test("lead_link_contact: a person who arrives with a lead's number is that lead, and says so", { skip }, async () => {
+test("person_link_lead: a person who arrives with a lead's number is that lead, and says so", { skip }, async () => {
   const number = phone();
-  await lead(w.t, { phone_e164: number });
-  // No session: the edge writing a person a customer's first message made.
+  const id = await lead(w.t, { phone_e164: number });
+  // No session: the edge taking in a customer's first message, through the door (00346).
   const { rows } = await wrote(w.t, "contact.added", async () =>
-    ok(await db.from("contacts").insert({ tenant_id: w.t, phone_e164: number }).select("id").single(), "contact"),
+    ok(
+      await db.rpc("resolve_person", {
+        p_tenant_id: w.t,
+        p_channel: "sms",
+        p_external: number,
+        p_phone: number,
+        p_assurance: "observed",
+        p_source: "inbound",
+      }),
+      "resolve_person",
+    ),
   );
-  const [data] = holds("contact.added", "lead_link_contact", rows, 1);
-  assert.equal(data.source, "lead");
+  const [data] = holds("contact.added", "person_link_lead", rows, 1);
+  assert.deepEqual([data.source, data.lead_id, data.by], ["lead", id, null]);
 });
 
 test("reach_out_person: the person a reach-out email is written to", { skip }, async () => {

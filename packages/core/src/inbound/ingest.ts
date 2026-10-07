@@ -13,6 +13,13 @@
  * wire shapes the words for the carrier (the texting footer on a first reply), send goes through the sink's one door,
  * which re-reads consent, the pause and the workspace's status, and tell is the owner's handoff mail.
  *
+ * A text is answered after its acknowledgement (decision 0031, Phase 2): its door records it (recordMessage, which sets
+ * aside a short code and a sender off the allowlist as the whole phase does) and answers Twilio, and a job takes it up
+ * again through the whole phase with `resume`. Its ingest is then a redelivery by construction, so the replay gate lets
+ * it through while the message is unprocessed and nothing has answered it yet (the persist port's `answered`, which
+ * reads the reply that names it): a job taken up again after a runner died mid-turn still answers, and one whose turn
+ * already reached a reply says nothing twice and leaves the stamp to the deadman sweep.
+ *
  * Persist first is the rule: the allowlist and the short code gate the reply, never the persist. An ingest the database
  * refused throws IngestFailed (./ports.ts) after a best-effort copy of the customer's words goes to the workspace's
  * handoff mail; the WhatsApp door counts it into a 503, so Meta redelivers, and the SMS door refuses with a 503 and
@@ -58,11 +65,11 @@ async function ingestOrSay(cx: InboundContext): Promise<IngestResult | null> {
 }
 
 /**
- * The message recorded and its memory read, with the three ways out bound; nothing when it stops here: a short
- * code, a sender off the pilot allowlist, or a redelivery.
+ * A sender the receptionist never answers, recorded and set aside: a short code, or a sender off the pilot allowlist.
+ * True when the message was one, and is finished with.
  */
-export async function ingestMessage(cx: InboundContext): Promise<Ingested | undefined> {
-  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
+async function setAside(cx: InboundContext): Promise<boolean> {
+  const { ports, tenantId, isEnvDefault, from, channel, db, rt } = cx;
   const recordOrSay = () => ingestOrSay(cx);
   // THE PILOT ALLOWLIST, scoped to the number it was made for.
   //
@@ -91,7 +98,7 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
     await sink.unreachableSender();
     await sink.processed(handledOf(SET_ASIDE));
-    return;
+    return true;
   }
 
   // Compared as DIGITS on both sides. Meta delivers `from` as bare digits, and
@@ -108,8 +115,45 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
     await sink.allowlistSkip();
     await sink.processed(handledOf(SET_ASIDE));
-    return;
+    return true;
   }
+  return false;
+}
+
+/**
+ * The door's half of a message answered after its acknowledgement: set aside, or recorded. The ingest's row when the
+ * message waits for its answer, nothing when it was set aside or is a redelivery; IngestFailed when the write failed,
+ * which the door answers with a 503 so the provider sends it again.
+ */
+export async function recordMessage(cx: InboundContext): Promise<IngestResult | null | undefined> {
+  if (await setAside(cx)) return undefined;
+  const ing = await ingestOrSay(cx);
+  return ing && !ing.is_new ? undefined : ing;
+}
+
+/**
+ * Whether a message taken up again already has its answer: a reply names it, whatever became of it (it left, waits or
+ * was withdrawn as a draft, or the wire refused it). The turn that wrote it died between its answer and its stamp, so
+ * nothing more is said and the stamp is left to the deadman sweep, which finds a reply after the message and stamps it
+ * quietly, as it does for any turn that died there. Asked only of a redelivery the job resumes; a port that cannot say
+ * is no answer yet.
+ */
+async function answeredBefore(cx: InboundContext, ing: IngestResult): Promise<boolean> {
+  const { ports, db, tenantId, L } = cx;
+  if (!ports.persist.answered || !(await ports.persist.answered(db, tenantId, ing))) return false;
+  L.info("wa_resume_answered");
+  return true;
+}
+
+/**
+ * The message recorded and its memory read, with the three ways out bound; nothing when it stops here: a short
+ * code, a sender off the pilot allowlist, or a redelivery. `resume` is the job that answers a text after its
+ * acknowledgement: its own redelivery goes on while the message is unprocessed and unanswered.
+ */
+export async function ingestMessage(cx: InboundContext, resume = false): Promise<Ingested | undefined> {
+  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
+  const recordOrSay = () => ingestOrSay(cx);
+  if (await setAside(cx)) return;
 
   // Persist first (P3/§4): the customer's message is never lost to a later
   // failure. Then the memory, which is the same rows the dashboard reads and
@@ -179,8 +223,9 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
   // dedupe, and it is stronger than the `seen` array the retired store kept (a
   // unique index two concurrent lambdas cannot both miss).
   // A missed auto-reply beats a double text, so processed-state is deliberately
-  // not consulted.
-  if (ing && !ing.is_new) {
+  // not consulted -- but by the job that answers a text after its acknowledgement, whose ingest is always a
+  // redelivery: it goes on while the message is unprocessed and no reply names it yet.
+  if (ing && !ing.is_new && !(resume && !ing.processed && !(await answeredBefore(cx, ing)))) {
     L.info("wa_skip_pg_dupe");
     return;
   }
