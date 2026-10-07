@@ -25,7 +25,7 @@ import { RecordCombobox } from "../../kit/record/combobox";
 import { navigate } from "../../legacy-verbs";
 import type { BtFold } from "./gestures/fold";
 import type { BookingsDraft } from "./fold-shapes";
-import { calendarApi, calendarNow } from "./shell";
+import { calendarNow } from "./shell";
 
 /** What BtFold hands its body. */
 type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
@@ -166,7 +166,8 @@ const BtoBookingsHeld = ({ notices }: { notices: Notices }) => {
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   if (notices.heldList.length === 0) return null;
-  // Read again, or dismiss: the route answers, and the calendar's read is asked again so the list says what is left.
+  // Read again, or dismiss: the route answers, and the write re-reads the Calendar by the refresh map (refresh-map.ts,
+  // AFTER), as every write does, so the list says what is left when the press comes back.
   const act = async (id: string, verb: "read-again" | "dismiss") => {
     setBusy(id);
     setProblem(null);
@@ -175,12 +176,7 @@ const BtoBookingsHeld = ({ notices }: { notices: Notices }) => {
         verb === "read-again"
           ? await api()("POST calendar/notices/[id]/read-again", { params: { id }, body: {} })
           : await api()("POST calendar/notices/[id]/dismiss", { params: { id }, body: {} });
-      if (!r.ok) {
-        setProblem(r.message);
-        return;
-      }
-      const cal = calendarApi();
-      if (cal && typeof cal.refresh === "function") void cal.refresh();
+      if (!r.ok) setProblem(r.message);
     } finally {
       setBusy(null);
     }
