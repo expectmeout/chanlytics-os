@@ -77,10 +77,10 @@ test("the days parameter ends on 19 October 2026: the change that removes it del
   const today = new Date().toISOString().slice(0, 10);
   const lastDay = new Date(Date.parse(`${REMOVE_AFTER}T00:00:00Z`) + GRACE_DAYS * DAY_MS).toISOString().slice(0, 10);
   if (today > REMOVE_AFTER)
-    t.diagnostic(`its day (${REMOVE_AFTER}) has passed: remove the days parameter from the three report routes`);
+    t.diagnostic(`its day (${REMOVE_AFTER}) has passed: remove the days parameter from the four report routes`);
   assert.ok(
     today <= lastDay,
-    `the days parameter's day (${REMOVE_AFTER}) passed more than ${GRACE_DAYS} days ago: remove it (report-periods.ts reportPeriodOf, the three routes' query), this test, and what still sends it: ${SENDERS_OF_DAYS.join("; ")}`,
+    `the days parameter's day (${REMOVE_AFTER}) passed more than ${GRACE_DAYS} days ago: remove it (report-periods.ts reportPeriodOf, the four routes' query), this test, and what still sends it: ${SENDERS_OF_DAYS.join("; ")}`,
   );
 });
 

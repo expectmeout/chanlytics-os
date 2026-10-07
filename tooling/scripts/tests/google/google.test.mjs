@@ -40,6 +40,7 @@ import {
   setupSteps,
   serverNotificationRows,
   verbForRoute,
+  lensRoute,
   EVENT_KINDS,
   SERVER_NOTIFICATION_KINDS,
   GOOGLE_SHOWN_REVIEWS,
@@ -555,6 +556,7 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
     }),
     30,
     NOW,
+    "UTC",
   );
   assert.equal(vm.listing.name, "Northside Movers");
   assert.equal(vm.listing.ratingLabel, "4.8 ★");
@@ -571,6 +573,9 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
   );
   assert.equal(vm.tiles[0].meta, "213 reviews · checked 3h ago");
   assert.equal(vm.tiles[0].delta, null, "no day before the period to compare the rating with");
+  assert.equal(vm.tiles[0].compare, null, "…so the period before says nothing of the rating");
+  for (const t of vm.tiles)
+    assert.equal(t.delta, null, `${t.id}: the period before is said in counts (compare), never a percentage`);
   assert.equal(vm.tiles[2].meta, "since Aug 31, the first day on record");
   assert.equal(vm.tiles[3].meta, "★★★★★ · Ana P.");
   assert.deepEqual(
@@ -585,17 +590,81 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
   assert.deepEqual(vm.table.rows, [["Ana P.", 5, "2h ago", "Fast, careful, and on time. Would hire again."]]);
   assert.deepEqual(vm.todayLine, {
     text: "New on Google: ★★★★★ from Ana P. — “Fast, careful, and on time. Would hire again.”",
-    to: "reports",
+    to: lensRoute("reviews"),
   });
-  const quiet = toGoogleVM(dto({ reviews: [review({ first_seen_at: "2026-09-01T14:00:00Z" })] }), 30, NOW);
+  assert.equal(vm.todayLine.to, "reports/reviews", "Today's line opens the Reviews lens, where the review is drawn");
+  const longer = toGoogleVM(
+    dto({
+      days: [
+        { day: "2026-07-01", rating: 4.6, review_count: 190 },
+        { day: "2026-08-31", rating: 4.7, review_count: 205 },
+        { day: "2026-09-07", rating: 4.8, review_count: 213 },
+      ],
+    }),
+    30,
+    NOW,
+    "UTC",
+  );
+  assert.equal(longer.tiles[0].compare, "up from 4.6", "the rating on the last day before the period, in words");
+  assert.equal(longer.tiles[2].value, "23");
+  assert.equal(longer.tiles[2].compare, null, "no period before it to compare the gain with");
+  const flat = toGoogleVM(
+    dto({
+      days: [
+        { day: "2026-08-01", rating: 4.8, review_count: 213 },
+        { day: "2026-09-07", rating: 4.8, review_count: 213 },
+      ],
+    }),
+    30,
+    NOW,
+    "UTC",
+  );
+  assert.equal(flat.tiles[0].compare, "same as the 30 days before");
+  const slid = toGoogleVM(
+    dto({
+      listing: listing({ rating: 4.7 }),
+      days: [
+        { day: "2026-08-01", rating: 4.9, review_count: 200 },
+        { day: "2026-09-07", rating: 4.7, review_count: 213 },
+      ],
+    }),
+    30,
+    NOW,
+    "UTC",
+  );
+  assert.equal(slid.tiles[0].compare, "down from 4.9");
+  const earlier = [
+    { day: "2026-06-20", rating: 4.5, review_count: 150 },
+    { day: "2026-07-20", rating: 4.6, review_count: 190 },
+    { day: "2026-08-20", rating: 4.7, review_count: 205 },
+    { day: "2026-09-07", rating: 4.8, review_count: 213 },
+  ];
+  assert.equal(
+    toGoogleVM(dto({ days: earlier }), 30, NOW, "UTC").tiles[2].compare,
+    "down from 40",
+    "23 against the 40 before, in counts",
+  );
+  const unrated = toGoogleVM(
+    dto({
+      days: [
+        { day: "2026-09-06", rating: null, review_count: 200 },
+        { day: "2026-09-07", rating: 4.8, review_count: 213 },
+      ],
+    }),
+    7,
+    NOW,
+    "UTC",
+  );
+  assert.deepEqual(unrated.tiles[0].spark, [4.8], "a read day with no rating is no point on the line, never a zero");
+  const quiet = toGoogleVM(dto({ reviews: [review({ first_seen_at: "2026-09-01T14:00:00Z" })] }), 30, NOW, "UTC");
   assert.equal(quiet.todayLine, null);
   assert.equal(quiet.tiles[2].value, "—");
   assert.equal(quiet.tiles[2].meta, "needs a second day of reading");
-  const none = toGoogleVM(dto({ listing: null, reviews: [] }), 30, NOW);
+  const none = toGoogleVM(dto({ listing: null, reviews: [] }), 30, NOW, "UTC");
   assert.equal(none.listing, null);
   assert.deepEqual(none.tiles, []);
   assert.equal(none.todayLine, null);
-  const trouble = toGoogleVM(dto({ listing: listing({ check_error: "boom" }) }), 7, NOW);
+  const trouble = toGoogleVM(dto({ listing: listing({ check_error: "boom" }) }), 7, NOW, "UTC");
   assert.equal(trouble.listing.trouble, true);
   assert.match(trouble.listing.checked, /could not be read since 3h ago/);
   assert.ok(!JSON.stringify(vm).includes("null."), "no null read aloud");
@@ -697,7 +766,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   assert.equal(row(linked, "google").state, "ready");
   assert.equal(row(linked, "google").sentence, "Northside Movers · 4.8 ★ · 213 reviews on Google.");
   assert.deepEqual(row(linked, "google").details, ["Checked 3h ago", "New reviews reach your bell and Reports"]);
-  assert.deepEqual(row(linked, "google").verb, { label: "Open Reports", to: "reports" });
+  assert.deepEqual(row(linked, "google").verb, { label: "Open Reports", to: lensRoute("reviews") });
   const trouble = setup({
     ready: true,
     listing: {
@@ -714,6 +783,11 @@ test("Setup's Google row: absent until the platform can look listings up; then F
     row(trouble, "google").sentence,
     "Northside Movers is on record, but Google could not be read since 1d ago — it is read again once a day.",
   );
+  assert.deepEqual(
+    row(trouble, "google").verb,
+    { label: "Open Reports", to: lensRoute("reviews") },
+    "the row that waits on Google opens the same lens",
+  );
   assert.equal(row(find, "google").later, false);
   const later = setup({ ready: true, places: true, listing: null }, { later: ["google"] });
   assert.equal(row(later, "google").later, true, "put off for later, like any optional row");
@@ -722,29 +796,34 @@ test("Setup's Google row: absent until the platform can look listings up; then F
 
 /* ------------------------------------------------------------- the bell */
 
-test("a review on the bell is good news that opens Reports, and its route has a verb", () => {
+test("a review on the bell is good news that opens the Reviews lens, and its route has a verb", () => {
   assert.ok(SERVER_NOTIFICATION_KINDS.includes("review"));
+  const stored = (id, route) => ({
+    id,
+    kind: "review",
+    title: "New on Google: ★★★★★ from Ana P.",
+    body: "“Fast, careful, and on time.”\n4.8 ★ overall · 213 reviews.",
+    route,
+    subject_type: "review",
+    subject_id: "r-ana",
+    created_at: "2026-09-07T14:00:00Z",
+    read: false,
+    dismissed: false,
+  });
   const rows = serverNotificationRows({
     seen_at: null,
-    notifications: [
-      {
-        id: "1",
-        kind: "review",
-        title: "New on Google: ★★★★★ from Ana P.",
-        body: "“Fast, careful, and on time.”\n4.8 ★ overall · 213 reviews.",
-        route: "reports",
-        subject_type: "review",
-        subject_id: "r-ana",
-        created_at: "2026-09-07T14:00:00Z",
-        read: false,
-        dismissed: false,
-      },
-    ],
+    notifications: [stored("1", lensRoute("reviews")), stored("2", "reports"), stored("3", null)],
   });
   assert.deepEqual(
-    [rows[0].icon, rows[0].tone, rows[0].action, rows[0].to, rows[0].message],
-    ["star", "ok", "Open Reports", "reports", "“Fast, careful, and on time.”"],
+    rows.map((r) => [r.icon, r.tone, r.action, r.to, r.message]),
+    [
+      ["star", "ok", "Open Reports", "reports/reviews", "“Fast, careful, and on time.”"],
+      ["star", "ok", "Open Reports", "reports", "“Fast, careful, and on time.”"],
+      ["star", "ok", "Open Reports", "reports/reviews", "“Fast, careful, and on time.”"],
+    ],
+    "a row written now opens the lens; one kept before it keeps the Overview; one with no route falls to the kind's door, the lens",
   );
+  assert.equal(verbForRoute(lensRoute("reviews")), "Open Reports");
   assert.equal(verbForRoute("reports"), "Open Reports");
   for (const k of ["google.linked", "google.unlinked", "google.reviews"]) assert.ok(EVENT_KINDS.includes(k), k);
 });
@@ -784,16 +863,13 @@ test("the migration: three tables that hang off the listing, members read, realt
 test("the edge library: the key alone on the edge, one check routine, a failed read that moves no stamp, the manifests", () => {
   // The door -- the knock, status, search, link (a read before a row, the
   // old place's reviews forgotten), unlink, refresh, and the two events --
-  // runs in google-door.test.mjs. The library is modules: the key's, the check's and the profile's sync.
+  // runs in google-door.test.mjs. The library is modules: the key's, the check's and the profile's sync. The
+  // bell each of them rings, and the lens it opens, run there and in cron-doors-b.test.mjs.
   const lib = ["google-config", "listing-check", "profile-sync"]
     .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
     .join("\n");
   assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));
-  assert.ok(
-    lib.includes("planListingCheck(") &&
-      /kind: "review",\s*title: b\.title,\s*body: b\.body,\s*route: "reports"/.test(lib),
-    "the plan decides, the edge writes and rings",
-  );
+  assert.ok(lib.includes("planListingCheck("), "the plan decides, the edge writes and rings");
   assert.ok(
     lib.includes(".update({ check_error: error })"),
     "a failed read leaves its words and the last good numbers",
@@ -839,11 +915,9 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   assert.ok(link.includes('op: "link", tenant_id: member.tenantId, user_id: ctx.userId, place_id: placeId'));
   const refresh = readCode("apps/dashboard/app/api/v1/google/refresh/route.ts");
   assert.ok(refresh.includes('role: "operator",') && refresh.includes('rate: "google_refresh",'));
-  const get = readCode(
-    "apps/dashboard/app/api/v1/google/route.ts",
-    "apps/dashboard/src/server/connections/google-actions.ts",
-  );
-  assert.ok(/googleFor\(ctx\.supabase, member\.tenantId\),\s*googleReadiness\(\)/.test(get));
+  // The route answers the Google reader's read with what this deployment can do beside it, which the Reviews report's reader
+  // holds too (once a turn): google-routes.test.mjs runs GET google over a database in memory, and ask/readers.test.mjs holds
+  // the report's Google to its bytes.
   const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(
     server.includes('callEdge("/api/admin/google"') && server.includes("now - googleReadyCache.at < READY_TTL_MS"),
@@ -860,7 +934,7 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST google/link"]().map((o) => o.key),
     ["google", "setup"],
-    "a link repaints Setup too",
+    "a link repaints Setup too; the Reviews lens's read, which draws the same listing, is forgotten and read as the lens comes on screen",
   );
   // The app lists Google's surface and installs nothing for it: its verbs are imported (`googleVerbs`), its value is the
   // seam's alone, so no window door or `__GOOGLE` mirror is published.
@@ -869,20 +943,11 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   assert.ok(bridge.includes("export const googleVerbs: GoogleApi = {") && !bridge.includes("__GOOGLE"));
   assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT"]]);
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
-  const reports = readCode("apps/dashboard/src/surfaces/reports/google.tsx");
-  // The page draws the section under the period (executed: reports-page.test.mjs, Google's reviews under the period).
-  assert.ok(
-    reports.includes('useSurface("google")') &&
-      reports.includes("export const googleReadable = ") &&
-      reports.includes("if (!googleReadable(G)) return null;"),
-  );
-  assert.ok(
-    reports.includes("vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source"),
-    "the source is named, and what the receptionist does under a new review beside it",
-  );
-  const brief = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
-  assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
-  assert.ok(brief.includes('useSurface("google")'), "Today's line reads the seam's Google, the one value there is");
+  // Reports' Reviews page draws the section from its own read (`reports_reviews`), which carries Google's own and publishes it as the
+  // `google` value where one is held (executed: reports/lenses/reviews-surface.test.mjs); the source is named and what the receptionist
+  // does under a new review beside it (executed: reports-page.test.mjs, Google's reviews under the period).
+  // Today's line reads the seam's Google, the one value there is, and its door opens the Reviews lens: executed in
+  // today/today-page.test.mjs, over a review that landed this morning.
   const settings = readCode("apps/dashboard/src/surfaces/settings/connections/row.tsx");
   assert.ok(
     settings.includes('"verb:google-check": "google-check"') && settings.includes('data-testid="google-remove"'),

@@ -1006,6 +1006,7 @@ A workspace's Google Business Profile, connected by its owner: the account, the 
 | `facts` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `reviews_complete` | boolean | no | `false` | True when the last successful sync read the whole of Google's list of this location's reviews (no page was left), so the reviews on record are all of them; false when it stopped at its page limit, and before the first sync. |
 
 Foreign keys:
 

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 import { routeOf } from "./address";
@@ -22,6 +22,12 @@ const INVENTED = [
   "Phone Rep",
   "Share",
 ];
+
+/**
+ * What the Reviews lens draws from its own read once it has landed: the figures of the listing and Business Profile the nightly's
+ * workspace is seeded with (tooling/scripts/ops/e2e-workspace.mjs). What they say is google.spec.ts's.
+ */
+const reviewsLens = (page: Page) => page.getByTestId("google-tiles");
 
 test.describe("Reports on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -94,6 +100,9 @@ test.describe("Reports on a real workspace", () => {
     }
     await page.getByTestId("lens-campaigns").click();
     await expect(report.getByTestId("chart-campaigns")).toBeVisible();
+    // Reviews is shown to every workspace, and draws from a read of its own: here, a listing's.
+    await page.getByTestId("lens-reviews").click();
+    await expect(reviewsLens(page)).toBeVisible();
   });
 
   test("Reports is a page of its own on its path: it boots there, the frame around it, and the router walks it", async ({
@@ -154,6 +163,25 @@ test.describe("Reports on a real workspace", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("chart-campaigns")).toBeVisible();
     await expect(page.getByTestId("lens-campaigns")).toHaveAttribute("aria-current", "page");
+    await page.goto(`/w/${slug}/reports/reviews`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("reports-real")).toBeVisible();
+    await expect(page.getByTestId("lens-reviews")).toHaveAttribute("aria-current", "page");
+    // The address read its own surface as it loaded: the lens is drawn, not waiting on the other lenses' reads.
+    await expect(reviewsLens(page)).toBeVisible();
+    // A pick of another period on it reads (the lens's own, for the period asked) and requests no page.
+    documents.length = 0;
+    const reviewsRead = page.waitForRequest(
+      (r) =>
+        new URL(r.url()).pathname.endsWith("/api/v1/reports/reviews") &&
+        r.url().includes("period=7d") &&
+        r.method() === "GET",
+    );
+    await page.getByTestId("reports-period-open").click();
+    await page.getByTestId("period-7d").click();
+    await reviewsRead;
+    await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
+    expect(documents, "a pick of another period is never a page request").toEqual([]);
     await page.goto(`/w/${slug}/reports/overview`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("reports-real")).toHaveCount(0);

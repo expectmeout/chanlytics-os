@@ -36,7 +36,12 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { emptyBusinessRecord, RECORDING_RETENTION_DAYS, newReceptionistDefaults } from "@chanlytics/contracts";
+import {
+  emptyBusinessRecord,
+  lensRoute,
+  RECORDING_RETENTION_DAYS,
+  newReceptionistDefaults,
+} from "@chanlytics/contracts";
 import { LOW_VOLUME_USECASE } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
@@ -1621,7 +1626,7 @@ test("google: listings not read for twenty hours are read again — never read f
   const bell = tables.notifications[0];
   assert.deepEqual(
     [bell.tenant_id, bell.kind, bell.route, bell.subject_type, bell.subject_id],
-    [news, "review", "reports", "review", "r-news"],
+    [news, "review", lensRoute("reviews"), "review", "r-news"],
   );
   assert.match(bell.title, /^New on Google: .+ from Rosa$/);
   assert.match(bell.body, /“Careful movers, on time\.”/);

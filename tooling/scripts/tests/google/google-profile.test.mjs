@@ -398,6 +398,19 @@ test("the first sync is history: every review kept, the rating and the count tak
   });
   assert.deepEqual(p.day, { day: "2026-09-07", rating: 4.8, review_count: 213 });
   assert.equal(p.synced_at, new Date(NOW).toISOString());
+  assert.equal(p.complete, true, "Google's list ended on this pass: nothing was left unread");
+  const capped = planProfileSync(
+    { last_synced_at: null },
+    new Map(),
+    page([gbp()], { next_page_token: "more" }),
+    "2026-09-07",
+    NOW,
+  );
+  assert.equal(
+    capped.complete,
+    false,
+    "a page left when the pages it may read ran out: the record is the newest reviews",
+  );
 });
 
 test("after that, a review not on record and written since the last sync is news; a reply that appeared is noted, never announced", () => {
@@ -562,6 +575,7 @@ test("the connection in words, and the view model that says replies are possible
     { ready: { places: true, profile: true }, listing, connection: conn(), reviews: [review], days: [], role: "owner" },
     30,
     NOW,
+    "UTC",
   );
   assert.equal(vm.canReply, true);
   assert.equal(vm.source, "every review, from your Business Profile");
@@ -586,9 +600,29 @@ test("the connection in words, and the view model that says replies are possible
     },
     30,
     NOW,
+    "UTC",
   );
   assert.equal(pending.canReply, false);
   assert.equal(pending.connection.pending, true);
+  const unsynced = toGoogleVM(
+    {
+      ready: { places: true, profile: true },
+      listing,
+      connection: conn({ last_synced_at: null }),
+      reviews: [{ ...review, origin: "places", reply_text: null }],
+      days: [],
+      role: "owner",
+    },
+    30,
+    NOW,
+    "UTC",
+  );
+  assert.equal(unsynced.canReply, true, "a location is chosen: a reply can go out");
+  assert.equal(
+    unsynced.source,
+    "the one Google shows first",
+    "…but until a sync has stored the profile's reviews, these are still the public five",
+  );
   const publicOnly = toGoogleVM(
     {
       ready: { places: true, profile: false },
@@ -600,6 +634,7 @@ test("the connection in words, and the view model that says replies are possible
     },
     30,
     NOW,
+    "UTC",
   );
   assert.equal(publicOnly.canReply, false);
   assert.equal(publicOnly.source, "the one Google shows first");

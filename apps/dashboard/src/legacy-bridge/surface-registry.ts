@@ -204,6 +204,11 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A search's reach-out sheet (Part 4 PR 6) sends from Setup's sending domains and checks Settings' booking link: both
   // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
   leads: ["setup", "settings"],
+  // The Reviews lens draws its own read beside Reports' (surfaces/reports/reviews-surface.ts): no other lens of Reports does.
+  "reports/reviews": ["reports_reviews"],
+  // Settings' Connections pane draws Google's listing and its connection beside the settings read, as Today's card draws its
+  // review line (`google` is read where one of the two is on screen, legacy-bridge/google.ts): no other pane of Settings does.
+  "admin/integrations": ["google"],
 };
 
 /**
@@ -221,10 +226,15 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
 };
 export const ROUTE_WAIT_MS = 3000;
 
-/** What a route draws beside its own surface: a person's page is one route of its own, whatever its id. */
+/**
+ * What a route draws beside its own surface: a person's page is one route of its own, whatever its id, and a lens or a pane
+ * that names its draws (`reports/reviews`, `admin/integrations`) is asked about before its page, as routeSurfaceFor asks it.
+ */
 export function routeDrawsFor(page: string, param?: string | null): readonly string[] {
   // Leads is `clients/leads…`, the scope asked about as routeSurfaceFor asks it, never as People.
   if (page === "clients" && param && /^leads(:|$)/.test(param)) return ROUTE_DRAWS.leads ?? [];
+  const specific = param ? ROUTE_DRAWS[`${page}/${param}`] : undefined;
+  if (specific) return specific;
   return ROUTE_DRAWS[personRouteId(page, param) ? PERSON_ROUTE : page] ?? [];
 }
 
@@ -252,9 +262,10 @@ function pageOfRoute(route: string): { page: string; param: string | null } {
  * replies it says under "What came back" and the runs it lists: left to the broadcasts' own page, its numbers stood where they
  * were read for as long as the home was open. Today draws more (People, Reports, the Calendar) and does not own them, for a
  * message re-reads the three that draw messages and Today, and People's pages of contacts are the heaviest read there is
- * (shell/surfaces/message-fan-out.test.mjs).
+ * (shell/surfaces/message-fan-out.test.mjs). Reports owns the one it names for a lens (`reports/reviews`): a review seen for the first
+ * time moves the Reviews lens's read, heard while that lens is on screen and not on Reports' other lenses or pages.
  */
-const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns"]);
+const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns", "reports"]);
 
 /**
  * Whether this surface is the one the page on screen is of: its own surface, and, on a page that owns what it draws

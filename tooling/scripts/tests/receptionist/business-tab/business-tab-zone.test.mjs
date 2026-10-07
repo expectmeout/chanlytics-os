@@ -103,7 +103,8 @@ const pause = () => new Promise((r) => setTimeout(r, 5));
 
 test("saving a timezone re-reads settings, so the preview's zone and what the hours fold will say follow it", async () => {
   // Settings first, the surface the preview rides on; then the three that how customers buy switches (0008), which
-  // is saved through the same route: People's lists and column, Reports' Deals section, Today's proposals waiting.
+  // is saved through the same route: People's lists and column, Reports' Deals section, Today's proposals waiting. The Reviews lens's
+  // read, which counts a review on the day it was written in the zone, is forgotten, not read from Settings.
   assert.deepEqual(
     AFTER["PATCH workspaces"]().map((o) => o.key),
     ["settings", "people", "reports", "reports_headline", "today"],

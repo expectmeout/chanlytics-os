@@ -2427,6 +2427,7 @@ type Database = {
                     last_synced_at: string | null;
                     location_name: string | null;
                     location_title: string | null;
+                    reviews_complete: boolean;
                     scopes: string[];
                     sync_error: string | null;
                     tenant_id: string;
@@ -2445,6 +2446,7 @@ type Database = {
                     last_synced_at?: string | null;
                     location_name?: string | null;
                     location_title?: string | null;
+                    reviews_complete?: boolean;
                     scopes?: string[];
                     sync_error?: string | null;
                     tenant_id: string;
@@ -2463,6 +2465,7 @@ type Database = {
                     last_synced_at?: string | null;
                     location_name?: string | null;
                     location_title?: string | null;
+                    reviews_complete?: boolean;
                     scopes?: string[];
                     sync_error?: string | null;
                     tenant_id?: string;
@@ -8784,6 +8787,13 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            reviews_ledger: {
+                Args: {
+                    p_days?: number;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             runtime_stamp: {
                 Args: {
                     p_tenant_id: string;
@@ -12113,6 +12123,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 last_synced_at: string | null;
                 location_name: string | null;
                 location_title: string | null;
+                reviews_complete: boolean;
                 scopes: string[];
                 sync_error: string | null;
                 tenant_id: string;
@@ -12131,6 +12142,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 last_synced_at?: string | null;
                 location_name?: string | null;
                 location_title?: string | null;
+                reviews_complete?: boolean;
                 scopes?: string[];
                 sync_error?: string | null;
                 tenant_id: string;
@@ -12149,6 +12161,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 last_synced_at?: string | null;
                 location_name?: string | null;
                 location_title?: string | null;
+                reviews_complete?: boolean;
                 scopes?: string[];
                 sync_error?: string | null;
                 tenant_id?: string;
@@ -18324,6 +18337,13 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             };
             Returns: boolean;
         };
+        reviews_ledger: {
+            Args: {
+                p_days?: number;
+                p_tenant_id: string;
+            };
+            Returns: Json;
+        };
         runtime_stamp: {
             Args: {
                 p_tenant_id: string;
@@ -21102,6 +21122,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             last_synced_at: string | null;
             location_name: string | null;
             location_title: string | null;
+            reviews_complete: boolean;
             scopes: string[];
             sync_error: string | null;
             tenant_id: string;
@@ -21120,6 +21141,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id: string;
@@ -21138,6 +21160,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id?: string;
@@ -26836,6 +26859,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             last_synced_at: string | null;
             location_name: string | null;
             location_title: string | null;
+            reviews_complete: boolean;
             scopes: string[];
             sync_error: string | null;
             tenant_id: string;
@@ -26854,6 +26878,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id: string;
@@ -26872,6 +26897,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id?: string;
@@ -32570,6 +32596,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             last_synced_at: string | null;
             location_name: string | null;
             location_title: string | null;
+            reviews_complete: boolean;
             scopes: string[];
             sync_error: string | null;
             tenant_id: string;
@@ -32588,6 +32615,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id: string;
@@ -32606,6 +32634,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             last_synced_at?: string | null;
             location_name?: string | null;
             location_title?: string | null;
+            reviews_complete?: boolean;
             scopes?: string[];
             sync_error?: string | null;
             tenant_id?: string;
@@ -37558,10 +37587,11 @@ declare function markHeldNotice(db: Db$n, p: {
 }): Promise<boolean>;
 
 /**
- * The report functions Reports reads (00251, 00304, 00241): the receptionist's series, the campaigns' and the reach-outs',
- * each over a period of days and the period before it. The one place they are called by name; the dashboard asks on the
- * session client, so RLS decides what a member reads (`report_series` and `campaign_series` are SECURITY INVOKER;
- * `reach_out_report` is a definer that checks the member again). A read that fails throws: "we could not read" is never "none".
+ * The report functions Reports reads (00251, 00304, 00241, 00350): the receptionist's series, the campaigns', the reviews'
+ * and the reach-outs', each over a period of days and the period before it. The one place they are called by name; the
+ * dashboard asks on the session client, so RLS decides what a member reads (`report_series`, `campaign_series` and
+ * `reviews_ledger` are SECURITY INVOKER; `reach_out_report` is a definer that checks the member again). A read that
+ * fails throws: "we could not read" is never "none".
  */
 
 type Db$m = SupabaseClient<Database>;
@@ -37569,6 +37599,14 @@ type Db$m = SupabaseClient<Database>;
 declare function reportSeries(db: Db$m, tenantId: string, days: number): Promise<Json>;
 /** What the broadcasts and playbooks sent, day by day for `days` and the same number before, and the period by source (`campaign_series`, 00251). */
 declare function campaignSeries(db: Db$m, tenantId: string, days: number): Promise<Json>;
+/**
+ * The reviews on record for the Reviews lens, over `days` and the period before (`reviews_ledger`, 00350): the profile's
+ * reviews dated in the workspace's own zone, the counts, the oldest few that wait. Contracts' `isReviewsLedgerDto` tells
+ * its answer from `{ error: "unknown_tenant" }`. Null is a database that does not have the function yet: the dashboard
+ * deploys at the merge and 00350 goes to production on the owner's word, so for that window every read answers it, and
+ * the lens draws the listing alone (the function itself never answers null). Any other failure throws.
+ */
+declare function reviewsLedger(db: Db$m, tenantId: string, days: number): Promise<Json | null>;
 /**
  * What the workspace's reach-outs wrote over `days`, and what came of it (`reach_out_report`, 00241). The function raises
  * contracts' own refusals with a code the door words (not found, not as it may be); they come back as they are, not thrown.
@@ -39754,4 +39792,4 @@ declare function appointmentNoticeById(db: Db, tenantId: string, id: string): Pr
  */
 declare function dismissAppointmentNotice(db: Db, tenantId: string, id: string): Promise<boolean>;
 
-export { type AiFailures, type AppointmentInsert, type AppointmentNoticeInsert, type AppointmentNoticeRow, type AppointmentRow, type AppointmentSync, type AppointmentUpdate, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, ERASURE_LEGS, ERASURE_STRATEGIES, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, PERSON_FORGOTTEN, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type ResolvePersonInput, type ResolvedPerson, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type StrandedRun, type SubscribeOptions, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WhatsappNumber, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, appointmentByClientStart, appointmentByKey, appointmentNoticeById, appointmentNoticeOf, appointmentNoticesOf, appointmentStates, appointmentsBetween, appointmentsForClient, appointmentsScrub, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, campaignSeries, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, clearForwardingConfirmation, closedRunSends, coldReceiptsOwed, contactEmailOf, contactIdByEmail, contactIdByPhone, contactSeen, countSendingDomains, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, deliveryOf, describeLead, dismissAppointmentNotice, dismissPersonDoubt, domainCapacityOf, domainHeldSince, doubtOn, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, eventOfDelivery, everyoneIn, failStrandedRun, failedMessageErrors, finishableRuns, firstReplies, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldNoticesOf, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertAppointment, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, keepAppointmentNotice, keepChannelQuality, keepChannelStanding, keepForwardingConfirmation, keepIdempotencyReceipt, keepInvoiceAmount, keepMessageCost, keepProviderEvent, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markContact, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, memberHasAddress, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, openDoubtsOf, outreachFactsOf, outreachModeOf, ownLineOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personDecisions, personReplyMode, personRow, platformHoldStands, platformWide, playbookChannels, playbooksOnList, providerEventOf, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliedTo, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reportSeries, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, resolvePerson, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, scrubPersonNotes, scrubProviderEvents, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, setTemplateQuality, settleDelivery, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suppressEmailOf, syncFeedAppointments, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updateAppointment, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspacePaused, writtenEmail, writtenEmails, yesesSince };
+export { type AiFailures, type AppointmentInsert, type AppointmentNoticeInsert, type AppointmentNoticeRow, type AppointmentRow, type AppointmentSync, type AppointmentUpdate, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, ERASURE_LEGS, ERASURE_STRATEGIES, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, PERSON_FORGOTTEN, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type ResolvePersonInput, type ResolvedPerson, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type StrandedRun, type SubscribeOptions, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WhatsappNumber, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, appointmentByClientStart, appointmentByKey, appointmentNoticeById, appointmentNoticeOf, appointmentNoticesOf, appointmentStates, appointmentsBetween, appointmentsForClient, appointmentsScrub, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, campaignSeries, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, clearForwardingConfirmation, closedRunSends, coldReceiptsOwed, contactEmailOf, contactIdByEmail, contactIdByPhone, contactSeen, countSendingDomains, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, deliveryOf, describeLead, dismissAppointmentNotice, dismissPersonDoubt, domainCapacityOf, domainHeldSince, doubtOn, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, eventOfDelivery, everyoneIn, failStrandedRun, failedMessageErrors, finishableRuns, firstReplies, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldNoticesOf, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertAppointment, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, keepAppointmentNotice, keepChannelQuality, keepChannelStanding, keepForwardingConfirmation, keepIdempotencyReceipt, keepInvoiceAmount, keepMessageCost, keepProviderEvent, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markContact, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, memberHasAddress, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, openDoubtsOf, outreachFactsOf, outreachModeOf, ownLineOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personDecisions, personReplyMode, personRow, platformHoldStands, platformWide, playbookChannels, playbooksOnList, providerEventOf, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliedTo, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reportSeries, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, resolvePerson, reviewsLedger, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, scrubPersonNotes, scrubProviderEvents, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, setTemplateQuality, settleDelivery, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suppressEmailOf, syncFeedAppointments, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updateAppointment, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspacePaused, writtenEmail, writtenEmails, yesesSince };

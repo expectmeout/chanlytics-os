@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import {
+  DEFAULT_TIMEZONE,
   toGoogleVM,
   type BroadcastVM,
   type TodayFigureId,
@@ -79,12 +80,13 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
 };
 
 // A review on Google, the morning it lands: first seen in the last day and a half, written recently, not part of the
-// first read (contracts/google.ts reviewIsNew). From the Google surface, which boots with the rest. Gone once it is
-// old news.
+// first read (contracts/google.ts reviewIsNew). From the Google surface, read where Today is drawn (ROUTE_DRAWS). Gone
+// once it is old news.
 const ReviewLine = ({ nav }: { nav: Nav }) => {
   const G = useSurface("google");
   if (!G || !G.dto.listing) return null;
-  const line = toGoogleVM(G.dto, 30).todayLine;
+  // Only the line is drawn, which is no time of day: the workspace's zone is for the rest of the view model.
+  const line = toGoogleVM(G.dto, 30, Date.now(), workspaceClock()?.zone() ?? DEFAULT_TIMEZONE).todayLine;
   if (!line) return null;
   return (
     <div className="brief-beat" data-testid="brief-review">

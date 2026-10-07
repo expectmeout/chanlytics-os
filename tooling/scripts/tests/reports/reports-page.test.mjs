@@ -23,6 +23,7 @@ import {
   classes,
   press,
   settle,
+  atWidth,
 } from "../_legacy-react.mjs";
 import {
   reportDto,
@@ -35,6 +36,12 @@ import {
   surface,
   rday,
   cday,
+  googleConnection,
+  reviewsDto,
+  reviewsGoogle,
+  reviewsHeld,
+  reviewsLedger,
+  writtenReview,
 } from "./_report-world.mjs";
 
 const went = [];
@@ -56,6 +63,9 @@ const S = "../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { RPT_CHANNELS } = await import(`${S}/surfaces/reports/series.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
+const { reviewsSample } = await import(`${S}/surfaces/reports/sample.ts`);
+const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/legacy-verbs.ts).
 Object.assign(globalThis, {
@@ -88,8 +98,27 @@ const answer = (id) =>
       deals: null,
     },
   });
-globalThis.window.fetch = async (url) => {
+/**
+ * A reply posted to a review, and what the answer's re-read of the Reviews surface finds (null: no reply is on its way). The route
+ * accepts the reply, then the refresh map re-reads Google and the Reviews read, which this serves as Google's now holds the review.
+ */
+const reviewReply = { posted: [], reread: 0, googleReads: 0, now: null };
+globalThis.window.fetch = async (url, init) => {
   const u = new URL(String(url), "https://app.test");
+  if (reviewReply.now) {
+    if (/\/google\/reviews\/[^/]+\/reply$/.test(u.pathname)) {
+      reviewReply.posted.push(JSON.parse(String(init?.body ?? "{}")).comment);
+      return json(200, { ok: true, data: { ok: true } });
+    }
+    if (u.pathname.endsWith("/google")) {
+      reviewReply.googleReads += 1;
+      return json(200, { ok: true, data: { google: reviewReply.now.google } });
+    }
+    if (u.pathname.endsWith("/reports/reviews")) {
+      reviewReply.reread += 1;
+      return json(200, { ok: true, data: reviewReply.now });
+    }
+  }
   if (/\/reports\/(campaigns|reach-outs)$/.test(u.pathname))
     return json(500, { ok: false, error: { code: "internal", message: "not read here" } });
   if (!u.pathname.endsWith("/reports")) return json(404, { ok: false, error: { code: "not_found", message: "no" } });
@@ -729,80 +758,143 @@ test("a period that fails to load says so, keeps the one showing, and lets the t
   });
 });
 
-test("Google's reviews under the period: four tiles, the ratings gained day by day, the latest reviews with the reply door", () => {
-  const NOW = Date.parse("2026-09-04T15:00:00Z");
-  const realNow = Date.now;
-  Date.now = () => NOW;
-  const dto = {
-    ready: { places: true, profile: true },
-    listing: {
-      place_id: "p-1",
-      name: "Northside Studio",
-      address: null,
+/** Northside Studio on Google as the edge answers it: the listing, the Business Profile synced, and one review through it. */
+const NORTHSIDE = {
+  ready: { places: true, profile: true },
+  listing: {
+    place_id: "p-1",
+    name: "Northside Studio",
+    address: null,
+    maps_uri: null,
+    business_status: "OPERATIONAL",
+    rating: 4.8,
+    review_count: 213,
+    linked_at: "2026-08-01T12:00:00Z",
+    checked_at: "2026-09-04T12:00:00Z",
+    check_error: null,
+  },
+  connection: {
+    google_email: "owner@example.com",
+    account_title: "Northside",
+    location_name: "locations/1",
+    location_title: "Northside Studio",
+    connected_at: "2026-08-01T12:00:00Z",
+    last_synced_at: "2026-09-04T12:00:00Z",
+    sync_error: null,
+  },
+  reviews: [
+    {
+      id: "11111111-1111-4111-8111-111111111111",
+      review_id: "r-ana",
+      origin: "profile",
+      rating: 5,
+      author: "Ana P.",
+      author_uri: null,
+      author_photo_uri: null,
+      body: "Careful and kind.",
+      language_code: "en",
+      published_at: "2026-09-03T13:00:00Z",
+      reply_text: null,
+      replied_at: null,
       maps_uri: null,
-      business_status: "OPERATIONAL",
-      rating: 4.8,
-      review_count: 213,
-      linked_at: "2026-08-01T12:00:00Z",
-      checked_at: "2026-09-04T12:00:00Z",
-      check_error: null,
+      first_seen_at: "2026-09-03T14:00:00Z",
     },
-    connection: {
-      google_email: "owner@example.com",
-      account_title: "Northside",
-      location_name: "locations/1",
-      location_title: "Northside Studio",
-      connected_at: "2026-08-01T12:00:00Z",
-      last_synced_at: "2026-09-04T12:00:00Z",
-      sync_error: null,
-    },
-    reviews: [
-      {
-        id: "11111111-1111-4111-8111-111111111111",
-        review_id: "r-ana",
-        origin: "profile",
-        rating: 5,
-        author: "Ana P.",
-        author_uri: null,
-        author_photo_uri: null,
-        body: "Careful and kind.",
-        language_code: "en",
-        published_at: "2026-09-03T13:00:00Z",
-        reply_text: null,
-        replied_at: null,
-        maps_uri: null,
-        first_seen_at: "2026-09-03T14:00:00Z",
-      },
-    ],
-    days: [
-      { day: "2026-08-29", rating: 4.8, review_count: 205 },
-      { day: "2026-09-01", rating: 4.8, review_count: 209 },
-      { day: "2026-09-04", rating: 4.8, review_count: 213 },
-    ],
-    reply_mode: "ask",
-  };
-  setSurfaceValue("google", { dto, fetchedAt: 1 });
+  ],
+  days: [
+    { day: "2026-08-29", rating: 4.8, review_count: 205 },
+    { day: "2026-09-01", rating: 4.8, review_count: 209 },
+    { day: "2026-09-04", rating: 4.8, review_count: 213 },
+  ],
+  reply_mode: "ask",
+};
+/** The reviews on record when Ana's is the only one this week, and she has not been answered: the reply the receptionist held for her named a price. */
+const northsideLedger = (over = {}) => {
+  const [ana] = NORTHSIDE.reviews;
+  return reviewsLedger({
+    written: [writtenReview(ana.id, ana.published_at, 5)],
+    waiting_total: 1,
+    waiting: [{ ...ana, held: "price" }],
+    ...over,
+  });
+};
+/** The Reviews read for seven days, held as the surface holds it (the fold and its period), the period the strip shows and the read follows. */
+const holdReviews = (google, ledger) => {
+  keepReportPeriod("7d");
+  const held = reviewsHeld(reviewsDto({ days: 7, google, ledger }));
+  setSurfaceValue("reports_reviews", held);
+  return held.vm;
+};
+const reviewRows = (tree) => all(tree, (n) => n.props?.["data-testid"] === "google-review");
+const figureIds = (tree) => all(byTestId(tree, "google-tiles"), (n) => n.type === Figure).map((n) => n.props.id);
+const sectionMeta = (tree) =>
+  textOf(
+    cls(
+      find(tree, (n) => n.type === "section" && n.props["aria-label"] === "Google reviews"),
+      "rpt-section-meta",
+    ),
+  );
+
+test("Google's reviews under the period, from the Business Profile: five figures, the stars, the weeks, who waits and the latest, with the reply door", () => {
+  const V = holdReviews(NORTHSIDE, northsideLedger());
   try {
     const tree = page();
     const section = find(tree, (n) => n.type === "section" && n.props["aria-label"] === "Google reviews");
     assert.ok(section, "a section of its own");
-    assert.deepEqual(
-      all(byTestId(tree, "google-tiles"), (n) => n.type === Figure).map((n) => n.props.id),
-      ["rating", "reviews", "ratings_gained", "newest_review"],
-      "the kit's Figure, in the strip's pattern, each named by its metric",
-    );
-    assert.ok(classes(byTestId(tree, "google-tiles")).includes("rpt-figures"), "the strip's own frame");
-    assert.ok(plot(tree, "chart-google-gained"), "the ratings gained, day by day, on the kit");
-    assert.equal(takeaway(tree, "chart-google-gained"), "", "the count gained is the tiles'");
-    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "google-review").length, 1);
+    assert.ok(sectionMeta(tree).startsWith("Northside Studio · checked "), sectionMeta(tree));
+    assert.ok(sectionMeta(tree).includes(V.google.connection.words), "the Business Profile's own words, drawn");
     assert.ok(
-      byTestId(card(tree, "chart-google-latest"), "google-reply"),
-      "a review through the Business Profile can be answered",
+      !sectionMeta(tree).includes("history on record"),
+      "the record is whole: nothing to say of where it starts",
     );
+    assert.deepEqual(
+      all(byTestId(tree, "google-tiles"), (n) => n.type === Figure).map((n) => [n.props.id, n.props.value]),
+      V.tiles.map((t) => [t.metric, t.value]),
+      "the kit's Figure, in the strip's pattern, each named by its metric and saying the fold's value",
+    );
+    assert.equal(V.tiles.length, 5, "five, from the reviews on record");
+    assert.ok(classes(byTestId(tree, "google-tiles")).includes("rpt-figures"), "the strip's own frame");
+    assert.ok(
+      classes(byTestId(tree, "google-tiles")).includes("profile") &&
+        !classes(byTestId(tree, "google-tiles")).includes("listing"),
+      "the profile's strip, named for what it counts and not for how many: five columns is the strip's own",
+    );
+    // The mix of the period's stars: a row to each, five down to one, and the page says what the fold says under it.
+    assert.deepEqual(
+      all(card(tree, "chart-reviews-stars"), (n) => classes(n).includes("ck-barlist-head")).map(textOf),
+      V.stars.rows.map((s) => `${s.label}${s.display}`),
+    );
+    assert.equal(takeaway(tree, "chart-reviews-stars"), V.lines.mix);
+    assert.ok(plot(tree, "chart-reviews-weekly"), "the weeks, on the kit");
+    assert.equal(takeaway(tree, "chart-reviews-weekly"), V.lines.weekly);
+    // Who waits: Ana, with the reply the receptionist wrote and held, and the door to answer her.
+    const waiting = card(tree, "reviews-waiting");
+    assert.equal(
+      textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))),
+      `Waiting for a reply (${V.waiting.total})`,
+    );
+    assert.equal(reviewRows(waiting).length, V.waiting.rows.length);
+    assert.ok(V.waiting.rows[0].held, "the fold has a reply held for Ana to say");
+    assert.equal(V.waiting.rows[0].held, textOf(byTestId(waiting, "google-review-held")), "the fold's own words");
+    assert.ok(byTestId(waiting, "google-reply"), "a review through the Business Profile can be answered");
+    // A review is drawn once: Ana waits above, so the latest has none of its own, and says why.
+    const latest = card(tree, "chart-google-latest");
+    assert.equal(reviewRows(latest).length, 0);
+    assert.ok(V.lines.latestEmpty && textOf(latest).includes(V.lines.latestEmpty), "and says why, in the fold's words");
+    assert.equal(reviewRows(tree).length, 1, "one review row on the page");
+    assert.equal(card(tree, "chart-google-gained"), null, "the profile counts what was written: no day-by-day gain");
+    assert.equal(card(tree, "reviews-connect"), null, "nothing to connect: it is");
+    // Neither card sets the other's height: the stars and the weeks share a row, the rest take the whole one.
+    for (const [id, span] of [
+      ["chart-reviews-stars", "rpt-span-5"],
+      ["chart-reviews-weekly", "rpt-span-7"],
+      ["reviews-waiting", "rpt-span-12"],
+      ["chart-google-latest", "rpt-span-12"],
+    ])
+      assert.ok(classes(card(tree, id)).includes(span), id);
     // The reply box is the kit's Field: its words kept, a limit of 4096, and no typing while a draft is on its way.
     lensAt = LENS_PATHS[5];
     const reviews = pageOnce();
-    press(byTestId(card(reviews, "chart-google-latest"), "google-reply"));
+    press(byTestId(card(reviews, "reviews-waiting"), "google-reply"));
     const box = find(again(draw), (n) => n.type === Field);
     assert.deepEqual(
       [box.props.rows, box.props.maxLength, box.props.readOnly, box.props["data-testid"]],
@@ -810,10 +902,6 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
     );
     assert.ok(box.props["aria-label"], "named, with no label drawn");
     lensAt = LENS_PATHS[0];
-    // Neither card sets the other's height: a run of days and a list of reviews want different shapes, so they take
-    // the row one above the other. Side by side, the reviews stretched the days to a picture of nothing.
-    for (const id of ["chart-google-gained", "chart-google-latest"])
-      assert.ok(classes(card(tree, id)).includes("rpt-span-12"), id);
     // Five reviews are what Google hands back, never the listing: the way to the rest is the listing's own address,
     // in a tab of its own. No listing address, no link -- the card never invents one.
     assert.equal(
@@ -821,10 +909,10 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
       null,
       "no address from Google, no link: the card never invents one",
     );
-    setSurfaceValue("google", {
-      dto: { ...dto, listing: { ...dto.listing, maps_uri: "https://maps.google.com/?cid=7" } },
-      fetchedAt: 1,
-    });
+    holdReviews(
+      { ...NORTHSIDE, listing: { ...NORTHSIDE.listing, maps_uri: "https://maps.google.com/?cid=7" } },
+      northsideLedger(),
+    );
     const out = byTestId(card(page(), "chart-google-latest"), "google-open-listing");
     assert.equal(textOf(out), "Read every review on Google");
     assert.deepEqual(
@@ -833,8 +921,458 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
       "the listing's own address, in a tab of its own",
     );
   } finally {
-    setSurfaceValue("google", undefined);
-    Date.now = realNow;
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("a review that waits is drawn once, above Latest, which keeps the ones that do not; the held reply is said only where one was held", () => {
+  const [ana] = NORTHSIDE.reviews;
+  const bea = {
+    ...ana,
+    id: "22222222-2222-4222-8222-222222222222",
+    review_id: "r-bea",
+    author: "Bea R.",
+    published_at: "2026-09-02T13:00:00Z",
+    reply_text: "Thank you, Bea!",
+    replied_at: "2026-09-02T20:00:00Z",
+  };
+  holdReviews(
+    { ...NORTHSIDE, reviews: [ana, bea] },
+    northsideLedger({
+      written: [writtenReview(ana.id, ana.published_at, 5), writtenReview(bea.id, bea.published_at, 5, bea.replied_at)],
+    }),
+  );
+  try {
+    const tree = page();
+    assert.equal(reviewRows(card(tree, "reviews-waiting")).length, 1, "Ana waits");
+    assert.match(textOf(card(tree, "reviews-waiting")), /Ana P\./);
+    const kept = reviewRows(card(tree, "chart-google-latest"));
+    assert.equal(kept.length, 1, "and is not drawn again under Latest, which keeps Bea");
+    assert.match(textOf(kept), /Bea R\./);
+    assert.equal(
+      all(tree, (n) => n.props?.["data-testid"] === "google-review-held").length,
+      1,
+      "one held reply, Ana's",
+    );
+  } finally {
+    setSurfaceValue("reports_reviews", undefined);
+  }
+  const answered = { ...ana, reply_text: "Thank you, Ana!", replied_at: "2026-09-03T20:00:00Z" };
+  const V = holdReviews(
+    { ...NORTHSIDE, reviews: [answered] },
+    northsideLedger({
+      written: [writtenReview(ana.id, ana.published_at, 5, "2026-09-03T20:00:00Z")],
+      waiting_total: 0,
+      waiting: [],
+    }),
+  );
+  try {
+    const tree = page();
+    const waiting = card(tree, "reviews-waiting");
+    assert.equal(
+      textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))),
+      `Waiting for a reply (${V.waiting.total})`,
+    );
+    assert.equal(V.waiting.total, 0);
+    assert.ok(V.lines.waitingEmpty && textOf(waiting).includes(V.lines.waitingEmpty), "the fold's words for none");
+    assert.equal(reviewRows(waiting).length, 0);
+    const latest = card(tree, "chart-google-latest");
+    assert.equal(reviewRows(latest).length, 1, "the answered review is the latest, once");
+    assert.equal(byTestId(tree, "google-review-held"), null, "no reply was held: nothing is said of one");
+    assert.equal(V.tiles.at(3)?.value, "1 of 1", "and it counts as answered");
+    assert.match(textOf(latest), /Thank you, Ana!/, "its reply, under it");
+    assert.equal(
+      takeaway(tree, "chart-google-latest"),
+      `${V.google.source} · ${V.google.reply.words}`,
+      "the source is named, and what the receptionist does under a new review beside it",
+    );
+    assert.ok(V.google.reply.words, "which is something to say, under Ask");
+  } finally {
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("a record that starts after the period says where, in the section's meta and where the figures would be, and draws a dash for what it cannot count: never a zero", () => {
+  // 100 of Google's 213 on record, the sync did not read the whole list, and the connection began Aug 30: the week began Aug 29
+  const V = holdReviews(
+    reviewsGoogle({ connection: googleConnection({ connected_at: "2026-08-30T12:00:00Z" }) }),
+    reviewsLedger({ on_record: { profile: 100, places: 0, complete: false } }),
+  );
+  try {
+    const tree = page();
+    assert.ok(V.lines.history && sectionMeta(tree).includes(V.lines.history), sectionMeta(tree));
+    assert.deepEqual(
+      all(byTestId(tree, "google-tiles"), (n) => n.type === Figure).map((n) => [n.props.id, n.props.value]),
+      V.tiles.map((t) => [t.metric, t.value]),
+    );
+    assert.deepEqual(
+      V.tiles.slice(2).map((t) => t.value),
+      ["—", "—", "—"],
+      "what the record cannot count is a dash in the fold, and drawn as one",
+    );
+    const stars = card(tree, "chart-reviews-stars");
+    assert.equal(all(stars, (n) => classes(n).includes("ck-barlist-row")).length, 0, "no mix of what is not counted");
+    assert.ok(
+      textOf(stars).includes(V.lines.historyTitle),
+      "the fold's own words for a title, never the page's lower-casing of the other",
+    );
+  } finally {
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("Google's reviews from the five it shows first: four figures, the ratings gained day by day, the latest, and what the Business Profile would add", () => {
+  const places = { ...NORTHSIDE, connection: null, reviews: [{ ...NORTHSIDE.reviews[0], origin: "places" }] };
+  // The reader keeps no ledger where no profile has synced: the five public reviews are no record to count.
+  const V = holdReviews(places, null);
+  try {
+    const tree = page();
+    assert.deepEqual(
+      figureIds(tree),
+      ["rating", "reviews", "ratings_gained", "newest_review"],
+      "the listing's four, each named by its metric",
+    );
+    assert.ok(
+      classes(byTestId(tree, "google-tiles")).includes("listing") &&
+        !classes(byTestId(tree, "google-tiles")).includes("profile"),
+      "the listing's strip: four columns by its role (--cells), never by a class that says four",
+    );
+    assert.ok(plot(tree, "chart-google-gained"), "the ratings gained, day by day, on the kit");
+    assert.equal(takeaway(tree, "chart-google-gained"), "", "the count gained is the tiles'");
+    assert.equal(reviewRows(card(tree, "chart-google-latest")).length, 1, "the five Google shows first, here one");
+    assert.equal(
+      takeaway(tree, "chart-google-latest"),
+      V.google.source,
+      "the source is named, and no reply to say where a review cannot be answered from here",
+    );
+    for (const id of ["chart-reviews-stars", "chart-reviews-weekly", "reviews-waiting"])
+      assert.equal(card(tree, id), null, `${id}: the five public reviews count nothing`);
+    assert.equal(
+      byTestId(tree, "google-reply"),
+      null,
+      "a review that did not come through the profile cannot be answered",
+    );
+    for (const id of ["chart-google-gained", "chart-google-latest"])
+      assert.ok(classes(card(tree, id)).includes("rpt-span-12"), id);
+    const connect = card(tree, "reviews-connect");
+    assert.ok(textOf(connect).includes(V.lines.connect), "what the profile would add, in the fold's own words");
+    assert.ok(V.lines.connect, "the fold has the words");
+    press(find(connect, (n) => n.type === "button"));
+    assert.deepEqual(went, ["admin/integrations"], "and the door to Connections");
+    // Connected, the location not yet chosen: the same five, the connection's own words in the meta and in the card.
+    const toChoose = holdReviews(
+      {
+        ...places,
+        connection: { ...NORTHSIDE.connection, location_name: null, location_title: null, last_synced_at: null },
+      },
+      null,
+    );
+    const pending = page();
+    const joined = toChoose.google.connection;
+    assert.ok(joined.pending && joined.words, "the fold has the connection's words for a location still to choose");
+    assert.ok(sectionMeta(pending).includes(joined.words));
+    assert.ok(textOf(card(pending, "reviews-connect")).includes(joined.words));
+    assert.deepEqual(figureIds(pending), ["rating", "reviews", "ratings_gained", "newest_review"]);
+    // One reading of Google's count is no difference: the card says so in the fold's words, with no days to draw.
+    const first = holdReviews({ ...places, days: places.days.slice(-1) }, null);
+    const young = page();
+    assert.ok(first.lines.gained, "the fold has the words");
+    assert.equal(takeaway(young, "chart-google-gained"), first.lines.gained);
+    assert.ok(textOf(card(young, "chart-google-gained")).includes(first.lines.gainedEmpty));
+    assert.equal(plot(young, "chart-google-gained"), null, "nothing to plot");
+  } finally {
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("a reply from a waiting row says it is on Google: the answer takes the review out of the waiting card, and the toast is the section's, not the composer's", async () => {
+  const [ana] = NORTHSIDE.reviews;
+  const answered = { ...ana, reply_text: "Thank you, Ana!", replied_at: "2026-09-04T14:00:00Z" };
+  // The shell's toast, as the shell holds it: the state of the component that asked for it, drawn only while that component is.
+  const shellToast = globalThis.usePPToast;
+  globalThis.usePPToast = () => {
+    const [said, say] = globalThis.React.useState(null);
+    return [said ? globalThis.React.createElement("div", { "data-testid": "toast" }, textOf(said.msg)) : null, say];
+  };
+  keepReportPeriod("7d");
+  holdReviews(NORTHSIDE, northsideLedger());
+  reviewReply.posted.length = 0;
+  reviewReply.reread = 0;
+  reviewReply.now = reviewsDto({
+    days: 7,
+    google: { ...NORTHSIDE, reviews: [answered] },
+    ledger: northsideLedger({
+      written: [writtenReview(ana.id, ana.published_at, 5, answered.replied_at)],
+      waiting_total: 0,
+      waiting: [],
+    }),
+  });
+  const settled = async () => {
+    for (let i = 0; i < 20; i++) await settle();
+  };
+  /** Until the Reviews read has been asked for again, by the answer, and then for the rest of what follows it. */
+  const reread = async () => {
+    for (let i = 0; i < 300 && !reviewReply.reread; i++) await new Promise((r) => setTimeout(r, 10));
+    await settled();
+  };
+  try {
+    lensAt = LENS_PATHS[5];
+    let tree = pageOnce();
+    assert.equal(reviewRows(card(tree, "reviews-waiting")).length, 1, "Ana waits");
+    // The card's heading is where focus goes once the row that held it is gone: a place the section holds, which a browser would fill.
+    const focused = [];
+    find(card(tree, "reviews-waiting"), (n) => classes(n).includes("ck-card-title")).props.ref.current = {
+      focus: () => focused.push("the waiting card's heading"),
+    };
+    press(byTestId(card(tree, "reviews-waiting"), "google-reply"));
+    await settled(); // the draft is asked for, and none comes: the box is hers to fill
+    tree = again(draw);
+    find(tree, (n) => n.type === Field).props.onValueChange("Thank you, Ana!");
+    tree = again(draw);
+    press(byTestId(tree, "google-reply-send"));
+    await reread(); // the reply is accepted, and the answer re-reads the Reviews surface before the verb returns
+    tree = again(draw);
+    assert.deepEqual(reviewReply.posted, ["Thank you, Ana!"], "her words went to the route");
+    assert.deepEqual(focused, ["the waiting card's heading"], "focus is sent to the card, once, when the reply landed");
+    assert.equal(
+      reviewReply.googleReads,
+      0,
+      "and Google is not read beside the Reviews read: its answer carries Google's",
+    );
+    assert.ok(
+      textOf(card(tree, "reviews-waiting")).includes(reviewsHeld(reviewReply.now).vm.lines.waitingEmpty),
+      "the review left the waiting card, which says so in the fold's words",
+    );
+    const toasts = all(tree, (n) => n.props?.["data-testid"] === "toast");
+    assert.equal(toasts.length, 1, "and the page still says it landed, once");
+    assert.equal(textOf(toasts[0]), "Your reply is on Google, under the review.");
+    // The section draws it, outside every review: a toast a row draws leaves with the row, which a real React would not keep.
+    assert.deepEqual(
+      all(tree, (n) => classes(n).includes("rp2-review") && !!byTestId(n, "toast")),
+      [],
+      "not inside a review's own composer",
+    );
+  } finally {
+    reviewReply.now = null;
+    globalThis.usePPToast = shellToast;
+    lensAt = LENS_PATHS[0];
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("the reviews a card lists are a list, one item each, and a review's stars are an image that says its rating, or that it has none", () => {
+  const [ana] = NORTHSIDE.reviews;
+  const unrated = {
+    ...ana,
+    id: "33333333-3333-4333-8333-333333333333",
+    review_id: "r-cy",
+    author: "Cy T.",
+    rating: null,
+  };
+  const answered = {
+    ...ana,
+    id: "22222222-2222-4222-8222-222222222222",
+    review_id: "r-bea",
+    author: "Bea R.",
+    reply_text: "Thank you, Bea!",
+    replied_at: "2026-09-02T20:00:00Z",
+    published_at: "2026-09-02T13:00:00Z",
+  };
+  const V = holdReviews(
+    { ...NORTHSIDE, reviews: [ana, unrated, answered] },
+    northsideLedger({
+      written: [writtenReview(answered.id, answered.published_at, 5, answered.replied_at)],
+      waiting_total: 2,
+      waiting: [
+        { ...ana, held: "price" },
+        { ...unrated, held: null },
+      ],
+    }),
+  );
+  try {
+    const tree = page();
+    for (const id of ["reviews-waiting", "chart-google-latest"]) {
+      const list = find(card(tree, id), (n) => n.type === "ul");
+      assert.ok(list, `${id}: a list`);
+      assert.ok(classes(list).includes("rp2-reviews"));
+      const items = all(list, (n) => n.type === "li");
+      assert.deepEqual(
+        items.map((li) => li.props["data-testid"]),
+        items.map(() => "google-review"),
+        `${id}: each review is an item of it`,
+      );
+      assert.equal(items.length, reviewRows(card(tree, id)).length, `${id}: and no review is drawn outside it`);
+    }
+    const images = all(card(tree, "reviews-waiting"), (n) => n.props?.role === "img");
+    assert.deepEqual(
+      images.map((n) => n.props["aria-label"]),
+      ["5 of 5 stars", "No rating"],
+      "the rating in words, and none said as none",
+    );
+    assert.deepEqual(
+      images.map(textOf),
+      V.waiting.rows.map((r) => r.stars),
+      "over the glyphs the image stands for",
+    );
+  } finally {
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("on a phone the reviews that wait come first, ahead of the figures; with none waiting, and on a desk, they keep their place", () => {
+  const ORDER = [
+    "reviews-waiting",
+    "google-tiles",
+    "chart-reviews-stars",
+    "chart-reviews-weekly",
+    "chart-google-latest",
+  ];
+  const orderOf = (tree) =>
+    all(tree, (n) => ORDER.includes(n.props?.["data-testid"])).map((n) => n.props["data-testid"]);
+  const desk = [
+    "google-tiles",
+    "chart-reviews-stars",
+    "chart-reviews-weekly",
+    "reviews-waiting",
+    "chart-google-latest",
+  ];
+  const [ana] = NORTHSIDE.reviews;
+  const draws = (phone) => {
+    const width = atWidth(phone);
+    try {
+      lensAt = LENS_PATHS[5];
+      return pageOnce();
+    } finally {
+      width.put();
+      lensAt = LENS_PATHS[0];
+    }
+  };
+  try {
+    holdReviews(NORTHSIDE, northsideLedger());
+    assert.deepEqual(orderOf(draws(false)), desk, "a desk: the figures, the charts, then who waits");
+    assert.deepEqual(
+      orderOf(draws(true)),
+      ["reviews-waiting", "google-tiles", "chart-reviews-stars", "chart-reviews-weekly", "chart-google-latest"],
+      "a phone: who waits is the work, and comes first",
+    );
+    holdReviews(
+      NORTHSIDE,
+      northsideLedger({
+        written: [writtenReview(ana.id, ana.published_at, 5, "2026-09-03T20:00:00Z")],
+        waiting_total: 0,
+        waiting: [],
+      }),
+    );
+    assert.deepEqual(orderOf(draws(true)), desk, "nothing waits: a card that says so is no work, and keeps its place");
+    // The listing's own figures count no reply: nothing to put first.
+    holdReviews({ ...NORTHSIDE, connection: null, reviews: [{ ...ana, origin: "places" }] }, null);
+    assert.equal(byTestId(draws(true), "reviews-waiting"), null);
+  } finally {
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("the doors out of the Reviews lens are for a person who may use them: the words stay for the rest", () => {
+  const places = { ...NORTHSIDE, connection: null, reviews: [{ ...NORTHSIDE.reviews[0], origin: "places" }] };
+  const asWho = globalThis.canDo;
+  const door = (tree) => find(byTestId(tree, "reviews-connect"), (n) => n.type === "button");
+  try {
+    for (const [who, may] of [
+      ["an owner", () => true],
+      ["an operator", (action) => action === "approve"],
+      ["a viewer", () => false],
+    ]) {
+      globalThis.canDo = may;
+      const V = holdReviews(places, null);
+      const tree = page();
+      assert.ok(textOf(byTestId(tree, "reviews-connect")).includes(V.lines.connect), `${who}: the words`);
+      if (who === "an owner") {
+        assert.equal(textOf(door(tree)), "Open Connections");
+        press(door(tree));
+        assert.deepEqual(went, ["admin/integrations"], "the owner's door leads to Connections");
+      } else assert.equal(door(tree), null, `${who}: no door to what they may not do`);
+    }
+  } finally {
+    globalThis.canDo = asWho;
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("a pick whose Reviews read could not be made says so on the lens through the follower, with its Retry, while the page shows the period picked and the head says nothing it cannot show", async () => {
+  const hash = globalThis.location.hash;
+  globalThis.location.hash = "#/reports/reviews";
+  lensAt = LENS_PATHS[5];
+  try {
+    await inPeriodTest("answer", async () => {
+      // Seven days is read and held, as it was by the visit before; the report answers every period, and the Reviews read none.
+      holdReviews(NORTHSIDE, northsideLedger());
+      setStatus("reports_reviews", "live");
+      let tree = pageOnce();
+      assert.ok(byTestId(tree, "google-tiles"), "the figures stand");
+      choose(tree, "30 days");
+      for (let i = 0; i < 12; i++) await settle();
+      redraw(); // the effect that follows the report's answer clears what the page held, and the next draw shows it
+      tree = redraw();
+      assert.equal(chosen(tree), "30 days", "the page shows the period it picked: the report landed");
+      assert.equal(failedLine(tree), null, "which did not fail, so the page's own row says nothing");
+      const words = byTestId(tree, "reviews-failed");
+      assert.ok(words, "the lens says its own read failed");
+      assert.ok(textOf(words).includes("Couldn't read your Google reviews"), textOf(words));
+      assert.ok(
+        find(tree, (n) => n.props?.surface === "reports_reviews"),
+        "with the Retry that reads it again",
+      );
+      assert.equal(byTestId(tree, "google-tiles"), null, "the seven days it left are not drawn under thirty");
+      assert.equal(standingSaid().sentence, undefined, "nor said at the head");
+      assert.equal(
+        byTestId(tree, "reports-real").props["data-loading"],
+        undefined,
+        "and nothing dims: a card that dims takes no press",
+      );
+    });
+  } finally {
+    globalThis.location.hash = hash;
+    lensAt = LENS_PATHS[0];
+    setStatus("reports_reviews", "live");
+    setSurfaceValue("reports_reviews", undefined);
+    keepReportPeriod("7d");
+  }
+});
+
+test("a demo's Reviews lens draws the sample's listing through the same section, its tabs switch the sample's period, and nothing in it can be answered", () => {
+  setSurfaceValue("reports", undefined);
+  setSurfaceValue("reports_reviews", undefined);
+  globalThis.__DEMO_MODE = true;
+  lensAt = LENS_PATHS[5];
+  try {
+    fresh();
+    let tree = draw();
+    const sample = reviewsSample("30d");
+    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
+    assert.deepEqual(figureIds(tree), ["rating", "reviews", "ratings_gained", "newest_review"], "the listing's four");
+    assert.equal(standingSaid().sentence, sample.vm.lines.head, "the head says the sample's fold");
+    assert.equal(
+      reviewRows(card(tree, "chart-google-latest")).length,
+      sample.vm.latest.length,
+      "the reviews Google shows",
+    );
+    assert.equal(byTestId(tree, "google-reply"), null, "a demo posts no reply to Google");
+    assert.ok(
+      textOf(byTestId(tree, "reviews-connect")).includes(sample.vm.lines.connect),
+      "and says what a profile would add",
+    );
+    assert.equal(byTestId(tree, "reports-real"), null);
+    assert.equal(
+      byTestId(tree, "reports-sample").props["data-loading"],
+      undefined,
+      "the sample answers at once: nothing is on its way",
+    );
+    choose(tree, "90 days");
+    tree = redraw();
+    assert.equal(standingSaid().sentence, reviewsSample("90d").vm.lines.head, "the sample's own period");
+  } finally {
+    globalThis.__DEMO_MODE = false;
+    lensAt = LENS_PATHS[0];
   }
 });
 

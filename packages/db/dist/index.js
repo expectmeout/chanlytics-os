@@ -2338,6 +2338,116 @@ async function workspaceAbout(db, tenantId) {
   return data?.about?.trim() || null;
 }
 
+// src/repositories/templates.ts
+import {
+  isReachOutRow,
+  variablesSlotCount
+} from "../../contracts/dist/index.js";
+async function templatesFor(db, tenantId, channel = "whatsapp") {
+  const ofTenant = db.from("templates").select("id, channel, name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId);
+  const { data, error } = await (channel === null ? ofTenant : ofTenant.eq("channel", channel));
+  if (error) throw new Error(`templatesFor: ${error.message}`);
+  return data ?? [];
+}
+async function templatesToSend(db, tenantId, channel = "whatsapp") {
+  const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables, components").eq("tenant_id", tenantId).eq("channel", channel);
+  if (error) throw new Error(`templatesToSend: ${error.message}`);
+  return data ?? [];
+}
+async function messageSlots(db, tenantId, name, language) {
+  const { data, error } = await db.from("templates").select("channel, language, variables").eq("tenant_id", tenantId).eq("name", name);
+  if (error) throw new Error(`messageSlots: ${error.message}`);
+  const rows = (data ?? []).slice().sort((a, b) => {
+    const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
+    return wa || Number(b.language === language) - Number(a.language === language);
+  });
+  const row = rows[0];
+  return row ? variablesSlotCount(row.variables) : null;
+}
+async function messageOfVersion(db, tenantId, id) {
+  const { data, error } = await db.from("templates").select("name, language").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data;
+}
+var MESSAGE_COLUMNS = "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
+async function messageVersionRowsOf(db, tenantId, by) {
+  const message = "id" in by ? await messageOfVersion(db, tenantId, by.id) : by;
+  if (message === null || isReachOutRow(message)) return [];
+  const { data, error } = await db.from("templates").select(MESSAGE_COLUMNS).eq("tenant_id", tenantId).eq("name", message.name).eq("language", message.language);
+  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  return data ?? [];
+}
+async function ownVersionsFiled(db, tenantId, names) {
+  if (names.length === 0) return [];
+  const { data, error } = await db.from("templates").select("channel, name, language").eq("tenant_id", tenantId).in("channel", ["email", "sms"]).in("name", names);
+  if (error) throw new Error(`ownVersionsFiled: ${error.message}`);
+  return data ?? [];
+}
+function versionRefOf(data) {
+  const v = data;
+  return v && typeof v.id === "string" && typeof v.channel === "string" && typeof v.name === "string" && typeof v.language === "string" ? { id: v.id, channel: v.channel, name: v.name, language: v.language } : null;
+}
+async function saveTemplateVersion(db, p) {
+  const { data, error } = await db.rpc("save_template_version", {
+    p_tenant_id: p.tenantId,
+    p_name: p.name,
+    p_language: p.language,
+    p_channel: p.channel,
+    p_subject: p.subject ?? "",
+    p_body: p.body
+  });
+  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  const version = versionRefOf(data);
+  if (!version) throw new Error("saveTemplateVersion: the door answered without the version it wrote");
+  return { ok: true, version };
+}
+async function createMessageVersion(db, p) {
+  const { data, error } = await db.rpc("create_message_version", {
+    p_tenant_id: p.tenantId,
+    p_user: p.userId,
+    p_name: p.name,
+    p_language: p.language,
+    p_channel: p.channel,
+    p_subject: p.subject ?? "",
+    p_body: p.body,
+    p_category: p.category,
+    p_variables: p.variables,
+    p_title: p.title ?? ""
+  });
+  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  const version = versionRefOf(data);
+  if (!version) throw new Error("createMessageVersion: the door answered without the version it wrote");
+  return { ok: true, version };
+}
+function isMissingDoor(error) {
+  return error.code === "PGRST202" || error.code === "42883";
+}
+async function removeTemplateVersion(db, templateId) {
+  const { data, error } = await db.rpc("remove_template_version", { p_template_id: templateId });
+  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  const version = versionRefOf(data);
+  if (!version) throw new Error("removeTemplateVersion: the door answered without the version it removed");
+  return { ok: true, version };
+}
+async function templateIdOf(db, tenantId, name, language) {
+  const { data, error } = await db.from("templates").select("id").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.id ?? null;
+}
+async function templatesNamed(db, tenantId, names) {
+  const { data, error } = await db.from("templates").select("name, language, meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").in("name", names);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+async function templateStatusOf(db, tenantId, name, language) {
+  const { data } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+  return data;
+}
+async function setTemplateQuality(db, p) {
+  const { error } = await db.from("templates").update({ quality: p.quality }).eq("tenant_id", p.tenantId).eq("channel", "whatsapp").eq("name", p.name).eq("language", p.language);
+  if (error) throw new Error(`setTemplateQuality: ${error.message}`);
+}
+
 // src/repositories/reports/report-series.ts
 async function reportSeries(db, tenantId, days) {
   const { data, error } = await db.rpc("report_series", { p_tenant_id: tenantId, p_days: days });
@@ -2347,6 +2457,14 @@ async function reportSeries(db, tenantId, days) {
 async function campaignSeries(db, tenantId, days) {
   const { data, error } = await db.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days });
   if (error) throw new Error(`campaign_series: ${error.message}`);
+  return data;
+}
+async function reviewsLedger(db, tenantId, days) {
+  const { data, error } = await db.rpc("reviews_ledger", { p_tenant_id: tenantId, p_days: days });
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`reviews_ledger: ${error.message}`);
+  }
   return data;
 }
 async function reachOutReport(db, tenantId, days) {
@@ -2962,116 +3080,6 @@ async function releaseControl(db, p) {
   });
   if (error) throw new Error(`release_conversation_control: ${error.message}`);
   return data === true;
-}
-
-// src/repositories/templates.ts
-import {
-  isReachOutRow,
-  variablesSlotCount
-} from "../../contracts/dist/index.js";
-async function templatesFor(db, tenantId, channel = "whatsapp") {
-  const ofTenant = db.from("templates").select("id, channel, name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId);
-  const { data, error } = await (channel === null ? ofTenant : ofTenant.eq("channel", channel));
-  if (error) throw new Error(`templatesFor: ${error.message}`);
-  return data ?? [];
-}
-async function templatesToSend(db, tenantId, channel = "whatsapp") {
-  const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables, components").eq("tenant_id", tenantId).eq("channel", channel);
-  if (error) throw new Error(`templatesToSend: ${error.message}`);
-  return data ?? [];
-}
-async function messageSlots(db, tenantId, name, language) {
-  const { data, error } = await db.from("templates").select("channel, language, variables").eq("tenant_id", tenantId).eq("name", name);
-  if (error) throw new Error(`messageSlots: ${error.message}`);
-  const rows = (data ?? []).slice().sort((a, b) => {
-    const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
-    return wa || Number(b.language === language) - Number(a.language === language);
-  });
-  const row = rows[0];
-  return row ? variablesSlotCount(row.variables) : null;
-}
-async function messageOfVersion(db, tenantId, id) {
-  const { data, error } = await db.from("templates").select("name, language").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
-  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
-  return data;
-}
-var MESSAGE_COLUMNS = "id, channel, name, language, meta_status, category, variables, hidden_at, title, source, components, body_preview, rejected_reason";
-async function messageVersionRowsOf(db, tenantId, by) {
-  const message = "id" in by ? await messageOfVersion(db, tenantId, by.id) : by;
-  if (message === null || isReachOutRow(message)) return [];
-  const { data, error } = await db.from("templates").select(MESSAGE_COLUMNS).eq("tenant_id", tenantId).eq("name", message.name).eq("language", message.language);
-  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
-  return data ?? [];
-}
-async function ownVersionsFiled(db, tenantId, names) {
-  if (names.length === 0) return [];
-  const { data, error } = await db.from("templates").select("channel, name, language").eq("tenant_id", tenantId).in("channel", ["email", "sms"]).in("name", names);
-  if (error) throw new Error(`ownVersionsFiled: ${error.message}`);
-  return data ?? [];
-}
-function versionRefOf(data) {
-  const v = data;
-  return v && typeof v.id === "string" && typeof v.channel === "string" && typeof v.name === "string" && typeof v.language === "string" ? { id: v.id, channel: v.channel, name: v.name, language: v.language } : null;
-}
-async function saveTemplateVersion(db, p) {
-  const { data, error } = await db.rpc("save_template_version", {
-    p_tenant_id: p.tenantId,
-    p_name: p.name,
-    p_language: p.language,
-    p_channel: p.channel,
-    p_subject: p.subject ?? "",
-    p_body: p.body
-  });
-  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
-  const version = versionRefOf(data);
-  if (!version) throw new Error("saveTemplateVersion: the door answered without the version it wrote");
-  return { ok: true, version };
-}
-async function createMessageVersion(db, p) {
-  const { data, error } = await db.rpc("create_message_version", {
-    p_tenant_id: p.tenantId,
-    p_user: p.userId,
-    p_name: p.name,
-    p_language: p.language,
-    p_channel: p.channel,
-    p_subject: p.subject ?? "",
-    p_body: p.body,
-    p_category: p.category,
-    p_variables: p.variables,
-    p_title: p.title ?? ""
-  });
-  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
-  const version = versionRefOf(data);
-  if (!version) throw new Error("createMessageVersion: the door answered without the version it wrote");
-  return { ok: true, version };
-}
-function isMissingDoor(error) {
-  return error.code === "PGRST202" || error.code === "42883";
-}
-async function removeTemplateVersion(db, templateId) {
-  const { data, error } = await db.rpc("remove_template_version", { p_template_id: templateId });
-  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
-  const version = versionRefOf(data);
-  if (!version) throw new Error("removeTemplateVersion: the door answered without the version it removed");
-  return { ok: true, version };
-}
-async function templateIdOf(db, tenantId, name, language) {
-  const { data, error } = await db.from("templates").select("id").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
-  if (error) throw new Error(error.message);
-  return data?.id ?? null;
-}
-async function templatesNamed(db, tenantId, names) {
-  const { data, error } = await db.from("templates").select("name, language, meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").in("name", names);
-  if (error) throw new Error(error.message);
-  return data ?? [];
-}
-async function templateStatusOf(db, tenantId, name, language) {
-  const { data } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
-  return data;
-}
-async function setTemplateQuality(db, p) {
-  const { error } = await db.from("templates").update({ quality: p.quality }).eq("tenant_id", p.tenantId).eq("channel", "whatsapp").eq("name", p.name).eq("language", p.language);
-  if (error) throw new Error(`setTemplateQuality: ${error.message}`);
 }
 
 // src/repositories/control-plane.ts
@@ -4383,6 +4391,7 @@ export {
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
   resolvePerson,
+  reviewsLedger,
   runGoesByOthers,
   runSending,
   runsWaitingOf,

@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import {
   ASK_ANSWER_FORMAT,
@@ -41,6 +42,7 @@ import {
   toPersonRowVM,
   nextRunLabel,
   toReportVM,
+  toReviewsReportVM,
   toBookingReportVM,
   toDealReportVM,
   compareTemplates,
@@ -228,6 +230,17 @@ const RPCS = {
   people_list: () => [],
   metrics_summary: () => ({ error: "not modelled here" }),
   report_series: () => ({ error: "not modelled here" }),
+  // The Reviews lens's ledger (readers/report.ts reviewsReport), which the report tool reads beside the series: no review on
+  // record. The fake's refusal of a door nobody modelled would be caught into the tool's `error`, and say so.
+  reviews_ledger: (a) => ({
+    timezone: TZ,
+    today: "2026-09-14",
+    days: a.p_days,
+    on_record: { profile: 0, places: 0, complete: false },
+    written: [],
+    waiting_total: 0,
+    waiting: [],
+  }),
   // The rail's counts (server/leads/lead-searches.ts listCounts), so Today's searches read as none inside a turn rather
   // than as a read that failed: the fake's refusal of an unmodelled door must never be caught into a quiet null.
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
@@ -997,6 +1010,178 @@ test("report says the Campaigns lens beside the page (0030): its tiles, the read
     (await run(without)).campaigns,
     { error: "the campaign numbers could not be read just now" },
     "its read failed: said so, never as nothing sent, and the report stands",
+  );
+});
+
+test("report says the Reviews lens as the page does (Reports phase C, lens 1): the head and the figures from the one fold, the mix and who waits where the Business Profile holds the reviews, the head and four figures from a public listing, linked false with none, and an error where its read failed", async () => {
+  const today = iso(NOW.getTime()).slice(0, 10);
+  const rpcs = {
+    ...RPCS,
+    report_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today,
+      series: [],
+      reasons: {},
+      reply_seconds: [],
+      sentiments: {},
+      voicemail: 0,
+    }),
+  };
+  const review = (n, published, over = {}) =>
+    rows.googleReview({
+      id: `ffffffff-ffff-4fff-8fff-ffffffffff0${n}`,
+      tenant_id: A,
+      review_id: `g-0${n}`,
+      rating: 5,
+      author: "Ana P.",
+      body: "Fast, careful, and on time.",
+      published_at: published,
+      first_seen_at: published,
+      last_seen_at: published,
+      ...over,
+    });
+  const listing = (over = {}) =>
+    rows.googleListing({
+      tenant_id: A,
+      address: "1 Dock Street",
+      maps_uri: "https://maps.example.com/harbor",
+      business_status: "OPERATIONAL",
+      rating: 4.8,
+      review_count: 4,
+      linked_at: "2026-08-01T12:00:00Z",
+      checked_at: "2026-09-14T12:00:00Z",
+      ...over,
+    });
+  const connection = (over = {}) =>
+    rows.googleConnection({
+      tenant_id: A,
+      google_email: "owner@example.com",
+      account_title: "Harbor Studio",
+      location_name: "locations/1",
+      location_title: "Harbor Studio",
+      connected_at: "2026-08-01T12:00:00Z",
+      last_synced_at: "2026-09-14T12:00:00Z",
+      ...over,
+    });
+  // Four reviews on the profile, which is every one Google counts: two written in the last 7 days (one answered by the
+  // receptionist six hours later, one waiting, a reply to it written and held for naming a price), one in the 7 before
+  // (answered by its owner), one older; and a fifth, one of the five the public listing shows, which counts for nothing.
+  const reviews = [
+    review(1, "2026-09-10T14:00:00Z", { reply_text: "Thank you!", replied_at: "2026-09-10T20:00:00Z" }),
+    review(2, "2026-09-12T09:00:00Z", { rating: 2 }),
+    review(3, "2026-09-02T10:00:00Z", { rating: 4, reply_text: "Thanks!", replied_at: "2026-09-03T10:00:00Z" }),
+    review(4, "2026-08-15T10:00:00Z", { reply_text: "Thanks!", replied_at: "2026-08-15T12:00:00Z" }),
+    review(5, "2026-09-13T10:00:00Z", { origin: "places", rating: 1 }),
+  ];
+  // What reviews_ledger answers for the profile's four (the database counts in SQL: google-reviews-ledger.db.test.mjs): the
+  // one the receptionist answered, the one that waits with the reply it held, and the two answered by their owner.
+  const drawn = ({ tenant_id: _tenant, last_seen_at: _seen, ...row }) => row;
+  const ledger = (a) => ({
+    timezone: TZ,
+    today,
+    days: a.p_days,
+    on_record: { profile: 4, places: 1, complete: true },
+    written: [
+      { id: reviews[3].id, d: "2026-08-15", rating: 5, replied: true, secs: 7_200, by: null },
+      { id: reviews[2].id, d: "2026-09-02", rating: 4, replied: true, secs: 86_400, by: null },
+      { id: reviews[0].id, d: "2026-09-10", rating: 5, replied: true, secs: 21_600, by: "receptionist" },
+      { id: reviews[1].id, d: "2026-09-12", rating: 2, replied: false, secs: null, by: null },
+    ],
+    waiting_total: 1,
+    waiting: [{ ...drawn(reviews[1]), held: "price" }],
+  });
+  const profile = tables({
+    google_listings: [listing()],
+    google_connections: [connection()],
+    google_reviews: reviews,
+  });
+  const run = async (t, over = {}) => {
+    const tc = newToolContext(ctxFor(t, { ...rpcs, reviews_ledger: ledger, ...over }), A, "owner", TZ, NOW);
+    const out = await runTool(tc, { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+
+  // The Business Profile holds the reviews: its head, its five figures, the mix, and who waits.
+  assert.deepEqual((await run(profile)).reviews, {
+    head: "4.8 on Google from 4 reviews; 2 new in the last 7 days, 1 answered.",
+    tiles: [
+      { label: "Rating on Google", value: "4.8", meta: "4 reviews · checked 2h ago", change: null },
+      { label: "Reviews on Google", value: "4", meta: "as Google counts them, with or without words", change: null },
+      { label: "New in 7 days", value: "2", meta: "with words or without", change: "up from 1" },
+      { label: "Answered", value: "1 of 2", meta: "1 by the receptionist", change: null },
+      { label: "Time to reply", value: "—", meta: "1 reply so far; the middle needs 3", change: null },
+    ],
+    stars: {
+      line: "1 of the 2 reviews written in the last 7 days are 4 or 5 stars.",
+      rows: ["5 stars: 1 · 50%", "4 stars: 0 · 0%", "3 stars: 0 · 0%", "2 stars: 1 · 50%", "1 star: 0 · 0%"],
+    },
+    waiting: { count: 1, held: 1 },
+  });
+
+  // Only the five Google shows of a public listing: the listing's head and four figures, and nothing that needs the whole set.
+  const publicOnly = tables({
+    google_listings: [listing({ rating: 4.6, review_count: 213 })],
+    google_reviews: reviews.map((r) => ({ ...r, origin: "places" })),
+  });
+  const places = (await run(publicOnly)).reviews;
+  assert.deepEqual(places, {
+    head: "4.6 on Google from 213 reviews; what changed needs a second day of reading.",
+    tiles: [
+      { label: "Rating on Google", value: "4.6", meta: "213 reviews · checked 2h ago", change: null },
+      { label: "Reviews on Google", value: "213", meta: "as Google counts them, with or without words", change: null },
+      { label: "Gained in 7 days", value: "—", meta: "needs a second day of reading", change: null },
+      { label: "Newest review", value: "1d ago", meta: "★☆☆☆☆ · Ana P.", change: null },
+    ],
+    connect: "Connect your Business Profile to see every review, who answered, and how fast.",
+  });
+  assert.deepEqual(
+    Object.keys(places),
+    ["head", "tiles", "connect"],
+    "no answered, stars or waiting from five reviews that are a sample of nothing, and what the profile would add",
+  );
+  // A profile connected whose first sync has not yet run holds none of the reviews: it says what the public listing says,
+  // and offers no connection to one that is already there.
+  const unsynced = tables({
+    ...publicOnly,
+    google_connections: [connection({ last_synced_at: null })],
+  });
+  assert.deepEqual((await run(unsynced)).reviews, { ...places, connect: null });
+
+  // No listing linked: that, and the fold's words for it (the lens's own, what a deployment that can look a listing up offers),
+  // which a person reads as nothing to say, never as no reviews. The model need not lean on the tool's description alone.
+  const unlinked = await run(tables());
+  const nothingLinked = toReviewsReportVM(
+    {
+      timezone: TZ,
+      today,
+      days: 7,
+      google: { listing: null, connection: null, reviews: [], days: [], reply_mode: "ask" },
+      readable: false,
+      ledger: null,
+    },
+    { nowMs: NOW.getTime() },
+  );
+  assert.ok(nothingLinked.lines.empty, "the fold has words for a workspace with nothing linked");
+  assert.deepEqual(
+    unlinked.reviews,
+    { linked: false, words: nothingLinked.lines.empty },
+    "and the tool says them: here, a deployment that can neither look a listing up nor connect a profile",
+  );
+
+  // Its read failed (the ledger's here): said so, never as no reviews, and the report stands.
+  const failed = await run(profile, {
+    reviews_ledger: () => {
+      throw new Error("connection refused");
+    },
+  });
+  assert.deepEqual(failed.reviews, { error: "the review numbers could not be read just now" });
+  assert.deepEqual(
+    [failed.range, failed.tiles.length, failed.campaigns.error],
+    ["7 days", (await run(profile)).tiles.length, "the campaign numbers could not be read just now"],
+    "the report's own numbers stand beside it",
   );
 });
 
@@ -2683,6 +2868,14 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
     const { read, asked, rc, ctx } = await turnOver(world(true));
     assert.deepEqual(asked, [
       "rpc:report_series",
+      // The Reviews lens's own read, beside it (7 Oct 2026, Reports phase C, lens 1): the ledger the database counts, and
+      // Google as GET google reads it at once -- the listing, the connection, the newest reviews and the daily readings;
+      // the Autonomy row for reviews is the turn's policies, read once below for every reader that asks.
+      "rpc:reviews_ledger",
+      "google_listings.select",
+      "google_connections.select",
+      "google_reviews.select",
+      "google_listing_days.select",
       // Everyone, once, for the booking line and the deals alike.
       "rpc:people_list",
       "policies.select",

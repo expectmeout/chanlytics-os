@@ -26,6 +26,7 @@ import {
   peopleListAction,
   stateOf,
   leadQuestionRoute,
+  lensRoute,
 } from "@chanlytics/contracts";
 import {
   installLegacyReact,
@@ -88,7 +89,7 @@ Object.assign(globalThis, {
   gate: () => ({}),
   useHotkey: () => {},
   refusalToast: (res, lead) => ({ msg: `${lead}: ${res.error}`, tone: "danger" }),
-  __clock: { dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
+  __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 // A verb the queue asks of the Inbox goes through the typed client to `fetch`: the workspace it names is this tab's, and
 // the refresh a landed write runs reads through the runner (nothing to boot). Any read is refused unless a test holds it.
@@ -567,6 +568,63 @@ test("the brief's lines that are not numbers: never the traffic the figures say;
     busy().recap.receipts.length,
     "every receipt the view model kept",
   );
+});
+
+test("a review that landed this morning is a line in the brief, and its one door opens the Reviews lens", () => {
+  clear();
+  const ago = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
+  setSurfaceValue("google", {
+    fetchedAt: Date.now(),
+    dto: {
+      ready: { places: true, profile: false },
+      listing: {
+        place_id: "place-1",
+        name: "Harbor Studio",
+        address: null,
+        maps_uri: null,
+        business_status: "OPERATIONAL",
+        rating: 4.8,
+        review_count: 213,
+        linked_at: ago(30 * 24),
+        checked_at: ago(1),
+        check_error: null,
+      },
+      connection: null,
+      reviews: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          review_id: "r-ana",
+          origin: "places",
+          rating: 5,
+          author: "Ana P.",
+          author_uri: null,
+          author_photo_uri: null,
+          body: "Fast, careful, and on time.",
+          language_code: "en",
+          published_at: ago(3),
+          reply_text: null,
+          replied_at: null,
+          maps_uri: null,
+          first_seen_at: ago(2),
+        },
+      ],
+      days: [],
+      reply_mode: "ask",
+    },
+  });
+  try {
+    set({ today: busy(), headline: headline() });
+    const line = byTestId(draw(TodayBriefPane), "brief-review");
+    assert.ok(line, "the review is a line of the brief");
+    assert.match(textOf(line), /^New on Google: ★★★★★ from Ana P\./);
+    const door = buttons(line, "Open Reports");
+    assert.equal(door.length, 1, "one door");
+    press(door[0]);
+    assert.equal(went.at(-1), lensRoute("reviews"), "the lens that draws the review, not the Overview");
+    assert.equal(went.at(-1), "reports/reviews");
+  } finally {
+    setSurfaceValue("google", undefined);
+  }
 });
 
 test("the card: four figures in order, each with its clause; nothing said twice; the receipts under them", () => {

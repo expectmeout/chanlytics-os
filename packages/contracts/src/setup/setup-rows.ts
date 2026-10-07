@@ -17,6 +17,7 @@ import { dayWords, trialWords, TRIAL_COVERS, billingDoorOpen, BILLING_TEST_MODE_
 import { capabilityStatus } from "./capabilities";
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import { GET_YES_ROUTE, NO_NUMBER_REACH } from "../people/people-lists";
+import { lensRoute } from "../reports/lenses";
 import { FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 import {
   activationWords,
@@ -498,7 +499,7 @@ function googleRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null {
       required: false,
       sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} — it is read again once a day.`,
       details: [],
-      verb: { label: "Open Reports", to: "reports" },
+      verb: { label: "Open Reports", to: lensRoute("reviews") },
     };
   }
   if (g) {
@@ -510,7 +511,7 @@ function googleRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null {
       required: false,
       sentence: `${listingLine(g)}.`,
       details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", reach],
-      verb: { label: "Open Reports", to: "reports" },
+      verb: { label: "Open Reports", to: lensRoute("reviews") },
     };
   }
   if (i.google.places !== false) {

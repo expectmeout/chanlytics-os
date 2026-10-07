@@ -6,11 +6,13 @@ import {
   fixedDaysOf,
   headlineOf,
   isReportDto,
+  isReviewsLedgerDto,
   monthDaysAt,
   parseTenantConfigResult,
   plural,
   REPORT_PERIOD_IDS,
   reportPeriodOf,
+  reviewsAreOnRecord,
   zoneDayKey,
   type BookingReportDto,
   type DealReportDto,
@@ -19,12 +21,15 @@ import {
   type ReportHeadlineDto,
   type ReportPeriodId,
   type ReportProfile,
+  type ReviewsReportDto,
 } from "@chanlytics/contracts";
-import { reportSeries } from "@chanlytics/db";
+import { reportSeries, reviewsLedger } from "@chanlytics/db";
+import { googleReadiness } from "../connections/google";
 import { everyone } from "../people/people";
 import { bookingReport } from "../calendar/people-visits";
 import { dealReport } from "../people/deals";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
+import { googleReader } from "./connections";
 import * as facts from "./facts";
 import { log } from "@/server/log";
 
@@ -133,8 +138,8 @@ export const reportHeadline: Reader<{ period: ReportPeriodId }, { headline: Repo
 };
 
 /**
- * The one query the three report routes take (GET reports, reports/campaigns and reports/reach-outs): the window they
- * read, said once, so the three never disagree about it.
+ * The one query the four report routes take (GET reports, reports/campaigns, reports/reach-outs and reports/reviews): the
+ * window they read, said once, so the four never disagree about it.
  */
 export const ReportQuery = z.object({
   /** `7d`, `30d`, `90d` or `month`; thirty days when none is named. */
@@ -162,3 +167,45 @@ export async function reportDaysFor(rc: ReaderContext, input: z.infer<typeof Rep
   const zone = (await load(rc, facts.facts, undefined)).data.timezone;
   return monthDaysAt(zoneDayKey(rc.now.getTime(), zone));
 }
+
+/**
+ * GET reports/reviews, as the route answers it: what customers say in public over `days`, drawn from what is stored.
+ * Google as the Google reader holds it (the listing, the newest reviews, the daily readings, once a turn: `GET google`
+ * answers the same read), and beside it the ledger of the reviews on record, which one SECURITY INVOKER function counts in
+ * the workspace's own zone (reviewsLedger). The two are independent, so they are read together, and the ledger is kept only
+ * where a listing is linked and the Business Profile has synced (contracts reviewsAreOnRecord); the five reviews Google shows
+ * are no record to count. The window is the database's where the ledger is kept, else the turn's own zone and day. Whether
+ * the lens has anything to draw asks what this deployment can do with Google only when no listing is kept. A function that
+ * answers nothing is the page's 404, in its words; a ledger that cannot be read is the route's failure, never null, so "not
+ * on record" and "could not read" are not the same answer. A database that does not have the function yet (00350 is applied
+ * on the owner's word, after the dashboard deploys) answers null: the ledger is then null for every workspace, the lens
+ * draws the listing alone, and the log says `reviews_ledger_missing` once a read. No row of its own: it is drawn on the
+ * Reports page, which `report` names.
+ */
+export const reviewsReport: Reader<{ days: number }, ReviewsReportDto> = {
+  name: "reviewsReport",
+  async read(rc, { days }) {
+    const [held, answer] = await Promise.all([
+      load(rc, googleReader, undefined),
+      reviewsLedger(rc.ctx.supabase, rc.tenantId, days),
+    ]);
+    if (answer === null) log.warn("reviews_ledger_missing", { tenant_id: rc.tenantId });
+    else if (!isReviewsLedgerDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
+    const g = held.data;
+    const ledger = isReviewsLedgerDto(answer) && reviewsAreOnRecord(g) ? answer : null;
+    const timezone = ledger?.timezone ?? (await load(rc, facts.facts, undefined)).data.timezone;
+    const readable = g.listing !== null || (await googleReadiness().then((r) => r.places || r.profile));
+    return {
+      data: {
+        timezone,
+        today: ledger?.today ?? zoneDayKey(rc.now.getTime(), timezone),
+        days: ledger?.days ?? days,
+        google: g,
+        readable,
+        ledger,
+      },
+      rows: [],
+      stamp: stamp(),
+    };
+  },
+};

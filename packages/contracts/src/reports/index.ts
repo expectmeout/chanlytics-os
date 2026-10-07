@@ -10,7 +10,6 @@ export type {
   CampaignReportVM,
 } from "./campaign-report";
 export {
-  dayDate,
   fmtDay,
   quantile,
   priorOf,
@@ -55,6 +54,10 @@ export {
 } from "./lenses";
 export type { LensId, LensRow, LensRange, LensEmpty, LensWho } from "./lenses";
 export { lensAnswerOf } from "./lens-answer";
+export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./review-report";
+export type { ReviewsReportDto, ReviewWaitingVM, ReviewsReportVM } from "./review-report";
+export { reviewsWindowOf, reviewsAreOnRecord, isReviewsLedgerDto } from "./review-record";
+export type { ReviewsLedgerDto } from "./review-record";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./report-tiles";
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
 export { metricWordsOf } from "./report-metrics";

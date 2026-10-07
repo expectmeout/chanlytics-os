@@ -3,7 +3,8 @@
  * published under `reports_headline` through the seam as contracts' view model; held by period, so a pick of a period this tab has
  * read paints at once; an answer for a period left is not painted; a read that fails fails the surface, never an empty line; and no
  * live-feed rule of its own (the brief's "copy the Reports surface's" would be inert: no route's own surface is this one). A period
- * pick (period.ts) paints what is held and reads behind it only when it must, and a pick that failed repaints the period kept.
+ * pick (period.ts) paints what is held and reads behind it only when it must, and a pick that failed repaints the period kept. What it
+ * shares with the Reviews read (period-surface.ts) is run through both of them in reports/lenses/reviews-surface.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,9 +21,7 @@ Object.assign(globalThis, {
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 const keepError = console.error;
 console.error = () => {};
-const { reportsHeadlineOverride, paintHeldHeadline, isHeadlineStale } = await importSrc(
-  "apps/dashboard/src/surfaces/reports/headline.ts",
-);
+const { headline, reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
 const { keepReportPeriod, shownReportPeriod } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");
 const { setReportRange } = await importSrc("apps/dashboard/src/surfaces/reports/period.ts");
 const { surfaceValue, setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
@@ -46,7 +45,10 @@ globalThis.window.fetch = async (url) => {
   if (parked && parked.period === period) await parked.until;
   if (route === "reports")
     return json(200, { ok: true, data: { report: reportDto(), booking: CALENDAR, deals: null } });
-  return json(200, { ok: true, data: { headline: headlineOf(reportDto(), period, CALENDAR) } });
+  // Each route answers its own shape: a read sent to the wrong one (the Reviews lens's, say) is refused, never answered with a headline.
+  if (route === "reports/headline")
+    return json(200, { ok: true, data: { headline: headlineOf(reportDto(), period, CALENDAR) } });
+  return json(404, { ok: false, error: { code: "not_found", message: "no" } });
 };
 const settle = async () => {
   for (let i = 0; i < 12; i += 1) await new Promise((r) => setTimeout(r, 0));
@@ -94,12 +96,12 @@ test("held by period: a period read is painted at once when picked again, one ne
   reset("30d");
   await reportsHeadlineOverride.apply();
   keepReportPeriod("7d");
-  assert.equal(paintHeldHeadline(), false, "seven days was never read: nothing to paint");
+  assert.equal(headline.paintHeld(), false, "seven days was never read: nothing to paint");
   assert.equal(surfaceValue("reports_headline").period, "30d", "and what was shown stays");
   await reportsHeadlineOverride.apply();
   assert.equal(surfaceValue("reports_headline").period, "7d");
   keepReportPeriod("30d");
-  assert.equal(paintHeldHeadline(), true, "thirty days was read: painted before any read of it");
+  assert.equal(headline.paintHeld(), true, "thirty days was read: painted before any read of it");
   assert.equal(surfaceValue("reports_headline").period, "30d");
   assert.equal(shownReportPeriod(), "30d");
   // A slow read of 30 lands after the pick of 7: its answer is for a period left and never lands on the new one.
@@ -138,7 +140,7 @@ test("a period pick paints the held headline and reads behind it only when none 
   try {
     reset("30d");
     await reportsHeadlineOverride.apply();
-    assert.equal(isHeadlineStale(), false, "just read");
+    assert.equal(headline.isStale(), false, "just read");
     asked.length = 0;
 
     // Seven days, never read: nothing to paint, so it is read behind the pick, and the value that lands is the seven days'.
@@ -160,7 +162,7 @@ test("a period pick paints the held headline and reads behind it only when none 
 
     // A held headline read longer ago than HEADLINE_STALE_MS is painted and read behind.
     Date.now = () => realNow() + 10 * MIN_MS; // past the few minutes a held headline stays fresh
-    assert.equal(isHeadlineStale(), true);
+    assert.equal(headline.isStale(), true);
     asked.length = 0;
     await setReportRange("7d");
     await settle();
@@ -209,7 +211,7 @@ test("a pick that fails on a tab that holds no headline for the period kept leav
       undefined,
       "REGRESSION: Today kept saying 90 days while the page said thirty, there being no thirty days' headline to paint",
     );
-    assert.equal(isHeadlineStale(), true, "and thirty days' is read as Today comes on screen");
+    assert.equal(headline.isStale(), true, "and thirty days' is read as Today comes on screen");
   } finally {
     stop();
   }

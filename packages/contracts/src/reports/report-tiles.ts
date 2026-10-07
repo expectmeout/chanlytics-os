@@ -30,7 +30,10 @@ export type ReportMetric =
   | "rating"
   | "reviews"
   | "ratings_gained"
-  | "newest_review";
+  | "newest_review"
+  | "reviews_written"
+  | "reviews_answered"
+  | "review_reply_time";
 
 export interface ReportTileVM {
   id: string;
@@ -79,6 +82,10 @@ export function pointsDelta(current: number | null, previous: number | null, nou
   return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
 }
 
+/** "the 30 days before"; one day is "the day before", for a count of one is no number to say (Month on the 1st). */
+export const beforeWords = (rangeLabel: string): string =>
+  `the ${rangeLabel === plural(1, "day") ? "day" : rangeLabel} before`;
+
 /**
  * A count against the period before, in counts: "up from 99", "down from 23", "same as the 30 days before", and
  * "none the 30 days before" when the period before had people reaching the business but none of this. Null when
@@ -93,8 +100,8 @@ export function compareWords(
   priorHadAny: boolean,
 ): string | null {
   if (!priorHadAny || (current === 0 && previous === 0)) return null;
-  if (previous === 0) return `none the ${rangeLabel} before`;
-  if (current === previous) return `same as the ${rangeLabel} before`;
+  if (previous === 0) return `none ${beforeWords(rangeLabel)}`;
+  if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
 }
 

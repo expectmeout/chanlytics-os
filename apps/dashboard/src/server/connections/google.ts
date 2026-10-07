@@ -12,10 +12,9 @@ import {
   listingFactsOf,
   type GoogleAudience,
   type GoogleConnectionDto,
-  type GoogleDayDto,
+  type GoogleReadDto,
   type GoogleListingDto,
   type GoogleListingFacts,
-  type GoogleReviewDto,
   DAY_MS,
 } from "@chanlytics/contracts";
 
@@ -76,19 +75,21 @@ export async function connectionFor(
   return data;
 }
 
-export async function googleFor(
+/**
+ * Google as the database holds it for a workspace: the listing, the connection, the newest reviews and the daily readings,
+ * four reads at once (the reviews and the days hang off the listing by a foreign key that cascades, so a workspace with no
+ * listing has none, and they need not wait to learn so). `now` is the turn's clock, which says how far back the days go.
+ * The Google reader (readers/connections.ts) adds the Autonomy row to it.
+ */
+export async function googleRead(
   db: SupabaseClient<Database>,
   tenantId: string,
-): Promise<{
-  listing: GoogleListingDto | null;
-  connection: GoogleConnectionDto | null;
-  reviews: GoogleReviewDto[];
-  days: GoogleDayDto[];
-}> {
-  const [listing, connection] = await Promise.all([listingFor(db, tenantId), connectionFor(db, tenantId)]);
-  if (!listing) return { listing: null, connection, reviews: [], days: [] };
-  const sinceDay = new Date(Date.now() - DAYS_KEPT * DAY_MS).toISOString().slice(0, 10);
-  const [reviews, days] = await Promise.all([
+  now: number,
+): Promise<Omit<GoogleReadDto, "reply_mode">> {
+  const sinceDay = new Date(now - DAYS_KEPT * DAY_MS).toISOString().slice(0, 10);
+  const [listing, connection, reviews, days] = await Promise.all([
+    listingFor(db, tenantId),
+    connectionFor(db, tenantId),
     db
       .from("google_reviews")
       .select(REVIEW_COLUMNS)

@@ -351,6 +351,7 @@
     "00346_a_lead_is_linked_on_every_identity_its_person_gains.sql": "0311b692e7040f09e6894928f0b5aad658099a1e73af6a84f711f194b284e39e",
     "00347_a_text_is_answered_after_its_acknowledgement.sql": "72b3dbb7cc4aff61876705958a7f722bb375401ccda67604d53255b626a37b74",
     "00348_the_calendar_feed_is_kept_on_the_appointments_record.sql": "a5837d86538d7405cf41784cb40ccfe06860e5cb9fd0062d78efa402a3b743ac",
-    "00349_each_member_keeps_what_they_have_seen_of_a_person.sql": "170b0227cd35f4444b7b45976137580e975144356880ac255a2ec640bce4d4e7"
+    "00349_each_member_keeps_what_they_have_seen_of_a_person.sql": "170b0227cd35f4444b7b45976137580e975144356880ac255a2ec640bce4d4e7",
+    "00350_the_reviews_on_record_are_read_once_for_a_report.sql": "1012ea6680169f31cebcbf01cbf19fa9f2d8ea9f7647558ecdddd370c56c863c"
   }
 }

@@ -66,6 +66,15 @@ export function isSurfaceFailed(key: string): boolean {
   return failed.has(key) && !ready.has(key);
 }
 
+/**
+ * True when this surface holds real data and its latest read failed ("degraded", the status the pill names): what it holds is the
+ * last read that landed, not a current one. `isSurfaceFailed` says nothing of it, since a read that landed once ever clears it; a
+ * page that holds a read for a view it has left, and asks for another, tells the two apart by this.
+ */
+export function isSurfaceDegraded(key: string): boolean {
+  return statuses.get(key) === "degraded";
+}
+
 export function getSurfaceStatuses(): ReadonlyMap<string, SurfaceStatus> {
   return statuses;
 }

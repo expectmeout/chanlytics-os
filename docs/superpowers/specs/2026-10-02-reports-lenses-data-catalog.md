@@ -137,10 +137,10 @@ Avoid: open rates and email click tracking (decision 8); "read" as a headline (i
 | **Reviews per week** (velocity) | bars | Now | `published_at`, `google_listing_days` |
 | **Replies held** because they named a price | figure + doors | Now | `google.reply_held` events |
 | **Written by the receptionist vs you** | two-part bar | Now | `google.replied.by` |
-| Languages of reviews | donut | Now | `google_reviews.language_code` |
+| Languages of reviews | donut | Not drawable: `language_code` is null on every profile review (the sync does not read it) | `google_reviews.language_code` |
 | **Asking for reviews → reviews gained** | funnel | New (#10) | review requests |
 | **Near you**: competitors' rating and count | small multiples | New | competitor reads |
-| Profile views, calls, direction requests | lines | New (scope unverified) | `google_insight_days` |
+| Profile views, calls, direction requests | lines | New (scope unverified) | no table: `google_insight_days` was never built |
 
 Avoid: a pseudo-NPS from star ratings; review "sentiment" as a score.
 

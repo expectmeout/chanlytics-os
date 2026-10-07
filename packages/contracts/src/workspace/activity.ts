@@ -8,6 +8,7 @@ import {
   LEAD_STAGE_WORDS,
 } from "../leads/lead-words";
 import { domainHoldWords } from "../email/sending-domains";
+import { reviewHeldWords } from "../google/review-reply";
 import { standingChangeWords } from "../lines/number-standing";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
@@ -353,9 +354,6 @@ const ACTIVATED_WORDS: Record<ActivationMilestone, string> = {
   first_lead_search: "its first lead search was made",
 };
 
-/** Why an automatic review reply was held back (google.reply_held's `why`: contracts autoReplyHold). */
-const REPLY_HELD_WHY: Record<string, string> = { price: "it named a price", money: "it named money" };
-
 /** A message the send door held at the wire: the reason it refused, in the words a run's held people are given (HELD_REASONS). */
 function sendBlockedWords(p: Record<string, unknown>, base: string): string {
   return joinBits(base, [wordOf(HELD_REASONS, textAt(p, "reason"))]);
@@ -418,7 +416,7 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
   ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
   ["channel.standing", (p, base) => joinBits(base, [standingChangeWords(p)])],
   ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
-  ["google.reply_held", (p, base) => joinBits(base, [wordOf(REPLY_HELD_WHY, textAt(p, "why"))])],
+  ["google.reply_held", (p, base) => joinBits(base, [reviewHeldWords(textAt(p, "why"))])],
   ["message.send_blocked", sendBlockedWords],
   ["message.send_failed", sendFailedWords],
   // A partner's standing is between the platform and the partner: the owner reads that it was judged, never the

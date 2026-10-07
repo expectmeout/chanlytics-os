@@ -27,6 +27,7 @@ import { peopleOverride } from "@/surfaces/people/surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
+import { forgetReviews, reviewsOverride } from "@/surfaces/reports/reviews-surface";
 import { settingsOverride } from "./surfaces/settings";
 import { todayOverride } from "@/surfaces/today/surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
@@ -75,7 +76,13 @@ const versionWrite = () => [settingsOverride, reachOutsOverride, playbooksOverri
 const leads = () => [leadsOverride];
 const setup = () => [setupOverride];
 const setupAndReadiness = () => [setupOverride, ...readiness()];
-const google = () => [googleOverride, setupOverride];
+// The listing and its reviews are the Reviews lens's read too, and the lens is never the page a link, a refresh or a disconnect is made from
+// (Settings' Connections pane, the first run's Find): its read is forgotten, as a template written is for the Inbox, and read as the lens
+// comes on screen, not read from there.
+const google = () => {
+  forgetReviews();
+  return [googleOverride, setupOverride];
+};
 const billing = () => [billingOverride, setupOverride];
 const settings = () => [settingsOverride];
 
@@ -202,14 +209,19 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // count, which the Business tab's fold and the board's card both draw from, so the list says what is left at once.
   "POST calendar/notices/[id]/read-again": () => [calendarOverride],
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
-  // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006).
-  "PUT policies": () => [settingsOverride, peopleOverride],
+  // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006), and the Reviews
+  // lens's, of a review, whether its composer asks the receptionist for a draft.
+  "PUT policies": () => [settingsOverride, peopleOverride, reviewsOverride],
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
   // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),
   // and it switches the deal layer: People's lists and column, Reports' Deals section and Today's proposals waiting. The zone
-  // is also where Today's period line counts its days from: the headline is read again too.
-  "PATCH workspaces": () => [settingsOverride, peopleOverride, reportsOverride, reportsHeadlineOverride, todayOverride],
+  // is also where Today's period line counts its days from: the headline is read again too, and the Reviews lens's read, which
+  // counts a review on the day it was written in the zone, is forgotten and read as the lens comes on screen.
+  "PATCH workspaces": () => {
+    forgetReviews();
+    return [settingsOverride, peopleOverride, reportsOverride, reportsHeadlineOverride, todayOverride];
+  },
   "POST team/invite": settings,
   "PATCH team/[id]": settings,
   "DELETE team/[id]": settings,
@@ -250,7 +262,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST google/refresh": google,
   "POST google/locations": google,
   "DELETE google/connection": google,
-  "POST google/reviews/[id]/reply": () => [googleOverride],
+  // A reply posted is a review answered, from the Reviews lens: it counts the answers and lists the reviews that wait (the live feed is
+  // told of a review's first sight only, so a reply moves nothing there on its own). Its read publishes Google's own beside it.
+  "POST google/reviews/[id]/reply": () => [reviewsOverride],
   // A partner joining a workspace (0020): the switcher's list, so the workspace just joined is there to open, and the
   // partner's count. It was a second path, read by hand in partner.ts.
   "POST partner/invitations/[id]/accept": () => [workspaceOverride, partnerOverride],

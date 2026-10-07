@@ -14,7 +14,10 @@ import {
   cleanDraft,
   autoReplyCandidates,
   autoReplyBell,
+  autoReplyHold,
+  reviewHeldWords,
   reviewReplyWords,
+  activityWords,
   REVIEW_AUTO_REPLIES_PER_SYNC,
   REVIEW_REPLY_MAX_WORDS,
   REVIEW_REPLY_MAX_CHARS,
@@ -180,6 +183,24 @@ test("the bell after the receptionist answered: one by name, several by count; n
   );
 });
 
+test("why a reply was held, in words: one set for each answer autoReplyHold gives, read by the feed and by Reports", () => {
+  const holds = ["Sorry about that, we will refund your visit.", "Next time it's 20% off for you."].map(autoReplyHold);
+  assert.deepEqual(holds, ["money", "price"]);
+  assert.deepEqual(holds.map(reviewHeldWords), ["it named money", "it named a price"]);
+  for (const why of holds)
+    assert.equal(
+      activityWords("google.reply_held", { review_id: "r1", why }),
+      `A review reply was written and not posted · ${reviewHeldWords(why)}`,
+      "the feed finishes its sentence with the same words",
+    );
+  for (const none of ["tone", "toString", "", null, undefined]) assert.equal(reviewHeldWords(none), null, String(none));
+  assert.equal(
+    activityWords("google.reply_held", { review_id: "r1", why: "tone" }),
+    "A review reply was written and not posted",
+    "a reason the set does not hold is never guessed",
+  );
+});
+
 test("the words beside the source, and the view model carrying the mode", () => {
   assert.equal(reviewReplyWords("auto", true), "new ones are answered by the receptionist within the hour");
   assert.equal(reviewReplyWords("ask", true), "the receptionist drafts, you send");
@@ -194,7 +215,7 @@ test("the words beside the source, and the view model carrying the mode", () => 
     reply_mode: "ask",
     role: "owner",
   };
-  assert.deepEqual(toGoogleVM(dto, 30, NOW).reply, { mode: "ask", words: "" });
+  assert.deepEqual(toGoogleVM(dto, 30, NOW, "UTC").reply, { mode: "ask", words: "" });
   const conn = {
     google_email: "o@x.com",
     account_title: "A",
@@ -204,7 +225,7 @@ test("the words beside the source, and the view model carrying the mode", () => 
     last_synced_at: "2026-09-07T14:00:00Z",
     sync_error: null,
   };
-  assert.deepEqual(toGoogleVM({ ...dto, connection: conn, reply_mode: "auto" }, 30, NOW).reply, {
+  assert.deepEqual(toGoogleVM({ ...dto, connection: conn, reply_mode: "auto" }, 30, NOW, "UTC").reply, {
     mode: "auto",
     words: "new ones are answered by the receptionist within the hour",
   });
@@ -240,7 +261,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   );
   assert.ok(lib.includes('if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];'));
   assert.ok(lib.includes("autoReplyCandidates(unreplied.data ?? [], conn.connected_at, now.getTime())"));
-  assert.ok(lib.includes('by: "receptionist"') && lib.includes("const bell = autoReplyBell(answered);"));
+  // The reply's `by` and the bell it rings, and the reply held back for a price, are run in google-door.test.mjs.
   assert.ok(
     lib.includes("business_name || t.data?.name") && lib.includes("phone: brain?.phone_display || null"),
     "the facts are the brain's profile",
@@ -269,11 +290,8 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     "a draft is not a decision; sending is",
   );
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("google_draft: {"));
-  const get = readCode(
-    "apps/dashboard/app/api/v1/google/route.ts",
-    "apps/dashboard/src/server/connections/google-actions.ts",
-  );
-  assert.ok(get.includes("reply_mode: reviewReplyModeOf(policies)"));
+  // The Autonomy row rides on the Google reader's read, which GET google (google-actions.ts) answers: google-routes.test.mjs
+  // runs it for each mode.
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {} }'));
 
@@ -287,7 +305,8 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   assert.ok(
     reports.includes("const d = await draftReply(r.id);") && reports.includes('data-testid="google-reply-drafted"'),
   );
-  assert.ok(reports.includes("<ReviewReply r={r} mode={vm.reply.mode} />") && reports.includes("vm.reply.words"));
+  // What the receptionist does under a new review is said beside the latest reviews' source (executed: reports-page.test.mjs).
+  assert.ok(reports.includes("<ReviewReply r={r} mode={vm.reply.mode} flash={flash} sent={sent} />"));
   // The pane draws one row per class the workspace is offered: eight since Reach out's cold email joined (the spec
   // says why, #1440).
   assert.ok(readRaw("e2e/settings/settings-autonomy.spec.ts").includes("toHaveCount(8)"));

@@ -85,6 +85,12 @@ const CHANGED = ["campaigns", "propose_campaign", "propose_list", "propose_threa
  */
 const REPORT_CAMPAIGNS_WORDS =
   "the Deals section where deals are on, and the Campaigns lens: what the broadcasts and playbooks sent, delivered and had written back, who said yes or asked to stop, the sources that sent the most, and by_channel where more than one channel sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); campaigns says error where its numbers could not be read.";
+/**
+ * 7 Oct 2026 (Reports phase C, lens 1, T4): report says the Reviews lens after the Campaigns lens: the one sentence, and
+ * nothing else it says moved.
+ */
+const REPORT_REVIEWS_WORDS =
+  "campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post); reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for";
 const RUN_CHANNEL_WORDS = [
   "how many were sent, the share of those delivered and read, and how many replied,",
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
@@ -315,7 +321,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, report (its reply times say the hold, and it says the Campaigns lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, report (its reply times say the hold, and it says the Campaigns lens and the Reviews lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -352,7 +358,8 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       tool(role, "report").description,
       was(role, "report")
         .description.replace("the median and p90 reply time,", `the median and p90 reply time ${REPORT_HOLD_WORDS},`)
-        .replace("and the Deals section where deals are on.", REPORT_CAMPAIGNS_WORDS),
+        .replace("and the Deals section where deals are on.", REPORT_CAMPAIGNS_WORDS)
+        .replace("campaigns says error where its numbers could not be read. Call it for", REPORT_REVIEWS_WORDS),
       role,
     );
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
