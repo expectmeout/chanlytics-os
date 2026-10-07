@@ -680,11 +680,18 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // A campaign proposed (a broadcast, a playbook) asks the same of WhatsApp alone, the one channel Ask names: whether
     // its number can send. One read more, in any order; a call refused before, at its template, never gets that far.
     const proposes = String(NAMES[old]).startsWith("propose_campaign.") && !want.isError;
+    // 7 Oct 2026 (lane 1, T5): a playbook's check reads the message the template's id names (db messageVersionRowsOf: the
+    // version, then every row of it, on any channel), where it read the one WhatsApp row: a playbook proposed on a
+    // template, which reached the check after Ask's own read of the row, makes one `templates` read more.
+    const readsMessage =
+      proposes &&
+      NAMES[old] === "propose_campaign.playbook" &&
+      reads0.filter((r) => r === "templates.select").length >= 2;
     const counted =
       NAMES[old] === "campaigns.playbooks"
         ? withChannelReads(reads0)
         : proposes
-          ? [...reads0, "tenant_channels.select"]
+          ? [...reads0, "tenant_channels.select", ...(readsMessage ? ["templates.select"] : [])]
           : reads0;
     // 3 Oct 2026 (the review's item 7): People's rows say who can be sent what against what the workspace can send on, so
     // a tool that reads the people's pool or a page of them asks for it once a turn (readers/facts.ts channelsReady): the

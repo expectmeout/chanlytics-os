@@ -32,7 +32,7 @@ import {
   type MessageAbout,
   type ParamSpec,
 } from "@chanlytics/contracts";
-import { campaignHow } from "@chanlytics/core";
+import { campaignHow, readCampaignMessage } from "@chanlytics/core";
 import { listPolicies } from "@chanlytics/db";
 import { archivedListWords, poolList, type AudiencePool } from "../../../people/audience";
 import { dealPaceRead, sellsByOf } from "../../../people/deals";
@@ -168,13 +168,14 @@ async function listedPeople(
  */
 async function playbookHow(
   t: ToolContext,
-  tpl: { name: string; language: string },
+  tpl: { id: string },
   by: { channels: ConsentChannel[]; named: boolean },
   /** The moment's (contracts messageAboutOfTrigger): a visit's or a follow-up's message is theirs. */
   about: MessageAbout,
 ): Promise<CampaignHow> {
   if (!by.named) return whatsappHow(t, about);
-  return (await campaignHow(createBroadcastPorts(t.ctx, t.tenantId, { fresh: false }), tpl, by.channels, about)).how;
+  const ports = createBroadcastPorts(t.ctx, t.tenantId, { fresh: false });
+  return (await campaignHow(ports, await readCampaignMessage(ports, tpl.id), by.channels, about)).how;
 }
 
 /**

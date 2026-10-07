@@ -385,7 +385,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // fails over one: the people a channel cannot carry are held (`no_channel`), and the rest go on their own versions.
   const how: CampaignHow = {
     channels,
-    ready: readyForMessage(ctx.ready, message.held),
+    ready: readyForMessage(ctx.ready, message.m),
     // A visit's or a follow-up's message is theirs; any other moment's, the business's news (decision D1).
     about: messageAboutOfTrigger(p.trigger),
   };

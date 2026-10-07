@@ -13,13 +13,13 @@ import {
   enrolFor,
   overLimitRefusal,
   paramLabel,
-  purposeOfTemplate,
   UUID,
   type Audience,
   type AudienceKind,
   type AskedPurpose,
   type MessageAbout,
   type CampaignHow,
+  type CampaignMessage,
   type ConsentChannel,
   type NumberHealth,
   type PersonRowVM,
@@ -30,9 +30,9 @@ import {
 import { errField, logger } from "@chanlytics/channels";
 import { assembleRun } from "./assemble";
 import { allowanceRecord, pastTheMonth } from "./allowance";
-import { parseChannels, readyForMessage, refuseTicks, versionsHeld } from "./message-channels";
+import { parseChannels, readyForMessage, refuseTicks } from "./message-channels";
 import { templateValues } from "./template-values";
-import type { CreateBroadcastCommand, CreateBroadcastPorts, TemplateRow } from "./ports";
+import type { CreateBroadcastCommand, CreateBroadcastPorts } from "./ports";
 
 /** An instant names its offset: "Z" or "±hh:mm". A date alone, or a wall-clock time without one, is read on the server's clock. */
 const OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
@@ -60,7 +60,7 @@ export interface BroadcastReceipt {
   decision_id: string;
 }
 
-/** What the body asks for that needs no workspace read to judge: the template, who, which list, how, and the rest as given. */
+/** What the body asks for that needs no workspace read to judge: the message, who, which list, how, and the rest as given. */
 interface Asked {
   templateId: string;
   kind: AudienceKind;
@@ -129,23 +129,19 @@ function askedTime(scheduledFor: unknown, now: Date): Date {
 
 /**
  * The channels a send goes by as its message can carry them, and the WhatsApp number's health the day's limit is judged
- * by: the workspace's channels now (its number, its texting line, its mailbox) with the message's own versions laid
- * over them (message-channels.ts readyForMessage). Refuses nothing: a playbook keeps a tick that cannot send yet, and
- * Ask counts a proposal by it.
+ * by: the workspace's channels now (its number, its texting line, its mailbox) with the versions the message holds laid
+ * over them (message-channels.ts readyForMessage), WhatsApp's among them: a version WhatsApp has not approved is no
+ * version to send. Refuses nothing: a playbook keeps a tick that cannot send yet, and Ask counts a proposal by it.
  */
 export async function campaignHow(
-  ports: Pick<CreateBroadcastPorts, "channels" | "versions">,
-  tpl: Pick<TemplateRow, "name" | "language">,
+  ports: Pick<CreateBroadcastPorts, "channels">,
+  message: Pick<CampaignMessage, "versions">,
   channels: ConsentChannel[],
   /** What the message is about: a broadcast's is ours, a visit or proposal moment's theirs (contracts MessageAbout). */
   about: MessageAbout,
 ): Promise<{ how: CampaignHow; health: NumberHealth | null }> {
-  const [{ ready, health }, own] = await Promise.all([
-    ports.channels(),
-    // WhatsApp's row is the template itself, read above; the other two are looked for only when ticked.
-    channels.some((c) => c !== "whatsapp") ? ports.versions(tpl.name, tpl.language) : Promise.resolve([]),
-  ]);
-  return { how: { channels, ready: readyForMessage(ready, versionsHeld(own, true)), about }, health };
+  const { ready, health } = await ports.channels();
+  return { how: { channels, ready: readyForMessage(ready, message), about }, health };
 }
 
 /**
@@ -158,13 +154,13 @@ export async function campaignHow(
  * would refuse is never shown.
  */
 export async function campaignHowOf(
-  ports: Pick<CreateBroadcastPorts, "channels" | "versions">,
-  tpl: Pick<TemplateRow, "name" | "language">,
+  ports: Pick<CreateBroadcastPorts, "channels">,
+  message: Pick<CampaignMessage, "versions">,
   channels: ConsentChannel[],
   purpose: AskedPurpose,
 ): Promise<{ how: CampaignHow; health: NumberHealth | null }> {
-  // A broadcast is news the business chose to send, whatever its template's category (decision D1).
-  const made = await campaignHow(ports, tpl, channels, "ours");
+  // A broadcast is news the business chose to send, whatever its message's category (decision D1).
+  const made = await campaignHow(ports, message, channels, "ours");
   // A paused workspace sends nothing: the door refuses every message of the run (deliver.ts `paused`), so a broadcast made
   // under one would be enrolled, scheduled, and stopped by the first batch. It is refused here, in the words the composers
   // say it in (their Send is not offered), before the people are read.
@@ -199,19 +195,22 @@ async function audienceOf(
 }
 
 /**
- * A person's broadcast: one approved template to the people who said yes.
+ * A person's broadcast: one message to the people who said yes.
  *
  * { template_id, params, audience: { kind, id }, channels?, scheduled_for?, name? }.
- * The template must be approved by WhatsApp; the values must be ones Meta
- * accepts; the audience is one of People's lists, a list kept by hand, or
- * everyone — crossed with who said yes and a way to reach them, for the yes this
- * template's category needs. It goes by WhatsApp, text or email (`channels`,
- * WhatsApp alone when none is named), each person once, on the first channel the
- * send can reach them on (contracts reachFor), written on their row. The
- * recipients are enrolled now, so the owner sees who and how many; the job
- * re-checks each person at the wire. The ledger records the decision to send.
- * The body is judged here, in sentences for the person composing: the values are
- * judged against the template Meta holds, which no schema knows.
+ * `template_id` is any version of the message, and the message needs no WhatsApp
+ * version: each channel ticked needs only its own (WhatsApp's approved by Meta, an
+ * email's and a text's written here), and a tick whose version the message does not
+ * hold is refused with that version's standing; the values must fill the message's
+ * slots; the audience is one of People's lists, a list kept by hand, or everyone —
+ * crossed with who said yes and a way to reach them, for the yes this message's
+ * category needs. It goes by WhatsApp, text or email (`channels`, WhatsApp alone
+ * when none is named), each person once, on the first channel the send can reach
+ * them on (contracts reachFor), written on their row. The recipients are enrolled
+ * now, so the owner sees who and how many; the job re-checks each person at the
+ * wire. The ledger records the decision to send. The body is judged here, in
+ * sentences for the person composing: the values are judged against the message
+ * the workspace holds, which no schema knows.
  */
 export async function createBroadcast(
   ports: CreateBroadcastPorts,
@@ -220,8 +219,8 @@ export async function createBroadcast(
   const { now } = cmd;
   const want = asked(cmd.body);
 
-  // 1–2. The template, as Meta holds it; the values, as Meta will accept them.
-  const { template: tpl, specs } = await templateValues(ports, {
+  // 1–2. The message, as the workspace holds it; the values, as its slots take them.
+  const { message, specs } = await templateValues(ports, {
     templateId: want.templateId,
     params: want.params,
     visits: false,
@@ -231,10 +230,10 @@ export async function createBroadcast(
   // 3. When, as asked; and the channels it may go by, which a flagged number or a message with no version on one
   // refuses (a flagged number does not broadcast).
   let when = askedTime(want.scheduledFor, now);
-  // WHICH yes this send needs, from the template's category: the send job derives the same purpose from the same
-  // column, so the audience enrolled here is the audience the wire will accept.
-  const purpose = purposeOfTemplate(tpl.category);
-  const { how, health } = await campaignHowOf(ports, tpl, want.channels, purpose);
+  // WHICH yes this send needs, from the message's category: the send job derives the same purpose from the same
+  // rows, so the audience enrolled here is the audience the wire will accept.
+  const purpose = message.purpose;
+  const { how, health } = await campaignHowOf(ports, message, want.channels, purpose);
 
   // 4. The audience, crossed with who said yes and a channel to reach them on.
   const { pool, label, kept } = await audienceOf(ports, want.ref, now);
@@ -283,7 +282,7 @@ export async function createBroadcast(
   const name =
     typeof want.name === "string" && want.name.trim()
       ? want.name.trim().slice(0, BROADCAST_NAME_MAX)
-      : broadcastName(tpl.name, tz, now, tpl.title);
+      : broadcastName(message.name, tz, now, message.title);
   const audience: Audience = {
     kind: want.kind,
     id: want.audienceId,
@@ -295,9 +294,10 @@ export async function createBroadcast(
   const made = await assembleRun(ports, {
     broadcast: {
       name,
-      template_id: tpl.id,
-      template_name: tpl.name,
-      template_language: tpl.language,
+      // The message's anchor, whichever version's id was picked: the one id every version of it resolves to.
+      template_id: message.anchor.id,
+      template_name: message.name,
+      template_language: message.language,
       params: specs,
       audience,
       state: "scheduled",
@@ -318,8 +318,8 @@ export async function createBroadcast(
   }
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name,
-    template: `${tpl.name}/${tpl.language}`,
-    category: tpl.category,
+    template: `${message.name}/${message.language}`,
+    category: message.category,
     // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
     audience: { kind: audience.kind, id: audience.id, label: audience.label, ...(kept ? { list: kept.token } : {}) },
     channels: [...how.channels],

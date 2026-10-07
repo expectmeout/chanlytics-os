@@ -21,7 +21,7 @@ import {
   type ParamSpec,
   type PersonRowVM,
 } from "@chanlytics/contracts";
-import { campaignHowOf } from "@chanlytics/core";
+import { campaignHowOf, readCampaignMessage } from "@chanlytics/core";
 import { archivedListWords, poolList } from "../../../people/audience";
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
@@ -69,7 +69,7 @@ function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: st
  */
 async function broadcastBy(
   t: ToolContext,
-  tpl: { name: string; language: string },
+  tpl: { id: string },
   asked: unknown,
   purpose: AskedPurpose,
 ): Promise<{ how: CampaignHow; channels: ConsentChannel[]; named: boolean } | { refusal: string }> {
@@ -85,7 +85,8 @@ async function broadcastBy(
   }
   try {
     const ports = createBroadcastPorts(t.ctx, t.tenantId, { fresh: false });
-    return { how: (await campaignHowOf(ports, tpl, channels, purpose)).how, channels, named };
+    const message = await readCampaignMessage(ports, tpl.id);
+    return { how: (await campaignHowOf(ports, message, channels, purpose)).how, channels, named };
   } catch (e) {
     if (e instanceof AppError) return { refusal: e.message };
     throw e;

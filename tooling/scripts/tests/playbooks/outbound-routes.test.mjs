@@ -256,7 +256,7 @@ test("the broadcasts list carries who a run of any kind reached this week, for t
   assert.deepEqual(out.touched, ["k1"], "sent this week; not held back, not canceled, not last month");
 });
 
-test("a broadcast: the workspace must be named, a viewer is refused as a viewer, then the template, its values and the audience are judged in the person's words, before anything is written", async () => {
+test("a broadcast: the workspace must be named, a viewer is refused as a viewer, then the message, its values and the audience are judged in the person's words, before anything is written", async () => {
   const tables = {
     memberships: both("viewer", "operator"),
     templates: [
@@ -303,11 +303,22 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
     "not_found",
     404,
   );
+  // A version WhatsApp has not approved is no blanket refusal: it is WhatsApp's tick refused, in its standing. With no number
+  // the workspace's own reason is the one said; with one, the message's.
   await refused(
     broadcasts.POST.run(send("POST", { template_id: T2, audience: everyone }, inB), ctxFor(tables, {}, rpcs)),
     "conflict",
     409,
-    "not approved by WhatsApp",
+    "Connect a WhatsApp number first.",
+  );
+  await refused(
+    broadcasts.POST.run(
+      send("POST", { template_id: T2, audience: everyone }, inB),
+      ctxFor({ ...tables, tenant_channels: [channelRows.number] }, {}, rpcs),
+    ),
+    "conflict",
+    409,
+    "WhatsApp is still reviewing this message's WhatsApp version.",
   );
   await refused(
     broadcasts.POST.run(
@@ -1296,12 +1307,20 @@ test("a playbook ticks channels: made with them, kept by an edit that names none
   const tables = {
     memberships: both("viewer", "operator"),
     playbooks: [],
-    templates: [reminder, tpl(T4, B, { name: "month_offer", category: "marketing" })],
+    // Each message holds a version on every channel the playbook below is kept on: the check asks that a tick be held.
+    templates: [
+      reminder,
+      tpl("77777777-7777-4777-8777-777777777776", B, { channel: "email", name: "visit_reminder" }),
+      tpl("77777777-7777-4777-8777-777777777777", B, { channel: "sms", name: "visit_reminder" }),
+      tpl(T4, B, { name: "month_offer", category: "marketing" }),
+      tpl("77777777-7777-4777-8777-777777777778", B, { channel: "email", name: "month_offer", category: "marketing" }),
+    ],
     tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
     decisions: [],
   };
   const body = { trigger: "visit_tomorrow", template_id: T1, params: [] };
-  // By email too: the check has no readiness (a run holds the people it cannot reach), only what the message may be.
+  // By email too: the check has no readiness (a run holds the people it cannot reach), only what the message may be and
+  // that it holds a version of one of the ticks.
   const made = await playbooks.POST.run(
     send("POST", { ...body, channels: ["whatsapp", "email"] }, inB),
     ctxFor(tables),

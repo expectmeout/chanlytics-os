@@ -539,19 +539,25 @@ test("a run on a list: its people, and a list deleted under it runs nobody and s
 });
 
 test("a playbook on a list names it, the workspace's own, and takes its name when none was given", async () => {
+  // The message's rows (db messageVersionRowsOf): the approved WhatsApp row the body's template_id names.
   const template = {
-    id: "tpl-1",
+    id: "11111111-1111-4111-8111-111111111111",
+    channel: "whatsapp",
     name: "autumn_offer",
     language: "en_US",
     category: "marketing",
     meta_status: "approved",
     variables: [],
+    hidden_at: null,
+    source: "meta",
+    components: [],
     body_preview: "Hi",
     title: "Autumn offer",
+    rejected_reason: null,
   };
   const L = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
   const ports = {
-    template: async () => template,
+    message: async () => [template],
     bookingLink: async () => null,
     businessName: async () => "Studio",
     listName: async (id) => (id === L ? "Regulars" : null),
