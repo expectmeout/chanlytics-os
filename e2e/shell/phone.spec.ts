@@ -149,6 +149,29 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * An app on a phone's home screen has the home bar's inset at its foot, and a tab has none. The drawer is a card as
+   * tall as what it holds: the inset once stood inside it as 34px of empty glass under the account's row (7 Oct 2026).
+   * The inset is the browser's own here (CDP), read by the page's env().
+   */
+  test("the drawer keeps no room under the account's row, with a home bar's inset or without", async ({ page }) => {
+    const sidebar = page.locator(".side-wrap .sidebar");
+    const under = async () => {
+      await page.goto("/#/today");
+      await page.waitForLoadState("networkidle");
+      await page.getByTestId("phone-tabs").getByRole("button", { name: "Menu" }).click();
+      await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(1);
+      return sidebar.evaluate((el) =>
+        Math.round(el.getBoundingClientRect().bottom - el.querySelector(".user-chip")!.getBoundingClientRect().bottom),
+      );
+    };
+    const plain = await under();
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 34, bottomMax: 34 } });
+    expect(await page.evaluate(() => CSS.supports("padding-bottom: env(safe-area-inset-bottom)"))).toBe(true);
+    expect(await under(), "the home bar's inset adds nothing inside the drawer").toBe(plain);
+  });
+
+  /**
    * The drawer is the desk's sidebar, 248px (Ruben, 25 Sep: at 300 its words ended by 190 and the rest was empty), and a
    * thumb slides it away (data-bits touchSwipe onAway): it follows the finger, a short slide settles it back, past a
    * third it goes. Nothing opens it by a swipe, because from the screen's edge that is the phone's own back: More does.
@@ -1091,6 +1114,19 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.locator(".cl-prof-back")).toBeHidden();
     // In Glass the way back stands where the date does, in the top bar's row (kit/head/frame-head.tsx): ‹ People.
     await expect(page.locator(".pg-back")).toContainText("People");
+    // Its capsule is the bell's height on the bell's line. A touch screen's floor for a button once drew it 44px,
+    // twelve taller than the bell beside it (7 Oct 2026); the 44px a thumb needs is a margin round it instead.
+    const back = (await page.locator(".pg-back").boundingBox())!;
+    const bell = (await page.getByRole("button", { name: /^Notifications/ }).boundingBox())!;
+    expect([Math.round(back.y), Math.round(back.height)], "the way back is as tall as the bell, on its line").toEqual([
+      Math.round(bell.y),
+      Math.round(bell.height),
+    ]);
+    const underThumb = await page.evaluate(
+      ([x, y]) => !!document.elementFromPoint(x, y)?.closest(".pg-back"),
+      [back.x + back.width / 2, back.y + back.height + 5],
+    );
+    expect(underThumb, "a thumb a little under the capsule still presses it").toBe(true);
     const face = (await page.locator(".cl-prof-id .face").first().boundingBox())!;
     expect(face.x, "the face stands at the page's gutter, not after an arrow of its own").toBeLessThanOrEqual(17);
     test.skip(tabs <= 2, "no one here has a History with more than one kind in it");
