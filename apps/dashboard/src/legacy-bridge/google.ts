@@ -11,7 +11,6 @@
  * every other page leaves it alone (`onDemand`). The Reviews lens draws from its own read (surfaces/reports/reviews-surface.ts).
  */
 import {
-  MIN_MS,
   toGoogleVM,
   ratingWords,
   starsOf,
@@ -24,7 +23,7 @@ import {
   type GoogleCandidateDto,
   type GoogleLocationDto,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "./surface-data";
+import { ON_DEMAND_STALE_MS, type SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
 import { setSurfaceValue, surfaceValue } from "../surfaces/surface-values";
 
@@ -72,13 +71,10 @@ export interface GoogleApi {
   };
 }
 
-/** How old a held read of Google may be before a page that draws it, coming on screen, reads it again. */
-const GOOGLE_STALE_MS = 5 * MIN_MS;
-
-/** Whether Google has been read at all in what this tab holds, and within GOOGLE_STALE_MS of its own `fetchedAt`: when not, it wants a read. */
+/** Whether Google has been read at all in what this tab holds, and within ON_DEMAND_STALE_MS of its own `fetchedAt`: when not, it wants a read. */
 function googleIsStale(): boolean {
   const held = surfaceValue("google");
-  return !held || Date.now() - held.fetchedAt > GOOGLE_STALE_MS;
+  return !held || Date.now() - held.fetchedAt > ON_DEMAND_STALE_MS;
 }
 
 export const googleOverride: SurfaceOverride = {

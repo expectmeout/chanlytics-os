@@ -61,6 +61,7 @@ const S = "../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { RPT_CHANNELS } = await import(`${S}/surfaces/reports/series.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
 const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/legacy-verbs.ts).
 Object.assign(globalThis, {
@@ -93,8 +94,24 @@ const answer = (id) =>
       deals: null,
     },
   });
-globalThis.window.fetch = async (url) => {
+/**
+ * A reply posted to a review, and what the answer's re-read of the Reviews surface finds (null: no reply is on its way). The route
+ * accepts the reply, then the refresh map re-reads Google and the Reviews read, which this serves as Google's now holds the review.
+ */
+const reviewReply = { posted: [], reread: 0, now: null };
+globalThis.window.fetch = async (url, init) => {
   const u = new URL(String(url), "https://app.test");
+  if (reviewReply.now) {
+    if (/\/google\/reviews\/[^/]+\/reply$/.test(u.pathname)) {
+      reviewReply.posted.push(JSON.parse(String(init?.body ?? "{}")).comment);
+      return json(200, { ok: true, data: { ok: true } });
+    }
+    if (u.pathname.endsWith("/google")) return json(200, { ok: true, data: { google: reviewReply.now.google } });
+    if (u.pathname.endsWith("/reports/reviews")) {
+      reviewReply.reread += 1;
+      return json(200, { ok: true, data: reviewReply.now });
+    }
+  }
   if (/\/reports\/(campaigns|reach-outs)$/.test(u.pathname))
     return json(500, { ok: false, error: { code: "internal", message: "not read here" } });
   if (!u.pathname.endsWith("/reports")) return json(404, { ok: false, error: { code: "not_found", message: "no" } });
@@ -799,7 +816,7 @@ const northsideLedger = (over = {}) => {
 /** The Reviews read for seven days, held as the surface holds it: the answer and its fold, made once. */
 const holdReviews = (google, ledger) => {
   const dto = reviewsDto({ days: 7, google, ledger });
-  const vm = toReviewsReportVM(dto, { days: 7, nowMs: REVIEWS_NOW });
+  const vm = toReviewsReportVM(dto, { nowMs: REVIEWS_NOW });
   setSurfaceValue("reports_reviews", { dto, vm, period: "7d", fetchedAt: 1 });
   return vm;
 };
@@ -1043,6 +1060,72 @@ test("Google's reviews from the five it shows first: four figures, the ratings g
     assert.ok(textOf(card(pending, "reviews-connect")).includes("choose the location to finish"));
     assert.deepEqual(figureIds(pending), ["rating", "reviews", "ratings_gained", "newest_review"]);
   } finally {
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("a reply from a waiting row says it is on Google: the answer takes the review out of the waiting card, and the toast is the section's, not the composer's", async () => {
+  const [ana] = NORTHSIDE.reviews;
+  const answered = { ...ana, reply_text: "Thank you, Ana!", replied_at: "2026-09-04T14:00:00Z" };
+  // The shell's toast, as the shell holds it: the state of the component that asked for it, drawn only while that component is.
+  const shellToast = globalThis.usePPToast;
+  globalThis.usePPToast = () => {
+    const [said, say] = globalThis.React.useState(null);
+    return [said ? globalThis.React.createElement("div", { "data-testid": "toast" }, textOf(said.msg)) : null, say];
+  };
+  keepReportPeriod("7d");
+  holdReviews(NORTHSIDE, northsideLedger());
+  reviewReply.posted.length = 0;
+  reviewReply.reread = 0;
+  reviewReply.now = reviewsDto({
+    days: 7,
+    google: { ...NORTHSIDE, reviews: [answered] },
+    ledger: northsideLedger({
+      written: [writtenReview(ana.id, ana.published_at, 5, answered.replied_at)],
+      waiting_total: 0,
+      waiting: [],
+      held: [],
+    }),
+  });
+  const settled = async () => {
+    for (let i = 0; i < 20; i++) await settle();
+  };
+  /** Until the Reviews read has been asked for again, by the answer, and then for the rest of what follows it. */
+  const reread = async () => {
+    for (let i = 0; i < 300 && !reviewReply.reread; i++) await new Promise((r) => setTimeout(r, 10));
+    await settled();
+  };
+  try {
+    lensAt = LENS_PATHS[5];
+    let tree = pageOnce();
+    assert.equal(reviewRows(card(tree, "reviews-waiting")).length, 1, "Ana waits");
+    press(byTestId(card(tree, "reviews-waiting"), "google-reply"));
+    await settled(); // the draft is asked for, and none comes: the box is hers to fill
+    tree = again(draw);
+    find(tree, (n) => n.type === Field).props.onValueChange("Thank you, Ana!");
+    tree = again(draw);
+    press(byTestId(tree, "google-reply-send"));
+    await reread(); // the reply is accepted, and the answer re-reads the Reviews surface before the verb returns
+    tree = again(draw);
+    assert.deepEqual(reviewReply.posted, ["Thank you, Ana!"], "her words went to the route");
+    assert.match(
+      textOf(card(tree, "reviews-waiting")),
+      /Nothing is waiting for a reply\./,
+      "the review left the waiting card",
+    );
+    const toasts = all(tree, (n) => n.props?.["data-testid"] === "toast");
+    assert.equal(toasts.length, 1, "and the page still says it landed, once");
+    assert.equal(textOf(toasts[0]), "Your reply is on Google, under the review.");
+    // The section draws it, outside every review: a toast a row draws leaves with the row, which a real React would not keep.
+    assert.deepEqual(
+      all(tree, (n) => classes(n).includes("rp2-review") && !!byTestId(n, "toast")),
+      [],
+      "not inside a review's own composer",
+    );
+  } finally {
+    reviewReply.now = null;
+    globalThis.usePPToast = shellToast;
+    lensAt = LENS_PATHS[0];
     setSurfaceValue("reports_reviews", undefined);
   }
 });

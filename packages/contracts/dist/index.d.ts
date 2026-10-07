@@ -24993,15 +24993,16 @@ interface ReviewsReportVM {
     };
     /** The newest reviews; from the profile, those already in `waiting` are left out, so a review is drawn once. */
     latest: GoogleReviewVM[];
+    /** `latest` as a table, its rows exactly those the card lists: the waiting reviews drawn above it are not in it. */
+    latestTable: GoogleVM["table"];
     /**
      * Every sentence the lens, its head and Ask say, null where there is nothing to say: the head (one sentence, built from
-     * the tiles' own numbers), under the cards (the mix, the speed, the weeks), where the history on record starts, and,
+     * the tiles' own numbers), under the cards (the mix, the weeks), where the history on record starts, and,
      * from the five public reviews with no profile connected, what the profile would add.
      */
     lines: {
         head: string | null;
         mix: string | null;
-        speed: string | null;
         weekly: string | null;
         history: string | null;
         connect: string | null;
@@ -25019,11 +25020,11 @@ declare function reviewsWindowOf(today: string, days: number): {
 declare function reviewsReadSince(today: string, days: number): string;
 /**
  * Reviews, drawn from what is stored: the listing's own figures from `toGoogleVM`, and, where the owner's Business Profile
- * has synced, the counts of the period over the reviews on record. `days` is the period asked for, the one `dto.days` was
- * read for. Every sentence is made here; the page, the head and Ask say these.
+ * has synced, the counts of the period over the reviews on record. The period is `dto.days`, the one the ledger was read
+ * for: a fold of another would count the reviews the read left out as none. Every sentence is made here; the page, the head
+ * and Ask say these.
  */
 declare function toReviewsReportVM(dto: ReviewsReportDto, opts: {
-    days: number;
     nowMs?: number;
 }): ReviewsReportVM;
 
@@ -25037,8 +25038,8 @@ declare function lensAnswerOf(lens: LensId, parts: {
     vm: ReportVM;
     campaigns: CampaignReportVM | null;
     deals: DealReportVM | null | undefined;
-    /** The Reviews lens's own read, which the page holds beside the report; absent where it has not landed. */
-    reviews?: ReviewsReportVM | null;
+    /** The Reviews lens's own read, which the page holds beside the report; null where it has not landed. */
+    reviews: ReviewsReportVM | null;
 }): string | undefined;
 
 /** The words over a figure's label: what it counts and what it leaves out. */

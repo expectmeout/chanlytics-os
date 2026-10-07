@@ -40,7 +40,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   newest_review:
     "The newest of the five reviews Google shows for your listing, and when it was written. Google shows five at most.",
   reviews_written:
-    "Reviews written in this period, with words or without, by the day Google dates them, from your Business Profile. A review Google later removed is not counted.",
+    "Reviews written in this period, with words or without, by the day Google dates them, from your Business Profile. A review Google later removes stays on record and is still counted.",
   reviews_answered:
     "Of the reviews written in this period, how many have a reply on Google, from you or the receptionist. A review with no reply yet is not answered. A reply counts as the receptionist's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
   review_reply_time:

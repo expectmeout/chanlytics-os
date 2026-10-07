@@ -20396,6 +20396,12 @@ function toGoogleReviewVM(r2, linkedAt, nowMs) {
     fromProfile: r2.origin === "profile"
   };
 }
+function googleReviewsTable(rows) {
+  return {
+    columns: ["Reviewer", "Stars", "Written", "Words"],
+    rows: rows.map((r2) => [r2.author, r2.rating ?? "\u2014", r2.when || "\u2014", r2.text || "\u2014"])
+  };
+}
 var EMPTY_GAINED = { points: [], max: 0, total: null, sinceLabel: null };
 function gainedOver(days, periodDays) {
   const sorted = [...days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
@@ -20435,7 +20441,6 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   } : null;
   const canReply = !!c && !!c.location_name;
   const reply = { mode: dto.reply_mode, words: reviewReplyWords(dto.reply_mode, canReply) };
-  const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] };
   if (!l)
     return {
       listing: null,
@@ -20446,11 +20451,10 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       gained: EMPTY_GAINED,
       latest: [],
       source: "",
-      table,
+      table: googleReviewsTable([]),
       todayLine: null
     };
   const latest = [...dto.reviews].sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0)).map((r2) => toGoogleReviewVM(r2, l.linked_at, nowMs));
-  table.rows = latest.map((r2) => [r2.author, r2.rating ?? "\u2014", r2.when || "\u2014", r2.text || "\u2014"]);
   const source = reviewsFromProfile(c) ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
   const days = [...dto.days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
   const { current: gained, previous } = gainedOver(days, periodDays);
@@ -20497,7 +20501,8 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
       delta: null,
       spark: gained.points.map((p) => p.gained),
-      compare: gained.total !== null && previous !== null ? compareWords(gained.total, previous, rangeLabel, true) : null
+      // A count that fell in the period before is no figure to measure against ("up from -2").
+      compare: gained.total !== null && previous !== null && previous >= 0 ? compareWords(gained.total, previous, rangeLabel, true) : null
     },
     {
       id: "newest",
@@ -20532,7 +20537,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
     gained,
     latest,
     source,
-    table,
+    table: googleReviewsTable(latest),
     todayLine
   };
 }
@@ -27074,7 +27079,7 @@ var METRIC_WORDS = {
   reviews: "How many ratings Google counts for your listing as of the last check, with words or without.",
   ratings_gained: "How many ratings Google's count rose by in this period, from the daily checks Chanlytics keeps: new ratings, with words or without. It needs two days of readings.",
   newest_review: "The newest of the five reviews Google shows for your listing, and when it was written. Google shows five at most.",
-  reviews_written: "Reviews written in this period, with words or without, by the day Google dates them, from your Business Profile. A review Google later removed is not counted.",
+  reviews_written: "Reviews written in this period, with words or without, by the day Google dates them, from your Business Profile. A review Google later removes stays on record and is still counted.",
   reviews_answered: "Of the reviews written in this period, how many have a reply on Google, from you or the receptionist. A review with no reply yet is not answered. A reply counts as the receptionist's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
   review_reply_time: "The middle time from a review being written to its reply, over this period's reviews that have one. A reply you changed later counts from the change. It needs three replies to be said."
 };
@@ -27272,6 +27277,7 @@ function profileHeadTail(p) {
 function placesHeadTail(google, days) {
   const gained = google.gained.total;
   if (gained === null) return "what changed needs a second day of reading";
+  if (gained < 0) return `down ${plural(-gained, "rating")} ${withinWords(days)}`;
   return `${gained ? `${plural(gained, "rating")} gained` : "none gained"} ${withinWords(days)}`;
 }
 function reviewsMixLine(p) {
@@ -27280,13 +27286,6 @@ function reviewsMixLine(p) {
   if (!p.rated) return `No star rating among the reviews written ${withinWords(p.days)}.`;
   const of = p.rated === p.written ? plural(p.rated, "review") : plural(p.rated, "rated review");
   return `${p.good} of the ${of} written ${withinWords(p.days)} ${p.rated === 1 ? "is" : "are"} 4 or 5 stars.`;
-}
-function reviewsSpeedLine(p) {
-  if (!p.exact || !p.written) return null;
-  if (p.replySeconds !== null)
-    return `${p.answered} of ${p.written} answered; the middle reply took ${fmtSeconds(p.replySeconds)}.`;
-  if (p.timed > 0) return `${plural(p.timed, "reply", "replies")} so far.`;
-  return p.answered ? "No reply has a time on record." : "No replies yet.";
 }
 function reviewsWeeklyLine(p, weeks) {
   if (p.exact && !p.written) return NOTHING_WRITTEN;
@@ -27297,7 +27296,6 @@ var CONNECT_WORDS = "Connect your Business Profile to see every review, who answ
 var NO_LINES = {
   head: null,
   mix: null,
-  speed: null,
   weekly: null,
   history: null,
   connect: null
@@ -27338,6 +27336,7 @@ function reviewsFromLedger({ dto, ledger, google, l, days, nowMs }) {
   const total = sumOf(points.map((w) => w.written));
   const waiting = reviewsWaitingOf(ledger, l.linked_at, nowMs);
   const waitingIds = new Set(waiting.rows.map((r2) => r2.id));
+  const latest = google.latest.filter((r2) => !waitingIds.has(r2.id));
   const onRecord = ledger.on_record.profile + ledger.on_record.places;
   return {
     days,
@@ -27356,11 +27355,11 @@ function reviewsFromLedger({ dto, ledger, google, l, days, nowMs }) {
     stars: p.exact && mix.rated ? { rated: mix.rated, rows: mix.rows, table: mix.table } : null,
     weekly: total ? { points, max: Math.max(1, ...points.map((w) => w.written)), total } : null,
     waiting,
-    latest: google.latest.filter((r2) => !waitingIds.has(r2.id)),
+    latest,
+    latestTable: googleReviewsTable(latest),
     lines: {
       head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${profileHeadTail(p)}.`,
       mix: reviewsMixLine(p),
-      speed: reviewsSpeedLine(p),
       weekly: reviewsWeeklyLine(p, points),
       history: p.exact && p.priorExact ? null : historyWords(p.history),
       connect: null
@@ -27368,13 +27367,22 @@ function reviewsFromLedger({ dto, ledger, google, l, days, nowMs }) {
   };
 }
 function toReviewsReportVM(dto, opts) {
-  const { days } = opts;
+  const { days } = dto;
   const nowMs = opts.nowMs ?? Date.now();
   const google = toGoogleVM(dto.google, days, nowMs);
   const l = dto.google.listing;
   const ledger = dto.ledger;
   const base = { days, google, figures: null, stars: null, weekly: null, waiting: { total: 0, rows: [] } };
-  if (!l) return { ...base, empty: true, source: "places", tiles: [], latest: [], lines: NO_LINES };
+  if (!l)
+    return {
+      ...base,
+      empty: true,
+      source: "places",
+      tiles: [],
+      latest: [],
+      latestTable: googleReviewsTable([]),
+      lines: NO_LINES
+    };
   if (ledger && reviewsFromProfile(dto.google.connection))
     return reviewsFromLedger({ dto, ledger, google, l, days, nowMs });
   const onRecord = ledger ? ledger.on_record.profile + ledger.on_record.places : dto.google.reviews.length;
@@ -27384,6 +27392,7 @@ function toReviewsReportVM(dto, opts) {
     source: "places",
     tiles: google.tiles,
     latest: google.latest,
+    latestTable: googleReviewsTable(google.latest),
     lines: {
       ...NO_LINES,
       head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${placesHeadTail(google, days)}.`,

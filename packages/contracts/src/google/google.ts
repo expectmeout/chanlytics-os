@@ -493,6 +493,14 @@ export function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, nowMs: nu
   };
 }
 
+/** The reviews as a table, the twin of a card that lists them: who, how many stars, when, and their words. */
+export function googleReviewsTable(rows: readonly GoogleReviewVM[]): GoogleVM["table"] {
+  return {
+    columns: ["Reviewer", "Stars", "Written", "Words"],
+    rows: rows.map((r) => [r.author, r.rating ?? "—", r.when || "—", r.text || "—"]),
+  };
+}
+
 const EMPTY_GAINED: GoogleVM["gained"] = { points: [], max: 0, total: null, sinceLabel: null };
 
 /**
@@ -549,7 +557,6 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     : null;
   const canReply = !!c && !!c.location_name;
   const reply = { mode: dto.reply_mode, words: reviewReplyWords(dto.reply_mode, canReply) };
-  const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] as (string | number)[][] };
   if (!l)
     return {
       listing: null,
@@ -560,14 +567,13 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       gained: EMPTY_GAINED,
       latest: [],
       source: "",
-      table,
+      table: googleReviewsTable([]),
       todayLine: null,
     };
 
   const latest = [...dto.reviews]
     .sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0))
     .map((r) => toGoogleReviewVM(r, l.linked_at, nowMs));
-  table.rows = latest.map((r) => [r.author, r.rating ?? "—", r.when || "—", r.text || "—"]);
   const source = reviewsFromProfile(c)
     ? "every review, from your Business Profile"
     : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
@@ -629,8 +635,11 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
             : `new ratings, words or not`,
       delta: null,
       spark: gained.points.map((p) => p.gained),
+      // A count that fell in the period before is no figure to measure against ("up from -2").
       compare:
-        gained.total !== null && previous !== null ? compareWords(gained.total, previous, rangeLabel, true) : null,
+        gained.total !== null && previous !== null && previous >= 0
+          ? compareWords(gained.total, previous, rangeLabel, true)
+          : null,
     },
     {
       id: "newest",
@@ -673,7 +682,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     gained,
     latest,
     source,
-    table,
+    table: googleReviewsTable(latest),
     todayLine,
   };
 }

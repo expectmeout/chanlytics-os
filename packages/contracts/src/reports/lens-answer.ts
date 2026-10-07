@@ -15,8 +15,8 @@ export function lensAnswerOf(
     vm: ReportVM;
     campaigns: CampaignReportVM | null;
     deals: DealReportVM | null | undefined;
-    /** The Reviews lens's own read, which the page holds beside the report; absent where it has not landed. */
-    reviews?: ReviewsReportVM | null;
+    /** The Reviews lens's own read, which the page holds beside the report; null where it has not landed. */
+    reviews: ReviewsReportVM | null;
   },
 ): string | undefined {
   const { vm, campaigns, deals, reviews } = parts;

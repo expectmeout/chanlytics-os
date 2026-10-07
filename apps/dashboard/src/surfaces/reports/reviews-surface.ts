@@ -18,19 +18,15 @@
 import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
 import {
-  MIN_MS,
   toReviewsReportVM,
   type ReportPeriodId,
   type ReviewsReportDto,
   type ReviewsReportVM,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { ON_DEMAND_STALE_MS, type SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import { setSurfaceValue } from "../surface-values";
 import { shownReportPeriod } from "./surface";
-
-/** How old a held read may be before a pick of its period, or the lens's coming on screen, reads it again. */
-const REVIEWS_STALE_MS = 5 * MIN_MS;
 
 /** What the lens draws from: the read, its fold, the period it is of and when it was made. */
 export interface ReviewsSurface {
@@ -58,10 +54,13 @@ export function paintHeldReviews(): boolean {
   return true;
 }
 
-/** Whether the read for the period now shown is held at all, and was made within REVIEWS_STALE_MS: when not, it wants a read. */
+/**
+ * Whether the read for the period now shown is held at all, and was made within ON_DEMAND_STALE_MS (the measure every on-demand
+ * read is held to: a pick of its period, or the lens's coming on screen, reads it again past it): when not, it wants a read.
+ */
 export function isReviewsStale(): boolean {
   const have = reviewsHeld.get(shownReportPeriod());
-  return !have || Date.now() - have.fetchedAt > REVIEWS_STALE_MS;
+  return !have || Date.now() - have.fetchedAt > ON_DEMAND_STALE_MS;
 }
 
 export const reviewsOverride: SurfaceOverride = {
@@ -83,7 +82,7 @@ export const reviewsOverride: SurfaceOverride = {
     const readAt = Date.now();
     const whole: ReviewsSurface = {
       dto,
-      vm: toReviewsReportVM(dto, { days: dto.days, nowMs: readAt }),
+      vm: toReviewsReportVM(dto, { nowMs: readAt }),
       period,
       fetchedAt: readAt,
     };

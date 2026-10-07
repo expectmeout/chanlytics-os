@@ -92,7 +92,7 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
     // The Reviews lens's own read (readers/report.ts reviewsReport: Google as its page reads it, and the reviews on
     // record), folded on the turn's clock: one that fails, a slow edge or a ledger that cannot be read, is null too.
     load(t.rc, reviewsReport, { days })
-      .then((x) => toReviewsReportVM(x.data, { days, nowMs: t.rc.now.getTime() }))
+      .then((x) => toReviewsReportVM(x.data, { nowMs: t.rc.now.getTime() }))
       .catch(() => null),
   ]);
   if (!r) return { error: "report unavailable" };

@@ -21,7 +21,7 @@ import { ApiError } from "../client/api";
 import { read } from "./api";
 import { addressInWorkspace, getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
 import type { RealtimeChange } from "./surface-realtime";
-import type { MembershipRole, MessageStatus, PendingWorkspace } from "@chanlytics/contracts";
+import { MIN_MS, type MembershipRole, type MessageStatus, type PendingWorkspace } from "@chanlytics/contracts";
 import { peopleLoaded, publishPeople } from "@/surfaces/people/surface";
 import type { SurfaceKey } from "../surfaces/surface-values";
 export { getActiveWorkspace } from "./workspace";
@@ -72,9 +72,16 @@ export interface SurfaceOverride {
    * by name (a write's, a pick's, one Retry) is still made.
    */
   onDemand?: boolean;
-  /** For an `onDemand` surface: whether what it holds has aged enough that its page, coming on screen, reads it again. */
+  /** For an `onDemand` surface: whether what it holds has aged enough that its page, coming on screen, reads it again (ON_DEMAND_STALE_MS). */
   isStale?: () => boolean;
 }
+
+/**
+ * How old a held read of an `onDemand` surface may be before its page, coming on screen, reads it again: the one measure Google's
+ * read (google.ts), the Reviews read (surfaces/reports/reviews-surface.ts) and Today's headline (surfaces/reports/headline.ts) hold
+ * their `isStale` to, each against when it was read.
+ */
+export const ON_DEMAND_STALE_MS = 5 * MIN_MS;
 
 /** A surface's read under way, and the one read asked for while it was out, which everyone asking meanwhile shares. */
 interface Reading {

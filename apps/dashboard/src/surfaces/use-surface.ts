@@ -9,7 +9,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { surfaceValue } from "./surface-values";
 import type { SurfaceKey, SurfaceValues } from "./surface-values";
-import { isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
+import { isSurfaceDegraded, isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
 
 export function useSurface<K extends SurfaceKey>(key: K): SurfaceValues[K] | undefined {
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
@@ -25,5 +25,16 @@ export function useSurface<K extends SurfaceKey>(key: K): SurfaceValues[K] | und
 export function useSurfaceFailed(key: SurfaceKey): boolean {
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
   const snapshot = () => isSurfaceFailed(key);
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
+}
+
+/**
+ * Whether the surface holds a read and its latest one failed (`isSurfaceDegraded`): what `useSurfaceFailed` leaves unsaid once any
+ * read has landed. A page that asks for a view other than the one it holds (a period picked) says the failure by this, and not by
+ * dimming the held view for good. Drawn again when the surface's status moves.
+ */
+export function useSurfaceDegraded(key: SurfaceKey): boolean {
+  const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
+  const snapshot = () => isSurfaceDegraded(key);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }

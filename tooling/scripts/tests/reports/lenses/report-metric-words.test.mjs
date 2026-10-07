@@ -85,7 +85,7 @@ const workspace = () => {
 /** The Reviews read for seven days as the surface holds it, folded once by contracts. */
 const held = (dto) => ({
   dto,
-  vm: toReviewsReportVM(dto, { days: 7, nowMs: REVIEWS_NOW }),
+  vm: toReviewsReportVM(dto, { nowMs: REVIEWS_NOW }),
   period: "7d",
   fetchedAt: 1,
 });
@@ -123,7 +123,7 @@ const said = (fig) => ({
 
 test("every figure the reports build names a metric that has words, and no two metrics say the same", () => {
   const R = surface({ deals: DEALS });
-  const reviews = toReviewsReportVM(reviewsDto({ days: 7 }), { days: 7, nowMs: REVIEWS_NOW });
+  const reviews = toReviewsReportVM(reviewsDto({ days: 7 }), { nowMs: REVIEWS_NOW });
   const tiles = [
     ...R.vm.tiles,
     bookedTileOf(R.booking),

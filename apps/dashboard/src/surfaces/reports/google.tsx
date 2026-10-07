@@ -13,9 +13,16 @@
  */
 import { useState } from "react";
 import { lensEmpty } from "@chanlytics/contracts";
-import type { GoogleDto, GoogleReviewVM, GoogleVM, LensRange, ReviewsReportVM } from "@chanlytics/contracts";
+import type {
+  GoogleDto,
+  GoogleReviewVM,
+  GoogleVM,
+  LensRange,
+  ReviewWaitingVM,
+  ReviewsReportVM,
+} from "@chanlytics/contracts";
 import { draftReply, replyToReview } from "@/legacy-bridge/google";
-import { canDo, useLegacyToast } from "../legacy-verbs";
+import { canDo, useLegacyToast, type LegacyFlash } from "../legacy-verbs";
 import { BarChart, BarList } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
 import { EmptyState } from "../kit/empty/empty";
@@ -29,6 +36,9 @@ import { RPT_GAINED, RPT_WRITTEN } from "./series";
 /** What the receptionist does under a new review: the mode Settings holds, `never` opening the box empty. */
 type ReplyMode = GoogleVM["reply"]["mode"];
 
+/** The section's toast: raised by a composer, drawn by the section, which outlives the row a reply answers. */
+type Flash = (flash: LegacyFlash) => void;
+
 // An answer to a review, on Google, in the business's own words: a link
 // under the review, a few lines, Send. Google keeps one reply per review,
 // so sending again replaces it. Shown only when the Business Profile is
@@ -37,14 +47,15 @@ type ReplyMode = GoogleVM["reply"]["mode"];
 // has not reached), opening it asks the receptionist for a draft first, so a
 // reply is one tap: read, change anything, send. Under Never the box opens
 // empty and nothing is asked.
-function ReviewReply({ r, mode }: { r: GoogleReviewVM; mode: ReplyMode }) {
+// A reply that lands moves the review out of the waiting card, and this composer with it, before the toast is raised: the toast
+// is the section's (`flash`), so it is still drawn.
+function ReviewReply({ r, mode, flash }: { r: GoogleReviewVM; mode: ReplyMode; flash: Flash }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(r.replyText || "");
   const [busy, setBusy] = useState(false);
   const [drafting, setDrafting] = useState(false);
   // null · "yes" (the words in the box are the receptionist's) · a sentence saying why there is none
   const [drafted, setDrafted] = useState<string | null>(null);
-  const [toastNode, flash] = useLegacyToast();
   const openIt = async () => {
     setOpen(true);
     if (r.replied || mode === "never") return;
@@ -123,16 +134,16 @@ function ReviewReply({ r, mode }: { r: GoogleReviewVM; mode: ReplyMode }) {
           </div>
         </div>
       )}
-      {toastNode}
     </div>
   );
 }
 
 /**
  * One review: its stars, who and when, its words (or that there are none), the reply the receptionist wrote and held back
- * (`held`, where the row is one that waits), and the reply, or the door to write one.
+ * (`held`, which a row that waits carries), and the reply, or the door to write one.
  */
-function reviewRow(r: GoogleReviewVM, vm: GoogleVM, operator: boolean, held: string | null) {
+function reviewRow(r: GoogleReviewVM | ReviewWaitingVM, vm: GoogleVM, operator: boolean, flash: Flash) {
+  const held = "held" in r ? r.held : null;
   return (
     <div key={r.id} className={"rp2-review" + (r.isNew ? " is-new" : "")} data-testid="google-review">
       <div className="rp2-review-head">
@@ -157,7 +168,7 @@ function reviewRow(r: GoogleReviewVM, vm: GoogleVM, operator: boolean, held: str
         </span>
       )}
       {vm.canReply && operator && r.fromProfile ? (
-        <ReviewReply r={r} mode={vm.reply.mode} />
+        <ReviewReply r={r} mode={vm.reply.mode} flash={flash} />
       ) : r.replied ? (
         <p className="rp2-review-replytext">
           <b>Replied:</b> {r.replyText}
@@ -250,7 +261,7 @@ function weeklyCard(V: ReviewsReportVM) {
 }
 
 /** The reviews that wait for a reply, the oldest first, each with the reply the receptionist held back where it did, and the door to answer. */
-function waitingCard(V: ReviewsReportVM, operator: boolean) {
+function waitingCard(V: ReviewsReportVM, operator: boolean, flash: Flash) {
   const { total, rows } = V.waiting;
   return (
     <ChartCard
@@ -260,7 +271,7 @@ function waitingCard(V: ReviewsReportVM, operator: boolean) {
       takeaway={total > rows.length ? `Showing the oldest ${rows.length}.` : null}
     >
       {rows.length ? (
-        <div className="rp2-reviews">{rows.map((r) => reviewRow(r, V.google, operator, r.held))}</div>
+        <div className="rp2-reviews">{rows.map((r) => reviewRow(r, V.google, operator, flash))}</div>
       ) : (
         <EmptyState kind="line" title="Nothing is waiting for a reply." />
       )}
@@ -281,18 +292,18 @@ function connectCard(V: ReviewsReportVM) {
 }
 
 /** The latest reviews with their words, and the listing's own address for the rest. A review that waits for a reply is drawn once, above. */
-function latestCard(V: ReviewsReportVM, mapsUri: string | null, operator: boolean) {
+function latestCard(V: ReviewsReportVM, mapsUri: string | null, operator: boolean, flash: Flash) {
   const G = V.google;
   return (
     <ChartCard
       className="rpt-span-12"
       title="Latest reviews"
       testid="chart-google-latest"
-      table={G.table}
+      table={V.latestTable}
       takeaway={V.latest.length ? (G.reply.words ? `${G.source} · ${G.reply.words}` : G.source) : null}
     >
       {V.latest.length ? (
-        <div className="rp2-reviews">{V.latest.map((r) => reviewRow(r, G, operator, null))}</div>
+        <div className="rp2-reviews">{V.latest.map((r) => reviewRow(r, G, operator, flash))}</div>
       ) : (
         <EmptyState
           kind="line"
@@ -330,6 +341,9 @@ function sectionMeta(V: ReviewsReportVM, L: NonNullable<GoogleVM["listing"]>): s
 
 export function GoogleSection({ V, range }: { V: ReviewsReportVM; range: LensRange }) {
   const operator = canDo("approve");
+  // The toast of a reply is drawn here, not by the composer: the answer re-reads the Reviews surface before the verb returns, and
+  // the review, answered, leaves the waiting card with its composer.
+  const [toastNode, flash] = useLegacyToast();
   const L = V.google.listing;
   if (!L) {
     const none = lensEmpty("reviews", range);
@@ -362,7 +376,7 @@ export function GoogleSection({ V, range }: { V: ReviewsReportVM; range: LensRan
           <>
             {starsCard(V)}
             {weeklyCard(V)}
-            {waitingCard(V, operator)}
+            {waitingCard(V, operator, flash)}
           </>
         ) : (
           <>
@@ -370,8 +384,9 @@ export function GoogleSection({ V, range }: { V: ReviewsReportVM; range: LensRan
             {connectCard(V)}
           </>
         )}
-        {latestCard(V, L.mapsUri, operator)}
+        {latestCard(V, L.mapsUri, operator, flash)}
       </div>
+      {toastNode}
     </RptSection>
   );
 }

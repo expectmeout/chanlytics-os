@@ -52,7 +52,7 @@ const workspace = (sellsBy) => {
 /** The Reviews read as the surface holds it: the answer, its fold, the period it is of and when it was made. */
 const held = (dto, period = "7d") => ({
   dto,
-  vm: toReviewsReportVM(dto, { days: dto.days, nowMs: REVIEWS_NOW }),
+  vm: toReviewsReportVM(dto, { nowMs: REVIEWS_NOW }),
   period,
   fetchedAt: 1,
 });
@@ -141,28 +141,38 @@ test("the Reviews head says the sentence of the fold its figures are drawn from,
   );
   assert.equal(standingSaid().sentence, REVIEWS_LINKED.vm.lines.head, "the one the lens's own fold says");
   draw("overview", { reviews: REVIEWS_LINKED });
-  assert.equal(standingSaid().sentence, lensAnswerOf("overview", surface({ deals: DEALS })), "no other lens says it");
+  assert.equal(
+    standingSaid().sentence,
+    lensAnswerOf("overview", { ...surface({ deals: DEALS }), reviews: null }),
+    "no other lens says it",
+  );
   draw("reviews", { reviews: undefined });
   assert.equal(standingSaid().sentence, undefined, "a read still out: the name alone");
 });
 
-test("the Reviews body dims while its read is of another period than the strip shows, by the one rule, and not when they agree", () => {
+/** What is on its way, by the one rule every page uses: the nodes that wear data-loading, and those it dims. */
+const dimmed = (tree) => all(tree, (n) => n.props?.["data-loading"] === "");
+const dims = (tree) => all(tree, (n) => n.props?.["data-dims"] === true);
+
+test("the page dims once while the Reviews read is of another period than the strip shows, by the one rule every page uses, and not when they agree", () => {
   workspace("proposal");
-  const dimmed = (tree) => all(tree, (n) => n.props?.["data-loading"] === "");
-  /** The lens's own body: the innermost dimming element, the page's own being the one around it. */
-  const body = (tree) =>
-    all(
-      byTestId(tree, "reports-real"),
-      (n) => n.props?.["data-dims"] === true && n.props["aria-busy"] !== undefined && !!byTestId(n, "google-tiles"),
-    ).at(-1);
   const same = draw("reviews", { reviews: REVIEWS_LINKED });
   assert.deepEqual(dimmed(same), [], "the same period: nothing on its way");
-  assert.equal(body(same).props["aria-busy"], "false");
+  assert.equal(dims(same).length, 1, "the page's body is the one thing the rule dims");
+  assert.equal(dims(same)[0].props["aria-busy"], "false");
   const behind = draw("reviews", { reviews: held(reviewsDto({ days: 30 }), "30d") });
-  assert.equal(dimmed(behind).length, 1, "one thing on its way, and it is not the page");
-  assert.equal(byTestId(behind, "reports-real").props["data-loading"], undefined);
-  assert.ok(byTestId(dimmed(behind)[0], "google-tiles"), "the lens's own body is what is on its way");
-  assert.equal(body(behind).props["aria-busy"], "true");
+  assert.deepEqual(
+    dimmed(behind),
+    [byTestId(behind, "reports-real")],
+    "the page says a period is on its way, and nothing else does",
+  );
+  assert.equal(dims(behind).length, 1, "and one body dims, not the page's and the lens's both (they would compound)");
+  assert.ok(byTestId(dims(behind)[0], "google-tiles"), "the lens's cards are in the body that dims");
+  assert.equal(dims(behind)[0].props["aria-busy"], "true");
+  assert.equal(byTestId(behind, "reviews-failed"), null, "a read on its way is not a failed one");
+  // Another lens is of the report the page holds: the Reviews read, behind or not, dims nothing there.
+  const other = draw("overview", { reviews: held(reviewsDto({ days: 30 }), "30d") });
+  assert.deepEqual(dimmed(other), [], "the Reviews read's period is the Reviews lens's own to say");
 });
 
 test("a lens the workspace has no use for says so at its address, in the registry's words, and draws none of its cards", () => {
@@ -221,7 +231,8 @@ test("a lens that waits on how the workspace sells draws nothing until the works
   assert.ok(byTestId(draw("pipeline", { R: surface({ deals: DEALS }) }), "rpt-deals"), "the list held: the lens draws");
 });
 
-// LAST in the file: a surface's failure cannot be taken back (surface-status.ts has no reset), and every test above draws Reviews.
+// LAST in the file, in this order: a surface that never had a read is failed only until one lands (surface-status.ts keeps `ready`
+// for good), and every test above draws Reviews on a surface with neither.
 test("Reviews says the read failed, with its Retry, where its read could not be made, and never the empty that says nothing is linked", () => {
   workspace("booking");
   setStatus("reports_reviews", "seeded");
@@ -238,6 +249,36 @@ test("Reviews says the read failed, with its Retry, where its read could not be 
     null,
     "REGRESSION: a failed read said 'find your business on Google once'",
   );
+});
+
+test("a pick whose Reviews read could not be made says so, with its Retry, and never holds the period it left dimmed for good", () => {
+  workspace("proposal");
+  // The report landed for the pick and the Reviews read did not: the surface holds the period left, and its latest read failed
+  // (a read that landed once is never "failed" to useSurfaceFailed, so the lens would dim the old period for ever).
+  setStatus("reports_reviews", "degraded");
+  const left = held(reviewsDto({ days: 30 }), "30d");
+  const stuck = draw("reviews", { reviews: left });
+  const words = byTestId(stuck, "reviews-failed");
+  assert.ok(words, "the house's failed read, drawn in place of the period left");
+  assert.ok(textOf(words).includes("Couldn't read your Google reviews"), textOf(words));
+  assert.ok(
+    find(stuck, (n) => n.props?.surface === "reports_reviews"),
+    "its Retry reads the Reviews surface again",
+  );
+  assert.equal(byTestId(stuck, "google-tiles"), null, "the period left is not drawn under the strip's period");
+  assert.deepEqual(dimmed(stuck), [], "nothing is dimmed: a dimmed card takes no press, and the Retry is on it");
+  assert.equal(dims(stuck)[0].props["aria-busy"], "false");
+  // The same failed read, with what is held of the period the strip shows, says nothing: the figures are current.
+  const current = draw("reviews", { reviews: REVIEWS_LINKED });
+  assert.equal(byTestId(current, "reviews-failed"), null);
+  assert.ok(byTestId(current, "google-tiles"), "the figures stand");
+  // And the lens is the only page that says it: on another lens the Reviews read is nobody's.
+  assert.equal(byTestId(draw("overview", { reviews: left }), "reviews-failed"), null);
+  // A Retry that lands: the surface is live again, and what is held is drawn, dimmed while it is of another period.
+  setStatus("reports_reviews", "live");
+  const retried = draw("reviews", { reviews: left });
+  assert.equal(byTestId(retried, "reviews-failed"), null, "no longer failed");
+  assert.deepEqual(dimmed(retried), [byTestId(retried, "reports-real")], "a read on its way again, as a pick's is");
 });
 
 test("the Campaigns lens draws its channels where more than one sent (0030): a bar each in the channel's own colour, its delivered share beside it, every figure in its table, and what a read is under it; one channel, no card", () => {

@@ -20,6 +20,7 @@ import { sumOf } from "../shared/numbers";
 import { plural } from "../shared/words";
 import {
   checkedWords,
+  googleReviewsTable,
   reviewsFromProfile,
   toGoogleReviewVM,
   toGoogleVM,
@@ -150,15 +151,16 @@ export interface ReviewsReportVM {
   waiting: { total: number; rows: ReviewWaitingVM[] };
   /** The newest reviews; from the profile, those already in `waiting` are left out, so a review is drawn once. */
   latest: GoogleReviewVM[];
+  /** `latest` as a table, its rows exactly those the card lists: the waiting reviews drawn above it are not in it. */
+  latestTable: GoogleVM["table"];
   /**
    * Every sentence the lens, its head and Ask say, null where there is nothing to say: the head (one sentence, built from
-   * the tiles' own numbers), under the cards (the mix, the speed, the weeks), where the history on record starts, and,
+   * the tiles' own numbers), under the cards (the mix, the weeks), where the history on record starts, and,
    * from the five public reviews with no profile connected, what the profile would add.
    */
   lines: {
     head: string | null;
     mix: string | null;
-    speed: string | null;
     weekly: string | null;
     history: string | null;
     connect: string | null;
@@ -401,10 +403,11 @@ function profileHeadTail(p: ReviewsPeriod): string {
   return `${p.written} new ${withinWords(p.days)}, ${answered}`;
 }
 
-/** The listing's head after the standing: what Google's daily counts gained, once there are two days of them. */
+/** The listing's head after the standing: what Google's daily counts gained, or lost, once there are two days of them. */
 function placesHeadTail(google: GoogleVM, days: number): string {
   const gained = google.gained.total;
   if (gained === null) return "what changed needs a second day of reading";
+  if (gained < 0) return `down ${plural(-gained, "rating")} ${withinWords(days)}`;
   return `${gained ? `${plural(gained, "rating")} gained` : "none gained"} ${withinWords(days)}`;
 }
 
@@ -415,15 +418,6 @@ function reviewsMixLine(p: ReviewsPeriod): string | null {
   if (!p.rated) return `No star rating among the reviews written ${withinWords(p.days)}.`;
   const of = p.rated === p.written ? plural(p.rated, "review") : plural(p.rated, "rated review");
   return `${p.good} of the ${of} written ${withinWords(p.days)} ${p.rated === 1 ? "is" : "are"} 4 or 5 stars.`;
-}
-
-/** How fast and how often the period's reviews were answered; the middle from three replies, the count before. */
-function reviewsSpeedLine(p: ReviewsPeriod): string | null {
-  if (!p.exact || !p.written) return null;
-  if (p.replySeconds !== null)
-    return `${p.answered} of ${p.written} answered; the middle reply took ${fmtSeconds(p.replySeconds)}.`;
-  if (p.timed > 0) return `${plural(p.timed, "reply", "replies")} so far.`;
-  return p.answered ? "No reply has a time on record." : "No replies yet.";
 }
 
 /** The weekly card's line: what the weeks drawn add up to, or that nothing was written. */
@@ -439,7 +433,6 @@ const CONNECT_WORDS = "Connect your Business Profile to see every review, who an
 const NO_LINES: ReviewsReportVM["lines"] = {
   head: null,
   mix: null,
-  speed: null,
   weekly: null,
   history: null,
   connect: null,
@@ -496,6 +489,7 @@ function reviewsFromLedger({ dto, ledger, google, l, days, nowMs }: ReviewsBuild
   const total = sumOf(points.map((w) => w.written));
   const waiting = reviewsWaitingOf(ledger, l.linked_at, nowMs);
   const waitingIds = new Set(waiting.rows.map((r) => r.id));
+  const latest = google.latest.filter((r) => !waitingIds.has(r.id));
   const onRecord = ledger.on_record.profile + ledger.on_record.places;
   return {
     days,
@@ -514,11 +508,11 @@ function reviewsFromLedger({ dto, ledger, google, l, days, nowMs }: ReviewsBuild
     stars: p.exact && mix.rated ? { rated: mix.rated, rows: mix.rows, table: mix.table } : null,
     weekly: total ? { points, max: Math.max(1, ...points.map((w) => w.written)), total } : null,
     waiting,
-    latest: google.latest.filter((r) => !waitingIds.has(r.id)),
+    latest,
+    latestTable: googleReviewsTable(latest),
     lines: {
       head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${profileHeadTail(p)}.`,
       mix: reviewsMixLine(p),
-      speed: reviewsSpeedLine(p),
       weekly: reviewsWeeklyLine(p, points),
       history: p.exact && p.priorExact ? null : historyWords(p.history),
       connect: null,
@@ -528,17 +522,27 @@ function reviewsFromLedger({ dto, ledger, google, l, days, nowMs }: ReviewsBuild
 
 /**
  * Reviews, drawn from what is stored: the listing's own figures from `toGoogleVM`, and, where the owner's Business Profile
- * has synced, the counts of the period over the reviews on record. `days` is the period asked for, the one `dto.days` was
- * read for. Every sentence is made here; the page, the head and Ask say these.
+ * has synced, the counts of the period over the reviews on record. The period is `dto.days`, the one the ledger was read
+ * for: a fold of another would count the reviews the read left out as none. Every sentence is made here; the page, the head
+ * and Ask say these.
  */
-export function toReviewsReportVM(dto: ReviewsReportDto, opts: { days: number; nowMs?: number }): ReviewsReportVM {
-  const { days } = opts;
+export function toReviewsReportVM(dto: ReviewsReportDto, opts: { nowMs?: number }): ReviewsReportVM {
+  const { days } = dto;
   const nowMs = opts.nowMs ?? Date.now();
   const google = toGoogleVM(dto.google, days, nowMs);
   const l = dto.google.listing;
   const ledger = dto.ledger;
   const base = { days, google, figures: null, stars: null, weekly: null, waiting: { total: 0, rows: [] } };
-  if (!l) return { ...base, empty: true, source: "places", tiles: [], latest: [], lines: NO_LINES };
+  if (!l)
+    return {
+      ...base,
+      empty: true,
+      source: "places",
+      tiles: [],
+      latest: [],
+      latestTable: googleReviewsTable([]),
+      lines: NO_LINES,
+    };
   if (ledger && reviewsFromProfile(dto.google.connection))
     return reviewsFromLedger({ dto, ledger, google, l, days, nowMs });
   const onRecord = ledger ? ledger.on_record.profile + ledger.on_record.places : dto.google.reviews.length;
@@ -548,6 +552,7 @@ export function toReviewsReportVM(dto: ReviewsReportDto, opts: { days: number; n
     source: "places",
     tiles: google.tiles,
     latest: google.latest,
+    latestTable: googleReviewsTable(google.latest),
     lines: {
       ...NO_LINES,
       head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${placesHeadTail(google, days)}.`,

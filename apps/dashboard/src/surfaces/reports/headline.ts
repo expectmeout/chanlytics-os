@@ -17,13 +17,10 @@
  */
 import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
-import { MIN_MS, toHeadlineVM, type ReportHeadlineVM } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { toHeadlineVM, type ReportHeadlineVM } from "@chanlytics/contracts";
+import { ON_DEMAND_STALE_MS, type SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 import { shownReportPeriod } from "./surface";
-
-/** How old a held headline may be before a pick of its period, or Today's coming on screen, reads it again. */
-const HEADLINE_STALE_MS = 5 * MIN_MS;
 
 /** A period's headline, and when this tab read it. */
 interface Held {
@@ -55,10 +52,13 @@ export function paintKeptHeadline(): void {
   window.dispatchEvent(new CustomEvent("surface:reports_headline"));
 }
 
-/** Whether the headline for the period now shown is held at all, and was read within HEADLINE_STALE_MS: when not, it wants a read. */
+/**
+ * Whether the headline for the period now shown is held at all, and was read within ON_DEMAND_STALE_MS (the measure every
+ * on-demand read is held to: a pick of its period, or Today's coming on screen, reads it again past it): when not, it wants a read.
+ */
 export function isHeadlineStale(): boolean {
   const have = headlineHeld.get(shownReportPeriod());
-  return !have || Date.now() - have.readAt > HEADLINE_STALE_MS;
+  return !have || Date.now() - have.readAt > ON_DEMAND_STALE_MS;
 }
 
 export const reportsHeadlineOverride: SurfaceOverride = {

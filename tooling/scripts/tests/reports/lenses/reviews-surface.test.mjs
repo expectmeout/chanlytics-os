@@ -88,7 +88,7 @@ test("one read of the reviews for the period Reports shows, folded once and publ
   assert.ok(held.fetchedAt >= before && held.fetchedAt <= Date.now(), "when it was read");
   assert.deepEqual(
     held.vm,
-    toReviewsReportVM(held.dto, { days: 30, nowMs: held.fetchedAt }),
+    toReviewsReportVM(held.dto, { nowMs: held.fetchedAt }),
     "folded once, by contracts' own function, over the days the answer says",
   );
   assert.equal(typeof held.vm.lines.head, "string", "and the head's sentence is that fold's, not the page's");

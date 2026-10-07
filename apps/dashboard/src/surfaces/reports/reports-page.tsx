@@ -29,7 +29,7 @@ import { OverviewLens } from "./lenses/overview";
 import { PeopleLens } from "./lenses/people";
 import { PipelineLens } from "./lenses/pipeline";
 import { ReceptionistLens } from "./lenses/receptionist";
-import { ReviewsLens } from "./lenses/reviews";
+import { ReviewsLens, useReviewsLag } from "./lenses/reviews";
 import { LensEmpty, type LensProps } from "./lenses/shared";
 import { setReportRange } from "./period";
 import { PeriodPicker } from "./period-picker";
@@ -101,6 +101,8 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
     setPending(null);
   }, [fetchedAt]);
   const R = live || (demoSession() ? reportsSample(samplePeriod) : null);
+  // The Reviews read is its own: a pick lands it after the report or before it, and the lens it dims is its own to say.
+  const reviewsLag = useReviewsLag(R);
   const desk = useRptDesk();
   const pick = async (period: ReportPeriodId) => {
     // The one shown, or the one on its way: nothing to read. Any other pick is read, whatever else is out.
@@ -124,8 +126,9 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   useReportsStanding(lens, R, act);
   if (!R) return readsAWorkspace();
   // Dimmed while the page shows another period than the one picked. A pick painted at once from a held view (a pick back to
-  // the period on screen, made while another loads) waits on nothing, though the read behind it is still out.
-  const busy = pending !== null && pending !== R.period;
+  // the period on screen, made while another loads) waits on nothing, though the read behind it is still out. On the Reviews lens
+  // the same, while its own read is of another period than the one shown (one that failed is the lens's own card, not a dimming).
+  const busy = (pending !== null && pending !== R.period) || (lens === "reviews" && reviewsLag === "coming");
   return (
     // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
     <div
