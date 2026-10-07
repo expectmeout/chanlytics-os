@@ -1,0 +1,11 @@
+# Who reviews a change to what a member of the public experiences, and to the
+# schema that holds every workspace's rows (CLAUDE.md: "Treat apps/edge and
+# packages/channels as something a member of the public will experience").
+#
+# GitHub asks the owner for a review on each pull request that touches these.
+# A review is required only once branch protection says so ("Require review
+# from Code Owners"), which is Ruben's setting: docs/runbook.md, What CI proves.
+/apps/edge/            @expectmeout
+/packages/channels/    @expectmeout
+/supabase/migrations/  @expectmeout
+/supabase/migrations-ledger.json  @expectmeout

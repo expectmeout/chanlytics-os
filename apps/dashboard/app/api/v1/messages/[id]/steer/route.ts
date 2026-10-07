@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { messageScope, recordDecision } from "@/server/verbs";
-import { steerDraft } from "@/server/service";
+import { steerDraft } from "@/server/conversations/thread-control";
 
 const MAX_CHARS = 500;
 
@@ -32,14 +32,14 @@ export const POST = write({
     if (m.sender !== "ai" || m.status !== "queued") {
       throw new AppError("conflict", "This reply is not waiting — there is nothing to rewrite.", 409);
     }
-    const r = await steerDraft(id, text);
+    const r = await steerDraft(id, text, { workspace: m.tenant_id, user: ctx.userId });
     if (!r.ok) {
       throw new AppError(
         "upstream_anthropic",
         r.reason === "preview"
           ? "Rewrites only work on the production dashboard."
           : r.reason === "policy_block_price"
-            ? "The rewrite would have quoted a price, so the original draft stays."
+            ? "The rewrite would have quoted a price or named money (a refund, a discount, a deposit), so the original draft stays."
             : r.reason === "already_sent"
               ? "That reply went out while it was being rewritten, so nothing was changed."
               : // Both spellings: the edge called this `no_whatsapp_channel` until

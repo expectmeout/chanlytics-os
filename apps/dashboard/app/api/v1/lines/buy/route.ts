@@ -1,13 +1,11 @@
 import { z } from "zod";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, E164 } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { edgeLines } from "@/server/lines";
+import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
+import { edgeRefusalWords } from "@/server/edge";
 
 const Body = z.object({
-  number: z
-    .string()
-    .trim()
-    .regex(/^\+[1-9]\d{6,14}$/, "Choose one of the numbers offered."),
+  number: z.string().trim().regex(E164, "Choose one of the numbers offered."),
   area_code: z
     .union([
       z.number().int(),
@@ -33,11 +31,11 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lines_buy",
   spend: true,
   input: Body,
-  handle: async ({ member, input }) => {
+  handle: async ({ ctx, member, input }) => {
     // Kept as the three digits that were validated. Number() made "000" a zero,
     // which the truthiness check below then dropped -- searching with no area
     // code rather than refusing -- and "012" a 12, a different area code than
@@ -47,10 +45,11 @@ export const POST = write({
       {
         op: "buy",
         tenant_id: member.tenantId,
+        user_id: ctx.userId,
         number: input.number,
         ...(areaCode !== undefined ? { area_code: areaCode } : {}),
       },
-      60_000,
+      EDGE_LINES_TIMEOUT_MS,
     );
     const b = a.body ?? {};
     if (a.status === 409)
@@ -69,14 +68,9 @@ export const POST = write({
         "Getting a line is not available here yet — ask us and a person at Chanlytics sets it up with you.",
         409,
       );
-    if (a.status === 400)
-      throw new AppError("validation", typeof b.error === "string" ? b.error : "That number cannot be used.", 400);
+    if (a.status === 400) throw new AppError("validation", edgeRefusalWords(b) ?? "That number cannot be used.", 400);
     if (a.status !== 200 && a.status !== 202 && a.status !== 502)
-      throw new AppError(
-        "internal",
-        typeof b.error === "string" ? b.error : "The carrier did not answer. Try again in a moment.",
-        502,
-      );
+      throw new AppError("internal", edgeRefusalWords(b) ?? "The carrier did not answer. Try again in a moment.", 502);
     // 202: the saga is on the ledger; the row says the step, and Setup repaints from it.
     return {
       ok: b.ok === true,

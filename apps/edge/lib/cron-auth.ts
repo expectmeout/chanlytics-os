@@ -12,7 +12,7 @@ import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./packages/db.js";
 import type { Logger } from "./log.js";
-import { json } from "./http.js";
+import { refuse } from "./http.js";
 
 export async function authorizeCron(
   request: Request,
@@ -24,12 +24,12 @@ export async function authorizeCron(
   if (error || !expected) {
     // The route does nothing without its key, and the 503 is what sweep_health() reads.
     L.error("cron_key_unavailable", { error: error?.message ?? "no cron_sweep_key in Vault" });
-    return json(503, { ok: false, error: "key_unavailable" });
+    return refuse(503, "key_unavailable");
   }
   const a = Buffer.from(presented);
   const b = Buffer.from(expected);
   if (!presented || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    return json(401, { ok: false, error: "unauthorized" });
+    return refuse(401, "unauthorized");
   }
   return null;
 }

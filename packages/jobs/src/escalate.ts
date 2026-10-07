@@ -4,6 +4,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
+import { logger } from "@chanlytics/channels";
 
 /**
  * How an escalation landed.
@@ -54,7 +55,11 @@ export async function upsertEscalation(
       .neq("reason", reason)
       .select("id");
     if (changeErr) {
-      console.error("escalation_change_failed", changeErr.message);
+      logger().error("escalation_change_failed", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        error: changeErr.message,
+      });
       return "failed";
     }
     if (replaced && replaced.length > 0) return "changed";
@@ -70,11 +75,19 @@ export async function upsertEscalation(
       .eq("conversation_id", conversationId)
       .eq("state", "open");
     if (refreshErr) {
-      console.error("escalation_refresh_failed", refreshErr.message);
+      logger().error("escalation_refresh_failed", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        error: refreshErr.message,
+      });
       return "failed";
     }
     return "refreshed";
   }
-  console.error("escalation_upsert_failed", error.message);
+  logger().error("escalation_upsert_failed", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    error: error.message,
+  });
   return "failed";
 }

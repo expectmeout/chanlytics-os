@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { ROLES } from "@chanlytics/contracts";
+import { TEAM_ROLES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { setMemberRole, removeMember } from "@/server/service";
+import { setMemberRole, removeMember } from "@/server/workspace/team";
 import { requireUuid } from "@/server/request-guards";
 
 const Body = z.object({
-  role: z.enum(ROLES as unknown as [string, ...string[]], { message: "Unknown role." }),
+  role: z.enum(TEAM_ROLES as unknown as [string, ...string[]], { message: "Unknown role." }),
 });
 
 /**
@@ -15,6 +15,7 @@ const Body = z.object({
  */
 export const PATCH = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "team",
   input: Body,
@@ -23,15 +24,15 @@ export const PATCH = write({
       ctx,
       member.tenantId,
       requireUuid(ctx.params.id, "member"),
-      input.role as "owner" | "operator" | "viewer",
+      input.role as (typeof TEAM_ROLES)[number],
     ),
 });
 
 /** DELETE /api/v1/team/:id — remove a member (or revoke an open invite). Owner-only. */
 export const DELETE = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "team",
-  handle: async ({ ctx, member }) =>
-    await removeMember(ctx, member.tenantId, requireUuid(ctx.params.id, "member"), ctx.userId),
+  handle: async ({ ctx, member }) => await removeMember(ctx, member.tenantId, requireUuid(ctx.params.id, "member")),
 });

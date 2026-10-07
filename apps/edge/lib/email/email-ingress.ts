@@ -32,30 +32,40 @@ import {
   type EmailReceipt,
   type SvixHeaders,
 } from "../packages/channels.js";
+import type { LogEvent } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
-export interface ResendIngressInput {
+interface ResendIngressInput {
   rawBody: string;
   headers: SvixHeaders;
-  secret: string | undefined;
+  /**
+   * Every endpoint secret that may have signed it: the platform account's and the cold account's (Reach out). Each
+   * account's webhook points at this one door; a delivery either signed is proven. None set, every delivery is refused.
+   */
+  secrets: string[];
   /** The deployment's mail domain (email.ts emailDomain). */
   domain: string;
+  /** The cold reply domains (email.ts coldReplyDomains, D17): their reply routes route too. None when unset. */
+  coldReplyDomains?: readonly string[];
   db: Db;
   nowMs: number;
 }
 
-export type ResendVerdict =
-  | { kind: "refuse"; status: 401 | 400; log: string }
+type ResendVerdict =
+  | { kind: "refuse"; status: 401 | 400; log: LogEvent }
   /** An event this door has no work for (a domain event, a contact event), or a received email that names no address of ours. */
-  | { kind: "ignore"; log: string; unroutable: number }
+  | { kind: "ignore"; log: LogEvent; unroutable: number }
   /** What became of an email we sent. */
   | { kind: "receipt"; receipt: EmailReceipt }
   | { kind: "intake"; receivedId: string; jobs: Array<{ tenantId: string; mailboxId: string }>; unroutable: number };
 
 export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerdict> {
-  if (!(await verifyResendWebhook(i.secret, i.headers, i.rawBody, i.nowMs)))
-    return { kind: "refuse", status: 401, log: "resend_webhook_bad_signature" };
+  // Each secret on its own: one that is set wrong (a bare whsec_) refuses only what it would have proven.
+  const proven = await Promise.all(
+    i.secrets.map((s) => verifyResendWebhook(s, i.headers, i.rawBody, i.nowMs).catch(() => false)),
+  );
+  if (!proven.includes(true)) return { kind: "refuse", status: 401, log: "resend_webhook_bad_signature" };
   let payload: unknown;
   try {
     payload = JSON.parse(i.rawBody);
@@ -68,10 +78,10 @@ export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerd
   const event = emailReceivedEventFrom(payload);
   if (!event) return { kind: "ignore", log: "resend_webhook_no_work", unroutable: 0 };
 
-  // Only addresses on the platform's own mail domain route anywhere; the rest
-  // are the other people an email was also sent to.
+  // Only addresses on the platform's own mail domain route anywhere, and reply routes on the cold reply domain (D17);
+  // the rest are the other people an email was also sent to.
   const ours = event.recipients
-    .map((r) => platformRecipient(r, i.domain))
+    .map((r) => platformRecipient(r, i.domain, i.coldReplyDomains ?? null))
     .filter((r): r is NonNullable<typeof r> => r !== null);
   const jobs = new Map<string, { tenantId: string; mailboxId: string }>();
   let unroutable = 0;

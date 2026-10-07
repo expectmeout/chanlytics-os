@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { write } from "@/server/route";
 import { contactScope } from "@/server/verbs";
-import { noteAnswer, noteOn, writtenNote } from "@/server/person-notes";
+import { noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
 
 const Body = z
   .object({

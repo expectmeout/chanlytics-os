@@ -4,11 +4,14 @@
  * Every read names the workspace it is for; a read that fails throws with what
  * it was reading, because a failed read is not an answer (the ledger's rule).
  * Nothing here decides anything: the rules are in core and in SQL.
+ *
+ * Cross-workspace: runs and rounds are read by the id their job names; tenant-keyed reads filter on tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import { addressesSuppressed, erasureDigests, type Database } from "../packages/db.js";
 import {
-  leadSuppressionHash,
+  asContactId,
+  asTenantId,
   type LeadRoundEnding,
   type LeadRunState,
   type LeadSearchPlan,
@@ -36,8 +39,23 @@ function must<T>(what: string, r: { data: T | null; error: { message: string } |
 }
 
 type RunRow = Database["public"]["Tables"]["lead_runs"]["Row"];
+
+/**
+ * How many ids one read names: PostgREST carries `.in()` in the URL, which fails past about 208 of them, and a list of
+ * the owner's own (00242) puts up to 500 members in one round (J10).
+ */
+const LEAD_IDS_PER_READ = 150;
+
+/** `ids` in parts of LEAD_IDS_PER_READ, one read each, in order. */
+async function inParts<T>(ids: string[], read: (part: string[]) => Promise<T[]>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += LEAD_IDS_PER_READ)
+    out.push(...(await read(ids.slice(i, i + LEAD_IDS_PER_READ))));
+  return out;
+}
 const runOf = (r: RunRow): LeadRunRow => ({
   ...r,
+  tenant_id: asTenantId(r.tenant_id),
   purpose: r.purpose as LeadRunRow["purpose"],
   state: r.state as LeadRunState,
   cap_usd: r.cap_usd === null ? null : Number(r.cap_usd),
@@ -83,13 +101,13 @@ export function leadDb(db: Db): LeadDb {
         p_gen: gen,
         p_from_offset: fromOffset,
         p_to_offset: toOffset,
-        p_page: page as unknown as Json,
+        p_page: page,
       }),
     checkCommit: (roundId, runId, results, usageUsd, last) =>
       json<{ ok: boolean }>("lead_check_commit", {
         p_round_id: roundId,
         p_run_id: runId,
-        p_results: results as unknown as Json,
+        p_results: results,
         p_usage_usd: usageUsd,
         p_last: last,
       }),
@@ -98,11 +116,11 @@ export function leadDb(db: Db): LeadDb {
       json<RejudgeResult>("lead_round_rejudge", {
         p_round_id: roundId,
         p_plan_version: planVersion,
-        p_places: places as unknown as Json,
-        p_judgment: (judgment ?? null) as unknown as Json,
+        p_places: places,
+        p_judgment: judgment ?? null,
       }),
     async runsEnsure(rows) {
-      if (!rows.length) return [];
+      if (!rows[0]) return [];
       // The id is derived from the round, the phase and the term (core runIdFor): a second inserter meets the first row and inserts nothing.
       const ins = await db.from("lead_runs").upsert(
         rows.map((r) => ({
@@ -132,7 +150,7 @@ export function leadDb(db: Db): LeadDb {
       if (!row) return null;
       return {
         id: row.id,
-        tenant_id: row.tenant_id,
+        tenant_id: asTenantId(row.tenant_id),
         search_id: row.search_id,
         seq: row.seq,
         purpose: row.purpose as LeadRoundRow["purpose"],
@@ -171,32 +189,32 @@ export function leadDb(db: Db): LeadDb {
         await db.from("lead_search_members").select("*").eq("round_id", roundId),
       );
       if (!members.length) return [];
-      const leads = must<
-        Pick<
-          Database["public"]["Tables"]["leads"]["Row"],
-          | "id"
-          | "lat"
-          | "lng"
-          | "phone_e164"
-          | "email"
-          | "email_state"
-          | "place_id"
-          | "stage"
-          | "contact_id"
-          | "contacted_at"
-          | "last_outcome"
-          | "phone_wrong"
-        >[]
-      >(
-        "leads read",
-        await db
-          .from("leads")
-          .select(
-            "id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id, contacted_at, last_outcome, phone_wrong",
-          )
-          .in(
-            "id",
-            members.map((m) => m.lead_id),
+      type LeadFacts = Pick<
+        Database["public"]["Tables"]["leads"]["Row"],
+        | "id"
+        | "lat"
+        | "lng"
+        | "phone_e164"
+        | "email"
+        | "email_state"
+        | "place_id"
+        | "stage"
+        | "contact_id"
+        | "contacted_at"
+        | "last_outcome"
+        | "phone_wrong"
+      >;
+      const leads = await inParts(
+        members.map((m) => m.lead_id),
+        async (part) =>
+          must<LeadFacts[]>(
+            "leads read",
+            await db
+              .from("leads")
+              .select(
+                "id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id, contacted_at, last_outcome, phone_wrong",
+              )
+              .in("id", part),
           ),
       );
       const byId = new Map(leads.map((l) => [l.id, l]));
@@ -261,7 +279,7 @@ export function leadDb(db: Db): LeadDb {
           `leads by ${col}`,
           await db.from("leads").select(`id, ${col}`).eq("tenant_id", tenantId).in(col, values).is("erased_at", null),
         );
-        for (const r of rows) if (r[col]) out.push({ key: r[col] as string, share: { kind, lead_id: r.id as string } });
+        for (const r of rows) if (r[col]) out.push({ key: r[col], share: { kind, lead_id: r.id as string } });
       };
       await lead("phone_e164", "phone", keys.phones);
       await lead("email", "email", keys.emails);
@@ -278,42 +296,31 @@ export function leadDb(db: Db): LeadDb {
             .is("erased_at", null),
         );
         for (const r of rows)
-          if (r[col]) out.push({ key: r[col] as string, share: { kind, contact_id: r.id as string } });
+          if (r[col]) out.push({ key: r[col], share: { kind, contact_id: asContactId(r.id as string) } });
       };
       await person("phone_e164", "phone", keys.phones);
       await person("email", "email", keys.emails);
       return out;
     },
     async suppressed(tenantId, keys) {
-      const emails = new Set<string>();
-      const placeIds = new Set<string>();
-      const wanted = [
-        ...keys.emails.map((e) => ["email", e] as const),
-        ...keys.placeIds.map((p) => ["place", p] as const),
-      ];
-      if (!wanted.length) return { emails, placeIds };
-      // The same keyed digest 00140's lead_suppression_hash writes (contracts erasure.ts).
-      const hashed = await Promise.all(
-        wanted.map(async ([kind, v]) => [kind, v, await leadSuppressionHash(tenantId, v)] as const),
-      );
-      const byHash = new Map(hashed.map(([kind, v, h]) => [`${kind}:${h}`, v]));
-      const rows = must<{ kind: string; hash: string }[]>(
-        "lead_suppressions read",
-        await db
-          .from("lead_suppressions")
-          .select("kind, hash")
-          .eq("tenant_id", tenantId)
-          .in(
-            "hash",
-            hashed.map(([, , h]) => h),
-          ),
-      );
-      for (const r of rows) {
-        const v = byHash.get(`${r.kind}:${r.hash}`);
-        if (!v) continue;
-        if (r.kind === "email") emails.add(v);
-        else placeIds.add(v);
-      }
+      // An address asks the one predicate (00220: its own row, or its business's domain after a no), which answers the
+      // stored form; each key is handed back as it was asked. A place is not an address: its own row, by the erasure
+      // digest 00140's lead_suppression_hash writes, which the database makes (00263 erasure_digests).
+      const byHash = new Map([...(await erasureDigests(db, tenantId, keys.placeIds))].map(([p, h]) => [h, p]));
+      const [held, rows] = await Promise.all([
+        addressesSuppressed(db, tenantId, keys.emails),
+        byHash.size
+          ? db
+              .from("lead_suppressions")
+              .select("hash")
+              .eq("tenant_id", tenantId)
+              .eq("kind", "place")
+              .in("hash", [...byHash.keys()])
+              .then((r) => must<{ hash: string }[]>("lead_suppressions read", r))
+          : [],
+      ]);
+      const emails = new Set(keys.emails.filter((e) => held.has(e.trim().toLowerCase())));
+      const placeIds = new Set(rows.flatMap((r) => byHash.get(r.hash) ?? []));
       return { emails, placeIds };
     },
     async zoneOf(tenantId) {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { workspace, write } from "@/server/route";
-import { NOTE_LINE_MAX, appendNotesMany } from "@/server/people-many";
+import { NOTE_LINE_MAX, appendNotesMany } from "@/server/people/people-many";
 
 const Body = z.object({
   ids: z.array(z.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time."),

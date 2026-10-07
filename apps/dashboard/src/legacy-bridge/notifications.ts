@@ -25,22 +25,28 @@ import {
   EMPTY_READ_STATE,
   agoLabel,
   applyReadState,
+  bellActionOf,
+  bellCalls,
+  bellSections,
+  type BellSectionVM,
   buildNotificationFeed,
-  type FeedCall,
   type FeedInvite,
+  type FeedLive,
   type FeedThread,
   type NotificationItem,
   type NotificationReadState,
   type NotificationRow,
   type NotificationsDto,
+  type ReachOutRepliesDto,
   SERVER_KEY_PREFIX,
   dedupeFeed,
+  nameKnownCustomers,
   serverNotificationRows,
   unreadCount,
 } from "@chanlytics/contracts";
 import { api as client } from "./api";
 import type { Input } from "../client/api";
-import { getActiveWorkspace } from "./workspace";
+import { getActiveWorkspace, goToRoute } from "./workspace";
 
 export const FEED_EVENTS = [
   "surface:inbox",
@@ -57,7 +63,7 @@ interface StorageLike {
 
 interface Globals {
   INBOX_DATA?: { THREADS?: FeedThread[] };
-  __LIVE?: { now?: FeedCall[]; recent?: FeedCall[] };
+  __LIVE?: FeedLive;
   __TEAM_INVITES?: FeedInvite[] | null;
   /** The kept rows, from the notifications surface. */
   __NOTIFICATIONS?: { dto: NotificationsDto } | null;
@@ -119,13 +125,15 @@ export function writeState(
 export function feedFromGlobals(g: Globals, now: number) {
   return buildNotificationFeed({
     threads: g.INBOX_DATA?.THREADS ?? null,
-    calls: [...(g.__LIVE?.now ?? []), ...(g.__LIVE?.recent ?? [])],
+    calls: bellCalls(g.__LIVE),
     invites: g.__TEAM_INVITES ?? null,
     now,
   });
 }
 
 export function toRows(rows: NotificationRow[], now: number): BellRow[] {
+  // A reply to a reach-out whose draft waits says so on its row's door (Reach out Part 5, PR 8; contracts bellActionOf).
+  const readings = (globalThis as { __REPLIES?: ReachOutRepliesDto | null }).__REPLIES?.replies ?? [];
   return rows.map((r) => ({
     id: r.key,
     kind: r.kind,
@@ -136,7 +144,7 @@ export function toRows(rows: NotificationRow[], now: number): BellRow[] {
     title: r.title,
     message: r.message,
     about: r.about ?? null,
-    actions: [{ label: r.action, to: r.to, primary: true }],
+    actions: [{ label: bellActionOf(r, readings), to: r.to, primary: true }],
   }));
 }
 
@@ -153,6 +161,8 @@ export interface BellApi {
   setAlerts(on: boolean): Promise<{ on: boolean; permission: string }>;
   /** Subscribe to changes of the feed or the read state; returns unsubscribe. */
   onChange(cb: () => void): () => void;
+  /** The rows as the bell draws them: new above earlier, notes of one kind said once (contracts bellSections). */
+  sections(rows: BellRow[]): Array<BellSectionVM<BellRow>>;
 }
 
 /**
@@ -160,7 +170,7 @@ export interface BellApi {
  * executed in a test without a browser.
  */
 export function installNotifications(
-  win: Window & Globals = window as unknown as Window & Globals,
+  win: Window & Globals = window,
   storage: StorageLike | null = safeStorage(),
 ): BellApi {
   const listeners = new Set<() => void>();
@@ -202,11 +212,16 @@ export function installNotifications(
   // What the surfaces derive (read marks on this device, the seen moment
   // the server's) beside what the workspace keeps (marks on the server),
   // newest first.
+  // A kept row that names its customer by number takes their name when the Inbox or the calls here know it.
+  const named = <T extends NotificationRow>(list: T[]): T[] =>
+    nameKnownCustomers(list, win.INBOX_DATA?.THREADS, bellCalls(win.__LIVE));
   const rows = () =>
-    dedupeFeed([
-      ...applyReadState(feedFromGlobals(win, Date.now()), deviceState()),
-      ...serverNotificationRows(win.__NOTIFICATIONS?.dto),
-    ]).sort((a, b) => b.at - a.at);
+    named(
+      dedupeFeed([
+        ...applyReadState(feedFromGlobals(win, Date.now()), deviceState()),
+        ...serverNotificationRows(win.__NOTIFICATIONS?.dto),
+      ]).sort((a, b) => b.at - a.at),
+    );
   const isKept = (key: string) => key.startsWith(SERVER_KEY_PREFIX);
   // A kept row's marks go to the server, and the refresh map re-reads the
   // surface after one lands, so every device agrees; a failure here loses a
@@ -255,7 +270,7 @@ export function installNotifications(
         const n = new N(i.title, { body: i.message, tag: i.key, icon: "/icons/icon-192.png" });
         n.onclick = () => {
           win.focus();
-          win.location.hash = `/${i.to}`;
+          goToRoute(i.to, {}, win);
           n.close();
         };
       } catch {
@@ -322,6 +337,7 @@ export function installNotifications(
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
+    sections: (list) => bellSections(list),
   };
   (win as unknown as { __notifs?: BellApi }).__notifs = api;
   return api;

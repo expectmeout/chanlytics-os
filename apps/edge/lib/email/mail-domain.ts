@@ -37,7 +37,7 @@ const VERIFIED = "verified";
  */
 const WAS_VERIFIED: ReadonlySet<string> = new Set(["temporary_failure"]);
 
-export type MailDomainTrouble =
+type MailDomainTrouble =
   /** The provider has no such domain. EMAIL_DOMAIN names something that was never added, or was deleted. */
   | { kind: "absent" }
   /** Never verified: added and not finished (`not_started`, `pending`), or a status this code has not heard of. */
@@ -62,7 +62,11 @@ export type MailDomainTrouble =
  * a release note, not an outage, and must not page anybody at three in the
  * morning.
  */
-export function judgeMailDomain(domains: MailDomainFacts[], wanted: string): MailDomainTrouble | null {
+export function judgeMailDomain(
+  domains: MailDomainFacts[],
+  wanted: string,
+  o: { receiveOnly?: boolean; sendOnly?: boolean } = {},
+): MailDomainTrouble | null {
   const name = wanted.trim().toLowerCase();
   const d = domains.find((x) => x.name === name);
   if (!d) return { kind: "absent" };
@@ -73,9 +77,65 @@ export function judgeMailDomain(domains: MailDomainFacts[], wanted: string): Mai
       ? { kind: "stopped", status: d.status }
       : { kind: "never_verified", status: d.status };
   }
-  if (d.sending === "disabled" || d.receiving === "disabled")
-    return { kind: "off", sending: d.sending, receiving: d.receiving };
+  // A domain that only receives (the cold reply domain, D17) may send nothing, and is off only when it cannot receive; one
+  // that only sends (the campaigns domain, where offers leave from) may receive nothing, and is off only when it cannot send.
+  const off = o.sendOnly
+    ? d.sending === "disabled"
+    : (d.sending === "disabled" && !o.receiveOnly) || d.receiving === "disabled";
+  if (off) return { kind: "off", sending: d.sending, receiving: d.receiving };
   return null;
+}
+
+/**
+ * The page for a cold reply domain (D17) that stopped receiving: every cold email's Reply-To is on it, so a reply,
+ * a lead's "no thanks" included, is dropped with no bounce, and the chain writes to them again.
+ */
+export function describeColdReplyDomainTrouble(
+  t: MailDomainTrouble,
+  domain: string,
+): { subject: string; body: string } {
+  const said =
+    t.kind === "absent"
+      ? "the provider has no domain by that name"
+      : t.kind === "off"
+        ? `verified, receiving ${t.receiving}`
+        : `status "${t.status}"`;
+  return {
+    subject: `The cold reply domain ${domain} is not receiving: ${said}`,
+    body:
+      `Cold emails are answered at ${domain} (COLD_REPLY_DOMAIN, or COLD_REPLY_DOMAIN_PREVIOUS while it winds down), and ` +
+      `the provider reports ${said}.\n\n` +
+      `While this lasts, replies to cold email are dropped without a bounce, a lead's "no thanks" among them, and the ` +
+      `next step of their reach-out writes to them again. Nothing in our own rows shows it.\n\n` +
+      `Check the domain's receiving records in the platform's Resend account. Until it receives, unset nothing: set ` +
+      `COLD_REPLY_DOMAIN_PREVIOUS if COLD_REPLY_DOMAIN moves (docs/runbook.md, "Before scale").\n`,
+  };
+}
+
+/**
+ * The page for a campaigns domain (EMAIL_CAMPAIGNS_DOMAIN) that is named and not verified for sending: every offer by email
+ * leaves from it and from nowhere else, so while it is unverified each one is refused at the door (`email_marketing_disabled`)
+ * and the composers offer no tick. Replies and visit messages, which leave from the mail domain, are not touched.
+ */
+export function describeCampaignsDomainTrouble(
+  t: MailDomainTrouble,
+  domain: string,
+): { subject: string; body: string } {
+  const said =
+    t.kind === "absent"
+      ? "the provider has no domain by that name"
+      : t.kind === "off"
+        ? `verified, sending ${t.sending}`
+        : `status "${t.status}"`;
+  return {
+    subject: `The campaigns domain ${domain} is not sending: ${said}`,
+    body:
+      `Offers by email leave from ${domain} (EMAIL_CAMPAIGNS_DOMAIN), and the provider reports ${said}.\n\n` +
+      `While this lasts every offer by email is refused, and the composers draw no Email tick for offers: nothing is sent from ` +
+      `another domain instead. Reminders and replies by email are not affected.\n\n` +
+      `Check the domain's DNS records in the platform's Resend account (SPF, DKIM and the return path), and unset ` +
+      `EMAIL_CAMPAIGNS_DOMAIN to stop this notice while offers stay off.\n`,
+  };
 }
 
 /** What each kind of trouble COSTS, in the terms the person woken by it cares about. */
@@ -119,12 +179,16 @@ export function describeMailDomainTrouble(t: MailDomainTrouble, domain: string):
   };
 }
 
-export interface MailDomainPorts {
+interface MailDomainPorts {
   /** The deployment's mail domain (lib/email.ts emailDomain); null when email is off here, and there is nothing to check. */
   domain: string | null;
   apiKey: string | undefined;
   /** The provider. Injected so the judgement can be proved without a network. */
   domains?: (cfg: { apiKey: string }) => Promise<MailDomainFacts[]>;
+  /** A domain that only receives (the cold reply domain, D17): its sending switched off is no trouble. */
+  receiveOnly?: boolean;
+  /** A domain that only sends (the campaigns domain): its receiving switched off is no trouble. */
+  sendOnly?: boolean;
 }
 
 /**
@@ -139,7 +203,12 @@ export async function checkMailDomain(
   if (!p.apiKey) return { trouble: null, skipped: "no_key" };
   const ask = p.domains ?? fetchMailDomains;
   try {
-    return { trouble: judgeMailDomain(await ask({ apiKey: p.apiKey }), p.domain) };
+    return {
+      trouble: judgeMailDomain(await ask({ apiKey: p.apiKey }), p.domain, {
+        receiveOnly: p.receiveOnly,
+        sendOnly: p.sendOnly,
+      }),
+    };
   } catch (e) {
     return { trouble: null, error: e instanceof Error ? e.message : String(e) };
   }

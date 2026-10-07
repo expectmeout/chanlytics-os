@@ -30,10 +30,10 @@
   .side-wrap.open { display: contents; }
   .side-wrap .sidebar {
     position: fixed;
-    top: 0; bottom: 0; left: 0;
+    top: 0; left: 0;
     z-index: 220;
-    width: min(300px, 84vw);
-    box-shadow: var(--shadow-lg);
+    /* The desktop sidebar's own 248px (Ruben, 25 Sep): at 300 its words ended by 190 and the rest of it was empty. */
+    width: min(248px, 84vw);
     padding-bottom: env(safe-area-inset-bottom);
     transform: translateX(-102%);
     transition: transform 240ms var(--ease-out);
@@ -42,7 +42,6 @@
   @starting-style {
     .side-wrap.open .sidebar { transform: translateX(-102%); }
   }
-
 
   /* 44px-class tap targets inside the drawer */
   .side-wrap .nav-item { padding-top: 11px; padding-bottom: 11px; }
@@ -99,8 +98,6 @@
   .fleet-filter { overflow-x: auto; max-width: 100%; scrollbar-width: none; }
   .fleet-filter::-webkit-scrollbar { display: none; }
   .rp-body, .st-body { padding-left: 16px; padding-right: 16px; }
-  /* And the line above them, which is a child of the same full-bleed pane. */
-  .reports > .cm-standing { padding: 16px 16px 12px; }
   .cal-scroll { padding-bottom: 24px; }
   .cal-sync { padding: 8px 16px; flex-wrap: wrap; row-gap: 6px; }
   /* The Calendar on a narrow screen: one 16px gutter for the whole page (--cal-gutter, calendar.css), and the
@@ -124,9 +121,10 @@
   .tq-live-text { white-space: normal; }
   /* The day card's lines on a phone: the words take the row and the door goes under them, its words lined up with
      theirs (the mark is 24px and the gap 10px; the door's own padding is 6px). Beside the words, a door that never
-     wraps left them a column one word wide, and they ran under it (24 Sep). */
+     wraps left them a column one word wide, and they ran under it (24 Sep). A list that draws no mark says its own
+     indent (--beat-door-indent: the brief's, dashboard-a-v2.css) instead of a second rule over the door. */
   :where(.dash-a-v2) .tc-beats .brief-beat-text { flex-basis: calc(100% - 34px); }
-  :where(.dash-a-v2) .tc-beats .brief-beat-text ~ .brief-chip { margin-left: 28px; }
+  :where(.dash-a-v2) .tc-beats .brief-beat-text ~ .brief-chip { margin-left: var(--beat-door-indent, 28px); }
   /* What is left to set up, on a phone (canvas P9): the card is one row, the next thing -- its dot, its name over one
      line of its words with how many are left, and its button beside them. The head, the other rows, Skip and Hide
      wait for a wider screen. */
@@ -165,9 +163,8 @@
   /* The seeded page's list head on a narrow screen: the title, Show everyone and Delete on one line, and the "Save
      these as a list" door under them. The real page draws no list head on a phone (clients-a.jsx, the phone pass). */
   .clients .cl-section-head { flex-wrap: wrap; gap: 4px 12px; }
-  .pl-sheet { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 82vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); }
-  .pl-sheet .sb-sheet-head { padding: 0 16px 6px; }
-  .pl-sheet .cl-rail { display: block; width: auto; border-right: none; background: transparent; }
+  /* The phone's Lists sheet is the kit's (people/rail/lists-sheet.tsx), which stands on the keyboard; the rail in it is drawn. */
+  .pl-lists .cl-rail { display: block; width: auto; border-right: none; background: transparent; }
   .cl-triage-tabs { grid-template-columns: 1fr 1fr; }
   .cl-triage-tab { border-bottom: 1px solid var(--line); }
   .cl-decision-grid { grid-template-columns: 1fr; }
@@ -201,6 +198,10 @@
   /* ---------- Live monitor ---------- */
   .lm-body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 36vh) minmax(0, 1fr); }
   .lm-list { border-right: none; border-bottom: 1px solid var(--line); }
+  /* Under the list the panel is what is left of the screen, and the last call's card is taller than that: it cut the
+     card's foot off with no way to reach it (125px of 566, 25 Sep). A call's transcript still scrolls in its own box
+     and follows the newest line (.lm-scroll, a scroller, gives way to the panel's height before the panel scrolls). */
+  .lm-panel { overflow-y: auto; }
   .lm-head { padding: 12px 16px; flex-wrap: wrap; }
   .lm-scroll, .lm-banner { margin-left: 0; margin-right: 0; padding-left: 16px; padding-right: 16px; }
   /* The whisper box the page draws is .lm-whisper; .lm-inject was the mockup's, never drawn here. */
@@ -219,21 +220,25 @@
   .rp-agents .tbl { min-width: 680px; }
 
   /* ---------- Settings ---------- */
-  /* The leading tile at the phone row's face size (tokens.css --row-face). */
-  .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); --set-lead: var(--row-face, 32px); }
+  /* The leading tile at the phone row's face size (tokens.css --row-face). The one column is minmax(0, 1fr), never a
+     bare 1fr: Safari sized a bare 1fr to the strip of sections laid end to end (775px on a 393px iPhone), and every
+     pane under the strip took that width and ran off the screen's right edge (4 Oct). */
+  .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); --set-lead: var(--row-face, 32px); }
   .setup-rows { --set-lead: var(--row-face, 32px); }
-  /* The rail is one strip of tabs: no scrollbar drawn under it, and its two
-     groups are a hairline between Profile and the workspace's tabs rather than
-     two words in capitals scrolling by with them. The open tab is brought into
-     view by the page (settings.jsx): past Business it was off the screen. */
-  /* 8px, not 6: the rail is a scroll box and the focus ring is drawn 4px outside its tab. */
-  .set-nav { flex-direction: row; align-items: center; gap: 2px; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 8px 12px; scrollbar-width: none; scroll-padding-inline: 8px; }
-  .set-nav::-webkit-scrollbar { display: none; }
-  .set-nav .fl-roster-head { display: none; }
-  .set-nav-group { flex: 0 0 1px; align-self: stretch; width: 1px; margin: 10px 6px; padding: 0; overflow: hidden; font-size: 0; background: var(--line); }
-  .set-nav-group:first-of-type { display: none; }
-  .set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }
-  .set-pane { padding: 16px 16px 48px; gap: 16px; }
+  /* The sections are every page's strip here (components.css .stabs, settings.jsx), where the rail was squeezed into
+     a row of boxed icons that ran off the screen's edge with no sign there was more (25 Sep). The strip scrolls
+     sideways with no bar drawn, each tab keeps its word, the open one is brought into view by the page, and the edges
+     fade where more waits past them. */
+  .set-nav { display: none; }
+  .stabs-settings { display: flex; scrollbar-width: none; scroll-padding-inline: 16px; -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
+  .stabs-settings::-webkit-scrollbar { display: none; }
+  .stabs-settings .stabs-tab { flex: none; white-space: nowrap; }
+  /* Settings holds still under a pull (Ruben, 25 Sep): a thumb moves a page sideways, to the tab beside it, never
+     down. The pane scrolls through what it holds and stretches past neither its top nor its foot; while Settings is
+     open the screen does not either, where a short page or the strip handed the pull to it (iOS bounced the screen,
+     Android reloaded it). Every other page's lists give way under a thumb on purpose (below, "every list pulls"). */
+  .set-pane { padding: 16px 16px 48px; gap: 16px; overscroll-behavior-y: none; }
+  html.legacy-on:has(.settings), html.legacy-on:has(.settings) body { overscroll-behavior-y: none; }
   .settings .set-card { padding: 14px 15px 6px; }
   /* A card that scrolls sideways (below, for wide tables) gets min-height 0 in
      this bounded flex column and collapsed to its head with an inner scroll —
@@ -250,7 +255,9 @@
      with no control ("Nobody yet") is its sentence, and keeps it. A card's line under its title goes the same way,
      and Team's legend of what each role may do: the role's word is on every row. */
   .set-row:has(.set-row-control > *) .set-row-hint { display: none; }
-  .settings .fl-card-sub { display: none; }
+  /* ...unless the line IS the card's news: the back office's health, who is waiting and the workspaces counted
+     (`set-says`). Hidden, "The platform" and "Waiting to get in" were titles over nothing on a phone. */
+  .settings .fl-card-sub:not(.set-says) { display: none; }
   .set-roles-legend { display: none; }
   /* A finger's worth of every control. The settings input, the icon button and
      the options in a segmented dial each set a size for a mouse, and each was
@@ -296,10 +303,14 @@
     vertical-align: bottom;
   }
 
-  /* Toasts: wrap contents + respect the home-bar safe area */
-  .pp-toast { flex-wrap: wrap; row-gap: 6px; }
+  /* A toast is one row on a phone (25 Sep): its words on one line, cut with an ellipsis where they run on, and a
+     28px Undo; it wrapped into two tiers under a 44px Undo disc and covered two rows of whatever it sat over. Above
+     the home bar. */
+  .pp-toast { flex-wrap: nowrap; gap: 8px; padding: 8px 10px 8px 12px; max-width: calc(100vw - 24px); }
   .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
-  .pp-toast .pp-toast-msg { flex: 1 1 100%; }
+  .pp-toast .pp-toast-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  html.legacy-on .pp-toast-cta { min-height: 28px; padding: 4px 12px; }
+  html.legacy-on .pp-toast-x { min-height: 28px; }
 
   /* Clients bulk bar: two-row wrap, full-width, above the safe area */
   .cl-bulkbar {
@@ -352,6 +363,10 @@
   /* On a phone the whole Calendar scrolls as one page: the agenda and the month at their own height, a week in a box
      three quarters of the screen tall with its day heads at the top. */
   .cal-body { flex: none; min-height: 0; overflow: visible; }
+  /* The bar stands over the days, as every page's strip does: only the days scroll and pull, and scrolling them never
+     takes the range, the steps and the views off the screen (25 Sep). */
+  .calendar { overflow-y: hidden; }
+  .cal-pane { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
   .cal-scroll { max-height: 75vh; max-height: 75dvh; }
   /* The head on a phone: the range and the steps on one row, the views on the next, the counts as one muted line under
      them, and then the first day. The steps keep the right edge, so a thumb finds them wherever the range's words
@@ -363,7 +378,7 @@
   .cal-when .cal-steps { order: 2; }
   .cal-tools { flex: 1 1 100%; }
   .cal-views { flex: 1 1 auto; }
-  .cal-views .cl-tab { flex: 1 1 0; padding-left: 4px; padding-right: 4px; }
+  .cal-views > * { flex: 1 1 0; padding-left: 4px; padding-right: 4px; }
   .cal-tools .cal-service { display: none; }
   /* A notice over the board on a phone: its words take the width and its buttons go under them, where they read as
      a column a few words wide beside the buttons. */
@@ -381,16 +396,14 @@
   .cl-prof-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "id" "acts"; gap: 14px; }
   .cl-prof-hero > .cl-prof-back { display: none; }
   .cl-prof-id { align-items: flex-start; gap: 10px; }
-  .cl-prof-avatar { width: 40px; height: 40px; font-size: 14px; }
-  .cl-prof-name { font-size: 18px; }
+  .cl-prof-name { font-size: var(--text-xl); }
   /* The acts take the row under who they are, the page's full width, a thumb's height each: the thread and a send
      share it, and the ⋯ keeps a thumb's width at its end. */
   .cl-prof-hero > .cl-prof-queue-actions { justify-content: stretch; }
-  .cl-prof-hero > .cl-prof-queue-actions > .btn { flex: 1 1 auto; }
-  .cl-prof-hero > .cl-prof-queue-actions > .more-wrap { flex: none; }
+  .cl-prof-hero > .cl-prof-queue-actions > [data-testid="person-open-thread"] { flex: 1 1 auto; }
   /* The crumb names the person, and the name is the first thing under it: the crumb says People, once, with the
      back's chevron before it (drawn, not a glyph, so it sits on the word's middle in every font). */
-  .main:has(.cl-profile) .crumbs > :not(:first-child) { display: none; }
+  .main:has(.cl-profile) .crumbs > span:not(:first-child), .main:has(.cl-profile) .crumbs > button:not(:first-child) { display: none; }
   .main:has(.cl-profile) .crumbs .crumb-link { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); font-weight: 500; }
   .main:has(.cl-profile) .crumbs .crumb-link::before { content: ""; flex: none; width: 7px; height: 7px; margin-left: 3px; border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
 
@@ -399,8 +412,7 @@
   .cl-decision-cta,
   .cl-bulkbar .btn,
   .ix-bulk-actions .btn,
-  .sg-draft-banner .btn,
-  .pp-toast-cta {
+  .sg-draft-banner .btn {
     min-height: 40px;
     padding-top: 9px;
     padding-bottom: 9px;
@@ -431,15 +443,12 @@
      office reaches this rule: under 640px the matrix is a list, not a table. */
   .pol-table { min-width: 640px; }
   .tb-presence { padding-left: 8px; padding-right: 8px; }
-  .bc-comp { white-space: normal; }
   .fl-escalate-route { white-space: normal; }
 }
 
 @media (max-width: 900px) {
   /* Wide data surfaces scroll sideways instead of clipping */
   table.tbl { display: block; overflow-x: auto; }
-  .bc-hist { overflow-x: auto; }
-  .bc-hist-row { min-width: 560px; }
 }
 
 /* ====================================================================
@@ -455,27 +464,27 @@
   .inbox, .inbox.with-rail { grid-template-rows: minmax(0, 1fr); }
   .inbox .ix-list { border-bottom: none; }
   .inbox .ix-thread-pane, .inbox > .ix-empty-state { display: none; }
-  .inbox.phone-thread .ix-list { display: none; }
-  .inbox.phone-thread .ix-thread-pane { display: flex; }
+  .inbox[data-takeover] .ix-list { display: none; }
+  .inbox[data-takeover] .ix-thread-pane { display: flex; }
   /* The drafts-about-to-send pill floats at the top of the screen, which on a phone is the open thread's header: it
      covered Back, the name and Actions. The thread's own bar says its countdown; the pill is the list's. */
-  .inbox.phone-thread .ix-sending-strip { display: none; }
+  .inbox[data-takeover] .ix-sending-strip { display: none; }
   /* Opening a thread: it comes in from the right, over where the list stood, as a page opens on a phone. The list's
      hard cut to a pane fading up in place read as a jolt. Transform and opacity only; Back is the list at once. */
-  .inbox.phone-thread .ix-thread-pane, .conversations.phone-detail .ix-thread-pane { animation: thread-in 260ms var(--ease-out); }
+  .inbox[data-takeover] .ix-thread-pane, .conversations[data-takeover] .ix-thread-pane { animation: thread-in 260ms var(--ease-out); }
   @keyframes thread-in { from { opacity: 0; transform: translateX(28px); } }
-  @media (prefers-reduced-motion: reduce) { .inbox.phone-thread .ix-thread-pane, .conversations.phone-detail .ix-thread-pane { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .inbox[data-takeover] .ix-thread-pane, .conversations[data-takeover] .ix-thread-pane { animation: none; } }
   /* Back is the arrow alone, a thumb wide: the top bar says Inbox over it, and "← Inbox" said it again. */
-  .ix-back { display: inline-flex; justify-content: center; width: 44px; min-width: 44px; margin-left: -12px; padding: 0; font-size: 16px; }
+  .ix-back { display: inline-flex; justify-content: center; width: 44px; min-width: 44px; margin-left: -12px; padding: 0; font-size: var(--text-lg); }
 
   /* Conversations: the same pattern */
   .conversations { grid-template-rows: minmax(0, 1fr); }
   .conversations .cv-list { border-bottom: none; }
   .conversations .ix-thread-pane, .conversations > .empty-page { display: none; }
-  .conversations.phone-detail .cv-list { display: none; }
+  .conversations[data-takeover] .cv-list { display: none; }
   /* A row opens the one thread (thread-pane.jsx) -- a call at its card, or alone in the thread's frame -- and it takes
      the screen. So does a link's notice, which the rule above would otherwise keep off a phone. */
-  .conversations.phone-detail .ix-thread-pane, .conversations.phone-detail > .empty-page { display: flex; }
+  .conversations[data-takeover] .ix-thread-pane, .conversations[data-takeover] > .empty-page { display: flex; }
 
   /* Live: a short list, the cockpit gets the screen, the whisper at the thumb */
   .lm-body { grid-template-rows: minmax(0, 26vh) minmax(0, 1fr); }
@@ -490,24 +499,21 @@
     /* Fixed, not flowed: the shell's column can run taller than the phone's
        viewport, and a bar that lives at the end of it lives below the fold. */
     position: fixed;
-    left: 0; right: 0; bottom: 0;
+    
     z-index: 120;
     background: var(--bg-raised);
-    border-top: 1px solid var(--line);
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
     /* The ✦ has its own place at the bar's right end (ask.css): no tab runs under it, and no page. */
     padding-right: 60px;
   }
   .phone-tab {
-    appearance: none; background: none; border: 0; color: var(--ink-dim); font: inherit; font-size: 10.5px;
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 4px 2px; min-height: 44px; border-radius: 8px; cursor: pointer;
+    appearance: none; background: none; border: 0; font: inherit; 
+    display: flex; flex-direction: column; align-items: center; 
+    cursor: pointer;
   }
-  .phone-tab.active { color: var(--accent); }
   .phone-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .phone-tab-icon { position: relative; display: inline-flex; }
   /* The amber tally on the icon (.tally .tally-icon .tally-warn): it counts people who need you. */
-  .phone-tab-badge { position: absolute; top: -6px; right: -12px; box-shadow: 0 0 0 2px var(--bg-raised); }
+  .phone-tab-badge { position: absolute; }
   /* The tab bar's More replaces the hamburger */
   .tb-menu { display: none; }
   /* The top bar says each thing once on a phone: Ask is the ✦ in the tab bar and the theme is in More, under your
@@ -515,12 +521,11 @@
   .tb-ask, .tb-theme { display: none; }
   /* On the Inbox it says Inbox, once: the open thread's header names the person, and the crumb named them again
      over it. */
-  .main:has(.inbox) .crumbs > :not(:first-child) { display: none; }
+  .main:has(.inbox) .crumbs > span:not(:first-child), .main:has(.inbox) .crumbs > button:not(:first-child) { display: none; }
   .main:has(.inbox) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
   .topbar .btn-icon { min-width: 44px; }
-  /* Room under every surface for the bar, and the toast sits above it */
-  .main-scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
-  .pp-toast-stack { bottom: calc(76px + env(safe-area-inset-bottom)); }
+  /* The bell's sheet covers the tab bar, so while it is open the toast sits at the bottom edge, not over its notes. */
+  :root:has(.tbn-pop:not([data-leaving])) .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
 
   /* The thread on a phone shows the conversation first (I6). The header is one row -- Back, avatar, name and the
      menu: it took two rows and 121px. A seeded thread's strip stays off a phone, where it said again what the banner
@@ -541,8 +546,6 @@
      stacked them in two rows; the search is one input tall, with the select-all box at its head; the list's head
      shows only for a search or a pick. Together they took 251px above the first thread. Each tap target keeps its
      44px: the box's is a thumb wide around it, without growing the row. */
-  .inbox .ix-buckets { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 6px 8px; }
-  .inbox .ix-bucket { justify-content: center; gap: 6px; padding: 0 6px; }
   .inbox .ix-search-row { padding: 6px 14px; }
   .inbox .ix-search-wrap { padding: 0 8px; }
   .inbox .ix-list-head { min-height: 40px; padding: 0 12px; }
@@ -554,11 +557,12 @@
      thread header above; 85-115px of status band, 68px of reply box and 58px of tab bar
      below. The conversation — the only reason the screen exists — had 432px of 812. */
 
-  /* A detail view keeps its focus: SurfaceTabs already hides itself on a person's profile
-     for exactly this reason. Here the thread is the detail, and Back returns to the list
-     that carries them. On a desktop the list and the thread share the screen, so they stay. */
-  .main:has(.inbox.phone-thread) .stabs,
-  .main:has(.conversations.phone-detail) .stabs { display: none; }
+  /* A page that takes the screen over -- a thread, a call -- says so once, with data-takeover on its root, and the frame
+     lets go of its own chrome for it, never in the page's sheet. A detail view keeps its focus: the sections' strip goes
+     here (SurfaceTabs already hides itself on a person's profile for exactly this reason), Ask's circle in ask.css, and
+     the Glass frame's head, tab bar and the room kept for it in the 900px block below. Back returns to the list that
+     carries them. On a desktop the list and the thread share the screen, so they stay. */
+  .main:has([data-takeover]) .stabs { display: none; }
   /* Needs you is the tab AND the bucket under it. The count belongs to the bucket, which is
      the thing that filters by it. */
   .main:has(.inbox) .stabs-badge { display: none; }
@@ -575,26 +579,7 @@
   /* 78% of 375px left a ragged column of dead space beside every bubble. */
   .ix-thread-pane .tl-msg-bubble { max-width: 88%; }
 
-  /* The menu opened as a desktop popover pinned to the far top corner: over the conversation,
-     and as far from the thumb as the screen allows. A sheet, using the backdrop it already draws. */
-  .ix-thread-pane .more-menu {
-    position: fixed;
-    inset: auto 0 0 0;
-    z-index: 250;
-    max-width: none;
-    max-height: 72vh;
-    padding: 6px 10px calc(14px + env(safe-area-inset-bottom));
-    border-radius: 22px 22px 0 0;
-    border-bottom: 0;
-    animation: more-sheet-in 220ms var(--ease-out);
-  }
-  /* A sheet says it is one: the handle, and the thread behind it stepped back. */
-  .ix-thread-pane .more-menu::before { content: ""; display: block; width: 36px; height: 4px; margin: 4px auto 12px; border-radius: 999px; background: var(--line-strong); }
-  .ix-thread-pane .more-backdrop { background: rgb(0 0 0 / 0.45); backdrop-filter: blur(2px); }
-  .ix-thread-pane .more-item { min-height: 52px; padding: 0 12px; gap: 14px; border-radius: 12px; font-size: 15px; }
-  .ix-thread-pane .more-item .icon { width: 18px; height: 18px; }
-  @keyframes more-sheet-in { from { opacity: 0; transform: translateY(28px); } }
-  @media (prefers-reduced-motion: reduce) { .ix-thread-pane .more-menu { animation: none; } }
+  /* The thread's Actions are the kit's menu, a bottom sheet under 720px (kit.css, "the phone's action sheet"). */
 
   /* The row's box is the MOUSE's box — it says so, and it is aria-hidden with no tab stop. A
      phone has no hover to reveal it, so it appeared only on the open row: one of three rails
@@ -609,7 +594,7 @@
 
 /* The drawer is never a rail: on a phone the sidebar shows everything. */
 @media (max-width: 900px) {
-  .side-wrap .sidebar.collapsed { width: min(300px, 84vw); }
+  .side-wrap .sidebar.collapsed { width: min(248px, 84vw); }
   .side-wrap .sidebar.collapsed .sidebar-label,
   .side-wrap .sidebar.collapsed .nav-hint,
   .side-wrap .sidebar.collapsed .sb-team-body,
@@ -628,52 +613,48 @@
   .cl-prof-rail-note { grid-column: 1 / -1; }
 }
 
-/* ====================================================================
-   Campaigns on a phone (Playbooks, Broadcasts, Messages).
+/* ---- Every list pulls under a thumb (25 Sep) ---------------------------------------------------------------------
+   A list rubber-bands on a touch screen only when it holds more than its box: Needs you with two threads and Live
+   with no calls could not be pulled at all, where Conversations, People and a long Templates could. A pixel more
+   than the box is enough for a short list to give way as a long one does, and it scrolls nothing anyone can see.
+   The pixel is an invisible box placed against the list itself, so the list is its containing block: none of these
+   lists holds anything placed against a box outside it (measured on each, 25 Sep). e2e/shell/phone.spec.ts holds every
+   list to it. */
+@media (pointer: coarse) {
+  .ix-threads, .cv-rows, .lm-list, .lm-panel, .cl-main-scroll, .tpl-page > .cm-list, .bc-page > .cm-list { position: relative; }
+  .ix-threads::after, .cv-rows::after, .lm-list::after, .lm-panel::after, .cl-main-scroll::after, .tpl-page > .cm-list::after,
+  .bc-page > .cm-list::after {
+    content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none;
+  }
+}
+/* The Calendar's days are a scroller only on a phone (above, .cal-pane); wider, the box is display: contents. */
+@media (max-width: 720px) and (pointer: coarse) {
+  .cal-pane { position: relative; }
+  .cal-pane::after { content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none; }
+}
 
-   This surface had three declarations in this file -- .bc-comp, and the
-   history table's sideways scroll -- and nothing else, while the Calendar
-   has forty and the Inbox thirty. What that cost, measured at a 375px
-   viewport with this stylesheet loaded:
-
-     .bc-actions   display:flex, no flex-wrap
-     children      491px of minimum width (the name field cannot go under
-                   160px; the datetime box is flex: 0 0 auto)
-     container     283px
-     .main-scroll  overflow-x: hidden
-
-   -- so "Send now", the last child and the page's whole purpose, sat 208px
-   past the right edge with no scrollbar to reach it. The primary action of
-   Broadcasts could not be pressed on a phone.
-
-   .bc-page also kept the 28px --gutter-page at every width while .rp-body
-   drops to 16, so two tabs of one nav item had different page edges.
-   ==================================================================== */
-@media (max-width: 720px) {
-  .bc-page { --gutter-page: 16px; }
-
-  /* The top bar says Campaigns, once, as it says Inbox once: the tab under it says which of the three this is, and
-     the crumb said it again over the tab ("Campaigns / Playbooks" over "Playbooks"). */
-  .main:has(.cm-page, .bc-page) .crumbs > :not(:first-child) { display: none; }
-  .main:has(.cm-page, .bc-page) .crumbs > :first-child { color: var(--ink); font-weight: 500; }
-
-  /* The send row wraps: the name on its own line, the time on its own line,
-     then the two buttons sharing the last one. */
-  .bc-actions { flex-wrap: wrap; }
-  .bc-actions .bc-subject { flex: 1 1 100%; width: 100%; min-width: 0; }
-  .bc-foot .bc-subject { flex: 1 1 100%; }
-  .bc-actions .btn { flex: 1 1 auto; justify-content: center; }
-  .bc-actions .confirm { flex: 1 1 100%; }
-
-  /* A 26px uppercase label column is 8% of the page and the words overflow it
-     anyway ("SEND", "CLOCK"): the label goes above its row. */
-  .bc-row { flex-direction: column; gap: 6px; }
-  .bc-row-label { width: auto; padding-top: 0; }
-  .tpl-row { flex-direction: column; gap: 6px; }
-  .tpl-row .bc-row-label { padding-top: 0; }
-
-  /* The QR and the wording it explains stopped being side by side. */
-  .bc-optin-body { flex-wrap: wrap; }
+/* ---- A thumb's press area where the look is smaller (25 Sep) --------------------------------------------------------
+   These keep the size they are drawn at and gain an invisible press area toward 44px, only as far as the controls
+   around each leave room (measured on each at 375px): a broadcast run's name
+   (2px under it, 100 over), a template's row (3px apart) and its ··· (drawn 6px wide), the top bar's
+   crumb, a call's recording, the lead peek's steps, its address (5px over it, 15 under: 34px, the most it has), its
+   phone note, its expand and its close, and the composer's language and its steps through the people. The composer's
+   variable picker is a native select laid over its label, which takes no press area. */
+@media (pointer: coarse) {
+  .bc-run-name, .msg-row-what, .crumbs .crumb-link, .tl-call-file, .pk-deck-btn,
+  .pk-where-link, .pk-hint-mark, .mp-step .mp-step-btn { position: relative; }
+  .msg-row-what::after,
+  .crumbs .crumb-link::after, .tl-call-file::after, .pk-deck-btn::after, .pk-where-link::after, .pk-hint-mark::after,
+  .pk-band-expand::after, .pk-x.pk-band-x::after, .mp-step .mp-step-btn::after {
+    content: ""; position: absolute;
+  }
+  .crumbs .crumb-link::after { inset: 0 -6px; }
+  .tl-call-file::after { inset: -11px; }
+  .pk-deck-btn::after { inset: 0 -2px; }
+  .pk-where-link::after { inset: -4px 0 -12px; }
+  .pk-hint-mark::after { inset: 0 -1px 0 -21px; }
+  .pk-band-expand::after { inset: 0 0 0 -4px; }
+  .pk-x.pk-band-x::after { inset: 0 -14px 0 0; }
 }
 
 /* ====================================================================
@@ -686,3 +667,148 @@ html.in-app .phone-tabs { display: none; }
 html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }
 html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }
 /* The ✦ lifts by the same inset; its rule lives with the palette's, in ask.css. */
+
+/* ====================================================================
+   THE FRAME IN GLASS, on a phone (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, step 5.3; components.css
+   has the desk's). The drawer floats as the sidebar does; the tab bar is one capsule of the control layer's glass over
+   the page, with room at its right for Ask's glass circle (decision 12), which ask.css draws with the palette's rules;
+   the page keeps room for both. Each rule names the look inside :where(), so it weighs what the rule it restyles
+   weighs, and reads the look's roles; none matches in Classic.
+   ==================================================================== */
+@media (max-width: 900px) {
+  /* The drawer blurs the page passing behind it from a layer under its words (::before): the drawer is a layer of its
+     own already, fixed over the page, so its menus stay placed against the window. It is as tall as what it holds, as
+     the sidebar is on a desk, and never taller than the screen (components.css): its foot is `auto`, so its height
+     never rests on how a browser aligns a fixed box between a top and a bottom. */
+  .side-wrap .sidebar {
+    bottom: auto;
+    background: transparent;
+    box-shadow: var(--surface-control-depth);
+  }
+  .side-wrap .sidebar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    backdrop-filter: var(--surface-control-blur);
+    pointer-events: none;
+  }
+  /* The wash behind the open drawer is a veil, not a curtain: black at 45% left the drawer's glass nothing to show (Ruben,
+     2 Oct 2026: "darkens the background too much"). About a third of the look's scrim lets the page's own light through the
+     drawer; the base rule's filter stays, and no blur is added, since a blurred page left the glass nothing lit to show. The wash is
+     reached by its role: a class named nav-backdrop is counted by the primitives ratchet each time a rule names it. */
+  .side-wrap > [role="presentation"] {
+    background: color-mix(in oklab, var(--surface-scrim) 36%, transparent);
+  }
+  /* The Inbox's sending strip (fixed under the top bar, full width here) stands under the island while a call is up:
+     over it, it hid the island whole (66 to 110px), the one door to Live, for as long as drafts waited. The strip of
+     views it stands over is what it covers in Classic too. */
+  .main:has(> .live-bar) .ix-sending-strip {
+    top: 118px;
+  }
+  /* A page that takes the screen over (data-takeover on its root, above) is headed by its own person or call: the
+     frame's head and strip of views, the tab bar and the room kept for it leave. */
+  .main:has(> .main-scroll > [data-takeover]) .pg-slot,
+  .app-root:has([data-takeover]) [data-testid="phone-tabs"] {
+    display: none;
+  }
+  .main-scroll:has(> [data-takeover]) {
+    padding-bottom: 0;
+  }
+  /* A bar docked at the foot says so with data-dock on the bar (People's selection: ✕, the count, an act): the page keeps
+     its head and its strip, and the tab bar, Ask's circle (ask.css) and the room kept for them stand down, as an open
+     thread's do. The bar is a capsule of the control layer's glass (kit.css), placed by the page. */
+  .app-root:has([data-dock]) [data-testid="phone-tabs"] {
+    display: none;
+  }
+  .main-scroll:has([data-dock]) {
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  /* The strip of views at the rows' 16px, as every strip on a phone. */
+  .main > .stabs {
+    margin: 4px 16px 8px;
+  }
+
+  /* The tab bar is one capsule floating over the page, 14px clear of its sides and of the home bar, with the room for
+     Ask's circle at its right (liquid.py tabbar): its tabs lozenges when picked, the picked one's glyph and word in
+     coral at 600, and the count on the Inbox the neutral count, with no ring. */
+  .phone-tabs {
+    left: 14px;
+    right: 86px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    padding: 6px;
+    border-top: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-control-depth);
+    backdrop-filter: var(--surface-control-blur);
+  }
+  .phone-tabs::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-control-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+  /* A tab is 50px tall by its height, not a floor: the house's 44px touch floor (legacy.css) outranked the floor
+     written here, and the bar stood 56px beside Ask's 62px circle (Ruben, 1 Oct 2026: "the container around the ask
+     is bigger than the container around the menu"). The glyph at 19, the word at the scale's smallest step under it,
+     the picked one its lozenge with the specular edge alone (the canvases draw no shadow under it), in coral; the
+     count rides the tab's own corner. Reached by the bar's test id and the tab's place where their class is a
+     primitive's word (the kit-primitives ratchet). */
+  .phone-tab {
+    position: relative;
+    height: 50px;
+    min-height: 0;
+    justify-content: center;
+    gap: 3px;
+    padding: 0;
+    border-radius: var(--radius-full);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-medium);
+    color: var(--ink-muted);
+  }
+  .phone-tab.active {
+    background: var(--selected-fill);
+    box-shadow: var(--surface-inset-depth);
+    font-weight: var(--weight-semibold);
+    color: var(--tab-ink);
+  }
+  [data-testid="phone-tabs"] > button > :first-child {
+    position: static;
+  }
+  [data-testid="phone-tabs"] > button > :first-child > svg {
+    width: 19px;
+    height: 19px;
+  }
+  .phone-tab-badge {
+    top: 4px;
+    right: 10px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 6px;
+    box-shadow: none;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+  }
+
+  /* Room under every surface for the bar, 14px clear of it, and the toast above it. */
+  .main-scroll {
+    padding-bottom: calc(max(14px, env(safe-area-inset-bottom)) + 76px);
+  }
+  .pp-toast-stack {
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 76px);
+  }
+}

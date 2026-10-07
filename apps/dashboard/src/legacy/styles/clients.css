@@ -22,12 +22,13 @@
    ==================================================================== */
 
 /* The rail scrolls, so it cuts off whatever crosses its edge: a search's menu opening rightward showed 51px of 194,
-   and held inside the rail (196px) its words broke onto three to six lines. So a menu here escapes the rail
-   (MoreMenu `escape`), and an item's meta, a sentence saying what the item will do, is its second line under the
-   label (past the 16px icon and its 11px gap) rather than a column squeezed beside it. */
-.cl-rail .more-item:has(> .more-item-meta) { flex-wrap: wrap; row-gap: 1px; }
-.cl-rail .more-item > .more-item-meta { flex-basis: 100%; }
-.cl-rail .more-item > .icon ~ .more-item-meta { padding-left: 27px; }
+   and held inside the rail (196px) its words broke onto three to six lines. So a search's menu is drawn on the body
+   (the kit's Menu, leads/scope/rail.tsx, its popup `ld-search-acts`), and an item's meta, a sentence saying what the
+   item will do, is its second line under the label (past the 16px icon and its 11px gap) rather than a column squeezed
+   beside it. */
+.ld-search-acts .more-item:has(> .more-item-meta) { flex-wrap: wrap; row-gap: 1px; }
+.ld-search-acts .more-item > .more-item-meta { flex-basis: 100%; }
+.ld-search-acts .more-item > .icon ~ .more-item-meta { padding-left: 27px; }
 .cl-rail {
   display: flex;
   flex-direction: column;
@@ -37,42 +38,10 @@
   overflow-y: auto;
 }
 
-/* People | Leads: the one switch between the page's scopes, at the head of
-   the rail (clients-a.jsx PeopleScopeTabs). A segmented control, because which
-   scope you are on has to be visible at a glance; the phone draws the same
-   control in the slim bar (leads.css). Until this rule existed the two buttons
-   were bare text at the same colour and ran together as one word. Two tabs or
-   three, each an equal part: the Pipeline is the third where deals are on. */
-.pt-scope {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 2px;
-  margin: 12px 12px 2px;
-  padding: 2px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  flex: none;
-}
-.pt-scope button {
-  height: 30px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink-muted);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-}
-.pt-scope button:hover { color: var(--ink); }
-.pt-scope button.on {
-  background: var(--bg-raised);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-.pt-scope button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* People | Leads (| Pipeline): the one switch between the page's scopes is the frame's strip of views (SurfaceTabs, the
+   Inbox's Needs you / Conversations / Live), drawn once for every page from what the page's chrome says
+   (surfaces/people/chrome.ts), so it stands where the Inbox's does and moves as it moves. This page draws no strip of
+   its own, and sets none of its sides. */
 
 .cl-rail-section {
   padding: 14px 12px 8px;
@@ -215,7 +184,7 @@
   line-height: 1.15;
 }
 .cl-page-sub {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
   line-height: 1.5;
   max-width: 520px;
@@ -247,7 +216,7 @@
   color: var(--ink-faint);
 }
 .cl-head-stat-value {
-  font-size: 18px;
+  font-size: var(--text-xl);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
@@ -297,7 +266,7 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink);
 }
 .cl-search-wrap input::placeholder { color: var(--ink-faint); }
@@ -326,14 +295,14 @@
   letter-spacing: -0.005em;
 }
 .cl-buckets-sub {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 .cl-buckets-toggle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   background: transparent;
   border: 1px solid var(--line);
@@ -408,7 +377,7 @@
 .cl-triage-tab.active.accent .cl-triage-tab-label { color: var(--ink); }
 
 .cl-triage-tab-count {
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 500;
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
@@ -461,7 +430,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 .cl-triage-body-meta .dot { width: 2px; height: 2px; background: var(--ink-faint); border-radius: 50%; }
@@ -471,7 +440,7 @@
   gap: 3px;
   background: transparent;
   border: none;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   cursor: pointer;
   padding: 2px 4px;
@@ -526,7 +495,7 @@
   gap: 4px;
 }
 .cl-decision-name {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink);
   display: inline-flex;
@@ -560,7 +529,7 @@
   color: var(--ink-muted);
   background: var(--bg-sunken);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 7px 2px 3px;
   width: fit-content;
   max-width: 100%;
@@ -591,7 +560,7 @@
 
 .cl-decision-cta {
   align-self: center;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 500;
   padding: 6px 12px;
   border-radius: var(--radius-sm);
@@ -693,7 +662,7 @@
   white-space: nowrap;
 }
 .cl-mini-narr {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   line-height: 1.4;
   display: -webkit-box;
@@ -745,7 +714,7 @@
   font-size: 10px;
   color: var(--ink-muted);
   background: var(--bg-sunken);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 6px;
   border: 1px solid var(--line);
 }
@@ -769,17 +738,6 @@
   border-top: 1px solid var(--line);
   margin-top: 4px;
 }
-.cl-bucket-link {
-  font-size: 11px;
-  color: var(--ink-muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.cl-bucket-link:hover { color: var(--ink); }
 .cl-bucket-foot-meta {
   font-size: 10.5px;
   color: var(--ink-dim);
@@ -817,12 +775,12 @@
   border: 1px solid var(--line);
 }
 .cl-tab {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   background: transparent;
   border: none;
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -847,7 +805,7 @@
 .cl-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
 }
 .cl-table thead th {
   text-align: left;
@@ -907,14 +865,9 @@
   gap: 9px;
   min-width: 0;
 }
-.cl-row-name .ix-thread-avatar {
-  width: 26px;
-  height: 26px;
-  font-size: 10px;
-}
 .cl-row-name-block { min-width: 0; line-height: 1.25; }
 .cl-row-fullname {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink);
   white-space: nowrap;
@@ -951,11 +904,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   background: var(--bg-sunken);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 8px 2px 4px;
   max-width: 240px;
 }
@@ -965,7 +918,7 @@
 .cl-row-agent .agent-avatar {
   width: 18px; height: 18px;
   font-size: 9px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .cl-row-agent-verb {
   overflow: hidden;
@@ -986,31 +939,11 @@
   display: inline-flex;
   align-items: baseline;
   gap: 3px;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 .cl-row-pkg .num { font-weight: 500; color: var(--ink); }
 .cl-row-pkg .lbl { color: var(--ink-dim); }
 .cl-row-pkg.empty .num { color: var(--ink-faint); }
-
-.cl-row-bucket-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  color: var(--ink-muted);
-  white-space: nowrap;
-}
-.cl-row-bucket-pill.b-needs-you { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
-.cl-row-bucket-pill.b-drifting { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
-.cl-row-bucket-pill.b-champion { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
-.cl-row-bucket-pill.b-new { color: var(--info); background: var(--info-soft); border-color: transparent; }
 
 .cl-row-checkbox {
   width: 13px; height: 13px;
@@ -1028,7 +961,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 
@@ -1094,7 +1027,7 @@
   margin-top: 4px;
 }
 .cl-seg-count {
-  font-size: 22px;
+  font-size: var(--text-2xl);
   font-weight: 500;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -1146,7 +1079,6 @@
   min-width: 0;
   height: 100%;
   overflow-y: auto;
-  background: var(--bg);
   container: person / inline-size;
 }
 .cl-prof-page {
@@ -1156,7 +1088,6 @@
   padding: var(--gutter-page) var(--gutter-page) 48px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
 }
 /* What is coming and what has happened, and beside them the card of what is known. The card is not a pane of its own
    any more: it is as tall as what it holds, and the page scrolls. */
@@ -1165,7 +1096,6 @@
   grid-template-columns: minmax(0, 1fr) 340px;
   grid-template-areas: "up rail" "hist rail";
   grid-template-rows: auto 1fr;
-  gap: 24px 40px;
   align-items: start;
 }
 .cl-prof-body:not(:has(> .cl-prof-up)) { grid-template-areas: "hist rail"; grid-template-rows: auto; }
@@ -1189,13 +1119,6 @@
 }
 
 .cl-prof-rail {
-  /* The record kit's measures for the rows the card holds (record.css reads them from what rows sit in). */
-  --rec-gutter: 16px;
-  --rec-key: 112px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1207,8 +1130,6 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "back back" "id acts";
-  gap: 12px 16px;
-  align-items: start;
   container-type: inline-size;
 }
 .cl-prof-hero > .cl-prof-back { grid-area: back; }
@@ -1218,45 +1139,19 @@
 /* Nobody to draw (gone, a failed read): what is said takes the row under the way back. The frame keeps the page's grid;
    with the areas taken away, the way back was put in a column of its own (a grid-area naming no area makes one). */
 .cl-profile--solo .cl-prof-hero > :not(.cl-prof-back) { grid-column: 1 / -1; }
-.cl-prof-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11.5px;
-  color: var(--ink-muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  margin-bottom: 14px;
-  padding: 0;
-}
-.cl-prof-back:hover { color: var(--ink); }
-/* As wide as its words: stretched across its row, the whole line over the name was a press that left the page. */
+/* As wide as its words: stretched across its row, the whole line over the name was a press that left the page. The
+   button is the kit's (quiet, small); the page places it. */
 .cl-prof-hero > .cl-prof-back { align-self: flex-start; justify-self: start; margin: 0; }
 
 .cl-prof-id {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
 }
 /* What they said reads at a prose measure on a wide window: a sentence ran 1,100px at 1440. The words are held to it,
    not the timeline, so each time stands at the column's edge, as the cards above it do. */
 .cl-prof-timeline .cl-tl-text { max-width: var(--measure-prose); }
-.cl-prof-avatar {
-  flex: none;
-  width: 44px; height: 44px;
-  border-radius: 50%;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 500;
-  color: var(--ink-muted);
-}
-.cl-prof-avatar[data-priority="P1"] { box-shadow: inset 0 0 0 2px var(--accent); }
-.cl-prof-titles { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.cl-prof-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .cl-prof-name {
   margin: 0;
-  font-size: 20px;
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -1268,15 +1163,12 @@
    their rules at equal specificity, so it has to come later. */
 @container (max-width: 400px) {
   .cl-prof-id { gap: 10px; }
-  .cl-prof-avatar { width: 40px; height: 40px; font-size: 14px; }
-  .cl-prof-name { font-size: 18px; }
+  .cl-prof-name { font-size: var(--text-xl); }
 }
 .cl-prof-meta {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: var(--ink-muted);
   flex-wrap: wrap;
 }
 .cl-prof-actions { display: flex; gap: 6px; }
@@ -1339,7 +1231,7 @@
   color: var(--ink-faint);
 }
 .cl-prof-money-value {
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 500;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -1360,17 +1252,14 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 10px;
 }
 .cl-prof-section-title {
   margin: 0;
-  font-size: 13px;
   color: var(--ink);
-  font-weight: 500;
   letter-spacing: -0.005em;
 }
 .cl-prof-section-sub {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 
@@ -1393,7 +1282,7 @@
 /* Where they stand, under their name: the standing's own word (the one their People row wears) and the sentence of
    what happens next. It was a card of its own, 188px tall on a phone for a word and a sentence. The pill is a word here,
    not a control, so it takes back the 36px touch floor legacy.css puts on every pill. */
-.cl-prof-name-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.cl-prof-name-line { display: flex; align-items: center; flex-wrap: wrap; min-width: 0; }
 .cl-prof-now { display: inline-flex; }
 /* The standing beside the name is a dot and its word in the standing's own ink, not a filled pill: a word, not a
    control, so it also takes back the 36px touch floor legacy.css puts on every pill. */
@@ -1403,10 +1292,10 @@
 .cl-prof-now .pill-ok { color: var(--ok-ink); }
 .cl-prof-now .pill .live-dot { display: none; }
 /* Said under the line only when it asks for something (escalated, held, queued, snoozed, silent). */
-.cl-prof-now-why { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
+.cl-prof-now-why { line-height: 1.45; }
 /* The page's acts, beside who they are: the thread, what can be sent to them, and the page's ⋯. A label too long for
    its button ends in an ellipsis rather than pushing the row off the page. */
-.cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; min-width: 0; }
+.cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
 .cl-prof-hero > .cl-prof-queue-actions > .btn { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-danger { max-width: var(--measure-prose); }
 
@@ -1420,21 +1309,20 @@
 .cl-prof-up { display: flex; flex-direction: column; gap: 10px; }
 .cl-prof-up-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
 .cl-prof-up-visit {
-  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+  display: flex; align-items: center; 
+  border-radius: var(--radius-md);
   font: inherit; color: inherit; text-align: left; cursor: pointer;
 }
 .cl-prof-up-visit:hover { border-color: var(--line-strong); }
 .cl-prof-up-visit:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.cl-prof-up-leaf { flex: none; width: 34px; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
-.cl-prof-up-month { font-size: 10px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
-.cl-prof-up-date { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cl-prof-up-leaf { flex: none; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.cl-prof-up-month { text-transform: uppercase; }
+.cl-prof-up-date { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
 .cl-prof-up-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.cl-prof-up-title { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cl-prof-up-when { font-size: 12px; color: var(--ink-dim); }
+.cl-prof-up-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-up-go { flex: none; display: flex; color: var(--ink-faint); }
 
-/* Their deal (0008, pages/person-deal.jsx): a card per open deal in Coming up's family -- the raised ground, one
+/* Their deal (0008, surfaces/people/deal/person-deal.tsx): a card per open deal in Coming up's family -- the raised ground, one
    hairline, the middle radius, no shadow -- held to the prose measure, so its three steps read as steps rather than a
    rule across a wide window. With none open, one slim line and its act. */
 .cl-prof-deal { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -1442,7 +1330,7 @@
 .cl-prof-deal-card {
   box-sizing: border-box; max-width: var(--measure-prose); min-width: 0;
   display: flex; flex-direction: column; gap: 10px; padding: 12px 14px;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+  
 }
 .cl-prof-deal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
 .cl-prof-deal-title { min-width: 0; font-size: 13px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1458,7 +1346,7 @@
 .cl-prof-deal-step[data-tone="ok"] .cl-prof-deal-bar { background: var(--ok); }
 .cl-prof-deal-step-label { font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-deal-step[aria-current="step"] .cl-prof-deal-step-label { color: var(--ink); font-weight: 500; }
-.cl-prof-deal-step-day { font-size: 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.cl-prof-deal-step-day { font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 /* The link, whether it went and the day it stands until: one line that breaks between its facts, after the dot. */
 .cl-prof-deal-line { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
 .cl-prof-deal-link { color: var(--ink); font-weight: 500; text-decoration: none; white-space: nowrap; border-radius: var(--radius-xs); }
@@ -1483,7 +1371,7 @@
    its Done and Change as the card's own quiet words; with none, "Set a next step" in a dashed outline. */
 .cl-prof-deal-nextstep { display: flex; flex-direction: column; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); min-width: 0; }
 .cl-prof-deal-next-line { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
-.cl-prof-deal-next-label { margin-right: 6px; font-size: 11px; font-weight: 500; letter-spacing: .02em; color: var(--ink-dim); }
+.cl-prof-deal-next-label { margin-right: 6px; font-size: var(--text-xs); font-weight: 500; letter-spacing: .02em; color: var(--ink-dim); }
 .cl-prof-deal-next-words { color: var(--ink); }
 .cl-prof-deal-next-day { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cl-prof-deal-nextstep:not([data-due="ahead"]) .cl-prof-deal-next-day { color: var(--warn-ink); font-weight: 500; }
@@ -1510,7 +1398,7 @@
   html.legacy-on .cl-prof-deal-act { min-height: 0; position: relative; }
   html.legacy-on .cl-prof-deal-act::after { content: ""; position: absolute; inset: -9px -8px; }
 }
-.cl-prof-deal-said { margin: 0; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
+.cl-prof-deal-said { margin: 0; min-width: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
 .cl-prof-deal-sub { color: var(--ink-dim); }
 .cl-prof-queue-body { min-width: 0; }
 .cl-prof-queue-line1 {
@@ -1529,20 +1417,6 @@
   font-size: 10.5px;
   color: var(--ink-faint);
 }
-.cl-prof-queue-tag {
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 1px 6px;
-  border-radius: 3px;
-  color: var(--ink-faint);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-}
-.cl-prof-queue-tag.approval { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-.cl-prof-queue-tag.scheduled { color: var(--info); border-color: transparent; background: var(--info-soft); }
-.cl-prof-queue-tag.in-flight { color: var(--ok); border-color: transparent; background: var(--ok-soft); }
 
 .cl-prof-queue-action {
   font-size: 12px;
@@ -1561,7 +1435,6 @@
 .cl-prof-timeline {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   position: relative;
 }
 .cl-prof-timeline::before {
@@ -1627,12 +1500,12 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   margin-bottom: 3px;
 }
 .cl-tl-time { margin-left: auto; color: var(--ink-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.cl-tl-sub { margin-top: 3px; font-size: 11px; color: var(--ink-faint); }
+.cl-tl-sub { margin-top: 3px; font-size: var(--text-xs); color: var(--ink-faint); }
 .cl-tl-who { font-weight: 500; color: var(--ink); }
 .cl-tl-channel {
   display: inline-flex;
@@ -1641,7 +1514,7 @@
   color: var(--ink-faint);
 }
 .cl-tl-text {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink);
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -1650,21 +1523,6 @@
 
 /* Tags */
 .cl-tag-stack { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.cl-tag {
-  font-size: 9.5px;
-  letter-spacing: 0.02em;
-  color: var(--ink-dim);
-  background: var(--bg-sunken);
-  padding: 1px 6px;
-  border-radius: 3px;
-  border: 1px solid var(--line);
-  white-space: nowrap;
-}
-.cl-tag.signal {
-  color: var(--accent);
-  border-color: transparent;
-  background: var(--accent-soft);
-}
 
 /* Right rail */
 .cl-prof-rail-section {
@@ -1682,13 +1540,6 @@
 .cl-prof-rail-section:last-child { border-bottom: none; }
 /* A person's lists: the chips, then the quiet link that adds one, on its own line under them. */
 .cl-prof-lists { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.cl-prof-list-add .icon:last-child { display: none; }
-.cl-prof-rail-label {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--ink-dim);
-  margin-bottom: 8px;
-}
 
 .cl-prof-attr-list {
   display: flex;
@@ -1697,14 +1548,9 @@
 }
 .cl-prof-attr {
   display: grid;
-  grid-template-columns: var(--rec-key, 104px) minmax(0, 1fr);
-  gap: 12px;
-  padding: 8px 0;
-  font-size: 12.5px;
   border-bottom: 1px solid var(--line);
 }
 .cl-prof-attr:last-child { border-bottom: none; }
-.cl-prof-attr-key { color: var(--ink-dim); }
 .cl-prof-attr-val { color: var(--ink); font-variant-numeric: tabular-nums; }
 .cl-prof-attr-door { margin-left: 8px; }
 /* A run on a person's page: the row is its door to the run's report, drawn as an About row, the outcome under the
@@ -1712,7 +1558,7 @@
 .cl-prof-run { width: 100%; margin: 0; background: none; border: 0; border-bottom: 1px solid var(--line); font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .cl-prof-run:last-child { border-bottom: none; }
 .cl-prof-run:hover .cl-prof-run-title { text-decoration: underline; }
-.cl-prof-run:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.cl-prof-run:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
 .cl-prof-run-title { display: block; }
 .cl-prof-run-out { display: block; color: var(--ink-dim); }
 .cl-prof-run-out[data-tone="warn"] { color: var(--warn-ink); }
@@ -1738,7 +1584,7 @@
   font-size: 10.5px;
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--ink-muted);
   cursor: pointer;
   text-align: center;
@@ -1765,7 +1611,7 @@
   font-size: 11.5px;
   padding: 5px 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--bg-raised);
   color: var(--ink);
   cursor: pointer;
@@ -1814,14 +1660,14 @@
 @media (pointer: coarse) { .cl-prof-msg { padding: 10px 12px; } .cl-prof-note :is(input, select) { padding: 9px 10px; } }
 /* The explanation a reader may want and never needs in the way. */
 .cl-prof-why { margin-top: 6px; }
-.cl-prof-why > summary { display: inline-flex; align-items: center; gap: 4px; list-style: none; font-size: 11px; color: var(--ink-muted); cursor: pointer; }
+.cl-prof-why > summary { display: inline-flex; align-items: center; gap: 4px; list-style: none; font-size: var(--text-xs); color: var(--ink-muted); cursor: pointer; }
 .cl-prof-why > summary::-webkit-details-marker { display: none; }
 .cl-prof-why > summary:hover, .cl-prof-why[open] > summary { color: var(--ink); }
 .cl-prof-why[open] > summary svg { transform: rotate(180deg); }
 .cl-prof-why > .cl-prof-aut-hint { margin-top: 4px; }
 @media (pointer: coarse) { .cl-prof-why > summary { padding: 8px 0; } }
 .cl-prof-aut-hint {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   font-style: italic;
   margin-top: 8px;
@@ -1854,12 +1700,11 @@
   color: var(--ink-muted);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 2px 8px;
   cursor: pointer;
 }
 .cl-prof-ask-chip:hover { color: var(--ink); border-color: var(--ink-faint); }
-
 
 /* Table empty state */
 .cl-table-empty {
@@ -1874,13 +1719,6 @@
 .cl-table-empty .icon { color: var(--ink-faint); }
 
 /* Profile queue: decided + muted states */
-.cl-prof-queue-tag.decided {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--ok);
-  background: var(--ok-soft);
-}
 .cl-prof-queue-off { opacity: 0.55; }
 .cl-prof-next:hover .stat-cell-label { color: var(--info); }
 
@@ -1898,10 +1736,9 @@
 }
 .cl-prof-queue-item.is-muted { opacity: 0.62; }
 .cl-prof-queue-item.is-muted .cl-prof-queue-action { font-style: italic; }
-.cl-prof-queue-tag.paused { color: var(--warn); background: var(--warn-soft); }
 
 /* Saved lists on the rail: the empty line and the name box. */
-.cl-rail-hint { font-size: 11px; line-height: 1.45; color: var(--ink-faint); padding: 2px 10px 8px; }
+.cl-rail-hint { font-size: var(--text-xs); line-height: 1.45; color: var(--ink-faint); padding: 2px 10px 8px; }
 /* A field error sits where the rail's hint does, and on a naming row it takes its own line. */
 .cl-rail-foot > .field-error { padding: 2px 10px 8px; }
 .cl-bulk-naming > .field-error { flex-basis: 100%; }
@@ -1939,14 +1776,14 @@
 .cl-rail-newlist input:focus { outline: none; border-color: var(--ink-faint); }
 
 /* ---- Booked: a fact from the calendar beside the state pill ---- */
-.cl-row-booked { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 500; letter-spacing: .01em; color: var(--ok); background: var(--ok-soft); white-space: nowrap; }
+.cl-row-booked { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 7px; border-radius: var(--radius-full); font-size: 10.5px; font-weight: 500; letter-spacing: .01em; color: var(--ok); background: var(--ok-soft); white-space: nowrap; }
 
 /* ---- A name the owner gives; notes the receptionist reads ---- */
 .cl-prof-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* Editing wraps: the input takes the line and the two buttons follow it, on a phone under it. The input's fixed
    240px beside two buttons pushed a 375px page 80px wide of itself. */
 .cl-prof-name-row.editing { flex-wrap: wrap; gap: 6px; }
-.cl-prof-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.cl-prof-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-prof-id:hover .cl-prof-rename, .cl-prof-rename:focus-visible { opacity: 1; }
 .cl-prof-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); }
 /* No name yet: the control is the invitation, always drawn, with its word. A phone has no hover to reveal it. */
@@ -1973,7 +1810,7 @@
 /* A pencil alone is 22px wide; on a touch screen it is the row's only control, and the row has the room. */
 @media (pointer: coarse) { .cl-prof-email .cl-prof-rename:not(.is-plain) { min-width: 44px; } }
 .cl-prof-email.editing { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
-.cl-prof-email-input { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; width: 100%; }
+.cl-prof-email-input { font: inherit; font-size: var(--text-sm); color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 8px; min-width: 0; width: 100%; }
 .cl-prof-email-input:focus { outline: none; border-color: var(--accent); }
 .cl-prof-email-input[aria-invalid="true"] { border-color: var(--danger); }
 .cl-prof-email-problem { font-size: 11.5px; line-height: 1.4; color: var(--danger); }
@@ -1983,20 +1820,20 @@
    shows on hover, and always under a thumb. */
 .cl-prof-notes { display: flex; flex-direction: column; gap: 10px; }
 .cl-prof-note-compose { display: flex; flex-direction: column; gap: 6px; }
-.cl-prof-note-input { font: inherit; font-size: 12.5px; line-height: 1.45; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 10px; resize: none; outline: none; width: 100%; box-sizing: border-box; }
+.cl-prof-note-input { font: inherit; font-size: var(--text-sm); line-height: 1.45; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 10px; resize: none; outline: none; width: 100%; box-sizing: border-box; }
 .cl-prof-note-compose.is-open .cl-prof-note-input, .cl-pnote.is-editing .cl-prof-note-input { resize: vertical; min-height: 64px; }
 .cl-prof-note-input:focus { border-color: var(--accent); }
 .cl-prof-note-input::placeholder { color: var(--ink-faint); }
 .cl-prof-note-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .cl-prof-note-aud { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
-.cl-prof-note-for { font: inherit; font-size: 12px; color: var(--ink-muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; max-width: 150px; }
+.cl-prof-note-for { font: inherit; font-size: 12px; color: var(--ink-muted); background: transparent; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 6px; max-width: 150px; }
 .cl-prof-note-team { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-muted); cursor: pointer; }
 .cl-prof-note-team input { margin: 0; accent-color: var(--ink); }
 .cl-prof-note-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .cl-pnote { padding: 8px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; }
 .cl-prof-note-list > .cl-pnote:first-child { border-top: none; padding-top: 2px; }
-.cl-prof-note-body { font-size: 12.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
-.cl-prof-note-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; font-size: 11px; color: var(--ink-dim); min-height: 22px; }
+.cl-prof-note-body { line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cl-prof-note-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; font-size: var(--text-xs); color: var(--ink-dim); min-height: 22px; }
 .cl-prof-note-meta > span + span:not(.cl-prof-note-more)::before { content: "·"; margin-right: 6px; color: var(--ink-faint); }
 .cl-prof-note-who { color: var(--ink-muted); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
 .cl-prof-note-for-who { color: var(--ink-muted); }
@@ -2011,7 +1848,7 @@
 .cl-pnote.is-suggested { border-top: none; padding: 6px 0 6px 10px; margin-bottom: 4px; box-shadow: inset 2px 0 0 var(--line-strong); }
 .cl-prof-note-decide { display: flex; gap: 6px; padding-top: 4px; }
 .cl-prof-note-all { align-self: flex-start; }
-.cl-prof-note-rule { font-size: 11px; }
+.cl-prof-note-rule { font-size: var(--text-xs); }
 /* A step (0007, amended): its Done box before its words; its day first on its line, in the warn ink once it is due;
    done, its words struck through in the dim ink, and the line says who did it and when. */
 .cl-prof-note-day { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
@@ -2033,7 +1870,7 @@
 .cl-rail-group + .cl-rail-group { margin-top: 10px; }
 .cl-rail-group-label { padding: 2px 10px 4px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
 .cl-list-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 2px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
-.cl-list-action-text { font-size: 12.5px; color: var(--ink-dim); }
+.cl-list-action-text { font-size: var(--text-sm); color: var(--ink-dim); }
 /* A visit on the calendar is good news at rest: the calendar icon says it, in the quiet ink (the raw green read 3.28:1). */
 .cl-row-next { color: var(--ink-muted); font-weight: 500; }
 .cl-row-recept-mark { margin-left: 6px; font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
@@ -2054,18 +1891,18 @@
 /* On dark paper 7% of the ink sat within a shade of a hovered row and the cursor's; 12% stands apart from both. */
 [data-theme="dark"] .clients { --pl-selected: oklch(from var(--ink) l c h / 0.12); }
 .cl-table tbody tr.selected { background: var(--pl-selected); }
-.cl-bulk { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg-raised); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); z-index: 5; animation: cl-bulk-in 160ms ease-out; white-space: nowrap; }
+.cl-bulk { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bg-raised); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); z-index: 5; animation: cl-bulk-in 160ms ease-out; white-space: nowrap; }
 @keyframes cl-bulk-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .cl-bulk { animation: none; } }
-.cl-bulk-count { font-size: 12.5px; color: var(--ink-dim); margin-right: 4px; }
+.cl-bulk-count { font-size: var(--text-sm); color: var(--ink-dim); margin-right: 4px; }
 /* The bar sits at the bottom, so its menus open upward, never under the fold. */
 .cl-bulk .more-menu { top: auto; bottom: calc(100% + 6px); }
 .cl-bulk-count b { color: var(--ink); }
 .cl-bulk-naming { display: inline-flex; align-items: center; gap: 6px; }
-.cl-bulk-naming input { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 8px; width: 180px; outline: none; }
+.cl-bulk-naming input { font: inherit; font-size: var(--text-sm); color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 8px; width: 180px; outline: none; }
 .cl-bulk-naming input:focus { border-color: var(--accent); }
 
-/* ---- Import people (pages/people-import.jsx): the record kit's sheet. Its body is a file or pasted rows, the counts
+/* ---- Import people (surfaces/people/import/import-sheet.tsx): the record kit's sheet. Its body is a file or pasted rows, the counts
    before anything is written, five rows as a taste, then the summary; the kit's own field, label and input rules
    (record.css) dress the fields, and the body carries the vertical room the kit's body leaves to its page. ---- */
 .pl-import { display: flex; flex-direction: column; gap: 16px; padding: 20px 0 24px; }
@@ -2087,7 +1924,6 @@
 
 /* ---- The table: who, at a glance; actions on hover; a keyboard row; cards when narrow ---- */
 .tabular { font-variant-numeric: tabular-nums; }
-.cl-row-avatar-glyph { color: var(--ink-faint); background: var(--bg-sunken); }
 .cl-row-fullname { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cl-row-name-them { display: inline-flex; align-items: center; gap: 3px; border: none; background: transparent; padding: 0; font: inherit; font-size: 10.5px; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-table tbody tr:hover .cl-row-name-them, .cl-table tbody tr.focused .cl-row-name-them, .cl-row-name-them:focus-visible { opacity: 1; }
@@ -2101,21 +1937,17 @@
 .cl-table th.cl-actions-head { width: 1%; }
 .cl-row-actions { display: inline-flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
 .cl-table tbody tr:hover .cl-row-actions, .cl-table tbody tr.focused .cl-row-actions, .cl-row-actions:focus-within { opacity: 1; }
-.cl-row-act { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-dim); cursor: pointer; transition: color 120ms ease, border-color 120ms ease; }
+.cl-row-act { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-dim); cursor: pointer; transition: color 120ms ease, border-color 120ms ease; }
 .cl-row-act:hover { color: var(--ink); border-color: var(--line-strong); }
 .cl-table tbody tr.focused { background: var(--bg-hover); box-shadow: inset 2px 0 0 var(--accent); }
 /* The cursor's row holds focus (a tab stop that follows the cursor): the ring, drawn as an outline because a row
    paints no box-shadow, inside the row so the pinned cells do not cover it. */
 .cl-table tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cl-table-keys { display: inline-flex; align-items: center; gap: 4px; }
-.cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--ink-dim); background: var(--bg-raised); }
+.cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--radius-xs); color: var(--ink-dim); background: var(--bg-raised); }
 /* The lists a person is on: one quiet line, cut with an ellipsis rather than widening the table. */
 .cl-table td.cl-lists-cell { max-width: 24ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* The Columns menu: a check beside what shows; Person, which always shows, says so and does not press. */
-.pl-cols .more-item[aria-checked="false"] .icon { visibility: hidden; }
-.pl-cols .more-item[aria-disabled="true"] { cursor: default; color: var(--ink-dim); }
-.pl-cols .more-item[aria-disabled="true"]:hover { background: transparent; }
-/* A phone draws cards, not columns. */
+/* The Columns menu is the kit's (kit.css draws its ticks and Person's lock). A phone draws cards, not columns. */
 @media (max-width: 900px) { .pl-cols { display: none; } }
 /* People's controls wrap on a desktop too. Beside the sidebar and the rail, Add a person, Export CSV, Columns and the
    sort outgrow one row from 901px to about 1200px, and a row that never wrapped pushed the whole page sideways (178px
@@ -2247,7 +2079,7 @@
 }
 
 /* One line above the table: the count, who needs a person, who was reached. */
-.pl-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 14px 28px 0; font-size: 12.5px; color: var(--ink-dim); }
+.pl-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 14px 28px 0; font-size: var(--text-sm); color: var(--ink-dim); }
 .pl-standing-total { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
 .pl-standing-part { display: inline-flex; align-items: center; gap: 6px; }
 .pl-standing-dot { color: var(--ink-faint); }
@@ -2281,7 +2113,7 @@
   .clients .cl-section-head { margin-bottom: 8px; }
 }
 /* Under the phone's bar (PeoplePhoneBar): the bar keeps its own space above, the line its own below. */
-@media (max-width: 900px) { .pl-standing { padding: 4px 16px 10px; } }
+@media (max-width: 900px) { }
 /* And one under it while more people follow, "N of M loaded" and Show more: in the table's gutter, as the line above. */
 .pl-more { padding: 8px 28px 16px; }
 @media (max-width: 900px) { .pl-more { padding: 8px 16px 16px; } }
@@ -2315,7 +2147,7 @@
 }
 .cl-attn-avatar.glyph { color: var(--ink-faint); }
 .cl-attn-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.cl-attn-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--ink); line-height: 1.3; }
+.cl-attn-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: var(--text-sm); font-weight: 500; color: var(--ink); line-height: 1.3; }
 .cl-attn-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-attn-meta { flex: none; font-size: 10.5px; font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 /* TWO lines, not one. This line is the thing a person decides from -- the
@@ -2342,7 +2174,7 @@
 .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
 .cl-attn-cta {
   align-self: center;
-  font-size: 11px; font-weight: 500;
+  font-size: var(--text-xs); font-weight: 500;
   padding: 6px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
@@ -2377,16 +2209,16 @@
 .cl-row-reach { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
 .cl-row-reach .tabular { font-variant-numeric: tabular-nums; }
 .cl-row-words { max-width: 52ch; margin-top: 2px; font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: 11px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 .cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; }
-/* A profile's timeline filter: the page's own tab strip (.cl-tabs), sized to its words. */
-.cl-tabs.cl-tl-filters { display: inline-flex; flex-wrap: wrap; margin: 0 0 var(--space-3); }
+/* A profile's timeline filter: the kit's sub-tabs, where the page stands them: over the rows, a gap under. */
+.cl-tl-filters { --subtabs-side: 0px; margin: 0 0 var(--space-3); }
 
 /* A person on a list is a button, so a keyboard reaches them; it reads as the name it was. */
 /* ---- Lists on People: a picked list is the section's title, with its rename and its delete on the line ---- */
 .cl-section-lead { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
-.cl-list-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.cl-list-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-section-lead:hover .cl-list-rename, .cl-list-rename:focus-visible { opacity: 1; }
 .cl-list-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); }
 @media (hover: none) { .cl-list-rename { opacity: 1; } }
@@ -2397,39 +2229,37 @@
 /* ==== People on a phone (docs/superpowers/specs/2026-09-22-people-on-a-phone-design.md) ============================
    The page draws these only at 900px and under (PL_PHONE_QUERY), the band the rows, the bar and the Lists sheet share. */
 
-/* The phone's top (PeoplePhoneBar): the scopes as the shell's own tab strip (.stabs, the Inbox's views), then the
-   bar -- the list, search behind a button, the scope's own last control. Searching, the bar is the field, at 16px: a
-   phone zooms into anything smaller. */
+/* The phone's top (PeoplePhoneBar), under the frame's strip of views: the bar -- the list and the scope's own last
+   control -- then the search, a row of its own: a capsule at rest that opens
+   into the field, at 16px, since a phone zooms into anything smaller. */
 .pp-top { flex: none; }
-/* Two or three scopes never need to scroll. The shell's strip scrolls sideways at this width (components.css), and a
-   scroll container clips the active tab's 2px underline where it overlaps the strip's rule by 1px (.stabs-tab's
-   margin-bottom: -1px): on a touch screen the 44px tab then stood 43px in view and the strip scrolled 1px. Clip
-   leaves the other axis alone, so the overlap draws. */
-.stabs-people { overflow-x: clip; }
 .pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 16px; flex: none; }
 /* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
-.pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); }
+.pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); max-height: min(520px, calc(100dvh - 140px)); }
 .pp-bar-pick { flex: 0 1 auto; min-width: 0; height: 40px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }
 .pp-bar-pick .icon { flex: none; color: var(--ink-dim); }
 /* The words give way, not the chevron: an ellipsis on the button itself does nothing, it is a flex box. */
 .pp-bar-pick-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Leads' count, apart from the name: the name gives way, the count never does. */
 .pp-bar-pick-count { flex: none; margin-left: 2px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-/* Search and the scope's last control stand at the bar's right edge. A spacer did this, and cost the list button a
-   gap's 6px when there was no room to spare. */
-.pp-bar-push { margin-left: auto; }
+/* The scope's last control stands at the bar's right edge. A spacer did this, and cost the list button a gap's 6px when
+   there was no room to spare. */
+.pp-bar-push { display: flex; margin-left: auto; }
 .pp-bar-icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
 .pp-bar-icon:hover { background: var(--bg-hover); color: var(--ink); }
 .pp-bar .more-wrap { flex: none; }
-.pp-bar-field { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-dim); }
-.pp-bar-field:focus-within { border-color: var(--ink-faint); }
-.pp-bar-field .icon { flex: none; }
-.pp-bar-field input { flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 16px; outline: none; }
-.pp-bar-field input::placeholder { color: var(--ink-faint); }
-.pp-bar-field input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-.pp-bar-clear { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-dim); cursor: pointer; }
-html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0; }
-.pp-bar-cancel { flex: none; height: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
+.pp-lookup { display: flex; align-items: center; gap: 6px; padding: 0 8px 6px 16px; flex: none; }
+.pp-lookup-rest, .pp-lookup-box { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-dim); }
+.pp-lookup-rest { font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; }
+.pp-lookup-rest > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-lookup-box:focus-within { border-color: var(--ink-faint); }
+.pp-lookup .icon { flex: none; }
+.pp-lookup-box input { flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--field-text-touch); outline: none; }
+.pp-lookup-box input::placeholder { color: var(--ink-faint); }
+.pp-lookup-box input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.pp-lookup-clear { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-dim); cursor: pointer; }
+html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-height: 0; }
+.pp-lookup-cancel { flex: none; height: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
 
 @media (max-width: 900px) {
   /* A list's own step, alone in its section on a phone: one card, on the gutter. */
@@ -2444,30 +2274,17 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   html.legacy-on .pl-standing-needs::after { content: ""; position: absolute; inset: -10px 0; }
 }
 
-/* People's own sheets on a phone (PhoneSheet): Add a person, and the open list's rename, delete and "Save these". From
-   the bottom, edge to edge, a handle, a title and one way out; fields at 16px, one wide button. .sb-sheet.pp-sheet so
-   mobile.css's .pl-sheet padding, which loads after this file, gives way. */
-.sb-sheet.pp-sheet { padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
-.pp-sheet-handle { width: 36px; height: 4px; margin: 8px auto 4px; border-radius: var(--radius-full); background: var(--line-strong); }
-.pp-sheet-head { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px 4px 16px; }
-.pp-sheet-title { flex: 1; min-width: 0; margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-snug); color: var(--ink); }
-.pp-sheet-close { flex: none; height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
-.pp-sheet-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 16px 8px; }
+/* People's small jobs on a phone (Add a person, the open list's rename, delete and "Save these", a selection's acts) are
+   the kit's Sheet in a job's shape (kit.css, .sheet-job-*). What they hold is the page's: fields at 16px, one wide
+   button, a list of rows. */
 .pp-field { display: flex; flex-direction: column; gap: 6px; }
 .pp-field-label { font-size: var(--text-sm); color: var(--ink-muted); }
 .pp-field-opt { color: var(--ink-dim); }
-.pp-input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
+.pp-input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--field-text-touch); }
 .pp-input:focus { outline: none; border-color: var(--ink-muted); box-shadow: 0 0 0 3px var(--bg-active); }
 .pp-input[aria-invalid="true"] { border-color: var(--danger); }
 .pp-sheet-hint { margin: -6px 0 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
 .pp-sheet-go { width: 100%; height: 48px; justify-content: center; font-size: var(--text-md); }
-.pp-sheet .confirm-block { max-width: none; margin: 0; padding: 14px; background: var(--bg); }
-.pp-sheet .confirm-block .confirm-q { font-size: var(--text-md); color: var(--ink); }
-.pp-sheet .confirm-block .confirm-acts { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-.pp-sheet .confirm-block .confirm-acts .btn { height: 48px; justify-content: center; font-size: var(--text-md); }
-/* A step's way back, before its title: the chevron, turned. */
-.pp-sheet-back { flex: none; width: 36px; height: 44px; margin-left: -10px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
-.pp-sheet-back .icon { transform: scaleX(-1); }
 /* A sheet's list (PhoneSheetRow): 48px rows within the sheet's gutter, the glyph in the muted ink, a chevron on a row
    that opens a step, and a small heading over a group. */
 .pp-sheet-rows { display: flex; flex-direction: column; margin: 0 -8px; }
@@ -2491,41 +2308,23 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    apart, no shadow. The home bar's inset is for 721 to 900px, where no tab bar stands under it (the 720px block). */
 .cl-bulk.pp-bulk { left: 0; right: 0; bottom: 0; transform: none; flex-wrap: nowrap; gap: 4px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)) 4px; border-width: 1px 0 0; border-radius: 0; box-shadow: none; animation: none; }
 .cl-bulk.pp-bulk .cl-bulk-count { flex: 1 1 auto; min-width: 0; margin: 0 0 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-md); }
-.cl-bulk.pp-bulk > .btn, .cl-bulk.pp-bulk > .more-wrap, .cl-bulk.pp-bulk > .pp-bar-icon { flex: none; }
-.cl-bulk.pp-bulk .btn { padding: 0 14px; font-size: var(--text-md); }
+.cl-bulk.pp-bulk > .btn { flex: none; }
 
 @media (max-width: 900px) {
   /* People's rows and Leads': one card cell each (plRowCard: plCardCell, ldCardCell), edge to edge, a hairline between
      -- the Inbox's list, one list to the eye on both scopes. The wrap's box and its 16px margin are a desktop's. */
-  .clients .pl-table-wrap { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+  .clients .pl-table-wrap { margin: 0; border: 0; border-radius: 0; background: transparent; }
   .clients .cl-table-foot { padding: 12px 16px; border-top: 0; background: transparent; }
   .pl-table tbody tr.pl-card-row { display: block; position: relative; padding: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
   /* A tap is not a keyboard's cursor: the accent edge and the hover ground belong to the desktop's J and K. */
   .pl-table tbody tr.pl-card-row.focused { background: transparent; box-shadow: none; }
   .pl-table tbody tr.pl-card-row.selected { background: var(--pl-selected); }
   .pl-table tbody tr.pl-card-row > td.pl-card-cell { display: block; min-width: 0; padding: 0; border: 0; }
-  /* The row every list wears on a phone: tokens.css's --row-*, so the Inbox's, Conversations', Live's and a
-     lead's are this one row, part for part. */
-  .pl-card { display: grid; grid-template-columns: var(--row-face) minmax(0, 1fr) auto; column-gap: var(--row-gap); row-gap: var(--row-line-gap); align-items: center; padding: var(--row-pad-y) var(--row-pad-x); }
-  .pl-card-face { grid-column: 1; grid-row: 1 / span 3; align-self: start; flex: none; width: var(--row-face); height: var(--row-face); }
-  .pl-card:not(:has(> .pl-card-lead)) .pl-card-face { grid-row: 1 / span 2; }
-  .pl-card-tick { display: none; }
-  .pl-card-name { grid-column: 2; grid-row: 1; min-width: 0; font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--row-name-line); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pl-card > .pill { grid-column: 3; grid-row: 1; justify-self: end; }
-  .pl-card-lead { grid-column: 2 / 4; min-width: 0; font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pl-card-lead::first-letter { text-transform: uppercase; }
-  .pl-card-facts { grid-column: 2 / 4; min-width: 0; display: flex; align-items: center; gap: var(--row-gap); font-size: var(--row-facts); line-height: var(--row-facts-line); color: var(--ink-dim); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+  /* The row every list wears on a phone is the kit's list row (plRowCard draws it, kit.css), through tokens.css's --row-*,
+     so the Inbox's, Conversations', Live's and a lead's are this one row, part for part. What stays here is what the
+     page puts on the facts' line: the next visit and when you last spoke, a lead's reach and rating. */
   .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-muted); font-weight: var(--weight-medium); }
   .pl-card-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  /* A line of its own under the facts (plRowCard `tail`): the Pipeline's next step. */
-  .pl-card-tail { grid-column: 2 / 4; min-width: 0; display: flex; font-size: var(--row-facts); line-height: var(--row-facts-line); white-space: nowrap; overflow: hidden; }
-  /* A lead's face is its mark or its listing's photo over its initials, round as a person's is; a photo that will not
-     load leaves the initials (plRowCard). */
-  .pl-card-face { position: relative; overflow: hidden; }
-  .pl-card-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
-  /* A logo is contained on its light plate (--mark-plate), never cropped to the circle: 16% keeps a square logo's
-     corners inside it. */
-  .pl-card-mark { object-fit: contain; padding: 16%; box-sizing: border-box; background: var(--mark-plate); box-shadow: inset 0 0 0 1px var(--line); }
   /* A lead's facts: whether a phone and a mailbox reach it (the reach shapes, leads.css's tones), then its rating. */
   .pl-card-reach { flex: none; display: inline-flex; align-items: center; gap: 4px; }
   .pl-card-reach .ld-slot-shape svg { width: 12px; height: 12px; }
@@ -2539,17 +2338,11 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 @media (max-width: 900px) {
   /* The face is the checkbox (tap a face to select): the row's own box lies over the face, a thumb wide and unseen, so a
      tap there selects and a tap on the rest opens the person. While anyone is selected every face is a ring and a
-     picked one the ink with its tick, and a tap anywhere on a row selects it (clients-a.jsx, the table's onOpen). */
+     picked one the ink with its tick (the kit's face, its `pick`, which plRowCard is told by the table), and a tap
+     anywhere on a row selects it (clients-a.jsx, the table's onOpen). */
   .pl-table tbody tr.pl-card-row > td.cl-sel { position: absolute; left: 10px; top: 6px; z-index: 1; display: block; width: 44px; height: 44px; padding: 0; border: 0; }
   .pl-table tbody tr.pl-card-row > td.cl-sel .cl-check { display: block; width: 44px; height: 44px; margin: 0; opacity: 0; cursor: pointer; }
-  .pl-table tbody tr.pl-card-row:has(.cl-check:focus-visible) .pl-card-face { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .pl-table-wrap.selecting tr.pl-card-row .pl-card-face { background: transparent; border: 1.5px solid var(--line-strong); }
-  .pl-table-wrap.selecting tr.pl-card-row .pl-card-initials, .pl-table-wrap.selecting tr.pl-card-row .pl-card-glyph, .pl-table-wrap.selecting tr.pl-card-row .pl-card-photo { visibility: hidden; }
-  .pl-table tbody tr.pl-card-row.selected .pl-card-face { background: var(--ink); border-color: var(--ink); color: var(--bg); }
-  .pl-table tbody tr.pl-card-row.selected .pl-card-tick { display: block; }
-  .pl-table tbody tr.pl-card-row.selected .pl-card-initials, .pl-table tbody tr.pl-card-row.selected .pl-card-glyph { display: none; }
-  /* The list keeps room under its last row for the selection's docked row (.pp-bulk), both scopes. */
-  .pl-table-wrap.selecting { margin-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .pl-table tbody tr.pl-card-row:has(.cl-check:focus-visible) .pl-card > span:first-child { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A toast rises over the docked row rather than covering it: its Undo and the row's ✕ are both a thumb's. From 721
      to 900px the row stands at the screen's foot, where toasts sat 14px up (mobile.css). */
   body:has(.cl-bulk.pp-bulk) .pp-toast-stack { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
@@ -2565,38 +2358,41 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 @media (max-width: 900px) {
   /* A cell of the phone's Lists sheet is its track's width, so what is picked and what is pressed is the whole cell:
      a row was as wide as its words, and Everyone's picked ground a box around two words. */
-  .pl-sheet .cl-rail-row { width: 100%; text-align: left; }
+  .pl-lists .cl-rail-row { width: 100%; text-align: left; }
   /* The sheet, compact (Ruben, 24 Sep: "too cluttered, takes most of the screen"). Its lists stand two to a row, as
      the Inbox's buckets do: the name and its count on one line, the picked one raised on the rail's own ground. One
      level of heading names each block (People's groups, Leads' Lists and Searches, the Pipeline's sections); a list
      with nobody in it is said in the block's one quiet line (RailEmpty), not drawn. What stands across the sheet:
      Everyone, a search with its menu, a heading, a hint, the quiet line and a box being filled in. */
-  .pl-sheet .cl-rail-section { padding: 6px 8px; }
-  .pl-sheet .cl-rail-section,
-  .pl-sheet .cl-rail-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 6px; }
-  .pl-sheet .cl-rail-section > :not(.cl-rail-row),
-  .pl-sheet .cl-rail-group > :not(.cl-rail-row),
-  .pl-sheet .cl-rail-row.has-acts,
-  .pl-sheet .cl-rail-everyone > .cl-rail-row { grid-column: 1 / -1; }
-  .pl-sheet .cl-rail-group + .cl-rail-group { margin-top: 6px; }
-  .pl-sheet .cl-rail-label,
-  .pl-sheet .cl-rail-group-label { margin: 0; padding: 4px 10px 2px; }
+  .pl-lists .cl-rail-section { padding: 6px 8px; }
+  .pl-lists .cl-rail-section,
+  .pl-lists .cl-rail-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 6px; }
+  .pl-lists .cl-rail-section > :not(.cl-rail-row),
+  .pl-lists .cl-rail-group > :not(.cl-rail-row),
+  .pl-lists .cl-rail-row.has-acts,
+  .pl-lists .cl-rail-everyone > .cl-rail-row { grid-column: 1 / -1; }
+  .pl-lists .cl-rail-group + .cl-rail-group { margin-top: 6px; }
+  .pl-lists .cl-rail-label,
+  .pl-lists .cl-rail-group-label { margin: 0; padding: 4px 10px 2px; }
   /* The cell's height is the padding's on a mouse and the touch floor's 44px on a thumb (legacy.css): a min-height
      here would outrank that floor. */
-  .pl-sheet .cl-rail-row { padding: 9px 10px; font-size: var(--text-sm); }
-  .pl-sheet .cl-rail-row.has-acts { padding: 0 4px 0 0; }
-  .pl-sheet .cl-rail-row .count { font-size: var(--text-sm); }
-  .pl-sheet .cl-rail-empty { margin: 0; padding: 2px 10px 4px; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
+  .pl-lists .cl-rail-row { padding: 9px 10px; font-size: var(--text-sm); }
+  .pl-lists .cl-rail-row.has-acts { padding: 0 4px 0 0; }
+  .pl-lists .cl-rail-row .count { font-size: var(--text-sm); }
+  .pl-lists .cl-rail-empty { margin: 0; padding: 2px 10px 4px; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
   /* New list is a quiet row under Saved, not a dashed box in a footer of its own. */
-  .pl-sheet .cl-rail-foot { margin: 0; padding: 0 8px 4px; border-top: 0; }
-  .pl-sheet .cl-rail-newseg { justify-content: flex-start; padding: 9px 10px; border: 0; font-size: var(--text-sm); color: var(--ink-muted); }
+  .pl-lists .cl-rail-foot { margin: 0; padding: 0 8px 4px; border-top: 0; }
+  .pl-lists .cl-rail-newseg { justify-content: flex-start; padding: 9px 10px; border: 0; font-size: var(--text-sm); color: var(--ink-muted); }
 }
 
-/* ---- The table in sections (people-table.jsx `sections`): the Pipeline's stages, People › Pipeline (0008) -------
+/* ---- The table in sections (surfaces/people/table/table.tsx `sections`): the Pipeline's stages, People › Pipeline (0008) -------
    A section's head is a row of its own across every column: its name, how many (the one count, `.tally`), and what
    they come to, in the table's own small ink-dim, on the rows' ground, with a hairline under it; a folded section's
    toggle is a quiet word at the line's end. It is words, not a row to press: no pointer, no hover, and the cursor
    passes it (it has no id). */
+/* The foot of a long table's window (surfaces/people/table/row-window.ts PL_WINDOW_ROWS): a row with nothing in it, there to be watched. */
+.cl-table tbody tr.pl-foot, .pl-table tbody tr.pl-foot { display: block; height: 1px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+.cl-table tbody tr.pl-foot > td { display: none; }
 .cl-table tbody tr.pl-sec-head { cursor: default; }
 .cl-table tbody tr.pl-sec-head:hover { background: transparent; }
 .pl-sec-head > th { padding: 14px 12px 6px; text-align: left; font-size: var(--text-xs); font-weight: var(--weight-regular); line-height: 18px; color: var(--ink-dim); background: var(--bg); border-bottom: 1px solid var(--line); }
@@ -2630,7 +2426,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .pl-table tbody tr.pl-sec-head:hover { background: transparent; }
 }
 
-/* ---- People › Pipeline (pipeline-scope.jsx): the rows' own cells ------------------------------------------------
+/* ---- People › Pipeline (surfaces/people/pipeline/): the rows' own cells ------------------------------------------------
    The service in the muted ink beside the person's name, the value in the row's ink and tabular figures, the time in
    stage in the dim small type the table keeps for dates. The chip is the one state pill (StatePill), in its tone and
    at its one size: this page adds none of its own. */
@@ -2638,7 +2434,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .cl-table td.pipe-value { color: var(--ink); }
 .pipe-card-value { flex: none; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 
-/* ---- People › Pipeline as a workspace (pipeline-scope.jsx, pipeline-peek.jsx, pipeline-board.jsx) ---------------
+/* ---- People › Pipeline as a workspace (surfaces/people/pipeline/: scope.tsx, peek.tsx, board.tsx) ---------------
    The view switch is the house's small tab pair (cl-tabs) at the controls row's right. The peek is the lead peek's
    pane (leads.css .pk: 408px beside the rows on a desk, the screen on a phone) with the person page's own deal card
    inside it, frameless -- a box in a box said nothing -- then the row's quiet facts and the two doors as words. The
@@ -2674,14 +2470,14 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-card.is-dragging { opacity: .4; }
 .pipe-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pipe-card-face { flex: none; width: 24px; height: 24px; font-size: 9px; }
-.pipe-card-name { min-width: 0; font-size: 12.5px; font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipe-card-name { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-card-service { font-size: 12px; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-card-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .pipe-card-value { color: var(--ink); }
 .pipe-card-stage { color: var(--ink-dim); }
 .pipe-card > .pill { align-self: flex-start; }
 
-/* ---- People › Pipeline finds its way (pipeline-scope.jsx, pipeline-new.jsx) --------------------------------------
+/* ---- People › Pipeline finds its way (surfaces/people/pipeline/: scope.tsx, new.tsx) --------------------------------------
    The rail is People's rail kit with the Pipeline's own rows. New proposal is the page's one filled button, at the
    controls row's right; its picker is a record sheet on a desk and a phone sheet: a search box, the first eight people
    as quiet rows (face, name, where their deal stands), and Add someone new as words that open two fields. */
@@ -2692,7 +2488,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-new-search:focus-within { border-color: var(--ink-faint); background: var(--bg); }
 .pipe-new-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--text-base); color: var(--ink); }
 .pipe-new-list { list-style: none; margin: 0 -8px; padding: 0; display: flex; flex-direction: column; }
-.pipe-new-row { width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 7px 8px; border: 0; border-radius: var(--radius-sm); background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
+.pipe-new-row { width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 7px 8px; border: 0; background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
 .pipe-new-row:hover { background: var(--bg-hover); }
 .pipe-new-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .pipe-new-face { grid-row: 1 / span 2; width: 28px; height: 28px; font-size: 10px; }
@@ -2710,7 +2506,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .pipe-new-go { align-self: stretch; min-height: 44px; justify-content: center; }
 }
 
-/* ---- People › Pipeline, the row carries the deal (pipeline-row.jsx, pipeline-scope.jsx, pipeline-peek.jsx) -------
+/* ---- People › Pipeline, the row carries the deal (surfaces/people/pipeline/: row.tsx, scope.tsx, peek.tsx) -------
    The track is the deal card's three quiet steps at a row's size (clients.css .cl-prof-deal-bar): a 3px bar each,
    done in the dim ink, where it stands in its tone, what is ahead the hairline; two bars where no consultation was
    held. Beside it the time in stage, as before. A group's head holds under the table's own while its rows scroll.
@@ -2736,7 +2532,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-row-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 :is(.pipe-next, .pipe-card-next, .pipe-row-next)[data-due]:not([data-due="ahead"]) .pipe-next-when { color: var(--warn-ink); font-weight: 500; }
 .pipe-card .pipe-track { margin-top: 2px; }
-.pl-card-facts .pipe-track { align-self: center; }
+.pl-card .pipe-track { align-self: center; }
 @media (min-width: 901px) {
   /* Under the table's own head (--pl-head, its one height), above the pinned cells even hovered or focused (z 2). */
   .pipe-scope .pl-table tbody tr.pl-sec-head > th { position: sticky; top: var(--pl-head, 39px); z-index: 3; }
@@ -2760,18 +2556,1169 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-pass { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pipe-pass-ask { font-size: var(--text-sm); color: var(--ink); }
 .pipe-pass-rest { font-size: 12px; color: var(--ink-dim); }
-.pipe-peek-reach { margin: 0; padding: 14px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 8px 14px; font-size: 12.5px; }
+.pipe-peek-reach { margin: 0; padding: 14px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 8px 14px; font-size: var(--text-sm); }
 .pipe-peek-reach-row { display: contents; }
 .pipe-peek-reach-label { color: var(--ink-dim); }
 .pipe-peek-reach-what { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-width: 0; }
 .pipe-peek-reach-words { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
 .pipe-peek-history { padding-top: 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
 .pipe-peek-head { margin: 0; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink-dim); }
-.pipe-peek-history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.pipe-peek-history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); }
 .pipe-peek-history-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--ink-muted); }
 .pipe-peek-when { flex: none; color: var(--ink-dim); font-size: 12px; font-variant-numeric: tabular-nums; }
 .pipe-peek-bar { display: none; }
 @media (max-width: 900px) {
   .pipe-peek-bar { display: flex; gap: 10px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--bg); }
   .pipe-peek-bar > .btn { flex: 1; min-height: 44px; justify-content: center; }
+}
+
+/* ====================================================================
+   Glass: People (the plan's step 5.4, canvases P1 and P2)
+   A rail and a list, two clear panes on the page's light under the head Glass adds (kit/head), 24px in from the window as
+   the scope strip is. Inside a pane every row and field is an inset, never glass on glass, and coral is the one act. Each
+   rule names the look inside :where(), so it weighs what the rule it restyles weighs and comes after it; none matches in
+   Classic. The head is the frame's (kit/head/frame-head.tsx), so the rules hold on the look alone.
+   ==================================================================== */
+@media (width > 900px) {
+  .main-scroll > .clients {
+    --rail-nav: 208px;
+    height: auto;
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 0 var(--gutter-page) 16px;
+    column-gap: 14px;
+    background: transparent;
+  }
+  /* The head stands in the page's own gutter, where the scope strip and the panes do. */
+  .main-scroll:has(> .clients) > header:first-child {
+    padding-inline: 24px;
+  }
+
+  /* The rail (P1): a pane of its own with 14px inside it, its groups on the pane with no rules between them; Everyone a
+     32px row at 600 (the lozenge while picked), every other list a 30px row at 500 in the muted ink with 12px corners,
+     its count in the dim ink and a count of nothing in the faint (rail-kit.tsx says which); the group names in the
+     mono face; New list the full-width inset capsule at the foot. */
+  .main-scroll .cl-rail {
+    padding: 14px 0 0;
+    border: 0;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+  }
+  .main-scroll .cl-rail-section {
+    padding: 0 14px;
+  }
+  .main-scroll .cl-rail-section + .cl-rail-section {
+    margin-top: 10px;
+    border-top: 0;
+  }
+  .main-scroll .cl-rail-everyone {
+    padding-bottom: 6px;
+  }
+  .main-scroll :is(.cl-rail-label, .cl-rail-group-label) {
+    margin: 0;
+    padding: 0 10px 6px;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-regular);
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
+  }
+  /* The canvases' rail (P1, L1) opens with its rows under their groups' names: the one label with a glyph before it
+     ("Smart lists") says nothing a group's name does not. */
+  .main-scroll .cl-rail-label:has(> svg) {
+    display: none;
+  }
+  .main-scroll .cl-rail-row {
+    width: 100%;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: var(--radius-lg);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    text-align: left;
+    color: var(--ink-muted);
+  }
+  .main-scroll .cl-rail-everyone .cl-rail-row {
+    height: 32px;
+    font-weight: var(--weight-semibold);
+    color: var(--ink);
+  }
+  .main-scroll .cl-rail-row .count {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--ink-dim);
+  }
+  .main-scroll .cl-rail-row.asks .count {
+    font-weight: var(--weight-semibold);
+    color: var(--warn-ink);
+  }
+  .main-scroll .cl-rail-row .count[data-zero] {
+    font-weight: var(--weight-regular);
+    color: var(--ink-faint);
+  }
+  .main-scroll .cl-rail-row:hover {
+    background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
+    color: var(--ink);
+  }
+  .main-scroll .cl-rail-row.active {
+    background: var(--selected-fill);
+    box-shadow: var(--selected-depth);
+    color: var(--ink);
+  }
+  /* A row with acts of its own (a search's, with its menu) is its pick and its acts side by side: the pick carries
+     the row's 10px, once, at the row's height. */
+  .main-scroll .cl-rail-row.has-acts {
+    padding: 0 4px 0 0;
+  }
+  .main-scroll .cl-rail-pick {
+    height: 30px;
+    padding: 0 4px 0 10px;
+  }
+  .main-scroll .cl-rail-foot {
+    padding: 10px 18px 14px;
+    border-top: 0;
+  }
+  .main-scroll .cl-rail-newseg {
+    height: 32px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--ink);
+  }
+
+  /* The list: a clear pane with the look's rim. The page's standing line is the head's sentence now. */
+  .main-scroll .cl-main {
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+  }
+  .main-scroll .cl-main::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-pane-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+  .main-scroll .pl-standing {
+    display: none;
+  }
+  /* The controls (P1): the search a 36px capsule 320 wide (its parts reached by their place: its class is a primitive's
+     word), Add a person the inset capsule, Columns and the menu words at the same height; under them the list's name at
+     600 with what it is beside it. */
+  .main-scroll .cl-controls {
+    gap: 8px;
+    padding: 14px 18px 12px;
+    border-bottom: 0;
+    background: transparent;
+  }
+  .main-scroll .cl-search-wrap {
+    gap: 9px;
+    height: 36px;
+    max-width: 320px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    color: var(--ink-dim);
+  }
+  .main-scroll .cl-controls > :first-child > .icon {
+    width: 15px;
+    height: 15px;
+    color: var(--ink-dim);
+  }
+  .main-scroll .cl-controls > :first-child > input {
+    font-size: var(--text-base);
+  }
+  .main-scroll .cl-controls .cl-controls-right > :not([data-testid="add-person"]) > button {
+    height: var(--control-h-md);
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius-full);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--ink-muted);
+  }
+  .main-scroll .cl-section {
+    padding: 4px 18px 12px;
+  }
+  /* The section keeps its 12px under the list's name, as Leads' list head does: the head's own 8px stood in for the
+     section's bottom when that was 0 (the desk's head rules above), and on top of the 12px it set People's table 8px
+     after Leads' (e2e/people/people.spec.ts holds the two heads alike). */
+  .main-scroll .cl-section > .cl-section-head {
+    margin-bottom: 0;
+  }
+  .main-scroll .cl-section-title {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+  }
+  .main-scroll .cl-section-sub {
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
+  }
+  /* The table sits on the pane itself, as the canvases draw it (P1, L1, D1): rows told apart by hairlines, no box of
+     its own. Its pinned cells and its sticky head paint their own ground over the rows that pass under (--pl-row), so
+     that ground is the pane's solid: the token that lays the pane's fill over the page, opaque. */
+  .main-scroll .cl-table-wrap {
+    margin: 0 8px;
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .main-scroll .pl-table {
+    --pl-row: transparent;
+    --pl-hover: color-mix(in oklab, var(--surface-pane-solid) 92%, var(--ink));
+  }
+  /* A pinned cell paints its own ground only once the rows have scrolled sideways under it. */
+  .main-scroll .pl-table-scroll.scrolled .pl-table {
+    --pl-row: var(--surface-pane-solid);
+  }
+  .main-scroll .pl-table tbody tr:hover,
+  .main-scroll .pl-table tbody tr.focused {
+    --pl-row: var(--pl-hover);
+    background: transparent;
+    box-shadow: none;
+  }
+  .main-scroll .pl-table tbody tr.selected {
+    --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--surface-pane-solid);
+    background: transparent;
+  }
+  /* A row as the canvas sets it (P1): 10px over and under its cells, 18px at the pane's sides past the 8px the wrap
+     keeps, no hairline between rows; the one under a pointer, the cursor's and a picked one a lozenge of the inset's
+     corners, drawn on the cells so the corners round (a table row has none). The face 28px in --face-fill, the name at
+     600, their words and the state's detail under them in the dim ink, every other cell at the small step. */
+  .main-scroll .cl-table tbody tr,
+  .main-scroll .pl-table tbody tr > td {
+    border-bottom: 0;
+  }
+  .main-scroll .cl-table td {
+    padding: 10px 6px;
+  }
+  .main-scroll .cl-table td:first-child,
+  .main-scroll .cl-table thead th:first-child {
+    padding-left: 18px;
+  }
+  .main-scroll .cl-table td:last-child,
+  .main-scroll .cl-table thead th:last-child {
+    padding-right: 18px;
+  }
+  .main-scroll .cl-table :is(th, td).cl-sel {
+    width: 24px;
+  }
+  /* Pinned after the select column's whole width: its 24px and the 18px the table's first cell pads. At 24px the Person
+     column slid 18px under the boxes as the table scrolled sideways. */
+  .main-scroll .pl-table .cl-sel + .pl-pin {
+    left: 42px;
+  }
+  .main-scroll .pl-table tbody tr:is(:hover, .focused) > td {
+    background: var(--pl-hover);
+  }
+  /* The cursor's row is the lozenge, not the accent's edge Classic draws down its first cell. */
+  .main-scroll .pl-table tbody tr.focused > td:first-child {
+    box-shadow: none;
+  }
+  .main-scroll .pl-table tbody tr.selected > td {
+    background: var(--bubble-us-bg);
+  }
+  .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:first-child {
+    border-top-left-radius: var(--surface-inset-radius);
+    border-bottom-left-radius: var(--surface-inset-radius);
+  }
+  .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:last-child {
+    border-top-right-radius: var(--surface-inset-radius);
+    border-bottom-right-radius: var(--surface-inset-radius);
+  }
+  .main-scroll .cl-table td.dim {
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+  }
+  .main-scroll .cl-row-name {
+    gap: 10px;
+  }
+  .main-scroll .cl-row-fullname {
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+  }
+  .main-scroll :is(.cl-row-words, .cl-row-state-detail) {
+    font-size: var(--text-xs);
+    color: var(--ink-dim);
+  }
+  /* The box for a selection: a 16px square of the inset's fill, faint until a pointer reaches the row or it is picked
+     (the base rule), checked in ink. */
+  .main-scroll .cl-check {
+    appearance: none;
+    position: relative;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+  }
+  .main-scroll .cl-check:checked {
+    background: var(--count-fill);
+    box-shadow: none;
+  }
+  .main-scroll .cl-check:checked::after {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--count-ink);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+  }
+  .main-scroll .cl-check:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  /* What a list says it can do for the people on it (the broadcast's door) is an inset too. */
+  .main-scroll .cl-list-action {
+    margin: 0 10px 12px;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: var(--radius-xl);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+  }
+  .main-scroll .cl-list-action-text {
+    font-size: var(--text-base);
+    color: var(--ink);
+  }
+  /* The head is clear on the pane, as the canvases draw it; it stays sticky, so it blurs the rows that pass under it. */
+  .main-scroll .cl-table thead th,
+  .main-scroll .pl-table thead th.cl-sel,
+  .main-scroll .pl-table thead th.pl-pin {
+    padding: 6px 6px 8px;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
+    background: transparent;
+    backdrop-filter: blur(var(--blur-md));
+  }
+  /* The foot (P1): how many, at the small step, over a hairline; the keys are the ? sheet's, never drawn here. */
+  .main-scroll .cl-table-foot {
+    padding: 12px 10px 14px;
+    border-top: 1px solid var(--line);
+    background: transparent;
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
+  }
+  /* The bar a selection becomes is the control layer: glass, a capsule, floating at the foot of the pane. */
+  .main-scroll .cl-bulk {
+    bottom: 22px;
+    gap: 6px;
+    height: 48px;
+    padding: 0 8px 0 18px;
+    border: 0;
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    backdrop-filter: var(--surface-control-blur);
+    box-shadow: var(--surface-control-depth);
+  }
+  .main-scroll .cl-bulk-count {
+    margin-right: 8px;
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    color: var(--ink);
+  }
+
+  /* ---- The parity pass (2 October 2026, against canvas P1 and P2) ---- */
+
+  /* The select-all box is the rows' box, not a fixture of the head: it shows when a pointer is over the table, a key is
+     in it or anyone is picked, as a row's own does. */
+  .main-scroll .cl-table th .cl-check {
+    opacity: 0;
+  }
+  .main-scroll .cl-table-wrap:is(:hover, :focus-within, .selecting) th .cl-check,
+  .main-scroll .cl-table th .cl-check:checked {
+    opacity: 1;
+  }
+  /* A row's words and its state's detail say a line each and end in an ellipsis, so the Person column stays the width
+     the canvas gives it and the table fits the pane at 1440 without a bar across it. */
+  .main-scroll .cl-row-words {
+    max-width: 24ch;
+  }
+  .main-scroll .cl-row-visit {
+    display: block;
+    max-width: 132px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Columns is its word alone, as the canvas draws it (P1); the eye was Classic's. */
+  .main-scroll [data-testid="people-columns"] > svg {
+    display: none;
+  }
+  /* The list's next step is an inset the way the canvas draws it (P2): the door a white capsule, never the page's coral,
+     which is the live thread's alone. Its words sit at the base step in the ink. */
+  .main-scroll .cl-list-action > button {
+    height: var(--control-h-md);
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--ink);
+  }
+}
+
+/* On a phone the head is the date and the name; where the page stands is said once, in the line under the list's picker. */
+@media (max-width: 900px) {
+  .main-scroll:has(> .clients) > header .pg-sentence {
+    display: none;
+  }
+  /* The list picked stands 4px under the strip, as the Inbox's buckets and Conversations' channels do (inbox.css,
+     conversations.css): the strip is the frame's, in its slot, for People as for them. */
+  .main:has(> .main-scroll > .clients) .pg-slot {
+    padding-bottom: 4px;
+  }
+  /* The page's light shows through, as it does behind the Inbox and as it does behind People on a desk: the page stood on
+     the flat ground (--bg) and hid the pools. */
+  .main-scroll > .clients {
+    background: transparent;
+  }
+  /* The top is the Inbox's, tier for tier (inbox.css, the buckets and the search under the strip): the list picked as
+     quiet words at the strip's sides, as the Inbox's buckets stand, with its count beside the name and the page's menu a
+     bare glyph at the right; then the search as the Inbox's capsule, 38px on an inset's fill, at 12; the standing line
+     and the rows under them. Nothing is a capsule of its own but the strip and the search. */
+  .pp-bar {
+    gap: 8px;
+    min-height: 34px;
+    padding: 0 16px;
+  }
+  .pp-bar .pp-bar-pick {
+    height: 34px;
+    min-height: 0;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+  }
+  .pp-bar .pp-bar-pick-count {
+    margin-left: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--ink-dim);
+  }
+  /* The page's menu is the row's height, not the touch floor's: the 44 it grows to is an invisible target instead. */
+  html.legacy-on .pp-bar .pp-bar-push > button {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    min-height: 0;
+  }
+  .pp-bar .pp-bar-push > *::after {
+    content: "";
+    position: absolute;
+    inset: -5px;
+  }
+  .pp-bar .pp-bar-icon {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    border-radius: var(--radius-circle);
+    background: none;
+    box-shadow: none;
+    color: var(--ink-muted);
+  }
+  .pp-lookup {
+    gap: 8px;
+    padding: 6px 12px 10px;
+  }
+  /* The resting capsule is a button, so the touch floor (legacy.css, html.legacy-on button) is named over: two classes
+     outweigh it. */
+  .pp-lookup > :is(.pp-lookup-rest, .pp-lookup-box) {
+    height: 38px;
+    min-height: 0;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    font-size: var(--text-base);
+    color: var(--ink-dim);
+  }
+  .pp-lookup > .pp-lookup-box:focus-within {
+    box-shadow:
+      var(--focus-ring),
+      var(--surface-inset-depth);
+  }
+  .pp-lookup-cancel {
+    padding: 0 4px;
+    font-size: var(--text-base);
+  }
+  /* A row is one person on the page itself, as the Inbox's is: a lozenge inset from the sides, no line between two, and
+     the pressed one the selected fill. */
+  .clients .pl-table-wrap {
+    padding: 2px 4px;
+    border-top: 0;
+  }
+  .pl-table tbody > tr[id] {
+    width: calc(100% - 16px);
+    margin: 0 8px 2px;
+    border-bottom-color: transparent;
+    border-radius: var(--surface-row-radius);
+  }
+  .pl-table tbody > tr[id]:hover {
+    background: color-mix(in oklab, var(--selected-fill) 55%, transparent);
+  }
+  /* Under the search the line is a caption: what the rows are, said once, small and dim, so the first person stays on
+     the first screen under the Inbox's tiers. */
+  .pl-standing {
+    padding: 0 16px 6px;
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
+  }
+  .pl-standing-needs {
+    font-weight: var(--weight-medium);
+    color: var(--warn-ink);
+  }
+
+  /* ---- The parity pass (2 October 2026, the phone) ---- */
+
+  /* A selection takes the foot, as an open thread does: the bar is the kit's capsule, docked (data-dock, mobile.css: the
+     tab bar and Ask's circle stand down) 12px in from the sides over rows that scroll under it, so it blurs them. Its
+     clear, its act and its more are the kit's buttons; the page places them and sets the count at the base step. The rows
+     keep room under their last, and a picked row is the pick's tint where Classic laid a band. */
+  .cl-bulk.pp-bulk {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    gap: 6px;
+    height: 52px;
+    padding: 0 8px;
+    border: 0;
+    backdrop-filter: var(--surface-control-blur);
+  }
+  .cl-bulk.pp-bulk .cl-bulk-count {
+    font-size: var(--text-base);
+    color: var(--ink);
+  }
+  .pl-table-wrap.selecting {
+    margin-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  .pl-table-wrap.selecting tbody tr.selected {
+    background: var(--bubble-us-bg);
+  }
+  /* The sheets People raises from the foot (the lists, and the small jobs) are the pop layer's ground with the pane's
+     corners, as the kit's own sheet is on a phone: reached by their test ids, since their classes are a primitive's
+     word. */
+  :is(
+      [data-testid="people-lists-sheet"],
+      [data-testid="add-person-sheet"],
+      [data-testid="list-act-sheet"],
+      [data-testid="bulk-sheet"],
+      [data-testid="pipeline-new-sheet"]
+    ) {
+    border: 0;
+    border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0;
+    background: var(--surface-pop-solid);
+    box-shadow: var(--surface-pop-depth);
+  }
+  /* The boxes a sheet asks into, and the bar's search once it is opened, are the insets the Inbox's search is: a capsule
+     of the inset's fill with its ring, the focus ring over it. */
+  :is(
+      [data-testid="add-person-sheet"],
+      [data-testid="list-act-sheet"],
+      [data-testid="bulk-sheet"],
+      [data-testid="pipeline-new-sheet"]
+    ) input {
+    padding: 0 18px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+  }
+  :is(
+      [data-testid="add-person-sheet"],
+      [data-testid="list-act-sheet"],
+      [data-testid="bulk-sheet"],
+      [data-testid="pipeline-new-sheet"]
+    ) input:focus {
+    border: 0;
+    box-shadow:
+      var(--focus-ring),
+      var(--surface-inset-depth);
+  }
+}
+
+/* ====================================================================
+   Glass: a person (the plan's step 5.4, canvas P3; reviewed against it and the phone board 2 October 2026)
+   One quiet record as clear panes on the page's light: what is coming, their deal and what has happened each a pane in
+   the column, and the card of what is known its panes in a column beside them (360 wide, 14 between). The head is the
+   page's own: the face in --face-fill, the name at the hero step with the standing's dot and word beside it, the wires
+   and the sentence of what happens next under it, the thread's button in coral and More an inset capsule. Rows and
+   fields inside a pane are insets. Each rule names the look inside :where() and none matches in Classic; a part whose
+   class is a primitive's word (the face, the pill, the mark, the input) is reached by its place.
+   ==================================================================== */
+.cl-profile {
+  background: transparent;
+}
+.cl-prof-page {
+  gap: 20px;
+}
+/* The head. */
+.cl-prof-hero {
+  gap: 12px 16px;
+  align-items: center;
+}
+.cl-prof-id {
+  gap: 16px;
+  align-items: center;
+}
+.cl-prof-titles {
+  gap: 4px;
+}
+.cl-prof-name {
+  font-size: var(--text-hero);
+  line-height: 1.1;
+}
+.cl-prof-name-line {
+  gap: 4px 12px;
+}
+.cl-prof-now > :first-child {
+  gap: 6px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+.cl-prof-now > :first-child::before {
+  width: 7px;
+  height: 7px;
+}
+.cl-prof-meta {
+  font-size: var(--text-base);
+  color: var(--ink-dim);
+}
+.cl-prof-now-why {
+  font-size: var(--text-base);
+  color: var(--ink-muted);
+}
+.cl-prof-hero > .cl-prof-queue-actions {
+  gap: 8px;
+}
+/* The panes: what is coming, their deal, what has happened, and the card's each one, with the look's rim. */
+.cl-prof-body {
+  gap: 14px;
+}
+.cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
+.cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
+  position: relative;
+  padding: 18px;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+.cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up)::after,
+.cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.cl-prof-rail {
+  --rec-key: 96px;
+  --rec-gutter: 16px;
+  gap: 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
+  padding: 16px;
+}
+.cl-prof-rail > .cl-prof-rec {
+  padding: 8px var(--rec-gutter);
+}
+.cl-prof-section-head {
+  margin-bottom: 8px;
+}
+.cl-prof-section-title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+}
+.cl-prof-rail-label {
+  margin-bottom: 4px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+/* What is coming: the day as an inset tile, the visit's words beside it. */
+.cl-prof-up-visit {
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.cl-prof-up-leaf {
+  width: 46px;
+  height: 46px;
+  justify-content: center;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+}
+.cl-prof-up-month {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+.cl-prof-up-date {
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+.cl-prof-up-title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.cl-prof-up-when {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* The deal card is an inset of the pane. */
+.cl-prof-deal-card {
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+}
+/* What has happened: the filters as words on a hairline, the picked one underlined in ink; a day's name in the mono
+   face over its rows, with no line down the column; a row its 26px mark (the face, an inset square for a thing that
+   happened), who at 600 in the muted ink, the words at the base step, the time in the mono face at the right. */
+.cl-prof-timeline {
+  gap: 0;
+}
+.cl-prof-timeline::before {
+  display: none;
+}
+.cl-prof-history .cl-tl-day {
+  margin: 0;
+  padding: 14px 0 6px;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+.cl-prof-history .cl-tl-row {
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 12px;
+  margin: 0;
+  padding: 8px 0;
+  align-items: start;
+}
+.cl-prof-history .cl-tl-row-door:hover,
+.cl-prof-history .cl-tl-row-door:focus-visible {
+  background: transparent;
+}
+.cl-prof-history .cl-tl-row-door:hover .cl-tl-text {
+  text-decoration: underline;
+  text-decoration-color: var(--ink-faint);
+  text-underline-offset: 3px;
+}
+.cl-prof-history .cl-tl-row > :first-child {
+  width: 26px;
+  height: 26px;
+  border: 0;
+}
+.cl-prof-history .cl-tl-row > .client {
+  background: var(--face-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cl-prof-history .cl-tl-row > :is(.event, .session) {
+  border-radius: var(--radius-md);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  color: var(--ink-muted);
+}
+.cl-prof-history .cl-tl-body {
+  padding-bottom: 0;
+}
+.cl-prof-history .cl-tl-head {
+  margin-bottom: 2px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+.cl-prof-history .cl-tl-who {
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+.cl-prof-history .cl-tl-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
+}
+.cl-prof-history .cl-tl-text {
+  font-size: var(--text-base);
+  line-height: 1.45;
+}
+/* The card of what is known: each fact a row of key, value and its door, 9px over and under, hairlines between. */
+.cl-prof-attr {
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: var(--text-base);
+}
+.cl-prof-attr-key {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cl-prof-attr-val {
+  line-height: 1.4;
+}
+.cl-prof-attr-door {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+/* The settings' act is its words and the chevron (P3): the record kit draws the chevron on a phone alone, reached here by
+   its place, since the kit's names are counted. */
+.cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(3) > :last-child {
+  display: inline-flex;
+  color: var(--ink-faint);
+}
+/* Notes: the line to add one a 38px inset capsule (its class is a primitive's word: reached by its test id), a note at
+   the base step. */
+[data-testid="person-notes-input"] {
+  min-height: 38px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  font-size: var(--text-base);
+  line-height: 1.4;
+}
+.cl-prof-note-compose.is-open [data-testid="person-notes-input"] {
+  border-radius: var(--radius-xl);
+}
+[data-testid="person-notes-input"]:focus {
+  box-shadow:
+    var(--focus-ring),
+    var(--surface-inset-depth);
+}
+.cl-prof-note-body {
+  font-size: var(--text-base);
+}
+@media (width > 900px) {
+  /* The hero is the head (canvas P3): the frame draws no name and no way back over it, and the page's own way back goes
+     too, the sidebar's People being the way; a phone keeps it. */
+  .cl-prof-hero > .cl-prof-back {
+    display: none;
+  }
+  .cl-prof-page {
+    padding: 0 var(--gutter-page) 48px;
+  }
+  .cl-prof-body {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+/* A phone (P-phone-person): the page 12px from the sides with 12 between its parts, the panes 16px inside, the face
+   44, the name a step under the hero's, the thread's button filling the row beside More. */
+@media (max-width: 900px) {
+  /* .main-scroll lifts it over the phone block that loads after this sheet (padding 12px 16px 32px), which held the
+     panes 16px in where the boards have them 12, and the head against the way back. */
+  .main-scroll .cl-prof-page {
+    padding: 28px 12px calc(32px + env(safe-area-inset-bottom, 0px));
+    gap: 12px;
+  }
+  .main-scroll .cl-prof-hero {
+    padding: 0 4px;
+  }
+  /* The card of what they may be given reads as the one above it: the key in its column, the value, then the act in its
+     words with the chevron (the record kit's phone row stacks them, and keeps the words for a screen reader). */
+  .cl-prof-rec > div[data-testid^="rec-row-"] {
+    grid-template-columns: var(--rec-key) minmax(0, 1fr) auto;
+    column-gap: 12px;
+    align-items: baseline;
+  }
+  .cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(1) {
+    grid-column: 1;
+  }
+  .cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(2) {
+    grid-column: 2;
+  }
+  .cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(3) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .cl-prof-rec > div[data-testid^="rec-row-"] > :nth-child(3) > :first-child {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+  .cl-prof-hero {
+    gap: 12px;
+  }
+  .cl-prof-name {
+    font-size: var(--text-2xl);
+  }
+  .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
+  .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
+    padding: 16px;
+  }
+  .cl-prof-rail {
+    display: flex;
+  }
+}
+/* The address's pencil is a 22px mark with a thumb's press around it, as the name's is (a 44px box made the Email row 63px
+   tall, 25px of air over a line of words). */
+@media (max-width: 900px) and (pointer: coarse) {
+  html.legacy-on .cl-prof-email .cl-prof-rename:not(.is-plain) {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+  html.legacy-on .cl-prof-email .cl-prof-rename:not(.is-plain)::after {
+    content: "";
+    position: absolute;
+    inset: -11px -8px;
+  }
+}
+
+/* ====================================================================
+   Glass: the Pipeline (the plan's step 5.4, canvases D1 and D2)
+   The same two panes as People's, under the head Glass adds; a group's head is an inset's ground, and the deal a press
+   opens stands beside the list as a pane of its own, the list making room for it, where Classic lays it over the list's
+   edge. Each rule names the look inside :where() and none matches in Classic.
+   ==================================================================== */
+@media (width > 900px) {
+  /* A group's head (D1): its name in the semibold at the rows' size, its count and its meta beside it in the dim ink. */
+  .main-scroll .pl-sec-head > th {
+    padding-top: 16px;
+    font-size: var(--text-sm);
+    background: transparent;
+    backdrop-filter: blur(var(--blur-md));
+  }
+  .main-scroll .pl-sec-head .pl-sec-label {
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    color: var(--ink);
+  }
+  /* Where a deal stands, in words (canvas D1, pipeline/columns.tsx pipeGlassColumns): the chip's words over how long it
+     has stood there, in the dim ink. */
+  .main-scroll .pipe-stands-in {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .main-scroll .pipe-stands-sub {
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
+  }
+  .main-scroll .pipe-scope .cl-main.has-peek {
+    flex-direction: row;
+    gap: 14px;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .main-scroll .pipe-scope .cl-main.has-peek::after {
+    content: none;
+  }
+  .main-scroll .pipe-scope .cl-main.has-peek > .cl-main-scroll {
+    flex: 1 1 0;
+    min-width: 0;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+  }
+  .main-scroll .pipe-scope .cl-main.has-peek > .pk {
+    position: relative;
+    inset: auto;
+    flex: none;
+    border: 0;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+    overflow: hidden;
+  }
+  .main-scroll .pipe-scope .cl-main.has-peek .cl-table-wrap {
+    margin-right: 14px;
+  }
+  /* The board is a column of panes, one to a stage, on the page itself: no pane round them, and so no glass on glass. */
+  .main-scroll .pipe-scope .cl-main:has(.pipe-board) {
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .main-scroll .pipe-scope .cl-main:has(.pipe-board)::after {
+    content: none;
+  }
+  .main-scroll .pipe-scope .cl-main:has(.pipe-board) .cl-controls {
+    padding-inline: 0;
+  }
+  .main-scroll .pipe-board {
+    gap: 14px;
+    padding: 14px 0 24px;
+  }
+  .main-scroll .pipe-col {
+    padding: 14px;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+  }
+}
+
+/* The deal's pane as the pane boards draw it (canvases P-sol, P-maren, P-juno; on a phone D-phone-deal): the face 42px in
+   the face's fill, the name a step up, the service and value under it at the small step, Close a 34px glass circle, no
+   rule under the head; the body 18px in with 14 between its parts; the ways to reach them on a 64px key column, 7px over
+   and under each; what they wrote at the small step with the quote at the base. The face's class is a primitive's word,
+   so it is reached by its place; the pane's own classes carry a primitive's word too, so its parts are reached by their
+   testids. */
+.pipe-scope .pk-head {
+  gap: 12px;
+  padding: 16px 18px 14px;
+  border-bottom-color: transparent;
+}
+.pipe-scope .pk-head > :first-child {
+  width: 42px;
+  height: 42px;
+  background: var(--face-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.pipe-scope .pk-name {
+  font-size: var(--text-xl);
+}
+.pipe-scope .pk-sub {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.pipe-scope .pk-x {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-circle);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink);
+}
+.pipe-scope .pk-x:hover {
+  background-color: var(--selected-fill);
+  color: var(--ink);
+}
+.pipe-scope .pk-body {
+  padding: 0 18px 16px;
+  gap: 14px;
+}
+[data-testid="pipeline-peek-reach"] {
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 0 10px;
+  padding-top: 6px;
+}
+[data-testid="pipeline-peek-reach"] > * > dt,
+[data-testid="pipeline-peek-reach"] > * > dd {
+  padding: 7px 0;
+}
+[data-testid="pipeline-peek-facts"] {
+  font-size: var(--text-sm);
+}
+[data-testid="pipeline-peek-quote"] {
+  font-size: var(--text-base);
+  line-height: 1.45;
+}
+/* New proposal's sheet (canvas D-propose opens on a person): its search a 36px inset capsule, each person a row that
+   rounds as an inset under a pointer. The search's class is a primitive's word, so it is reached by its element. */
+.pipe-new > label {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+}
+.pipe-new > label:focus-within {
+  background: var(--surface-inset-fill);
+}
+.pipe-new-row {
+  border-radius: var(--surface-inset-radius);
+}
+@media (max-width: 900px) {
+  /* A phone row says where a deal stands in words (D-phone-list); the three-step track under the name goes. */
+  .pipe-scope .pipe-track {
+    display: none;
+  }
+  /* The deal's foot on a phone (D-phone-deal): one capsule of the control layer's glass clear of the screen's edges,
+     its two acts inside it. */
+  [data-testid="pipeline-peek-bar"] {
+    gap: 8px;
+    margin: 0 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    padding: 6px;
+    border-top: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    backdrop-filter: var(--surface-control-blur);
+    box-shadow: var(--surface-control-depth);
+  }
 }

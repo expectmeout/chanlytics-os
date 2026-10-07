@@ -16,8 +16,12 @@ pnpm-lock.yaml
 # Written by a script; regenerating is the only correct edit
 packages/db/src/database.types.ts
 *.generated.ts
+docs/data-model.md
+*.generated.json
 tooling/scripts/tests/route-policy.json
 tooling/scripts/tests/source-scan-baseline.json
+tooling/scripts/tests/baselines/
+docs/api.md
 
 # The ported shell keeps its own conventions (apps/dashboard/src/legacy/CLAUDE.md):
 # script-mode files with /* global */ headers, edited by several people at once.
@@ -28,6 +32,9 @@ apps/dashboard/src/legacy/
 apps/edge/public/
 apps/dashboard/public/
 
+# Copied as a program printed them: a fixture of real output is its bytes
+tooling/scripts/tests/fixtures/supabase-migration-list-*
+
 # Not JavaScript's to format
 supabase/
 .claude/
@@ -37,3 +44,9 @@ docs/mockup/
 # History, frozen as written
 docs/plans/
 docs/superpowers/
+
+# The phone app's generated and native directories
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/expo-env.d.ts

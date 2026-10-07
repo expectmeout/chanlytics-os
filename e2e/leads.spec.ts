@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { routeOf } from "./address";
 import { apiGet } from "./workspace";
 import {
   expectLeadsScope,
@@ -34,7 +35,7 @@ const PAID = process.env.E2E_PAID_LEADS === "1";
 const WHY_UNPAID = "a real search spends on the source and the judge: set E2E_PAID_LEADS=1 to run it";
 
 /**
- * The seed's search and its six leads (tooling/scripts/e2e-workspace.mjs, which
+ * The seed's search and its six leads (tooling/scripts/ops/e2e-workspace.mjs, which
  * owns them). Restated here rather than imported, as thread.spec.ts restates
  * Robin: that file is ESM run by plain node, and Playwright compiles a spec to
  * CJS, so an import of it fails at load. The first test reads the workspace back
@@ -83,7 +84,7 @@ async function openSeededSearch(page: Page): Promise<void> {
   await page.goto("/#/clients/leads");
   await page.waitForLoadState("networkidle");
   await page.locator(".cl-rail-row", { hasText: LEAD_SEARCH_NAME }).locator(".ld-search-pick").click();
-  await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/leads:s-[0-9a-f-]{36}$/);
+  await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}$/);
 }
 
 test.describe("Leads on a real workspace", () => {
@@ -124,7 +125,7 @@ test.describe("Leads on a real workspace", () => {
 
     // Excluded is a view, and the view is the address.
     await page.getByTestId("lead-class-excluded").click();
-    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/leads:s-[0-9a-f-]{36}:c-excluded$/);
+    await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}:c-excluded$/);
     const left = page.locator(".cl-table tbody tr").first();
     await expect(left).toContainText(FITCORP);
     await expect(left).toContainText("Chain");
@@ -140,11 +141,19 @@ test.describe("Leads on a real workspace", () => {
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
     const search = await waitingSearch(page);
-    const needs = page.getByTestId("leads-standing-needs");
-    await expect(needs).toBeInViewport({ ratio: 1 });
-    await expect(needs).toHaveText("1 search needs you");
-    await needs.click();
-    await expect.poll(() => new URL(page.url()).hash).toBe(`#/${search.route}`);
+    // The standing says it needs you. In Glass the standing is the frame's head's sentence, which on a desk is kept for
+    // a reader and the frame's focus alone, and the page's own line is drawn on a phone alone (clients.css, "The page's
+    // standing line is the head's sentence now"), so on a desk the line is read, not pressed.
+    await expect(page.locator(".pg-head .pg-sentence").getByTestId("leads-standing-needs")).toHaveText(
+      "1 search needs you",
+    );
+    // The desk's door is the rail's row: its "?" says the search needs you, and a waiting search opens on the pile its
+    // question is about (leads/page/routes.tsx, waitsOn).
+    const door = page.getByTestId(`leads-search-${search.id}`);
+    await expect(door).toBeInViewport({ ratio: 1 });
+    await expect(door.locator(".rail-q")).toHaveAttribute("title", "This search needs you");
+    await door.click();
+    await expect.poll(() => routeOf(page.url())).toBe(search.route);
     await expect(page.locator(".cl-rail-row", { hasText: WAITING_SEARCH_NAME })).toBeVisible();
 
     const strip = page.getByTestId("lead-strip");
@@ -262,10 +271,9 @@ test.describe("Leads on a real workspace", () => {
 
   test("an old #/leads bookmark lands on the Leads scope", async ({ page }) => {
     await page.goto("/#/leads");
-    await expect
-      .poll(() => new URL(page.url()).hash, { message: "leads is a scope of People now" })
-      .toBe("#/clients/leads");
-    await expect(page.getByTestId("leads-standing")).toBeVisible();
+    await expect.poll(() => routeOf(page.url()), { message: "leads is a scope of People now" }).toBe("clients/leads");
+    // The Leads scope's own standing, the frame's head's sentence in Glass.
+    await expect(page.locator(".pg-head .pg-sentence")).toContainText(/\d+ leads?\b/);
   });
 
   test("the keyboard walks the leads: J focuses, Enter peeks, C dials, F opens Ask on Leads, Esc backs out in order", async ({
@@ -368,7 +376,7 @@ test.describe("Leads on a real workspace", () => {
     await page.getByTestId("plan-approve").click();
     // Approve commits through Ask's door and lands on the new search (spec F4): the address is the search's own,
     // and the strip narrating the run is on screen.
-    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/leads:s-[0-9a-f-]{36}/);
+    await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}/);
     const strip = page.getByTestId("lead-strip");
     await expect(strip).toBeVisible({ timeout: 60_000 });
     await expect(strip).toContainText(/Finding|Stopped|Found/, { timeout: 60_000 });

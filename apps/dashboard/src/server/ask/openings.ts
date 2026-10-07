@@ -15,16 +15,16 @@ import {
   type FeedFailure,
   type Opening,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "../with-route";
-import { tenantFacts } from "../tenant";
-import { fillerFeedFor } from "../filler-calendar";
+import { publicFetcher } from "@chanlytics/channels";
+import { fillerFeedFor } from "../calendar/filler-calendar";
+import { log } from "@/server/log";
 
 /**
  * Openings for the assistant and the palette's fast path, computed the way
  * the phone receptionist computes them (edge availability.ts): the calendar
  * feed's busy blocks against the business's hours, closures and booking
- * rules, in the business's zone. Read under the caller's RLS; the feed URL
- * is fetched server-side and never sent to the browser.
+ * rules, in the business's zone, which the caller read under its own RLS;
+ * the feed URL is fetched server-side and never sent to the browser.
  */
 
 const FEED_TTL_MS = 5 * 60 * 1000;
@@ -133,7 +133,7 @@ async function fetchInto(tenantId: string, url: string, hit: FeedEntry | undefin
     let res: Response;
     try {
       // Every hop judged by the address rule (fetchPublic), not only the first.
-      const got = await fetchPublic(fetch, safe, {
+      const got = await fetchPublic(publicFetcher(), safe, {
         signal: AbortSignal.timeout(8_000),
         headers: { accept: "text/calendar, */*" },
       });
@@ -155,7 +155,7 @@ async function fetchInto(tenantId: string, url: string, hit: FeedEntry | undefin
   } catch (e) {
     const reason: FeedFailure = e instanceof FeedRefused ? e.reason : "unreachable";
     const status = e instanceof FeedRefused ? e.status : null;
-    console.error("ask_feed_fetch_failed", JSON.stringify({ tenant: tenantId, reason, status }));
+    log.error("ask_feed_fetch_failed", { tenant_id: tenantId, reason, status });
     const failed: FeedEntry = { text: hit?.text ?? null, at: hit?.at ?? null, checkedAt: now, reason, status };
     feeds.set(tenantId, failed);
     return asRead(failed);
@@ -185,20 +185,18 @@ function fmtWindow(start: number, end: number, tz: string): string {
   return `${f.format(new Date(start))}–${f.format(new Date(end))}`;
 }
 
+/**
+ * `known`: the workspace's zone and its raw settings, as the caller read them this turn (readers/openings.ts, under
+ * the caller's RLS): this reads neither, and nothing else of the database -- only the calendar's feed.
+ */
 export async function openingsFor(
-  ctx: RouteContext,
   tenantId: string,
   by: { day?: string | null; service?: string | null },
-  now = new Date(),
+  now: Date,
+  known: { timezone: string; config: unknown },
 ): Promise<OpeningsResult> {
-  const { timezone } = await tenantFacts(ctx.supabase, tenantId);
-  const { data: row, error } = await ctx.supabase
-    .from("tenant_config")
-    .select("config")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  const cfg = parseTenantConfig(row?.config ?? null);
+  const timezone = known.timezone;
+  const cfg = parseTenantConfig(known.config);
   const url = cfg?.calendar?.ical_url;
   const profile = cfg?.brain?.profile;
   // What the asked-for service is offered as, by the phone tool's rule: itself, or a consultation first (C5b).
@@ -230,10 +228,7 @@ export async function openingsFor(
       now,
     });
   } catch (e) {
-    console.error(
-      "ask_openings_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("ask_openings_failed", { tenant_id: tenantId, error: e });
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
   }
   const picked = filterOpenings(openings, { day: by.day ?? null, minMinutes: offer?.minMinutes ?? null });

@@ -4,16 +4,19 @@
  * alone knows (the connection, the live feed, a newer build, surfaces that
  * stopped refreshing), and the chrome's words (contracts/chrome.ts) for the
  * sidebar's menus, the shortcuts sheet, the line under the top bar and the
- * tab's name.
+ * tab's name, and the address's four verbs for the pages that cannot import
+ * (workspace.ts): the route on screen, where a route is linked, a move to one,
+ * and hearing the address move.
  */
 import {
   THEME_OPTIONS,
+  LOOK_OPTIONS,
+  LOOK_OFFERED,
   SHORTCUTS,
   pageTitle,
   shortcutGroups,
   shellStatusLine,
   isTypingTarget,
-  workspaceHotkey,
   toastShape,
   replyWaitsOnYou,
   stateOf,
@@ -24,13 +27,15 @@ import {
   fmtClock,
   type ShellStatus,
 } from "@chanlytics/contracts";
-import { clearSurfaceCache } from "./surface-cache";
+import { sealSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
+import { addressApi, type GoOptions } from "./workspace";
 import { refreshAllSurfaces } from "./surface-runner";
 import type { Connection, SurfaceStatus } from "./surface-status";
+import { crumbsShown } from "@/surfaces/kit/head/standing";
 
 export interface ShellApi {
-  /** End the session: the surface cache first, then the server, which redirects to sign-in. */
+  /** End the session: the surface cache cleared and closed first, then the server, which redirects to sign-in. */
   signOut(): void;
   switchWorkspace(id: string): void;
   /** Another workspace for this account: the create screen, then a switch to it. */
@@ -39,6 +44,14 @@ export interface ShellApi {
   retry(): Promise<void>;
   /** Name the tab and keep the name; returns the stop, for when the name changes. */
   keepTitle(title: string): () => void;
+  /** The route on screen (`inbox/th-1`; `today` when the address names none), read from the path, else the hash. */
+  route(): string;
+  /** Where a route is linked to from this page: its path in a workspace, so a long press or a new tab opens it. */
+  href(route: string): string;
+  /** Move to a route: a push, or with `replace` a redirect or a page saying the same place more exactly (no entry). */
+  go(route: string, opts?: GoOptions): void;
+  /** Follow the address: runs when the route changes, by a push, a replace or Back. Returns the stop. */
+  hear(fn: () => void): () => void;
 }
 
 export interface ChromeWords {
@@ -47,6 +60,9 @@ export interface ChromeWords {
   nextTheme: typeof nextThemePref;
   /** What that button shows and says. */
   themeButton: typeof themeButtonWords;
+  /** The looks, and whether the account menu offers them yet (contracts LOOK_OFFERED): it draws none until it does. */
+  looks: typeof LOOK_OPTIONS;
+  lookOffered: boolean;
   shortcuts: typeof SHORTCUTS;
   shortcutGroups: typeof shortcutGroups;
   statusLine: typeof shellStatusLine;
@@ -57,7 +73,6 @@ export interface ChromeWords {
   fmtClock: typeof fmtClock;
   /** The tab's name: from the crumbs the shell draws, with what needs you counted. */
   title: typeof pageTitle;
-  workspaceHotkey: typeof workspaceHotkey;
   /** A toast's tone, icon, role and lifetime: decided in contracts, drawn by usePPToast. */
   toast: typeof toastShape;
   /** A state's tone and words: decided in contracts, drawn by StatePill. */
@@ -66,6 +81,8 @@ export interface ChromeWords {
   replyWaits: typeof replyWaitsOnYou;
   /** Whether a key press belongs to a field being typed in. */
   typing(target: EventTarget | null): boolean;
+  /** The crumbs the shell drew, told to the head Glass draws in the shell's places (kit/head/standing.ts). */
+  crumbsShown: typeof crumbsShown;
 }
 
 declare global {
@@ -73,13 +90,18 @@ declare global {
     __shell?: ShellApi;
     __chrome?: ChromeWords;
     __SHELL_STATUS?: ShellStatus;
+    /** Inside the native app (app-bridge.ts): the phone this page registered, forgotten before a sign-out. */
+    __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
   }
 }
 
 export function installShell(win: Window = window): void {
   win.__shell = {
+    ...addressApi(win),
     signOut() {
-      clearSurfaceCache();
+      // Cleared and closed: the form posts after the phone is forgotten, up to two seconds in the app, and a read
+      // landing meanwhile used to be written back for the next person on this tab (surface-cache.ts sealSurfaceCache).
+      sealSurfaceCache();
       // This device's bell marks belong to the person who made them: gone
       // with their session, so the next person signing in here starts with
       // their own rather than a stranger's read marks on the same workspace.
@@ -93,14 +115,22 @@ export function installShell(win: Window = window): void {
       } catch {
         /* storage blocked: nothing was kept there either */
       }
-      // A real form post: the server clears the session and redirects, and
-      // the browser follows it the way a link would.
-      const form = win.document.createElement("form");
-      form.method = "post";
-      form.action = "/auth/signout";
-      form.hidden = true;
-      win.document.body.appendChild(form);
-      form.submit();
+      // Inside the app the page forgets the phone it registered first, so the
+      // next person signing in on it is not told about this one's threads
+      // (app-bridge.ts forgetPhone: two seconds at most, then the sign-out
+      // goes on). The shell used to intercept the sign-out to ask for this,
+      // and replayed it as a GET the route does not answer.
+      const forget = win.__appBridge?.forgetPhone() ?? Promise.resolve();
+      void forget.finally(() => {
+        // A real form post: the server clears the session and redirects, and
+        // the browser follows it the way a link would.
+        const form = win.document.createElement("form");
+        form.method = "post";
+        form.action = "/auth/signout";
+        form.hidden = true;
+        win.document.body.appendChild(form);
+        form.submit();
+      });
     },
     switchWorkspace(id) {
       switchWorkspace(id);
@@ -132,6 +162,8 @@ export function installShell(win: Window = window): void {
     themes: THEME_OPTIONS,
     nextTheme: nextThemePref,
     themeButton: themeButtonWords,
+    looks: LOOK_OPTIONS,
+    lookOffered: LOOK_OFFERED,
     shortcuts: SHORTCUTS,
     shortcutGroups,
     statusLine: shellStatusLine,
@@ -139,11 +171,11 @@ export function installShell(win: Window = window): void {
     liveStillUp,
     fmtClock,
     title: pageTitle,
-    workspaceHotkey,
     toast: toastShape,
     state: stateOf,
     // A reply counting down to send waits on you (contracts standing.ts): the Inbox's Needs you and People's, one rule.
     replyWaits: replyWaitsOnYou,
+    crumbsShown,
     typing(target) {
       const el = target as { tagName?: string; isContentEditable?: boolean } | null;
       return isTypingTarget(el?.tagName ?? null, !!el?.isContentEditable);

@@ -14,7 +14,6 @@ import {
   roleGate,
   samePhone,
   whyNotAPhone,
-  whyNotAnEmail,
   linkHost,
   normalizeLink,
   proposalMessage,
@@ -23,58 +22,29 @@ import {
   handoffE164,
   formatPhoneDisplay,
   BROKEN_CONFIG_WORDS,
-  hardLimitsWords,
-  csvCell,
-  parseCsv,
-  matchColumns,
-  importRowsOf,
-  importCounts,
-  LEAD_WORDS,
 } from "@chanlytics/contracts";
-import { pipelineHelpers, type PipelineHelpers } from "./pipeline-helpers";
-import {
-  LEAD_COUNT_CHOICES,
-  planArea,
-  planMinutes,
-  planSaid,
-  planSentence,
-  planVersionOf,
-  planWhere,
-  planWho,
-  planWords,
-  leadPlanAsk,
-  leadPlanFacts,
-  leadPlanLikely,
-  leadEndingLine,
-  LEAD_QUESTION_WAIT_LINE,
-  leadNearWhere,
-  leadsFirstDayWays,
-  leadUndoable,
-  planCeiling,
-  leadReviewGroups,
-  leadBand,
-  leadReviewCosts,
-  leadCheckAgainCents,
-  leadAskedFor,
-  LEAD_REVIEW_ACT_WORDS,
-  LEAD_REVIEW_GROUP_WHY,
-  leadMapPlot,
-  leadMapAcross,
-  leadMapNote,
-  leadPinTone,
-} from "@chanlytics/contracts";
+import { INBOX_GLOBALS, hearPresence } from "../surfaces/inbox/legacy-globals";
+import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
+import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
+import { PEOPLE_GLOBALS } from "../surfaces/people/people-globals";
+import { LEADS_GLOBALS } from "../surfaces/leads/globals";
+import { BUSINESS_GLOBALS } from "../surfaces/settings/business/globals";
+import { surfaceHook, type SurfaceNames } from "./surface-status";
+import { routeSurfaces } from "./surface-registry";
+import { pipelineHelpers, type PipelineHelpers } from "@/surfaces/people/pipeline-helpers";
+import { installRoleStore } from "./identity";
 
 declare global {
   interface Window {
     React: typeof React;
     ReactDOM: typeof ReactDOM;
+    useSurface: (names: SurfaceNames) => number;
     __DEMO_MODE: boolean;
     ROLE_PERMS: typeof ROLE_PERMS;
     __roleGate: typeof roleGate;
     __FACT_WORDS: typeof SOURCE_WORDS;
     __samePhone: typeof samePhone;
     __whyNotAPhone: typeof whyNotAPhone;
-    __whyNotAnEmail: typeof whyNotAnEmail;
     __linkHost: typeof linkHost;
     __normalizeLink: typeof normalizeLink;
     __proposalMessage: typeof proposalMessage;
@@ -84,52 +54,98 @@ declare global {
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
     __brokenConfigWords: typeof BROKEN_CONFIG_WORDS;
-    __hardLimits: typeof hardLimitsWords;
-    __csvCell: typeof csvCell;
-    __csvImport: {
-      parseCsv: typeof parseCsv;
-      matchColumns: typeof matchColumns;
-      importRowsOf: typeof importRowsOf;
-      importCounts: typeof importCounts;
-    };
-    __LEAD_WORDS: typeof LEAD_WORDS;
-    __leadWays: typeof leadsFirstDayWays;
-    __LEAD_VM: {
-      planWords: typeof planWords;
-      planSaid: typeof planSaid;
-      planSentence: typeof planSentence;
-      planWho: typeof planWho;
-      planWhere: typeof planWhere;
-      planArea: typeof planArea;
-      planMinutes: typeof planMinutes;
-      planVersionOf: typeof planVersionOf;
-      LEAD_COUNT_CHOICES: typeof LEAD_COUNT_CHOICES;
-      leadPlanLikely: typeof leadPlanLikely;
-      leadPlanFacts: typeof leadPlanFacts;
-      leadPlanAsk: typeof leadPlanAsk;
-      leadEndingLine: typeof leadEndingLine;
-      LEAD_QUESTION_WAIT_LINE: typeof LEAD_QUESTION_WAIT_LINE;
-      leadNearWhere: typeof leadNearWhere;
-      planCeiling: typeof planCeiling;
-      leadUndoable: typeof leadUndoable;
-      leadReviewGroups: typeof leadReviewGroups;
-      leadBand: typeof leadBand;
-      leadReviewCosts: typeof leadReviewCosts;
-      leadCheckAgainCents: typeof leadCheckAgainCents;
-      leadAskedFor: typeof leadAskedFor;
-      leadMapPlot: typeof leadMapPlot;
-      leadMapAcross: typeof leadMapAcross;
-      leadMapNote: typeof leadMapNote;
-      leadPinTone: typeof leadPinTone;
-      LEAD_REVIEW_ACT_WORDS: typeof LEAD_REVIEW_ACT_WORDS;
-      LEAD_REVIEW_GROUP_WHY: typeof LEAD_REVIEW_GROUP_WHY;
-    };
   }
 }
 
 if (typeof window !== "undefined") {
-  window.React = React;
-  window.ReactDOM = ReactDOM;
+  // React, and the one hook a page redraws on when a surface it draws moves (surface-status.ts): a key, a list, or a
+  // route's, as the registry names them. Over this React, before any page loads.
+  // And the kit's components the pages that have not moved still draw, under the names they read (kit-globals.ts).
+  Object.assign(window, {
+    React,
+    ReactDOM,
+    useSurface: surfaceHook(React, routeSurfaces),
+    Icon: KIT_GLOBALS.Icon,
+    EmptyState: KIT_GLOBALS.EmptyState,
+    FailedRead: KIT_GLOBALS.FailedRead,
+    SegmentBar: KIT_GLOBALS.SegmentBar,
+    StatePill: KIT_GLOBALS.StatePill,
+    Confirm: KIT_GLOBALS.Confirm,
+    MoreMenu: KIT_GLOBALS.MoreMenu,
+    PolicyChip: KIT_GLOBALS.PolicyChip,
+    TlMedia: KIT_GLOBALS.TlMedia,
+    AttnRow: KIT_GLOBALS.AttnRow,
+    useHoldToTalk: KIT_GLOBALS.useHoldToTalk,
+    // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/legacy-globals.ts), and the
+    // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx).
+    INBOX_DATA: INBOX_GLOBALS.INBOX_DATA,
+    CONVERSATIONS_DATA: INBOX_GLOBALS.CONVERSATIONS_DATA,
+    IX_STORE: INBOX_GLOBALS.IX_STORE,
+    ixWaitsOnYou: INBOX_GLOBALS.ixWaitsOnYou,
+    CV_ROUTE: INBOX_GLOBALS.CV_ROUTE,
+    CV_IN_CHANNEL: INBOX_GLOBALS.CV_IN_CHANNEL,
+    threadVerbs,
+    FieldError: KIT_GLOBALS.FieldError,
+    RecordRow: KIT_GLOBALS.RecordRow,
+    RecordSourceChip: KIT_GLOBALS.RecordSourceChip,
+    RecordDispute: KIT_GLOBALS.RecordDispute,
+    RecordChips: KIT_GLOBALS.RecordChips,
+    recRowPress: KIT_GLOBALS.recRowPress,
+    RecordField: KIT_GLOBALS.RecordField,
+    RecordBox: KIT_GLOBALS.RecordBox,
+    RecordSwitch: KIT_GLOBALS.RecordSwitch,
+    RecordToggleGroup: KIT_GLOBALS.RecordToggleGroup,
+    RecordCombobox: KIT_GLOBALS.RecordCombobox,
+    RecordTip: KIT_GLOBALS.RecordTip,
+    RecordTipCard: KIT_GLOBALS.RecordTipCard,
+    recPhoneQuery: KIT_GLOBALS.recPhoneQuery,
+    recPortalRoot: KIT_GLOBALS.recPortalRoot,
+    RecordFold: KIT_GLOBALS.RecordFold,
+    RecordInline: KIT_GLOBALS.RecordInline,
+    RecordSays: KIT_GLOBALS.RecordSays,
+    RecordFoot: KIT_GLOBALS.RecordFoot,
+    useRecordFold: KIT_GLOBALS.useRecordFold,
+    useRecFocusHold: KIT_GLOBALS.useRecFocusHold,
+    useRecFocusOn: KIT_GLOBALS.useRecFocusOn,
+    recKeys: KIT_GLOBALS.recKeys,
+    useUnsavedWork: KIT_GLOBALS.useUnsavedWork,
+    UnsavedAsk: KIT_GLOBALS.UnsavedAsk,
+    tabDraft: KIT_GLOBALS.tabDraft,
+    RecordSheet: KIT_GLOBALS.RecordSheet,
+    __recordFolds: KIT_GLOBALS.__recordFolds,
+    __settingsUnsaved: KIT_GLOBALS.__settingsUnsaved,
+    __settingsSaving: KIT_GLOBALS.__settingsSaving,
+    AgendaItem: KIT_GLOBALS.AgendaItem,
+    AgendaItems: KIT_GLOBALS.AgendaItems,
+    AgendaOpen: KIT_GLOBALS.AgendaOpen,
+    // Leads' plan card, which Ask's palette draws for a lead_search card until Ask moves (surfaces/leads/globals.ts).
+    LeadPlanCard: LEADS_GLOBALS.LeadPlanCard,
+    // The Business tab's parts the first run draws and the saver it saves through (settings/business/globals.ts).
+    __businessTabSave: BUSINESS_GLOBALS.__businessTabSave,
+    btSellsByChoice: BUSINESS_GLOBALS.btSellsByChoice,
+    BtAddressRow: BUSINESS_GLOBALS.BtAddressRow,
+    BtWebsiteRow: BUSINESS_GLOBALS.BtWebsiteRow,
+    BtBookingLinkRow: BUSINESS_GLOBALS.BtBookingLinkRow,
+    BtZoneRow: BUSINESS_GLOBALS.BtZoneRow,
+    BtHoursRow: BUSINESS_GLOBALS.BtHoursRow,
+    BtServicesRow: BUSINESS_GLOBALS.BtServicesRow,
+    BtLanguagesRow: BUSINESS_GLOBALS.BtLanguagesRow,
+    BtRulesRow: BUSINESS_GLOBALS.BtRulesRow,
+    BtCanCard: BUSINESS_GLOBALS.BtCanCard,
+    BtServicesSheet: BUSINESS_GLOBALS.BtServicesSheet,
+    // And People's parts the shell still draws or calls by name: the strip's scopes (surface-tabs.jsx), the two sheets the
+    // frame draws once and their doors (app-shell.jsx), and the demo's Lists page's mark and route (people-globals.ts).
+    plScopes: PEOPLE_GLOBALS.plScopes,
+    plScopeRoute: PEOPLE_GLOBALS.plScopeRoute,
+    ChannelGlyph: PEOPLE_GLOBALS.ChannelGlyph,
+    __listRoute: PEOPLE_GLOBALS.__listRoute,
+    DealSheetHost: PEOPLE_GLOBALS.DealSheetHost,
+    StepSheetHost: PEOPLE_GLOBALS.StepSheetHost,
+    openDealSheet: PEOPLE_GLOBALS.openDealSheet,
+    openStepSheet: PEOPLE_GLOBALS.openStepSheet,
+  });
+  // Countdowns freeze while the member is Away and thaw when they are back, whichever surface is on screen.
+  hearPresence();
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
   // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
   if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;
@@ -156,8 +172,6 @@ if (typeof window !== "undefined") {
   // words. The published number is now optional, so the only thing standing
   // between a typo and a receptionist reading it aloud is this check.
   window.__whyNotAPhone = whyNotAPhone;
-  // The same for an address typed on a person's page: said under the field, before a round trip.
-  window.__whyNotAnEmail = whyNotAnEmail;
   // Where a stored link lives (its host), for a row or a menu hint; and the words a one-step send of the proposal
   // carries into the composer, once for the page and the thread.
   window.__linkHost = linkHost;
@@ -176,60 +190,11 @@ if (typeof window !== "undefined") {
   // A stored number written the way people write one, "+1 (305) 555-0100", as
   // Setup and Connections already show them: Business showed the E.164.
   window.__phoneDisplay = formatPhoneDisplay;
-  // A broken configuration in the words Setup's row says (S8), and Autonomy's
-  // hard limits in words that say a default is a default (S6).
+  // A broken configuration in the words Setup's row says (S8).
   window.__brokenConfigWords = BROKEN_CONFIG_WORDS;
-  window.__hardLimits = hardLimitsWords;
-  // One CSV cell, as the route's export spells it: the page's export of a selection quoted and nothing more, so a
-  // WhatsApp name of "=HYPERLINK(...)" ran in whoever opened that file while the whole-workspace export was safe.
-  window.__csvCell = csvCell;
-  // The People import sheet reads a spreadsheet in the browser with these: parsed into rows, matched to a name, a
-  // number and an address column, and normalised into what the import door (window.__importPeople) takes.
-  window.__csvImport = { parseCsv, matchColumns, importRowsOf, importCounts };
-  // Every word the Leads scope says, from contracts. The legacy pages are
-  // classic scripts and cannot import; without this each page would spell the
-  // stage, the email state and the questions again, and a word spelled twice is
-  // a word that drifts (contracts leads.ts LEAD_WORDS; Task 19 adds the facts'
-  // own words to the same record, Task 17 the ways beside it).
-  window.__LEAD_WORDS = LEAD_WORDS;
-  // The first day's three ways (Task 17). Beside the words rather than inside
-  // __LEAD_VM: it takes facts the page reads from two surfaces and answers what
-  // may be said about each way, so a way never claims a line nobody looked at.
-  window.__leadWays = leadsFirstDayWays;
-  // One derivation per fact: __LEAD_WORDS holds the words, __LEAD_VM holds what
-  // derives them, and the pages spell neither. Task 10 adds `leadStrip` to this
-  // object; `leadEndingLine` is here, so the strip never spells an ending itself.
-  window.__LEAD_VM = {
-    planWords,
-    planSaid,
-    planSentence,
-    planWho,
-    planWhere,
-    planArea,
-    planMinutes,
-    planCeiling,
-    planVersionOf,
-    LEAD_COUNT_CHOICES,
-    leadPlanLikely,
-    leadPlanFacts,
-    leadPlanAsk,
-    leadEndingLine,
-    // The question's one line under its sentence (the email says the same).
-    LEAD_QUESTION_WAIT_LINE,
-    leadNearWhere,
-    leadUndoable,
-    leadReviewGroups,
-    leadBand,
-    leadReviewCosts,
-    leadCheckAgainCents,
-    leadAskedFor,
-    LEAD_REVIEW_ACT_WORDS,
-    LEAD_REVIEW_GROUP_WHY,
-    leadMapPlot,
-    leadMapAcross,
-    leadMapNote,
-    leadPinTone,
-  };
+  // The role store every gate asks (identity.ts), made before any page loads, as settings.jsx made it as the
+  // manifest loaded: identity.ts completes it once its own install runs.
+  installRoleStore();
 }
 
 export {};

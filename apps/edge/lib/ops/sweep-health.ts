@@ -7,6 +7,8 @@
  * be tested.
  */
 
+import { HOUR_MS } from "../packages/contracts.js";
+
 /** One row of public.sweep_health(). */
 export interface SweepHealthRow {
   sweep: string;
@@ -26,9 +28,9 @@ export interface SweepHealthRow {
  * the NEXT real alert is missed. Four a day is noticed at the start of a
  * working day and again mid-day, and survives the overnight gap.
  */
-export const ALERT_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
+export const ALERT_SUPPRESSION_MS = 6 * HOUR_MS;
 
-export interface SweepAlertPlan {
+interface SweepAlertPlan {
   /** Every sweep currently failing, for the response body and the log. */
   broken: string[];
   /** The failing sweeps this tick may actually email about. */
@@ -80,6 +82,15 @@ const CONSEQUENCE: Record<string, string> = {
   purge_notifications: "notifications are kept past their retention",
   purge_rate_hits: "the rate-limit ledger grows without bound, and every limit check reads a bigger table",
   purge_cron_history: "cron.job_run_details grows without bound, and this check reads a bigger table each time",
+  purge_jobs:
+    "finished jobs, each holding the number and words it sent, stay in the ledger past the week the privacy page states, and an erasure reads more of them",
+  purge_page_vitals: "page timings are kept past the thirty days the privacy page states",
+  platform_metrics_roll:
+    "each workspace's day stops being counted, so the back office's card goes stale and the alarm for a workspace nobody answered all day has nothing to read",
+  channel_quality:
+    "a WhatsApp number's refreshed rating and the history of its changes stop being kept and go stale; no send is gated on them, and broadcasts and the channels page keep reading the rating stored at connection either way",
+  sending_domain_days:
+    "a day's counters for each sending domain are not kept, and a missed day is never filled in later (the counters are only ever the row's current ones), so how a domain's reputation went that day cannot be read afterwards",
 };
 
 /**

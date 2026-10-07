@@ -1,0 +1,205 @@
+import "server-only";
+import {
+  askCallOutcome,
+  heldDraftWaits,
+  leadsRoute,
+  toCallVM,
+  toInboxThreadVM,
+  toTodayVM,
+  type CallVM,
+  type InboxThreadVM,
+} from "@chanlytics/contracts";
+import { load, type ReaderContext } from "../../readers";
+import * as facts from "../../readers/facts";
+import { today as todayReader } from "../../readers/today";
+import { inbox as inboxReader } from "../../readers/inbox";
+import { conversations as conversationsReader } from "../../readers/conversations";
+import { escalations as escalationsReader } from "../../readers/escalations";
+import { calls as callsReader } from "../../readers/calls";
+import {
+  ROW_ID,
+  aggregateOf,
+  idsOf,
+  line,
+  pageWithView,
+  refOf,
+  sourceOf,
+  type ContextRow,
+  type Provider,
+} from "./rows";
+import { threadState } from "../thread-state";
+
+/**
+ * The day's pages, as their context: Today, the Inbox, Conversations and Live. Each reads the ids the page sent
+ * through the page's own reader, keeps the rows the reader returned (a thread another workspace holds is not among
+ * them, so it is simply absent) and writes each row with the page's own view model, as Ask's tools do.
+ */
+
+/** A draft held on the thread, as inbox.list marks one: still waiting, by the Inbox's rule (heldDraftWaits). */
+const held = (v: InboxThreadVM, now: Date): string | null => (heldDraftWaits(v, now.getTime()) ? "draft held" : null);
+
+/** A thread's line: who, its state, a held draft, the last word, when. */
+const threadLine = (v: InboxThreadVM, route: string, now: Date): string =>
+  line([v.who, threadState(v), held(v, now), v.preview, v.lastAtFull], route);
+
+/** A call's line, as calls.list says a call: who, how it went, when, how long, what it was about. */
+const callLine = (v: CallVM, route: string): string =>
+  line([v.who, askCallOutcome(v), v.at, v.duration, v.summary.headline], route);
+
+const callRow = (v: CallVM): ContextRow => {
+  const route = `conversations/cv-${v.callId}`;
+  return {
+    source: sourceOf("call", v.callId),
+    title: v.who,
+    text: callLine(v, route),
+    ref: refOf("call", v.callId, v.who, route),
+  };
+};
+
+/** The open escalation each thread shows, as the Inbox picks it: the last one keyed wins, so a thread shows its oldest. */
+const escalationsBy = <E extends { conversation_id: string }>(open: E[]): Map<string, E> =>
+  new Map(open.map((e) => [e.conversation_id, e]));
+
+const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
+
+/** Today: the queue's rows the page drew, each as the queue says it, and the day's standing and figures. */
+export const today: Provider = async (rc, ctx) => {
+  const { metrics, conversations, escalations, calls, searches } = (await load(rc, todayReader, undefined)).data;
+  const vm = toTodayVM(metrics, conversations, escalations, calls, rc.now, searches);
+  const rows: ContextRow[] = [];
+  for (const r of idsOf(ctx, "thread", "call", "search")) {
+    // The page's own mapping (legacy-bridge/ask/context.ts): a search is `q-s-<id>`, a person's row its thread, else the call.
+    const q = vm.queue.rows.find((x) =>
+      r.kind === "search"
+        ? x.kind === "search" && x.id === `q-s-${r.id}`
+        : x.kind !== "search" &&
+          (r.kind === "thread" ? x.conversationId === r.id : !x.conversationId && x.callId === r.id),
+    );
+    if (!q) continue;
+    // Each row at its kind's one route, whatever its button opens (the line keeps the button's, a search's question).
+    const ref =
+      r.kind === "search"
+        ? refOf("search", r.id, q.who, leadsRoute({ searchId: r.id }))
+        : r.kind === "thread"
+          ? refOf("thread", r.id, q.who, `inbox/th-${r.id}`)
+          : refOf("call", r.id, q.who, `conversations/cv-${r.id}`);
+    rows.push({
+      source: sourceOf(r.kind, r.id),
+      title: q.who,
+      text: line([q.who, q.status[0], q.when, ...q.status.slice(1), q.sentence], q.cta.to),
+      ref,
+    });
+  }
+  return {
+    rows,
+    aggregate: aggregateOf([
+      `Today: ${vm.standing.headline}`,
+      vm.standing.detail,
+      ...vm.standing.chips.map((c) => c.text),
+      vm.queue.parts.length ? vm.queue.parts.join(", ") : vm.queue.empty.sub,
+      ...(vm.figures ?? []).map((f) => `${f.label}: ${f.value}`),
+      vm.calls?.line,
+    ]),
+  };
+};
+
+/** The Inbox: the threads in the bucket the page drew, and how many each bucket holds, counted as inbox.list counts. */
+export const inbox: Provider = async (rc, ctx) => {
+  const [{ conversations, escalations }, tz] = await Promise.all([
+    load(rc, inboxReader, undefined).then((r) => r.data),
+    zone(rc),
+  ]);
+  const byConv = escalationsBy(escalations);
+  const vms = conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, tz, rc.now));
+  const byId = new Map(vms.map((v) => [v.conversationId, v]));
+  const rows: ContextRow[] = [];
+  for (const r of idsOf(ctx, "thread")) {
+    const v = byId.get(r.id);
+    if (!v) continue;
+    const route = `inbox/th-${r.id}`;
+    rows.push({
+      source: sourceOf("thread", r.id),
+      title: v.who,
+      text: threadLine(v, route, rc.now),
+      ref: refOf("thread", r.id, v.who, route),
+    });
+  }
+  const count = (f: (v: InboxThreadVM) => boolean) => vms.filter(f).length;
+  return {
+    rows,
+    aggregate: aggregateOf([
+      `${pageWithView(ctx)}: ${rows.length} threads on screen`,
+      `needs you: ${count((v) => v.needsYou)}`,
+      `held: ${count((v) => heldDraftWaits(v, rc.now.getTime()))}`,
+      `waiting on you: ${count((v) => v.takenOver)}`,
+      `snoozed: ${count((v) => v.state === "snoozed")}`,
+      `threads: ${vms.length}`,
+    ]),
+  };
+};
+
+/**
+ * Conversations: the threads and calls on the tab the page drew. The threads by their ids, in one read under the
+ * workspace's filter; the calls from the Calls page's own read, the newest hundred.
+ */
+export const conversations: Provider = async (rc, ctx) => {
+  // Read by id in SQL: an id that is not a uuid names no row, and would fail the read for every row on the page.
+  const convIds = idsOf(ctx, "conversation")
+    .map((r) => r.id)
+    .filter((id) => ROW_ID.test(id));
+  const wantsCalls = idsOf(ctx, "call").length > 0;
+  const [convs, open, calls, tz] = await Promise.all([
+    convIds.length
+      ? load(rc, conversationsReader, { ids: convIds }).then((r) => r.data.conversations)
+      : Promise.resolve([]),
+    convIds.length
+      ? load(rc, escalationsReader, { state: "open" }).then((r) => r.data.escalations)
+      : Promise.resolve([]),
+    wantsCalls ? load(rc, callsReader, {}).then((r) => r.data.calls) : Promise.resolve([]),
+    zone(rc),
+  ]);
+  const byConv = escalationsBy(open);
+  const threads = new Map(convs.map((c) => [c.id, toInboxThreadVM(c, byConv.get(c.id) ?? null, tz, rc.now)]));
+  const callVms = new Map(calls.map((c) => [c.id, toCallVM(c, tz, rc.now)]));
+  const rows: ContextRow[] = [];
+  let nConv = 0;
+  let nCalls = 0;
+  for (const r of idsOf(ctx, "conversation", "call")) {
+    if (r.kind === "conversation") {
+      const v = threads.get(r.id);
+      if (!v) continue;
+      nConv++;
+      const route = `conversations/${r.id}`;
+      rows.push({
+        source: sourceOf("conversation", r.id),
+        title: v.who,
+        text: threadLine(v, route, rc.now),
+        ref: refOf("conversation", r.id, v.who, route),
+      });
+    } else {
+      const v = callVms.get(r.id);
+      if (!v) continue;
+      nCalls++;
+      rows.push(callRow(v));
+    }
+  }
+  return {
+    rows,
+    aggregate: aggregateOf([`${pageWithView(ctx)}: ${nConv} conversations and ${nCalls} calls on screen`]),
+  };
+};
+
+/** Live: the calls the page drew, and how many are live now among the newest hundred. */
+export const live: Provider = async (rc, ctx) => {
+  const [calls, tz] = await Promise.all([load(rc, callsReader, {}).then((r) => r.data.calls), zone(rc)]);
+  const vms = new Map(calls.map((c) => [c.id, toCallVM(c, tz, rc.now)]));
+  const rows = idsOf(ctx, "call").flatMap((r) => {
+    const v = vms.get(r.id);
+    return v ? [callRow(v)] : [];
+  });
+  const liveNow = [...vms.values()].filter((v) => v.outcome === "live").length;
+  return {
+    rows,
+    aggregate: aggregateOf([`${pageWithView(ctx)}: ${liveNow} live now`, `${rows.length} calls on screen`]),
+  };
+};

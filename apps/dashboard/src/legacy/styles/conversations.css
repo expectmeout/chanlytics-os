@@ -1,6 +1,6 @@
 /* ====================================================================
    Chanlytics — Conversations (calls · chats · email)
-   Two-pane: list rail + viewer. Reuses fleet-filter, cl-search-wrap,
+   Two-pane: list rail + viewer. Reuses the kit's sub-tabs, cl-search-wrap,
    tl-msg bubbles, ix-empty-state, pill primitives.
    ==================================================================== */
 
@@ -28,16 +28,14 @@
 }
 .cv-list-head { padding: 10px 12px 0; }
 .cv-list-head .cl-search-wrap { max-width: none; }
-.cv-filters {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
-}
-.cv-filters .fleet-filter { width: 100%; }
-.cv-filters .fleet-filter-chip { flex: 1; justify-content: center; }
-/* Four tabs on a 320px phone: 319px of chips in a 288px strip, so "Email 1" was cut off at the edge, to be found by a
-   swipe nobody would think to make. Tighter chips fit all four; from 375px up nothing changes. */
+/* The filters are the kit's sub-tabs (SubTabs, kit.css), which bring their own line and sides. Five channels are 334px of
+   tabs and a 320px phone has 288: the strip scrolls across there, where it was a strip of chips that did. */
 @media (max-width: 360px) {
-  .cv-filters .fleet-filter-chip { padding-left: 6px; padding-right: 6px; gap: 4px; }
+  .cv-filters {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
 }
 
 .cv-rows {
@@ -64,6 +62,9 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
+  /* A row below the fold is not laid out or painted until it is near (as the Inbox's are, inbox.css .ix-thread). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 112px;
   transition: background 100ms;
   min-width: 0;
 }
@@ -93,7 +94,7 @@
   color: var(--ink-faint);
 }
 .cv-row-who {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink);
   white-space: nowrap;
@@ -215,5 +216,104 @@
   /* The time ends the facts, as "Receptionist replied · Sep 14" ends a person's. */
   .cv-row-at {
     margin-left: auto;
+  }
+}
+
+/* ====================================================================
+   Glass: Conversations (no canvas of its own; the Inbox's two panes, which it is a tab of). The list is a pane beside the
+   thread's (inbox.css draws .ix-thread-pane), at the page's gutter under the frame's head. Each rule names the look
+   inside :where(); none matches in Classic.
+   ==================================================================== */
+@media (width > 900px) {
+  .main-scroll > .conversations {
+    padding: 0 var(--gutter-page) 16px;
+    column-gap: 14px;
+    overflow: visible;
+  }
+  .cv-list {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+  overflow: hidden;
+}
+  .cv-list::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+}
+
+/* ====================================================================
+   Glass: Conversations on a phone, drawn as the Inbox's list is (inbox.css, the phone block): the strip of views is the
+   page's one capsule, and what filters the list is a sub-menu of small text tabs under it, not a second capsule, then
+   the search, then the rows straight on the page. The sub-menu is the kit's sub-tabs, as the Inbox's buckets are.
+   ==================================================================== */
+@media (max-width: 900px) {
+  /* 4px under the strip, as the Inbox's tabs are (its slot has 16 of padding under the strip). */
+  .main:has(> .main-scroll > .conversations:not([data-takeover])) .pg-slot {
+    padding-bottom: 4px;
+  }
+  /* The list is the page itself: the pools show through, no ground of its own. */
+  .conversations .cv-list {
+    border: 0;
+    background: transparent;
+  }
+  /* The tabs come first, as the Inbox's buckets do; the search is drawn under them. */
+  .conversations .cv-filters {
+    order: -1;
+  }
+  .conversations .cv-filters {
+    margin: 0 16px;
+  }
+  /* The search under the tabs, 38px tall, at the strip's sides. */
+  .conversations .cv-list-head {
+    padding: 6px 12px 8px;
+  }
+  .conversations .cv-list-head > div {
+    gap: 9px;
+    height: 38px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow:
+      var(--surface-inset-ring),
+      var(--surface-inset-depth);
+    color: var(--ink-dim);
+  }
+  .conversations .cv-list-head > div:focus-within {
+    box-shadow:
+      var(--focus-ring),
+      var(--surface-inset-depth);
+  }
+  .conversations .cv-list-head > div > .icon {
+    width: 15px;
+    height: 15px;
+    color: var(--ink-dim);
+  }
+  .conversations .cv-list-head > div > input {
+    font-size: var(--text-base);
+  }
+  /* The rows straight on the page, no hairline between them and none marked: the open one takes the screen. */
+  .conversations .cv-rows {
+    padding: 2px 4px;
+  }
+  .conversations .cv-row {
+    border-bottom-color: transparent;
+    border-radius: var(--surface-row-radius);
+  }
+  .conversations .cv-row.active,
+  .conversations .cv-row.is-live.active {
+    background: transparent;
+    box-shadow: none;
   }
 }

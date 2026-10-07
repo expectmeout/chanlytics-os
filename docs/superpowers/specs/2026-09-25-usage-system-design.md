@@ -1,7 +1,7 @@
 # Usage, one bar: the receptionist's plan, at Ask's feet
 
-**Status:** design v2, for Ruben's approval. Written 25 September 2026 against commit `095e419f`, under decision 0011
-(`docs/decisions/0011-plans-are-tiers-with-extra-usage.md`). Ruben: "I do not want to count minutes … just count it as
+**Status:** design v2, for Ruben's approval. Written 25 September 2026 against commit `095e419f`, under decision 0037
+(`docs/decisions/0037-plans-are-tiers-with-extra-usage.md`). Ruben: "I do not want to count minutes … just count it as
 usage; if they want more usage, upgrade … similar to the usage UI system from Claude"; then "analyze Chanlytics to
 design it integrated a bit better, for example we have the Ask system; perhaps it embeds with that, as we already
 have the icon for Ask." This is the end-to-end design: what is counted, where, how the month is kept, what the person
@@ -16,7 +16,7 @@ sees, and the two doors past the top. v2 moves the exposure inside Ask.
 3. **The month is the billing period.** "Resets Oct 12" is the invoice's day, not the calendar's.
 4. **Past the top, two doors, honestly.** The next tier starting today, or waiting for the reset while the
    receptionist takes messages. Nothing is cut off mid-call; nothing goes silent.
-5. **Leads stay apart.** Their own bar in the same places, their own size, their own door (decision 0011).
+5. **Leads stay apart.** Their own bar in the same places, their own size, their own door (decision 0037).
 6. **Nothing new in the chrome.** The product already has one AI with one face everywhere (Ask). Usage is that AI's
    standing: at its feet in the Stage, around its face when it matters, and a question away. No fourth button in the
    top bar, no page anyone has to find.
@@ -51,7 +51,7 @@ sees, and the two doors past the top. v2 moves the exposure inside Ask.
 
 | What the receptionist did      | Units | Why                                                |
 | ------------------------------ | ----- | -------------------------------------------------- |
-| A second on a call             | 1/6   | 10 a minute; a minute costs us 10–11¢ (0011)       |
+| A second on a call             | 1/6   | 10 a minute; a minute costs us 10–11¢ (0037)       |
 | An SMS segment, in or out      | 2     | 1.3¢ carrier and Twilio, and a share of the reply  |
 | A WhatsApp, web or email reply | 1     | the model; from 1 October Meta's $0.0034 a message |
 | An Ask turn                    | 1     | real (Sonnet) but the owner's own; kept cheap      |
@@ -253,7 +253,7 @@ every read; `budget.ts` shows what the sum costs on a partitioned table (a 20,00
 - Lead search past the size: `You have {left} leads left this month; this search wants {count}. Find {left} now, or
   take {size} a month?`
 
-## Data changes (one migration, step 2 of 0011)
+## Data changes (one migration, step 2 of 0037)
 
 - `billing_accounts`: `current_period_start timestamptz`, `usage_included integer not null default 1500`,
   `usage_state text not null default 'ok' check (usage_state in ('ok','warned','over'))`, `usage_state_period text`.

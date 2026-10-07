@@ -1,16 +1,22 @@
 {
   "name": "chanlytics",
   "private": true,
-  "packageManager": "pnpm@10.4.1",
+  "packageManager": "pnpm@10.34.5",
   "scripts": {
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "node --conditions=react-server --import tsx --test tooling/scripts/tests/*.test.mjs",
-    "test:db": "node --conditions=react-server --import tsx --test tooling/scripts/tests/*.db.test.mjs tooling/scripts/tests/*.integration.test.mjs",
-    "gen:schema-sets": "node tooling/scripts/gen-schema-sets.mjs",
-    "gen:db-types": "node tooling/scripts/check-db-types.mjs",
-    "check:db-types": "node tooling/scripts/check-db-types.mjs --check",
-    "check:dist": "node tooling/scripts/check-dist.mjs",
-    "lint": "eslint .",
+    "test": "node tooling/scripts/checks/test.mjs",
+    "test:db": "node tooling/scripts/checks/test.mjs --db",
+    "gen:schema-sets": "node tooling/scripts/gen/schema-sets.mjs",
+    "gen:db-types": "node tooling/scripts/gen/db-types.mjs",
+    "gen:api-reference": "node --conditions=react-server --import tsx tooling/scripts/gen/api-reference.mjs",
+    "gen:schema-snapshot": "node tooling/scripts/gen/schema-snapshot.mjs",
+    "gen:data-model": "node tooling/scripts/gen/data-model.mjs",
+    "check:db-types": "node tooling/scripts/gen/db-types.mjs --check",
+    "check:dist": "node tooling/scripts/checks/dist.mjs",
+    "check:dead-exports": "node tooling/scripts/checks/dead-exports.mjs",
+    "check:bundle": "node tooling/scripts/checks/bundle-budget.mjs",
+    "check:style-equality": "node tooling/scripts/checks/style-equality.mjs",
+    "lint": "node --max-old-space-size=5120 tooling/scripts/checks/lint.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "node tooling/scripts/prepare-hooks.mjs",
@@ -22,23 +28,21 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "@eslint/js": "^9.17.0",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.63.0",
     "acorn": "8.18.0",
     "esbuild": "0.28.2",
     "eslint": "^10.10.0",
+    "eslint-plugin-jsx-a11y-x": "^0.2.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
     "husky": "^9.1.7",
+    "knip": "^5.88.1",
+    "lightningcss": "1.33.0",
     "lint-staged": "^16.4.0",
     "prettier": "^3.9.8",
     "tsx": "^4.23.13",
+    "typescript": "catalog:",
     "typescript-eslint": "^8.70.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "postcss@<8.5.23": "^8.5.28",
-      "esbuild@<0.28.1": "^0.28.2"
-    }
   }
 }

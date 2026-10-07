@@ -9,6 +9,7 @@ import {
 } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
+import { dbRefusal } from "@/server/with-route";
 
 const Body = z.object({
   consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], {
@@ -85,7 +86,7 @@ export const PUT = write({
       ...(note ? { p_note: note } : {}),
       ...(messageId ? { p_message_id: messageId } : {}),
     });
-    if (doorErr) throw new AppError("validation", doorErr.message);
+    if (doorErr) throw dbRefusal(doorErr);
     const r = (data ?? {}) as { marketing_consent?: string | null; marketing_consent_updated_at?: string | null };
 
     // The ledger row says who recorded it and how, and names the purpose — so one

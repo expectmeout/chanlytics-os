@@ -1,7 +1,5 @@
-import { AppError, cleanParam, parseParamSpec, type ParamSpec } from "@chanlytics/contracts";
+import { AppError, cleanParam, parseParamSpec, UUID, type ParamSpec } from "@chanlytics/contracts";
 import type { TemplateRow, TemplateValuesPorts } from "./ports";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * The template as Meta holds it and the values as Meta will accept them:

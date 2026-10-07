@@ -1,102 +1,29 @@
 /**
- * POST /api/admin/sending-domains — a workspace's own domains for cold email (Reach out, Part 2). The dashboard's
- * /api/v1/sending-domains verbs call it for an owner; the cold mail account's key lives here and nowhere else.
+ * POST /api/admin/sending-domains: a workspace's own domains for cold email (Reach out, Part 2). The dashboard's
+ * /api/v1/sending-domains verbs call it for an owner; the cold mail account's key lives on the edge and nowhere else.
  *
- *   { op: "status" }                                        → may this deployment add domains at all
- *   { op: "add", tenant_id, host, from_local, from_name }   → held for the workspace, created at the provider
- *   { op: "check", tenant_id, domain_id }                   → the provider asked to look again, and read now
- *   { op: "remove", tenant_id, domain_id }                  → gone at the provider, then the row
- *
- * What each answer means is lib/email/sending-domains.ts's; this file is the door: who may knock, which workspace,
- * and what the body names.
+ * The door reads the body once as text (the token's body hash is checked over these bytes; a body that is not an object
+ * is an empty one), decides whether this knock is the platform's lift of a second hold (the one op the key opens on an
+ * edge that holds the secret too, D16) and asks authorizeAdmin; sendingDomainsOp in lib/email/sending-domains-ops.ts is
+ * the op table and what each answer means.
  */
-import { json } from "../../lib/http.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
-import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
-import { env } from "../../lib/env.js";
-import { sendingDomainOf } from "../../lib/packages/db.js";
-import { readDmarc } from "../../lib/email/dmarc.js";
-import {
-  addSendingDomain,
-  checkSendingDomain,
-  domainDto,
-  removeSendingDomain,
-  type DomainPorts,
-} from "../../lib/email/sending-domains.js";
+import { authorizeAdmin } from "../../lib/admin-auth.js";
+import { readBody } from "../../lib/admin-door.js";
+import { adminDoor } from "../../lib/log.js";
+import { sendingDomainsOp, type Body } from "../../lib/email/sending-domains-ops.js";
 
-interface Body {
-  op?: unknown;
-  tenant_id?: unknown;
-  user_id?: unknown;
-  domain_id?: unknown;
-  host?: unknown;
-  from_local?: unknown;
-  from_name?: unknown;
-}
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
-export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/sending-domains");
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
+  // Read once, as text: the token's body hash is checked over these bytes, and a body that is not an object (null
+  // included) is an empty one, validated below.
+  const raw = await request.text();
+  const body = await readBody<Body>(raw);
+  // The platform lifts a second hold with its key and never with a token (D16, the runbook): that one op is the
+  // key's on an edge that holds the secret too. Every other op is a dashboard's and carries a token; the key alone
+  // is refused before a row is read.
+  const platformLift = str(body.op) === "resume" && str(body.by) === "platform";
+  const auth = await authorizeAdmin(request, "/api/admin/sending-domains", { platformKey: platformLift, body: raw });
   if (!auth.ok) return auth.response;
-  let body: Body = {};
-  try {
-    body = JSON.parse(await request.text()) as Body;
-  } catch {
-    /* validated below */
-  }
-  const ws = workspaceFor(auth, body.tenant_id);
-  if (!ws.ok) return ws.response;
-  const op = str(body.op);
-  const coldKey = env.RESEND_COLD_API_KEY;
-
-  if (op === "status") return json(200, { ok: true, ready: !!coldKey });
-  if (op !== "add" && op !== "check" && op !== "remove") return json(400, { ok: false, error: "unknown_op" });
-  if (!coldKey)
-    return json(503, {
-      ok: false,
-      error: "no_cold_key",
-      message: "Sending from your own domain isn't switched on here yet.",
-    });
-  const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
-  const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return json(400, { ok: false, error: "tenant_id (a workspace id) is required" });
-
-  const L = logger({ door: "sending-domains", tenant: tenantId, op });
-  const ports: DomainPorts = { db, cfg: { apiKey: coldKey }, dmarc: (h) => readDmarc(h), now: Date.now, log: L };
-  try {
-    if (op === "add") {
-      const out = await addSendingDomain(ports, {
-        tenantId,
-        host: str(body.host),
-        fromLocal: str(body.from_local),
-        fromName: str(body.from_name),
-        by: UUID.test(str(body.user_id)) ? str(body.user_id) : (auth.user ?? null),
-      });
-      return out.ok ? json(200, out) : json(out.status, out);
-    }
-    const domainId = str(body.domain_id);
-    const row = UUID.test(domainId) ? await sendingDomainOf(db, tenantId, domainId) : null;
-    if (!row) return json(404, { ok: false, error: "not_found", message: "That domain isn't this workspace's." });
-    if (op === "check") {
-      const out = await checkSendingDomain(ports, row, { verify: true });
-      if (out.unreadable)
-        return json(502, {
-          ok: false,
-          error: "provider",
-          message: "The mail provider could not be asked just now. Try again.",
-        });
-      const now = out.row ?? (await sendingDomainOf(db, tenantId, domainId));
-      if (!now) return json(404, { ok: false, error: "not_found", message: "That domain isn't this workspace's." });
-      return json(200, { ok: true, domain: domainDto(now), change: out.change });
-    }
-    const gone = await removeSendingDomain(ports, row);
-    return gone.ok ? json(200, { ok: true, removed: true }) : json(gone.status, gone);
-  } catch (e) {
-    L.error("sending_domain_door_failed", { error: e instanceof Error ? e.message : String(e) });
-    return json(503, { ok: false, error: "unavailable", message: "That didn't go through. Try again in a minute." });
-  }
-}
+  return sendingDomainsOp(auth, request, body);
+});

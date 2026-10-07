@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError, TEMPLATE_CATEGORIES, TEMPLATE_LANGUAGES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { draftTemplate, translateTemplate, translationSource, type SourceRef } from "@/server/templates";
+import { draftTemplate, translateTemplate, translationSource, type SourceRef } from "@/server/campaigns/templates";
 
 /**
  * Two drafts, one door. A brief: what to tell customers, written fresh. Or

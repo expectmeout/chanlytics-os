@@ -1,0 +1,14 @@
+# The app from nothing (Android): its data cleared, it opens on the native sign-in screen, the three above the doors
+# the build has (without Google's ids, the email door alone). It leaves the app signed out, for sign-in.mjs; and since
+# clearing the data drops a downloaded update too, the next launch runs the build's own bundle and fetches the update
+# again (walk.mjs says which bundle the walk ran). Its screenshot is the walk's first, and the listing's sixth
+# (walk.mjs --store names it so).
+appId: com.chanlytics.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: Sign in to your workspace.
+    timeout: 30000
+- assertVisible: (Use your email instead|Sign in with your email)
+- takeScreenshot: 0-sign-in

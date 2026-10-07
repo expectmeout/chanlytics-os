@@ -15,7 +15,7 @@
  * in the same words.
  */
 import { notify, recordNotification } from "../ops/notify.js";
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, recordActivation } from "../packages/db.js";
 import { formatPhoneDisplay, lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "../packages/contracts.js";
 import { runLineSaga, type LineRow } from "../packages/channels.js";
 import { linePorts, LINE_STEP_WORDS, type LineProviderChoice } from "./lines.js";
@@ -61,7 +61,7 @@ export async function reportLineFailed(
       body: `${tenant.name} (${tenant.id}) — line ${line.id} for ${line.e164 ?? "no number"} stopped at step "${at}" (started by ${by}).\n\n${error}\n\nRetry: POST /api/admin/lines { "op": "retry", "tenant_id": "${tenant.id}", "line_id": "${line.id}" } (x-diag-key).`,
     },
   );
-  await emitEvent(db, tenant.id, "line.failed", "setup", "line", line.id, {
+  await emitEvent(db, tenant.id, "line.failed", "line", line.id, {
     step,
     error: error.slice(0, 300),
     provider: providerName,
@@ -94,7 +94,7 @@ export async function provisionLine(
   const shown = formatPhoneDisplay(result.line.e164) ?? result.line.e164 ?? "your number";
   if (result.ok && result.later) {
     // Nobody is told anything: the line is still setting up, and the next run goes on from its step.
-    logger({ tenant: tenant.id }).info("line_saga_later", {
+    logger({ tenant_id: tenant.id }).info("line_saga_later", {
       line: line.id,
       step: result.step,
       provider: choice.name,
@@ -110,16 +110,18 @@ export async function provisionLine(
       route: "admin/setup",
       about: { type: "line", id: line.id },
     });
-    await emitEvent(db, tenant.id, "line.answering", "setup", "line", line.id, {
+    await emitEvent(db, tenant.id, "line.answering", "line", line.id, {
       e164: result.line.e164,
       provider: choice.name,
       agent_id: result.line.retell_agent_id,
       by,
     }).catch(() => {});
+    // The workspace's first line that answers: the funnel's first milestone (a WhatsApp connection is the other door).
+    await recordActivation(db, tenant.id, "line_live", "phone").catch(() => false);
   } else {
     await reportLineFailed(db, choice.name, tenant, result.line, result.step, result.error, by);
   }
-  logger({ tenant: tenant.id }).info("line_saga", {
+  logger({ tenant_id: tenant.id }).info("line_saga", {
     line: line.id,
     ok: result.ok,
     step: result.ok ? null : result.step,

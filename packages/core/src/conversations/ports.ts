@@ -7,13 +7,13 @@
  * for the table it touches; the adapter that knows both lives in
  * apps/dashboard/src/server/core-ports.ts.
  */
-import type { DecisionSubject, DecisionVerb } from "@chanlytics/contracts";
+import type { DecisionSubject, DecisionVerb, TenantId } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 
 /** The thread as the route's scope loaded it. A verb names only the fields it reads. */
 export interface Thread {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   state: string;
   paused_until: string | null;
   phone_e164: string | null;
@@ -22,7 +22,7 @@ export interface Thread {
 /** What the thread verbs need of the world. */
 export interface ThreadPorts {
   /** How long a person's touch keeps the receptionist off a thread: the reply policy's pause_hours, or a day. */
-  pauseMs(tenantId: string): Promise<number>;
+  pauseMs(tenantId: TenantId): Promise<number>;
   /** needs_human, paused until, snooze cleared, claimed by the user. True iff a row changed. */
   claim(conversationId: string, untilIso: string, userId: string): Promise<boolean>;
   /** open, pause and snooze cleared, unassigned. True iff a row changed. */
@@ -41,15 +41,15 @@ export interface ThreadPorts {
    * never refused, so this answers with nothing -- a failure throws, because a
    * hold we could not take is not a hold we have.
    */
-  takeControl(tenantId: string, conversationId: string, userId: string, seconds: number): Promise<void>;
+  takeControl(tenantId: TenantId, conversationId: string, userId: string, seconds: number): Promise<void>;
   /** This person's hold, let go. Somebody else's is left alone. */
-  letControlGo(tenantId: string, conversationId: string, userId: string): Promise<void>;
+  letControlGo(tenantId: TenantId, conversationId: string, userId: string): Promise<void>;
   /** The receptionist's held drafts on the thread withdrawn, rows then jobs; how many. */
-  withdrawDrafts(tenantId: string, conversationId: string): Promise<number>;
+  withdrawDrafts(tenantId: TenantId, conversationId: string): Promise<number>;
   /** The open escalation on the thread resolved by this decision, when there is one. */
   resolveEscalation(conversationId: string, decisionId: string): Promise<void>;
   /** The ledger: who did what to which row. The decision's id. */
-  record(tenantId: string, subject: DecisionSubject, id: string, verb: DecisionVerb, payload?: Json): Promise<string>;
+  record(tenantId: TenantId, subject: DecisionSubject, id: string, verb: DecisionVerb, payload?: Json): Promise<string>;
   now(): number;
 }
 
@@ -65,6 +65,6 @@ export interface CancelSendPorts {
   /** queued → canceled, only while queued: zero rows means the send job won. */
   cancelQueued(messageId: string): Promise<boolean>;
   /** The outbound_send job for the message withdrawn; how many. */
-  cancelJob(tenantId: string, messageId: string): Promise<number>;
+  cancelJob(tenantId: TenantId, messageId: string): Promise<number>;
   record: ThreadPorts["record"];
 }

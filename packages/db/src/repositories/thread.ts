@@ -1,31 +1,41 @@
 /**
- * The receptionist's working memory, read from Postgres — the only place it
- * lives.
- *
- * It used to live in Vercel Blob with Postgres as a write-only shadow, which
- * meant every surface we built read a MIRROR of the truth and the two had to
- * be kept in step by hand. Three of our worst bugs came from that gap (an
- * operator take-over clobbered by a webhook writing a stale whole-object,
- * archived threads swallowing new messages, a reply scheduled before its
- * mirror write). The rows the dashboard reads and writes ARE the memory now:
- *   history      last turns fed to the model
- *   pausedUntil  a human is handling this thread
- *   replies      bot sends in the last 24h (rate cap)
- * Retry dedupe is not here and needs nothing here: ingest_inbound's is_new is
- * an atomic gate on a unique index, which is strictly stronger than the
- * 40-entry array the store kept, and which two concurrent lambdas could both
- * miss.
+ * A repository, in this codebase's sense, is the one place a table's rows are read and written as typed facts, so a
+ * caller asks for the fact and does not spell the table; the database client comes in as an argument (the edge's
+ * service role, or a member's session client) and is never made here. This one only reads: what the agents and the
+ * dashboard know about a conversation, from Postgres, the only place the receptionist's memory lives (messages,
+ * contacts, conversations, deals and person_notes, and the search_messages function). Its groups:
+ *   - A thread's state (readThreadState, assembleHistory, HISTORY_COLUMNS): the turns the model is shown, the pause a
+ *     human set (handed in by the caller), the receptionist's own sends in the last day (its rate cap), and whether
+ *     a text of ours ever reached them (textedBefore, which decides the A2P footer). assembleHistory alone decides what counts as a
+ *     turn, so the WhatsApp receptionist and the voice agent cannot disagree about what was said. Called by the edge's
+ *     WhatsApp persistence, steer door and reach-out reply draft.
+ *   - A lead's context (readLeadContext, readDealForPhone, describeLead, notesForReceptionist): one person by phone
+ *     number across channels, and the plain lines a model is told about them. Called by the edge's WhatsApp ports,
+ *     voice call start and steer door; the availability door asks readDealForPhone.
+ *   - Finding words (searchMessages, messageSenders): Ask's message search, called by the dashboard's message reader.
+ * Every read names the tenant, so a service-role caller cannot cross workspaces and a session client is narrowed by
+ * RLS as well. A failed read throws, because a thread the database could not produce is unknown and never empty (a
+ * blank thread reads as no pause, nothing said and no replies spent: core's inbound/thread.ts); only a lead's deal and
+ * notes are best effort, so a context lookup never costs the reply. readLeadContext is read-only: it never makes a
+ * contact or a conversation. Retry dedupe is not here: ingest_inbound's is_new is an atomic gate on a unique index.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  fencedInline,
+  promptSafeName,
   type DealFacts,
+  type LeadChannel,
   clockDate,
+  DAY_MS,
+  dealIsOpen,
   dealSentence,
   dealsAreOn,
+  offersFacts,
   pickCurrentDeal,
   proposalLinkOf,
 } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
+import { IDS_PER_READ } from "./people";
 
 type Db = SupabaseClient<Database>;
 
@@ -39,24 +49,22 @@ export interface PgThreadState {
   pausedUntil: number;
   replies: number[];
   /**
-   * Anything has ever LEFT on this conversation, at any time, from anyone.
+   * A TEXT of ours has ever reached this person on this conversation, at any time, from anyone: an outbound row on the
+   * texting wire that left. The A2P footer on a first text reply is decided by this alone (the campaign filing promises
+   * the rates/STOP/HELP line on the first text), so it is asked of the database outright.
    *
-   * `history` cannot answer this: a voice call note is an inbound row whose
-   * sender is "system" and assembleHistory maps every non-customer sender to
-   * an assistant turn, so a customer who only ever phoned looks like one we
-   * have written to. `replies` cannot either — it is a 24h window, and it
-   * counts only the machine. The A2P footer on a first text reply is decided
-   * by this, so it is computed from what actually went out.
+   * Nothing else in hand can answer it. `history` reads a voice call note, an inbound row whose sender is "system", as
+   * an assistant turn, so a customer who only ever phoned looked like one we had written to. `replies` is a 24-hour
+   * window of the machine's sends on any wire. And "anything ever left", which this was until W2, said yes for a
+   * person a WhatsApp or email campaign had reached: their first text reply then went out without the line.
    */
-  repliedBefore: boolean;
+  textedBefore: boolean;
 }
 
 /** Outbound rows only count as memory once they actually left. A canceled or
  *  failed send was never seen by the customer, so it must not appear in the
  *  model's context as something "we said". */
 const DELIVERED = ["sent", "delivered", "read"];
-
-const DAY_MS = 24 * 3600 * 1000;
 
 /**
  * Voice notes moved in from before the database, as ordinary assistant turns.
@@ -136,7 +144,7 @@ export async function readThreadState(
 ): Promise<PgThreadState> {
   const since = new Date(Date.now() - DAY_MS).toISOString();
 
-  const [recent, replies] = await Promise.all([
+  const [recent, replies, texted] = await Promise.all([
     db
       .from("messages")
       .select(HISTORY_COLUMNS)
@@ -153,23 +161,28 @@ export async function readThreadState(
       .eq("direction", "outbound")
       .in("status", DELIVERED)
       .gte("created_at", since),
+    // One row is the answer: a text of ours that left, at any time. Not read off `recent`, which is the last few
+    // rows of every wire: a long thread's first text would fall out of it, and a campaign by WhatsApp or email is in it.
+    db
+      .from("messages")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("conversation_id", conversationId)
+      .eq("direction", "outbound")
+      .eq("channel", "sms")
+      .in("status", DELIVERED)
+      .limit(1),
   ]);
 
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
+  if (texted.error) throw new Error(`readThreadState/texted: ${texted.error.message}`);
 
-  const history = assembleHistory((recent.data ?? []) as never, historyLimit);
-  // From the rows already in hand, so this costs no extra round trip: an
-  // outbound row that actually left is the only proof that we have written to
-  // this person before.
-  const repliedBefore = (recent.data ?? []).some(
-    (m: { direction?: string | null; status?: string | null }) =>
-      m.direction === "outbound" && DELIVERED.includes(String(m.status)),
-  );
+  const history = assembleHistory(recent.data ?? [], historyLimit);
 
   return {
     history,
-    repliedBefore,
+    textedBefore: (texted.data ?? []).length > 0,
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it
@@ -198,6 +211,20 @@ export interface LeadContext {
   optedOut: boolean;
   /** Whether an email address is on file for them: the receptionist asks for one only when there is none (the booking rule ask_email). Undefined for a reader that never learned it, which says nothing. */
   hasEmail?: boolean;
+  /**
+   * Their answer about offers (contacts.marketing_consent: unknown, opted_in or opted_out), and when the receptionist
+   * first asked for the yes (contacts.offers_asked_at: null = never asked). `offersAskedAt` is undefined where the
+   * database has not got the column yet: the receptionist then says nothing that lets it ask (contracts offersFacts).
+   * Both optional, so a reader that never learned them and every fake still compile.
+   */
+  marketingConsent?: string | null;
+  /**
+   * The channels that yes covers (contacts.marketing_channels, consent-channels.ts): null where none are kept, a yes
+   * recorded before the channels were, which covers WhatsApp alone. Undefined where the column could not be read,
+   * which reads the same way (contracts yesCovers). A yes kept for text alone is not a yes on WhatsApp.
+   */
+  marketingChannels?: string[] | null;
+  offersAskedAt?: string | null;
   /** The owner's notes on them — facts for the receptionist, never read aloud. The field 00157 superseded: said only
    *  where the notes themselves could not be read (`noteList` null or absent). */
   notes?: string | null;
@@ -215,6 +242,12 @@ export interface LeadContext {
    * (dealsAreOn, 0008). Optional so every fake still compiles.
    */
   deal?: DealFacts | null;
+  /**
+   * Their other open deals (0029), newest first, each with its proposal's link: a client of one service may have a
+   * proposal out for another, and the receptionist hears each. Empty where none, or deals are off; optional so every
+   * fake still compiles.
+   */
+  otherDeals?: DealFacts[];
 }
 
 /** The workspace's answer to how its customers buy, from a contact read that embeds `tenants(sells_by)`. */
@@ -227,6 +260,10 @@ function sellsByOf(embedded: unknown): string | null {
 /** A read that names tenants.sells_by on a database 00160 has not reached answers "column does not exist". */
 const noSellsBy = (message: string): boolean =>
   /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
+
+/** The same answer for contacts.offers_asked_at or marketing_channels, on a database the migration that adds them has not reached. */
+const noOffersColumns = (message: string): boolean =>
+  /\b(offers_asked_at|marketing_channels)\b/.test(message) && /does not exist|could not find/i.test(message);
 
 const EMPTY_LEAD: LeadContext = {
   contactId: null,
@@ -261,11 +298,15 @@ export async function readLeadContext(
 ): Promise<LeadContext> {
   // Who they are, and in the same round trip how their workspace's customers buy (0008): a deal and a proposal link are
   // the receptionist's to say only where deals are on. A database 00160 has not reached answers "column does not exist"
-  // for the answer: read again without it, and deals are off there, as they would be.
+  // for the answer: read again without it, and deals are off there, as they would be. And whether they were ever
+  // asked for the yes to offers, and on which channels that yes holds (offers_asked_at and marketing_channels, One
+  // message, every channel, step 2): the edge may deploy before its migration, and a missing column must cost the answer
+  // to that one question, never who they are. Read again without them, and the receptionist is told nothing that lets
+  // it ask (contracts offersFacts).
   const withAnswer = await db
     .from("contacts")
     .select(
-      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, tenants(sells_by)",
+      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)",
     )
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
@@ -280,13 +321,30 @@ export async function readLeadContext(
     notes: string | null;
     proposal_url: string | null;
     email: string | null;
+    marketing_consent: string;
+    marketing_channels?: string[] | null;
+    offers_asked_at?: string | null;
     sellsBy: string | null;
   } | null = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
   let cErr = withAnswer.error;
+  if (cErr && noOffersColumns(cErr.message)) {
+    const unasked = await db
+      .from("contacts")
+      .select(
+        "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, tenants(sells_by)",
+      )
+      .eq("tenant_id", tenantId)
+      .eq("phone_e164", phoneE164)
+      .maybeSingle();
+    contact = unasked.data ? { ...unasked.data, sellsBy: sellsByOf(unasked.data.tenants) } : null;
+    cErr = unasked.error;
+  }
   if (cErr && noSellsBy(cErr.message)) {
     const older = await db
       .from("contacts")
-      .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email")
+      .select(
+        "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent",
+      )
       .eq("tenant_id", tenantId)
       .eq("phone_e164", phoneE164)
       .maybeSingle();
@@ -315,7 +373,7 @@ export async function readLeadContext(
       .order("created_at", { ascending: false })
       .limit(historyLimit * 3);
     if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
-    history = assembleHistory((rows ?? []) as never, historyLimit);
+    history = assembleHistory(rows ?? [], historyLimit);
   }
 
   // Their deal, read beside the note (0004), only where deals are on: a context lookup must never cost the reply, so an
@@ -331,6 +389,8 @@ export async function readLeadContext(
         .order("created_at", { ascending: false })
     : { data: [] };
   const current = pickCurrentDeal(dealRows ?? []);
+  // Every other open deal of theirs, newest first (0029): a proposal out for one service beside a client of another.
+  const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
 
   // Their notes (0007): the kept ones that are not for the team only. Never a suggestion the receptionist wrote
   // itself, which waits for a person to keep it. An error is no list, and the old field is said instead.
@@ -357,18 +417,26 @@ export async function readLeadContext(
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     hasEmail: !!contact.email,
+    marketingConsent: contact.marketing_consent,
+    marketingChannels: contact.marketing_channels,
+    // Undefined where the column could not be read: not null, which says "never asked".
+    offersAskedAt: contact.offers_asked_at,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
-    deal: current
-      ? {
-          stage: current.stage,
-          service: current.service,
-          proposed_at: current.proposed_at,
-          decided_at: current.decided_at,
-          ended_at: current.ended_at,
-        }
-      : null,
+    deal: current ? dealRowFacts(current) : null,
+    otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url })),
+  };
+}
+
+/** A deal row's facts as the receptionist and the phone read them: its stage, its service and its days. */
+function dealRowFacts(d: Pick<DealFacts, "stage" | "service" | "proposed_at" | "decided_at" | "ended_at">): DealFacts {
+  return {
+    stage: d.stage,
+    service: d.service,
+    proposed_at: d.proposed_at,
+    decided_at: d.decided_at,
+    ended_at: d.ended_at,
   };
 }
 
@@ -392,10 +460,10 @@ export async function readDealForPhone(db: Db, tenantId: string, phoneE164: stri
     .eq("tenant_id", tenantId)
     .eq("contact_id", c.id)
     .order("created_at", { ascending: false });
-  const d = pickCurrentDeal(data ?? []);
-  return d
-    ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at }
-    : null;
+  // A client of any service is a client (0029): their current deal may be a newer proposal for another one, which hid
+  // that they are one, and they were offered a consultation instead of the service.
+  const d = (data ?? []).find((x) => x.stage === "won") ?? pickCurrentDeal(data ?? []);
+  return d ? dealRowFacts(d) : null;
 }
 
 /**
@@ -435,18 +503,40 @@ export function notesForReceptionist(lead: LeadContext, now = new Date(), tz = "
   return notes ? `Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}` : null;
 }
 
-export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): string {
+export function describeLead(
+  lead: LeadContext,
+  now = new Date(),
+  tz = "UTC",
+  /** The channel of the conversation this is read in: the ask for the yes to offers is for WhatsApp alone. */
+  channel?: LeadChannel,
+): string {
   if (!lead.contactId) return "New contact — no prior history on record.";
   const bits: string[] = [];
-  bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
+  // A name may be one the person gave themselves (a WhatsApp profile name): capped, one line, and fenced as their words,
+  // so it can say nothing to the model (contracts ai/fence.ts; the one injection policy).
+  const name = promptSafeName(lead.name);
+  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.` : "No name on record.");
   // Whether an address is on file, so the receptionist asks for one only when there is none (booking rule ask_email);
   // a reader that never learned it (undefined) says nothing rather than a guess.
   if (lead.hasEmail === true) bits.push("Their email address is on file.");
   else if (lead.hasEmail === false) bits.push("No email address on file.");
+  // What they answered about offers, whether they were asked for the yes, and a text conversation said to be one: the
+  // rule that asks for it once reads these (contracts offers-ask.ts), and a reader that never learned them says nothing.
+  bits.push(
+    ...offersFacts(
+      {
+        marketingConsent: lead.marketingConsent,
+        marketingChannels: lead.marketingChannels,
+        offersAskedAt: lead.offersAskedAt,
+        optedOut: lead.optedOut,
+      },
+      channel,
+      now,
+      tz,
+    ),
+  );
   if (lead.returning) {
-    const days = lead.lastSeenAt
-      ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / 86_400_000)
-      : null;
+    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;
     const when =
       days === null
         ? ""
@@ -467,12 +557,161 @@ export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): s
   // answers a price question, so the proposal's sentence points at it instead of promising a follow-up.
   const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
   if (deal) bits.push(deal);
-  // The owner's priced answer for this person is a link (00154), the deal's now (0008):
-  // the receptionist hands it over and prices nothing itself. No link, nothing said.
-  const proposal = (lead.proposalUrl ?? "").trim();
-  if (proposal)
-    bits.push(
-      `The owner has a proposal ready for them at ${proposal}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out — say it is being sent to them in writing.`,
-    );
+  // Each other open deal of theirs (0029), its own sentence: a client of one service with a proposal out for another
+  // hears both.
+  const others = lead.otherDeals ?? [];
+  for (const d of others) {
+    const said = dealSentence(d, now.getTime(), tz, { hasLink: !!(d.proposal_url ?? "").trim() });
+    if (said) bits.push(said);
+  }
+  const links = proposalLinkWords(lead);
+  if (links) bits.push(links);
   return bits.join(" ");
+}
+
+/**
+ * The owner's priced answer for this person is a link (00154), the deal's now (0008): the receptionist hands it over and
+ * prices nothing itself, and no link is nothing said. With one deal open, its link answers a price question. With several
+ * (0029), each link is named by its service and answers for that proposal alone: a client's engagement, and a proposal
+ * out with no link, keep their own sentences (dealSentence), so a question about one never gets another's link.
+ */
+function proposalLinkWords(lead: LeadContext): string | null {
+  const others = lead.otherDeals ?? [];
+  const links = [
+    { url: (lead.proposalUrl ?? "").trim(), service: lead.deal?.service ?? null },
+    ...others
+      .filter((d) => d.stage === "proposed")
+      .map((d) => ({ url: (d.proposal_url ?? "").trim(), service: d.service })),
+  ].filter((x) => x.url);
+  const [first] = links;
+  if (!first) return null;
+  if (!others.length)
+    return `The owner has a proposal ready for them at ${first.url}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out — say it is being sent to them in writing.`;
+  const rest =
+    "and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out — say it is being sent to them in writing.";
+  if (links.length === 1)
+    return `The owner has a proposal${first.service ? ` for ${first.service}` : ""} ready for them at ${first.url}. If they ask about that proposal, its price or a quote for it, send that link ${rest}`;
+  const named = links.map((x) => (x.service ? `${x.service} at ${x.url}` : x.url)).join("; ");
+  return `The owner has proposals ready for them: ${named}. If they ask about one of these, its price or a quote for it, send the link for the one they mean (ask which, if it is not clear) ${rest}`;
+}
+
+/* -------------------------------------------------------------------------
+ * The words a thread or a call said, found (00219).
+ * ---------------------------------------------------------------------- */
+
+/** A message that holds the words, or a call whose transcript does, as search_messages answers it. */
+export interface MessageHit {
+  /** A message (a call_summary among them), or a call found by its transcript. */
+  kind: "message" | "call";
+  /** The message's id, or the call's. */
+  id: string;
+  /** The thread it is on: a message always has one; a call may not. */
+  conversationId: string | null;
+  contactId: string | null;
+  /** A message's channel; null for a call. */
+  channel: string | null;
+  direction: string;
+  /** When it was sent, or when the call started (when it was recorded, where the call never said). */
+  at: string;
+  /** The words around the match, as written, with no markup. */
+  snippet: string;
+}
+
+/** A hit's kind as the database spells it; anything else is a function this code was not written against. */
+function hitKind(kind: string): MessageHit["kind"] {
+  if (kind === "message" || kind === "call") return kind;
+  throw new Error(`searchMessages: unknown kind ${kind}`);
+}
+
+/**
+ * The workspace's messages and call transcripts that hold these words, newest first: none older than `since`, at most
+ * `limit` (the database clamps it to 1–50). The words are websearch_to_tsquery's, so a quoted phrase, `or` and `-word`
+ * mean what a search box means. Blank words, and words whose query could match a message holding none of them (only
+ * exclusions, or an `or` with one: `valet or -parking`), answer nothing; so does a limit that is no number (NaN reaches
+ * the database as null, and the function is strict). Under the caller's row security on a session client. A read that
+ * fails THROWS, and so does a row of a kind this does not know: a search the database could not answer is never "nobody
+ * said it", and a hit is never labelled what it is not.
+ */
+export async function searchMessages(
+  db: Db,
+  tenantId: string,
+  words: string,
+  since: Date,
+  limit: number,
+): Promise<MessageHit[]> {
+  const { data, error } = await db.rpc("search_messages", {
+    p_tenant: tenantId,
+    p_words: words,
+    p_since: since.toISOString(),
+    p_limit: limit,
+  });
+  if (error) throw new Error(`searchMessages: ${error.message}`);
+  // The generated row types every column as present; a call's channel, and a call's thread and person, may be null.
+  return (data ?? []).map((r): MessageHit => ({
+    kind: hitKind(r.kind),
+    id: r.id,
+    conversationId: r.conversation_id ?? null,
+    contactId: r.contact_id ?? null,
+    channel: r.channel ?? null,
+    direction: r.direction,
+    at: r.at,
+    snippet: r.snippet ?? "",
+  }));
+}
+
+/** What a message hit does not carry: who sent it, what became of it, and its kind. */
+export interface MessageSender {
+  id: string;
+  /** customer, ai, human or system: who of the business wrote an outbound message, which its direction does not say. */
+  sender: string;
+  /** What became of it: a business message queued, canceled or failed never reached the customer. */
+  status: string;
+  /** text, template, media, call_summary (a call's note in its thread) or note. */
+  type: string;
+}
+
+/**
+ * What the provider (or the ledger) said about these FAILED messages: `messages.error`, by id, for the ones that say
+ * something. newest_messages (00258), the Inbox's read of every thread's messages, answers twelve columns and error is
+ * not one of them, so the reader asks for the few failed rows' errors here, in one read for a hundred ids or fewer
+ * (IDS_PER_READ), under the caller's row security and the workspace's own filter. A read that fails THROWS.
+ */
+export async function failedMessageErrors(
+  db: Db,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Array<{ id: string; error: Record<string, unknown> }>> {
+  const out: Array<{ id: string; error: Record<string, unknown> }> = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db
+      .from("messages")
+      .select("id, error")
+      .eq("tenant_id", tenantId)
+      .eq("status", "failed")
+      .in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`failedMessageErrors: ${error.message}`);
+    for (const r of data ?? [])
+      if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
+        out.push({ id: r.id, error: r.error });
+  }
+  return out;
+}
+
+/**
+ * Who sent these messages and what became of them, by id, in one read for a hundred ids or fewer (IDS_PER_READ), under
+ * the caller's row security and the workspace's own filter: a message the caller cannot read is not answered. A read
+ * that fails THROWS.
+ */
+export async function messageSenders(db: Db, tenantId: string, ids: readonly string[]): Promise<MessageSender[]> {
+  const out: MessageSender[] = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db
+      .from("messages")
+      .select("id, sender, status, type")
+      .eq("tenant_id", tenantId)
+      .in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`messageSenders: ${error.message}`);
+    out.push(...(data ?? []));
+  }
+  return out;
 }

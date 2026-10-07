@@ -3,8 +3,9 @@
  *
  * Every request names a route key from the generated registry, and the
  * compiler knows from it what the route takes (`InputOf`) and answers
- * (`OutputOf`), so a site that hand-typed the server's answer, or sent a body
- * the route never read, stops compiling. Eleven couriers used to each own the
+ * (`OutputOf`), so a site that hand-typed the server's answer, sent a body
+ * the route never read, or left out the path's parameters or the body the
+ * route declares, stops compiling. Eleven couriers used to each own the
  * envelope, the 401, the timeout and their own list of surfaces to refresh;
  * this owns them once. Pure: no `window`, so it runs under node with a fake
  * fetch, and the bridge instantiates it with the real one.
@@ -25,13 +26,35 @@ type QueryOf<K extends RouteKey> = MethodOf<K> extends "GET" ? InputOf<Routes[K]
 /** A write's body: the declared schema, or anything JSON for a route that reads its own. */
 type BodyOf<K extends RouteKey> =
   MethodOf<K> extends "GET" ? never : InputOf<Routes[K]> extends undefined ? unknown : InputOf<Routes[K]>;
+/**
+ * What a request may not leave out: its path's parameters, when it has any (without them it would ask for
+ * `conversations//snooze`), and the body its write's schema declares, even one whose every field is optional (the
+ * route reads a missing body as `{}`, which a schema that needs a field refuses).
+ */
+type Needs<K extends RouteKey> = ([ParamNames<K>] extends [never] ? unknown : { params: Params<K> }) &
+  (unknown extends BodyOf<K> ? unknown : [BodyOf<K>] extends [never] ? unknown : { body: BodyOf<K> });
+export type ApiOptions<K extends RouteKey> = Options<K> & Needs<K>;
+/**
+ * The options argument: optional for a route that needs neither, and written for one that needs either. A courier
+ * that takes options optionally and hands them on (the shell's `read`) may hand on `undefined`: its own signature
+ * is then what holds its callers.
+ */
+type OptionsOf<K extends RouteKey> =
+  Record<never, never> extends Needs<K> ? [opts?: ApiOptions<K>] : [opts: ApiOptions<K> | undefined];
 
-export interface ApiOptions<K extends RouteKey> {
+/** What a request may carry. A link (`url`) takes it as it is given: the shell's `href` hands on a page's. */
+interface Options<K extends RouteKey> {
   params?: Params<K>;
   query?: QueryOf<K>;
   body?: BodyOf<K>;
   /** For the reply: the same key on a retry means the same message, never a second one. */
   idempotencyKey?: string;
+  /**
+   * One intent, however often it is sent (decision 0035): the write carries an Idempotency-Key made at its first send
+   * and kept, for the same request (its route, address and body), until it lands. A press after a timeout is then the
+   * same request, which the server answers once; a send after it lands, or of another body, is a new intent.
+   */
+  once?: boolean;
   /** The Ask palette commits through the same routes a button does; the ledger keeps that a card was tapped. */
   via?: "ask";
   /** An undo names the decision it reverses (its id, from the commit's receipt); the ledger links the two rows. */
@@ -79,7 +102,7 @@ export function unwrap<O>(r: ApiResult<O>): O {
   throw new ApiError(r.code, r.status, r.message);
 }
 
-export interface ApiDeps {
+interface ApiDeps {
   fetch: (url: string, init: RequestInit) => Promise<Response>;
   /** The workspace this tab holds; appended as ?workspace= unless the caller named one. */
   workspace: () => string | null;
@@ -91,23 +114,83 @@ export interface ApiDeps {
    * bridge forgets its choice and boots again, asking /workspaces first.
    */
   onChooseWorkspace?: () => void;
+  /**
+   * An mfa_required (0013): the request acted from a partner's seat, or as the partner account, on a session that has
+   * not shown its second factor. The bridge sends the tab to the second step.
+   */
+  onSecondFactor?: () => void;
   /** After a 2xx write: which surfaces to re-read, by the refresh map. */
   refresh: (key: RouteKey) => Promise<void>;
   now?: () => number;
+  /**
+   * A response the document head started for this exact URL (contracts routePrefetchScript), handed over once: the
+   * read takes it in place of its own fetch. Null for a URL the head did not start.
+   */
+  prefetched?: (url: string) => Promise<Response> | null;
 }
 
 /** Identical reads inside this window share one request: three overrides asking for the same list at boot. */
 const INFLIGHT_MS = 2_000;
+/**
+ * A read the document head started (`prefetched`) is shared this long from when it was taken: the page it was
+ * started for mounts a second or two later on a fast desktop and longer on a phone, and its own read of the same
+ * URL should find the head's answer, not ask again. Short enough that nothing a person does in the meantime is
+ * answered from it; a write clears every held read anyway (forget).
+ */
+const PREFETCH_SHARE_MS = 10_000;
 const READ_TIMEOUT_MS = 15_000;
 const WRITE_TIMEOUT_MS = 30_000;
+
+/** A refusal whose fix is somewhere else in the app: which workspace (choose_workspace), or the second step. */
+function heard(deps: ApiDeps, code: string | undefined): void {
+  if (code === "choose_workspace") deps.onChooseWorkspace?.();
+  if (code === "mfa_required") deps.onSecondFactor?.();
+}
+
+/**
+ * Each intent's key, from its first send until it lands (Options.once, decision 0035): `keyed` hands back the options
+ * with the key of the request they make (its method, address and body), made at its first send; `landed` lets it go, so
+ * the next send of that request is a new intent.
+ */
+function intentKeys() {
+  const held = new Map<string, string>();
+  const intentOf = new WeakMap<object, string>();
+  return {
+    keyed<O extends { once?: boolean; idempotencyKey?: string; body?: unknown }>(
+      method: string,
+      url: string,
+      opts: O,
+    ): O {
+      if (method === "GET" || !opts.once || opts.idempotencyKey) return opts;
+      const intent = `${method} ${url}\n${JSON.stringify(opts.body ?? null)}`;
+      const key = held.get(intent) ?? crypto.randomUUID();
+      held.set(intent, key);
+      const sent = { ...opts, idempotencyKey: key };
+      intentOf.set(sent, intent);
+      return sent;
+    },
+    landed(sent: object): void {
+      const intent = intentOf.get(sent);
+      if (intent) held.delete(intent);
+    },
+  };
+}
+
+/** Each client's intents, kept with its deps: one store per client a tab makes. */
+const INTENTS = new WeakMap<ApiDeps, ReturnType<typeof intentKeys>>();
+function intentsOf(deps: ApiDeps): ReturnType<typeof intentKeys> {
+  let store = INTENTS.get(deps);
+  if (!store) INTENTS.set(deps, (store = intentKeys()));
+  return store;
+}
 
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
   // `kept`: settled, answered, and held (holdAnswers) -- shared whatever its age until the hold is let go.
-  const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean }>();
+  const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean }>();
   let holds = 0;
 
-  function urlFor<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): string {
+  function urlFor<K extends RouteKey>(key: K, opts: Options<K> = {}): string {
     const params = (opts.params ?? {}) as Record<string, string>;
     const url = ROUTES[key].path.replace(/\[(\w+)\]/g, (_m, name: string) => encodeURIComponent(params[name] ?? ""));
     const qs = new URLSearchParams();
@@ -136,18 +219,24 @@ export function createApi(deps: ApiDeps) {
 
   async function send<K extends RouteKey>(
     key: K,
-    opts: ApiOptions<K> = {} as ApiOptions<K>,
+    ...[opts = {} as ApiOptions<K>]: OptionsOf<K>
   ): Promise<ApiResult<OutputOf<Routes[K]>>> {
     const isRead = ROUTES[key].method === "GET";
     const url = urlFor(key, opts);
+    const sent = intentsOf(deps).keyed(ROUTES[key].method, url, opts);
     if (isRead) {
       const hit = inFlight.get(url);
-      if (hit && (hit.kept || now() - hit.at < INFLIGHT_MS)) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
+      if (hit && (hit.kept || now() - hit.at < (hit.early ? PREFETCH_SHARE_MS : INFLIGHT_MS)))
+        return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
     }
+    // What the head started for this URL, else the read's own fetch; a prefetch that failed is asked again.
+    const early = isRead ? (deps.prefetched?.(url) ?? null) : null;
     const p = (async (): Promise<ApiResult<OutputOf<Routes[K]>>> => {
       let res: Response;
       try {
-        res = await deps.fetch(url, initFor(key, opts));
+        res = early
+          ? await early.catch(() => deps.fetch(url, initFor(key, sent)))
+          : await deps.fetch(url, initFor(key, sent));
       } catch (e) {
         // A request that never left changed nothing; one that timed out may
         // still be doing its work on the server, and a write must not be told
@@ -163,7 +252,7 @@ export function createApi(deps: ApiDeps) {
       const j = (await res.json().catch(() => null)) as Envelope | null;
       if (!j || !j.ok) {
         const e = j && !j.ok ? j.error : undefined;
-        if (e?.code === "choose_workspace") deps.onChooseWorkspace?.();
+        heard(deps, e?.code);
         // The server's code, sentence and details, and the header a limit sets:
         // what a page shows and when it may try again, in the owner's words.
         return {
@@ -180,6 +269,7 @@ export function createApi(deps: ApiDeps) {
         };
       }
       if (!isRead) {
+        intentsOf(deps).landed(sent);
         opts.onAccepted?.(j.data as OutputOf<Routes[K]>);
         // Something changed. A read still in flight was issued before that
         // change and cannot describe the world the operator is now in; sharing
@@ -193,13 +283,17 @@ export function createApi(deps: ApiDeps) {
     if (isRead) {
       // A refusal must not be shared beyond its burst, and neither is an answer unless answers are held: drop the
       // entry as it settles, or keep it for whoever asks next while the hold lasts.
-      const entry: { p: Promise<unknown>; at: number; kept?: boolean } = { p, at: now() };
+      const entry: { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean } = {
+        p,
+        at: now(),
+        early: !!early,
+      };
       inFlight.set(url, entry);
       p.then(
         (r) => {
           if (inFlight.get(url) !== entry) return;
           if (holds > 0 && r.ok) entry.kept = true;
-          else inFlight.delete(url);
+          else if (!(entry.early && r.ok)) inFlight.delete(url);
         },
         () => {
           if (inFlight.get(url) === entry) inFlight.delete(url);
@@ -227,7 +321,7 @@ export function createApi(deps: ApiDeps) {
   }
 
   /** The Response itself: the two Google redirects and the Ask stream answer no envelope. */
-  async function raw<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): Promise<Response> {
+  async function raw<K extends RouteKey>(key: K, ...[opts = {} as ApiOptions<K>]: OptionsOf<K>): Promise<Response> {
     const res = await deps.fetch(urlFor(key, opts), initFor(key, opts));
     if (res.status === 401) deps.onSignedOut();
     return res;

@@ -43,7 +43,7 @@ import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "../packages/chan
 type Db = SupabaseClient<Database>;
 
 /** Retell's dynamic variables, exactly as the response carries them. */
-export interface CallVariables {
+interface CallVariables {
   caller_context: string;
   business_facts: string;
   greeting: string;
@@ -58,7 +58,7 @@ export interface CallVariables {
 }
 
 /** How the business's facts were arrived at. */
-export type FactsOutcome =
+type FactsOutcome =
   /** The workspace's own prompt, its clock, and the openings when it has a calendar. */
   | "composed"
   /** Billing stopped: the take-a-message script is the whole prompt for the call. */
@@ -71,7 +71,7 @@ export type FactsOutcome =
   | "unreadable";
 
 /** How the caller's memory was arrived at. */
-export type MemoryOutcome =
+type MemoryOutcome =
   /** A contact on file for this number, history or not. */
   | "known"
   /** A number nobody has on file: told as new, on the shared words the text receptionist uses. */
@@ -81,7 +81,7 @@ export type MemoryOutcome =
   /** The read failed; the agent treats them as new and the error says why. */
   | "unread";
 
-export interface CallStart {
+interface CallStart {
   variables: CallVariables;
   facts: FactsOutcome;
   memory: MemoryOutcome;
@@ -102,7 +102,7 @@ export interface CallStart {
   tenantId: string | null;
 }
 
-export interface CallStartInput {
+interface CallStartInput {
   agentId: string | undefined;
   /** The caller's number as Retell sends it, with or without the "+"; "" when withheld. */
   from: string;
@@ -214,7 +214,7 @@ export async function planCallStart(o: CallStartInput): Promise<CallStart> {
           fail(leadR.reason);
         } else if (leadR.value) {
           const lead = leadR.value;
-          const parts = [describeLead(lead, now, rt?.timezone ?? "UTC")];
+          const parts = [describeLead(lead, now, rt?.timezone ?? "UTC", "voice")];
           // The caller's appointments ride with who they are, so "when am I
           // booked?" is answered from the calendar, not guessed.
           const visits = rt ? await calendar.visits(rt, { phone, name: lead.name }, now) : null;

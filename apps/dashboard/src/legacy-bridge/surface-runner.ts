@@ -9,15 +9,16 @@
  * ./surface-status, which is pure and unit-tested; everything here is the
  * side-effecting half.
  */
-import type { subscribeMessagesInserts, SubscribeOptions } from "@chanlytics/db";
+import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db/realtime";
+import { MIN_MS } from "@chanlytics/contracts";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
 import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
-import { isSurfaceReady, setConnection, setStatus } from "./surface-status";
-import { routeDrawsFor, routeSurfaceFor } from "./surface-registry";
-import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh } from "./surface-realtime";
-import { getActiveWorkspace, signInHref } from "./workspace";
+import { getConnection, getSurfaceStatuses, isSurfaceReady, setConnection, setStatus } from "./surface-status";
+import { ROUTE_WAIT_MS, keepForItsPage, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
+import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh, type FeedWatch } from "./surface-realtime";
+import { getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
 
 // Re-exported so consumers keep importing the seam from one place.
 export {
@@ -43,6 +44,21 @@ let activeRefresh: ((o: SurfaceOverride) => Promise<void>) | null = null;
 let activeOverrides: SurfaceOverride[] = [];
 /** The running runner's boot, settled once its last surface is in, whether each read worked or not. */
 let activeBoot: Promise<void> = Promise.resolve();
+/**
+ * A return to the tab this soon after it was hidden reads nothing again, while the live feed is up and every surface
+ * is live: the feed kept them current meanwhile. Every return used to read every surface -- about 28 reads on a
+ * workspace, for a glance at another app; the phone app's five pages each did it on every return to the app.
+ */
+const AWAY_BEFORE_READ_AGAIN_MS = MIN_MS / 2;
+/** A surface whose first read failed is read once more after this: one retry covers boot blips. */
+const BOOT_RETRY_MS = 800;
+/** A refresh waits this long after the last one asked for, unless the surface names its own debounce. */
+const REFRESH_DEBOUNCE_MS = 400;
+/**
+ * And never longer than this after the first: a broadcast's receipts are each their own notice, a few hundred
+ * milliseconds apart, and each restarted the wait, so a customer's new message reached no open page until they stopped.
+ */
+const REFRESH_MAX_WAIT_MS = 3_000;
 
 /**
  * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead) without
@@ -53,6 +69,28 @@ export function afterBoot(): Promise<void> {
   return activeBoot;
 }
 
+/**
+ * A read the page on screen opens on that is no surface -- a person's page reads its person (people-detail.ts
+ * warmPersonOnScreen) -- said to the boot before it starts, so the surfaces nobody is looking at wait for it as they
+ * wait for the page's own. Measured on production (25 Sep 2026, a cold person page): the person's read took 3,236 ms
+ * beside nine of the boot's, and 773 ms alone. Held for the route's wait at most (ROUTE_WAIT_MS), so a read that never
+ * lands never keeps the shell's badge and bell from theirs.
+ */
+const pageReads = new Set<Promise<unknown>>();
+export function bootWaitsFor(read: Promise<unknown>): void {
+  pageReads.add(read);
+  const done = () => pageReads.delete(read);
+  read.then(done, done);
+}
+const pageReadsIn = (win: Window): Promise<void> => {
+  // This boot's, then let go of: a read that never lands is this boot's wait at most, never the next one's.
+  const reads = [...pageReads];
+  pageReads.clear();
+  if (reads.length === 0) return Promise.resolve();
+  const cap = (win as unknown as { __routeWaitMs?: number }).__routeWaitMs ?? ROUTE_WAIT_MS;
+  return Promise.race([Promise.allSettled(reads).then(() => undefined), new Promise<void>((r) => setTimeout(r, cap))]);
+};
+
 export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<void> {
   const fn = activeRefresh;
   if (!fn) return; // no runner mounted (standalone mockup) — nothing to sync
@@ -61,7 +99,10 @@ export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<voi
 
 /** The shell's Retry: every surface the running runner holds, read again now. */
 export async function refreshAllSurfaces(): Promise<void> {
-  await refreshSurfaces(activeOverrides);
+  // Every surface the running runner holds that a page on screen draws: a surface read only where it is drawn waits for its page.
+  // And every one the status line names as stopped refreshing, wherever it is drawn: Retry reads what the line says failed.
+  const statuses = getSurfaceStatuses();
+  await refreshSurfaces(readHere(activeOverrides, (o) => statuses.get(o.key) === "degraded"));
 }
 
 /**
@@ -101,149 +142,255 @@ async function inLanes<T>(items: readonly T[], lanes: number, work: (item: T) =>
  * Loading twelve surfaces nobody is looking at ahead of the one they are is
  * backwards; so was reading Settings, People and Leads ahead of the calendar
  * Today's day card is drawn from, which landed 1.6 s after the queue beside it.
- * Parsed the way the shell parses it (app-shell.jsx parseHash). A route that
+ * Parsed the way the shell parses it (app-shell.jsx parseRoute). A route that
  * owns no surface ranks nothing first, which costs nothing: the order is only
  * a preference.
  */
 function screenRank(win: Window): (o: SurfaceOverride) => number {
-  const raw = (win.location.hash || "#/today").replace(/^#[/]?/, "");
-  const [page, param] = raw.split("/");
+  const [page, param] = routeOnScreen(win).split("/");
   const wanted = routeSurfaceFor(page || "today", param || null);
   const drawn = routeDrawsFor(page || "today", param || null);
   return (o) => (o.key === wanted ? 0 : drawn.includes(o.key) ? 1 + drawn.indexOf(o.key) : 1 + drawn.length);
 }
-
-let runnerSeq = 0;
+/** Whether the page on screen is drawn from this surface: its own, or one it names (ROUTE_DRAWS). A stranger is not. */
+function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
+  const rank = screenRank(win);
+  const [page, param] = routeOnScreen(win).split("/");
+  const strangers = 1 + routeDrawsFor(page || "today", param || null).length;
+  return (o) => rank(o) < strangers;
+}
 
 /**
- * How the runner joins the live feed: the one subscription, over the client the page holds. Handed in rather than
+ * What a pass over these surfaces reads here (a return to the tab, the network back, a rejoin of the live feed, Retry-all): every
+ * one but a surface read only where it is drawn (`onDemand`) and not drawn here, which is kept for its page instead
+ * (surface-registry.ts keepForItsPage), so its page reads it once as it comes on screen and never shows what the pass missed.
+ * `alsoRead` names any such surface the pass reads all the same (Retry's: what the status line says stopped refreshing).
+ */
+function readHere(
+  overrides: readonly SurfaceOverride[],
+  alsoRead: (o: SurfaceOverride) => boolean = () => false,
+): SurfaceOverride[] {
+  const drawn = screenOwn(window);
+  return overrides.filter((o) => {
+    if (!o.onDemand || drawn(o) || alsoRead(o)) return true;
+    keepForItsPage(o.key);
+    return false;
+  });
+}
+
+/**
+ * What a return to the tab reads: every surface, unless the tab was away less than AWAY_BEFORE_READ_AGAIN_MS with the
+ * live feed up and every one of these surfaces live. A failed surface is the one that MOST needs retrying -- it used to
+ * be the one excluded, which is how a boot blip became permanent for the session. The visibilitychange listener.
+ */
+function onReturn(overrides: readonly SurfaceOverride[], readEverySurfaceAgain: () => void): () => void {
+  let hiddenAt: number | null = null;
+  return () => {
+    if (document.visibilityState !== "visible") {
+      hiddenAt ??= Date.now();
+      return;
+    }
+    const away = hiddenAt === null ? Infinity : Date.now() - hiddenAt;
+    hiddenAt = null;
+    const statuses = getSurfaceStatuses();
+    // A surface read only where it is drawn, and not drawn here, is none the feed could have let go stale: it does not count.
+    const drawn = screenOwn(window);
+    const allLive = overrides.every((o) => (o.onDemand && !drawn(o)) || statuses.get(o.key) === "live");
+    if (away < AWAY_BEFORE_READ_AGAIN_MS && allLive && !getConnection().realtimeDown) return;
+    readEverySurfaceAgain();
+  };
+}
+
+/**
+ * How the runner joins the live feed: the workspace's topic, over the client the page holds. Handed in rather than
  * built here: the runner used to make the Supabase browser client itself once its boot was in, so a node test that
  * mounted real surfaces built one with no URL or key, and the throw -- in an un-awaited continuation -- failed
  * whichever test was running when the boot happened to finish.
  */
 export type JoinLiveFeed = (
-  onChange: Parameters<typeof subscribeMessagesInserts>[1],
+  onChange: Parameters<typeof subscribeWorkspaceChanges>[1],
   opts: SubscribeOptions,
 ) => () => void;
 
-export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFeed): () => void {
-  // Said now, at the call, not when the boot ends: a missing feed found then is a throw nobody awaits.
-  if (typeof joinFeed !== "function" && overrides.some(subscribesToRealtime))
-    throw new TypeError("startSurfaces: surfaces that watch the live feed need a feed to join");
+/** One runner's own: what its reads, its live feed and its stop share. */
+interface SurfaceRun {
+  readonly overrides: SurfaceOverride[];
+  /** The surfaces that watch the live feed. */
+  readonly realtime: SurfaceOverride[];
+  /** The tenant the cache was written for, read before this runner's boot could overwrite it. */
+  readonly cachedAtBoot: string | null;
+  /** Each surface's pending refresh. */
+  readonly timers: Map<string, ReturnType<typeof setTimeout>>;
+  /** When each pending refresh was first asked for: the wait ends by REFRESH_MAX_WAIT_MS after it. */
+  readonly firstAsked: Map<string, number>;
+  cancelled: boolean;
+  /** Leaves the live feed, once it is joined. */
+  unsubscribe: (() => void) | null;
+  /**
+   * While the boot is out: the surfaces the live feed said changed, read once the boot is in (refreshSoon). Null once
+   * it is in, when what the feed says is read as it comes.
+   */
+  held: Set<SurfaceOverride> | null;
+}
+
+function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
   // Read the cached identity BEFORE any boot can overwrite it. Every
   // successful boot persists with the CURRENT tenant, and snapshotSurface
   // assigns blob.tenant on every write — so the old guard, which read the
   // cache after Promise.all, always compared a value against itself and could
   // never fire.
   const cachedAtBoot = cachedTenant();
-  let cancelled = false;
-  const timers = new Map<string, ReturnType<typeof setTimeout>>();
-  const topic = `bridge-${++runnerSeq}`; // unique per runner: StrictMode double-mounts never collide
-
-  const onUnauthorized = () => {
-    // Cached customer data must never outlive the session allowed to see it.
-    clearSurfaceCache();
-    // The page's hash goes along, so signing in again lands where they were.
-    if (!cancelled) window.location.assign(signInHref(window.location.hash));
+  return {
+    overrides,
+    cachedAtBoot,
+    cancelled: false,
+    timers: new Map<string, ReturnType<typeof setTimeout>>(),
+    firstAsked: new Map<string, number>(),
+    realtime: overrides.filter(subscribesToRealtime),
+    unsubscribe: null,
+    held: new Set(),
   };
+}
 
-  // The cache is keyed on this, so it must be the workspace actually being
-  // viewed — the one the server resolved — or nothing. Keyed on
-  // `__WORKSPACES[0]` it was constant for a member of two workspaces, and the
-  // guard that exists to stop one tenant's rows being restored under
-  // another's name would never have fired.
-  const tenantId = () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null;
+// The cache is keyed on this, so it must be the workspace actually being
+// viewed — the one the server resolved — or nothing. Keyed on
+// `__WORKSPACES[0]` it was constant for a member of two workspaces, and the
+// guard that exists to stop one tenant's rows being restored under
+// another's name would never have fired.
+const viewedWorkspace = () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null;
 
-  const persist = (o: SurfaceOverride) => {
-    if (o.globals?.length) snapshotSurface(o.key, o.globals, tenantId(), o.trimSnapshot);
-  };
+function signOutOnUnauthorized(run: SurfaceRun): void {
+  // Cached customer data must never outlive the session allowed to see it.
+  clearSurfaceCache();
+  // The page's hash goes along, so signing in again lands where they were.
+  if (!run.cancelled) window.location.assign(signInHref(window.location));
+}
 
-  const refresh = async (o: SurfaceOverride, phase: "boot" | "refresh") => {
-    try {
-      const ok = await activateOverride(o);
-      if (cancelled) return;
-      if (ok) {
-        persist(o);
-        setStatus(o.key, "live");
-      } else if (phase === "boot" || !isSurfaceReady(o.key)) {
-        // "degraded" means "real but stale" — it may only describe a surface
-        // that HAS real data. A failed refresh of a never-loaded surface is
-        // still just failed, and saying otherwise upgrades the lie.
-        setStatus(o.key, "seeded");
-      } else setStatus(o.key, "degraded");
-    } catch (e) {
-      if (e instanceof ApiError && e.code === "unauthorized") onUnauthorized();
+function persistSurface(o: SurfaceOverride): void {
+  if (o.globals?.length || o.value) snapshotSurface(o.key, o.globals ?? [], viewedWorkspace(), o.trimSnapshot, o.value);
+}
+
+async function refreshSurface(run: SurfaceRun, o: SurfaceOverride, phase: "boot" | "refresh"): Promise<void> {
+  try {
+    const ok = await activateOverride(o);
+    if (run.cancelled) return;
+    if (ok) {
+      persistSurface(o);
+      setStatus(o.key, "live");
+    } else if (phase === "boot" || !isSurfaceReady(o.key)) {
+      // "degraded" means "real but stale" — it may only describe a surface
+      // that HAS real data. A failed refresh of a never-loaded surface is
+      // still just failed, and saying otherwise upgrades the lie.
+      setStatus(o.key, "seeded");
+    } else setStatus(o.key, "degraded");
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "unauthorized") signOutOnUnauthorized(run);
+  }
+}
+
+async function bootSurface(run: SurfaceRun, o: SurfaceOverride): Promise<void> {
+  try {
+    let ok = await activateOverride(o);
+    if (!ok && !run.cancelled) {
+      await new Promise((r) => setTimeout(r, BOOT_RETRY_MS)); // one retry covers boot blips
+      if (run.cancelled) return;
+      ok = await activateOverride(o);
     }
-  };
-
-  const boot = async (o: SurfaceOverride) => {
-    try {
-      let ok = await activateOverride(o);
-      if (!ok && !cancelled) {
-        await new Promise((r) => setTimeout(r, 800)); // one retry covers boot blips
-        if (cancelled) return;
-        ok = await activateOverride(o);
-      }
-      if (cancelled) return;
-      if (ok) {
-        persist(o);
-        setStatus(o.key, "live");
-      } else if (isSurfaceReady(o.key)) {
-        // The cache already restored REAL rows for this surface before React
-        // mounted, and both boot attempts then failed. Recording "seeded"
-        // there is the one thing that is not true: yesterday's real
-        // conversations were on screen under a status meaning "no real data",
-        // so the pill showed neither live nor stale. `refresh` has always used
-        // this rule; boot did not.
-        setStatus(o.key, "degraded");
-      } else {
-        setStatus(o.key, "seeded");
-      }
-    } catch (e) {
-      if (e instanceof ApiError && e.code === "unauthorized") onUnauthorized();
-      else if (!cancelled) setStatus(o.key, "seeded");
+    if (run.cancelled) return;
+    if (ok) {
+      persistSurface(o);
+      setStatus(o.key, "live");
+    } else if (isSurfaceReady(o.key)) {
+      // The cache already restored REAL rows for this surface before React
+      // mounted, and both boot attempts then failed. Recording "seeded"
+      // there is the one thing that is not true: yesterday's real
+      // conversations were on screen under a status meaning "no real data",
+      // so the pill showed neither live nor stale. `refresh` has always used
+      // this rule; boot did not.
+      setStatus(o.key, "degraded");
+    } else {
+      setStatus(o.key, "seeded");
     }
-  };
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "unauthorized") signOutOnUnauthorized(run);
+    else if (!run.cancelled) setStatus(o.key, "seeded");
+  }
+}
 
-  activeRefresh = (o: SurfaceOverride) => refresh(o, "refresh");
-  activeOverrides = overrides;
+function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
+  const prev = run.timers.get(o.key);
+  if (prev) clearTimeout(prev);
+  const now = Date.now();
+  const first = run.firstAsked.get(o.key) ?? now;
+  run.firstAsked.set(o.key, first);
+  const wait = Math.max(0, Math.min(o.debounceMs ?? REFRESH_DEBOUNCE_MS, first + REFRESH_MAX_WAIT_MS - now));
+  run.timers.set(
+    o.key,
+    setTimeout(() => {
+      run.firstAsked.delete(o.key);
+      void refreshSurface(run, o, "refresh");
+    }, wait),
+  );
+}
 
-  const scheduleRefresh = (o: SurfaceOverride) => {
-    const prev = timers.get(o.key);
-    if (prev) clearTimeout(prev);
-    timers.set(
-      o.key,
-      setTimeout(() => void refresh(o, "refresh"), o.debounceMs ?? 400),
-    );
-  };
+/**
+ * A surface the live feed says changed: read soon, or, while the boot is out, once it is in. A read made during the
+ * boot is answered from what the boot holds (holdAnswers), which may be from before the change.
+ */
+function refreshSoon(run: SurfaceRun, o: SurfaceOverride): void {
+  if (run.held) run.held.add(o);
+  else scheduleSurfaceRefresh(run, o);
+}
 
-  const realtimeOverrides = overrides.filter(subscribesToRealtime);
-  let unsubscribe: (() => void) | null = null;
-  // What the live feed's own reports mean for the page (surface-realtime.ts):
-  // a rejoin reads the gap, and a drop that outlasts the grace is the shell's
-  // to say.
-  const feed = feedWatch({
+/**
+ * What the live feed's own reports mean for the page (surface-realtime.ts):
+ * a rejoin reads the gap, and a drop that outlasts the grace is the shell's
+ * to say.
+ */
+function watchLiveFeed(run: SurfaceRun): FeedWatch {
+  return feedWatch({
     graceMs: REALTIME_GRACE_MS,
     onDown: (down) => setConnection({ realtimeDown: down }),
-    // reconnect after sleep/offline: postgres_changes has no backfill, so
-    // refetch to close the gap
-    onReconnect: () => realtimeOverrides.forEach(scheduleRefresh),
+    // reconnect after sleep/offline: the feed replays nothing it missed, so
+    // refetch to close the gap (what is drawn here; the rest is kept for its
+    // page: readHere)
+    onReconnect: () => readHere(run.realtime).forEach((o) => refreshSoon(run, o)),
   });
+}
 
-  // Restored cache belongs to whoever was signed in when it was written. If a
-  // different workspace comes back, that data was never theirs to see: drop it
-  // and reload rather than leave another tenant's rows on screen.
-  const guardTenant = () => {
-    const cached = cachedAtBoot;
-    const actual = tenantId();
-    if (cached && actual && cached !== actual) {
-      clearSurfaceCache();
-      window.location.reload();
-      return true;
-    }
-    return false;
+// Restored cache belongs to whoever was signed in when it was written. If a
+// different workspace comes back, that data was never theirs to see: drop it
+// and reload rather than leave another tenant's rows on screen.
+function tenantChangedSinceCache(run: SurfaceRun): boolean {
+  const cached = run.cachedAtBoot;
+  const actual = viewedWorkspace();
+  if (cached && actual && cached !== actual) {
+    clearSurfaceCache();
+    window.location.reload();
+    return true;
+  }
+  return false;
+}
+
+/** A boot under way: settled once its last surface is in, and the hold on answers it lets go of then. */
+interface SurfaceBoot {
+  booted: Promise<void>;
+  releaseAnswers: () => void;
+  /** Settled once the workspace surface's boot has: the workspace on screen is known (joinFeedEarly). */
+  whoIsLooking: Promise<void>;
+}
+
+function bootInPasses(run: SurfaceRun): SurfaceBoot {
+  const { overrides } = run;
+  // Who is looking, known: the workspace surface's boot settled, which says the workspace on screen
+  // (__ACTIVE_WORKSPACE), the topic the live feed is joined on.
+  let knowWho = () => {};
+  const whoIsLooking = new Promise<void>((r) => (knowWho = r));
+  const boot = (o: SurfaceOverride) => {
+    const read = bootSurface(run, o);
+    if (o.key === "workspace") void read.finally(knowWho);
+    return read;
   };
-
   // The boot. On a workspace page (/w/<slug>) the surfaces fire at once, the
   // name riding on every request. Off one — the home before it has sent the
   // tab on, the create screen — the workspace surface goes first and the rest
@@ -256,81 +403,110 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   // where it does not BLOCK the others: the shell reads __ME to decide what a
   // role may see, so letting it queue behind three strangers would draw the
   // nav for the wrong role and then correct it.
+  //
+  // In two passes (25 Sep 2026). The first is the page's: who is looking, its own surface and what it draws beside it
+  // (screenOwn). The second, everyone else's, starts once the first is in and the page's own read (bootWaitsFor) has
+  // landed. In one pass the strangers filled the other three lanes at once, and the server answered the page's read
+  // among them: measured on production, a cold person page's read took 3,236 ms in that crowd and 773 ms alone, with
+  // 26 reads of 520 KB out for a page that draws one person. The shell's badge and bell come a beat later than they
+  // did; the page comes seconds sooner.
   const screen = screenRank(window);
+  const own = screenOwn(window);
   const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : 1 + screen(o));
   const queued = [...overrides].sort((x, y) => rank(x) - rank(y));
+  const pagesOwn = queued.filter((o) => o.key === "workspace" || own(o));
+  // A stranger that is read only where it is drawn is not booted: its page reads it as it comes on screen (readWhatWasMissed).
+  const strangers = queued.filter((o) => !pagesOwn.includes(o) && !o.onDemand);
   // Surfaces read the same lists in turn -- the calls, the templates, the contacts, and on Leads the page the view
   // asks for again as it mounts. Measured on the salon's Leads page: 31 reads at boot, 20 distinct, because a read
   // that had settled was not shared with the one asking a moment later. Every answer is held until the last surface
-  // is in, and let go before the live feed is joined: nothing can change inside the hold without a write (which lets
-  // go of it) or an event the feed would not yet have delivered anyway.
+  // is in; what the live feed says meanwhile is held too (refreshSoon), and read once the answers are let go of.
   const releaseAnswers = api().holdAnswers();
-  const booted = workspaceFirst
+  const firstPass = workspaceFirst
     ? boot(workspaceFirst).then(() =>
         inLanes(
-          queued.filter((o) => o !== workspaceFirst),
+          pagesOwn.filter((o) => o !== workspaceFirst),
           BOOT_LANES,
           boot,
         ),
       )
-    : inLanes(queued, BOOT_LANES, boot);
+    : inLanes(pagesOwn, BOOT_LANES, boot);
+  const booted = firstPass
+    .then(() => (run.cancelled ? undefined : pageReadsIn(window)))
+    .then(() => (run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot)));
   activeBoot = booted.then(
     () => undefined,
     () => undefined,
   );
-  void booted.then(() => {
-    releaseAnswers();
-    if (cancelled) return;
-    if (guardTenant()) return;
-    if (!realtimeOverrides.length) return;
-    // Scoped to the workspace this tab shows. RLS authorises the events
-    // server-side; the filter is what makes the subscription this
-    // workspace's and nobody else's, so a member of two workspaces neither
-    // receives nor repaints on the other one's rows. The topic carries the
-    // workspace too, so a switch is a new channel, never a shared one.
-    const ws = tenantId();
-    unsubscribe = joinFeed(
+  // A run with no workspace surface (a test's) knows who is looking when its boot is in, as every run once did.
+  if (!overrides.some((o) => o.key === "workspace")) void booted.finally(knowWho);
+  return { booted, releaseAnswers, whoIsLooking };
+}
+
+/**
+ * The live feed, joined as soon as who is looking is known rather than once the whole boot is in. It was joined at the
+ * end, and Realtime has no backfill: a message that landed after a surface's read and before the join -- the length
+ * of the boot, two seconds and more on a phone -- was never heard, and the Inbox went without it until the next event
+ * or a return to the tab. What the feed says while the boot is out is held (refreshSoon) and read once the boot's
+ * answers are let go of.
+ */
+function joinFeedEarly(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLiveFeed, feed: FeedWatch): void {
+  void boot.booted.then(() => {
+    boot.releaseAnswers();
+    const due = run.held;
+    run.held = null;
+    if (run.cancelled || !due) return;
+    for (const o of due) scheduleSurfaceRefresh(run, o);
+  });
+  void boot.whoIsLooking.then(() => {
+    if (run.cancelled) return;
+    if (tenantChangedSinceCache(run)) return;
+    if (!run.realtime.length) return;
+    // Scoped to the workspace this tab shows: the database tells each
+    // workspace's changes on a topic of its own, and Realtime admits only its
+    // members (00265), so a member of two workspaces neither hears nor
+    // repaints on the other one's. A switch is a new topic; a tab with no
+    // workspace joins nothing.
+    const ws = viewedWorkspace();
+    run.unsubscribe = joinFeed(
       // Routed by table: a live call's transcript turns repaint Live, not the
       // five surfaces that never asked (three of them plpgsql aggregates).
       (row, table, event) =>
-        realtimeOverrides
-          .filter((o) => wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> }))
-          .forEach(scheduleRefresh),
+        run.realtime.filter((o) => wantsRefresh(o, table, { table, event, row })).forEach((o) => refreshSoon(run, o)),
       {
-        topic: ws ? `${topic}:${ws}` : topic,
         tenantId: ws ?? undefined,
         onStatus: (status) => {
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", topic, status);
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", ws, status);
           feed.onStatus(status);
         },
       },
     );
   });
+}
 
+/** The return to the tab and the connection's comings and goings, heard; answers what stops hearing them. */
+function listenForReturns(run: SurfaceRun): () => void {
+  const { overrides } = run;
   // Every surface again, as the boot reads them: the one on screen first, the rest behind it through the lanes. A
   // return used to schedule all of them at once -- twenty surfaces, thirty reads in one burst, with the page's own no
   // sooner than a stranger's. Answers are NOT held here: the live feed is joined by now, and an answer held from
   // before one of its events would hide what the event changed. A return while one pass is still out is that pass.
   let againRunning = false;
   const readEverySurfaceAgain = () => {
-    if (againRunning || cancelled) return;
+    if (againRunning || run.cancelled) return;
     againRunning = true;
     const screen = screenRank(window);
     void inLanes(
-      [...overrides].sort((x, y) => screen(x) - screen(y)),
+      // What is drawn here, as the boot reads it; a surface read only where it is drawn waits for its page.
+      readHere(overrides).sort((x, y) => screen(x) - screen(y)),
       BOOT_LANES,
-      (o) => refresh(o, "refresh"),
+      (o) => refreshSurface(run, o, "refresh"),
     ).finally(() => {
       againRunning = false;
     });
   };
 
-  const onVisible = () => {
-    if (document.visibilityState !== "visible") return;
-    // A failed surface is the one that MOST needs retrying — it used to be the
-    // one excluded, which is how a boot blip became permanent for the session.
-    readEverySurfaceAgain();
-  };
+  const onVisible = onReturn(overrides, readEverySurfaceAgain);
   document.addEventListener("visibilitychange", onVisible);
 
   // The browser says when this device loses its connection and when it has it
@@ -347,16 +523,37 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   window.addEventListener("online", onOnline);
 
   return () => {
-    cancelled = true;
-    releaseAnswers();
-    activeRefresh = null;
-    activeOverrides = [];
     document.removeEventListener("visibilitychange", onVisible);
     window.removeEventListener("offline", onOffline);
     window.removeEventListener("online", onOnline);
-    timers.forEach((t) => clearTimeout(t));
+  };
+}
+
+/**
+ * Starts the surfaces: each one's first read (the boot), the live feed once who is looking is known, and the reads again on a
+ * return to the tab or to the network. Answers the stop, which undoes them in the same order.
+ */
+export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFeed): () => void {
+  // Said now, at the call, not when the boot ends: a missing feed found then is a throw nobody awaits.
+  if (typeof joinFeed !== "function" && overrides.some(subscribesToRealtime))
+    throw new TypeError("startSurfaces: surfaces that watch the live feed need a feed to join");
+  const run = newSurfaceRun(overrides);
+  activeRefresh = (o: SurfaceOverride) => refreshSurface(run, o, "refresh");
+  activeOverrides = overrides;
+  const feed = watchLiveFeed(run);
+  const boot = bootInPasses(run);
+  joinFeedEarly(run, boot, joinFeed, feed);
+  const stopListening = listenForReturns(run);
+
+  return () => {
+    run.cancelled = true;
+    boot.releaseAnswers();
+    activeRefresh = null;
+    activeOverrides = [];
+    stopListening();
+    run.timers.forEach((t) => clearTimeout(t));
     feed.stop();
-    if (unsubscribe) unsubscribe();
+    if (run.unsubscribe) run.unsubscribe();
     // What this runner watched goes with it; the next one says what it finds.
     setConnection({ offline: false, realtimeDown: false });
   };

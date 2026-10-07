@@ -19,7 +19,7 @@
  * carriers say so.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database } from "../packages/db.js";
 import { emitEvent } from "../packages/db.js";
 import { forwardingMatch, forwardingProof, formatPhoneDisplay, type ForwardingFacts } from "../packages/contracts.js";
 import { recordNotification } from "../ops/notify.js";
@@ -40,7 +40,7 @@ export async function markForwardingVerified(
   tenantId: string,
   call: ForwardingCall,
 ): Promise<boolean> {
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await db
       .from("lines")
@@ -74,7 +74,7 @@ export async function markForwardingVerified(
             verified_from: call.fromE164,
             // "carrier": the call's headers named the kept number; "window": a call reached the line inside the test.
             verified_by: proof === "carrier" ? "carrier" : "window",
-          } as unknown as Json,
+          },
         })
         .eq("id", row.id)
         .eq("forwarding_state", "instructed")
@@ -88,7 +88,7 @@ export async function markForwardingVerified(
         route: "admin/setup",
         about: { type: "line", id: row.id },
       });
-      await emitEvent(db, tenantId, "line.forwarding_verified", "setup", "line", row.id, {
+      await emitEvent(db, tenantId, "line.forwarding_verified", "line", row.id, {
         from: call.fromE164,
         call_id: call.callId,
         proof,

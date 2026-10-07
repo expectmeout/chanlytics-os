@@ -26,6 +26,17 @@ import { defineConfig, devices } from "@playwright/test";
 /** Deployed by default; override for a preview or a local server. */
 const baseURL = process.env.E2E_BASE_URL ?? "https://app.chanlytics.com";
 
+/**
+ * A Vercel preview sits behind the team's deployment protection (a preview answers 302 to Vercel's sign-in, measured
+ * 29 Sep 2026). The project's Protection Bypass for Automation lets a run in: e2e/preview-bypass.ts asks for the
+ * cookie once, with the secret, and every page opens with that cookie (.github/workflows/preview-smoke.yml). The
+ * secret itself never rides on the pages' requests, so no other origin a page calls ever sees it. Unset, nothing
+ * changes.
+ */
+const bypass = !!process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+/** Where e2e/preview-bypass.ts leaves the cookie; test-results is the run's own, and ignored by git. */
+const PREVIEW_STATE = "test-results/preview-bypass.json";
+
 export default defineConfig({
   testDir: "./e2e",
   // These hit a real deployment over the network, so failures are far more
@@ -45,8 +56,10 @@ export default defineConfig({
   reporter: process.env.CI
     ? [["list"], ["html", { open: "never" }], ["./e2e/skip-ceiling.ts"]]
     : [["list"], ["./e2e/skip-ceiling.ts"]],
+  ...(bypass ? { globalSetup: "./e2e/preview-bypass.ts" } : {}),
   use: {
     baseURL,
+    ...(bypass ? { storageState: PREVIEW_STATE } : {}),
     // Kept only for failures: a passing run's traces are noise, and these
     // artifacts can contain a real workspace's data.
     trace: "retain-on-failure",

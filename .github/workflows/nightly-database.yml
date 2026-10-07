@@ -1,0 +1,66 @@
+name: Nightly database
+
+# The database suites, every night, whether or not a pull request touched the database (scorecard, security and
+# multi-tenancy categories). database.yml replays the migrations and runs these suites only when a change could have
+# moved them, which is right for a pull request and blind to everything else that moves under a database: the CLI's and
+# the images' new versions, an extension, a Postgres minor. This is the drift check: a stack started from nothing,
+# every migration replayed on it, and every SQL rule proved again against it.
+#
+# The tenancy suite (who reads and writes which workspace's rows, as real signed-in sessions), the privileges suite (the
+# catalog: column fences on UPDATE and INSERT, no anon grants, pinned search paths), and the partner second-factor suites
+# (every definer door that reads a seat asks for the second factor) are what it is FOR; it runs them all with the rest
+# of the SQL suites, the way `corepack pnpm test:db` does. Red is red on the run; nothing here pages (the pager's
+# conditions are the edge's, apps/edge/api/admin/page.ts).
+on:
+  schedule:
+    - cron: "40 6 * * *"
+  workflow_dispatch:
+
+# One run at a time, and never two on the same stack.
+concurrency:
+  group: nightly-database
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  suites:
+    name: Migrations replay from nothing, every SQL rule holds
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.116.0
+      - run: pnpm install --frozen-lockfile
+      # As database.yml starts it: ghcr.io answers a burst of image pulls with "toomanyrequests" and a retry-after the
+      # daemon does not wait out, so a few more attempts, spaced out, finish the set.
+      - run: |
+          for attempt in 1 2 3 4 5 6; do
+            if supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector; then exit 0; fi
+            echo "supabase start failed on attempt $attempt; pulling the rest after a pause" >&2
+            supabase stop --no-backup || true
+            sleep $((attempt * 15))
+          done
+          exit 1
+      # What the migrations declare, and the types generated from them, must still be what the tree holds.
+      - run: node tooling/scripts/gen/schema-sets.mjs --check
+      - run: node tooling/scripts/gen/db-types.mjs --check
+      # The local stack's service and anon keys are the published demo keys, not secrets.
+      - name: Point the suite at the local database
+        run: |
+          echo "SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
+          echo "SUPABASE_ANON_KEY=$(supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
+      - run: pnpm test:db
+      - if: always()
+        run: supabase stop --no-backup

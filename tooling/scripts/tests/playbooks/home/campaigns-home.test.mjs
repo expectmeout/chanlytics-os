@@ -1,0 +1,945 @@
+/**
+ * Campaigns' home, the page (canvas A, "Lifecycle"): drawn on the stub React over the surfaces the seam hands it, in the
+ * real surfaces' shape (the Playbooks and Broadcasts samples, which pass through the same contracts functions a workspace's
+ * go through). What is proved here is what the page does with the view model (campaigns-home-vm: lifecycle.test.mjs): it draws
+ * the rail, the lines under it and the three tiles; a press on a moment opens it by its address, a Turn on opens the composer
+ * on its moment, New message opens it, and a press on a line that can be resumed resumes it; the drawer and the composer are
+ * the address's, and host the pages' own panes as they are.
+ */
+import { test, afterEach } from "node:test";
+import assert from "node:assert/strict";
+import * as contracts from "@chanlytics/contracts";
+import {
+  installLegacyReact,
+  fresh as freshTree,
+  again,
+  all,
+  find,
+  byTestId,
+  textOf,
+  press,
+  settle,
+} from "../../_legacy-react.mjs";
+
+const TID = "t-studio";
+const ZONE = "America/New_York";
+/** Friday 2 Oct 2026, 9:44 PM in New York: tomorrow is Saturday the 3rd. */
+const NOW = Date.parse("2026-10-03T01:44:00Z");
+
+const went = [];
+const replaced = [];
+const toasts = [];
+const said = [];
+installLegacyReact({
+  location: {
+    pathname: "/w/studio/campaigns",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
+  history: { replaceState() {}, back: () => said.push(["back"]) },
+  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: TID,
+  __DEMO_MODE: false,
+});
+const SRC = "../../../../../apps/dashboard/src";
+const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
+installClock();
+await import(`${SRC}/legacy/components/data-bits.jsx`);
+Object.assign(globalThis, {
+  usePPToast: () => [null, (t) => toasts.push(t)],
+  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
+  appNavigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to),
+  __chrome: { state: contracts.stateOf },
+  __ME: { role: "owner" },
+  canDo: () => true,
+  gate: () => ({}),
+  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
+});
+const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
+const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
+const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
+const { playbooks: verbs } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
+const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
+const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
+const { ReachOutPane } = await import(`${SRC}/surfaces/campaigns/reach-out/row.tsx`);
+const { PaneSheet } = await import(`${SRC}/surfaces/campaigns/home/pane-sheet.tsx`);
+const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
+const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
+const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
+// The seam's own status for a surface: what a read that failed is told from one that has not landed by (the shell's route gate reads it).
+const status = await import(`${SRC}/legacy-bridge/surface-status.ts`);
+
+/** The surfaces of a workspace with a calendar: a win-back running, a visit reminder paused, a welcome with a run waiting. */
+function surfaces(over = {}) {
+  const now = new Date(NOW);
+  const pb = playbooksSample(now);
+  const bc = broadcastsSample(now);
+  const pool = (pool, candidates = 0, saidYes = pool) => ({
+    candidates,
+    held: 0,
+    pool,
+    noYes: pool - saidYes,
+    stopped: 0,
+    noNumber: 0,
+    saidYes,
+  });
+  setSurfaceValue("playbooks", {
+    ...pb,
+    pools: {
+      new_week: pool(0),
+      visit_tomorrow: pool(3, 3),
+      visited: pool(2, 2),
+      quiet_30: pool(5, 0, 0),
+      ...(over.pools ?? {}),
+    },
+    ...(over.playbooks ?? {}),
+  });
+  setSurfaceValue("broadcasts", {
+    ...bc,
+    reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 },
+    report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2 } },
+    ...(over.broadcasts ?? {}),
+  });
+  setSurfaceValue("reach_outs", over.reachOuts ?? []);
+  setSurfaceValue("settings", {
+    templatesAll: pb.templates,
+    ...(over.settings ?? {}),
+  });
+}
+
+afterEach(() => {
+  for (const k of ["playbooks", "broadcasts", "reach_outs", "settings"]) setSurfaceValue(k, undefined);
+  globalThis.__DEMO_MODE = false;
+  globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+});
+
+const fresh = () => {
+  freshTree();
+  went.length = 0;
+  replaced.length = 0;
+  toasts.length = 0;
+  said.length = 0;
+};
+const page = (param = null) => again(() => CampaignsHome({ param, nowMs: NOW }));
+const allBy = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id);
+const pressed = (n) => press(n);
+/** What the page last said to the frame's head (kit/head/standing.ts): the name, the line and the acts, which the frame draws. */
+const headSaid = () => {
+  const said = standingSaid();
+  return { props: { children: [said?.title ?? null, said?.sentence ?? null, said?.act ?? null] } };
+};
+
+/* ---------------------------------------------- the page, drawn ---------------------------------------------- */
+
+test("the home draws the rail's moments in order, the lines under it, and the three tiles, each from the view model", () => {
+  surfaces();
+  fresh();
+  const tree = page();
+  assert.ok(byTestId(tree, "campaigns-home"));
+  assert.deepEqual(
+    allBy(tree, "cmh-stage").map((s) => s.props["data-stage"]),
+    ["first_contact", "visit", "after", "quiet"],
+    "the sample workspace has no deals, so no proposal follow-up",
+  );
+  assert.equal(allBy(tree, "cmh-people").length, 4);
+  assert.ok(byTestId(tree, "cmh-reach"), "who can hear you");
+  assert.ok(byTestId(tree, "cmh-coming"), "coming up");
+  assert.ok(byTestId(tree, "cmh-results"), "what came back");
+  assert.deepEqual(
+    allBy(tree, "cmh-rung").map((r) => r.props["data-rung"]),
+    ["people", "messages", "offers"],
+  );
+  assert.ok(allBy(tree, "cmh-strip").length >= 1, "the call's text, at the least");
+});
+
+test("a rung's bar is its share of the whole: everyone in People fills it, and the rest is a part of its own (3 Oct: a whole share drew as half)", async () => {
+  surfaces();
+  fresh();
+  const tree = page();
+  const { Meter } = await import(`${SRC}/surfaces/kit/meter/meter.tsx`);
+  const bar = (id) => find(all(tree, (n) => n.props?.["data-rung"] === id)[0], (n) => n.type === Meter);
+  const people = bar("people");
+  assert.equal(people.props.rest, undefined, "never the kit's rest, which grows as one more share");
+  const [ink, rest] = people.props.parts;
+  assert.equal(ink.share, 1, "everyone in People is the whole");
+  assert.equal(rest.share, 0, "and nothing is left over");
+  for (const id of ["messages", "offers"]) {
+    const parts = bar(id).props.parts;
+    assert.equal(parts[0].share + parts[1].share, 1, `${id}: the share and the rest make the whole`);
+  }
+});
+
+test("the head says the page's line with its numbers in bold, the Library with its count, and New message", () => {
+  surfaces();
+  fresh();
+  page();
+  assert.equal(standingSaid()?.title, "Campaigns", "the page opens on its head, said to the frame");
+  const head = headSaid();
+  const text = textOf(head);
+  assert.match(text, /What goes out on its own as a customer reaches a moment, and what you send yourself\./);
+  assert.match(text, /moments are covered, and 7 of your 29 people can hear from you/);
+  assert.ok(byTestId(head, "cmh-library"));
+  assert.match(textOf(byTestId(head, "cmh-library")), /Library/);
+  assert.ok(byTestId(head, "cmh-new"));
+});
+
+test("the head keeps the quiet allowance line once half the month's emails or texts are used, and says nothing before", () => {
+  surfaces({ broadcasts: { month_sent: { email: 1240, sms: 0 } } });
+  fresh();
+  page();
+  assert.match(textOf(headSaid()), /1,240 of 2,000 emails used this month/);
+  surfaces({ broadcasts: { month_sent: { email: 100, sms: 0 } } });
+  fresh();
+  page();
+  assert.ok(!/used this month/.test(textOf(headSaid())));
+});
+
+test("the page draws nothing before the playbooks have landed, and a demo session draws the samples", () => {
+  fresh();
+  assert.equal(page(), null, "a surface not read yet: nothing, never a seeded page");
+  globalThis.__DEMO_MODE = true;
+  fresh();
+  const tree = page();
+  assert.ok(byTestId(tree, "campaigns-home"), "a demo draws the Playbooks and Broadcasts samples");
+  assert.equal(allBy(tree, "cmh-stage")[3].props["data-state"], "on", "the sample's win-back is running");
+});
+
+test("the phone draws one short tile for who can hear you, the moments down a line, and the lines as one list", () => {
+  surfaces();
+  globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  fresh();
+  const tree = page();
+  assert.equal(byTestId(tree, "campaigns-home").props["data-phone"], "true");
+  assert.ok(byTestId(tree, "cmh-reach"));
+  assert.equal(allBy(tree, "cmh-rung").length, 0, "no ladder on a phone: one line");
+  assert.ok(byTestId(tree, "cmh-also"), "the lines under the rail are one tile, Also");
+  assert.match(textOf(byTestId(tree, "cmh-reach")), /of 29 can hear you/);
+  assert.ok(
+    byTestId(tree, "cmh-coming") && byTestId(tree, "cmh-results"),
+    "what is coming and what came back stand below",
+  );
+});
+
+/* --------------------------------------------------- presses --------------------------------------------------- */
+
+test("a press on a moment opens its playbook by its address, pushed so Back closes it", () => {
+  surfaces();
+  fresh();
+  const tree = page();
+  const winback = allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === "quiet");
+  pressed(find(winback, (n) => n.props?.["data-testid"] === "cmh-open"));
+  assert.deepEqual(went, ["campaigns/moment:pb-sample-winback"]);
+});
+
+test("a Turn on opens the composer on the moment it was pressed for", () => {
+  surfaces();
+  fresh();
+  const tree = page();
+  const after = allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === "after");
+  pressed(find(after, (n) => n.props?.["data-testid"] === "cmh-turn-on"));
+  assert.deepEqual(went, ["campaigns/new:moment:visited"]);
+  fresh();
+  const visit = allBy(page(), "cmh-stage").find((s) => s.props["data-stage"] === "visit");
+  assert.equal(
+    find(visit, (n) => n.props?.["data-testid"] === "cmh-open")?.props["data-testid"],
+    "cmh-open",
+    "a paused playbook opens its drawer",
+  );
+});
+
+test("New message opens the composer on Send once", () => {
+  surfaces();
+  fresh();
+  page();
+  pressed(byTestId(headSaid(), "cmh-new"));
+  assert.deepEqual(went, ["campaigns/new"]);
+});
+
+test("a line that is paused resumes in place, through the playbooks' own verb, and says so", async () => {
+  surfaces({
+    playbooks: {
+      rows: playbooksSample(new Date(NOW)).rows.map((p) => (p.trigger === "quiet_30" ? p : p)),
+    },
+  });
+  // The month's offer, paused, is a line of its own; resuming it is the verb, then a toast.
+  const pb = playbooksSample(new Date(NOW));
+  const base = pb.rows[0];
+  const month = {
+    ...base,
+    id: "pb-month",
+    name: "The month's offer",
+    trigger: "everyone_monthly",
+    state: "paused",
+    next: "paused",
+    triggerLabel: "The month's offer",
+  };
+  surfaces({ playbooks: { rows: [...pb.rows, month] } });
+  fresh();
+  verbs.resume = async (id, opts) => {
+    said.push(["resume", id]);
+    opts.onAccepted({});
+    return { ok: true, data: {} };
+  };
+  const line = allBy(page(), "cmh-strip").find((s) => s.props["data-strip"] === "pb-month");
+  assert.ok(line, "the month's offer is a line");
+  const act = find(line, (n) => n.props?.["data-testid"] === "cmh-strip-act");
+  assert.match(textOf(act), /Resume/);
+  await act.props.onClick();
+  assert.deepEqual(said, [["resume", "pb-month"]]);
+  assert.match(textOf(toasts[0].msg), /The month's offer resumed/);
+});
+
+test("Copy the phrase copies the words a customer sends to say yes to offers; Show the code is the get-yes address", async () => {
+  surfaces();
+  fresh();
+  const copied = [];
+  Object.defineProperty(globalThis, "navigator", {
+    value: { clipboard: { writeText: async (t) => copied.push(t) } },
+    configurable: true,
+  });
+  const tree = page();
+  await byTestId(tree, "cmh-copy").props.onClick();
+  assert.deepEqual(copied, ["YES OFFERS"]);
+  pressed(byTestId(tree, "cmh-code"));
+  assert.deepEqual(went, ["broadcasts/get-yes"]);
+});
+
+test("a run in what came back and a line in coming up open their run on the Broadcasts page", () => {
+  surfaces();
+  fresh();
+  const tree = page();
+  const run = allBy(tree, "cmh-run-open");
+  assert.ok(run.length > 0);
+  pressed(run[0]);
+  assert.match(went[0], /^broadcasts\/run:/);
+});
+
+/* ----------------------------------------- the drawer and the composer ----------------------------------------- */
+
+const sheet = (tree) => find(tree, (n) => n.type === PaneSheet);
+
+/** A reach-out as GET reach-outs lists it: a first email and a nudge four days after, over a search's leads. */
+const chainOf = (over = {}) => ({
+  root_id: "ch-1",
+  name: "Cold email to studios",
+  search: { id: "s-1", name: "Studios near us" },
+  state: "running",
+  include_unconfirmed: false,
+  gap_minutes: 12,
+  domain_ids: [],
+  signed_by: "Sam",
+  created_at: "2026-09-20T00:00:00Z",
+  domains: [{ host: "mail.example.com", sent_days: 0 }],
+  steps: [
+    {
+      id: "ch-1",
+      n: 0,
+      after_days: null,
+      subject: "Quick one",
+      body: "{{opening}}",
+      template_id: "t1",
+      state: "running",
+    },
+    { id: "n1", n: 1, after_days: 4, subject: null, body: "Just checking in.", template_id: "t2", state: "running" },
+  ],
+  next: { run_hour: 9, last_run_for: null, mode: "ask", may_spend: true, waiting_run_id: null },
+  ...over,
+});
+
+test("a playbook's address opens its own detail in the sheet: the pane the Playbooks page opened, unchanged", () => {
+  surfaces();
+  fresh();
+  const tree = page("moment:pb-sample-winback");
+  const s = sheet(tree);
+  assert.ok(s, "the drawer is a pane sheet");
+  assert.equal(s.props.open, true);
+  assert.equal(s.props.title, "Quiet or lapsed", "the sheet says where the moment stands on the rail");
+  const pane = find(s, (n) => n.type === PlaybookPane);
+  assert.ok(pane, "its own detail, hosted as it is");
+  assert.equal(pane.props.p.id, "pb-sample-winback");
+  // Closing goes home: replaced where a link arrived at it, and back where the page opened it (use-home.ts useHomeNav).
+  s.props.onClose();
+  assert.deepEqual(replaced, ["campaigns"]);
+});
+
+test("a link to a playbook that is gone says so once the chains were read, and a reach-out opens its own pane", () => {
+  surfaces();
+  fresh();
+  const gone = page("moment:pb-nothing");
+  assert.ok(
+    byTestId(gone, "pb-gone") || find(gone, (n) => n.props?.testid === "pb-gone"),
+    "That playbook isn't here any more",
+  );
+  setSurfaceValue("reach_outs", undefined);
+  fresh();
+  const reading = page("moment:pb-nothing");
+  assert.ok(
+    !(byTestId(reading, "pb-gone") || find(reading, (n) => n.props?.testid === "pb-gone")),
+    "unread chains: not yet known to be missing",
+  );
+  setSurfaceValue("reach_outs", [chainOf()]);
+  fresh();
+  const tree = page("moment:ch-1");
+  assert.ok(
+    find(tree, (n) => n.type === ReachOutPane),
+    "a chain's own pane",
+  );
+  assert.equal(sheet(tree).props.title, "Reach-out");
+});
+
+test("New message hosts the send screen under Send once and the playbook composer under Every time a moment comes", () => {
+  surfaces();
+  fresh();
+  const once = page("new");
+  const s = sheet(once);
+  assert.equal(s.props.title, "New message");
+  assert.equal(s.props.askFirst, true, "the sheet's close asks where the composer asks");
+  const seg = find(s.props.tools, (n) => n.type === Segmented);
+  assert.equal(seg.props.value, "once");
+  assert.deepEqual(
+    seg.props.options.map((o) => [o.value, o.label]),
+    [
+      ["once", "Send once"],
+      ["every", "Every time a moment comes"],
+    ],
+  );
+  seg.props.onValueChange("every");
+  assert.deepEqual(replaced, ["campaigns/new:every"], "a choice of kind replaces the address, never pushes");
+  fresh();
+  const every = page("new:every");
+  assert.equal(find(sheet(every).props.tools, (n) => n.type === Segmented).props.value, "every");
+  assert.ok(find(every, (n) => n.type === PlaybookComposer));
+});
+
+test("Turn on lands the composer on its moment, and a playbook changed has no choice of kind", () => {
+  surfaces();
+  fresh();
+  const tree = page("new:moment:visited");
+  const composer = find(tree, (n) => n.type === PlaybookComposer);
+  assert.equal(composer.props.initialTrigger, "visited");
+  assert.equal(composer.props.editing, null);
+  fresh();
+  const edit = page("new:edit:pb-sample-winback");
+  const c = find(edit, (n) => n.type === PlaybookComposer);
+  assert.equal(c.props.editing.id, "pb-sample-winback", "the playbook the drawer showed");
+  assert.equal(sheet(edit).props.tools, undefined, "changing one is not choosing a kind");
+});
+
+test("a word the page does not know is the home, never a page of nothing", () => {
+  surfaces();
+  fresh();
+  const tree = page("surprise");
+  assert.equal(sheet(tree), null);
+  assert.ok(byTestId(tree, "campaigns-home"));
+});
+
+test("the Library is a door to the Templates page, and Back closes a thing the page opened", () => {
+  surfaces();
+  fresh();
+  page();
+  pressed(byTestId(headSaid(), "cmh-library"));
+  assert.deepEqual(went, ["messages"], "the Library is the messages page, a room of the home");
+  // A moment opened by a press is a pushed entry: closing it goes back, so Back and Close are one thing.
+  fresh();
+  const tree = page();
+  const winback = allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === "quiet");
+  pressed(find(winback, (n) => n.props?.["data-testid"] === "cmh-open"));
+  const open = page("moment:pb-sample-winback");
+  sheet(open).props.onClose();
+  assert.deepEqual(said, [["back"]], "back to the entry the press made");
+  assert.deepEqual(replaced, []);
+});
+
+/* ------------------------------------------ a read that failed is said ------------------------------------------ */
+
+/** The surfaces a Retry was pressed for, in order (the frame's runner, `window.__refreshSurface`). */
+const refreshed = [];
+globalThis.__refreshSurface = async (key) => {
+  refreshed.push(key);
+};
+
+/** The failed read at a testid: its words, and the Retry's press. */
+const failedAt = (tree, id) => {
+  const node = byTestId(tree, id);
+  return node ? { node, words: textOf(node), retry: byTestId(tree, `${id}-retry`) } : null;
+};
+
+test("a templates read that failed is said in the call's text's place, with a Retry that reads the settings again", () => {
+  surfaces({ settings: { templatesAll: null } });
+  fresh();
+  refreshed.length = 0;
+  const tree = page();
+  const failed = failedAt(tree, "cmh-templates-failed");
+  assert.ok(failed, "the read that failed is said, never a line that is not there");
+  assert.match(failed.words, /Couldn't read your templates/);
+  assert.match(
+    failed.words,
+    /The call's text and the Library's count show once they read\. Everything else here is current\./,
+  );
+  assert.equal(
+    allBy(tree, "cmh-strip").filter((s) => s.props["data-strip"] === "call_text").length,
+    0,
+    "it stands where the call's text would, not beside it",
+  );
+  assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
+  assert.equal(allBy(tree, "cmh-stage").length, 4, "the rest of the page is drawn, and current");
+  pressed(failed.retry);
+  assert.deepEqual(refreshed, ["settings"], "its Retry reads the templates' surface, not the moments'");
+  surfaces();
+  fresh();
+  assert.equal(byTestId(page(), "cmh-templates-failed"), null, "read again: nothing to say");
+});
+
+test("a pools read that failed is said once, over the rail, and the people it could not count stay a dash", () => {
+  surfaces({ playbooks: { countsRead: false }, pools: { quiet_30: null } });
+  fresh();
+  refreshed.length = 0;
+  const tree = page();
+  const failed = failedAt(tree, "pb-counts-failed");
+  assert.ok(failed, "the same words and testid the Playbooks page said it by");
+  assert.match(failed.words, /Couldn't read who each moment reaches/);
+  assert.match(failed.words, /The moments show who they reach once it reads\. Everything else here is current\./);
+  const win = allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === "quiet");
+  assert.equal(
+    textOf(find(win, (n) => n.props?.["data-testid"] === "cmh-people")),
+    "—",
+    "never a zero it did not count",
+  );
+  pressed(failed.retry);
+  assert.deepEqual(refreshed, ["playbooks"], "its Retry reads the playbooks again");
+  surfaces();
+  fresh();
+  assert.equal(byTestId(page(), "pb-counts-failed"), null);
+});
+
+test("a reach-outs read that failed is said where the chains would follow, and an empty read says nothing", () => {
+  surfaces({ reachOuts: null });
+  setSurfaceValue("reach_outs", null);
+  fresh();
+  refreshed.length = 0;
+  const tree = page();
+  const failed = failedAt(tree, "pb-chains-failed");
+  assert.ok(failed, "a chains read that failed is said, not an empty list");
+  assert.match(failed.words, /Couldn't read your reach-outs/);
+  assert.match(failed.words, /The moments above are current\./);
+  assert.equal(allBy(tree, "cmh-strip").filter((s) => s.props["data-kind"] === "reach_out").length, 0);
+  pressed(failed.retry);
+  assert.deepEqual(refreshed, ["reach_outs"], "its Retry reads the reach-outs, not the moments");
+  setSurfaceValue("reach_outs", []);
+  fresh();
+  assert.equal(byTestId(page(), "pb-chains-failed"), null, "read, and none made: nothing to say");
+  setSurfaceValue("reach_outs", undefined);
+  fresh();
+  assert.equal(byTestId(page(), "pb-chains-failed"), null, "not read yet is not failed");
+});
+
+test("a campaign report that failed is said in the numbers' place, with a Retry; the runs below stand", () => {
+  surfaces({ broadcasts: { report: null } });
+  fresh();
+  refreshed.length = 0;
+  const tree = page();
+  const failed = failedAt(tree, "cmh-report-failed");
+  assert.ok(failed, "the tile says so");
+  assert.match(failed.words, /Couldn't read this period's numbers/);
+  assert.match(failed.words, /The runs below stand\./);
+  const results = byTestId(tree, "cmh-results");
+  assert.equal(
+    find(results, (n) => n.props?.["data-testid"] === "cmh-replied"),
+    null,
+    "no headline it did not read",
+  );
+  assert.equal(
+    find(results, (n) => n.props?.["data-testid"] === "cmh-quiet"),
+    null,
+    "and not 'nothing went out'",
+  );
+  assert.ok(allBy(tree, "cmh-run").length > 0, "the runs, which are the surface's own, stand");
+  pressed(failed.retry);
+  assert.deepEqual(refreshed, ["broadcasts"], "its Retry reads the broadcasts, where the report is read");
+});
+
+test("what came back says what a read is where a text or an email went too (0030), under the funnel, and nothing where WhatsApp alone sent", () => {
+  surfaces({
+    broadcasts: {
+      report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2, readOf: 6 } },
+    },
+  });
+  let tree = page();
+  assert.equal(
+    textOf(byTestId(byTestId(tree, "cmh-results"), "cmh-read-note")),
+    "Read is of WhatsApp's 6: a text or an email keeps no read receipt.",
+  );
+  surfaces();
+  tree = page();
+  assert.equal(byTestId(tree, "cmh-read-note"), null);
+});
+
+test("on a phone a failed read is said in the same places: over the moments, in the Also lines, and in what came back", () => {
+  surfaces({
+    playbooks: { countsRead: false },
+    reachOuts: null,
+    settings: { templatesAll: null },
+    broadcasts: { report: null },
+  });
+  setSurfaceValue("reach_outs", null);
+  globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  fresh();
+  const tree = page();
+  for (const id of ["pb-counts-failed", "pb-chains-failed", "cmh-templates-failed", "cmh-report-failed"])
+    assert.ok(byTestId(tree, id), `${id} on a phone too`);
+  assert.ok(
+    find(byTestId(tree, "cmh-also"), (n) => n.props?.["data-testid"] === "pb-chains-failed"),
+    "in the Also tile",
+  );
+});
+
+/** Every failed read a tile or a line says, by the testid its words are drawn under. */
+const FAILED = [
+  "pb-counts-failed",
+  "pb-chains-failed",
+  "cmh-templates-failed",
+  "cmh-report-failed",
+  "cmh-reach-failed",
+  "cmh-coming-failed",
+  "cmh-results-failed",
+];
+
+test("a read that has not landed has not failed, and a read that did land says nothing either", () => {
+  surfaces();
+  fresh();
+  const tree = page();
+  for (const id of FAILED) assert.equal(byTestId(tree, id), null, `${id}: everything read`);
+  for (const id of ["cmh-reach-reading", "cmh-coming-reading", "cmh-results-reading"])
+    assert.equal(byTestId(tree, id), null, `${id}: nothing is out`);
+  setSurfaceValue("settings", undefined);
+  setSurfaceValue("reach_outs", undefined);
+  fresh();
+  const reading = page();
+  for (const id of FAILED) assert.equal(byTestId(reading, id), null, `${id}: unread is not failed`);
+});
+
+/* -------------------------------- a read that is still out is said, quietly -------------------------------- */
+
+test("a tile made from the broadcasts says it is reading while they are out, and never 'nothing is set to go out' for a week it could not see", () => {
+  surfaces();
+  setSurfaceValue("broadcasts", undefined);
+  fresh();
+  const tree = page();
+  for (const id of ["cmh-reach-reading", "cmh-coming-reading", "cmh-results-reading"]) {
+    assert.ok(byTestId(tree, id), `${id}: the tile says it is reading`);
+    assert.equal(textOf(byTestId(tree, id)), "Reading…");
+    assert.equal(byTestId(tree, id).props.className, "route-reading cmh-reading", "after the shell's standard beat");
+  }
+  assert.equal(byTestId(tree, "cmh-coming-empty"), null, "an empty week is not said of one it has not seen");
+  assert.equal(allBy(tree, "cmh-coming-line").length, 0, "nor half of one");
+  assert.equal(allBy(tree, "cmh-rung").length, 0, "no ladder of nothing");
+  assert.equal(byTestId(tree, "cmh-quiet"), null, "nor 'nothing went out'");
+  assert.equal(byTestId(tree, "cmh-replied"), null);
+  assert.ok(byTestId(tree, "cmh-rules"), "what the sending rules say is true of any week");
+  assert.equal(allBy(tree, "cmh-stage").length, 4, "the moments, the playbooks' own read, are drawn");
+  assert.ok(
+    !/people can hear from you/.test(textOf(tree)),
+    "the head says nothing of who can hear before it is counted",
+  );
+  // The phone's one short tile reads the same way, and what is below it.
+  globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  fresh();
+  const phone = page();
+  for (const id of ["cmh-reach-reading", "cmh-coming-reading", "cmh-results-reading"])
+    assert.ok(byTestId(phone, id), `${id} on a phone too`);
+  assert.equal(allBy(phone, "cmh-rung").length, 0);
+});
+
+test("Send once and a drawer on a reach-out say they are reading rather than draw a sheet with nothing in it", () => {
+  surfaces();
+  setSurfaceValue("broadcasts", undefined);
+  fresh();
+  const send = page("new");
+  assert.ok(byTestId(send, "cmh-composer-reading"), "Send once: reading, in the sheet");
+  assert.equal(find(send, (n) => n.type === Segmented).props.value, "once", "the choice of kind is still at its head");
+  assert.equal(byTestId(send, "bc-composer"), null, "and no half of a send screen");
+  assert.equal(
+    find(send, (n) => n.type === BroadcastSend),
+    null,
+  );
+  // A moment link that names no playbook, before the reach-outs are read: reading, not an empty sheet and not 'gone'.
+  setSurfaceValue("reach_outs", undefined);
+  fresh();
+  const moment = page("moment:ch-1");
+  assert.ok(byTestId(moment, "cmh-drawer-reading"));
+  assert.equal(byTestId(moment, "pb-gone"), null);
+  // The playbook composer needs neither read.
+  fresh();
+  assert.ok(find(page("new:every"), (n) => n.type === PlaybookComposer));
+});
+
+/* -------------------------------- a read that failed is said, with its Retry -------------------------------- */
+
+test("a broadcasts read that failed is said in each tile made from it, in the send and with a Retry that reads the broadcasts again; the rest of the page is current", () => {
+  surfaces();
+  setSurfaceValue("broadcasts", undefined);
+  // The seam's own word for it: the surface tried and has no real data (surface-status.ts, the shell's route gate reads it).
+  status.setStatus("broadcasts", "seeded");
+  try {
+    fresh();
+    refreshed.length = 0;
+    const tree = page();
+    for (const [id, what] of [
+      ["cmh-reach-failed", "who can hear you"],
+      ["cmh-coming-failed", "what is coming up"],
+      ["cmh-results-failed", "what came back"],
+    ]) {
+      const failed = failedAt(tree, id);
+      assert.ok(failed, `${id}: said where its data would be`);
+      assert.match(failed.words, new RegExp(`Couldn't read ${what}`));
+      assert.match(failed.words, /Everything else here is current\./);
+      pressed(failed.retry);
+    }
+    assert.deepEqual(
+      refreshed,
+      ["broadcasts", "broadcasts", "broadcasts"],
+      "each Retry reads the broadcasts, not the moments",
+    );
+    for (const id of [
+      "cmh-reach-reading",
+      "cmh-coming-reading",
+      "cmh-results-reading",
+      "cmh-coming-empty",
+      "cmh-quiet",
+    ])
+      assert.equal(byTestId(tree, id), null, `${id}: failed is not reading, and not 'nothing'`);
+    assert.equal(allBy(tree, "cmh-stage").length, 4, "the moments are the playbooks' read, and current");
+    assert.equal(byTestId(tree, "cmh-templates-failed"), null, "one failing leaves the others alone");
+    // The phone says it in the same places.
+    globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const phone = page();
+    for (const id of ["cmh-reach-failed", "cmh-coming-failed", "cmh-results-failed"])
+      assert.ok(byTestId(phone, id), `${id} on a phone too`);
+    globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    // Send once could not be drawn from what could not be read: said in the sheet, with its Retry, not a sheet of nothing.
+    fresh();
+    refreshed.length = 0;
+    const send = page("new");
+    const sendFailed = failedAt(send, "cmh-composer-failed");
+    assert.ok(sendFailed, "Send once says so");
+    assert.match(sendFailed.words, /Couldn't read who and what you can send to/);
+    assert.match(sendFailed.words, /Nothing goes out until it reads\./);
+    pressed(sendFailed.retry);
+    assert.deepEqual(refreshed, ["broadcasts"]);
+    assert.equal(byTestId(send, "cmh-composer-reading"), null);
+    assert.equal(byTestId(send, "bc-composer"), null);
+  } finally {
+    // Read at last: a surface that has been live is never "failed" again, only stale.
+    status.setStatus("broadcasts", "live");
+  }
+});
+
+test("a settings read that failed leaves the Library with no count and the call's text with its Retry", () => {
+  surfaces();
+  setSurfaceValue("settings", undefined);
+  status.setStatus("settings", "seeded");
+  try {
+    fresh();
+    refreshed.length = 0;
+    const tree = page();
+    const failed = failedAt(tree, "cmh-templates-failed");
+    assert.ok(failed, "no settings at all is a read that failed, as a null `templatesAll` is");
+    pressed(failed.retry);
+    assert.deepEqual(refreshed, ["settings"]);
+    assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
+  } finally {
+    status.setStatus("settings", "live");
+  }
+});
+
+/* -------------------------------- the address, the toasts, the head, the clock -------------------------------- */
+
+test("a link that names a list opens the composer on it: campaigns/new:to:<list> hosts the send screen on that audience", () => {
+  surfaces();
+  fresh();
+  const tree = page("new:to:s-sample-regulars");
+  const audience = (t) => find(t, (n) => n.type === Picker && n.props["data-testid"] === "bc-audience");
+  assert.equal(audience(tree).props.value, "saved:s-sample-regulars", "the send opens on the list it was asked for");
+  assert.equal(find(tree, (n) => n.type === BroadcastSend).props.initialSegment, "s-sample-regulars");
+  assert.equal(sheet(tree).props.title, "New message");
+  assert.equal(find(sheet(tree).props.tools, (n) => n.type === Segmented).props.value, "once", "it is Send once");
+  // No list named: the screen opens on the audience it opens on.
+  fresh();
+  const plain = page("new");
+  assert.equal(find(plain, (n) => n.type === BroadcastSend).props.initialSegment, null);
+  assert.notEqual(audience(plain).props.value, "saved:s-sample-regulars");
+  // The address's spellings: one list, or none (an empty list is the composer on Send once).
+  for (const [param, to] of [
+    ["new:to:s-1", "s-1"],
+    ["new:to:", null],
+    ["new", null],
+  ]) {
+    fresh();
+    surfaces();
+    assert.equal(find(page(param), (n) => n.type === BroadcastSend).props.initialSegment, to, param);
+  }
+});
+
+test("the home's toasts are contracts' words, and the toast that offers to stop a send is the home's own", async () => {
+  surfaces();
+  fresh();
+  // A playbook saved: its next run is said where it is now, under Coming up, never 'on the card'.
+  const compose = page("new:every");
+  const composer = find(compose, (n) => n.type === PlaybookComposer);
+  toasts.length = 0;
+  composer.props.onDone({ name: "Sunday quiet" }, false);
+  assert.equal(textOf(toasts.at(-1).msg), "Sunday quiet is running — its next run is under Coming up, by your clock");
+  composer.props.onDone({ name: "Sunday quiet" }, true);
+  assert.equal(textOf(toasts.at(-1).msg), "Sunday quiet changed");
+  composer.props.onDone({}, true);
+  assert.equal(
+    textOf(toasts.at(-1).msg),
+    "It changed",
+    "a name the server did not answer is named in contracts' words too",
+  );
+  // The send screen is handed the home's own flash, and draws no host of its own (campaigns-drafts.test.mjs: the toast outlives the sheet).
+  const send = find(page("new"), (n) => n.type === BroadcastSend);
+  assert.equal(typeof send.props.flash, "function", "the home's toast host");
+});
+
+test("Copy the phrase says so where the browser would not copy it, and shows the phrase to be typed", async () => {
+  surfaces();
+  const refuse = [{ clipboard: { writeText: async () => Promise.reject(new Error("denied")) } }, {}];
+  for (const nav of refuse) {
+    Object.defineProperty(globalThis, "navigator", { value: nav, configurable: true });
+    fresh();
+    const tree = page();
+    toasts.length = 0;
+    await byTestId(tree, "cmh-copy").props.onClick();
+    await settle();
+    assert.equal(toasts.length, 1, "said once");
+    assert.equal(textOf(toasts[0].msg), "Couldn't copy, the phrase is: YES OFFERS");
+    assert.equal(toasts[0].tone, "warn");
+  }
+  Object.defineProperty(globalThis, "navigator", {
+    value: { clipboard: { writeText: async () => {} } },
+    configurable: true,
+  });
+  fresh();
+  toasts.length = 0;
+  await byTestId(page(), "cmh-copy").props.onClick();
+  await settle();
+  assert.equal(textOf(toasts.at(-1).msg), "Phrase copied");
+});
+
+test("the head says offers by email are paused, from the email channel's own read, and says nothing otherwise", () => {
+  const bc = broadcastsSample(new Date(NOW));
+  const withOffers = (offers) => ({ ready: { ...bc.ready, email: { ...bc.ready.email, offers } } });
+  surfaces({
+    broadcasts: withOffers({ ok: false, why: "paused", paused: { at: "2026-10-01T00:00:00Z", reason: "bounces" } }),
+  });
+  fresh();
+  page();
+  assert.equal(
+    textOf(byTestId(headSaid(), "cmh-paused")),
+    "Offers and news by email are paused: too many offers went to addresses that did not accept them. Appointment messages and replies still go by email.",
+    "the quiet line, under the sentence",
+  );
+  surfaces({ broadcasts: withOffers({ ok: true, why: null, paused: null }) });
+  fresh();
+  page();
+  assert.equal(byTestId(headSaid(), "cmh-paused"), null, "offers open: a quiet page says nothing");
+  surfaces();
+  fresh();
+  page();
+  assert.equal(byTestId(headSaid(), "cmh-paused"), null);
+});
+
+test("the home reads the clock again each minute and when the tab comes back, so Today and Tomorrow in Coming up roll over midnight while it is open", () => {
+  const scheduled = (at) => ({
+    ...broadcastsSample(new Date(NOW)).rows.find((r) => r.state === "scheduled"),
+    id: "r-tomorrow",
+    scheduled_for: new Date(at).toISOString(),
+    playbook_id: null,
+  });
+  // A run at 12:44 on Saturday in New York, which it is Friday 9:44 PM before.
+  const at = NOW + 15 * 3_600_000;
+  surfaces({ broadcasts: { rows: [scheduled(at)] } });
+  fresh();
+  const realNow = Date.now;
+  const realSet = globalThis.setInterval;
+  const realClear = globalThis.clearInterval;
+  const timers = [];
+  let now = NOW;
+  Date.now = () => now;
+  globalThis.setInterval = (fn, ms) => (timers.push([fn, ms]), timers.length);
+  globalThis.clearInterval = () => {};
+  try {
+    // No `nowMs`: the page's own clock.
+    const draw = () => again(() => CampaignsHome({ param: null }));
+    const line = (t) => allBy(t, "cmh-coming-line").find((l) => l.props["data-kind"] === "run");
+    let tree = draw();
+    assert.match(textOf(line(tree)), /^tomorrow/, "Friday evening: the run is tomorrow's");
+    assert.deepEqual(
+      timers.map(([, ms]) => ms),
+      [60_000],
+      "the page asks for a minute's tick",
+    );
+    // Three hours on, past midnight: the same run is today's, once the page has read the clock again.
+    now = NOW + 3 * 3_600_000;
+    tree = draw();
+    assert.match(textOf(line(tree)), /^tomorrow/, "nothing moves until the page reads the clock");
+    timers[0][0]();
+    tree = draw();
+    assert.match(textOf(line(tree)), /^today/, "after the tick the run is today's");
+  } finally {
+    Date.now = realNow;
+    globalThis.setInterval = realSet;
+    globalThis.clearInterval = realClear;
+  }
+});
+
+test("the Library's count is the Library page's own: the same templates, languages and reach-out emails, from one function", () => {
+  const pb = playbooksSample(new Date(NOW));
+  const first = pb.templates[0];
+  const rows = [
+    ...pb.templates,
+    { ...first, id: "tpl-es", language: "es" },
+    { ...first, id: "tpl-sample", name: "hello_world" },
+    { ...first, id: "tpl-hidden", name: "old_offer", hidden_at: "2026-09-01T00:00:00Z" },
+  ];
+  const email = (n) => ({
+    root_id: `ch-${n}`,
+    name: `Cold email ${n}`,
+    search: { id: "s-1", name: "Studios" },
+    state: "running",
+    signed_by: "Sam",
+    steps: [
+      { id: `ch-${n}`, n: 0, after_days: null, subject: "Quick one", body: "Hello", template_id: `t-${n}a` },
+      { id: `n-${n}`, n: 1, after_days: 4, subject: null, body: "Checking in", template_id: `t-${n}b` },
+    ],
+    next: { run_hour: 9, last_run_for: null, mode: "ask", may_spend: true, waiting_run_id: null },
+    domains: [],
+  });
+  surfaces({ reachOuts: [email(1)], settings: { templatesAll: rows } });
+  // The page's head says "N templates"; the home's act carries N.
+  setSurfaceValue("settings", {
+    settings: { config: { brain: { business_name: "Northside Studio" } } },
+    channels: [{ kind: "whatsapp" }],
+    templatesAll: rows,
+  });
+  fresh();
+  TemplatesPage();
+  const said = Number(/\d+/.exec(textOf(byTestId(headSaid(), "messages-count")))[0]);
+  fresh();
+  page();
+  const act = Number(/\d+/.exec(textOf(byTestId(headSaid(), "cmh-library")).replace("Library", ""))[0]);
+  assert.equal(act, said, "one count");
+  assert.equal(
+    act,
+    pb.templates.length + 1 + 2,
+    "each language a row, the two emails, never the sample or the hidden one",
+  );
+});

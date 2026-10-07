@@ -3,9 +3,9 @@
  * nothing: link scanners fetch every URL in an email. POST is the mail client's one click or that button, and
  * either records the stop in the same response, with no redirect, no cookie and no sign-in. The token is the
  * authority (packages/channels unsubscribe-token.ts); all it can do is narrow what may be sent. The rest is
- * src/server/unsubscribe.ts.
+ * src/server/public/unsubscribe.ts.
  */
-import { unsubscribeGet, unsubscribePost } from "@/server/unsubscribe";
+import { unsubscribeGet, unsubscribePost } from "@/server/public/unsubscribe";
 
 export const dynamic = "force-dynamic";
 

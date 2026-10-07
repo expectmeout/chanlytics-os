@@ -28,9 +28,12 @@
  * not a backlog processor, and a day-old message it did not see is the
  * platform's problem, paged elsewhere. Every write is guarded on the row's
  * present state, so two overlapping ticks cannot double-flag.
+ *
+ * Cross-workspace: the deadman sweep visits every workspace; each write carries the row's own tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
+import { isCampaignEmail, MIN_MS, HOUR_MS } from "../packages/contracts.js";
 import type { EscalationOutcome } from "../packages/jobs.js";
 import type { logger } from "../log.js";
 import type { notify as notifyFn, reachesTenant as reachesFn, NotifyTarget, NotifyMessage } from "../ops/notify.js";
@@ -58,17 +61,17 @@ type Db = SupabaseClient<Database>;
 const INLINE_INTAKE = ["whatsapp", "sms"] as const;
 
 /** A customer's message older than this with no processed_at stamp was never finished with. */
-export const UNANSWERED_INBOUND_AFTER_MS = 3 * 60_000;
+const UNANSWERED_INBOUND_AFTER_MS = 3 * MIN_MS;
 /** A queued reply older than this with no live job is nobody's. */
-export const ORPHAN_QUEUED_AFTER_MS = 10 * 60_000;
+const ORPHAN_QUEUED_AFTER_MS = 10 * MIN_MS;
 /** Older than this is not this sweep's to raise. */
-const LOOKBACK_MS = 24 * 3_600_000;
+const LOOKBACK_MS = 24 * HOUR_MS;
 const BATCH = 100;
 
-export const ORPHAN_NOTE = "no job was left to send this";
+const ORPHAN_NOTE = "no job was left to send this";
 
 /** The deadman endpoint's own collaborators, passed in so the sweep is one function over ports. */
-export interface UnfinishedPorts {
+interface UnfinishedPorts {
   db: Db;
   L: ReturnType<typeof logger>;
   upsertEscalation: (
@@ -85,7 +88,7 @@ export interface UnfinishedPorts {
   now?: () => number;
 }
 
-export interface UnfinishedSummary {
+interface UnfinishedSummary {
   /** Customer messages found unfinished and flagged. */
   unanswered: number;
   /** Queued replies found with no job and failed. */
@@ -108,6 +111,7 @@ interface QueuedRow {
   conversation_id: string | null;
   sender: string | null;
   created_at: string;
+  meta: { email?: { request?: unknown } } | null;
 }
 
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -138,7 +142,7 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
     .limit(BATCH);
   if (inErr) throw new Error(`unfinished: cannot read inbound messages: ${inErr.message}`);
   const rows = (inbound ?? []) as unknown as InboundRow[];
-  if (rows.length) {
+  if (rows[0]) {
     // A reply that went out after the message, before the stamp, is not a
     // customer with no answer: the crash was between the send and the mark.
     const convIds = [...new Set(rows.map((r) => r.conversation_id).filter((c): c is string => !!c))];
@@ -157,7 +161,7 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
       try {
         const replied = !!r.conversation_id && (repliesBy.get(r.conversation_id) ?? []).some((t) => t > r.created_at);
         if (!replied && r.conversation_id) {
-          const waitedMin = Math.max(1, Math.round((now - new Date(r.created_at).getTime()) / 60_000));
+          const waitedMin = Math.max(1, Math.round((now - new Date(r.created_at).getTime()) / MIN_MS));
           const words = short(r.body);
           const detail = `The receptionist never answered this: the message arrived ${waitedMin} minutes ago and its handling did not finish (a crash or a timeout after it was accepted). Nothing has been sent — ${words ? `"${words}"` : "no text"}`;
           await p.upsertEscalation(p.db, r.tenant_id, r.conversation_id, "brain_error", detail.slice(0, 400));
@@ -195,7 +199,7 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
   // 2. A queued reply nothing is sending.
   const { data: queued, error: qErr } = await p.db
     .from("messages")
-    .select("id, tenant_id, conversation_id, sender, created_at")
+    .select("id, tenant_id, conversation_id, sender, created_at, meta")
     .eq("status", "queued")
     .gt("created_at", iso(now - LOOKBACK_MS))
     .lt("created_at", iso(now - ORPHAN_QUEUED_AFTER_MS))
@@ -230,7 +234,9 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
         if (error) throw new Error(error.message);
         if (!changed?.length) continue; // another tick, or the send itself, got there first
         out.orphaned += 1;
-        if (s.conversation_id) {
+        // A campaign's email (a reach-out's) is its run's to count: the clock plans it again (orphaned never left), and
+        // no thread nobody wrote on is flagged, nor its owner told (Reach out D4, contracts isCampaignEmail).
+        if (s.conversation_id && !isCampaignEmail(s.meta?.email?.request)) {
           const who = s.sender === "ai" ? "The receptionist's reply" : "A reply";
           await p.upsertEscalation(
             p.db,

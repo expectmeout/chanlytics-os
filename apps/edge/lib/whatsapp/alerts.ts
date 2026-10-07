@@ -1,23 +1,25 @@
 /**
- * The people who are told: the workspace (a handoff that names the thread)
- * and the platform (traffic for a channel nobody routes). The customer is
- * texted through the one door, deliver() in packages/core, from the sink.
+ * The people who are told: the workspace (a handoff that names the thread: alertStaff, in the words handoffMessage
+ * decides) and the platform (traffic for a channel nobody routes: alertUnroutable). The customer is texted through the
+ * one door, deliver() in packages/core, from the sink.
+ *
+ * The customer's own words travel in a handoff's email, so it goes only to an address we know belongs to THIS tenant.
+ * `notify` decides that; a workspace we cannot address gets a redacted platform notice rather than someone else's
+ * mailbox. A platform notice carries no customer content, only a number, a count and the reason. It is one of four
+ * kinds (WhatsApp unreadable, WhatsApp switched off, a text that could not be handled, a voice channel switched
+ * off), sent at most once in fifteen minutes for each kind and number in a lambda instance, and only a delivered
+ * notice earns the quiet.
  */
 import { notify, type NotifyTarget, type NotifyMessage } from "../ops/notify.js";
-import { formatPhoneDisplay } from "../packages/contracts.js";
+import { formatPhoneDisplay, MIN_MS } from "../packages/contracts.js";
 
 /**
  * The text channels a thread can arrive on. Declared here rather than
  * imported from inbound.ts: ports.ts already imports this module, so taking
  * the type back from the handler would close a cycle for two string literals.
  */
-export type InboundChannel = "whatsapp" | "sms";
+type InboundChannel = "whatsapp" | "sms";
 
-/**
- * The customer's own words travel in this email, so it goes only to an address
- * we know belongs to THIS tenant. `notify` decides that; a workspace we cannot
- * address gets a redacted platform notice rather than someone else's mailbox.
- */
 /** The reasons the handler names, in the owner's words. Anything else is said as it came. */
 const REASON_WORDS: Record<string, string> = {
   "passed to a human": "asked for a person",
@@ -53,7 +55,7 @@ const REASON_WORDS: Record<string, string> = {
  * a dozen edits -- which is how `channel` came to be known at every one of
  * them and stated at none.
  */
-export interface HandoffContext {
+interface HandoffContext {
   target: NotifyTarget;
   /**
    * The wire the customer wrote on. This is the SHARED handoff alert: the SMS
@@ -140,7 +142,7 @@ export function handoffMessage({
  * per phone number id. The window is per lambda instance, which is imprecise in
  * the right direction: a burst across instances sends a few notes, not none.
  */
-const UNROUTABLE_ALERT_MS = 15 * 60 * 1000;
+const UNROUTABLE_ALERT_MS = 15 * MIN_MS;
 const unroutableAlerted = new Map<string, number>();
 
 const UNROUTABLE_WORDS = {

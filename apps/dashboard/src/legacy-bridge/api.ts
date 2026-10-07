@@ -9,6 +9,7 @@ import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../
 import { clearReadCaches, staleReadCaches } from "./read-cache";
 import { clearSurfaceCache } from "./surface-cache";
 import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
+import { PREFETCH_SLOT, SECOND_FACTOR_REQUIRED_PATH } from "@chanlytics/contracts";
 
 let instance: Api | null = null;
 
@@ -38,6 +39,30 @@ function forgetWorkspaceAndReboot(win: Window): void {
 }
 
 /**
+ * A partner's seat, or the partner account, asked for the second factor this session has not shown (0013). The rows
+ * read so far are dropped, as at a sign-out, and the tab goes to the second step, which asks for the code or, for an
+ * account without an authenticator, sets one up; it comes back in from there.
+ */
+function toSecondFactor(win: Window): void {
+  clearSurfaceCache();
+  clearReadCaches();
+  win.location.assign(SECOND_FACTOR_REQUIRED_PATH);
+}
+
+/**
+ * What the document head started for a URL (contracts routePrefetchScript), taken once: the slot forgets it as it is
+ * handed over, so a later read of the same URL asks the server.
+ */
+function takePrefetched(win: Window, url: string): Promise<Response> | null {
+  const slot = (win as unknown as Record<string, unknown>)[PREFETCH_SLOT];
+  if (!slot || typeof slot !== "object") return null;
+  const held = (slot as Record<string, unknown>)[url];
+  if (!held || typeof (held as Promise<Response>).then !== "function") return null;
+  delete (slot as Record<string, unknown>)[url];
+  return held as Promise<Response>;
+}
+
+/**
  * A read the runner treats as the surface's own: a refusal throws, and the
  * ApiError it throws carries the code the runner reads (a 401 signs the tab
  * out; anything else leaves the surface seeded).
@@ -55,13 +80,15 @@ export function apiFor(win: Window): Api {
   if (typeof window !== "undefined" && win === window) return api();
   return createApi({
     fetch: (url, init) => win.fetch(url, init),
+    prefetched: (url) => takePrefetched(win, url),
     workspace: getActiveWorkspace,
     onSignedOut: () => {
       clearSurfaceCache();
       clearReadCaches();
-      win.location.assign(signInHref(win.location.hash));
+      win.location.assign(signInHref(win.location));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(win),
+    onSecondFactor: () => toSecondFactor(win),
     // A write landed, so every on-demand answer this tab is holding -- a
     // person's page, the activity log, the back office -- describes the world
     // as it was. The surfaces have their own path through the refresh map;
@@ -78,6 +105,7 @@ export function apiFor(win: Window): Api {
 export function api(): Api {
   instance ??= createApi({
     fetch: (url, init) => window.fetch(url, init),
+    prefetched: (url) => takePrefetched(window, url),
     workspace: getActiveWorkspace,
     onSignedOut: () => {
       // Clear BEFORE redirecting: the surface cache holds real customer
@@ -86,9 +114,10 @@ export function api(): Api {
       // page's hash goes along, so signing in again lands where they were.
       clearSurfaceCache();
       clearReadCaches();
-      window.location.assign(signInHref(window.location.hash));
+      window.location.assign(signInHref(window.location));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(window),
+    onSecondFactor: () => toSecondFactor(window),
     // A write landed, so every on-demand answer this tab is holding -- a
     // person's page, the activity log, the back office -- describes the world
     // as it was. The surfaces have their own path through the refresh map;

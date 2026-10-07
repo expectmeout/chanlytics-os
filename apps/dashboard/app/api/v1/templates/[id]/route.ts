@@ -1,8 +1,6 @@
-import { z } from "zod";
-import { AppError, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { templateScope } from "@/server/verbs";
-import { deleteTemplate } from "@/server/service";
+import { changeTemplate, deleteTemplateRow, TemplateChange } from "@/server/campaigns/template-row";
 
 /**
  * PUT /api/v1/templates/:id — { hidden?: boolean, title?: string | null }.
@@ -17,97 +15,22 @@ import { deleteTemplate } from "@/server/service";
  * template at each batch and would fail the broadcast. The edge does Meta's
  * delete and the row's; this route proves who is asking and says what
  * happened.
+ *
+ * The handles are changeTemplate and deleteTemplateRow in src/server/campaigns/template-row.ts: each route is its
+ * declaration (who may, how often), each verb is what it does.
  */
-const SAID: Record<string, string> = {
-  preview: "Deleting only works on the production dashboard.",
-  not_found: "That template is not on file.",
-  no_waba: "This number's WhatsApp Business Account is not on file. Reconnect the number and try again.",
-  no_token: "Chanlytics has no access token for this number yet.",
-  meta_refused: "WhatsApp did not let the template be deleted. Try again in a moment.",
-  write_failed: "The template could not be removed here. Sync from Meta and try again.",
-};
-
-const Body = z
-  .object({
-    hidden: z.boolean().optional(),
-    title: z.string().nullable().optional(),
-  })
-  .refine(
-    (b) => b.hidden !== undefined || b.title !== undefined,
-    "Say what changes: whether it is hidden, or its title.",
-  );
 
 export const PUT = write({
   scope: templateScope,
   role: "operator",
   rate: "settings",
-  input: Body,
-  handle: async ({ ctx, row: tpl, input }) => {
-    const id = tpl.id;
-    const hasHidden = input.hidden !== undefined;
-    const hasTitle = input.title !== undefined;
-    const title = hasTitle
-      ? String(input.title ?? "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, TEMPLATE_TITLE_MAX)
-      : undefined;
-    if (hasHidden) {
-      const { error: dErr } = await ctx.supabase.rpc("set_template_hidden", {
-        p_template_id: id,
-        p_hidden: input.hidden === true,
-      });
-      if (dErr) throw new Error(dErr.message);
-    }
-    if (hasTitle) {
-      const { error: tErr } = await ctx.supabase.rpc("set_template_title", { p_template_id: id, p_title: title || "" });
-      if (tErr) throw new Error(tErr.message);
-    }
-    return {
-      id,
-      name: tpl.name,
-      ...(hasHidden ? { hidden: input.hidden === true } : {}),
-      ...(hasTitle ? { title: title || null } : {}),
-    };
-  },
+  input: TemplateChange,
+  handle: ({ ctx, row, input }) => changeTemplate(ctx, row, input),
 });
 
 export const DELETE = write({
   scope: templateScope,
   role: "operator",
   rate: "settings",
-  handle: async ({ ctx, row: tpl }) => {
-    const id = tpl.id;
-    const { count, error: bErr } = await ctx.supabase
-      .from("broadcasts")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tpl.tenant_id)
-      .eq("template_name", tpl.name)
-      .eq("template_language", tpl.language)
-      .in("state", ["scheduled", "sending"]);
-    if (bErr) throw new Error(bErr.message);
-    if (count) throw new AppError("conflict", "A broadcast is still using this template. Cancel it first.", 409);
-    // A running playbook that sends it would skip every run from now on: named, so the owner can pause it or give
-    // it another message first. A paused one runs nothing, and the page names it before the delete.
-    const { data: running, error: pErr } = await ctx.supabase
-      .from("playbooks")
-      .select("name")
-      .eq("tenant_id", tpl.tenant_id)
-      .eq("template_name", tpl.name)
-      .eq("template_language", tpl.language)
-      .eq("state", "running");
-    if (pErr) throw new Error(pErr.message);
-    if (running?.length) throw new AppError("conflict", playbooksStillSending(running.map((p) => String(p.name))), 409);
-
-    const r = await deleteTemplate(tpl.tenant_id, id);
-    if (!r.ok) {
-      const said = SAID[r.reason] ?? `The template could not be deleted (${r.reason}).`;
-      throw new AppError(
-        r.reason === "not_found" ? "not_found" : "upstream_meta",
-        said,
-        r.reason === "not_found" ? 404 : 502,
-      );
-    }
-    return { deleted: true, id, name: tpl.name, language: tpl.language, at_meta: r.atMeta };
-  },
+  handle: ({ ctx, row }) => deleteTemplateRow(ctx, row),
 });

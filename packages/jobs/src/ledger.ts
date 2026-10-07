@@ -12,9 +12,13 @@
  * Whether that later claim RUNS the job or GIVES UP on it is `verdictFor`, and
  * it is pure. `jobs_guard` (00098) refuses every other transition inside the
  * database, so no writer here has to remember the machine.
+ *
+ * Cross-workspace: the job runner claims the next due job of any workspace; the job then acts in its own.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db";
+import { DAY_MS, MIN_MS, jittered } from "@chanlytics/contracts";
+import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
 
 export type Db = SupabaseClient<Database>;
 
@@ -34,6 +38,15 @@ export const LEASE_SECONDS = 90;
 export const CLAIM_FOR_MS = 20_000;
 
 /**
+ * How many jobs one tick runs side by side (decision 0018, step 4). Each slot
+ * claims one job just before it runs it, as a lone runner does, so "claimed"
+ * still means "started"; a second slot opens only once a claim found work. The
+ * lease and the ceiling are each job's, not the tick's, so neither moves: every
+ * job is still claimed in the first CLAIM_FOR_MS and yields by its deadline.
+ */
+export const CLAIM_SLOTS = 3;
+
+/**
  * When a handler that loops over outward work (a broadcast batch) stops
  * starting new sends and leaves the rest to a follow-up job. Fifteen seconds
  * before the ceiling: room for the send already in flight to come back.
@@ -44,13 +57,29 @@ export const YIELD_AT_MS = 45_000;
  * The ceiling every tick function runs under (apps/edge/vercel.json: 60s).
  * Stated here because the lead job's window below is measured from it.
  */
-export const FUNCTION_CEILING_MS = 60_000;
+export const FUNCTION_CEILING_MS = MIN_MS;
+
+/**
+ * What a send in flight at the yield point still has to do once its answer is back: settle its row, write the person's
+ * and schedule the batch that follows. The ceiling is not the send's: this much of it is kept.
+ */
+export const SEND_SETTLE_MS = 5_000;
+
+/**
+ * The latest moment a send under a handler's `deadline` (the tick's start plus YIELD_AT_MS, as every kind but a lead's is
+ * handed) may still be waited for: the ceiling less SEND_SETTLE_MS. A send that starts at the yield point is given
+ * FUNCTION_CEILING_MS - YIELD_AT_MS - SEND_SETTLE_MS of it, ten seconds, and one that starts early is bounded by the wire's
+ * own deadline instead (channels SEND_DEADLINE_MS, 32 s), which a late start would otherwise take whole: a send begun at
+ * 44 s ran to 76, past a ceiling that kills the function at 60 with the email in flight and its row still queued.
+ * ops-hygiene.test.mjs holds the two numbers under the ceiling.
+ */
+export const sendByAt = (deadline: number): number => deadline + (FUNCTION_CEILING_MS - YIELD_AT_MS) - SEND_SETTLE_MS;
 
 /**
  * The deadline a LEAD job is handed, from the tick's start. A broadcast's
  * deadline stops fifteen seconds short of the ceiling so a send in flight can
  * come back; a lead job guards every call it makes with its own margin
- * (core runner.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
+ * (core runner/rules.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
  * ever in flight past its deadline and it needs no room after it. Its
  * deadline sits at the ceiling less the kill margin the runner already keeps.
  *
@@ -64,7 +93,14 @@ export const FUNCTION_CEILING_MS = 60_000;
  * LEAD_YIELD_AT_MS - CLAIM_FOR_MS, and core's judge timeout is sized to fit
  * inside it; tick-geometry.test.mjs holds the two to that.
  */
-export const LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - 8_000;
+export const LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - DEADLINE_MARGIN_MS;
+
+/**
+ * How late a reply's first claim may come before the platform is paged (decision 0018, the measure's alarm). A reply is
+ * due fifteen seconds after Send and the heartbeat asks every ten, and replies are claimed before any other work, so a
+ * minute past due is a queue, not a clock: every runner was busy with replies, or the heartbeat was not running.
+ */
+export const REPLY_LATE_PAGE_MS = MIN_MS;
 
 /** Claims allowed for internal work before it is failed and reported. */
 export const MAX_ATTEMPTS = 3;
@@ -81,6 +117,13 @@ export const MAX_ATTEMPTS = 3;
  */
 export const MAX_RESUMES = 5;
 
+/**
+ * How many outbox events one tick relays before it claims (relay_events, 00334): bounded so a flood of events never
+ * holds the tick from the replies behind it; what is left is the next tick's, and the poll knocks while the outbox
+ * is not empty.
+ */
+export const RELAY_LIMIT = 500;
+
 /** Kinds whose second run could reach a real person a second time. */
 export const SPEAKS_TO_A_PERSON: ReadonlySet<string> = new Set(["outbound_send", "broadcast_send"]);
 
@@ -94,6 +137,8 @@ export interface LedgerRow {
   due_at: string;
   /** Counted by the claim: 1 on the first run; more means a lease ran out before a run reported back. */
   attempts: number;
+  /** The queue the claim took it from (jobs.lane, 00281): 0 a reply, 1 someone waiting, 2 bulk; null for a kind with none. */
+  lane?: number | null;
 }
 
 export type Verdict = "run" | "give_up";
@@ -137,28 +182,54 @@ export function verdictFor(job: { kind: string; attempts: number }): Verdict {
  * person never does.
  */
 export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
-  email_ingest: [5 * 60_000, 30 * 60_000],
+  email_ingest: [5 * MIN_MS, 30 * MIN_MS],
   // The lead finder's three (00140). Each is written to be run again: a start
   // claims its run row before it calls the provider, a collect commits a page
   // by compare-and-set on the offset, a check commits by lead id. A
   // provider's 429 or 5xx throws and lands here: two minutes covers a bad
   // minute, ten a short outage; the third claim fails the row and the round
   // ends "the source failed". Every wait outlasts the lease (jobs-ledger.test.mjs).
-  lead_round_start: [2 * 60_000, 10 * 60_000],
-  lead_collect: [2 * 60_000, 10 * 60_000],
-  lead_check: [2 * 60_000, 10 * 60_000],
+  lead_round_start: [2 * MIN_MS, 10 * MIN_MS],
+  lead_collect: [2 * MIN_MS, 10 * MIN_MS],
+  lead_check: [2 * MIN_MS, 10 * MIN_MS],
   // A phone told from a kept row (00162): the push service's bad minute, then
   // its short outage, each wait outlasting the lease like the three above. The
   // row is read again on each try, and a phone the service answered for is
   // answered for once.
-  push_send: [2 * 60_000, 10 * 60_000],
+  push_send: [2 * MIN_MS, 10 * MIN_MS],
+  // The receipts of a send (00189): Expo keeps them a day, so a bad minute and
+  // then a short outage are affordable waits, each outlasting the lease.
+  push_receipts: [5 * MIN_MS, 30 * MIN_MS],
+  // A reply to a reach-out, read (Reach out Part 5, 00222). Every stage is written to be run again: the reading is kept
+  // once per message and a re-read by compare-and-set, the notice is claimed before it is told and marked only after
+  // (its claim goes stale with the lease, before either wait ends). A thrown read or write, or a notice whose mail
+  // failed, lands here: two minutes, then ten, each outlasting the lease.
+  reply_read: [2 * MIN_MS, 10 * MIN_MS],
+  // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
+  // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
+  event_deliver: [2 * MIN_MS, 10 * MIN_MS],
 };
 
-/** How long a job that just threw waits before it is tried again; null when it is failed now. */
-export function retryWait(job: { kind: string; attempts: number }): number | null {
+/**
+ * How long a job that just threw waits before it is tried again; null when it is failed now. The wait is drawn a little
+ * longer at random (contracts jittered), so the jobs one outage failed together are not all claimed again in the same
+ * heartbeat; only ever longer, so every wait still outlasts the lease.
+ */
+export function retryWait(job: { kind: string; attempts: number }, random: () => number = Math.random): number | null {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
-  return RETRY_WAITS_MS[job.kind]?.[job.attempts - 1] ?? null;
+  const wait = RETRY_WAITS_MS[job.kind]?.[job.attempts - 1];
+  return wait === undefined ? null : jittered(wait, random);
 }
+
+/**
+ * A kind this runner does not know is kept, not failed: a row written by a newer deploy (a kind that arrived with its
+ * handler, its caller and its CHECK) waits for the runner that knows it, so the edge and the database may deploy in
+ * either order. It is looked at again after UNKNOWN_KIND_WAIT_MS, and failed as unknown only once it has been due for
+ * UNKNOWN_KIND_GIVE_UP_MS: a day is longer than any deploy takes to land, and short enough that a kind nothing will
+ * ever know is told to its owner.
+ */
+export const UNKNOWN_KIND_WAIT_MS = 5 * MIN_MS;
+export const UNKNOWN_KIND_GIVE_UP_MS = DAY_MS;
 
 /** The next due job, claimed for this run; null when nothing is due. */
 export async function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow | null> {
@@ -198,19 +269,28 @@ export async function failJob(db: Db, job: { id: string; attempts: number }, rea
 }
 
 /**
- * Keep a job that threw, to be claimed again once `untilIso` passes
- * (retryWait): its lease is put off and why is kept on the row. The same
- * compare-and-swap as the exits, so false means this run no longer holds it.
+ * Keep a job, to be claimed again once `untilIso` passes: one that threw (retryWait), or one whose kind this runner
+ * does not know (UNKNOWN_KIND_WAIT_MS). Its lease is put off and why is kept on the row. The same compare-and-swap as
+ * the exits, so false means this run no longer holds it.
+ *
+ * `giveBackClaim` is for the second: nothing ran, so the claim is given back (attempts less one) and the next claim
+ * is still the job's first, which verdictFor judges as one when a runner that knows the kind takes it. A job that
+ * threw keeps its claim: it ran, and the next try is its second.
  */
 export async function deferJob(
   db: Db,
   job: { id: string; attempts: number },
   untilIso: string,
   reason: string,
+  giveBackClaim = false,
 ): Promise<boolean> {
   const { data, error } = await db
     .from("jobs")
-    .update({ lease_until: untilIso, last_error: reason.slice(0, 500) })
+    .update({
+      lease_until: untilIso,
+      last_error: reason.slice(0, 500),
+      ...(giveBackClaim ? { attempts: Math.max(0, job.attempts - 1) } : {}),
+    })
     .eq("id", job.id)
     .eq("state", "fired")
     .eq("attempts", job.attempts)

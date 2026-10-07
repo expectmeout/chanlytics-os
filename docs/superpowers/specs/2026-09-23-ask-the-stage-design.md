@@ -102,7 +102,7 @@ Above the band, as today (`.ask-folds`), each fold a 36px row: the light square,
 
 `.ask-modal.ask-line` is the screen: `position: fixed; inset: 0`, `background: var(--bg)`, no radius, no shadow, padding-top `env(safe-area-inset-top)`, padding-bottom `env(safe-area-inset-bottom)`; the wash behind it is the kit's, fully covered. `role="dialog" aria-modal="true" aria-label="Ask Chanlytics"`. Three rows: the head, the middle (flex 1, scrolls when it must, `overscroll-behavior: contain`), the foot.
 
-- **Head** (52px): "Earlier" as `.btn-ghost` with the chat glyph at the left (toggles the Earlier list, `aria-pressed`); Clear as `.btn-ghost` beside it only in a conversation; × (44px) at the right.
+- **Head** (52px): "Earlier" as `.btn-ghost` with the chat glyph at the left (toggles the Earlier list, `aria-pressed`); Clear as `.btn-ghost` beside it in a conversation or over a quick answer (a preset question answered without a model; 26 Sep); × (44px) at the right.
 - **Foot**: the field (56px, `--bg-sunken`, radius 16, `--line`), the one button (36px) inside it, in 12px side padding; it rides the keyboard through `--ask-kb` as today.
 
 ### 5.2 At rest
@@ -138,6 +138,17 @@ The ✦ (`.phone-ask`, the three on coral) opens it with a tap; it hides while t
 
 `TodayFace` is not rendered and its file, styles, sample wiring and tests go (S14). The queue is Today's first band on a phone. The `askAbout({ thread })` seed the band used stays on the shell for any caller.
 
+### 5.9 Composing (added 25 Sep 2026; amended twice the same day)
+
+A tap on the field raises the keyboard, which takes about a third of the screen. Until now the middle kept its home (Right now, Brief me, the page's questions) and scrolled, so the three left the screen exactly as the person began to write to them; and the browser, moving what it shows to keep the field in view, made the screen jump. Now the field in use (focused) composes:
+
+- The rows go as the field slides up over their place, the words' own rows and the jumps included: with the keyboard up there is no room for them, and Enter sends. Their fold (`ask-real.jsx`, `ask.css` `.ask-rows-fold`) stays closed while they are gone and opens again (220ms) as they return.
+- The three keep their size and stay centred in what is left of the middle, the standing pills (who needs you, the runs and searches waiting) under them, and listen: the mood is `listening` while the field is in use with no turn running, and each key heard lifts them a little (`mood.hear`), as a word heard does. On a phone the pills are the hero's at rest as well, not Right now's row's (`AskNowPills`, `ask-home.jsx`), so they stay through composing: they are what a person came to see. On a small screen the three shrink to fit above the field (never more than 45% of what is shown). With nothing typed for a moment they wait alive, a small move every few seconds (the three-in-motion spec, "Waiting, listening").
+- **The screen makes room before the keyboard comes, so the browser moves nothing.** iOS scrolls what it shows to keep a focused field in view, and reports how far either before it has moved or long after, never with it (Ruben's recording, 25 Sep: the screen shoved down then sliding back, or carried up out of view then snapping back). So the document says a keyboard is expected the moment a field that types is focused (`watchKeyboard`, `html.kb-expected`), with the height the last keyboard had (`--kb-last`, kept on the device), and the Line's foot takes that room at once; the browser finds the field already above the keys and has nothing to move. What the eye sees is the page's own slide, on the keyboard's own beat (250ms, `arSlide`): a still copy of the field goes from where it stood to where it is, over the field itself held clear, and the three slide from where they stood to the middle's new centre. The first keyboard ever on a device, or one of another height, is met the old way, eased (`--kb`, `--vv-top`, `html.kb-up`); the word is taken back when no keyboard comes (a hardware one, 600ms).
+- Letting go (the field blurred, the keyboard down) opens the fold again: the home, or the words' own rows if words were typed; the foot eases down as the keyboard is reported gone; a turn sent from here goes on as 5.4.
+- Reduced motion: no slide, no fold, no easing; everything is simply where it is.
+
+Ruben, 25 Sep: "when users tap to type, chat moves up; it would be nice if the ask can detect the user is going to type and the brief, ask about this page, who's waiting should all fade and the ask comes down into view into listening state." On the first cut, the same day: the listening three were too small ("keep the size") and too close to the field, the need-you and waiting badges should stay in view while typing, and the keyboard's rise showed a layout-shift flicker; on the second, a screen recording showed the flicker was the browser's own move, reported out of step. Code: `ask-real.jsx` `composing`, `composingRows`, `standing`, `arSlideFrom`, `arSlide`; `ask-home.jsx` `AskNowPills`; `ask.css` `.ask-line-body.composing`, `.ask-rows-fold`, `.ask-modal.ask-line` (`--ask-keys`); `data-bits.jsx` `watchKeyboard` (`--kb`, `--vv-top`, `--kb-last`, `html.kb-up`, `html.kb-expected`).
 ## 6. Persistence and the practices, in one place
 
 | Practice | Where | How |

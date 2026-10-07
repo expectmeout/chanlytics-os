@@ -23,22 +23,25 @@ import {
   lineReleaseWarning,
   lineReleasedWords,
   receptionistOn,
+  type EdgeErrorCode,
   type LineReleaseBilling,
   type LineReleaseWarned,
 } from "../packages/contracts.js";
 import { deletePhoneNumber, type RetellConfig } from "../packages/channels.js";
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, tenantDb } from "../packages/db.js";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
+import { factsOf } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database } from "../packages/db.js";
 import type { Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
 
+/** A release that stopped: its code, what stopped it in `detail`, and what came off before it did. */
 export type LineReleaseResult =
   | { ok: true; released: Record<string, unknown> }
-  | { ok: false; status: 502 | 503; error: string; released: Record<string, unknown> };
+  | { ok: false; status: 502 | 503; error: EdgeErrorCode; detail: string; released: Record<string, unknown> };
 
 /**
  * Give one line's number back: Retell's copy of it, the number and the trunk at the carrier, the routing rows switched
@@ -92,21 +95,22 @@ export async function releaseLine(
     return {
       ok: false,
       status: 502,
-      error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`,
+      error: "provider_refused",
+      detail: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`,
       released,
     };
   }
   const rows = await releaseRoutingRows(db, tenantId, line);
   Object.assign(released, rows.released);
-  if (!rows.ok) return { ok: false, status: 503, error: rows.error, released };
-  const del = await db.from("lines").delete().eq("id", line.id);
-  if (del.error) return { ok: false, status: 503, error: del.error.message, released };
-  await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, {
+  if (!rows.ok) return { ok: false, status: 503, error: "write_failed", detail: rows.error, released };
+  const del = await tenantDb(db, tenantId).from("lines").delete().eq("id", line.id);
+  if (del.error) return { ok: false, status: 503, error: "write_failed", detail: del.error.message, released };
+  await emitEvent(db, tenantId, "line.released", "line", line.id, {
     e164: line.e164,
     provider: choice.name,
     ...released,
     ...event,
-  } as Json).catch(() => {});
+  }).catch(() => {});
   return { ok: true, released };
 }
 
@@ -122,7 +126,7 @@ const ENDED_STATUSES = BILLING_STATUSES.filter((s) => !receptionistOn(s));
 const MAX_RELEASES_PER_TICK = 2;
 const MAX_WARNINGS_PER_TICK = 10;
 
-export interface EndedLinesPorts {
+interface EndedLinesPorts {
   release(tenantId: string, row: LineDbRow, endedAt: string): Promise<LineReleaseResult>;
   /** The bell and the workspace's alert addresses (notify). */
   tell(tenantId: string, msg: { subject: string; body: string }): Promise<boolean>;
@@ -147,11 +151,6 @@ export interface EndedLinesResult {
 
 const BILLING_COLUMNS =
   "tenant_id, mode, status, trial_end, current_period_end, cancel_at, last_payment_failed_at, updated_at";
-
-const factsOf = (row: Pick<LineDbRow, "facts">): Record<string, unknown> =>
-  row.facts && typeof row.facts === "object" && !Array.isArray(row.facts)
-    ? { ...(row.facts as Record<string, unknown>) }
-    : {};
 
 function warnedOf(row: LineDbRow): LineReleaseWarned | null {
   const w = factsOf(row).release_warning;
@@ -220,7 +219,7 @@ export async function sweepEndedLines(
       if (now < step.releaseAt) continue;
       out.due += 1;
       ports.log.info("line_release_report", {
-        tenant: row.tenant_id,
+        tenant_id: row.tenant_id,
         line: row.id,
         ended_at: new Date(step.endedAt).toISOString(),
       });
@@ -249,13 +248,14 @@ export async function sweepEndedLines(
               ended_at: new Date(step.endedAt).toISOString(),
               on: new Date(on).toISOString(),
             },
-          } as Json,
+          },
         })
-        .eq("id", row.id);
+        .eq("id", row.id)
+        .eq("tenant_id", row.tenant_id);
       if (up.error) throw new Error(`keeping the warning: ${up.error.message}`);
       await ports.tell(row.tenant_id, lineReleaseWarning({ ...words, on }));
       out.warned += 1;
-      ports.log.info("line_release_warned", { tenant: row.tenant_id, line: row.id, on: new Date(on).toISOString() });
+      ports.log.info("line_release_warned", { tenant_id: row.tenant_id, line: row.id, on: new Date(on).toISOString() });
       continue;
     }
 
@@ -273,16 +273,21 @@ export async function sweepEndedLines(
     const r = await ports.release(row.tenant_id, row, new Date(again.endedAt).toISOString());
     if (!r.ok) {
       out.failed += 1;
-      ports.log.error("line_release_failed", { tenant: row.tenant_id, line: row.id, error: r.error });
+      ports.log.error("line_release_failed", {
+        tenant_id: row.tenant_id,
+        line: row.id,
+        error: r.error,
+        detail: r.detail,
+      });
       await ports.alert(
         `A number could not be given back (workspace ${row.tenant_id})`,
-        `The lines sweep tried to release line ${row.id} after its subscription ended, and it stopped: ${r.error}\n\nWhat came off before it stopped: ${JSON.stringify(r.released)}. The row stays, and the next quarter hour tries again.`,
+        `The lines sweep tried to release line ${row.id} after its subscription ended, and it stopped: ${r.detail}\n\nWhat came off before it stopped: ${JSON.stringify(r.released)}. The row stays, and the next quarter hour tries again.`,
       );
       continue;
     }
     out.released += 1;
     await ports.tell(row.tenant_id, lineReleasedWords(words));
-    ports.log.info("line_released_by_sweep", { tenant: row.tenant_id, line: row.id, ...r.released });
+    ports.log.info("line_released_by_sweep", { tenant_id: row.tenant_id, line: row.id, ...r.released });
   }
   return out;
 }

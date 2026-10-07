@@ -1,8 +1,10 @@
 /* global React, Icon */
-// AskBar — the conversational AI surface invoked by ⌘K.
-// v2: persistent threads. Every conversation is saved and resumable, and
-// ⌘K resumes where you left off. The demo's; a workspace has the Line.
-// Answers are grounded in the seed world and link out to real surfaces.
+// AskBar — the palette ⌘K opens, and the seed palette a demo session draws.
+// Outside a demo AskBar is the Line (ask-real.jsx, over window.__ask), on every
+// page and over the first run. Everything else in this file but askAbout (the
+// one door into Ask from anywhere, below) is the demo's: its threads are kept in
+// this browser, its answers are canned from the seed world, and its links go to
+// the mockup's pages.
 
 const ASK_SEED_THREADS = [
   {
@@ -355,21 +357,24 @@ const askTopicFor = (q, prev = null) => {
   return prev;
 };
 
-// Global entry point for agent actions anywhere in the app:
-// askAbout({ prompt, title?, answer?, links?, mode: "thread" | "compose", thread?: id })
-// `thread` opens that Ask thread as it is: any caller can hand a conversation over this way, and ask-real.jsx takes it.
+// The one door into Ask from anywhere: it opens the palette and hands it `ask:seed`.
+// The Line (ask-real.jsx useArSeedKeys) reads askAbout({ prompt?, mode?: "compose", thread?: id, about?: scope }):
+// a prompt is asked, or with "compose" left in the field to finish; `thread` opens that conversation as it is; `about`
+// is the scope chip it opens with. The seed palette below reads { prompt, mode, title?, answer?, links?, actions?,
+// about? }: a canned answer is the demo's alone, and the Line asks the prompt instead.
 window.askAbout = (detail) => {
   if (window.appAsk) window.appAsk();
   window.dispatchEvent(new CustomEvent("ask:seed", { detail: detail || {} }));
 };
 
-// ⌘K is a palette too: typing matches pages and entities for instant jumps
+// The seed palette's jumps: the demo's pages and seeded people, threads, agents and lists. A workspace's are
+// contracts' askPages (legacy-bridge/ask/palette.ts jumpIndexFrom), which knows nothing seeded.
 const ASK_JUMP_PAGES = [
   { label: "Today", to: "today" }, { label: "Inbox", to: "inbox" }, { label: "Clients", to: "clients" },
   { label: "Leads", to: "clients/leads" }, { label: "Segments", to: "segments" }, { label: "Pipeline", to: "pipeline" },
   { label: "Calendar", to: "calendar" }, { label: "Conversations", to: "conversations" }, { label: "Live Monitor", to: "live" },
   { label: "Fleet", to: "fleet" }, { label: "Agent Store", to: "store" }, { label: "Tasks", to: "tasks" },
-  { label: "Reports", to: "reports" }, { label: "Broadcasts", to: "broadcasts" }, { label: "Outbound", to: "outbound" },
+  { label: "Reports", to: "reports" }, { label: "Sent", to: "broadcasts" }, { label: "Campaigns", to: "campaigns" },
   { label: "Content", to: "content" }, { label: "Settings", to: "admin" },
 ];
 const askJumpMatches = (q) => {
@@ -618,8 +623,8 @@ const AskBarSeed = ({ open, onClose }) => {
   };
 
   return (
-    <div className="ask-overlay" onClick={onClose}>
-      <div className="ask-modal cmd-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="ask-overlay" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ask-modal cmd-modal">
         <div className="cmd-input-bar">
           {active
             ? <button className="cmd-back" onClick={() => { setActiveId(null); setQuery(""); }} aria-label="Back to commands"><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /></button>
@@ -641,7 +646,7 @@ const AskBarSeed = ({ open, onClose }) => {
           ) : (
             sections.map((sec) => (
               <React.Fragment key={sec.key}>
-                {sec.label && <div className="cmd-sec-label">{sec.label}{sec.clear && <span className="cmd-clear" onClick={sec.clear}>Clear</span>}</div>}
+                {sec.label && <div className="cmd-sec-label">{sec.label}{sec.clear && <span className="cmd-clear" role="button" tabIndex={0} onKeyDown={window.keyPress(sec.clear)} onClick={sec.clear}>Clear</span>}</div>}
                 {sec.items.map((it) => (
                   <button key={it._i} className={`cmd-row ${it.type} ${it._i === sel ? "sel" : ""} ${it.done ? "done" : ""}`} onMouseMove={() => setSel(it._i)} onClick={() => activate(it)}>
                     <span className="cmd-row-ic"><Icon name={it.done ? "check" : it.icon} size={12} /></span>

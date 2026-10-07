@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { syncTemplates } from "@/server/service";
+import { syncTemplates } from "@/server/campaigns/meta-templates";
 
 /**
  * POST /api/v1/templates/sync — this workspace's templates, as Meta holds
@@ -24,8 +24,8 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "settings",
-  handle: async ({ member }) => {
-    const r = await syncTemplates(member.tenantId);
+  handle: async ({ ctx, member }) => {
+    const r = await syncTemplates(member.tenantId, ctx.userId);
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The sync did not complete (${r.reason}).`;
       throw new AppError(

@@ -21,18 +21,21 @@
  * had no status change since, so that stamp is still its send. Meta's own
  * "sent" status changes nothing on such a row, so only delivered, read and
  * failed count as a receipt.
+ *
+ * Cross-workspace: the health sweep reads every workspace's unreceipted WhatsApp sends and only reports them.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
+import { HOUR_MS } from "../packages/contracts.js";
 
 /** How long a receipt may take before its absence is a condition. */
-export const NO_RECEIPT_AFTER_MS = 6 * 3600_000;
+const NO_RECEIPT_AFTER_MS = 6 * HOUR_MS;
 /** How long a silent message stays watched after that: a day, and then it is history rather than news. */
-export const WATCHED_FOR_MS = 24 * 3600_000;
+const WATCHED_FOR_MS = 24 * HOUR_MS;
 /** Far past any real incident; the count is of what was read. */
 const READ_LIMIT = 1000;
 
-export interface SilentWorkspace {
+interface SilentWorkspace {
   tenantId: string;
   /** Messages Meta accepted that have had no receipt for six hours. */
   count: number;
@@ -41,7 +44,7 @@ export interface SilentWorkspace {
   lastSentAt: string;
 }
 
-export interface ReceiptsWatch {
+interface ReceiptsWatch {
   /** The workspaces to report, the longest silent first. */
   silent: SilentWorkspace[];
   /** The last read that failed, for the log. */
@@ -116,7 +119,7 @@ const minute = (iso: string) => `${new Date(Date.parse(iso)).toISOString().slice
 export function describeSilentReceipts(silent: SilentWorkspace[], nowMs: number): { subject: string; body: string } {
   const total = silent.reduce((n, w) => n + w.count, 0);
   const lines = silent.map((w) => {
-    const hours = Math.floor((nowMs - Date.parse(w.lastSentAt)) / 3600_000);
+    const hours = Math.floor((nowMs - Date.parse(w.lastSentAt)) / HOUR_MS);
     const when =
       w.count === 1
         ? `sent ${minute(w.firstSentAt)}`

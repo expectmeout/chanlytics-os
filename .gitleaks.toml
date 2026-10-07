@@ -7,14 +7,31 @@
 # - A fake SIP password: a test pins that the Twilio adapter sends one that
 #   meets Twilio's rule (12+ characters, a digit, mixed case), and the
 #   fixture looked enough like a key for the scanner
-#   (tooling/scripts/tests/lines-saga.test.mjs).
+#   (tooling/scripts/tests/lines/lines-saga.test.mjs).
 # - Google's own documented sample place id, beside a variable named KEY in
 #   the Places test: a public identifier from Google's examples, high in
-#   entropy, and not a credential (tooling/scripts/tests/google.test.mjs).
+#   entropy, and not a credential (tooling/scripts/tests/google/google.test.mjs).
+# - The migration ledger (supabase/migrations-ledger.json): each line is a
+#   migration's filename and the sha256 of its text. A checksum is high in
+#   entropy, and a filename can carry a word the generic-api-key rule reads as
+#   a key ("00263_an_erased_person_s_digest_is_keyed.sql"), so any migration
+#   named with key, secret or token would trip it. The file holds no secret; it
+#   is allowed by path, the one file, because its values are not fixed.
+# - The log line test plants credentials to prove the logger redacts them by
+#   shape (tooling/scripts/tests/edge/log-line.test.mjs): a Stripe secret key,
+#   a JWT and a TypeSafe key, each made up, each listed here by value. The scan
+#   read them as real on main (#1348, 30 Sep 2026) and turned CI red.
 
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Rule-shaped fakes in tests, by value"
-regexes = ['''Abcdefghij12kl''', '''ChIJN1t_tDeuEmsRUsoyG83frY4''']
+description = "Rule-shaped fakes in tests, by value, and the migration ledger's checksums, by path"
+regexes = [
+  '''Abcdefghij12kl''',
+  '''ChIJN1t_tDeuEmsRUsoyG83frY4''',
+  '''sk_live_51NabcDEFghijkLMNop''',
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJ1c2VyLTEifQ\.c2lnbmF0dXJlLXBsYW50ZWQ''',
+  '''sk-ts-live-Zk9xQ2mV7rT4nB8wL1pC6hD3fG5j''',
+]
+paths = ['''^supabase/migrations-ledger\.json$''']

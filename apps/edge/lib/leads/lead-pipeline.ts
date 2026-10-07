@@ -7,18 +7,18 @@
  * deployment fails by name (packages/jobs handlers).
  *
  * The job's own id is the owner of every claim and lease it takes, so a job
- * the ledger tries again finds its own claim (core runner.ts).
+ * the ledger tries again finds its own claim (core runner/claim.ts).
  */
 import { check, collect, startRound, type LeadPorts } from "../packages/core.js";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
 import type { Json } from "../packages/db.js";
+import { UUID } from "../packages/contracts.js";
 import { leadDb } from "./lead-db.js";
 import { leadWires, type LeadWires } from "./lead-wires.js";
 import { storeLeadMark } from "./lead-marks.js";
 import { tellLeadQuestion } from "./lead-tell.js";
 import { logger } from "../log.js";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SEQ = /^[a-z0-9.]{1,40}$/;
 
 type Pipeline = NonNullable<JobContext["leads"]>;
@@ -71,13 +71,13 @@ export function leadPipelineOver(wires: LeadWires): Pipeline {
       const roundId = field(job, "round_id", (v) => typeof v === "string" && UUID.test(v));
       const resume = job.payload.resume === true;
       const outcome = await startRound(portsFor(wires, ctx, job), roundId, job.id, resume);
-      logger({ tenant: job.tenant_id }).info("lead_round_start", { job: job.id, resume, ...outcome });
+      logger({ tenant_id: job.tenant_id }).info("lead_round_start", { job: job.id, resume, ...outcome });
     },
     async collect(ctx, job) {
       const runId = field(job, "run_id", (v) => typeof v === "string" && UUID.test(v));
       const seq = field(job, "seq", (v) => typeof v === "string" && SEQ.test(v));
       const outcome = await collect(portsFor(wires, ctx, job), runId, seq, job.id);
-      logger({ tenant: job.tenant_id }).info("lead_collect", { job: job.id, seq, ...outcome });
+      logger({ tenant_id: job.tenant_id }).info("lead_collect", { job: job.id, seq, ...outcome });
     },
     async check(ctx, job) {
       const roundId = field(job, "round_id", (v) => typeof v === "string" && UUID.test(v));
@@ -100,7 +100,12 @@ export function leadPipelineOver(wires: LeadWires): Pipeline {
           `lead_check: payload.again and payload.lead_ids are not what the door writes (${JSON.stringify({ nonce, leadIds })})`,
         );
       const outcome = await check(portsFor(wires, ctx, job), roundId, batch, job.id, again);
-      logger({ tenant: job.tenant_id }).info("lead_check", { job: job.id, batch, again: again !== null, ...outcome });
+      logger({ tenant_id: job.tenant_id }).info("lead_check", {
+        job: job.id,
+        batch,
+        again: again !== null,
+        ...outcome,
+      });
     },
   };
 }

@@ -1,14 +1,11 @@
 {
+  "//": "Vanilla Node functions: an import specifier carries its .js suffix, so NodeNext resolves them.",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022", "DOM"],
-    "types": ["node"],
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "types": ["node"]
   },
   "include": ["api/**/*.ts", "lib/**/*.ts"]
 }

@@ -5,8 +5,14 @@ import {
   err,
   ok,
   whyCannotSpend,
+  roleAtLeast,
+  seatNeedsSecondFactor,
+  secondFactorShown,
+  SECOND_FACTOR_WORDS,
   type BillingMode,
   type BillingStatus,
+  type ErrorCode,
+  type Role,
   type SpendWords,
 } from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
@@ -16,12 +22,29 @@ import {
 // rather than by grepping its source.
 import { createClient } from "../lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import { sessionHoldsPartnerSeat, type Database } from "@chanlytics/db";
 import { isSameOrigin } from "./request-guards";
+import { bearerOf, verifyBearer } from "./bearer";
 import { isRetryableAuthError } from "./auth-errors";
+import { serverTimingHeader } from "./server-timing";
+import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels";
+import { log, noteTenant, withRequestId } from "./log";
+import { tenantFactsOf } from "./tenant";
+
+/**
+ * Whether the Auth server still knows a session: `live`, `gone` (revoked, signed out elsewhere, its user deleted), or
+ * `unknown` (it could not be asked, which is not `gone`). getClaims() verifies the token's signature locally, so it
+ * cannot tell a session revoked a minute ago from a live one until the token expires; this asks.
+ */
+export type SessionLiveness = "live" | "gone" | "unknown";
 
 export interface RouteContext {
   supabase: SupabaseClient<Database>;
+  /**
+   * Asks the Auth server whether this session is still live (getUser). Only a route that declares `fresh` pays for it
+   * (route.ts). Every request through withRoute has one; a test's context without it reads as live.
+   */
+  live?: () => Promise<SessionLiveness>;
   userId: string;
   email: string | undefined;
   /**
@@ -30,6 +53,11 @@ export interface RouteContext {
    * workspace, contracts/signup.ts); nothing in it is a permission.
    */
   metadata: Record<string, unknown>;
+  /**
+   * How the session was signed in: its token's `aal` claim, `aal2` once a second factor was shown (0013). A partner's
+   * seat asks for it (memberContext); absent reads as not shown.
+   */
+  aal?: string;
   /**
    * Where the request came from inside the app, when it says. The Ask
    * palette commits through the same routes a button does; the one thing
@@ -52,6 +80,11 @@ export interface RouteContext {
  * response. Applied on ALL exits so no path can be forgotten.
  */
 const PRIVATE = { "cache-control": "private, no-store" } as const;
+/** The answer's own timing beside the cache rule: the session check and the handler, apart (server-timing.ts). */
+const timed = (authMs: number, started: number) => ({
+  ...PRIVATE,
+  "server-timing": serverTimingHeader({ auth: authMs, app: Date.now() - started - authMs }),
+});
 
 /**
  * The one wrapper every /api/v1 handler goes through (Blueprint §4/§8):
@@ -59,8 +92,30 @@ const PRIVATE = { "cache-control": "private, no-store" } as const;
  * SESSION-scoPED client so RLS is the enforcement -> envelope + structured log.
  * Service-role never appears here. Next 15 route params (a Promise) are
  * awaited and passed through as ctx.params.
+ *
+ * Each request is named first (channels requestIdOf: the platform's id for it, or a fresh one; never the browser's),
+ * and runs as that name (log.ts withRequestId): every line logged beneath it carries it, a call to the edge carries it
+ * on, and the answer carries it back in x-request-id.
  */
 export function withRoute<T>(
+  handler: (req: Request, ctx: RouteContext & { params: Record<string, string | string[] | undefined> }) => Promise<T>,
+) {
+  const answer = answerOf(handler);
+  return (
+    req: Request,
+    routeCtx: { params: Promise<Record<string, string | string[] | undefined>> },
+  ): Promise<Response> => {
+    const id = requestIdOf(req.headers, { trustCaller: false });
+    return withRequestId(id, async () => {
+      const res = await answer(req, routeCtx);
+      res.headers.set(REQUEST_ID_HEADER, id);
+      return res;
+    });
+  };
+}
+
+/** withRoute's answer to one request, once it has been named. */
+function answerOf<T>(
   handler: (req: Request, ctx: RouteContext & { params: Record<string, string | string[] | undefined> }) => Promise<T>,
 ) {
   return async (
@@ -72,6 +127,8 @@ export function withRoute<T>(
   ): Promise<Response> => {
     const started = Date.now();
     const route = new URL(req.url).pathname;
+    // Who asked, once the session says: the 500 line names them (with the stack), as the 200 line always did.
+    let userId: string | undefined;
     try {
       // Cross-site submission, refused before anything else happens.
       //
@@ -82,23 +139,31 @@ export function withRoute<T>(
       // for this one. Both stop being true on a custom domain shared with
       // anything else. Reads are exempt — they change nothing, and a GET is
       // where a link preview or a prefetch legitimately arrives cross-site.
-      if (req.method !== "GET" && req.method !== "HEAD" && !isSameOrigin(req)) {
-        console.log(JSON.stringify({ level: "warn", route, event: "cross_site_write_refused" }));
+      //
+      // A request that carries a bearer token (decision 0011: the phone app's native screens) has no cookie in it
+      // and reads none, so there is no ambient credential a foreign page could ride on; the rule is the cookie's.
+      const bearer = bearerOf(req);
+      if (!bearer && req.method !== "GET" && req.method !== "HEAD" && !isSameOrigin(req)) {
+        log.warn("cross_site_write_refused", { route });
         return NextResponse.json(err("forbidden", "This request did not come from the app."), {
           status: 403,
           headers: PRIVATE,
         });
       }
+      const authFrom = Date.now();
       const params = routeCtx?.params ? await routeCtx.params : {};
-      const supabase = await createClient();
-      const {
-        data: { user },
-        error: authErr,
-      } = await supabase.auth.getUser();
+      // The token's signature verified (proxy.ts says how: locally over the project's public key, or over the Auth
+      // server where the project still signs with its shared secret), and its claims: who this is, their address
+      // and what they set at sign-up, as the Auth server's user record carried them. Never getSession(). A bearer
+      // is verified the same way, over the token the header carried, on a client that reads no cookie.
+      const session = bearer ? await verifyBearer(bearer) : await cookieSession();
+      const supabase = session.supabase;
+      const authErr = session.error;
+      const user = session.claims;
       if (!user) {
         // "We could not ask" is not "you are not signed in".
         //
-        // getUser() returns no user for BOTH a missing session and a network
+        // The check returns no claims for BOTH a missing session and a network
         // or 5xx failure against Supabase Auth, and this reported 401 either
         // way. The client treats a 401 as a sign-out: it wipes the surface
         // cache — real customer transcripts — and hard-redirects to /login. So
@@ -106,7 +171,7 @@ export function withRoute<T>(
         // they were typing. A 503 says try again, and the client leaves the
         // session alone.
         if (isRetryableAuthError(authErr)) {
-          console.error(JSON.stringify({ level: "error", route, event: "auth_unavailable", error: authErr?.message }));
+          log.error("auth_unavailable", { route, error: authErr?.message });
           return NextResponse.json(err("upstream_auth", "Could not verify your session just now — try again."), {
             status: 503,
             headers: PRIVATE,
@@ -114,6 +179,8 @@ export function withRoute<T>(
         }
         return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401, headers: PRIVATE });
       }
+      const authMs = Date.now() - authFrom;
+      userId = String(user.sub);
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
       const undoOfHeader = req.headers.get("x-undo-of");
       const undoOf =
@@ -121,16 +188,24 @@ export function withRoute<T>(
           ? undoOfHeader
           : undefined;
       const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const live = async (): Promise<SessionLiveness> => {
+        // The cookie's client reads its own session; a bearer's is asked over the token the header carried.
+        const asked = await (bearer ? supabase.auth.getUser(bearer) : supabase.auth.getUser());
+        if (asked.error) return isRetryableAuthError(asked.error) ? "unknown" : "gone";
+        return asked.data.user?.id === String(user.sub) ? "live" : "gone";
+      };
       const data = await handler(req, {
         supabase,
-        userId: user.id,
-        email: user.email,
+        live,
+        userId: String(user.sub),
+        email: typeof user.email === "string" ? user.email : undefined,
         metadata,
+        ...(typeof user.aal === "string" ? { aal: user.aal } : {}),
         params,
         ...(via ? { via } : {}),
         ...(undoOf ? { undoOf } : {}),
       });
-      console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
+      log.info("route_answered", { route, user: user.sub, ms: Date.now() - started });
       // A handler that built its own Response — a file to download — passes
       // through as it is. Its cache-control is overwritten with the no-store
       // rule every other exit uses, UNLESS the handler asked for a private
@@ -141,18 +216,20 @@ export function withRoute<T>(
       if (data instanceof Response) {
         const asked = data.headers.get("cache-control");
         if (!asked || !/^private\b/i.test(asked)) data.headers.set("cache-control", PRIVATE["cache-control"]);
+        data.headers.set("server-timing", timed(authMs, started)["server-timing"]);
         return data;
       }
-      return NextResponse.json(ok(data), { headers: PRIVATE });
+      return NextResponse.json(ok(data), { headers: timed(authMs, started) });
     } catch (e) {
       if (e instanceof AppError) {
-        console.log(JSON.stringify({ level: "warn", route, code: e.code, ms: Date.now() - started }));
+        log.warn("route_refused", { route, code: e.code, ms: Date.now() - started });
         return NextResponse.json(err(e.code, e.message, e.details), {
           status: e.status,
           headers: { ...PRIVATE, ...refusalHeaders(e) },
         });
       }
-      console.error(JSON.stringify({ level: "error", route, error: e instanceof Error ? e.message : String(e) }));
+      // The error itself, so the line carries its stack; the workspace rides from the request (memberContext).
+      log.error("route_failed", { route, user: userId, error: e instanceof Error ? e : String(e) });
       return NextResponse.json(err("internal", "Something went wrong."), { status: 500, headers: PRIVATE });
     }
   };
@@ -162,7 +239,13 @@ export function withRoute<T>(
 
 export interface MemberContext {
   tenantId: string;
-  role: "owner" | "operator" | "viewer";
+  role: Role;
+  /**
+   * The workspace's name and clock, read with the membership, from the same row a turn's facts reader reads
+   * (tenant.ts tenantFacts): the turn takes them from here and asks no one again (readers/index.ts readerContext).
+   * Absent where the membership's row did not carry them.
+   */
+  facts?: { name: string; timezone: string };
 }
 
 /**
@@ -189,7 +272,7 @@ export async function memberContext(
 ): Promise<MemberContext> {
   const { data, error } = await ctx.supabase
     .from("memberships")
-    .select("tenant_id, role, tenants (slug)")
+    .select("tenant_id, role, tenants (slug, name, timezone)")
     .eq("user_id", ctx.userId)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
@@ -202,33 +285,116 @@ export async function memberContext(
   // name-sorting allowed.
   if (!wanted && rows.length > 1 && !opts.defaultAllowed) throw new AppError("choose_workspace", AMBIGUOUS);
   const m = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
+  // A partner's seat is hidden from a session that has not shown its second factor (00218), so a workspace they hold
+  // reads as not found here. The database can say, of this session alone, that it holds a partner's seat it cannot
+  // see: then what is missing is the code, and the tab is sent to the second step, not told the workspace is gone.
+  if (!m && !secondFactorShown(ctx.aal) && (await sessionHoldsPartnerSeat(ctx.supabase))) requireSecondFactor(ctx);
   if (!m) throw new AppError("not_found", "No workspace found for this account.", 404);
+  // A partner's seat asks for the second factor (0013, M3), on a read as on a write: the one door every workspace
+  // request passes. The database refuses the same session on its own (00218).
+  if (seatNeedsSecondFactor(m.role)) requireSecondFactor(ctx);
+  // The workspace this request acts on: every line logged after this carries it as tenant_id.
+  noteTenant(m.tenant_id);
 
+  // The workspace's name and clock rode with the membership: a read that would have asked for them first (the
+  // Calendar's, the Leads page's) does not wait a round trip for them (2 Oct 2026).
+  const row = m.tenants;
   return {
     tenantId: m.tenant_id,
     role: m.role as MemberContext["role"],
+    ...(typeof row?.timezone === "string" ? { facts: tenantFactsOf(row) } : {}),
   };
 }
 
-const ROLE_RANK: Record<MemberContext["role"], number> = { viewer: 0, operator: 1, owner: 2 };
+/**
+ * A session the Auth server no longer knows is refused (401), before the sensitive act it would have opened: erasing a
+ * person or a lead, an export, a change to who is on the team, billing, deleting the account. getClaims() verifies the
+ * token's signature locally, so a session revoked a minute ago passes until its token expires (an hour); a route that
+ * declares `fresh` (route.ts) asks the Auth server instead. "We could not ask" is a 503, as the wrapper says it
+ * elsewhere, never a sign-out.
+ */
+export async function requireFreshSession(ctx: Pick<RouteContext, "live">): Promise<void> {
+  const verdict = ctx.live ? await ctx.live() : "live";
+  if (verdict === "gone") throw new AppError("unauthorized", "Sign in again to do this.", 401);
+  if (verdict === "unknown")
+    throw new AppError("upstream_auth", "Could not verify your session just now — try again.", 503);
+}
+
+/**
+ * A session that has not shown its second factor is refused here (0013, M3): a partner's seat, and the partner
+ * account's own doors (becoming one, handing a workspace over). `mfa_required`, so the client sends the tab to the
+ * second step rather than saying the role is wrong.
+ */
+export function requireSecondFactor(ctx: Pick<RouteContext, "aal">): void {
+  if (!secondFactorShown(ctx.aal)) throw new AppError("mfa_required", SECOND_FACTOR_WORDS.required, 403);
+}
+
+/**
+ * The ladder a route's `role` names a rung of, and its one reading, `roleAtLeast`: contracts' (config.ts), so a page
+ * that offers an act only to the role its door takes reads the same ladder the door does (Leads' Erase, PR 9).
+ * Re-exported here for the doors and Ask's act tools, which have always read it from this module.
+ */
+export { roleAtLeast };
 
 /**
  * The server-side door (PRD E1). RLS is the floor — it stops cross-tenant
  * reads no matter what — but "which member may flip this switch" is a role
  * decision, and it is made HERE, never in the browser. The client's gate()
  * chips are a courtesy rendering of the same truth.
+ *
+ * A role the ladder does not know is refused, whatever the door asked for. It
+ * used to pass: `ROLE_RANK[unknown] < n` is `undefined < n`, which is false,
+ * so a membership row carrying a role this build had never heard of would
+ * have walked through every door in the app.
  */
-export function requireRole(member: MemberContext, atLeast: MemberContext["role"]): void {
-  if (ROLE_RANK[member.role] < ROLE_RANK[atLeast]) {
+export function requireRole(member: MemberContext, atLeast: Role): void {
+  if (!roleAtLeast(member.role, atLeast)) {
+    // The least role that may, in the words a member reads. A partner's door
+    // says "owner": the partner already passed it, and until a workspace can
+    // say whether it has one (0012, P2), "owner" is what is true of every
+    // workspace.
+    const needs = atLeast === "partner" ? "owner" : atLeast;
     throw new AppError(
       "forbidden",
-      atLeast === "owner" ? "Only an owner can do this." : "Viewers can see everything and change nothing.",
+      needs === "owner" ? "Only an owner can do this." : "Viewers can see everything and change nothing.",
       403,
       // The role the door wanted, so a page can title the refusal "Owner only"
       // rather than guess it from the sentence.
-      { needs: atLeast },
+      { needs },
     );
   }
+}
+
+/**
+ * The SQLSTATEs a definer door raises on purpose, each with the words it wrote for the person, and the answer each is:
+ * a thing that is not there (P0002), a second of what only one may exist (23505), who may not (42501), and what it
+ * cannot take (22023). A rule a door keeps with a bare `raise exception` (P0001) is answered as the route says.
+ */
+const DOOR_REFUSALS: Readonly<Record<string, { code: ErrorCode; status: number }>> = {
+  P0002: { code: "not_found", status: 404 },
+  "23505": { code: "conflict", status: 409 },
+  "42501": { code: "forbidden", status: 403 },
+  "22023": { code: "validation", status: 400 },
+  // A door's own code (00263 import_person, 00331 create_person): this person asked to be forgotten. A conflict, in
+  // the door's words, as a taken number is; never the 503 a code nobody named would answer.
+  PE001: { code: "conflict", status: 409 },
+};
+
+/**
+ * A database failure, as a route answers it. A door's own refusal keeps the door's words, at the status its SQLSTATE
+ * says (a bare raise, P0001, at the one the route gives, validation unless it says). Anything else (a timeout, a lost
+ * connection, a constraint no door named, a fault) is the database's own text, never a person's to read: it is logged
+ * with its code, and the answer is `internal` 503 in the envelope's catch-all words, which the client says as a
+ * try-again (contracts' refusalOf). The raw text used to reach the browser as a 400 "validation" at fifteen sites.
+ */
+export function dbRefusal(
+  e: { code?: string | null; message: string },
+  raised: { code: ErrorCode; status: number } = { code: "validation", status: 400 },
+): AppError {
+  const door = e.code === "P0001" ? raised : e.code ? DOOR_REFUSALS[e.code] : undefined;
+  if (door) return new AppError(door.code, e.message, door.status);
+  log.error("db_failed", { code: e.code ?? null, error: e.message });
+  return new AppError("internal", "Something went wrong.", 503);
 }
 
 /**
@@ -282,4 +448,15 @@ export async function requireSpend(
     throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
   const why = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus, doing);
   if (why) throw new AppError("payment_required", why, 402);
+}
+
+/** The cookie's session, verified: what every request without a bearer is. */
+async function cookieSession() {
+  const supabase = await createClient();
+  const { data: verified, error } = await supabase.auth.getClaims();
+  return {
+    supabase,
+    claims: (verified?.claims as Record<string, unknown> | undefined) ?? null,
+    error: error ?? null,
+  };
 }

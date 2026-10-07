@@ -9,7 +9,7 @@
  * below are neither a verb nor a request.
  */
 import {
-  standingLine,
+  businessGap,
   ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotRows,
@@ -25,7 +25,6 @@ import {
   resolveSystemPrompt,
   hasProfile,
   PROFILE_CROSSING_WORDS,
-  TenantConfigWriteSchema,
   openWeekWords,
   hoursZoneWords,
   closuresAheadWords,
@@ -75,9 +74,35 @@ import {
   sameListed,
   type PromptBlockVM,
   type ProfileCrossing,
-  type BusinessProfile,
 } from "@chanlytics/contracts";
-import type { PromptPreviewDto } from "../server/prompt-preview";
+import type { TenantConfigWriteSchema } from "@chanlytics/contracts";
+import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
+
+/**
+ * The save's own rules (contracts TenantConfigWriteSchema, the one PUT /settings parses with), once they are here.
+ *
+ * Asked for by import() when Settings reads the workspace (surfaces/settings.ts, beside its reads), never with the
+ * page: they are zod's classic API, which the browser's contracts leave out (decision 0024, the browser's entry), and
+ * only a fold being edited asks them anything. Until they arrive, what only they can judge goes unsaid, as with no
+ * bridge at all: saveIssues finds nothing, consequenceFor and profileCrossing have nothing true to say, and the save
+ * itself is judged by the server's copy of the same rules either way.
+ */
+let saveRules: typeof TenantConfigWriteSchema | null = null;
+let saveRulesLoad: Promise<void> | null = null;
+
+/** Loads the save's own rules, once; a load that failed is asked again by the next caller. */
+export function loadSaveRules(): Promise<void> {
+  saveRulesLoad ??= import("@chanlytics/contracts/write-rules").then(
+    (m) => {
+      saveRules = m.TenantConfigWriteSchema;
+    },
+    (e: unknown) => {
+      saveRulesLoad = null;
+      throw e;
+    },
+  );
+  return saveRulesLoad;
+}
 
 /**
  * The prompt block each fold and inline row writes into, named for the keys it
@@ -128,7 +153,7 @@ export const FOLD_BLOCK = {
   // can be resolved here. The hours and closures folds show the zone as saved.
   timezone: null,
   // The create fold of a workspace with no receptionist: the settings read composes no preview where there is no
-  // brain (server/prompt-preview.ts), so there are no inputs to resolve its draft with.
+  // brain (server/receptionist/prompt-preview.ts), so there are no inputs to resolve its draft with.
   receptionist: null,
   // How customers buy (0008): the workspace's (tenants.sells_by, saved through its own route as the zone is), and not
   // in the prompt at all. It decides whether deals exist here; the receptionist hears a person's deal only where they
@@ -153,7 +178,7 @@ export interface ConsequenceWindow {
  * for every WhatsApp message (whatsapp/inbound.ts) and at the start of every
  * call (lib/call-start.ts), with the inputs the settings read resolved the
  * preview with -- the zone, the Autonomy rows and what the platform knows
- * (server/prompt-preview.ts). Composing the
+ * (server/receptionist/prompt-preview.ts). Composing the
  * draft instead, as this first did, drew rules, a notice period and a
  * hand-off token for a record the edge answers with its stored prompt, left
  * out the Autonomy tab's rules and the provisioned number, and lost the stored
@@ -211,9 +236,9 @@ export function consequenceFor(
   const prompt = w.__SETTINGS?.prompt;
   // No inputs means an older server composed it: one still answering mid-deploy, or a dev session's cache, whose build key never changes.
   if (!prompt?.inputs) return null;
-  const parsed = TenantConfigWriteSchema.safeParse({ brain: next });
+  const parsed = saveRules?.safeParse({ brain: next });
   // { brain: undefined } parses too, with no brain in it.
-  if (!parsed.success || !parsed.data.brain) return null;
+  if (!parsed?.success || !parsed.data.brain) return null;
   const brain = parsed.data.brain;
   const text = resolveSystemPrompt(brain, channel, prompt.tz, now, prompt.inputs.policy, prompt.inputs.known);
   const block = promptBlocks(text, channel, brain).find((b) => b.row === row);
@@ -222,7 +247,7 @@ export function consequenceFor(
 
 /** consequenceFor over this tab's window, at this moment: the one the page calls. */
 function consequenceOf(section: FoldSection, next: unknown, channel: "whatsapp" | "voice"): ConsequenceVM | null {
-  return consequenceFor(window as unknown as ConsequenceWindow, section, next, channel, new Date());
+  return consequenceFor(window, section, next, channel, new Date());
 }
 
 /**
@@ -245,9 +270,9 @@ export function profileCrossing(
   next: unknown,
 ): { crossing: ProfileCrossing; sentence: string } | null {
   if (!stored || typeof stored !== "object") return null;
-  const parsed = TenantConfigWriteSchema.safeParse({ brain: next });
-  if (!parsed.success || !parsed.data.brain) return null;
-  const was = hasProfile(((stored as { profile?: unknown }).profile ?? null) as BusinessProfile | null);
+  const parsed = saveRules?.safeParse({ brain: next });
+  if (!parsed?.success || !parsed.data.brain) return null;
+  const was = hasProfile((stored as { profile?: unknown }).profile ?? null);
   const now = hasProfile(parsed.data.brain.profile ?? null);
   if (was === now) return null;
   const crossing: ProfileCrossing = was ? "stops" : "starts";
@@ -267,8 +292,8 @@ export function profileCrossing(
  * (business-tab-folds.jsx schemaProblems). Nothing to judge is nothing refused.
  */
 export function saveIssues(part: unknown): Array<{ path: Array<string | number>; message: string }> {
-  if (!part || typeof part !== "object") return [];
-  const parsed = TenantConfigWriteSchema.safeParse(part);
+  if (!part || typeof part !== "object" || !saveRules) return [];
+  const parsed = saveRules.safeParse(part);
   if (parsed.success) return [];
   return parsed.error.issues.map((i) => ({
     path: i.path.filter((p): p is string | number => typeof p === "string" || typeof p === "number"),
@@ -307,7 +332,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // What you offer's first row is how customers buy (0008): sellsByVM is its row, its choice and what the answer switches
 // on the page (the consult-first row's hint), and sellsBySaved the toast once an answer is taken.
 export const BUSINESS_TAB = {
-  standingLine,
+  businessGap,
   rulesKept,
   VISION_STRENGTH,
   ABILITY_CHANNEL_WORDS,
@@ -323,6 +348,7 @@ export const BUSINESS_TAB = {
   consequenceOf,
   profileCrossing,
   saveIssues,
+  loadSaveRules,
   openWeekWords,
   hoursZoneWords,
   // The calendar fold's check as an address is pasted (the preview route), and where each calendar keeps its address.

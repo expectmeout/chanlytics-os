@@ -287,7 +287,7 @@ are written and their briefs are ready.
 - ~~**`packages/db/src/database.types.ts` is the one unguarded generated
   artifact.**~~ **Closed 13 September** (`97f803f`). `ci.yml:61-63` was a
   _comment describing a freshness check that was never implemented_; the check
-  now exists — `tooling/scripts/check-db-types.mjs`, run in `database.yml`
+  now exists — `tooling/scripts/gen/db-types.mjs`, run in `database.yml`
   against the database the migrations replay, ignoring exactly one line
   (`PostgrestVersion`, which the generator reads off the running PostgREST) and
   exiting 2 when the CLI cannot be reached, so a check that cannot run never

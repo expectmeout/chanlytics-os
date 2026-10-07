@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { apiGet } from "./workspace";
 
 /**
- * The seed's search that stopped to ask (tooling/scripts/e2e-workspace.mjs, WAITING_SEARCH and WAITING_ROUND, which
+ * The seed's search that stopped to ask (tooling/scripts/ops/e2e-workspace.mjs, WAITING_SEARCH and WAITING_ROUND, which
  * own it). Restated rather than imported, as leads.spec.ts restates the Austin six: that file is ESM run by plain
  * node and a spec compiles to CJS. `waitingSearch` reads it back through the API and refuses a seed that drifted
  * from these words, so the two copies cannot quietly disagree.

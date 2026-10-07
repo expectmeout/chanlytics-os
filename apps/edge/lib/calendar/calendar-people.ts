@@ -11,13 +11,18 @@
  * one, consent stays 'unknown' (a booking is not a yes to offers), and each
  * person created here gets a `contact.added` event that says where they
  * came from, so the profile can say "Added from your calendar".
+ *
+ * Two more rules. A person who asked to be erased is not brought back by their own appointment: the tombstone (00124)
+ * names the number, and the appointment is counted as erased and left alone. An address fills only an empty one, as a
+ * name does, and an address another person here already holds stays theirs: the number still makes a new person,
+ * without it. Someone made between the read and the write is the same person, not an error.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { emitEvent, type Database } from "../packages/db.js";
 import type { CalendarPerson } from "../packages/contracts.js";
 import { erasedTombstones } from "../erased.js";
 
-export interface AddedFromCalendar {
+interface AddedFromCalendar {
   seen: number;
   added: number;
   named: number;
@@ -62,6 +67,7 @@ export async function addPeopleFromCalendar(
           .from("contacts")
           .update({ display_name: r.name })
           .eq("id", have.id)
+          .eq("tenant_id", tenantId)
           .is("display_name", null);
         if (!uErr) out.named += 1;
       }
@@ -75,6 +81,7 @@ export async function addPeopleFromCalendar(
           .from("contacts")
           .update({ email: r.email })
           .eq("id", have.id)
+          .eq("tenant_id", tenantId)
           .is("email", null);
         if (!eErr) out.emailed += 1;
         else if (eErr.code !== "23505") throw new Error(`calendar_people_email: ${eErr.message}`);
@@ -98,13 +105,11 @@ export async function addPeopleFromCalendar(
       continue;
     }
     out.added += 1;
-    await db.from("events").insert({
-      tenant_id: tenantId,
-      kind: "contact.added",
-      category: "contact",
-      subject_type: "contact",
-      subject_id: created.id,
-      data: { source: "calendar", title: r.title, uid: r.uid, start: new Date(r.start).toISOString() },
+    await emitEvent(db, tenantId, "contact.added", "contact", created.id, {
+      source: "calendar",
+      title: r.title,
+      uid: r.uid,
+      start: new Date(r.start).toISOString(),
     });
   }
   return out;

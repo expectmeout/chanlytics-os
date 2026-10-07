@@ -1,0 +1,75 @@
+name: Nightly evals
+
+# The receptionist's regression evals, every night (scorecard move 10): a made-up workspace's composed prompt, the
+# platform's own layer two and the cases in tooling/evals/nightly-cases.json (planted injections, refunds and discounts,
+# prices in every currency, Spanish handoffs, multi-turn threads), asked of the model and judged. The pass line is the
+# lower bound of the Wilson interval of the pass rate, and a case marked hard must pass every time.
+#
+# The job runs ONLY when the repository holds ANTHROPIC_EVAL_KEY, a sandbox model key that is not the platform's. It
+# never receives ANTHROPIC_API_KEY, the production key, or any other secret: the script talks to the model directly with
+# the eval key and to nothing of ours. With no key every step says it was skipped (a skip is not a pass), and Ruben's
+# adding the secret in the repository settings is what turns it on.
+on:
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+
+# One run at a time: the evals spend a key by the minute.
+concurrency:
+  group: nightly-evals
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    name: The receptionist's cases against a sandbox model key
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    # The key is not in the job's environment: a secret cannot be tested in an `if` directly, so the first step reads it
+    # to say whether it is set and hands on that fact alone, and only the step that asks the model is given the key. The
+    # install's scripts, and every other step, never hold it.
+    steps:
+      - name: Say so when there is no eval key
+        id: key
+        shell: bash
+        env:
+          ANTHROPIC_EVAL_KEY: ${{ secrets.ANTHROPIC_EVAL_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_EVAL_KEY" ]; then
+            echo "set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "set=false" >> "$GITHUB_OUTPUT"
+            echo "SKIPPED - ANTHROPIC_EVAL_KEY is not set, so nothing was asked and nothing was judged. This is not a pass."
+          fi
+      - uses: actions/checkout@v7
+        if: ${{ steps.key.outputs.set == 'true' }}
+      - uses: pnpm/action-setup@v6
+        if: ${{ steps.key.outputs.set == 'true' }}
+      - uses: actions/setup-node@v7
+        if: ${{ steps.key.outputs.set == 'true' }}
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: ${{ steps.key.outputs.set == 'true' }}
+      - name: The cases, twice each
+        id: evals
+        if: ${{ steps.key.outputs.set == 'true' }}
+        shell: bash
+        env:
+          ANTHROPIC_EVAL_KEY: ${{ secrets.ANTHROPIC_EVAL_KEY }}
+        run: node tooling/scripts/evals/nightly.mjs --repeats 2 | tee evals.txt
+      - name: Say so when the line was missed
+        if: ${{ failure() && steps.evals.outcome == 'failure' }}
+        run: |
+          gh issue create \
+            --title "The nightly evals missed their line $(date -u +%F)" \
+            --body "$(tail -n 12 evals.txt) Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

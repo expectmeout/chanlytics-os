@@ -1,5 +1,7 @@
 /**
- * The standalone mockup as a signed-in workspace's Settings › Business.
+ * The standalone mockup as a signed-in workspace: its shell's globals, the settings read the People pages and Ask read,
+ * and People, real, where the record has them. (Settings › Business no longer draws here: Settings left the mockup in
+ * step 11 of decision 0015, and its globals below are what the bridge publishes for the pages that remain.)
  *
  * The shell's globals and the tab's, as the bridge publishes them (legacy-bridge/business-tab.ts installBusinessTab,
  * zone.ts installClock, identity.ts, seed-globals.ts and inbox-verbs.ts' own), and window.__SETTINGS / window.__FACTS
@@ -9,7 +11,7 @@
  * only what is missing. The server answers the spec's reads from that same object, so the page and the spec see one
  * record.
  *
- * The preview beside the config is composed here rather than imported: apps/dashboard/src/server/prompt-preview.ts
+ * The preview beside the config is composed here rather than imported: apps/dashboard/src/server/receptionist/prompt-preview.ts
  * opens with `import "server-only"` and pulls in @chanlytics/db, neither of which belongs in a browser bundle. The
  * three lines it is are written out below, from the same contracts functions the server calls.
  *
@@ -25,14 +27,17 @@
  */
 import * as C from "@chanlytics/contracts";
 import { installClock } from "@/legacy-bridge/zone";
+import { installRoleStore, installRoles } from "@/legacy-bridge/identity";
 import { installBusinessTab } from "@/legacy-bridge/business-tab";
 import { startSurfaces } from "@/legacy-bridge/surface-runner";
-import { peopleOverride } from "@/legacy-bridge/surface-data";
-import { installPeopleCourier } from "@/legacy-bridge/people-detail";
+import { peopleOverride } from "@/surfaces/people/surface";
+import { installPeopleCourier } from "@/surfaces/people/people-detail";
 import { installRouteGate, installSurfaceRegistry } from "@/legacy-bridge/surface-registry";
 import { setStatus } from "@/legacy-bridge/surface-status";
-import { pipelineHelpers } from "@/legacy-bridge/pipeline-helpers";
+import { pipelineHelpers } from "@/surfaces/people/pipeline-helpers";
 import { installTabMemory } from "@/legacy-bridge/tab-memory";
+import { installNotifications } from "@/legacy-bridge/notifications";
+import { installAsk } from "@/legacy-bridge/ask";
 
 interface Scenario {
   name: string;
@@ -46,6 +51,8 @@ interface Scenario {
   people?: unknown[];
   /** How its customers buy (tenants.sells_by), where the record says: the pipeline's is "proposal". */
   sellsBy?: string;
+  /** The bell's kept rows, as GET notifications hands them over (scenarios.mjs bellNotes). */
+  notifications?: C.NotificationDto[];
 }
 
 const w = window as unknown as Record<string, any>;
@@ -78,8 +85,19 @@ w.__ME = {
   platform_admin: false,
 };
 installClock();
+
+/* ---- the role store: the shell's own reading of who is acting (legacy-bridge/identity.ts installRoleStore, installRoles) ---- */
+// Every gate asks the role store (`ST_STORE.myRole()`, `.mayAtLeast()`). The mockup used to make it when settings.jsx ran;
+// Settings has left the mockup, so the fixture makes it as the app's seed-globals does and gives it the app's reading
+// right after: the same two functions over this window's `__ME` and the store's own View-as, and no second copy of the
+// ladder. The page's owner-only items (the person page's "Delete person", the receptionist row's act) ask `mayAtLeast`,
+// which the store alone never defines, so a store left without the reading shows none of them.
+installRoleStore(window);
+installRoles(window);
 w.__chrome = {
   themes: C.THEME_OPTIONS,
+  looks: C.LOOK_OPTIONS,
+  lookOffered: C.LOOK_OFFERED,
   shortcuts: C.SHORTCUTS,
   shortcutGroups: C.shortcutGroups,
   statusLine: C.shellStatusLine,
@@ -87,7 +105,6 @@ w.__chrome = {
   liveStillUp: C.liveStillUp,
   fmtClock: C.fmtClock,
   title: C.pageTitle,
-  workspaceHotkey: C.workspaceHotkey,
   toast: C.toastShape,
   state: C.stateOf,
   typing: (t: EventTarget | null) => C.isTypingTarget(t as Element),
@@ -122,16 +139,14 @@ w.__instructionsMax = C.INSTRUCTIONS_MAX;
 w.__fallbackMessages = C.fallbackMessages;
 w.__fallbackDefaults = C.FALLBACK_DEFAULTS;
 w.__unknownDetails = C.unknownDetails;
-// A broken configuration in Setup's words, and Autonomy's hard limits (seed-globals.ts publishes both).
+// A broken configuration in Setup's words (seed-globals.ts publishes it).
 w.__brokenConfigWords = C.BROKEN_CONFIG_WORDS;
-w.__hardLimits = C.hardLimitsWords;
-w.__lastChanged = () => `Last changed by ${OWNER.name}`;
 // The workspace's zone is saved through PATCH workspaces, never the settings saver. Refused here.
 w.__workspace = { setTimezone: async () => ({ ok: false, tz: "", message: "The harness never saves." }) };
 w.__saveSettings = () => Promise.resolve({ ok: false, code: "refused", message: "The harness never saves." });
 
 /* ---- the settings read (legacy-bridge/surface-data.ts) ---- */
-// composePromptPreview's own three lines (apps/dashboard/src/server/prompt-preview.ts), which cannot be imported here.
+// composePromptPreview's own three lines (apps/dashboard/src/server/receptionist/prompt-preview.ts), which cannot be imported here.
 const preview = (brain: C.BrainConfig) => ({
   whatsapp: C.resolveSystemPrompt(brain, "whatsapp", zone, new Date(), {}, S.known),
   voice: C.resolveSystemPrompt(brain, "voice", zone, new Date(), {}, S.known),
@@ -160,7 +175,7 @@ const resolved = C.resolveFacts(S.config.brain, S.known);
 w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };
 
 /* ---- the three surfaces What it can do reads beside the settings read ---- */
-// The Setup payload as legacy-bridge/setup.ts publishes it, the Autonomy matrix a provisioned workspace starts with
+// The Setup payload as surfaces/setup/surface.ts publishes it (its `__SETUP` mirror), the Autonomy matrix a provisioned workspace starts with
 // (00017_provision_tenant) and the workspace's approved messages. Built from THIS scenario's own channels, brain and
 // templates, so the card the page draws is the card the record earns: the nightly has nothing filled in and no
 // approved message, the salon answers on both lines and has the booking-link message a call sends the link as.
@@ -217,8 +232,19 @@ w.__POLICIES = {
 };
 w.__TEMPLATES_ALL = S.templates ?? [];
 // No __CHANNELS. The bridge publishes `toChannelVM(c, now)` (surface-data.ts), and defining the global at all flips
-// settings.jsx to PaneIntegrationsReal -- so a hand-built row would draw a pane no spec here opens, out of a shape
+// Settings' Connections pane -- so a hand-built row would draw a pane no spec here opens, out of a shape
 // the product does not use. The channels reach the page where the page reads them: in the facts, resolved above.
+
+/* ---- In a browser, at the workspace's own address ----
+ * As a signed-in tab is: every read names its workspace by the slug in the path (workspace.ts getActiveWorkspace), and
+ * one that named none would be refused as the app is (choose_workspace), which sends the tab home. People's reads and
+ * Ask's both go out from here. Replaced before the document loads another file, whose paths the server maps. Only in
+ * a browser: the harness's own test runs this bundle in a bare context too, with no fetch and no history.
+ */
+const inBrowser = typeof w.fetch === "function" && !!w.location && !!w.history;
+if (inBrowser && !w.location.pathname.startsWith(`/w/${WORKSPACE.slug}/`)) {
+  w.history.replaceState(w.history.state, "", `/w/${WORKSPACE.slug}/${w.location.search}${w.location.hash}`);
+}
 
 /* ---- People, real, where the record has people (the pipeline scenario) ----
  * The app's own pieces over the harness's own answers (server.mjs peopleAnswer): the People surface booted by the
@@ -228,29 +254,15 @@ w.__TEMPLATES_ALL = S.templates ?? [];
  * Pipeline's helpers are the ones seed-globals.ts publishes (pipeline-helpers.ts). A record with no people changes
  * nothing: People stays the seeded page, and the Settings specs see the harness they always did.
  */
-// Only in a browser: the harness's own test runs this bundle in a bare context, with no fetch to read People by.
-if (S.people && typeof w.fetch === "function" && w.location && w.history) {
-  // At the workspace's own address, as a signed-in tab is: every read names its workspace by the slug in the path
-  // (workspace.ts getActiveWorkspace). Replaced before the document loads another file, whose paths the server maps.
-  if (!w.location.pathname.startsWith(`/w/${WORKSPACE.slug}/`)) {
-    w.history.replaceState(w.history.state, "", `/w/${WORKSPACE.slug}/${w.location.search}${w.location.hash}`);
-  }
+// Only in a browser (above).
+if (S.people && inBrowser) {
   installTabMemory(w as unknown as Window);
   installSurfaceRegistry();
   installPeopleCourier();
   w.__pipeline = pipelineHelpers();
-  // What the People pages call that seed-globals.ts publishes from contracts: a selection's cell in an export, the
-  // reader of a client list the import sheet plans by, the words the one-step send of a proposal carries, and why a
-  // typed address is not one.
-  w.__csvCell = C.csvCell;
-  w.__csvImport = {
-    parseCsv: C.parseCsv,
-    matchColumns: C.matchColumns,
-    importRowsOf: C.importRowsOf,
-    importCounts: C.importCounts,
-  };
+  // What the People pages call that seed-globals.ts publishes from contracts: the words the one-step send of a proposal
+  // carries, and why a typed address is not one.
   w.__proposalMessage = C.proposalMessage;
-  w.__whyNotAnEmail = C.whyNotAnEmail;
   setStatus("workspace", "live");
   // The settings read and Setup are published above, as for every record, so their routes draw. A route whose
   // surface the harness does not serve (Today, the Inbox, Leads) waits under the gate and then says it could not be
@@ -260,6 +272,24 @@ if (S.people && typeof w.fetch === "function" && w.location && w.history) {
   installRouteGate();
   // No live feed here: nothing writes, so there is nothing to hear.
   startSurfaces([peopleOverride], () => () => {});
+}
+
+/* ---- Ask ----
+ * The Line over whatever the page holds (legacy-bridge/ask.ts installAsk, as LegacyApp.tsx installs it), so ⌘K opens
+ * it on a spec's page, the first run's among them (Ask Rewired, Phase 7). Its reads answer as the harness answers any
+ * route it does not serve, and a question is a POST, which the harness refuses: a spec that asks one stops it in the
+ * browser first. Only in a browser, as People's are.
+ */
+if (inBrowser) installAsk(w as unknown as Window);
+
+/* ---- the bell ----
+ * The kept rows as the notifications surface publishes them, and the app's own bell over them (legacy-bridge/
+ * notifications.ts), so the top bar draws the real feed. A mark would be a write, which the harness refuses: the bell
+ * says nothing of it, as in the app when a mark fails. Only in a browser, as People's are.
+ */
+if (S.notifications && typeof w.addEventListener === "function") {
+  w.__NOTIFICATIONS = { dto: { notifications: S.notifications, seen_at: null } };
+  installNotifications(w as unknown as Window & Record<string, unknown>, null);
 }
 
 // The app's fonts and the class that turns on its touch floor, which the mockup's document lacks.

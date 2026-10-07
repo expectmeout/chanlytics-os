@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/route";
-import { AppError } from "@chanlytics/contracts";
-import { isUuid } from "@/server/request-guards";
+import { AppError, isUuid } from "@chanlytics/contracts";
+import { dbRefusal } from "@/server/with-route";
 
 /**
  * POST /api/v1/lines/forwarding/test — {line_id}: open the 30-minute test
@@ -10,7 +10,7 @@ import { isUuid } from "@/server/request-guards";
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lines_forwarding",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { line_id?: unknown };
@@ -20,12 +20,7 @@ export const POST = write({
       p_tenant_id: member.tenantId,
       p_line_id: lineId,
     });
-    if (error)
-      throw new AppError(
-        error.code === "P0002" ? "not_found" : "validation",
-        error.message,
-        error.code === "P0002" ? 404 : 400,
-      );
+    if (error) throw dbRefusal(error);
     return { test: data };
   },
 });

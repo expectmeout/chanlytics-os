@@ -1,0 +1,788 @@
+/**
+ * Connections — everything a workspace can be joined to, as one row shape.
+ *
+ * The Integrations page used to be three hand-built cards and a paragraph
+ * of names "not yet". Every connection is the same question asked of the
+ * same facts: can this deployment do it at all, where does this workspace
+ * stand with it, what is the one sentence, what is the one verb, since
+ * when. So every connection is one row, and "later" is a state a row can
+ * be in rather than a list at the bottom. Setup says what to do next;
+ * this says what is joined. Both derive from the same facts and cannot
+ * disagree. Pure: the page feeds it window globals, the tests fixtures.
+ */
+import type { Tone } from "../shell/tone";
+import { numberHealth } from "../broadcasts/broadcasts";
+import { channelFor, type ChannelVM } from "../lines/channels";
+import type { ConnectionNote } from "../lines/connection-note";
+import { codeNotes, type LineCodeDto } from "../lines/line-codes";
+import { NEW_BUSINESS_LIMIT, standingNotes, standingSentence } from "../lines/number-standing";
+import { whatsappCostNotes } from "../lines/whatsapp-cost";
+import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "../google/google";
+import type { LineDto } from "./setup";
+import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
+import { waMeDigits } from "../shared/enums";
+import { agoWords, HOUR_MS } from "../shared/time";
+import { checkedWords, connectionWords, listingLine } from "../google/google";
+import { formatPhoneDisplay } from "../shared/phone";
+import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
+import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "../email/mailbox";
+import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run";
+
+export type ConnectionKind =
+  "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";
+export const CONNECTION_KINDS: readonly ConnectionKind[] = [
+  "whatsapp",
+  "phone",
+  "sms",
+  "google_profile",
+  "google_listing",
+  "calendar",
+  "instagram",
+  "email",
+  "deposits",
+];
+
+/** Where the row sits: joined, joinable from here, or not built yet. */
+export type ConnectionGroup = "connected" | "available" | "later";
+/** Where this workspace stands with it. `attention` is joined but not working. */
+export type ConnectionState = "connected" | "attention" | "off" | "waiting_you" | "waiting_them" | "none" | "later";
+/** One of the product's six tones (tone.ts): a channel that waits on someone is "in progress", not "live". */
+export type ConnectionTone = Tone;
+/** Who may press the verb: an owner (team-level), or anyone who may approve (operators and owners). */
+export type ConnectionWho = "owner" | "operator";
+
+export interface ConnectionVerb {
+  label: string;
+  /** A route ("start", "messages") or a `verb:` id the page runs. */
+  to: string;
+  who: ConnectionWho;
+}
+
+export interface ConnectionRow {
+  kind: ConnectionKind;
+  icon: string;
+  title: string;
+  /** The number, the account, the listing's address — what makes this row this workspace's. */
+  detail: string | null;
+  group: ConnectionGroup;
+  state: ConnectionState;
+  stateWords: string;
+  tone: ConnectionTone;
+  /** One line, in the owner's words, with "since" on every wait. */
+  sentence: string;
+  verb: ConnectionVerb | null;
+  /** The page's own hook for the parts a row cannot say in one line: a choice of locations, a form. */
+  body: "google_choose" | "business_record" | "email_setup" | null;
+  /**
+   * What the row says beside its sentence, each its own short line, with a link after it where there is somewhere to go: what Meta
+   * will ask and what WhatsApp costs before Connect, what Meta holds about a connected number, how to try it, and what it costs,
+   * the codes sent to the line. Empty for a row with none, which is nearly every row.
+   */
+  notes: ConnectionNote[];
+}
+
+export interface ConnectionInputs {
+  /** The rows of tenant_channels as the page already shows them. */
+  channels: ChannelVM[];
+  /** Meta's Embedded Signup: whether this deployment can start it. `undefined` = still asking. */
+  whatsapp: { ready: boolean; reason: string | null } | null | undefined;
+  lines: { rows: LineDto[]; ready: boolean };
+  /** When the owner asked a person at Chanlytics for a line; null = never. */
+  lineRequestedAt: string | null;
+  google: {
+    ready: { places: boolean; profile: boolean; audience?: GoogleAudience | null };
+    listing: GoogleListingDto | null;
+    connection: GoogleConnectionDto | null;
+  } | null;
+  calendar: { state: "ok" | "unavailable" | "none" } | null;
+  /** Email as Setup is told it (mailbox.ts); null or absent while Setup has not been read, or on a deployment without it. */
+  email?: EmailSetupDto | null;
+  /** The one-time codes sent to the workspace's own line lately (`GET lines/codes`); absent where none were read. */
+  codes?: LineCodeDto[];
+  /**
+   * When a WhatsApp sign-up was started on this page and never came back to it (the instant the page's mark in
+   * sessionStorage holds: Meta's window outlives a reload, and a reload takes with it the listener the window answers to);
+   * null or absent where there is none. Said by the WhatsApp row for an hour, while the workspace has no number.
+   */
+  signupLeftOpenAt?: string | null;
+}
+
+const TONE: Record<ConnectionState, ConnectionTone> = {
+  connected: "ok",
+  attention: "warn",
+  off: "warn",
+  waiting_you: "info",
+  waiting_them: "info",
+  none: "plain",
+  later: "plain",
+};
+
+const GROUP: Record<ConnectionState, ConnectionGroup> = {
+  connected: "connected",
+  attention: "connected",
+  off: "connected",
+  waiting_you: "available",
+  waiting_them: "available",
+  none: "available",
+  later: "later",
+};
+
+const ORDER: Record<ConnectionKind, number> = {
+  whatsapp: 0,
+  phone: 1,
+  sms: 2,
+  google_profile: 3,
+  google_listing: 4,
+  calendar: 5,
+  instagram: 6,
+  email: 7,
+  deposits: 8,
+};
+
+type Draft = Omit<ConnectionRow, "group" | "tone" | "body" | "notes"> & {
+  body?: ConnectionRow["body"];
+  notes?: ConnectionNote[];
+};
+
+function row(d: Draft): ConnectionRow {
+  return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
+}
+
+/** What Google's audience means for the person about to press Connect. */
+export function googleAudienceWords(a: GoogleAudience | null | undefined): string | null {
+  if (a === "testing")
+    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
+  if (a === "unverified")
+    return "Google shows a warning until its review of Chanlytics is done — choose Advanced, then Go to Chanlytics.";
+  return null;
+}
+
+/** The texting states of a line, in the owner's words. The carriers' vocabulary stays out. */
+export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
+  const num = line ? formatPhoneDisplay(line.e164) : null;
+  const since = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
+  const base = { kind: "sms" as const, icon: "chat", title: "Texting", detail: num, verb: null };
+  // A line that answers calls already has everything a text needs except
+  // the carriers' permission, so it OFFERS texting rather than filing it
+  // under "later" — which is what it did, so the one thing an owner could
+  // do about it was invisible.
+  const ready = line?.voice_state === "answering";
+  if (ready && (!line?.sms_state || line.sms_state === "none")) {
+    return {
+      ...base,
+      state: "waiting_you",
+      stateWords: "Waiting on you",
+      sentence: TEXTING_NEEDS_RECORD_SENTENCE,
+      verb: { label: "Fill it in", to: "verb:business-record", who: "owner" },
+      body: "business_record",
+    };
+  }
+
+  // A filing made against the carriers' TEST registry, before any of the real
+  // states below: it reports itself as approved, delivers nothing, and expires
+  // in thirty days. This row used to read the state underneath it and tell the
+  // owner their texting was days from switching itself on. `attention` is
+  // exactly what it is -- joined, not working -- and the sentence is the one
+  // Setup says, from one function, so the two pages cannot drift apart.
+  if (line?.reg_mock) {
+    return { ...base, state: "attention", stateWords: "Waiting on us", sentence: textingWords(line).sentence };
+  }
+  switch (line?.sms_state) {
+    case "active":
+      // The narrow registration says so here too, from the same sentence Setup
+      // uses: a workspace that can send about one message a second has to be
+      // able to read that somewhere it will actually look.
+      return {
+        ...base,
+        state: "connected",
+        stateWords: "On",
+        sentence: line?.reg_sole_prop
+          ? `Customers text ${num ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}`
+          : `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.`,
+      };
+    case "approved":
+      return {
+        ...base,
+        state: "waiting_them",
+        stateWords: "Waiting on carriers",
+        sentence: `Your business is approved. One last check on the line is with the carriers — usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.`,
+      };
+    case "needs_record":
+      // The pre-flight's own sentences when it has them, exactly as `rejected` and
+      // `failed` two cases below already do. Gate 8's whole argument is that a
+      // refusal must say what to fix; the edge duly writes "what is wrong AND what
+      // to do" onto `last_error` — and this row threw it away and said "two
+      // minutes, once" instead. For a workspace whose NAME does not match its
+      // record, that sentence is also false twice over: the record is complete,
+      // and the form it points at cannot fix the workspace's name.
+      return line?.last_error
+        ? {
+            ...base,
+            state: "waiting_you",
+            stateWords: "Waiting on you",
+            sentence: line.last_error,
+            verb: { label: "Open the record", to: "verb:business-record", who: "owner" },
+            body: "business_record",
+          }
+        : {
+            ...base,
+            state: "waiting_you",
+            stateWords: "Waiting on you",
+            sentence: TEXTING_NEEDS_RECORD_SENTENCE,
+            verb: { label: "Fill it in", to: "verb:business-record", who: "owner" },
+            body: "business_record",
+          };
+    case "otp_waiting":
+      // REPLY to it, not type it. The carriers text the owner's own mobile and
+      // the reply must come from that handset -- there is no code to bring back
+      // here, and telling somebody to type one sends them looking for a field
+      // that does not exist while a 24-hour window runs out.
+      //
+      // NO VERB, deliberately. This row used to offer "Send it again" pointing
+      // at `verb:resend-otp`, which no page handles -- the click did nothing at
+      // all, on the one row in this product where a person is against a
+      // 24-hour clock. Resending needs a call whose shape cannot be confirmed
+      // without a real sole-proprietor brand to make it against, and a brand
+      // costs money and cannot be withdrawn. So the sentence says who does it
+      // instead of pretending the owner can, and the button comes back the day
+      // the endpoint is verified rather than the day somebody thinks the row
+      // looks bare.
+      return {
+        ...base,
+        state: "waiting_you",
+        stateWords: "Waiting on you",
+        sentence:
+          "The carriers texted your mobile — reply to that message from the handset itself and texting switches on. There is nothing to type here. The code lasts a day; if it runs out, Chanlytics asks the carriers for another.",
+      };
+    case "registering":
+    case "hosting":
+      return {
+        ...base,
+        state: "waiting_them",
+        stateWords: "Waiting on carriers",
+        sentence: `The carriers are registering your line, since ${since} · usually a week.`,
+      };
+    case "rejected":
+      // NO "resubmit" VERB, and for the same reason `otp_waiting` above has none:
+      // the button did not work. Gate 6 put resubmitting behind `platform_admins`
+      // on purpose — a rejection needs somebody who can read what the carriers
+      // said — so `refile: true` is never sent by the owner's route, and an owner
+      // who corrected their record and pressed "Fix and resubmit" got "The
+      // carriers did not answer" about a message the carriers had explicitly sent.
+      //
+      // Correcting the record IS still theirs, and it is the thing that unblocks
+      // the resubmit, so the row still opens the form — it just no longer claims
+      // that pressing File sends it, and it says who does.
+      return {
+        ...base,
+        state: "attention",
+        stateWords: "Sent back",
+        sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}. Correct what they named and Chanlytics sends it again — resubmitting is ours to do, and it costs nothing.`,
+        verb: { label: "Open the record", to: "verb:business-record", who: "owner" },
+        body: "business_record",
+      };
+    case "failed":
+      return {
+        ...base,
+        state: "attention",
+        stateWords: "Waiting on us",
+        sentence: line?.last_error || "Registering stopped. A person at Chanlytics has it.",
+      };
+    default:
+      return {
+        ...base,
+        state: "later",
+        stateWords: "Later",
+        sentence:
+          "Plain text messages — arrives with a line that registers with the carriers; this page will say when.",
+      };
+  }
+}
+
+/**
+ * What the rows are drawn from, found once: the channel rows that speak for WhatsApp and the phone, the workspace's
+ * own line (the phone row and the texting row both read it), Google's connection and listing (the listing's verb
+ * reads the connection), and the clock.
+ */
+interface ConnectionFacts {
+  nowMs: number;
+  wa: ChannelVM | null;
+  voice: ChannelVM | null;
+  own: LineDto | null;
+  connection: GoogleConnectionDto | null;
+  listing: GoogleListingDto | null;
+}
+
+function connectionFactsOf(i: ConnectionInputs, nowMs: number): ConnectionFacts {
+  // `channelFor`, not `.find`: a workspace that released a line keeps its disabled
+  // voice row beside the new active one, and an arbitrary pick between them draws
+  // "Off" over a channel that is answering.
+  const channel = (kind: string) => channelFor(i.channels, kind);
+  return {
+    nowMs,
+    wa: channel("whatsapp"),
+    voice: channel("voice"),
+    own: i.lines.rows.find((l) => l.provider !== "carrier") ?? null,
+    connection: i.google?.connection ?? null,
+    listing: i.google?.listing ?? null,
+  };
+}
+
+/**
+ * The one thing to do while Meta's window is open: a reload takes with it the listener the window answers to, and the one-time code
+ * the window hands back has nowhere to go (6 October, 12:11 to 12:48 UTC: a sign-up Meta finished and Chanlytics never heard).
+ */
+const KEEP_SIGNUP_PAGE_OPEN = "Keep this page open until Meta's window closes.";
+
+/**
+ * Where the code Meta texts to the number arrives, said with the one thing to do while its window is open (the code is what the owner
+ * waits for there). On the workspace's own Chanlytics line the text reaches the Texting row, and a call would be answered by the
+ * receptionist, so the owner chooses a text; a number of the business's own is the phone in its hand.
+ */
+function signupCodeNote(own: ConnectionFacts["own"]): ConnectionNote {
+  const line = own?.e164 ? formatPhoneDisplay(own.e164) : null;
+  return {
+    text: line
+      ? `Meta texts a code to the number. If it is your Chanlytics number, ${line}, the code shows here on the Texting row: choose Text message, not Phone call. ${KEEP_SIGNUP_PAGE_OPEN}`
+      : `Meta texts a code to the number: have its phone at hand. ${KEEP_SIGNUP_PAGE_OPEN}`,
+  };
+}
+
+/**
+ * What Meta's sign-up window asks of the owner, said before it opens, in the order the owner meets it: the sign-in, the code texted
+ * to the number (and to keep the page open while it is awaited), what WhatsApp costs and who bills it (Chanlytics is a Tech
+ * Provider: Meta bills the business, to its own card, for the messages it starts), the payment method Meta asks for at the end
+ * (replies to a customer who wrote first are delivered without one, and are not billed; what is not delivered is the messages the
+ * business starts), and the limit a new business starts at. One line each: a row says one thing at a time.
+ */
+function whatsappConnectNotes(own: ConnectionFacts["own"]): ConnectionNote[] {
+  return [
+    { text: "Meta asks you to sign in with Facebook and choose or create your business." },
+    signupCodeNote(own),
+    ...whatsappCostNotes(),
+    {
+      text: "Add a payment method when Meta asks for one: without it, replies still go out, but reminders and campaigns are not delivered.",
+    },
+    {
+      text: `Until Meta verifies your business, it can start conversations with ${NEW_BUSINESS_LIMIT} people a day; replies to customers who write first are not limited.`,
+    },
+  ];
+}
+
+/** How long the mark a sign-up leaves is taken for a sign-up somebody is still finishing at Meta's. */
+const SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
+
+/**
+ * What the Connect row says of a sign-up that was started on this page and did not come back to it. A reload cannot get the
+ * code back (it rides the SDK's own callback), so the way on is to press Connect again and choose the account Meta already made.
+ */
+const SIGNUP_LEFT_OPEN_NOTE =
+  "A WhatsApp sign-up was started here and did not come back to Chanlytics — if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.";
+
+/** The left-open note, while the mark is under an hour old (a mark in the future, or one that is no time, is no sign-up anyone is waiting on). */
+function signupLeftOpenNotes(startedAt: string | null | undefined, nowMs: number): ConnectionNote[] {
+  const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
+  return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE }] : [];
+}
+
+/**
+ * What a connected number says until a customer has written to it: how to try it from a phone. WhatsApp keeps its own record of which
+ * numbers are on WhatsApp, and a number registered a moment ago can read "isn't on WhatsApp" for an hour (6 October); opening its
+ * wa.me link forces a fresh lookup, and the chat opens. The link's digits are waMeDigits's, the one place that says them.
+ */
+function tryItNotes(wa: ChannelVM): ConnectionNote[] {
+  const digits = waMeDigits(wa.number);
+  if (!digits || wa.lastInboundMs !== null) return [];
+  return [
+    {
+      text: `Try it from your phone: wa.me/${digits} — if WhatsApp says the number isn't on WhatsApp yet, open this link instead of searching your contacts.`,
+    },
+  ];
+}
+
+/** WhatsApp: the channel row when there is one; Meta's door when there is not. */
+function whatsappRow(i: ConnectionInputs, { wa, own, nowMs }: ConnectionFacts): Draft {
+  const base = { kind: "whatsapp" as const, icon: "chat", title: "WhatsApp Business" };
+  if (wa) {
+    // What Meta holds about the number (channel.standing, 00338) outranks what its rating implies: a number Meta will not
+    // let send is joined and not working whatever its quality was, and Meta's own words say why. A word of Meta's that is
+    // not BLOCKED is never taken for it; a switched-off channel says nothing of Meta's.
+    const standing = wa.on ? wa.standing : null;
+    // One daily limit for the sentence and the notes: the quality webhook's word once Meta has sent one (it is sent when the
+    // tier moves), else the tier the standing read. Two would say "not reported yet" beside "up to 250 people a day".
+    const limit = wa.messagingLimit ?? standing?.limit ?? null;
+    // What Meta has said about the number, in the words Sent, Campaigns
+    // and the assistant already use: a flagged number is exactly the "joined
+    // but not working" the attention state exists for.
+    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
+    const flagged = wa.on && h.tone === "danger";
+    const health = wa.on && h.tone !== "unknown" ? ` · ${h.label}` : "";
+    const blocked = standing?.can_send === "BLOCKED";
+    const attention = flagged || blocked;
+    return {
+      ...base,
+      detail: wa.number,
+      state: !wa.on ? "off" : attention ? "attention" : "connected",
+      stateWords: !wa.on ? "Off" : attention ? "Needs attention" : "On",
+      sentence: standing && blocked ? standingSentence(standing) : `${wa.healthLabel}${health}`,
+      verb: { label: "Library", to: "messages", who: "operator" },
+      // How to try it from a phone, first, on a connected row nobody has written to yet; then what Meta holds; and last what
+      // WhatsApp costs, on every row that is on.
+      notes: [
+        ...(wa.on && !attention ? tryItNotes(wa) : []),
+        ...standingNotes(standing && { ...standing, limit }),
+        ...(wa.on ? whatsappCostNotes() : []),
+      ],
+    };
+  }
+  if (i.whatsapp === undefined) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Checking whether Chanlytics can connect a number…",
+      verb: null,
+    };
+  }
+  if (i.whatsapp?.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence:
+        "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
+      verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
+      notes: [...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs), ...whatsappConnectNotes(own)],
+    };
+  }
+  const why =
+    i.whatsapp?.reason === "no_config_id"
+      ? " — the Embedded Signup configuration is missing on the Chanlytics side"
+      : i.whatsapp?.reason === "preview"
+        ? " — only on the production dashboard"
+        : "";
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: "Not connected",
+    sentence: `Chanlytics isn't set up to connect numbers yet${why}.`,
+    verb: null,
+  };
+}
+
+/** The phone line: the voice channel, or where getting one stands. */
+function phoneRow(i: ConnectionInputs, { voice, own, nowMs }: ConnectionFacts): Draft {
+  const base = { kind: "phone" as const, icon: "phone", title: "Phone line" };
+  if (voice) {
+    return {
+      ...base,
+      detail: voice.number,
+      state: voice.on ? "connected" : "off",
+      stateWords: voice.on ? "On" : "Off",
+      sentence: voice.healthLabel,
+      verb: null,
+    };
+  }
+  if (own && own.voice_state === "provisioning") {
+    return {
+      ...base,
+      detail: formatPhoneDisplay(own.e164),
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: `Setting up — ${LINE_STEP_WORDS[own.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(own.state_since), nowMs)}. Usually a minute or two.`,
+      verb: null,
+    };
+  }
+  if (own && own.voice_state === "failed") {
+    return {
+      ...base,
+      detail: formatPhoneDisplay(own.e164),
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
+      verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" },
+    };
+  }
+  if (i.lineRequestedAt) {
+    return {
+      ...base,
+      detail: null,
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: `Requested ${agoWords(Date.parse(i.lineRequestedAt), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`,
+      verb: null,
+    };
+  }
+  if (i.lines.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Get a number the receptionist answers, or keep the one you have.",
+      verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: "Not connected",
+    sentence: "We set up your phone line with you.",
+    verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" },
+  };
+}
+
+/**
+ * Texting: where the workspace's own line stands with the carriers, and the one-time codes sent to it lately (Meta's, when
+ * the owner connects that number to WhatsApp), which no one else will ever see: a line the business kept at its carrier
+ * has no texts of ours, so it has no notes.
+ */
+function smsRow(i: ConnectionInputs, { own, nowMs }: ConnectionFacts): Draft {
+  return { ...smsStateRow(own, nowMs), notes: own ? codeNotes(i.codes ?? [], nowMs) : [] };
+}
+
+/** Google: the owner's Business Profile, then the public listing (googleListingRow). */
+function googleProfileRow(i: ConnectionInputs, { connection: c, nowMs }: ConnectionFacts): Draft {
+  const g = i.google;
+  const base = { kind: "google_profile" as const, icon: "shield", title: "Google Business Profile" };
+  if (c && c.location_name) {
+    return {
+      ...base,
+      detail: c.location_title,
+      state: c.sync_error ? "attention" : "connected",
+      stateWords: c.sync_error ? "Could not sync" : "Connected",
+      sentence: connectionWords(c, nowMs),
+      verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" },
+    };
+  }
+  if (c) {
+    return {
+      ...base,
+      detail: null,
+      state: "waiting_you",
+      stateWords: "Waiting on you",
+      sentence: `${connectionWords(c, nowMs)}.`,
+      verb: null,
+      body: "google_choose",
+    };
+  }
+  if (g?.ready.profile) {
+    const note = googleAudienceWords(g.ready.audience);
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: `Sign in to Google once; every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
+      verb: { label: "Connect Google", to: "verb:google-connect", who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Every review and the replies you send from Reports arrive with the Business Profile connection.",
+    verb: null,
+  };
+}
+
+/** Google's public listing: watched once it is found; with the Business Profile connected, a read is a sync. */
+function googleListingRow(i: ConnectionInputs, { connection: c, listing: l, nowMs }: ConnectionFacts): Draft {
+  const g = i.google;
+  const base = { kind: "google_listing" as const, icon: "star", title: "Your listing on Google" };
+  if (l) {
+    return {
+      ...base,
+      detail: l.address,
+      state: l.check_error ? "attention" : "connected",
+      stateWords: l.check_error ? "Could not be read" : "Watched",
+      sentence: `${listingLine(l)} · ${checkedWords(l, nowMs)}`,
+      verb: { label: c && c.location_name ? "Sync now" : "Check now", to: "verb:google-check", who: "operator" },
+    };
+  }
+  if (g?.ready.places) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not watched",
+      sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
+      verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Your public listing on Google Maps, read once a day for new reviews.",
+    verb: null,
+  };
+}
+
+/** The calendar: the feed the receptionist reads today. */
+function calendarRow(i: ConnectionInputs): Draft {
+  const cal = i.calendar?.state ?? "none";
+  const base = { kind: "calendar" as const, icon: "calendar", title: "Calendar" };
+  if (cal === "ok") {
+    return {
+      ...base,
+      detail: "iCal feed",
+      state: "connected",
+      stateWords: CALENDAR_FEED_WORDS.ok,
+      sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
+      verb: { label: "Open Calendar", to: "calendar", who: "operator" },
+    };
+  }
+  if (cal === "unavailable") {
+    return {
+      ...base,
+      detail: "iCal feed",
+      state: "attention",
+      stateWords: CALENDAR_FEED_WORDS.unavailable,
+      sentence: "Your calendar could not be read. Check the address in Settings › Business.",
+      verb: { label: "Check the address", to: "admin/workspace", who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: CALENDAR_FEED_WORDS.none,
+    sentence:
+      "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
+    verb: { label: "Paste the address", to: "admin/workspace", who: "owner" },
+  };
+}
+
+/** Instagram: not built yet, so always later. */
+function instagramRow(): Draft {
+  return {
+    kind: "instagram",
+    icon: "instagram",
+    title: "Instagram",
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
+    verb: null,
+  };
+}
+
+/**
+ * Email: the workspace's address when it has one, the form that makes one when this deployment has the
+ * channel, and "later" where it does not. The receptionist does not answer email yet, and the row says so
+ * rather than promising what Connections used to ("an address the receptionist answers").
+ */
+function emailRow(i: ConnectionInputs, { nowMs }: ConnectionFacts): Draft {
+  const base = { kind: "email" as const, icon: "mail", title: "Email" };
+  const mailbox = i.email?.mailbox ?? null;
+  if (mailbox) {
+    const last = mailbox.last_received_at
+      ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.`
+      : "";
+    // An email that could not be taken in is said HERE, where the owner looks
+    // at the channel itself — the way the Google listing row carries
+    // check_error above. It is ours to fix, not theirs, so the row says so and
+    // keeps the verb it had; the next email that arrives clears it, so this is
+    // never an old alarm about mail that has since been flowing for a week.
+    const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
+    // A domain held below it is said here too: an owner looking at "On" would not look further.
+    const heldDomains = (i.email?.sending?.domains ?? []).filter((d) => d.state === "held").length;
+    return {
+      ...base,
+      detail: mailbox.address,
+      state: mailbox.last_error || heldDomains ? "attention" : "connected",
+      stateWords: mailbox.last_error
+        ? "Waiting on us"
+        : heldDomains
+          ? `On · ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held`
+          : "On",
+      sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
+      verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
+      body: "email_setup",
+    };
+  }
+  if (i.email?.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not set up",
+      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
+      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
+      body: "email_setup",
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "An address customers write to, answered from your Inbox.",
+    verb: null,
+  };
+}
+
+/** Deposits: not built yet, so always later. */
+function depositsRow(): Draft {
+  return {
+    kind: "deposits",
+    icon: "money",
+    title: "Deposits",
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Deposits and payments taken by the receptionist.",
+    verb: null,
+  };
+}
+
+type ConnectionRowBuilder = (i: ConnectionInputs, facts: ConnectionFacts) => Draft;
+
+/** One builder per connection, in the page's order (ORDER): each says where this workspace stands with it. */
+const ROW_BUILDERS: readonly ConnectionRowBuilder[] = [
+  whatsappRow,
+  phoneRow,
+  smsRow,
+  googleProfileRow,
+  googleListingRow,
+  calendarRow,
+  instagramRow,
+  emailRow,
+  depositsRow,
+];
+
+/** The fold over ROW_BUILDERS: every connection's row, drawn from one set of facts, in the page's order. */
+export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): ConnectionRow[] {
+  const facts = connectionFactsOf(i, nowMs);
+  return ROW_BUILDERS.map((build) => row(build(i, facts))).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+}
+
+export const CONNECTION_GROUP_WORDS: Record<
+  ConnectionGroup,
+  { title: string; sub: (rows: ConnectionRow[]) => string }
+> = {
+  connected: {
+    title: "Connected",
+    sub: (rows) => {
+      const bad = rows.filter((r) => r.state !== "connected").length;
+      return `${rows.length} connected${bad ? ` · ${bad} need${bad === 1 ? "s" : ""} attention` : ""}`;
+    },
+  },
+  available: {
+    title: "Available",
+    sub: (rows) =>
+      rows.some((r) => r.state === "waiting_you")
+        ? "something here waits on you"
+        : rows.some((r) => r.state === "waiting_them")
+          ? "in progress"
+          : "ready when you are",
+  },
+  later: { title: "Later", sub: () => "not yet: nothing here is connected" },
+};

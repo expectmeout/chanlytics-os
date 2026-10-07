@@ -4,9 +4,17 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@supabase/supabase-js": "^2.116.0",
-    "@chanlytics/contracts": "workspace:*",
     "@chanlytics/channels": "workspace:*",
-    "@chanlytics/db": "workspace:*"
+    "@chanlytics/contracts": "workspace:*",
+    "@chanlytics/db": "workspace:*",
+    "@supabase/supabase-js": "^2.116.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "next": "^16.3.6",
+    "react": "^19.3.0",
+    "stripe": "22.6.2",
+    "typescript": "catalog:",
+    "zod": "^4.6.5"
   }
 }

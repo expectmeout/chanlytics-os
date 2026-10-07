@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { AppError, SETUP_REQUEST_KINDS } from "@chanlytics/contracts";
-import { tellPlatformOfSetupRequest } from "@/server/service";
+import { SETUP_REQUEST_KINDS } from "@chanlytics/contracts";
+import { tellPlatformOfSetupRequest } from "@/server/workspace/tell";
+import { dbRefusal } from "@/server/with-route";
 
 const ASK = "Say what you are asking for.";
 const Body = z.object({
@@ -28,14 +29,16 @@ export const POST = write({
   handle: async ({ ctx, member, input }) => {
     const what = input.what;
     const { data, error } = await ctx.supabase.rpc("setup_request", { p_tenant_id: member.tenantId, p_what: what });
-    if (error) throw new AppError("conflict", error.message, 409);
+    if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
     const already = !!(
       data &&
       typeof data === "object" &&
       !Array.isArray(data) &&
       (data as { already?: unknown }).already === true
     );
-    const told = already ? false : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null);
+    const told = already
+      ? false
+      : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null, ctx.userId);
     return { request: data, told };
   },
 });

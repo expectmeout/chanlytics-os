@@ -1,9 +1,11 @@
 /**
- * Control-plane repository (Session A): config, policies, team.
+ * Control-plane repository (Session A): config, policies, team, and the setup acts a member makes from the dashboard:
+ * making a workspace, keeping a number, a playbook's state and fields.
  * Same shape as ingest/calls/thread — thin, typed, no business rules here;
  * enforcement lives in RLS + the DB triggers + requireRole at the routes.
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
+import { receptionistOn, type BillingStatus } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -183,4 +185,78 @@ export async function setPersonReplyMode(
       { onConflict: "tenant_id,class,subject_type,subject_id" },
     );
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Whether the receptionist may speak under the business's name on its own right now, with nobody reading it first (a
+ * public reply): not while the workspace is paused (tenants.status: billing stopped it, or a person did), not once its
+ * last member has left (ended, 00262: left_empty_at), and not while a plan billed through Stripe is in a state that
+ * stops the receptionist (contracts receptionistOn). A read that fails throws: "we could not check" is not "yes".
+ */
+export async function workspaceAnswersOnItsOwn(db: Db, tenantId: string): Promise<boolean> {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
+  return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status as BillingStatus));
+}
+
+// ---- setup acts a member makes from the dashboard: the caller decides what a refusal means; what comes back is the
+// database's own answer, the error untouched, since the words for what it raises are theirs.
+
+/** What `create_workspace` takes: the name, the zone when asked for, and the partner's code when the person agreed to one. */
+export type CreateWorkspaceArgs = Database["public"]["Functions"]["create_workspace"]["Args"];
+
+/** How many workspaces this user belongs to, counted on the session client, which sees only its own rows. */
+export async function membershipCountOf(db: Db, userId: string): Promise<number> {
+  const { count, error } = await db
+    .from("memberships")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) throw new Error(`memberships_count: ${error.message}`);
+  return count ?? 0;
+}
+
+/** Call `create_workspace` once: its one row, or its error as the database raised it. */
+export async function createWorkspaceFn(db: Db, args: CreateWorkspaceArgs) {
+  return db.rpc("create_workspace", args).single();
+}
+
+/** What `line_forwarding_set` takes: the workspace, the number kept, its carrier, which calls to forward, and the phone to test from. */
+export type LineForwardingArgs = Database["public"]["Functions"]["line_forwarding_set"]["Args"];
+
+/** Keep the number: the forwarded line's id, or the database's refusal. */
+export async function lineForwardingSet(db: Db, args: LineForwardingArgs) {
+  return db.rpc("line_forwarding_set", args);
+}
+
+/** The columns an edit may write, as the table types them. */
+export type PlaybookPatch = Database["public"]["Tables"]["playbooks"]["Update"];
+
+/** Set a playbook's state (running or paused). */
+export async function setPlaybookState(db: Db, id: string, state: string): Promise<{ error: PostgrestError | null }> {
+  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
+  return { error };
+}
+
+/** Write the edited fields of a playbook. */
+export async function updatePlaybook(
+  db: Db,
+  id: string,
+  patch: PlaybookPatch,
+): Promise<{ error: PostgrestError | null }> {
+  const { error } = await db.from("playbooks").update(patch).eq("id", id);
+  return { error };
+}
+
+/** Remove a playbook; `count` is how many rows went (none: the row is not there, or the caller may not see it). */
+export async function removePlaybook(
+  db: Db,
+  id: string,
+): Promise<{ error: PostgrestError | null; count: number | null }> {
+  const { error, count } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
+  return { error, count };
 }

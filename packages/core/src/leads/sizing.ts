@@ -1,9 +1,16 @@
 /**
- * How much a round asks the provider for, and what each run may charge (PRD
- * §0.5 "size from yield", S6, §13.3). contracts' placesToAsk sizes the ask
- * and estimateRoundUsd prices it with room; this turns them into one cap per
- * run: the term's estimate, scaled down when the sum would pass what the
- * round still has reserved, never under the actor's floor.
+ * How much a round asks the provider for, and what each run may charge (PRD §0.5 "size from yield", S6, §13.3): the
+ * arithmetic the runner (runner/) turns into runs, over contracts' placesToAsk (the places to ask each term for) and
+ * estimateRoundUsd (their price, with room).
+ *
+ *   - probeAsk / mainAsk: the terms and places per term for the probe (LEAD_PROBE_PLACES spread across every term, E10)
+ *     and for the main phase (what remains, over the probe's yield, without the term the question dropped).
+ *   - yieldOf / probeYield / hasContact: the yield that sizes the main phase: the share of the probe's places that are not
+ *     left out and hold a way to reach them (a phone that dials, or a candidate email: decision 0010), never the Qualified
+ *     share, and never under 5%; a probe that judged nothing counts as 20%.
+ *   - runCaps: one dollar cap per run: the estimate for its places, every cap scaled down when the sum would pass what
+ *     the round still has reserved, none under the actor's floor (MAPS_CAP_FLOOR_USD), and none at all when less than
+ *     that floor is left: the round then starts nothing.
  */
 import {
   LEAD_PROBE_PLACES,

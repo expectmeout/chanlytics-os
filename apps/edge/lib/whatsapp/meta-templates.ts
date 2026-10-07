@@ -12,7 +12,8 @@
  * legible than it was.
  */
 import type { SchemaSet, TemplateStatus } from "../packages/contracts.js";
-import { GRAPH_VERSION } from "./meta-graph.js";
+import { GRAPH_TIMEOUT_MS, GRAPH_VERSION } from "./meta-graph.js";
+import { answerObject, providerFetch } from "../packages/channels.js";
 
 export interface MetaTemplateComponent {
   type: string;
@@ -22,7 +23,7 @@ export interface MetaTemplateComponent {
   buttons?: unknown[];
 }
 
-export interface MetaTemplate {
+interface MetaTemplate {
   id: string;
   name: string;
   language: string;
@@ -34,18 +35,19 @@ export interface MetaTemplate {
 }
 
 /** The columns' own sets (templates.meta_status, templates.category), not copies of them. */
-export type { TemplateStatus };
-export type TemplateCategory = SchemaSet<"templates.category">;
+type TemplateCategory = SchemaSet<"templates.category">;
 
-export interface TemplateVariable {
+interface TemplateVariable {
   position: number;
   label: string;
   example: string | null;
 }
 
 const FIELDS = "id,name,language,status,category,components,quality_score,rejected_reason";
-const PAGE = 100;
+const META_TEMPLATES_PAGE = 100;
 const MAX_PAGES = 10;
+/** Creating a template is given longer than a list or a delete. */
+const CREATE_TIMEOUT_MS = 20_000;
 
 export async function listTemplates(
   token: string,
@@ -53,20 +55,22 @@ export async function listTemplates(
 ): Promise<{ ok: true; templates: MetaTemplate[] } | { ok: false; error: string; status: number }> {
   const out: MetaTemplate[] = [];
   let url: string | null =
-    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?fields=${FIELDS}&limit=${PAGE}`;
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?fields=${FIELDS}&limit=${META_TEMPLATES_PAGE}`;
   for (let page = 0; url && page < MAX_PAGES; page++) {
-    let res: Response;
-    try {
-      res = await fetch(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) });
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
-    }
-    const body = (await res.json().catch(() => null)) as {
+    const res = await providerFetch("meta", url, {
+      headers: { authorization: `Bearer ${token}` },
+      timeoutMs: GRAPH_TIMEOUT_MS,
+      idempotent: true,
+      tries: 2,
+    });
+    if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
+    const body = answerObject(res) as {
       data?: MetaTemplate[];
       paging?: { next?: string };
       error?: { message?: string };
     } | null;
-    if (!res.ok || !body) return { ok: false, error: body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
+    if (res.outcome !== "ok" || !body)
+      return { ok: false, error: body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
     out.push(...(body.data ?? []));
     url = body.paging?.next ?? null;
   }
@@ -104,6 +108,28 @@ export function mapCategory(c: string | null | undefined): TemplateCategory | nu
   }
 }
 
+const TEMPLATE_QUALITIES = ["GREEN", "YELLOW", "RED", "UNKNOWN"] as const;
+type TemplateQuality = (typeof TEMPLATE_QUALITIES)[number];
+/** A number's quality has the template's four words and Meta's NA, a number it has not rated; no template has it. */
+const NUMBER_QUALITIES = [...TEMPLATE_QUALITIES, "NA"] as const;
+type NumberQuality = (typeof NUMBER_QUALITIES)[number];
+
+/** Which of `words` Meta's word is, however it cased or padded it, else null: the one rule behind every quality. */
+function qualityIn<W extends string>(words: readonly W[], q: unknown): W | null {
+  const word = typeof q === "string" ? q.trim().toUpperCase() : "";
+  return words.find((w) => w === word) ?? null;
+}
+
+/** A template's quality in Meta's own words (the Templates page's pill is keyed by them); any other value is no quality. */
+export function mapQuality(q: unknown): TemplateQuality | null {
+  return qualityIn(TEMPLATE_QUALITIES, q);
+}
+
+/** A number's quality in Meta's own words (the channel-quality sweep keeps it); any other value is no quality. */
+export function mapNumberQuality(q: unknown): NumberQuality | null {
+  return qualityIn(NUMBER_QUALITIES, q);
+}
+
 function bodyComponent(t: MetaTemplate): MetaTemplateComponent | undefined {
   return (t.components ?? []).find((c) => String(c.type).toUpperCase() === "BODY");
 }
@@ -121,11 +147,14 @@ export function variablesOf(t: MetaTemplate, keepLabels: TemplateVariable[] = []
   const examples = bodyComponent(t)?.example?.body_text?.[0] ?? [];
   return [...positions]
     .sort((a, b) => a - b)
-    .map((n) => ({
-      position: n,
-      label: keepLabels.find((k) => k.position === n)?.label ?? `Value ${n}`,
-      example: typeof examples[n - 1] === "string" ? examples[n - 1] : null,
-    }));
+    .map((n) => {
+      const example = examples[n - 1];
+      return {
+        position: n,
+        label: keepLabels.find((k) => k.position === n)?.label ?? `Value ${n}`,
+        example: typeof example === "string" ? example : null,
+      };
+    });
 }
 
 /** The labels a row already holds, when they are the shape this module writes. */
@@ -142,7 +171,7 @@ export function labelsOf(variables: unknown): TemplateVariable[] {
     .map((v) => ({ position: v.position, label: v.label, example: null }));
 }
 
-export interface TemplateRow {
+interface TemplateRow {
   tenant_id: string;
   channel: "whatsapp";
   name: string;
@@ -151,7 +180,7 @@ export interface TemplateRow {
   category: TemplateCategory | null;
   meta_id: string;
   components: MetaTemplateComponent[] | null;
-  quality: string | null;
+  quality: TemplateQuality | null;
   rejected_reason: string | null;
   body_preview: string | null;
   variables: TemplateVariable[];
@@ -175,7 +204,7 @@ export function templateRow(
     category: mapCategory(t.category),
     meta_id: t.id,
     components: t.components ?? null,
-    quality: t.quality_score?.score ?? null,
+    quality: mapQuality(t.quality_score?.score),
     rejected_reason: status === "rejected" ? reason : null,
     body_preview: bodyOf(t),
     variables: variablesOf(t, keepLabels),
@@ -193,9 +222,10 @@ export async function createTemplate(
 ): Promise<
   { ok: true; data: { id: string; status: string; category?: string } } | { ok: false; error: string; status: number }
 > {
-  let res: Response;
-  try {
-    res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates`, {
+  const res = await providerFetch(
+    "meta",
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates`,
+    {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({
@@ -205,18 +235,17 @@ export async function createTemplate(
         components: t.components,
         allow_category_change: true,
       }),
-      signal: AbortSignal.timeout(20_000),
-    });
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
-  }
-  const body = (await res.json().catch(() => null)) as {
+      timeoutMs: CREATE_TIMEOUT_MS,
+    },
+  );
+  if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
+  const body = answerObject(res) as {
     id?: string;
     status?: string;
     category?: string;
     error?: { message?: string; error_user_msg?: string };
   } | null;
-  if (!res.ok || !body?.id)
+  if (res.outcome !== "ok" || !body?.id)
     return {
       ok: false,
       error: body?.error?.error_user_msg ?? body?.error?.message ?? `HTTP ${res.status}`,
@@ -242,21 +271,14 @@ export async function deleteTemplate(
   hsmId: string,
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const qs = new URLSearchParams({ name, hsm_id: hsmId });
-  let res: Response;
-  try {
-    res = await fetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?${qs.toString()}`,
-      {
-        method: "DELETE",
-        headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
-  }
-  const body = (await res.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null;
-  if (!res.ok || !body?.success)
+  const res = await providerFetch(
+    "meta",
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?${qs.toString()}`,
+    { method: "DELETE", headers: { authorization: `Bearer ${token}` }, timeoutMs: GRAPH_TIMEOUT_MS },
+  );
+  if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
+  const body = answerObject(res) as { success?: boolean; error?: { message?: string } } | null;
+  if (res.outcome !== "ok" || !body?.success)
     return { ok: false, error: body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
   return { ok: true };
 }

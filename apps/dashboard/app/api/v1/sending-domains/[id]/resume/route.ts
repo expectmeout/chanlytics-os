@@ -1,0 +1,18 @@
+import { write, workspace } from "@/server/route";
+import { resumeSendingDomain } from "@/server/connections/sending-domains";
+
+/**
+ * POST /api/v1/sending-domains/:id/resume
+ *
+ * The owner's Resume, for a domain held for its reputation (bounces, a complaint, unsubscribes; a second hold in thirty
+ * days is the platform's, and refused, D16): it sends again from the ramp's first step
+ * (30 a day). A domain held for its records lifts itself when Check passes, and is refused here with that said.
+ */
+export const POST = write({
+  scope: workspace,
+  role: "partner",
+  rate: "settings",
+  handle: async ({ ctx, member }) => ({
+    domain: await resumeSendingDomain(member.tenantId, ctx.userId, String(ctx.params.id ?? "")),
+  }),
+});

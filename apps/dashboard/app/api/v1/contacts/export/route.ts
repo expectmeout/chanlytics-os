@@ -1,10 +1,12 @@
 import { AppError, PeopleExportQuerySchema, parseListToken } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { everyone } from "@/server/people";
+import { everyone } from "@/server/people/people";
 import { tenantFacts } from "@/server/tenant";
-import { audiencePool, poolList } from "@/server/audience";
-import { attachment, dateTag, peopleCsv, safeName } from "@/server/export";
+import { audiencePool, poolList } from "@/server/people/audience";
+import { channelsReadyOrNull } from "@/server/campaigns/channels-ready";
+import { attachment, dateTag, peopleCsv, safeName } from "@/server/export/export";
 import { recordDecision } from "@/server/verbs";
+import { log } from "@/server/log";
 
 /**
  * GET /api/v1/contacts/export — everyone, as a CSV, for the business's own
@@ -18,6 +20,7 @@ import { recordDecision } from "@/server/verbs";
  */
 export const GET = read({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "export",
   query: PeopleExportQuerySchema,
@@ -31,7 +34,14 @@ export const GET = read({
     let list: { token: string; name: string } | null = null;
     const ref = input.list ? parseListToken(input.list) : null;
     if (ref && input.list) {
-      const pool = await audiencePool(ctx, member.tenantId, timezone, now);
+      // The list is counted as the page counts it, and who can be sent what is judged against what the workspace sends on.
+      const pool = await audiencePool(
+        ctx,
+        member.tenantId,
+        timezone,
+        now,
+        await channelsReadyOrNull(ctx, member.tenantId, { withPause: false }),
+      );
       const found = await poolList(ctx, member.tenantId, pool, ref);
       if (!found) throw new AppError("not_found", "That list isn't here.", 404);
       if ("unknown" in found)
@@ -42,16 +52,12 @@ export const GET = read({
     } else {
       people = await everyone(ctx, member.tenantId);
     }
-    console.log(
-      JSON.stringify({
-        level: "info",
-        event: "export.people",
-        user: ctx.userId,
-        tenant: member.tenantId,
-        rows: people.length,
-        ...(list ? { list: list.token } : {}),
-      }),
-    );
+    log.info("export.people", {
+      user: ctx.userId,
+      tenant_id: member.tenantId,
+      rows: people.length,
+      ...(list ? { list: list.token } : {}),
+    });
     // On the ledger, as erasure is: who took a copy of everyone, or of one list, and when.
     await recordDecision(ctx, member.tenantId, "workspace", member.tenantId, "export", {
       what: "people",

@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { platformLineAct } from "@/server/platform";
+import { platformLineAct } from "@/server/platform/platform";
 
 /**
  * POST /api/v1/platform/lines/release — give a workspace's number back.
@@ -20,6 +20,7 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_line_release",
+  fresh: true,
   handle: async ({ ctx, req, office }) => {
     const body = (await req.json().catch(() => ({}))) as { tenant_id?: unknown; line_id?: unknown };
     const tenantId = requireUuid(body.tenant_id, "workspace");

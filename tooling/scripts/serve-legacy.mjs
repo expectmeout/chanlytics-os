@@ -12,8 +12,12 @@
  *
  * So: no-store, everything, always. This serves a design review, not traffic.
  *
- * Three files are built rather than read: `data/reports-sample.js` and `data/today-sample.js`, the demo's Reports and
- * Today, and `data/business-tab.js`, the Business tab's helpers (see SAMPLES below).
+ * Six files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
+ * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
+ * `data/people-globals.js`, People's parts the shell still draws by name (the strip's scopes and the deal and step sheets:
+ * TSX since decision 0015, step 5), `data/leads-globals.js`, Leads' plan card, which Ask's palette draws by name,
+ * `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
+ * (see SAMPLES below). Two are read from outside the tree: the kit's stylesheet and Campaigns' (OUTSIDE_CSS below).
  *
  *   node tooling/scripts/serve-legacy.mjs [port] [dir]
  */
@@ -44,30 +48,75 @@ export const TYPES = {
 const CONTRACTS = path.join(REPO, "packages/contracts/dist/index.js");
 
 /**
- * The demo's samples, for the mockup: legacy-bridge/reports-sample.ts and legacy-bridge/today-sample.ts (a sample
- * business through the same contracts functions a real workspace's numbers go through) bundled for the browser,
- * with contracts from its dist as the app reads it. Chanlytics.html loads them as data/*-sample.js; each publishes
- * its function on window (`__reportsSample`, `__todaySample`), and Today's installs its surfaces where the app's
- * globals are absent, so the mockup shows the one Reports page and the one Today page there are. Built on the first
- * request, and again when the sample or the contracts dist changes.
+ * What the mockup takes from the app's TypeScript, bundled for the browser, with contracts from its dist as the app
+ * reads it. surfaces/kit/kit-globals.ts is the kit's components that the pages here still draw by name
+ * (`Icon`, `EmptyState`, `FailedRead`, `SegmentBar`), TSX since decision 0015: built with the classic JSX runtime over
+ * the page's own React, as the app publishes them from seed-globals. A surface that has left the shell (Reports) is an
+ * App Router page, which only the app draws, so the mockup has none of it. Built on the first request, and again when
+ * an entry or the contracts dist changes.
  */
 const SAMPLES = {
-  "/data/reports-sample.js": {
-    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/reports-sample.ts"),
-    globalName: "__RS",
-    footer: "window.__reportsSample = __RS.reportsSample;",
+  "/data/kit-globals.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/kit/kit-globals.ts"),
+    globalName: "__KG",
+    footer: "Object.assign(window, __KG.KIT_GLOBALS);",
+    // TSX: elements from the page's React (`React.createElement`), and the hooks it imports are the page's React's.
+    jsx: "transform",
+    reactIsTheWindows: true,
   },
-  "/data/today-sample.js": {
-    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/today-sample.ts"),
-    globalName: "__TS",
-    footer: "window.__todaySample = __TS.todaySample; __TS.installTodaySample(window);",
+  // The Inbox's and Conversations' names (surfaces/inbox/legacy-globals.ts): the demo's seeded threads and calls, the
+  // session's decisions, and the two rules the shell asks (what waits on you, which tab a row is on). Not React.
+  "/data/inbox-globals.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/inbox/legacy-globals.ts"),
+    globalName: "__IG",
+    footer: "Object.assign(window, __IG.INBOX_GLOBALS); __IG.hearPresence();",
+    watch: "apps/dashboard/src/surfaces/inbox",
+  },
+  // The object the app publishes from seed-globals (surfaces/people/people-globals.ts), on the page's own React. A name the
+  // page already has is left alone, so the harness's own copy (data/people-globals-harness.js, which shares the fixture's
+  // People) wins where it ran first. The mockup draws no People page of its own (an App Router page, which only the app
+  // draws), so what reads these names here are the Leads scope, the Pipeline and the person page.
+  "/data/people-globals.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/people/people-globals.ts"),
+    globalName: "__PG",
+    footer: "for (const k of Object.keys(__PG.PEOPLE_GLOBALS)) if (!(k in window)) window[k] = __PG.PEOPLE_GLOBALS[k];",
+    banner: "var process = globalThis.process || { env: {} };",
+    jsx: "transform",
+    reactIsTheWindows: true,
+    atDashboard: true,
+    watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
+  },
+  // Leads' plan card (surfaces/leads/globals.ts), on the page's own React, which Ask's palette draws by name until it moves.
+  "/data/leads-globals.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/leads/globals.ts"),
+    globalName: "__LG",
+    footer: "Object.assign(window, __LG.LEADS_GLOBALS);",
+    banner: "var process = globalThis.process || { env: {} };",
+    jsx: "transform",
+    reactIsTheWindows: true,
+    atDashboard: true,
+    watch: ["apps/dashboard/src/surfaces/leads", "apps/dashboard/src/legacy-bridge"],
+  },
+  // The same for the e2e harness's People record: the fixture boots People (peopleOverride) in a bundle of its own, before
+  // React loads, so this bundle keeps its own copy of the surface's store and takes People from the window the fixture
+  // published it on (people-src.ts).
+  "/data/people-globals-harness.js": {
+    entry: path.join(HERE, "e2e-harness/people-src.ts"),
+    globalName: "__PGH",
+    footer: "Object.assign(window, __PGH.PEOPLE_GLOBALS); __PGH.followPeople(window);",
+    banner: "var process = globalThis.process || { env: {} };",
+    jsx: "transform",
+    reactIsTheWindows: true,
+    atDashboard: true,
+    watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
   },
   // Not a sample: the object the app publishes as window.__businessTab (legacy-bridge/business-tab.ts). With no
   // settings read behind the mockup, a fold is told nothing.
   "/data/business-tab.js": {
     entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/business-tab.ts"),
     globalName: "__BT",
-    footer: "__BT.installBusinessTab();",
+    // And the save's own rules, which the page asks for as the tab mounts: bundled in, so here at once.
+    footer: "__BT.installBusinessTab(); __BT.loadSaveRules();",
   },
   // Not a sample either: the three (legacy-bridge/mascot), the character Ask's face draws (components/ask-face.jsx:
   // the top bar's button, the Stage and the phone's ✦), so the mockup's Ask has its face.
@@ -79,9 +128,36 @@ const SAMPLES = {
 };
 const built = new Map();
 
+/** The window's own React, for a bundle whose components import `react`: the page loads React once, and this is it. */
+const windowReact = {
+  name: "window-react",
+  setup(b) {
+    b.onResolve({ filter: /^react$/ }, () => ({ path: "react", namespace: "window-react" }));
+    b.onLoad({ filter: /.*/, namespace: "window-react" }, () => ({
+      contents: "module.exports = window.React;",
+      loader: "js",
+    }));
+  },
+};
+
+/** A bundle's newest source: its entry, the contracts dist, and (for TSX) every file of the kit and the bridge it can name. */
+function stampOf(s) {
+  const files = [s.entry, CONTRACTS];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(tsx?|css)$/.test(e.name)) files.push(p);
+    }
+  };
+  if (s.reactIsTheWindows) walk(path.join(REPO, "apps/dashboard/src/surfaces/kit"));
+  for (const dir of [].concat(s.watch ?? [])) walk(path.join(REPO, dir));
+  return files.map((f) => fs.statSync(f).mtimeMs).join(":");
+}
+
 async function sampleBundle(route) {
   const s = SAMPLES[route];
-  const stamp = [s.entry, CONTRACTS].map((f) => fs.statSync(f).mtimeMs).join(":");
+  const stamp = stampOf(s);
   const hit = built.get(route);
   if (hit && hit.stamp === stamp) return hit.js;
   const { build } = await import("esbuild");
@@ -94,15 +170,26 @@ async function sampleBundle(route) {
     target: "es2020",
     write: false,
     logLevel: "silent",
-    alias: { "@chanlytics/contracts": CONTRACTS },
+    alias: {
+      // The schemas a page asks for by import() (contracts' write-rules entry), bundled in, as the mockup has no chunks.
+      "@chanlytics/contracts/write-rules": path.join(REPO, "packages/contracts/dist/write-rules.js"),
+      "@chanlytics/contracts": CONTRACTS,
+      ...(s.atDashboard ? { "@": path.join(REPO, "apps/dashboard/src") } : {}),
+    },
+    ...(s.jsx ? { jsx: s.jsx } : {}),
+    ...(s.reactIsTheWindows ? { plugins: [windowReact] } : {}),
+    ...(s.banner ? { banner: { js: s.banner } } : {}),
     footer: { js: s.footer },
   });
   built.set(route, { stamp, js: out.outputFiles[0].text });
   return built.get(route).js;
 }
 
-export const reportsSampleBundle = () => sampleBundle("/data/reports-sample.js");
-export const todaySampleBundle = () => sampleBundle("/data/today-sample.js");
+export const kitGlobalsBundle = () => sampleBundle("/data/kit-globals.js");
+export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
+export const peopleGlobalsBundle = () => sampleBundle("/data/people-globals.js");
+export const leadsGlobalsBundle = () => sampleBundle("/data/leads-globals.js");
+export const peopleGlobalsHarnessBundle = () => sampleBundle("/data/people-globals-harness.js");
 export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
 export const mascotBundle = () => sampleBundle("/data/mascot.js");
 
@@ -112,12 +199,44 @@ export const send = (res, status, type, body) => {
 };
 
 /**
- * One file of the mockup, by its path under `root`. Nothing outside it, whatever the path says. Exported for the
- * e2e harness, which serves the same tree with its own routes in front of it.
+ * A file the document names from outside the mockup's tree: the kit's stylesheet, which lives with the kit and
+ * which the app imports right after the tokens (legacy-bridge/legacy.css). Chanlytics.html links it in the same place,
+ * as `surfaces/kit/kit.css`, so it is asked for at this path.
+ */
+const KIT_CSS = { at: "/surfaces/kit/kit.css", file: path.join(REPO, "apps/dashboard/src/surfaces/kit/kit.css") };
+
+/**
+ * The other: Campaigns' stylesheet, which lives with its surface (a moved surface keeps its rules in its own folder, as
+ * the kit does) and which the app imports right after components.css (legacy-bridge/legacy.css). Chanlytics.html links
+ * it in the same place, as `surfaces/campaigns/campaigns.css`.
+ */
+const CAMPAIGNS_CSS = {
+  at: "/surfaces/campaigns/campaigns.css",
+  file: path.join(REPO, "apps/dashboard/src/surfaces/campaigns/campaigns.css"),
+};
+
+/** The stylesheets the document names from outside the mockup's tree, each at its one path. */
+const OUTSIDE_CSS = [KIT_CSS, CAMPAIGNS_CSS];
+
+/**
+ * Whether `file` is under `root`, compared as paths: `src/legacy-bridge` begins with the letters of `src/legacy`
+ * and is beside it, not under it, so a path that climbs there (`/..%2flegacy-bridge%2flegacy.css` decoded, or its
+ * `%5c` form on Windows) is outside the tree.
+ */
+const isUnder = (root, file) => {
+  const rel = path.relative(root, file);
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+};
+
+/**
+ * One file of the mockup, by its path under `root`, or one of OUTSIDE_CSS at its one path. Nothing else outside the
+ * tree, whatever the path says. Exported for the e2e harness, which serves the same tree with its own routes in front
+ * of it.
  */
 export function serveStatic(res, root, rel) {
-  const file = path.join(root, rel);
-  if (!file.startsWith(root)) {
+  const outside = OUTSIDE_CSS.find((css) => css.at === rel);
+  const file = outside ? outside.file : path.join(root, rel);
+  if (!outside && !isUnder(root, file)) {
     res.writeHead(403).end("Forbidden");
     return;
   }
@@ -147,7 +266,7 @@ function serve(port, root) {
     .listen(port, () => console.log(`Chanlytics mockup on http://localhost:${port}/Chanlytics.html (no-store)`));
 }
 
-// Run as a server; imported (a test reads reportsSampleBundle), nothing listens.
+// Run as a server; imported (a test reads kitGlobalsBundle), nothing listens.
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   serve(
     Number(process.argv[2] || 3210),

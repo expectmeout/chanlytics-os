@@ -1,25 +1,39 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { inAppBootScript, themeBootScript, themeColorOf } from "@chanlytics/contracts";
+import localFont from "next/font/local";
+import {
+  inAppBootScript,
+  routePrefetchScript,
+  themeBootScript,
+  themeColorOf,
+  DEFAULT_LOOK_PREF,
+} from "@chanlytics/contracts";
 import "./globals.css";
 
 /**
- * next/font self-hosts the files at build time: one origin instead of three,
- * no render-blocking third-party stylesheet before first paint, automatic
- * preload, and a size-adjusted fallback so the swap stops reflowing every
- * label in the app. The CSS variables are what the legacy design system
- * consumes (tokens.css --font-sans/--font-mono), so the literal family name
- * "Geist" no longer has to resolve for the UI to look right.
+ * next/font self-hosts the files: one origin instead of three, no render-blocking third-party stylesheet before
+ * first paint, automatic preload, and a size-adjusted fallback so the swap stops reflowing every label in the app.
+ * The two variable files under app/fonts are Vercel's own, vendored byte for byte from the geist package (1.7.2).
+ * They were fetched from Google Fonts at build, and Google's answer sometimes carries a URL Turbopack cannot
+ * resolve ("next/font/google queries have exactly one entry", vercel/next.js#99114): the production build of
+ * #1348 died on it on 30 Sep 2026 while CI's build of the same commit passed. A build asks nothing over the
+ * network now. Each weight range is the set of weights that was loaded before, so a heavier request still renders
+ * as it did. The CSS variables are what the legacy design system consumes (tokens.css --font-sans/--font-mono), so
+ * the literal family name "Geist" never has to resolve for the UI to look right.
+ *
+ * Glass's type is Mona Sans, the canvases' (tokens.css, the look's --font-sans): three @font-face rules in globals.css
+ * over public/fonts, in the subsets Google Fonts splits it into, so a name in Vietnamese or Polish takes its own glyphs
+ * rather than Geist's. next/font/local takes one file per face and no unicode-range, so those are written by hand; the
+ * latin file is preloaded below, since Glass is the default look (contracts DEFAULT_LOOK_PREF).
  */
-const geist = Geist({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
+const geist = localFont({
+  src: "./fonts/Geist-Variable.woff2",
+  weight: "300 600",
   variable: "--font-geist",
   display: "swap",
 });
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const geistMono = localFont({
+  src: "./fonts/GeistMono-Variable.woff2",
+  weight: "400 500",
   variable: "--font-geist-mono",
   display: "swap",
 });
@@ -58,11 +72,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // resolveTheme). It was corrected only in an effect after the bundle had mounted, so a light workspace opened
     // dark and flipped on every refresh. The script changes the attribute before hydration, so the element says
     // the difference is expected. The CSP admits the inline script (csp.ts: 'unsafe-inline' for what Next streams).
-    <html lang="en" data-theme="dark" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable}`}>
+    // data-look is the look beside it, the same way: the default until the script stamps the one this device keeps.
+    <html
+      lang="en"
+      data-theme="dark"
+      data-look={DEFAULT_LOOK_PREF}
+      suppressHydrationWarning
+      className={`${geist.variable} ${geistMono.variable}`}
+    >
       <head>
+        <link rel="preload" href="/fonts/MonaSans-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
         {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}
         <script dangerouslySetInnerHTML={{ __html: inAppBootScript() }} />
+        {/* The route's own reads, started here rather than after the shell has mounted (contracts routePrefetchScript). */}
+        <script dangerouslySetInnerHTML={{ __html: routePrefetchScript() }} />
       </head>
       <body>{children}</body>
     </html>

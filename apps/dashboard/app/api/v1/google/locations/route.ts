@@ -1,6 +1,7 @@
 import { read, write, workspace } from "@/server/route";
 import { AppError, type GoogleLocationDto } from "@chanlytics/contracts";
-import { edgeGoogle, readOutcome } from "@/server/google";
+import { edgeGoogle, readOutcome } from "@/server/connections/google";
+import { edgeRefusalWords } from "@/server/edge";
 
 /**
  * GET /api/v1/google/locations — the locations the connected Google account
@@ -24,7 +25,7 @@ function locations(raw: unknown): GoogleLocationDto[] {
   return (Array.isArray(raw) ? raw : [])
     .map((l) => {
       const o = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
-      const s = (k: string) => (typeof o[k] === "string" ? (o[k] as string) : null);
+      const s = (k: string) => (typeof o[k] === "string" ? o[k] : null);
       return {
         account_name: s("account_name") ?? "",
         account_title: s("account_title") ?? "",
@@ -40,17 +41,17 @@ function locations(raw: unknown): GoogleLocationDto[] {
 
 export const GET = read({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "google_search",
-  handle: async ({ member }) => {
-    const a = await edgeGoogle({ op: "locations", tenant_id: member.tenantId }, 25_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeGoogle({ op: "locations", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
     const b = a.body ?? {};
     if (a.status === 404) throw new AppError("not_found", SAID.not_connected, 404);
     if (a.status !== 200 || b.ok !== true)
       throw new AppError(
         "internal",
         typeof b.error === "string"
-          ? (SAID[b.error] ?? `Google could not be read: ${b.error}`)
+          ? (SAID[b.error] ?? `Google could not be read: ${edgeRefusalWords(b)}`)
           : "Google could not be read. Try again in a moment.",
         502,
       );
@@ -60,7 +61,7 @@ export const GET = read({
 
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "google_link",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { account_name?: unknown; location_name?: unknown };
@@ -83,7 +84,7 @@ export const POST = write({
       const reason = typeof b.error === "string" ? b.error : "failed";
       throw new AppError(
         a.status === 404 ? "not_found" : "internal",
-        SAID[reason] ?? `The location could not be chosen (${reason}).`,
+        SAID[reason] ?? `The location could not be chosen (${edgeRefusalWords(b) ?? reason}).`,
         a.status === 404 ? 404 : 502,
       );
     }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError, CHECKOUT_RETURNS } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { BILLING_SAID, edgeBilling } from "@/server/billing";
+import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
 
 /**
  * POST /api/v1/billing/checkout — the way to Stripe Checkout for this
@@ -15,6 +15,7 @@ import { BILLING_SAID, edgeBilling } from "@/server/billing";
  */
 export const POST = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "billing",
   input: z.object({
@@ -25,6 +26,7 @@ export const POST = write({
       {
         op: "checkout",
         tenant_id: member.tenantId,
+        user_id: ctx.userId,
         email: ctx.email ?? null,
         ...(input.return ? { return: input.return } : {}),
       },

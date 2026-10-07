@@ -1,26 +1,42 @@
 /**
- * Email's rows: a workspace's mailbox, taking a received email in, the email a
- * reply answers, and what became of one we sent.
+ * Email's rows: a workspace's mailbox, taking a received email in, the email a reply answers, and what became of an
+ * email sent. Groups, top to bottom:
  *
- * Taking an email in goes through `ingest_inbound`, the same atomic gate every
- * channel uses (one advisory lock per identity, one replay gate on the
- * provider's id), with the sender's address as the identity. That function is
- * the hot path for every inbound message in the product and is not recreated
- * to learn a column (ingest.ts says the same of the offers answer). The two
- * things email needs around it are done here, each idempotent, so a run that
- * dies between them resumes cleanly:
+ *   the mailbox            mailboxById, mailboxFor (a published address, or a reply route: a rotated-out token still
+ *                          routes until it is revoked, 00126), mailboxOfTenant (null is a workspace with no email
+ *                          line) and stampMailboxReceived (the mailbox's health stamp, which only logs when it fails).
+ *   taking one in          ingestInboundEmail and sentEmailWithMessageId (how a sent email coming back is known),
+ *                          asked by the email_ingest job (packages/jobs/src/handlers.ts); the edge's door finds the
+ *                          mailbox with mailboxFor (apps/edge/lib/email/email-ingress.ts).
+ *   what a reply answers   lastInboundEmail (the person's latest email on one thread) and answeredReachOutEmail (the
+ *                          reach-out email a reply answers), read for the dashboard's reply routes on the member's
+ *                          client (apps/dashboard/src/server/ports/core-ports.ts, connections/email.ts).
+ *   what became of a sent  the provider's receipts, applied by apps/edge/lib/email/email-receipts.ts: stampEmailSent,
+ *   email                  sentEmailOf, recordEmailStatus, stampEmailComplaint, recordEmailNo and suppressEmailOf.
+ *                          stampEmailLeftAs is written by core's deliver() after an email leaves.
  *
- *   before  a person the owner already gave this address to (00125) has never
- *           written from it, so no identity names them yet. The identity is
- *           written first, and the ingest then joins THAT person instead of
- *           making a second one.
- *   after   a person who arrived by email gets the address on their own row,
- *           where replies are addressed from and People shows it. Only an
- *           empty one is filled: what an owner typed is never overwritten.
+ * Taking an email in goes through ingest_inbound, the atomic gate every channel uses (one advisory lock per identity,
+ * one replay gate on the provider's id), with the sender's address as the identity; it is not recreated to learn a
+ * column. An email whose own words are STOP (core email-ingest) carries the opt-out, so it is recorded as a text's is.
+ * The two things email needs around it are each idempotent, so a run that dies between them resumes. Before:
+ * a person the owner already gave this address to (00125) has never written from it, so the identity is written first
+ * and the ingest joins that person instead of making a second. After: a person who arrived by email gets the address
+ * on their own row, only when it is empty, so what an owner typed is never overwritten (if another person was given
+ * the address in the same moment, the email is kept, the collision is logged and the owner merges them).
+ *
+ * Receipts arrive at least once and in no order. stampEmailSent and stampEmailLeftAs each merge into the row in one
+ * statement, so a stamp beside them is not overwritten; recordEmailStatus lets go a move messages_guard refuses
+ * (backwards, or off a terminal state) as a receipt out of order; suppressEmailOf stops the person's address as it is
+ * now, and only while it is still the one the email went to (00126). The reads of a thread's emails are scoped to the
+ * workspace and the conversation, so a reply cannot be threaded under another workspace's or person's message. A
+ * failed read or write throws (the mailbox stamp only logs), so the caller's retry or the provider's redelivery meets
+ * it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
-import { ingestInbound, type IngestResult } from "./ingest";
+import { ingestInbound, stoppedNow, type IngestResult } from "./ingest";
+import { setEmailOffersYes, setEmailUnsubscribed } from "./campaigns/email-offers";
+import { dbLog } from "../observe";
 
 type Db = SupabaseClient<Database>;
 export type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
@@ -54,6 +70,33 @@ export interface IngestEmailParams {
   body: string | null;
   channelTs: string | null;
   meta: Json;
+  /** The email's own words are STOP: ingest_inbound records the opt-out (consent opted_out, dnc) as it does for a text. */
+  optOut?: boolean;
+  /**
+   * The email's own words are START, from a sender nothing says is forged: ingest_inbound records the yes as it does for a
+   * text's START, and the yes covers email (note_yes_on_channel).
+   */
+  optIn?: boolean;
+  /**
+   * The email's own words are UNSUBSCRIBE: offers by email end through the one door the unsubscribe link writes through
+   * (set_email_marketing), and nothing else does (an unsubscribe is not a STOP). Recorded after the ingest, and a write that
+   * fails throws: a no is never lost, and the run that resumes writes it again, which changes nothing twice.
+   */
+  unsubscribe?: boolean;
+  /**
+   * The email's own words are YES OFFERS, from a sender nothing says is forged: the yes to offers by email, in their own
+   * message (set_email_offers_yes). Best-effort, as WhatsApp's is: they have been received, and a yes that has to be
+   * repaired is logged, never a reason to fail their message.
+   */
+  optInOffers?: boolean;
+  /**
+   * A person wrote it, from a sender nothing says is forged. An address a hard bounce stopped is then one that works: the
+   * stop is lifted, for this address alone. A complaint's stop is the person's no and the provider's is the provider's:
+   * neither is lifted here.
+   */
+  fromThemProven?: boolean;
+  /** What they wrote, as the ledger quotes it (at most eighty characters). */
+  words?: string | null;
 }
 
 export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<IngestResult> {
@@ -76,6 +119,23 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
   }
 
+  // A START is a yes, and ingest_inbound writes a yes before it knows the message is one it already holds (its replay
+  // gate is the message's own insert). An email delivered twice, or a run that resumes, would write the yes again, over
+  // a STOP the person has sent since by any wire. So a delivery this workspace already holds says nothing new: the first
+  // one wrote its answer in the same transaction that kept the message.
+  let optIn = p.optIn ?? false;
+  if (optIn) {
+    const held = await db
+      .from("messages")
+      .select("id")
+      .eq("tenant_id", p.tenantId)
+      .eq("external_id", p.receivedId)
+      .limit(1);
+    if (held.error)
+      throw new Error(`ingest_email: cannot read whether the email is already held: ${held.error.message}`);
+    optIn = (held.data ?? []).length === 0;
+  }
+
   const out = await ingestInbound(db, {
     tenantId: p.tenantId,
     channel: "email",
@@ -87,6 +147,8 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     body: p.body,
     channelTs: p.channelTs,
     meta: p.meta,
+    optOut: p.optOut ?? false,
+    optIn,
   });
 
   if (!known.data) {
@@ -101,8 +163,61 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     // does not guess which one it is, and the email is kept either way.
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error)
-      console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
+    if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
+  }
+
+  // They wrote from the address a hard bounce stopped: it works. Lifted for that address and that reason alone, and
+  // only for an email not yet handled, as their answers below are. A write that fails throws: the run that resumes
+  // writes it again, which changes nothing twice.
+  if (p.fromThemProven && !out.processed) {
+    const { error } = await db
+      .from("contacts")
+      .update({ email_suppressed_at: null, email_suppressed_reason: null })
+      .eq("id", out.contact_id)
+      .eq("tenant_id", p.tenantId)
+      .eq("email", p.address)
+      .eq("email_suppressed_reason", "hard_bounce");
+    if (error) throw new Error(`ingest_email: cannot lift the bounce from the address: ${error.message}`);
+  }
+
+  // Their word about offers by email, in their own message, once their address is on their row (an unsubscribe puts it on
+  // the never-again list): a no first, so it is never lost behind a yes. Only for an email not yet handled: a delivery the
+  // provider repeats after it was handled must not put back a yes the person has since taken away (a run that died before
+  // it finished finds the email unhandled, and writes again what it wrote, which changes nothing twice).
+  const evidence = { channel: "email", message_external_id: p.receivedId, words: (p.words ?? "").slice(0, 80) || null };
+  if (p.unsubscribe && !out.processed)
+    await setEmailUnsubscribed(db, {
+      tenantId: p.tenantId,
+      contactId: out.contact_id,
+      messageId: out.message_id,
+      evidence: { ...evidence, via: "reply" },
+    });
+  if (p.optInOffers && !out.processed && stoppedNow(out)) {
+    // The same rule a texted YES OFFERS has (ingest.ts stoppedNow): a yes under a stop is not recorded.
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: "email" });
+  } else if (p.optInOffers && !out.processed) {
+    try {
+      const yes = await setEmailOffersYes(db, {
+        tenantId: p.tenantId,
+        contactId: out.contact_id,
+        source: "customer_message",
+        messageId: out.message_id,
+        evidence,
+      });
+      // A yes never undoes an unsubscribe: said, so "I wrote YES OFFERS and nothing happened" has an answer.
+      if (yes === "unsubscribed")
+        dbLog().warn("email_yes_refused", {
+          tenant_id: p.tenantId,
+          contact_id: out.contact_id,
+          reason: "unsubscribed",
+        });
+    } catch (e) {
+      dbLog().error("email_yes_not_recorded", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
   return out;
 }
@@ -123,7 +238,7 @@ export async function sentEmailWithMessageId(db: Db, tenantId: string, rfcMessag
 
 export async function stampMailboxReceived(db: Db, mailboxId: string, at: string): Promise<void> {
   const { error } = await db.from("mailboxes").update({ last_received_at: at, last_error: null }).eq("id", mailboxId);
-  if (error) console.error("mailbox_stamp_failed", error.message);
+  if (error) dbLog().error("mailbox_stamp_failed", { mailbox_id: mailboxId, error: error.message });
 }
 
 /** A workspace's mailbox; null when it has none, which is a workspace with no email line. */
@@ -164,7 +279,7 @@ export async function lastInboundEmail(
     .maybeSingle();
   if (error) throw new Error(`email: cannot read the email being answered: ${error.message}`);
   if (!data) return null;
-  const e = ((data.meta as { email?: Record<string, unknown> } | null)?.email ?? {}) as Record<string, unknown>;
+  const e = (data.meta as { email?: Record<string, unknown> } | null)?.email ?? {};
   const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
   return {
     messageId: data.id,
@@ -173,6 +288,48 @@ export async function lastInboundEmail(
     references: Array.isArray(e.references) ? e.references.filter((r): r is string => typeof r === "string") : [],
     subject: str(e.subject),
   };
+}
+
+/** How many of a thread's latest outbound emails are asked which reach-out email a reply answers. */
+const ANSWERED_LOOKBACK = 50;
+
+/**
+ * The reach-out email a person's reply answers (Reach out Part 5, C15), on one thread of one workspace: the latest one
+ * whose Message-ID the reply's References name, else the latest one on the thread. Its From and Reply-To are as its
+ * request was frozen. Null when the thread holds no reach-out email that left: every other email reply.
+ */
+export async function answeredReachOutEmail(
+  db: Db,
+  p: { tenantId: string; conversationId: string; references: string[] },
+): Promise<{ messageId: string; from: string | null; replyTo: string | null } | null> {
+  const { data, error } = await db
+    .from("messages")
+    .select("id, meta, status")
+    .eq("tenant_id", p.tenantId)
+    .eq("conversation_id", p.conversationId)
+    .eq("channel", "email")
+    .eq("direction", "outbound")
+    .order("created_at", { ascending: false })
+    .limit(ANSWERED_LOOKBACK);
+  if (error) throw new Error(`email: cannot read the reach-out being answered: ${error.message}`);
+  const left = new Set(["sent", "delivered", "read"]);
+  const sent = (data ?? []).flatMap((m) => {
+    const meta = (m.meta ?? {}) as { source?: unknown; email?: { message_id?: unknown; request?: unknown } };
+    if (meta.source !== "reach_out" || !left.has(String(m.status))) return [];
+    const req = (meta.email?.request ?? {}) as { from?: unknown; reply_to?: unknown };
+    const replyTo = Array.isArray(req.reply_to) && typeof req.reply_to[0] === "string" ? req.reply_to[0] : null;
+    return [
+      {
+        messageId: m.id,
+        rfc: typeof meta.email?.message_id === "string" ? meta.email.message_id : null,
+        from: typeof req.from === "string" ? req.from : null,
+        replyTo,
+      },
+    ];
+  });
+  const named = new Set(p.references);
+  const hit = sent.find((e) => e.rfc !== null && named.has(e.rfc)) ?? sent[0];
+  return hit ? { messageId: hit.messageId, from: hit.from, replyTo: hit.replyTo } : null;
 }
 
 /**
@@ -194,6 +351,101 @@ export async function stampEmailSent(
   if (error) throw new Error(`stamp_email_sent: ${error.message}`);
   const row = (data as Array<{ status: string; conversation_id: string }> | null)?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
+}
+
+/**
+ * How a person's email reply left (00226 stamp_email_left_as): by the own domain it was frozen with, or as the
+ * mailbox's request and why not by its own. Merged into meta.email in one statement, as stampEmailSent merges the
+ * Message-ID. False when there is no such outbound email. A write that fails throws.
+ */
+export async function stampEmailLeftAs(
+  db: Db,
+  p: { tenantId: string; messageId: string; leftAs: "own" | "mailbox"; why: string | null },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("stamp_email_left_as", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_left_as: p.leftAs,
+    p_why: p.why,
+  } as never);
+  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  return data === true;
+}
+
+/**
+ * An outbound email as a receipt reads it: the request it was frozen with, and the lead a reach-out wrote it for
+ * (meta.reach_out.lead_id), so a permanent bounce marks that lead's address (Reach out C11). Null when there is no such
+ * row. A read that fails throws; the receipt comes again.
+ */
+export async function sentEmailOf(
+  db: Db,
+  p: { tenantId: string; messageId: string },
+): Promise<{ request: unknown | null; leadId: string | null } | null> {
+  const { data, error } = await db
+    .from("messages")
+    .select("meta")
+    .eq("id", p.messageId)
+    .eq("tenant_id", p.tenantId)
+    .eq("channel", "email")
+    .eq("direction", "outbound")
+    .maybeSingle();
+  if (error) throw new Error(`sent email request: ${error.message}`);
+  if (!data) return null;
+  const meta = (data.meta ?? null) as { email?: { request?: unknown }; reach_out?: { lead_id?: unknown } } | null;
+  const lead = meta?.reach_out?.lead_id;
+  return { request: meta?.email?.request ?? null, leadId: typeof lead === "string" && lead ? lead : null };
+}
+
+/**
+ * A complaint, stamped once on the row it is about (00176), so the domain it left from answers for it. True when this
+ * stamped it; false when it was stamped before or is no such row.
+ */
+export async function stampEmailComplaint(
+  db: Db,
+  p: { tenantId: string; messageId: string; at: string },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("stamp_email_complaint", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_at: p.at,
+  });
+  if (error) throw new Error(`stamp_email_complaint: ${error.message}`);
+  return data === true;
+}
+
+/**
+ * A complaint on an email, recorded as the person's no (00177): the unsubscribe's own door, source 'complaint', so
+ * the address goes on the never-again list and their leads are closed as said no. Answers the person and the From
+ * the email left as (its frozen request's), so the caller can hold the domain it came from; a row with no person
+ * records nothing, since there is no one to stop.
+ */
+export async function recordEmailNo(
+  db: Db,
+  p: { tenantId: string; messageId: string; source: "complaint" },
+): Promise<{ contactId: string | null; from: string | null }> {
+  const { data, error } = await db
+    .from("messages")
+    .select("contact_id, meta")
+    .eq("id", p.messageId)
+    .eq("tenant_id", p.tenantId)
+    .eq("channel", "email")
+    .eq("direction", "outbound")
+    .maybeSingle();
+  if (error) throw new Error(`email receipt: cannot read message ${p.messageId}: ${error.message}`);
+  const meta = (data?.meta ?? {}) as { email?: { request?: { from?: unknown } } };
+  const from = typeof meta.email?.request?.from === "string" ? meta.email.request.from : null;
+  const contactId = data?.contact_id ?? null;
+  if (!contactId) return { contactId: null, from };
+  const r = await db.rpc("set_email_marketing", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: contactId,
+    p_state: "opted_out",
+    p_source: p.source,
+    p_message_id: p.messageId,
+    p_evidence: { channel: "email", via: p.source },
+  });
+  if (r.error) throw new Error(`email receipt: cannot record the ${p.source} as a no: ${r.error.message}`);
+  return { contactId, from };
 }
 
 /**

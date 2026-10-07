@@ -2,11 +2,11 @@
  * Everything the receptionist reaches outside itself, as one object.
  *
  * answerInbound (packages/core/src/inbound/answer.ts) is the customer path:
- * nine hundred lines of decisions, most of them pure steps, joined to the
- * world by a dozen modules -- the database, the memory, the tenant runtime,
- * the sink and the sender, the alerts, the pager, the model. Those were module
- * imports inside the handler, which is why no test could run it and fifty
- * source reads pinned its text instead.
+ * an order of phases, each a module beside it, their decisions most of them
+ * pure steps, joined to the world by a dozen modules -- the database, the
+ * memory, the tenant runtime, the sink and the sender, the alerts, the pager,
+ * the model. Those were module imports inside the handler, which is why no
+ * test could run it and fifty source reads pinned its text instead.
  *
  * The real modules are the default, so the runtime changes nothing; a test
  * hands in fakes and the handler's control flow runs for real against them.
@@ -21,11 +21,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { pg } from "../pg.js";
-import { readLeadContext, personReplyMode, describeLead } from "../packages/db.js";
+import { readLeadContext, personReplyMode, offersAnswerOf, describeLead } from "../packages/db.js";
 import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../calendar/availability.js";
 import { tokensLast24h } from "../receptionist/budget.js";
-import { pgThread, pgIngest, pgSink, queueReply } from "./persist.js";
+import { pgThread, pgIngest, pgSink, queueReply, replyTurn } from "./persist.js";
 import { alertStaff } from "./alerts.js";
 import { pageOperator } from "../ops/page-operator.js";
 import { whatsappSender, type InboundPorts as CoreInboundPorts } from "../packages/core.js";
@@ -37,11 +37,22 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
   db: () => SupabaseClient<Database> | null;
   /** The control plane's one door: the workspace's persona, policy, credentials. */
   runtime: typeof loadTenantRuntime;
-  leads: { read: typeof readLeadContext; personReplyMode: typeof personReplyMode };
+  leads: {
+    read: typeof readLeadContext;
+    personReplyMode: typeof personReplyMode;
+    offersAnswer?: typeof offersAnswerOf;
+  };
   calendar: { openings: typeof openingsFor; visits: typeof visitsFor };
   budget: { tokensLast24h: typeof tokensLast24h };
   /** The Postgres bookkeeping of one message: ingest, the memory, the held draft, the sink. */
-  persist: { thread: typeof pgThread; ingest: typeof pgIngest; sink: typeof pgSink; queueReply: typeof queueReply };
+  persist: {
+    thread: typeof pgThread;
+    ingest: typeof pgIngest;
+    sink: typeof pgSink;
+    queueReply: typeof queueReply;
+    /** The thread's reply turn (00284); a test's world may leave it out, and every message then holds its turn. */
+    turn?: typeof replyTurn;
+  };
   alertStaff: typeof alertStaff;
   page: typeof pageOperator;
   sender: typeof whatsappSender;
@@ -69,21 +80,21 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
  * thrown inside the webhook's per-message catch, and every batch would still
  * have answered 200.
  */
-let injected: InboundPorts | null = null;
+let injectedPorts: InboundPorts | null = null;
 
 export function setInboundPorts(p: InboundPorts | null): void {
-  injected = p;
+  injectedPorts = p;
 }
 
 export function realPorts(): InboundPorts {
-  if (injected) return injected;
+  if (injectedPorts) return injectedPorts;
   return {
     db: pg,
     runtime: loadTenantRuntime,
-    leads: { read: readLeadContext, personReplyMode },
+    leads: { read: readLeadContext, personReplyMode, offersAnswer: offersAnswerOf },
     calendar: { openings: openingsFor, visits: visitsFor },
     budget: { tokensLast24h },
-    persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply },
+    persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply, turn: replyTurn },
     alertStaff,
     page: pageOperator,
     sender: whatsappSender,

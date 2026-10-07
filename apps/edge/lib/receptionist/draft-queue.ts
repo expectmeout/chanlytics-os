@@ -10,14 +10,15 @@
  * outcome than a vetoed one, and no reply at all is worse than both.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database } from "../packages/db.js";
 import { recordOutbound } from "../packages/db.js";
 import { scheduleJob } from "../packages/jobs.js";
 import type { BrainMeta } from "../packages/contracts.js";
+import type { LogEvent } from "../log.js";
 
 export type DraftSource = "veto_window" | "low_confidence" | "steered";
 
-export interface DraftArgs {
+interface DraftArgs {
   tenantId: string;
   conversationId: string;
   contactId: string | null;
@@ -34,9 +35,9 @@ export interface DraftArgs {
   channel?: "whatsapp" | "sms";
 }
 
-export interface DraftLog {
-  warn(event: string, fields?: Record<string, unknown>): void;
-  error(event: string, fields?: Record<string, unknown>): void;
+interface DraftLog {
+  warn(event: LogEvent, fields?: Record<string, unknown>): void;
+  error(event: LogEvent, fields?: Record<string, unknown>): void;
 }
 
 export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: DraftLog): Promise<string | null> {
@@ -58,7 +59,7 @@ export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: 
       externalId: null,
       status: "queued",
       channel: a.channel ?? "whatsapp",
-      meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) } as Json,
+      meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) },
     });
     if (!messageId) return null;
     await scheduleJob(db, {

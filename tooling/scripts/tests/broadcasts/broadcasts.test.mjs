@@ -1,0 +1,1121 @@
+/**
+ * Broadcasts: one approved template to the people who said yes.
+ *
+ * The first honest campaign. A broadcast names a template Meta approved,
+ * the values for its variables and an audience crossed with who said yes;
+ * the recipients are enrolled when it is made, the job sends in batches and
+ * re-checks each person at the wire, and its numbers are its messages'
+ * statuses. This file pins the rules by execution (contracts) and by source
+ * (the door, the job, the routes, the page).
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  BROADCAST_CHUNK,
+  DECISION_SUBJECTS,
+  DECISION_VERBS,
+  EVERYONE_LABEL,
+  UNKNOWN_AUDIENCE_WORDS,
+  CONSENT_LIST_IDS,
+  doorNamesNoAudience,
+  doorOf,
+  PEOPLE_LISTS,
+  broadcastName,
+  channelsReady,
+  cleanParam,
+  eligibleFor,
+  emptyAudienceRefusal,
+  mayReceive,
+  numberHealth,
+  renderTemplate,
+  saidYesTo,
+  toBroadcastVM,
+  sentByWords,
+  whenLabel,
+  whyNotReceive,
+  offersNote,
+} from "@chanlytics/contracts";
+import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { middayZone } from "../shared/_midday-zone.mjs";
+import { installLegacyReact, fresh as freshTree, all, find, byTestId, textOf } from "../_legacy-react.mjs";
+
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const { dispatchJob } = await import(pathToFileURL(path.join(here, "../../../../packages/jobs/dist/index.js")).href);
+const { wireUnavailable, BROADCAST_STALL_RETRY_MS } = await import(
+  pathToFileURL(path.join(here, "../../../../packages/core/dist/index.js")).href
+);
+
+const person = (over = {}) => ({
+  id: over.id ?? "p1",
+  state: "active",
+  hasChat: true,
+  calls: 0,
+  phone: "+15551230001",
+  consent: {
+    state: "opted_in",
+    dnc: false,
+    label: "Opted in",
+    sub: "",
+    source: "in_person",
+    marketing: "opted_in",
+    marketingSource: "in_person",
+    marketingSub: "",
+  },
+  ...over,
+});
+
+test("the tables: the workspace's, members read, acting members enrol, only the state moves by session, nobody deletes; the ledger knows the verbs", () => {
+  const m = readRaw("supabase/migrations/00046_broadcasts.sql");
+  assert.ok(m.includes("create table public.broadcasts (") && m.includes("create table public.broadcast_recipients ("));
+  assert.ok(m.includes("check (state in ('scheduled', 'sending', 'sent', 'canceled', 'failed'))"));
+  assert.ok(m.includes("check (state in ('queued', 'sent', 'skipped', 'failed'))"));
+  assert.ok(
+    m.includes("grant update (state) on public.broadcasts to authenticated;"),
+    "a session client cancels and changes nothing else",
+  );
+  assert.ok(!/grant delete|for delete/.test(m), "a sent broadcast is a record");
+  assert.ok(
+    m.includes(
+      "and exists (select 1 from public.contacts c where c.id = contact_id and c.tenant_id = broadcast_recipients.tenant_id and c.erased_at is null)",
+    ),
+  );
+  assert.ok(m.includes("'send_broadcast', 'cancel_broadcast'") && m.includes("'channel', 'broadcast'"));
+  assert.ok(
+    DECISION_VERBS.includes("send_broadcast") &&
+      DECISION_VERBS.includes("cancel_broadcast") &&
+      DECISION_SUBJECTS.includes("broadcast"),
+  );
+});
+
+test("the one predicate: the yes THIS message needs, no do-not-contact, a number", () => {
+  // A broadcast is the business's own news, ours (decision D1).
+  assert.equal(mayReceive(person(), "marketing", "whatsapp", "ours"), true);
+  assert.equal(
+    mayReceive(person({ consent: { state: "unknown", dnc: false } }), "marketing", "whatsapp", "ours"),
+    false,
+    "not asked is not a yes",
+  );
+  assert.equal(
+    mayReceive(person({ consent: { state: "opted_in", dnc: true } }), "marketing", "whatsapp", "ours"),
+    false,
+    "the operator's block outranks a yes",
+  );
+  assert.equal(mayReceive(person({ phone: null }), "marketing", "whatsapp", "ours"), false, "nowhere to send");
+});
+
+test("ONE rule, not a second copy of it: the VM predicate delegates to mayMessageFor", async () => {
+  // This function used to restate mayMessageFor's logic by hand, because the two
+  // halves of one pipeline hold the person in two different shapes. It duly
+  // drifted. This read the source for that reason: two implementations that agree
+  // on today's fixtures is exactly the state that produced the defect. So it is
+  // run over the rule's WHOLE domain instead -- every consent, every offers answer,
+  // do-not-contact either way, both purposes (a missing number is the case above).
+  // An implementation that agrees on every input the rule can be given IS the rule,
+  // which a sample never shows and a text scan cannot.
+  const { mayMessageFor } = await import("@chanlytics/contracts");
+  for (const state of ["unknown", "opted_in", "opted_out"]) {
+    for (const marketing of ["unknown", "opted_in", "opted_out"]) {
+      for (const dnc of [false, true]) {
+        for (const purpose of ["conversational", "marketing"]) {
+          for (const about of ["theirs", "ours"]) {
+            const vm = person({ consent: { state, dnc, marketing } });
+            assert.equal(
+              mayReceive(vm, purpose, "whatsapp", about),
+              mayMessageFor({ consent: state, dnc, marketing_consent: marketing }, purpose, {
+                proactive: true,
+                channel: "whatsapp",
+                about,
+              }).ok,
+              `${state}/${marketing}/dnc:${dnc}/${purpose}/${about}`,
+            );
+          }
+        }
+      }
+    }
+  }
+});
+
+test("THE PURPOSE IS REQUIRED, because a default is what broke this", () => {
+  // It defaulted to marketing, described as "the safe answer for a caller that has
+  // not thought about it". Every caller but one then failed to think about it, so a
+  // `utility` broadcast demanded marketing consent and the live workspace's seven
+  // recorded yeses became an audience of zero. A required argument is checked by
+  // the compiler at every call site; a default cannot be audited.
+  // Six since step 3: who a send reaches also says how, the channels it ticks and the workspace's (reachFor), required too.
+  assert.equal(eligibleFor.length, 6, "REGRESSION: a defaulted parameter is not counted in .length");
+  // The channel is required too (One message, every channel, step 2): a yes covers the channels it was given for. And what
+  // the message is about (decision D1): by email the business's own news asks a yes, a visit's message does not, so no
+  // caller may leave out which it is.
+  assert.equal(
+    mayReceive.length,
+    4,
+    "REGRESSION: the purpose, the channel or what it is about went back to being optional",
+  );
+  assert.equal(whyNotReceive.length, 4, "the reasoned twin takes the same four");
+  assert.equal(saidYesTo.length, 4, "and so does the yes the row gave");
+});
+
+test("the refusal names the yes that was actually missing", () => {
+  // Nobody on it said either yes; a yes with no number to send to is core-campaigns.test.mjs's, through the route.
+  const nobody = [person({ consent: { state: "unknown", dnc: false, marketing: "unknown" } })];
+  assert.match(
+    emptyAudienceRefusal("marketing", "Regulars", nobody, { channels: ["whatsapp"], about: "ours" }),
+    /offers/i,
+  );
+  assert.match(
+    emptyAudienceRefusal("conversational", "Regulars", nobody, { channels: ["whatsapp"], about: "ours" }),
+    /yes to messages/i,
+  );
+  assert.doesNotMatch(
+    emptyAudienceRefusal("conversational", "Regulars", nobody, { channels: ["whatsapp"], about: "ours" }),
+    /said yes to offers/i,
+    "a utility refusal must not send the owner to record a consent this message does not need",
+  );
+});
+
+test("a yes about appointments is not a yes about offers, which is what error 30913 says", () => {
+  // THE CHANGE. This file used to state the opposite as doctrine: "the category
+  // of the template changes Meta's price and its rules, never ours". The
+  // carriers refused a live campaign over it -- "marketing consent was combined
+  // with other consents. Marketing consent must be collected separately."
+  const appointmentsOnly = person({ consent: { state: "opted_in", dnc: false, marketing: "unknown" } });
+  assert.equal(
+    mayReceive(appointmentsOnly, "marketing", "whatsapp", "ours"),
+    false,
+    "no offer without a yes about offers",
+  );
+  assert.equal(
+    mayReceive(appointmentsOnly, "conversational", "whatsapp", "theirs"),
+    true,
+    "but their own appointment still reaches them",
+  );
+
+  const offersToo = person();
+  assert.equal(mayReceive(offersToo, "marketing", "whatsapp", "ours"), true);
+  assert.equal(mayReceive(offersToo, "conversational", "whatsapp", "theirs"), true);
+
+  // Declining offers is not a request to stop hearing about your own visit.
+  const noOffers = person({ consent: { state: "opted_in", dnc: false, marketing: "opted_out" } });
+  assert.equal(mayReceive(noOffers, "marketing", "whatsapp", "ours"), false);
+  assert.equal(mayReceive(noOffers, "conversational", "whatsapp", "theirs"), true);
+
+  // STOP is not symmetric with that: it stops everything.
+  const stopped = person({ consent: { state: "opted_out", dnc: false, marketing: "opted_in" } });
+  assert.equal(mayReceive(stopped, "marketing", "whatsapp", "ours"), false);
+  assert.equal(mayReceive(stopped, "conversational", "whatsapp", "theirs"), false);
+});
+
+test("an audience is a People list, a list kept by hand, or everyone — each crossed with the predicate", () => {
+  const rows = [
+    person({ id: "a" }),
+    // Quiet is heard from, then nothing for more than 30 of the workspace's days (lists.ts): the row's heardDays.
+    person({ id: "b", state: "quiet", heardDays: 45 }),
+    person({ id: "c", state: "quiet", heardDays: 45, consent: { state: "unknown", dnc: false, marketing: "unknown" } }),
+    person({ id: "d", hasChat: false, calls: 2 }),
+  ];
+  // By WhatsApp, which the workspace can send on: who a send reaches also says how (reachFor), required since step 3, and
+  // what the message is about, a broadcast's the business's news (decision D1).
+  const how = {
+    channels: ["whatsapp"],
+    ready: channelsReady({
+      whatsapp: { canSend: true, refusal: null },
+      textLine: null,
+      email: { mailbox: false, domain: false },
+    }),
+    about: "ours",
+  };
+  assert.deepEqual(
+    eligibleFor(rows, "everyone", null, null, "marketing", how).map((r) => r.id),
+    ["a", "b", "d"],
+  );
+  assert.deepEqual(
+    eligibleFor(rows, "list", "quiet", null, "marketing", how).map((r) => r.id),
+    ["b"],
+    "the quiet list, of those who said yes",
+  );
+  assert.deepEqual(
+    eligibleFor(rows, "list", "phoned_only", null, "marketing", how).map((r) => r.id),
+    ["d"],
+  );
+  assert.deepEqual(eligibleFor(rows, "list", "no_such_list", null, "marketing", how), []);
+  assert.deepEqual(
+    eligibleFor(rows, "saved", null, new Set(["c", "d"]), "marketing", how).map((r) => r.id),
+    ["d"],
+    "a hand-kept list, of those who said yes",
+  );
+  assert.deepEqual(eligibleFor(rows, "saved", null, null, "marketing", how), []);
+  assert.ok(PEOPLE_LISTS.some((l) => l.id === "quiet"));
+  // The audience's name names the pool, as every other audience's does, and makes no claim its count can contradict:
+  // "Everyone who said yes 0" stood over "1 person on it said yes to offers, with no number to send to".
+  assert.equal(EVERYONE_LABEL, "Everyone");
+});
+
+test("the words a person will read, and the values Meta will accept", () => {
+  assert.equal(
+    renderTemplate("Hi {{1}}, {{2}} is 20% off at {{3}}.", ["Dani", "Balayage", "Marisa's"]),
+    "Hi Dani, Balayage is 20% off at Marisa's.",
+  );
+  assert.equal(
+    renderTemplate("Hi {{1}}, see {{2}}.", ["Dani"]),
+    "Hi Dani, see {{2}}.",
+    "a missing value stays visible, never silently blank",
+  );
+  assert.equal(renderTemplate(null, []), "");
+  assert.equal(cleanParam("  Balayage  "), "Balayage");
+  assert.equal(cleanParam("two\nlines"), null);
+  assert.equal(cleanParam("tab\there"), null);
+  assert.equal(cleanParam("four    spaces"), null);
+  assert.equal(cleanParam(""), null);
+  assert.equal(cleanParam("x".repeat(1025)), null);
+  assert.equal(cleanParam(42), null);
+  // The instant carries New York's offset: written with none, it was 3 PM wherever the suite ran, the 4th in New York
+  // from Auckland.
+  assert.equal(broadcastName("spring_offer", ZONE, new Date("2026-09-05T15:00:00-04:00")), "Spring offer · Sep 5");
+});
+
+test("the view model: delivered and read over sent, open while scheduled or sending, progress over enrolled", () => {
+  const base = {
+    id: "b1",
+    name: "Spring",
+    template_id: "t",
+    template_name: "spring_offer",
+    template_language: "en_US",
+    params: [],
+    audience: { kind: "everyone", id: null, label: EVERYONE_LABEL },
+    state: "sent",
+    scheduled_for: "2026-09-05T13:00:00Z",
+    started_at: "2026-09-05T13:00:00Z",
+    finished_at: "2026-09-05T13:02:00Z",
+    recipient_count: 10,
+    failure: null,
+    created_at: "2026-09-05T12:50:00Z",
+    counts: { queued: 0, sent: 8, skipped: 2, failed: 0, delivered: 6, read: 4, replied: 1 },
+  };
+  const vm = toBroadcastVM(base, ZONE, new Date("2026-09-06T10:00:00Z"));
+  assert.equal(vm.deliveredPct, 75);
+  assert.equal(vm.readPct, 50);
+  // A read is WhatsApp's own receipt (0030): over what went by WhatsApp where the counts say, nothing where none did.
+  const split = (sent_by) =>
+    toBroadcastVM({ ...base, counts: { ...base.counts, sent_by } }, ZONE, new Date("2026-09-06T10:00:00Z"));
+  assert.equal(split({ whatsapp: 5, sms: 2, email: 1 }).readPct, 80, "4 read of WhatsApp's 5");
+  assert.equal(split({ whatsapp: 0, sms: 6, email: 2 }).readPct, null);
+  assert.equal(sentByWords({ whatsapp: 5, sms: 2, email: 1 }), "5 on WhatsApp, 2 by text, 1 by email");
+  assert.equal(sentByWords({ whatsapp: 8, sms: 0, email: 0 }), null, "one channel: nothing to split");
+  assert.equal(sentByWords(undefined), null, "counts that did not split them");
+  assert.equal(vm.open, false);
+  assert.equal(vm.progress, 1);
+  assert.equal(vm.stateLabel, "Sent");
+  const sending = toBroadcastVM(
+    { ...base, state: "sending", finished_at: null, counts: { ...base.counts, sent: 3, skipped: 1, queued: 6 } },
+    ZONE,
+  );
+  assert.equal(sending.open, true);
+  assert.equal(sending.progress, 0.4);
+  const fresh = toBroadcastVM(
+    {
+      ...base,
+      state: "scheduled",
+      started_at: null,
+      finished_at: null,
+      counts: { queued: 10, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 },
+    },
+    ZONE,
+  );
+  assert.equal(fresh.deliveredPct, null, "nothing to divide by yet");
+  // 9 AM in New York, and a send at 3:30 PM there: each instant with its offset, as the database hands one over.
+  const now = new Date("2026-09-05T09:00:00-04:00");
+  assert.equal(whenLabel("2026-09-05T15:30:00-04:00", ZONE, now), "today 3:30 PM");
+  assert.equal(whenLabel("2026-09-06T15:30:00-04:00", ZONE, now), "tomorrow 3:30 PM");
+  assert.equal(whenLabel("2026-09-12T15:30:00-04:00", ZONE, now), "Sep 12 · 3:30 PM");
+});
+
+test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {
+  // The job is broadcast-send.ts (Reach out Part 2.5); that the dispatch map names it is store-retired.test.mjs's.
+  const h = readCode("packages/jobs/src/broadcast-send.ts");
+  // The batch is db's read now (campaign-channels.ts queuedRecipients, run against the database in memory by
+  // before-the-channel-columns.test.mjs), a page of the chunk's size.
+  assert.ok(h.includes("batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit })"));
+  assert.ok(BROADCAST_CHUNK === 25);
+  assert.ok(
+    // And its components, where an email version keeps its subject: a version is a row of the same name on its channel.
+    h.includes('.select("meta_status, body_preview, category, components")'),
+    "the category is selected: it decides which yes the send needs",
+  );
+  assert.ok(
+    // (The list is long enough to stand on its own lines, and ends with their answer about offers by email: an offer's
+    // foot says whether they asked for it or are a customer.)
+    h.includes('"id, phone_e164, consent, dnc, marketing_consent, erased_at') &&
+      h.includes("wa_profile_name, email, email_marketing"),
+    "the person's row still carries what the run needs",
+  );
+  assert.ok(h.includes('recordEvent(db, job.tenant_id, "broadcast.sent", "broadcast", id, tally)'));
+  // Not one port answers from a read whose error it dropped. Every one of them
+  // is a question the run then acts on, and `{ data }` alone turns a read that
+  // failed into a confident wrong answer -- always in the direction of a real
+  // message to a real person, or of a broadcast failed over a blip.
+  assert.ok(!/const \{ data \} = await db\./.test(h), "a broadcast port never answers from a dropped error");
+  // And its numbers are COUNTED: PostgREST caps a plain select at max_rows, so
+  // a tally read from a page of rows undercounts the big ones and is then
+  // written to the permanent record and read out to the owner.
+  assert.ok(
+    h.includes('{ count: "exact", head: true }') && !h.includes('.select("state").eq("broadcast_id"'),
+    "the tally is a count, not a page of rows",
+  );
+});
+
+const TID = "11111111-1111-1111-1111-111111111111";
+/** The workspace as the tables really hold it, one queued person, ready to send. */
+const world = () => ({
+  broadcasts: [
+    {
+      id: "b1",
+      tenant_id: TID,
+      state: "scheduled",
+      name: "Spring offer",
+      template_name: "offer",
+      template_language: "en_US",
+      params: [],
+      recipient_count: 1,
+      playbook_id: null,
+      audience: null,
+      started_at: null,
+      finished_at: null,
+      failure: null,
+    },
+  ],
+  // The batch asks the day's sending hours on the machine's clock: this workspace's noon is now, whenever the suite runs.
+  tenants: [{ id: TID, name: "Marisa's", status: "active", timezone: middayZone() }],
+  tenant_config: [{ tenant_id: TID, config: {} }],
+  templates: [
+    {
+      tenant_id: TID,
+      channel: "whatsapp",
+      name: "offer",
+      language: "en_US",
+      meta_status: "approved",
+      body_preview: "A spring offer.",
+      category: "MARKETING",
+    },
+  ],
+  broadcast_recipients: [
+    { tenant_id: TID, broadcast_id: "b1", contact_id: "k1", state: "queued", facts: null, sent_at: null },
+  ],
+  contacts: [
+    {
+      id: "k1",
+      tenant_id: TID,
+      phone_e164: "+15551230001",
+      consent: "opted_in",
+      dnc: false,
+      marketing_consent: "opted_in",
+      erased_at: null,
+      display_name: "Ada",
+      wa_profile_name: null,
+    },
+  ],
+  messages: [],
+  events: [],
+  jobs: [],
+});
+
+test("the job's ports fail CLOSED: a read that did not happen never answers 'not paused', 'Meta withdrew it' or 'they have not been messaged'", async () => {
+  const sent = [];
+  const ctx = (db) => ({
+    db,
+    wire: {},
+    alert: async (news) => sent.push([news.subject, news.body]),
+    schedule: async () => {},
+    deadline: Date.now() + 60_000,
+  });
+  const job = { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } };
+  const blip = { message: "canceling statement due to statement timeout" };
+
+  // The billing gate. `data?.status === "paused"` on a failed read is false,
+  // and a paid template blast then goes out under a subscription that stopped.
+  await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "tenants.select": blip })), job), /cannot read the workspace/);
+
+  // The worst of the three. A null template reads as "no longer approved by
+  // WhatsApp": the broadcast is terminally failed and the owner is emailed
+  // something untrue about their Meta account, over a statement timeout.
+  const w = world();
+  await assert.rejects(dispatchJob(ctx(fakeDb(w, { "templates.select": blip })), job), /cannot read template/);
+  assert.notEqual(w.broadcasts[0].state, "failed", "not failed over a read that did not happen");
+  assert.deepEqual(sent, [], "and nobody is told WhatsApp rejected a template it did not reject");
+
+  // The one check between a resumed run and a second template to the same
+  // person: null here is "they have not been messaged yet". It is read once
+  // for the whole batch, and a read that fails leaves the whole batch queued:
+  // nobody is sent, nobody is marked, and the next batch waits rather than spin.
+  const m = world();
+  const later = [];
+  await dispatchJob(
+    { ...ctx(fakeDb(m, { "messages.select": blip })), schedule: async (kind, dueAt) => later.push([kind, dueAt]) },
+    job,
+  );
+  assert.deepEqual(m.messages, [], "nothing is sent over a read that did not happen");
+  assert.equal(m.broadcast_recipients[0].state, "queued", "and nobody is marked as reached");
+  assert.equal(later.length, 1, "the batch is tried again");
+  assert.ok(later[0][0] === "broadcast_send" && later[0][1].getTime() > Date.now(), "a while later, not this second");
+
+  // An empty business name is not a fallback: it fills a slot with nothing, and
+  // the verb marks everyone in the batch permanently "missing_value".
+  await assert.rejects(
+    dispatchJob(ctx(fakeDb(world(), { "tenant_config.select": blip })), job),
+    /workspace's settings/,
+  );
+});
+
+test('the job carries WhatsApp\'s "not now" through: the person back in the queue, the next batch after the next wait with the count, the run still sending', async (t) => {
+  const { BROADCAST_THROTTLE_WAITS_MS } = await import("@chanlytics/contracts");
+  // The job reads the machine's clock, and a wait that would end outside the day's sending hours stops the run
+  // instead (core backOff): run at night, this would prove the stop, not the wait. A June weekday at 14:00 UTC is
+  // inside the hours by any clock the job may read, and the next wait stays inside them.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-06-10T14:00:00Z") });
+  const w = world();
+  w.tenants[0].timezone = "UTC"; // the clock is the mocked one: 14:00 here, not the noon of the zone the suite's own hour picks
+  // The person's thread, as the door reads it: the contact's answers and the workspace's status beside the row.
+  w.conversations = [
+    {
+      id: "c1",
+      tenant_id: TID,
+      contact_id: "k1",
+      paused_until: null,
+      contacts: { consent: "opted_in", dnc: false, marketing_consent: "opted_in", erased_at: null },
+      tenants: { status: "active" },
+    },
+  ];
+  const later = [];
+  const tried = [];
+  const ctx = {
+    db: fakeDb(w),
+    // Graph's own answer to a number sending faster than it may: HTTP 400, code 130429.
+    wire: {
+      whatsapp: async (to) => {
+        tried.push(to);
+        return { ok: false, wamid: null, status: 400, errorBody: '{"error":{"code":130429}}', code: 130429 };
+      },
+    },
+    alert: async () => {},
+    schedule: async (kind, dueAt, payload) => later.push({ kind, dueAt, payload }),
+    deadline: Date.now() + 60_000,
+  };
+  const before = Date.now();
+  await dispatchJob(ctx, {
+    id: "j1",
+    tenant_id: TID,
+    kind: "broadcast_send",
+    payload: { broadcast_id: "b1", waits: 2 },
+  });
+  assert.equal(tried.length, 1, "the wire was asked once");
+  assert.equal(w.broadcast_recipients[0].state, "queued", "and the person it refused is queued again, not burned");
+  assert.equal(w.broadcasts[0].state, "sending", "the run is neither failed nor finished");
+  assert.equal(later.length, 1);
+  assert.equal(later[0].kind, "broadcast_send");
+  assert.deepEqual(later[0].payload, { broadcast_id: "b1", waits: 3 }, "the count rides to the next batch");
+  const wait = later[0].dueAt.getTime() - before;
+  assert.ok(
+    wait >= BROADCAST_THROTTLE_WAITS_MS[2] && wait < BROADCAST_THROTTLE_WAITS_MS[2] * 1.2 + 5_000,
+    `the third wait, drawn up to a fifth longer, ${wait} ms`,
+  );
+});
+
+test("a wire that could not be bound claims nobody: the run stays as it was, its people stay queued, nobody is told to reconnect, and the batch is tried again a while on", async () => {
+  // The workspace's credentials could not be READ this heartbeat (the edge's
+  // waCredentialsForTenant: Vault or the database did not answer). That is not
+  // a number that is absent, and a claim settles only forward (00182), so the
+  // batch asks before it claims and leaves the whole run for the next tick.
+  const w = world();
+  const sent = [];
+  const later = [];
+  const before = Date.now();
+  await dispatchJob(
+    {
+      db: fakeDb(w),
+      wire: { whatsapp: wireUnavailable("vault unavailable") },
+      alert: async (news) => sent.push(news),
+      schedule: async (kind, dueAt, payload) => later.push([kind, dueAt, payload]),
+      deadline: Date.now() + 60_000,
+    },
+    { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } },
+  );
+  assert.equal(w.broadcasts[0].state, "scheduled", "not failed, not even started: nothing was sent");
+  assert.equal(w.broadcasts[0].failure, null);
+  assert.equal(w.broadcast_recipients[0].state, "queued", "nobody is claimed into a wire nobody can bind");
+  assert.deepEqual(w.messages, [], "nothing is sent");
+  assert.deepEqual(sent, [], "nobody is told WhatsApp could not be reached, or to reconnect a number that may work");
+  assert.deepEqual(
+    later.map(([kind, , payload]) => [kind, payload]),
+    [["broadcast_send", { broadcast_id: "b1", stalls: 1 }]],
+    "the batch is tried again, the stall counted in the job",
+  );
+  assert.ok(later[0][1].getTime() >= before + BROADCAST_STALL_RETRY_MS, "a while later, not this second");
+});
+
+test("the job reads the stalls it carried, so a run that keeps stalling stops at the cap instead of waiting for ever, and the owner is told", async () => {
+  const { BROADCAST_STALLS_MAX } = await importSrc("packages/core/src/messages/broadcast.ts");
+  const w = world();
+  const sent = [];
+  const later = [];
+  const stalled = (carried) =>
+    dispatchJob(
+      {
+        db: fakeDb(w),
+        wire: { whatsapp: wireUnavailable("vault unavailable") },
+        alert: async (news) => sent.push(news),
+        schedule: async (kind, dueAt, payload) => later.push([kind, dueAt, payload]),
+        deadline: Date.now() + 60_000,
+      },
+      { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1", ...carried } },
+    );
+
+  // One short of the cap: waits once more, the count one higher in the next job.
+  await stalled({ stalls: BROADCAST_STALLS_MAX - 1 });
+  assert.deepEqual(
+    later.map(([kind, , payload]) => [kind, payload]),
+    [["broadcast_send", { broadcast_id: "b1", stalls: BROADCAST_STALLS_MAX }]],
+  );
+  assert.deepEqual(sent, [], "nobody is told yet");
+
+  // At the cap: no next job, the run is failed as stalled, and its owner is told how it ended.
+  later.length = 0;
+  await stalled({ stalls: BROADCAST_STALLS_MAX });
+  assert.deepEqual(later, [], "nothing more is scheduled");
+  assert.equal(w.broadcasts[0].state, "failed");
+  assert.equal(w.broadcasts[0].failure, "stalled");
+  assert.deepEqual(
+    sent.map((n) => [n.kind, n.subject]),
+    [["broadcast_stopped", "Broadcast “Spring offer” stopped"]],
+  );
+
+  // Anything but a count in the payload is none: a run that was handed junk starts its count again, never throws.
+  later.length = 0;
+  const fresh = world();
+  await dispatchJob(
+    {
+      db: fakeDb(fresh),
+      wire: { whatsapp: wireUnavailable("vault unavailable") },
+      alert: async () => {},
+      schedule: async (kind, dueAt, payload) => later.push([kind, dueAt, payload]),
+      deadline: Date.now() + 60_000,
+    },
+    { id: "j2", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1", stalls: "many", waits: -3 } },
+  );
+  assert.deepEqual(later[0][2], { broadcast_id: "b1", stalls: 1 });
+});
+
+test("the routes: an approved template, values Meta accepts, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", () => {
+  const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
+  assert.ok(r.includes('role: "operator",') && r.includes('rate: "broadcast",'));
+  // The template, the values, the audience, the number, the assembly and the ledger are run: core-campaigns.test.mjs.
+  const a = readCode("apps/dashboard/src/server/ports/campaign-ports.ts");
+  assert.ok(
+    a.includes('.select("id, name, language, meta_status, category, variables, body_preview, title")'),
+    "category is selected, or the purpose is always marketing",
+  );
+  const l = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
+  assert.ok(
+    l.includes('if (status === "delivered" || status === "read") c.delivered += 1;'),
+    "delivered comes from the receipts, never from the send",
+  );
+  assert.ok(
+    readCode("apps/dashboard/src/server/rate-limit.ts").includes(
+      'broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" }',
+    ),
+  );
+});
+
+/* ---- the page, drawn: TSX (surfaces/campaigns/broadcasts) on a stub React, over the values the seam holds ---- */
+
+const went = [];
+installLegacyReact({
+  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: TID,
+  usePPToast: () => [null, () => {}],
+  CHANLY: { nav: (to) => went.push(to) },
+  __ME: { role: "owner" },
+  canDo: () => true,
+  gate: () => ({}),
+  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
+  __DEMO_MODE: false,
+});
+const SRC = "../../../../apps/dashboard/src";
+// What the shell still owns and the page draws by name: Confirm, StatePill.
+await import(`${SRC}/legacy/components/data-bits.jsx`);
+const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
+const { SURFACE_ROUTES, routeHasPage } = await import(`${SRC}/surfaces/routes.ts`);
+
+const marketing = {
+  id: "tpl-m",
+  name: "spring_offer",
+  language: "en_US",
+  channel: "whatsapp",
+  meta_status: "approved",
+  category: "MARKETING",
+  purpose: "marketing",
+  body_preview: "Hi {{1}}, spring is here.",
+  variables: [{ position: 1, label: "First name" }],
+};
+const utility = { ...marketing, id: "tpl-u", name: "visit_note", category: "UTILITY", purpose: "conversational" };
+/** Who a send to an audience reaches, as the surface keeps them (contracts AudiencePreview): a few of them, and the counts. */
+const reach = (sending, saidYes) => ({
+  people: sending > 0 ? [{ id: "k1", label: "Ada Lovelace", firstName: "Ada", refusal: null }] : [],
+  sending,
+  held: 0,
+  saidYes,
+  heard: 0,
+});
+/** An audience the page offers, counted for each purpose as the surface counts it: a message and an offer each need their own yes. */
+const audienceOf = (id, label, counts, saidYes = counts) => ({
+  kind: "saved",
+  id,
+  label,
+  hint: `${label}, of those whose yes covers this message`,
+  counts,
+  preview: {
+    conversational: reach(counts.conversational, saidYes.conversational),
+    marketing: reach(counts.marketing, saidYes.marketing),
+  },
+});
+const REGULARS = audienceOf("s-regulars", "Regulars", { conversational: 3, marketing: 2 });
+const NOBODY = audienceOf("s-nobody", "New this week", { conversational: 0, marketing: 0 });
+const RUN = toBroadcastVM(
+  {
+    id: "b1",
+    name: "Spring offer · Sep 5",
+    template_id: "tpl-m",
+    template_name: "spring_offer",
+    template_language: "en_US",
+    params: [{ kind: "first_name" }],
+    audience: { kind: "saved", id: "s-regulars", label: "Regulars" },
+    state: "sent",
+    scheduled_for: "2026-09-05T13:00:00Z",
+    started_at: "2026-09-05T13:00:00Z",
+    finished_at: "2026-09-05T13:02:00Z",
+    recipient_count: 2,
+    failure: null,
+    created_at: "2026-09-05T12:50:00Z",
+    playbook_id: null,
+    run_for: null,
+    counts: { queued: 0, sent: 2, skipped: 0, failed: 0, delivered: 2, read: 1, replied: 1 },
+  },
+  ZONE,
+);
+const GOOD_NUMBER = {
+  present: true,
+  display: "+1 305-555-0100",
+  health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
+};
+/** The Broadcasts surface as a workspace that has read its own holds it (surface.ts BroadcastsSurface). */
+const surfaceOf = (over = {}) => ({
+  rows: [RUN],
+  templates: [marketing],
+  listsRead: true,
+  audiences: [REGULARS],
+  number: GOOD_NUMBER,
+  heldReasons: {},
+  chunk: 25,
+  replyWindow: "within 3 days",
+  optIn: {
+    phrase: "YES OFFERS",
+    phraseEs: "SI OFERTAS",
+    link: "https://wa.me/13055550100?text=YES%20OFFERS",
+    qrPath: "/api/v1/consent/qr",
+    pageUrl: "https://app.chanlytics.com/yes/studio",
+  },
+  getYes: "broadcasts/get-yes",
+  businessName: "Northside Studio",
+  bookingLink: false,
+  more: false,
+  scheduleMaxDays: 30,
+  fetchedAt: 1,
+  ...over,
+});
+/** The page drawn afresh over a surface: a link that names a list opens the send screen on it, none opens the ledger. */
+const drawn = (props = {}, over = {}) => {
+  setSurfaceValue("broadcasts", surfaceOf(over));
+  freshTree();
+  return BroadcastsPage(props);
+};
+const compose = (over = {}) => drawn({ initialSegment: "s-regulars" }, over);
+// The list the send is for is the kit's picker's token: the one chosen, with the count this message reaches, which is its
+// option's word at the end (the chips that carried it are gone).
+const chipOf = (tree) => {
+  const p = find(tree, (n) => n.type === Picker && n.props["data-testid"] === "bc-audience");
+  const one = p.props.groups.flatMap((g) => g.options).find((o) => o.value === p.props.value);
+  return `${one.label} ${one.meta}`;
+};
+
+test("the surface and the page: Broadcasts is real, fed by the same rules, and the demo draws the sample", async () => {
+  const reg = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href
+  );
+  assert.equal(reg.SURFACE_STATES.broadcasts, "real");
+  assert.equal(reg.ROUTE_SURFACE.broadcasts, "broadcasts");
+  const s = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+  assert.ok(s.includes('key: "broadcasts",'));
+  // BOTH sizes per audience, because there is no one number any more: the chip's
+  // count depends on the purpose of the template the composer has selected, which
+  // the surface cannot know when it loads. A single count computed here promised an
+  // audience the route would then refuse.
+  // One pass per purpose now keeps a few of the rows as well as counting them, so
+  // the composer can show one of the people the number is a length of.
+  // And one per set of channels a send may tick (One message, every channel, step 3): the default, WhatsApp alone, is the
+  // pair every audience carries, and the others are its `by`, read by the composer as the owner ticks.
+  // Each reading says what a broadcast is about, the business's own news (decision D1): by email it asks a yes or dealings.
+  assert.ok(
+    s.includes('audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touched)'),
+  );
+  assert.ok(s.includes('conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS)'));
+  assert.ok(s.includes('marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS)'));
+  assert.ok(
+    s.includes("counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }"),
+    "the chip's number is the length of the list the preview walks -- never a second count",
+  );
+  assert.ok(
+    s.includes("purpose: purposeOfTemplate(t.category)"),
+    "the purpose is stamped by the surface, never decided in the page",
+  );
+  assert.ok(s.includes('.filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")'));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));
+  // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
+  assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");
+
+  // The demo keeps the page: a session that declared itself a demo draws the sample through it; a real workspace that
+  // has read nothing draws nothing, never the sample.
+  setSurfaceValue("broadcasts", undefined);
+  assert.equal(BroadcastsPage({}), null, "nothing read, nothing drawn");
+  globalThis.__DEMO_MODE = true;
+  try {
+    freshTree();
+    const demo = BroadcastsPage({});
+    assert.ok(byTestId(demo, "broadcasts-real"), "the demo draws the page");
+    assert.ok(textOf(byTestId(demo, "bc-runs")).includes("A quick note"), "over the sample's runs");
+    assert.ok(
+      find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "bc-new"),
+      "on its ledger, one press from a send",
+    );
+  } finally {
+    globalThis.__DEMO_MODE = false;
+  }
+
+  const composer = compose();
+  for (const id of ["broadcasts-real", "bc-audience", "bc-preview", "bc-send"]) assert.ok(byTestId(composer, id), id);
+  // The template picker is one component across both composers, so the page
+  // names its chips rather than spelling the attribute.
+  assert.ok(byTestId(composer, "bc-template"), "bc-template");
+  assert.ok(byTestId(compose({ templates: [] }), "bc-no-template"), "no approved template says so");
+  // The empty-audience line names WHICH yes is missing and where to record it. It
+  // used to say "said yes to offers" for every template, which for a `utility` one
+  // sent the owner to record a consent that message does not need.
+  const nobody = { audiences: [NOBODY] };
+  const offers = textOf(byTestId(drawn({ initialSegment: "s-nobody" }, nobody), "bc-nobody"));
+  assert.ok(
+    offers.includes("has said yes to offers yet — that is a separate answer from saying yes to messages"),
+    offers,
+  );
+  const messages = textOf(
+    byTestId(drawn({ initialSegment: "s-nobody" }, { ...nobody, templates: [utility] }), "bc-nobody"),
+  );
+  assert.ok(messages.includes("has said yes to messages yet") && !/yes to offers/.test(messages), messages);
+  // The count on a chip is the one for the chosen template's purpose: an offer needs the separate yes, a message does not.
+  assert.equal(chipOf(compose()), "Regulars 2", "an offer reaches those who said yes to offers");
+  assert.equal(
+    chipOf(compose({ templates: [utility] })),
+    "Regulars 3",
+    "a message reaches everyone whose yes covers it",
+  );
+  // Nothing invented: no credits, no revenue, on the send screen or the ledger.
+  for (const tree of [composer, drawn()])
+    assert.ok(!/credits|Booked from broadcasts|\$\d/.test(textOf(tree)), "nothing the schema has no column for");
+});
+
+test("the number's health: what WhatsApp said decides what may be sent; nothing reported is said so", async () => {
+  const { overLimitRefusal, dailyLimit } = await import("@chanlytics/contracts");
+  assert.equal(dailyLimit("TIER_1K"), 1000);
+  assert.equal(dailyLimit("tier_250"), 250);
+  assert.equal(dailyLimit(null), null);
+  assert.equal(dailyLimit("weird"), null);
+  const flagged = numberHealth({ quality: "GREEN", event: "FLAGGED", limit: "TIER_1K" });
+  assert.equal(flagged.canSend, false);
+  assert.equal(flagged.tone, "danger");
+  assert.ok(flagged.refusal.includes("flagged"));
+  assert.equal(numberHealth({ quality: "RED", event: null, limit: null }).canSend, false);
+  const good = numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" });
+  assert.equal(good.canSend, true);
+  assert.equal(good.tone, "ok");
+  assert.ok(good.label.includes("up to 250 new conversations a day"));
+  assert.equal(numberHealth({ quality: "YELLOW", event: null, limit: null }).tone, "warn");
+  const unknown = numberHealth({ quality: null, event: null, limit: null });
+  assert.equal(unknown.canSend, true);
+  assert.equal(unknown.tone, "unknown");
+  assert.ok(unknown.label.includes("not reported yet"), "nothing reported is said so, never assumed");
+  assert.equal(overLimitRefusal(good, 250), null);
+  assert.ok(overLimitRefusal(good, 251).includes("up to 250"));
+  assert.equal(overLimitRefusal(unknown, 5000), null, "no limit reported means no refusal on the limit");
+  assert.equal(numberHealth({ quality: null, event: null, limit: "TIER_UNLIMITED" }).limitPerDay, Infinity);
+});
+
+test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", () => {
+  // The detail route answers getBroadcast's own answer: run through its reader in readers.test.mjs.
+  const s = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
+  assert.ok(s.includes("contacts(display_name, wa_profile_name, phone_e164, email)"), "names come with the rows");
+  assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
+  // The number's refusals are run: core-campaigns.test.mjs. Its quality, read from the row's config, is run through the
+  // channels route in reads-routes.test.mjs ("the channels read") and through its reader in readers.test.mjs.
+  const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+  assert.match(
+    sd,
+    /health: numberHealth\(\{\s*quality: wa\?\.quality \?\? null,\s*event: wa\?\.quality_event \?\? null,\s*limit: wa\?\.messaging_limit \?\? null,?\s*\}\),/,
+  );
+  assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
+  // bc-detail, bc-person and bc-open-who are a run's and the ledger's (run.tsx, ledger.tsx);
+  // broadcasts-honest and runs-honest draw them. The number the send goes from, on the send screen: what WhatsApp says
+  // of it, why it may not send, and the button that follows it.
+  const numberOn = (health, over = {}) =>
+    compose({ number: { present: true, display: "+1 305-555-0100", health }, ...over });
+  const send = (tree) => byTestId(tree, "bc-send");
+  const ok = numberOn(numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" }));
+  assert.ok(byTestId(ok, "bc-number"), "the number is said");
+  assert.equal(byTestId(ok, "bc-number-refusal"), null);
+  assert.equal(byTestId(ok, "bc-over-limit"), null);
+  assert.equal(
+    send(ok).props.disabled,
+    false,
+    "a number that may send, an audience inside its limit: the button is live",
+  );
+  const flagged = numberOn(numberHealth({ quality: "GREEN", event: "FLAGGED", limit: "TIER_1K" }));
+  assert.ok(textOf(byTestId(flagged, "bc-number-refusal")).includes("flagged"), "why it may not send");
+  assert.equal(send(flagged).props.disabled, true, "the button follows the number");
+  const big = audienceOf("s-regulars", "Regulars", { conversational: 300, marketing: 300 });
+  const over = numberOn(numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" }), { audiences: [big] });
+  assert.ok(textOf(byTestId(over, "bc-over-limit")).includes("up to 250"), "an audience past the day's limit says so");
+  assert.equal(send(over).props.disabled, true, "and the button follows the limit too");
+  const none = compose({
+    number: { present: false, display: null, health: numberHealth({ quality: null, event: null, limit: null }) },
+  });
+  assert.ok(textOf(byTestId(none, "bc-number")).includes("No WhatsApp number connected"));
+  assert.equal(send(none).props.disabled, true, "no number, nothing to send from");
+  const vm = readCode("packages/contracts/src/conversations/message-author.ts");
+  assert.ok(
+    vm.includes('{ kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") }') &&
+      vm.includes('{ kind: "playbook", name: String(m.meta.playbook_name) }'),
+  );
+  assert.ok(
+    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`a broadcast (${entry.via.name})`") &&
+      readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} playbook`"),
+    "the thread says which broadcast, or which playbook",
+  );
+  assert.ok(
+    readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts").includes(
+      "window.__refreshBroadcasts = refreshBroadcasts;",
+    ),
+  );
+});
+
+test("getting their yes: an unambiguous phrase the ingest records, a link that opens WhatsApp with it, a QR of that link, and a receptionist that thanks them", async () => {
+  const { OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, optInLink } = await import("@chanlytics/contracts");
+  assert.equal(OFFERS_OPT_IN_PHRASES.en, "YES OFFERS");
+  for (const w of ["YES OFFERS", "yes offers", "Sí ofertas!", "si ofertas", "START"])
+    assert.ok(OPT_IN_PATTERN.test(w), w);
+  for (const w of ["yes", "offers", "yes offers please", "yes to offers"])
+    assert.ok(!OPT_IN_PATTERN.test(w), `"${w}" must not opt in`);
+  assert.equal(optInLink("+1 (305) 555-0188"), "https://wa.me/13055550188?text=YES%20OFFERS");
+  assert.equal(optInLink("+13055550188", OFFERS_OPT_IN_PHRASES.es), "https://wa.me/13055550188?text=SI%20OFERTAS");
+  assert.equal(optInLink(null), null);
+  assert.equal(optInLink("12"), null);
+  assert.ok(
+    readCode("packages/contracts/src/config/workspace-config/compose.ts").includes(
+      "If a message is only the words YES OFFERS or SI OFERTAS",
+    ),
+    "the receptionist thanks them and asks nothing else",
+  );
+  const q = readCode("apps/dashboard/app/api/v1/consent/qr/route.ts", "apps/dashboard/src/server/people/consent-qr.ts");
+  assert.ok(
+    q.includes("const link = optInLink(ch?.number_e164);") &&
+      q.includes('"content-type": "image/svg+xml; charset=utf-8"'),
+    "the code encodes one link and nothing a caller chooses",
+  );
+  assert.ok(
+    readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts").includes(
+      'qrPath: optInLink(wa?.number_e164) ? api().url("GET consent/qr") : null,',
+    ),
+  );
+  const ledger = drawn();
+  const optIn = byTestId(ledger, "bc-optin");
+  assert.ok(optIn && byTestId(ledger, "bc-optin-copy"), "the section, and the link to copy");
+  assert.ok(
+    find(ledger, (n) => n.props?.download === "say-yes-to-offers.svg"),
+    "the QR downloads as the file the owner prints",
+  );
+  // Five places said "the phrase and the QR are on Broadcasts" and none went there: two opened the TOP of the
+  // page, where the composer is and this section is below the fold, and three printed it beside a disabled
+  // button. broadcasts/get-yes lands on the section itself.
+  assert.ok(
+    optIn.props.id === "bc-optin" && String(optIn.props.className).includes("ct-section bc-optin"),
+    "the section carries the anchor the door goes to",
+  );
+  const scrolled = [];
+  const fold = { open: false };
+  const keep = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) =>
+    id === "bc-optin" ? { querySelector: () => fold, scrollIntoView: (o) => scrolled.push(o) } : null;
+  try {
+    drawn({ initialYes: true });
+  } finally {
+    globalThis.document.getElementById = keep;
+  }
+  assert.deepEqual(
+    [fold.open, scrolled],
+    [true, [{ block: "start" }]],
+    "the door lands on the QR, opened, not above it",
+  );
+  // And the QR reaches the desk: a bare code printed says nothing about whose messages or how to stop them, and
+  // the .svg it downloaded as is a file most owners cannot open. The sign is the code with those words, one sheet.
+  const sign = byTestId(ledger, "bc-optin-sign");
+  assert.equal(sign.props.href, "https://app.chanlytics.com/yes/studio/sign");
+  assert.equal(textOf(sign), "Print a desk sign");
+  assert.deepEqual(
+    // The elements drawn (a kit Button is its own node and the host button it draws, both carrying the id).
+    all(
+      optIn,
+      (n) => typeof n.type === "string" && ["bc-optin-sign", "bc-optin-copy"].includes(n.props?.["data-testid"]),
+    ).map((n) => n.props["data-testid"]),
+    ["bc-optin-sign", "bc-optin-copy"],
+    "the section's first button prints the sign",
+  );
+});
+
+test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campaign.broadcast) as a card, never sent; nobody without a yes is ever included", async () => {
+  const { PROPOSAL_GATE, buildAskSuggestions } = await import("@chanlytics/contracts");
+  assert.equal(PROPOSAL_GATE.broadcast, "approve");
+  // Both tools are the registry's, and run in ask-turn.test.mjs: campaigns.audiences with every size named for what it
+  // counts, and propose_campaign.broadcast as a card of kind broadcast that an operator may approve ("the proposal builders
+  // run against the database in memory"), refused with the cause it has when nobody can receive it -- the same yes
+  // the route asks for, from the template's own category ("a broadcast to nobody is refused with the cause it has").
+  const { toApiTools, newToolContext, buildProposal, ACT_TOOL_NAMES } = await importSrc(
+    "apps/dashboard/src/server/ask/tools/index.ts",
+  );
+  const READ_TOOLS = toApiTools("viewer", true);
+  const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
+  assert.ok(READ_TOOLS.some((t) => t.name === "campaigns"));
+  // Only an approved template: a pending one is refused before anyone is counted.
+  const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const PENDING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd9";
+  const supabase = fakeDb(
+    {
+      templates: [
+        {
+          id: PENDING,
+          tenant_id: WS,
+          channel: "whatsapp",
+          name: "soon",
+          language: "en",
+          meta_status: "pending",
+          category: "MARKETING",
+          variables: [],
+          body_preview: "See you soon.",
+          hidden_at: null,
+        },
+      ],
+    },
+    {},
+    {},
+  );
+  const t = newToolContext(
+    { supabase, userId: "u1", email: "ada@example.com", params: {} },
+    WS,
+    "operator",
+    ZONE,
+    new Date("2026-09-14T14:00:00Z"),
+  );
+  const pending = await buildProposal(t, "propose_campaign", {
+    action: "broadcast",
+    template_id: PENDING,
+    audience_kind: "everyone",
+  });
+  assert.deepEqual([pending.proposal, pending.isError], [null, true]);
+  assert.match(JSON.parse(pending.result).error, /that template is not approved by WhatsApp/);
+  // The card commits through the broadcast route, the same door the page uses, and its undo is the cancel route:
+  // executed in ask-commit.test.mjs ("a broadcast and a playbook", "an undo names the decision it reverses"), over
+  // the typed client, from the broadcast's spec (contracts ask-proposals/campaigns.ts).
+  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  assert.ok(
+    prompt.includes('"said yes":') && /\n\s+"?broadcast"?:\s*\n/.test(prompt) && prompt.includes('"held back":'),
+  );
+  // The rule that described one tool lives in that tool since PR 3.3 (D9): the registry's own description says it.
+  assert.ok(
+    ACT_TOOLS.find((t) => t.name === "propose_campaign").description.includes("never propose a broadcast to nobody"),
+    "a broadcast to nobody is never proposed",
+  );
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes('broadcast: "wave"'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-text.jsx").includes('kBroadcast: "broadcast"'));
+  const s = buildAskSuggestions({
+    lang: "en",
+    surface: "other",
+    scope: null,
+    canAct: true,
+    heldDrafts: 0,
+    needsYou: 0,
+  });
+  assert.ok(
+    s.some((x) => x.kind === "act" && x.label === "Send an offer to a list"),
+    "the Act group offers it where broadcasts live",
+  );
+});
+
+test("the page says once why a customer who only ever texted is not in an offer's count", () => {
+  // The wire refuses per customer (sms_carries_no_promotions); the page states the rule beside the count, in the same
+  // words the carriers were told, and as the workspace's channels make it true (contracts offersNote): a page that read no
+  // channels counts WhatsApp alone, as every page did before them.
+  const alone = offersNote(
+    channelsReady({
+      whatsapp: { canSend: true, refusal: null },
+      textLine: null,
+      email: { mailbox: false, domain: false },
+    }),
+  );
+  assert.match(alone, /^Offers and news go by WhatsApp only\./);
+  assert.match(alone, /registered with the carriers for replies and appointment messages/);
+  assert.match(alone, /nothing promotional is sent by text/);
+  assert.match(alone, /once they say yes on WhatsApp/);
+});
+
+test("a door to the composer that names a list it does not offer says so: it opened on Everyone in silence", () => {
+  const audiences = [
+    { kind: "everyone", id: null },
+    { kind: "list", id: "lapsed" },
+    { kind: "saved", id: "s-vip" },
+  ];
+  assert.equal(doorNamesNoAudience("lapsed", audiences), false, "a People list the composer offers");
+  assert.equal(doorNamesNoAudience("s-vip", audiences), false, "a list kept by hand");
+  assert.equal(doorNamesNoAudience(null, audiences), false, "New message with no list named");
+  // The consent lists are the filter itself, so a door from one means Everyone and needs no word.
+  for (const to of ["opted_in", "offers_ok"]) assert.equal(doorNamesNoAudience(to, audiences), false, to);
+  // A list archived since the link was made, one this workspace has not the data for, a word that was never a list,
+  // and the people who asked to stop, who are nobody's audience.
+  for (const to of ["s-archived", "booked_week", "nonsense", "opted_out"])
+    assert.equal(doorNamesNoAudience(to, audiences), true, to);
+  // Before the audiences are read nothing is known, so nothing is said.
+  assert.equal(doorNamesNoAudience("s-archived", null), false);
+  // The consent lists are named once, for the composer's audiences and for this door (CONSENT_LIST_IDS).
+  assert.deepEqual([...CONSENT_LIST_IDS], ["opted_in", "offers_ok", "opted_out"]);
+  // People's own step for the Can receive offers list writes this door: the composer, on Everyone, with no word.
+  assert.equal(doorOf("broadcasts/offers_ok"), "campaigns/new:to:offers_ok");
+  assert.equal(doorNamesNoAudience("offers_ok", audiences), false);
+  assert.equal(
+    UNKNOWN_AUDIENCE_WORDS,
+    "That list can't be messaged right now, so check who this is addressed to before you send.",
+  );
+});

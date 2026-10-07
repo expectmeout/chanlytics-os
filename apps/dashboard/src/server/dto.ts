@@ -1,4 +1,10 @@
-import { normalizeEmail, type CallDto, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
+import {
+  memberMetaOf,
+  normalizeEmail,
+  type CallDto,
+  type ConversationDto,
+  type MessageDto,
+} from "@chanlytics/contracts";
 
 /**
  * Row → DTO mapping, in one place.
@@ -13,7 +19,7 @@ import { normalizeEmail, type CallDto, type ConversationDto, type MessageDto } f
  */
 
 export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url)";
+  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
@@ -21,7 +27,7 @@ export const MESSAGE_COLUMNS =
 export const CALL_COLUMNS =
   "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164)";
 
-export interface ConversationRow {
+interface ConversationRow {
   id: string;
   state: string;
   paused_until: string | null;
@@ -41,10 +47,13 @@ export interface ConversationRow {
     marketing_consent: string | null;
     /** The owner's proposal link for this person (00154): the thread's Actions put it in the reply. */
     proposal_url: string | null;
+    /** When mail to their address stopped, and why (00126): the reply box says it before anyone writes (contracts emailStoppedWords). */
+    email_suppressed_at: string | null;
+    email_suppressed_reason: string | null;
   } | null;
 }
 
-export interface MessageRow {
+interface MessageRow {
   id: string;
   conversation_id: string;
   direction: string;
@@ -58,9 +67,21 @@ export interface MessageRow {
   channel_ts: string | null;
   /** The wire it travelled: whatsapp, sms or voice. A text thread read as WhatsApp without it (I5). */
   channel: string | null;
+  /** What the provider said when it failed (messages.error), on a row read with it: newest_messages does not answer it. */
+  error?: unknown;
 }
 
-export interface CallRow {
+/**
+ * A failed message's error as the DTO carries it: the object the row keeps, for a message that failed and nothing for
+ * any other, so the owner's thread can say why (contracts sendFailureWords) and a message that arrived carries none.
+ */
+function failedErrorOf(status: string, error: unknown): Pick<MessageDto, "error"> {
+  return status === "failed" && error !== null && typeof error === "object" && !Array.isArray(error)
+    ? { error: error as Record<string, unknown> }
+    : {};
+}
+
+interface CallRow {
   id: string;
   retell_call_id: string;
   direction: string;
@@ -107,13 +128,29 @@ export interface CallRow {
 export function mediaPublic(raw: unknown): MessageDto["media"] {
   if (!raw || typeof raw !== "object") return null;
   const m = raw as Record<string, unknown>;
-  const str = (k: string) => (typeof m[k] === "string" ? (m[k] as string) : null);
+  const str = (k: string) => (typeof m[k] === "string" ? m[k] : null);
   return {
     mime_type: str("mime_type"),
     ...(str("fetch_state") ? { fetch_state: str("fetch_state") as string } : {}),
     filename: str("filename"),
     caption: str("caption"),
   };
+}
+
+/** A row newest_messages answered (00258): a message, with the columns MESSAGE_COLUMNS names. */
+function isMessageRow(r: unknown): r is MessageRow {
+  if (!r || typeof r !== "object") return false;
+  const m = r as Record<string, unknown>;
+  return typeof m.id === "string" && typeof m.conversation_id === "string" && typeof m.created_at === "string";
+}
+
+/**
+ * newest_messages' answer as the reader's rows: one JSON list, which PostgREST's max_rows does not cut, of messages
+ * the function built from MESSAGE_COLUMNS' twelve columns. Anything else in it is no row, and an answer that is no list
+ * is none.
+ */
+export function messageRowsOf(data: unknown): MessageRow[] {
+  return Array.isArray(data) ? data.filter(isMessageRow) : [];
 }
 
 export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
@@ -129,8 +166,9 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
       ...(m.channel ? { channel: m.channel } : {}),
       body: m.body,
       media: mediaPublic(m.media),
-      meta: m.meta as MessageDto["meta"],
+      meta: memberMetaOf(m.meta),
       status: m.status,
+      ...failedErrorOf(m.status, m.error),
       created_at: m.created_at,
       channel_ts: m.channel_ts,
     });
@@ -171,6 +209,8 @@ export function toConversationDto(c: ConversationRow, messages: MessageDto[], us
       // Yes to offers, for the composer to offer only the templates the reply route sends (I4).
       marketing_consent: c.contacts?.marketing_consent ?? null,
       proposal_url: c.contacts?.proposal_url ?? null,
+      email_suppressed_at: c.contacts?.email_suppressed_at ?? null,
+      email_suppressed_reason: c.contacts?.email_suppressed_reason ?? null,
     },
     messages,
   };

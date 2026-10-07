@@ -1,9 +1,9 @@
-/* global React, Icon, usePPToast */
+/* global React, Icon, usePPToast, useSurface */
 // Chanlytics — Top bar (unified) + typed notifications popover.
 // Popover pattern adopted from the legacy repo's notification-action-card:
 // every notification carries contextual actions that deep-link into the OS.
 // Session-aware: thread-linked notifications overlay IX_STORE (decided →
-// resolved), integration nags overlay INT_STORE (fixed → confirmed).
+// resolved).
 
 const TB_NOTIFS = [
   { id: "n1", icon: "alert", tone: "accent", unread: true, time: "2m", threadId: "th-aisha-refund",
@@ -49,53 +49,154 @@ const tbOverlay = (n) => {
       };
     }
   }
-  if (n.intId && window.INT_STORE && window.INT_STORE.isFixed(n.intId)) {
-    return {
-      ...n, unread: false, icon: "check", tone: "ok",
-      title: "Gmail reconnected ✓",
-      message: "Email Agent is releasing Noah's day-14 nurture — sends today.",
-      actions: [{ label: "View task", to: "tasks", primary: true }],
-    };
-  }
   return n;
 };
 
-const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts = null, onAlerts = () => {} }) => {
-  const fresh = items.filter(n => n.unread);
-  const earlier = items.filter(n => !n.unread);
-  const row = (n) => (
-    <div key={n.id} className={`tbn-item ${n.unread ? "unread" : ""}`} data-tone={n.tone}>
-      <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => onDismiss(n.id)}>
-        <Icon name="x" size={10} />
-      </button>
-      {n.unread && <span className="tbn-dot" />}
-      {/* The mark says what kind of note this is, never its tone: a warning's title says that (components.css). */}
-      <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>
-      <div className="tbn-body">
-        <div className="tbn-line1">
-          <span className="tbn-item-title">{n.title}</span>
-          {n.seg && <span className={`sp-dir ${n.seg.dir}`} style={{ fontSize: 9.5, padding: "1px 6px", minWidth: 0 }}>{n.seg.dir === "in" ? "entered" : "left"}</span>}
-          <span className="tbn-time tabular">{n.time}</span>
-        </div>
-        <div className="tbn-msg">{n.message}</div>
-        <div className="tbn-actions">
-          {n.actions.map(a => (
-            <button key={a.label} className={`btn btn-sm ${a.primary ? "" : "btn-ghost"}`} onClick={() => onAction(n.id, a.to)}>
-              {a.label}{a.primary && <Icon name="arrow-right" size={10} />}
+// On a phone the notes are a sheet from the bottom, as every other sheet there is (components.css, the bell's sheet).
+const tbnPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+/**
+ * The bell's notes: each one a single press that does what it says, two lines and a time, the way the Inbox's rows
+ * read. Every note used to carry its own 44px row of boxed buttons ("Open Leads", "Open the Inbox") saying where
+ * the press on it would have gone anyway, a 12px title wrapped to two lines, and a count beside the head that the
+ * sections already said: on the salon's phone, 48 notes at 114 to 182px each, a list 6,677px long (25 Sep). Notes of
+ * one kind are said once ("9 calls", contracts bellSections through the bell's own `sections`) and open with a press.
+ */
+const tbnVerb = (n) => (n.actions || []).find((a) => a.primary) || (n.actions || [])[0] || null;
+const tbnSections = (items) => {
+  if (window.__notifs && window.__notifs.sections) return window.__notifs.sections(items);
+  // The mockup's own bell has no grouping: its notes stand one to a line, new above earlier.
+  const one = (n) => ({ key: n.id, row: n, count: 1, title: null, members: [n] });
+  return [
+    { label: "New", lines: items.filter((n) => n.unread).map(one) },
+    { label: "Earlier", lines: items.filter((n) => !n.unread).map(one) },
+  ].filter((s) => s.lines.length > 0);
+};
+
+// A dismissed note folds shut over this long (components.css .tbn-slot), so the notes under it glide up, then it goes.
+const TBN_FOLD_MS = 200;
+const tbnReduced = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, onClose, alerts = null, onAlerts = () => {} }) => {
+  const [openGroup, setOpenGroup] = React.useState(null);
+  // A note on its way out: dismissed by its × or slid away by a thumb, its slot folds shut (its height measured, then
+  // none, over components.css's transition), then it goes; at once under reduced motion. Undo brings it back open.
+  const slotEls = React.useRef(new Map());
+  const [going, setGoing] = React.useState(null);
+  const fold = (id) => {
+    const el = slotEls.current.get(id);
+    const now = tbnReduced();
+    if (el && el.style && !now) {
+      el.style.height = `${el.offsetHeight}px`;
+      void el.offsetWidth;
+      el.style.height = "0px";
+    }
+    setGoing(id);
+    setTimeout(() => {
+      onDismiss(id);
+      setGoing((g) => (g === id ? null : g));
+      if (el && el.style) el.style.height = "";
+    }, now ? 0 : TBN_FOLD_MS);
+  };
+  // A note marked read under the thumb (slid right) keeps its place while the sheet is open, rather than jumping down
+  // to Earlier: the sections are worked out as if it were still unread, and it is drawn as it is. The sheet is drawn
+  // anew each time it opens, and regroups then.
+  const readHere = React.useRef(new Set());
+  const asIs = new Map(items.map((n) => [n.id, n]));
+  const read = (id) => {
+    readHere.current.add(id);
+    if (onRead) onRead(id);
+  };
+  const note = (n0, inGroup) => {
+    const n = asIs.get(n0.id) || n0;
+    const verb = tbnVerb(n);
+    // On a phone a thumb slides the note (data-bits touchSwipe): left over Dismiss, right over Mark read while it is
+    // unread. The read note comes back read; the dismissed one stays aside while its slot folds.
+    const swipe = window.touchSwipe
+      ? window.touchSwipe({ onAway: () => fold(n.id), onBack: n.unread && onRead ? () => read(n.id) : null, when: tbnPhone })
+      : {};
+    return (
+      <div
+        key={n.id}
+        className="tbn-slot"
+        data-going={going === n.id ? "true" : undefined}
+        ref={(el) => { if (el) slotEls.current.set(n.id, el); else slotEls.current.delete(n.id); }}
+      >
+        <div className="tbn-slot-in">
+          <span className="tbn-ground tbn-ground-read" aria-hidden="true">{n.unread ? "Mark read" : ""}</span>
+          <span className="tbn-ground tbn-ground-dismiss" aria-hidden="true">Dismiss</span>
+          <div className={`tbn-item${n.unread ? " unread" : ""}${inGroup ? " in-group" : ""}`} data-tone={n.tone} {...swipe}>
+            <button
+              type="button"
+              className="tbn-open"
+              aria-label={verb ? `${verb.label}: ${n.title}` : n.title}
+              onClick={() => onAction(n.id, verb ? verb.to : null)}
+            >
+              {n.unread && <span className="tbn-dot" />}
+              {/* The mark says what kind of note this is, never its tone: a warning's title says that (components.css). */}
+              {!inGroup && <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>}
+              <span className="tbn-body">
+                <span className="tbn-line1">
+                  <span className="tbn-item-title">{n.title}</span>
+                  <span className="tbn-time tabular">{n.time}</span>
+                </span>
+                {n.message && <span className="tbn-msg">{n.message}</span>}
+              </span>
             </button>
-          ))}
+            <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => fold(n.id)}>
+              <Icon name="x" size={10} />
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
+  const line = (l) => {
+    if (l.count < 2) return note(l.row, false);
+    const open = openGroup === l.key;
+    const unread = l.members.some((m) => (asIs.get(m.id) || m).unread);
+    return (
+      <div key={l.key} className={`tbn-group${open ? " open" : ""}`} data-testid="bell-group">
+        <div className={`tbn-item tbn-item-group${unread ? " unread" : ""}`} data-tone={l.row.tone}>
+          <button
+            type="button"
+            className="tbn-open"
+            aria-expanded={open}
+            aria-label={`${l.title}: ${open ? "hide them" : "show them"}`}
+            onClick={(e) => (window.holdStill || ((_, f) => f()))(e && e.currentTarget, () => setOpenGroup(open ? null : l.key))}
+          >
+            {unread && <span className="tbn-dot" />}
+            <span className="mark tbn-icon"><Icon name={l.row.icon} size={13} /></span>
+            <span className="tbn-body">
+              <span className="tbn-line1">
+                <span className="tbn-item-title">{l.title}</span>
+                <span className="tbn-time tabular">{l.row.time}</span>
+              </span>
+              <span className="tbn-msg">{l.row.title}</span>
+            </span>
+            <span className="tbn-chev" aria-hidden="true"><Icon name="chevron-down" size={12} /></span>
+          </button>
+        </div>
+        {open && l.members.map((m) => note(m, true))}
+      </div>
+    );
+  };
+  const sections = tbnSections(items.map((n) => (readHere.current.has(n.id) ? { ...n, unread: true } : n)));
   return (
     <>
-      <div className="tbn-backdrop" onClick={onClose} />
-      <div className="tbn-pop" role="dialog" aria-label="Notifications">
+      <div className="tbn-backdrop" role="presentation" onClick={onClose} />
+      {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (data-bits touchSwipe,
+          leaving). A popover under the bell on a wider screen, where neither moves it. */}
+      <div
+        className="tbn-pop"
+        role="dialog" aria-modal="true"
+        aria-label="Notifications"
+        ref={window.dialogRef ? window.dialogRef("bell") : undefined}
+        {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: tbnPhone }) : {})}
+      >
+        <div className="tbn-handle" aria-hidden="true" />
         <header className="tbn-head">
           <span className="tbn-title">Notifications</span>
-          {fresh.length > 0 && <span className="tbn-count tally">{fresh.length} new</span>}
-          <button className="tbn-readall" onClick={onReadAll}>Mark all read</button>
+          {items.some((n) => n.unread) && <button className="tbn-readall" onClick={onReadAll}>Mark all read</button>}
         </header>
         <div className="tbn-list">
           {items.length === 0 && (
@@ -104,10 +205,12 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
               <span>All caught up</span>
             </div>
           )}
-          {fresh.length > 0 && <div className="tbn-sec">New</div>}
-          {fresh.map(row)}
-          {earlier.length > 0 && <div className="tbn-sec">Earlier</div>}
-          {earlier.map(row)}
+          {sections.map((sec) => (
+            <React.Fragment key={sec.label}>
+              <div className="tbn-sec">{sec.label}</div>
+              {sec.lines.map(line)}
+            </React.Fragment>
+          ))}
         </div>
         {/* Device alerts, outside a demo: a system notification when something
             new needs the owner while the app is in the background. */}
@@ -135,6 +238,12 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
     </>
   );
 };
+
+/**
+ * The capsule's words. No key beside them in either look: the ? sheet is the one place a key is drawn (Ruben, 23 Sep and
+ * again 1 Oct 2026, when Glass had put the canvases' \u2318K in the capsule).
+ */
+const tbAskLabel = () => <span className="tb-ask-label">Ask Chanlytics</span>;
 
 const Topbar = ({
   crumbs = [],
@@ -227,7 +336,7 @@ const Topbar = ({
         id: "n-bc-" + Date.now(), icon: "chat", tone: "ok", unread: true, time: "now",
         title: `Broadcast queued — ${d.name}`,
         message: `${d.count} recipients over ${d.channel} — replies land in Conversations.`,
-        actions: [{ label: d.segId ? "Open segment" : "Broadcasts", to: d.segId ? "segments/" + d.segId : "broadcasts", primary: true }, { label: "Conversations", to: "conversations" }],
+        actions: [{ label: d.segId ? "Open segment" : "Sent", to: d.segId ? "segments/" + d.segId : "broadcasts", primary: true }, { label: "Conversations", to: "conversations" }],
       }, ...list]);
     };
     const onObApproved = (e) => {
@@ -266,7 +375,6 @@ const Topbar = ({
       }, ...list]);
     };
     window.addEventListener("inbox:decisions", bump);
-    window.addEventListener("integrations:changed", bump);
     window.addEventListener("live:ended", onEnded);
     window.addEventListener("store:listing", onListing);
     window.addEventListener("leads:converted", onLeadConv);
@@ -279,7 +387,6 @@ const Topbar = ({
     return () => {
       if (arrT) clearTimeout(arrT);
       window.removeEventListener("inbox:decisions", bump);
-      window.removeEventListener("integrations:changed", bump);
       window.removeEventListener("live:ended", onEnded);
       window.removeEventListener("store:listing", onListing);
       window.removeEventListener("leads:converted", onLeadConv);
@@ -380,6 +487,12 @@ const Topbar = ({
     flash({ msg: <>All notifications marked read</>, undo: () => setNotifs(prev) });
   };
 
+  // A note marked read where it stands (a thumb slid it right): the bridge's mark, or the seeded note's flag.
+  const read = (id) => {
+    if (real) real.read(id);
+    else setNotifs(list => list.map(n => n.id === id ? { ...n, unread: false } : n));
+  };
+
   const dismiss = (id) => {
     if (real) {
       const item = realRows.find(n => n.id === id);
@@ -410,8 +523,8 @@ const Topbar = ({
     : { icon: theme === "light" ? "moon" : "sun", label: theme === "light" ? "Switch to dark" : "Switch to light" };
 
   return (
-    <div className="topbar">
-      <button className="btn btn-ghost btn-icon btn-sm tb-menu" title="Menu" onClick={onMenu}>
+    <header className="topbar">
+      <button className="btn btn-ghost btn-icon btn-sm tb-menu" title="Menu" aria-label="Menu" onClick={onMenu}>
         <Icon name="menu" />
       </button>
       <div className="crumbs">
@@ -438,12 +551,11 @@ const Topbar = ({
           demo it answers the seed world. Either way the button opens it. Its
           icon is the three (ask-face.jsx), Ask's face: ink at rest, coral and
           moving while Ask listens, reads or answers, on every page. */}
-      <button className="tb-ask" onClick={onAsk} title="Ask Chanlytics (⌘K)" data-testid="tb-ask">
+      <button className="tb-ask" onClick={onAsk} title="Ask Chanlytics" data-testid="tb-ask">
         {TbFace
           ? <TbFace className="tb-ask-face" testId="tb-ask-face" />
           : <Icon name="sparkle" size={13} />}
-        <span className="tb-ask-label">Ask Chanlytics</span>
-        <span className="kbd">⌘K</span>
+        {tbAskLabel()}
       </button>
 
       {right}
@@ -484,6 +596,7 @@ const Topbar = ({
             onAction={act}
             onReadAll={readAll}
             onDismiss={dismiss}
+            onRead={read}
             onClose={() => setOpenNotifs(false)}
             alerts={real ? alertState : null}
             onAlerts={onAlerts}
@@ -500,7 +613,7 @@ const Topbar = ({
       </div>
 
       {toastNode}
-    </div>
+    </header>
   );
 };
 
@@ -530,16 +643,21 @@ const SHELL_STATUS_ICON = { offline: "alert", paused: "pause", stale: "sparkle",
  */
 const LiveCallBar = () => {
   const [, tick] = React.useReducer((n) => n + 1, 0);
+  // Drawn again when the calls are read again (the live surface's own signal), or a call is ended here.
+  useSurface("live");
   React.useEffect(() => {
-    window.addEventListener("surface:live", tick);
     window.addEventListener("live:ended", tick);
-    // A second, so the clock reads like a clock. Only while a call is up: the
-    // effect re-runs on every repaint the events cause, and the interval is
-    // cleared with it.
-    const t = window.setInterval(tick, 1000);
-    return () => { window.clearInterval(t); window.removeEventListener("surface:live", tick); window.removeEventListener("live:ended", tick); };
+    return () => window.removeEventListener("live:ended", tick);
   }, []);
   const bar = window.__chrome && window.__chrome.liveBar ? window.__chrome.liveBar(window.__LIVE, Date.now()) : null;
+  // A second, so the clock reads like a clock, and only while a call is up: it ran every second of every session,
+  // redrawing a bar that said nothing, under a comment that said otherwise.
+  const up = !!bar;
+  React.useEffect(() => {
+    if (!up) return undefined;
+    const t = window.setInterval(tick, 1000);
+    return () => window.clearInterval(t);
+  }, [up]);
   if (!bar) return null;
   const open = () => window.CHANLY && window.CHANLY.nav(bar.callId ? `live/${bar.callId}` : "live");
   return (
@@ -597,3 +715,4 @@ const ShellStatusBar = () => {
 
 window.LiveCallBar = LiveCallBar;
 window.ShellStatusBar = ShellStatusBar;
+window.NotifPopover = NotifPopover; // drawn on its own by bell-rows.test

@@ -21,7 +21,8 @@
  */
 import { FIRST_RUN_ROUTE } from "@chanlytics/contracts";
 
-import { isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
+import { getSurfaceStatuses, isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
+import { hearAddress, routeOnScreen } from "./workspace";
 
 export type SurfaceState = "real" | "demo";
 
@@ -30,32 +31,33 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   today: "real",
   inbox: "real",
   conversations: "real",
-  clients: "real", // People · Clients; Leads / Deal board / Lists stay demo
+  clients: "real", // People, and its scopes: Leads (clients/leads), the Pipeline where deals are on (clients/pipeline, 0008) and the lists (seg:, list:)
   reports: "real", // the receptionist's numbers; the share link stays demo
   live: "real", // calls in progress + the last few, and the three writes: whisper, hand over, end. Live LISTEN stays in the demo — there is no audio path.
 
-  // Render entirely from seed data. Each becomes one edited line here the day
-  // its slice ships.
-  // The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline;
-  // the shared report viewer) stay in the tree and stay hidden from
-  // every real workspace: no nav entry, no tab, the Not-in-this-release card for
-  // a hand-typed address. Ruben's decision, 11 September 2026: most of it is
-  // revisited when the product is at 100%, and none of those features is built
-  // before then. Nothing here is a promise to a customer or an operator.
+  // The rest: each real from the day its slice shipped, or demo, drawn from the
+  // mockup's seeds. The mockup surfaces (Agents: fleet, store, studio, tasks;
+  // Content; the Deal board; the shared report viewer) stay in the tree and stay
+  // hidden from every real workspace: no nav entry, no tab, the
+  // Not-in-this-release card for a hand-typed address. Ruben's decision, 11
+  // September 2026: most of it is revisited when the product is at 100%, and none
+  // of those features is built before then. Nothing here is a promise to a
+  // customer or an operator.
   // Lifted 18 Sep 2026 (Ruben): a scope of People at clients/leads, fed by the leads surface.
   leads: "real", // the route itself still redirects (SURFACE_RETIRED): the scope is clients/leads
   segments: "real", // People › Lists: the lists kept by hand and the computed ones, with their people
-  pipeline: "demo", // retired into People, like leads
+  pipeline: "demo", // the mockup's Deal board, retired: its address lands on People (SURFACE_RETIRED); the real Pipeline is People's scope, clients/pipeline (0008)
   calendar: "real", // the owner's calendar as the receptionist reads it: taken, open, closed — a viewer, never a scheduler
   shared: "demo", // the read-only report viewer — a share link over invented numbers
   tasks: "demo",
   fleet: "demo",
   store: "demo",
   studio: "demo",
-  outbound: "real", // Campaigns › Playbooks: standing rules over the people who said yes, under the two Autonomy rows
+  campaigns: "real", // Campaigns' home (canvas A, "Lifecycle"): the moments around a customer over the playbooks' surface, and who can hear you, what is coming and what came back over the broadcasts', the library's templates and the reach-outs'
+  outbound: "real", // the old Playbooks list, a door now: it lands on campaigns (contracts doorOf), and a playbook is campaigns/moment:<id>
   content: "demo",
-  broadcasts: "real", // one approved template to the people who said yes; SMS and email stay not available
-  messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it
+  broadcasts: "real", // Campaigns › Sent: the runs, and the send screen where an audience is named; SMS and email stay not available
+  messages: "real", // Campaigns › Library: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
   start: "real", // the first run: Setup's rows a step at a time, read from the workspace (contracts/first-run.ts)
   admin: "demo", // the page itself: every pane below is classified, and a
   // pane nobody has listed inherits this honest default
@@ -65,10 +67,11 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   "admin/autonomy": "real", // the policies table, live for the reply row
   "admin/notifications": "real", // who is alerted, from tenant_config
   "admin/integrations": "real", // the channels in tenant_channels, read-only
-  // Billing is real on every workspace (billing-real.jsx). Memory is not built,
+  // Billing is real on every workspace (surfaces/settings/billing). Memory is not built,
   // and says so IN the pane: falling through to the page's "demo" replaced all
   // of Settings with a bare card; the pane keeps the nav and states what exists
-  // instead (settings.jsx PaneSoon).
+  // instead (settings.jsx PaneSoon). ⌘K's Memory jump lands on Business, where
+  // what the receptionist knows lives (contracts ask-jump.ts).
   "admin/billing": "real",
   "admin/memory": "real",
   "admin/activity": "real", // both ledgers, from GET /activity, owners only
@@ -78,6 +81,8 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // clicked Back office got the Not-in-this-release card -- found by Ruben
   // on 11 September, the day the tab became the way to file a campaign.
   "admin/platform": "real",
+  // A partner's account and link (0012): the offer for everyone else, the row for a partner (surfaces/settings/partner).
+  "admin/partner": "real",
 };
 
 /**
@@ -99,6 +104,8 @@ export const ROUTE_SURFACE: Record<string, string> = {
   reports: "reports",
   live: "live",
   broadcasts: "broadcasts",
+  // Campaigns' home is the playbooks' moments first; the broadcasts, the library and the reach-outs fill in beside it (ROUTE_DRAWS).
+  campaigns: "playbooks",
   // The templates ride on the settings surface; the page waits for it like Settings does.
   messages: "settings",
   outbound: "playbooks",
@@ -124,6 +131,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   // The pane fetches its own list through the typed client on mount; it waits
   // for the settings surface like every other pane, so nothing paints early.
   "admin/platform": "settings",
+  "admin/partner": "settings",
 };
 
 /** A person's page, as ROUTE_DRAWS names it. */
@@ -145,7 +153,7 @@ export function personRouteId(page: string, param?: string | null): string | nul
  * (surface-runner.ts screenRank) rather than in the runner's fixed order.
  *
  * Today draws the day beside its queue from the calendar, the queue's runs from
- * broadcasts, the card's period line and Worth a look from reports, the day's
+ * broadcasts, the card's period line and Worth a look from the reports headline (one small read, never the whole report), the day's
  * playbook rows, the bell's rows for While you were away, a call in progress
  * from live, the card's Setup and Google lines, and from People the day card's
  * needs-someone flag and channel glyphs and Worth a look's people -- last,
@@ -159,9 +167,21 @@ export function personRouteId(page: string, param?: string | null): string | nul
  * own surface.
  */
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
-  // Setup first: what is left to set up is drawn ABOVE the queue (dashboard-a-brief.jsx TodaySetup), and read seventh it
+  // Setup first: what is left to set up is drawn ABOVE the queue (surfaces/today/pages/setup-card.tsx TodaySetup), and read seventh it
   // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
-  today: ["setup", "calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "google", "people"],
+  today: [
+    "setup",
+    "calendar",
+    "broadcasts",
+    "reports_headline",
+    "playbooks",
+    "notifications",
+    "live",
+    "google",
+    "people",
+    // A reply to a reach-out, read: its queue row and the bell's door (Reach out Part 5, PR 8).
+    "reach_out_replies",
+  ],
   calendar: ["people"],
   // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers. Try it
   // watches the Live page's calls for the test call (first-run-try.ts).
@@ -169,6 +189,21 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
   // head while that read is out, so People is read next.
   [PERSON_ROUTE]: ["people"],
+  // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
+  // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
+  inbox: ["reach_out_replies", "conversations"],
+  // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
+  // surface, read beside each page's own.
+  outbound: ["reach_outs"],
+  // Campaigns' home draws who can hear you, what is coming and what came back from the broadcasts, the call's text and the library's count
+  // from Settings' templates, and the reach-outs as lines under the moments.
+  campaigns: ["broadcasts", "settings", "reach_outs"],
+  // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook.
+  messages: ["reach_outs", "playbooks"],
+  broadcasts: ["playbooks"],
+  // A search's reach-out sheet (Part 4 PR 6) sends from Setup's sending domains and checks Settings' booking link: both
+  // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
+  leads: ["setup", "settings"],
 };
 
 /**
@@ -180,12 +215,117 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
  */
 export const ROUTE_WAITS: Record<string, readonly string[]> = {
   today: ["setup"],
+  // Reports' strip of lenses is decided from the workspace list (how its customers buy: the Pipeline is shown only where deals
+  // are on) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
+  reports: ["workspace"],
 };
 export const ROUTE_WAIT_MS = 3000;
 
 /** What a route draws beside its own surface: a person's page is one route of its own, whatever its id. */
 export function routeDrawsFor(page: string, param?: string | null): readonly string[] {
+  // Leads is `clients/leads…`, the scope asked about as routeSurfaceFor asks it, never as People.
+  if (page === "clients" && param && /^leads(:|$)/.test(param)) return ROUTE_DRAWS.leads ?? [];
   return ROUTE_DRAWS[personRouteId(page, param) ? PERSON_ROUTE : page] ?? [];
+}
+
+/**
+ * Every surface the route on screen is drawn from: who is looking (the workspace, which carries the role every gate
+ * reads), the route's own surface, and what it draws beside it. The shell is drawn again when one of these moves
+ * (surface-status.ts), and by no other surface's read.
+ */
+export function routeSurfaces(page: string, param?: string | null): string[] {
+  const own = routeSurfaceFor(page, param);
+  return [...new Set(["workspace", ...(own ? [own] : []), ...routeDrawsFor(page, param)])];
+}
+
+/* ------------------------- what a message re-reads ------------------------- */
+
+/** The page and its param a route names, as the shell parses it (app-shell.jsx parseRoute). */
+function pageOfRoute(route: string): { page: string; param: string | null } {
+  const [page, param] = route.split("/");
+  return { page: page || "today", param: param || null };
+}
+
+/**
+ * The pages that own the refreshes of what they draw beside their own surface. Campaigns' home is one page of four surfaces (the
+ * playbooks' moments, the broadcasts' runs and numbers, Settings' library, the reach-outs' chains), and a message moves the
+ * replies it says under "What came back" and the runs it lists: left to the broadcasts' own page, its numbers stood where they
+ * were read for as long as the home was open. Today draws more (People, Reports, the Calendar) and does not own them, for a
+ * message re-reads the three that draw messages and Today, and People's pages of contacts are the heaviest read there is
+ * (shell/surfaces/message-fan-out.test.mjs).
+ */
+const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns"]);
+
+/**
+ * Whether this surface is the one the page on screen is of: its own surface, and, on a page that owns what it draws
+ * (OWNS_WHAT_IT_DRAWS), the surfaces it draws beside it (ROUTE_DRAWS).
+ */
+export function ownsTheScreen(key: string, route: string): boolean {
+  const { page, param } = pageOfRoute(route);
+  if (routeSurfaceFor(page, param) === key) return true;
+  return OWNS_WHAT_IT_DRAWS.has(page) && routeDrawsFor(page, param).includes(key);
+}
+
+/**
+ * Surfaces that let a live event pass while their page was elsewhere, and ones a pass left for their page (keepForItsPage): read
+ * once when it comes on screen.
+ */
+const missedWhileAway = new Set<string>();
+
+/**
+ * A surface read only where it is drawn (`onDemand`), left out of a pass that read the others while its page was elsewhere (a
+ * return to the tab, the network back, a rejoin of the live feed, Retry-all): kept, so its page reads it once as it comes on
+ * screen (readWhatWasMissed) rather than show what the pass would have read again.
+ */
+export function keepForItsPage(key: string): void {
+  missedWhileAway.add(key);
+}
+
+/**
+ * A surface that counts messages but is not where they are read -- People's rows, Reports' numbers, a campaign's
+ * replies -- hears these tables only while its own page is on screen; an event it lets pass is kept, and the surface
+ * is read once as its page comes on screen (readWhatWasMissed). One message used to re-read seven surfaces, four of
+ * them on no page anyone was looking at, People among them, every page of it; now the Inbox, Conversations and Today,
+ * which draw messages, and the page on screen. A table the rule does not name is the surface's own, heard always.
+ */
+export function onlyOnItsPage(
+  key: string,
+  tables: readonly string[],
+  route: () => string = () => routeOnScreen(),
+): (change: { table: string }) => boolean {
+  return (change) => {
+    if (!tables.includes(change.table) || ownsTheScreen(key, route())) return true;
+    missedWhileAway.add(key);
+    return false;
+  };
+}
+
+/**
+ * Each move of the address: what its page draws and has not read is read once, through the runner (`read`, the running
+ * runner's refresh). Two kinds of surface are due. One that let a live event pass while its page was elsewhere, when its page
+ * owns the screen. And one marked `onDemand` (surface-data.ts), when a page that draws it (its own surface, or one the route
+ * names) is on screen and it has never been read this session, a pass left it for its page (keepForItsPage), or it says it has
+ * aged: one list, so a surface that missed an event and was never read is read once. Answers the stop.
+ */
+export function readWhatWasMissed(
+  overrides: readonly { key: string; onDemand?: boolean; isStale?: () => boolean }[],
+  read: (keys: string[]) => void,
+  win: Window = window,
+): () => void {
+  const onMove = () => {
+    const route = routeOnScreen(win);
+    const { page, param } = pageOfRoute(route);
+    const drawn = routeSurfaces(page, param);
+    const readBefore = (key: string) => getSurfaceStatuses().get(key) === "live";
+    const due = overrides.filter((o) =>
+      o.onDemand
+        ? drawn.includes(o.key) && (missedWhileAway.has(o.key) || !readBefore(o.key) || !!o.isStale?.())
+        : missedWhileAway.has(o.key) && ownsTheScreen(o.key, route),
+    );
+    for (const o of due) missedWhileAway.delete(o.key);
+    if (due.length) read(due.map((o) => o.key));
+  };
+  return hearAddress(onMove, win);
 }
 
 /**

@@ -3,38 +3,58 @@ import {
   ASK_ANSWER_FORMAT,
   ASK_MAX_ROUNDS,
   ASK_MAX_TOKENS,
-  ASK_MODEL,
   ASK_TURN_BUDGET_MS,
   answerForCards,
-  answerText,
   answerWords,
   cleanAnswer,
   failedAnswer,
   isUngrounded,
   normalizeAnswer,
+  noteRows,
   partialSay,
   proseAnswer,
   type AskAnswer,
   type AskLanguage,
   type AskMessageVM,
   type AskProposal,
+  type AskReadSet,
+  type AskRowRef,
   type AskScope,
+  type AskTurnShape,
+  type PageContext,
 } from "@chanlytics/contracts";
+import type { AskModelProfile, MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import { GatewayRefused, featureRejected } from "./gateway";
-import { READ_TOOLS, newToolContext, runTool, toolLabel, type ToolContext } from "./tools";
-import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./proposals";
-import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
-import { snapshotFor } from "./snapshot";
-import { prefetchBlock, prefetchPlan } from "./prefetch";
-import { replayBlocks, runRound, type RoundBlock } from "./round";
-
-export { ASK_MODEL } from "@chanlytics/contracts";
+import { load, type ReaderContext } from "../readers";
+import { log } from "@/server/log";
+import { GatewayRefused } from "./gateway";
+import { DROP_EVENTS, dropFor } from "./refusals";
+import {
+  ACT_TOOL_NAMES,
+  buildProposal,
+  calledName,
+  newToolContext,
+  runTool,
+  toApiTools,
+  toolLabel,
+  type ToolContext,
+  type ToolRun,
+} from "./tools";
+import { stableSystem, systemBlocks, systemHash, turnWords, type WorkspaceFacts } from "./prompt";
+import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
+import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
+import { shape as shapeReader } from "../readers/shape";
+import { replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
+import { askModel } from "./model";
+import { foldHistory, replayFor, withMarkers, type Chain, type RawTurn, type TurnEnd } from "./memory";
+import { finishTurn, turnMeter } from "./turn-end";
 
 /**
  * One turn of the assistant.
  *
- * The day rides in first (the snapshot), then the model is asked with the
+ * The page the person is on rides in first, as data before their words
+ * (context.ts), with the reads the question names of another page and the
+ * row the scope names (cross-page.ts); then the model is asked with the
  * read tools and the act tools, and either calls them or writes the answer:
  * the answer is text in the Line's shape (ASK_ANSWER_FORMAT, structured
  * output), so no tool is called to answer. Reads run as the person, in
@@ -53,17 +73,9 @@ export { ASK_MODEL } from "@chanlytics/contracts";
 // the cap in the MIDDLE of that JSON. A cut-off tool call is not a smaller tool
 // call: it does not parse at all (see `argsOf`). The loop then asked for 2400,
 // but the edge clamped every round to 2000, so 2000 was the real ceiling; it is
-// one number now, raised only when an eval case stops at it. A cap is not a
-// spend, only a ceiling on what may be generated.
-const MAX_HISTORY = 12;
-const HISTORY_CHARS = 1200;
-/**
- * Choosing a tool is not writing an answer. The rounds run at low effort:
- * the receptionist's replies run there too and hold on the eval set, and a
- * round is three and a half seconds of a turn. The eval set decides if this
- * stays.
- */
-const EFFORT: "low" | "medium" = "low";
+// one number now, 4000 since the lead plan's card was cut at 2000 (D10). A cap
+// is not a spend, only a ceiling on what may be generated.
+
 /** Say is sent at most this often while it is written (spec 7.4). */
 const SAY_EVERY_MS = 50;
 
@@ -80,18 +92,44 @@ export interface TurnEvent {
 export interface TurnInput {
   ctx: RouteContext;
   tenantId: string;
-  role: "owner" | "operator" | "viewer";
+  role: MembershipRole;
   facts: WorkspaceFacts;
   timezone: string;
   personLabel: string;
   language: AskLanguage;
   scope: AskScope | null;
   surface: string | null;
-  /** Prior turns of this thread, oldest first, as plain text. */
+  /** Prior turns of this thread, oldest first, as a cold turn is asked with them: each answer one line (memory.ts). */
   history: Array<{ role: "user" | "assistant"; text: string }>;
+  /** The thread's warm turns as the model was sent them (memory.ts threadForTurn); none or null, the turn is cold. */
+  chain?: Chain | null;
+  /**
+   * What the history's lines already said of the thread's cards (memory.ts threadForTurn): a cold turn keeps it beside
+   * its base, so a live turn after it tells only what is newer. None with no history.
+   */
+  told?: string[] | null;
+  /**
+   * The rows the thread's earlier answers cited, where each opened (memory.ts threadForTurn): the turn's read set starts
+   * with them, so one is named, cited and opened without a read (the Phase 5 plan, D5); a fact about it is read again.
+   */
+  cited?: AskRowRef[];
   text: string;
+  /** From the palette opening to the question being sent, as the tab measured it; null from an older tab or a script. */
+  openedMs?: number | null;
+  /** The person is listening, not reading (the voice door): the spoken register rides in the turn's words. */
+  spoken?: boolean;
+  /** How long after the thread's previous turn this question came; null on a thread's first. */
+  sinceLastMs?: number | null;
+  /**
+   * The page the question was asked on, as the tab sent it and the route read it (contracts PageContext); null from an
+   * older tab, a script, or a context the route refused. The turn reads the page again through its readers from these
+   * identities (context.ts); nothing the tab says about a row is taken.
+   */
+  context?: PageContext | null;
   emit: (ev: TurnEvent) => void;
   now?: Date;
+  /** The route's reader context, so the turn's reads share its cache; a test may omit it. */
+  rc?: ReaderContext;
 }
 
 export interface TurnResult {
@@ -111,13 +149,23 @@ export interface TurnResult {
   /** Why it failed, for the log; the answer's headline already says it to the person. */
   failure: string | null;
   rounds: number;
+  /** The model the rounds ran on (the deployment's profile). */
+  model: string;
+  /** Where the time went and what the model was fed (ask-shape.ts): logged, and stored on the turn's row. */
+  shape: AskTurnShape;
+  /**
+   * The turn as the model was sent it (memory.ts): stored on the turn's row, never logged or shipped; null when the
+   * turn failed or its last stream broke.
+   */
+  raw: RawTurn | null;
 }
 
-type Msg = { role: "user" | "assistant"; content: unknown };
+/** A message as a request carries it. */
+export type Msg = { role: "user" | "assistant"; content: unknown };
 
 /**
  * Everything the turn reaches outside itself, as one object: the model
- * round, the day's snapshot, a read tool, a proposal. The real modules are
+ * round, the page's context, the workspace's shape, a read tool, a proposal. The real modules are
  * the default, so the runtime changes nothing; a test hands in a scripted
  * round and the loop's control flow runs for real against it -- the move
  * whatsapp/ports.ts made for the receptionist's handler. `setAskPorts` is
@@ -126,16 +174,27 @@ type Msg = { role: "user" | "assistant"; content: unknown };
  */
 export interface AskPorts {
   round: typeof runRound;
-  snapshot: typeof snapshotFor;
+  /** The page's context, built through the page's readers or taken from the warm's cache (context.ts). */
+  context: (rc: ReaderContext, context: PageContext) => Promise<BuiltContext>;
+  /** The shape of the workspace, as the second system block (readers/shape.ts, kept five minutes). */
+  shape: (rc: ReaderContext) => Promise<string>;
   tool: typeof runTool;
   propose: typeof buildProposal;
 }
+const shapeOf = async (rc: ReaderContext): Promise<string> => shapeBlock((await load(rc, shapeReader, undefined)).data);
 let overrides: Partial<AskPorts> | null = null;
 export function setAskPorts(p: Partial<AskPorts> | null): void {
   overrides = p;
 }
 export function askPorts(): AskPorts {
-  return { round: runRound, snapshot: snapshotFor, tool: runTool, propose: buildProposal, ...(overrides ?? {}) };
+  return {
+    round: runRound,
+    context: buildContext,
+    shape: shapeOf,
+    tool: runTool,
+    propose: buildProposal,
+    ...(overrides ?? {}),
+  };
 }
 
 function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
@@ -148,6 +207,10 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
         : "Ask has used its daily budget. Try again tomorrow; the pages still work.";
     case "no_key":
       return es ? "Ask no está conectado a un modelo todavía." : "Ask is not connected to a model yet.";
+    case "paused":
+      return es
+        ? "Ask está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
+        : "Ask is off while this workspace is paused. Resume it from Settings › Billing.";
     case "unreachable":
       return es
         ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."
@@ -159,138 +222,210 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
   }
 }
 
-/** The thread's prior turns, folded so no two neighbours share a role, starting with the person. */
-export function foldHistory(history: TurnInput["history"], text: string): Msg[] {
-  const messages: Msg[] = [
-    ...history.slice(-MAX_HISTORY).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
-    { role: "user", content: text },
-  ];
-  for (let i = messages.length - 2; i >= 0; i--) {
-    if (messages[i].role === messages[i + 1].role) {
-      messages[i] = { role: messages[i].role, content: `${messages[i].content}\n${messages[i + 1].content}` };
-      messages.splice(i + 1, 1);
-    }
-  }
-  if (messages[0]?.role !== "user") messages.shift();
-  return messages;
+/**
+ * What the turn's tools run with, as the person, its read set starting with the rows the thread's earlier answers cited
+ * (the Phase 5 plan, D5): one of them is cited and opened without a read, and any read this turn makes of one -- the
+ * page's, another page's, a tool's -- replaces its ref with the fresh one.
+ */
+function toolContextOf(input: TurnInput, now: Date): ToolContext {
+  const tc = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc);
+  noteRows(tc.read, input.cited ?? []);
+  return tc;
+}
+
+/**
+ * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, the row
+ * their words point at and whether the read set holds it, and -- while the question still carries it (`dataDropped`
+ * false) -- that the data before them is read already: the page's, the reads made for another page, the scope's row.
+ * A live turn's also say what happened since (D8). Made once the read set holds every read before the model's.
+ */
+function wordsBlock(
+  input: TurnInput,
+  now: Date,
+  rode: { built: BuiltContext | null; crossBlocks: SearchResultBlock[]; scopedRow: unknown; read: AskReadSet },
+) {
+  const focus = input.context?.focus;
+  // A focus is a scope: a run is cited, and so read, as its broadcast; a page is never a row.
+  const kind = focus?.kind === "run" ? "broadcast" : focus?.kind;
+  const facts = {
+    role: input.role,
+    personLabel: input.personLabel,
+    scope: input.scope,
+    surface: input.surface,
+    language: input.language,
+    timezone: input.timezone,
+    closures: input.facts.closures,
+    focus,
+    focusRead: !!focus && !!kind && kind !== "page" && rode.read[kind].has(focus.id),
+    now,
+    spoken: input.spoken ?? false,
+  };
+  return (live: boolean, dataDropped: boolean) => ({
+    type: "text",
+    text: turnWords({
+      ...facts,
+      since: live ? input.chain?.since : undefined,
+      context: !dataDropped && (rode.built?.blocks.length ?? 0) > 0,
+      crossPage: !dataDropped && rode.crossBlocks.length > 0,
+      scopeRead: !dataDropped && !!rode.scopedRow,
+    }),
+  });
+}
+
+/**
+ * The head of a turn's first request: everything before its messages. The same bytes for every member of a role in a
+ * workspace on one model, and so what the model's cache is keyed by (system's two breakpoints end it). A turn builds
+ * its requests on it and a warm sends it alone (warm.ts), so what a warm writes is what the next question reads.
+ */
+export function turnHead(model: AskModelProfile, role: MembershipRole, facts: WorkspaceFacts, shape: string | null) {
+  return {
+    model: model.id,
+    system: systemBlocks(stableSystem(facts), shape),
+    // The tools as the API takes them (registry.ts), their examples with them.
+    tools: toApiTools(role, true),
+    tool_choice: { type: "auto" as const },
+    output_config: {
+      effort: model.effort,
+      format: { type: "json_schema" as const, schema: ASK_ANSWER_FORMAT as unknown as Record<string, unknown> },
+    },
+  };
 }
 
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
   const t0 = Date.now();
+  const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
-  const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now);
+  const tc = toolContextOf(input, now);
   const toolsUsed: string[] = [];
   const proposals: AskProposal[] = [];
   let reads = 0;
+  // Where the time went and what the model was fed (AskTurnShape, turn-end.ts): only the loop sees all of it.
+  const meter = turnMeter(t0);
 
-  // The day, before the model is asked, and beside it the reads the question
-  // names plainly (prefetch.ts): both ride into the first round as data, so
-  // their rows enter the read set and the answer can cite them. A failure
-  // here costs the snapshot or that read, never the turn.
-  const tSnap = Date.now();
-  const plan = prefetchPlan(input.text);
-  const [snapshot, preOuts] = await Promise.all([
-    ports.snapshot(tc, input.timezone, input.scope).catch((e) => {
-      console.error(
-        "ask_snapshot_failed",
-        JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }),
-      );
+  // Before the model is asked, in parallel (the Phase 2 plan, PR 2.4): the page the person is on (context.ts: the
+  // warm's build if it is kept, else a build now), the shape of the workspace, the reads the question names of another
+  // page (cross-page.ts), and the row the scope names, read whole as its tool reads it. Each rides into the first round
+  // as data, so its rows enter the read set and the answer can cite them. A failure costs that block, never the turn.
+  const tCtx = Date.now();
+  const plan = crossPagePlan(input.text, input.surface, input.context?.view ?? null);
+  const scoped = scopedRead(input.scope, input.context?.route);
+  const runRead = async (run: ToolRun) => {
+    try {
+      return { run, out: await ports.tool(tc, run) };
+    } catch (e) {
+      log.error("ask_cross_page_failed", { error: e, tenant_id: input.tenantId });
+      return { run, out: { result: "", isError: true } };
+    }
+  };
+  const [built, shape, preOuts, scopedOut] = await Promise.all([
+    input.context
+      ? ports.context(tc.rc, input.context).catch((e: unknown): BuiltContext | null => {
+          log.error("ask_context_failed", { error: e, tenant_id: input.tenantId });
+          return null;
+        })
+      : null,
+    ports.shape(tc.rc).catch((e: unknown) => {
+      log.error("ask_shape_failed", { error: e, tenant_id: input.tenantId });
       return "";
     }),
-    Promise.all(
-      plan.map(async (run) => {
-        try {
-          return { run, out: await ports.tool(tc, run) };
-        } catch (e) {
-          console.error(
-            "ask_prefetch_failed",
-            JSON.stringify({
-              tool: run.name,
-              error: e instanceof Error ? e.message : String(e),
-              tenant: input.tenantId,
-            }),
-          );
-          return { run, out: { result: "", isError: true } };
-        }
-      }),
-    ),
+    Promise.all(plan.map(runRead)),
+    scoped ? runRead(scoped) : null,
   ]);
-  if (snapshot) reads++;
+  // The page's rows a citation may name enter the read set; the page counts as one read, so a figure answered from it
+  // is grounded (isUngrounded) -- when something on it was read: not a page whose read failed, nor one that is its
+  // address alone (other) and shows no row.
+  if (built) noteRows(tc.read, built.refs);
+  const pageRead =
+    !!built && built.blocks.length > 0 && (built.rows > 0 || (!built.failed && input.context?.surface !== "other"));
+  if (pageRead) reads++;
   const prefetched = preOuts.filter((p) => !p.out.isError);
   for (const p of prefetched) {
-    toolsUsed.push(p.run.name);
+    toolsUsed.push(calledName(p.run.name, p.run.input));
     reads++;
   }
-  const prefetch = prefetchBlock(prefetched.map((p) => ({ run: p.run, result: p.out.result })));
-  const snapshotMs = Date.now() - tSnap;
+  const scopedRow = scopedOut && !scopedOut.out.isError ? scopedOut : null;
+  // The scope's row is read for the model, not by it: it counts as a read, and stays off the turn's tools, as the
+  // snapshot's scoped row did.
+  if (scopedRow) reads++;
+  const contextMs = Date.now() - tCtx;
 
-  // Two cache breakpoints: the stable block for every turn in the workspace,
-  // and the snapshot, kept twenty seconds, for this turn's later rounds and a
-  // quick follow-up. The clock and the person come AFTER both: a breakpoint
-  // covers everything before it, so a clock between the two blocks spoilt
-  // the snapshot's cache every minute. The prefetched rows are this turn's
-  // alone and sit uncached beside the clock.
-  const system = [
-    { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
-    ...(snapshot ? [{ type: "text", text: snapshot, cache_control: { type: "ephemeral" } }] : []),
-    ...(prefetch ? [{ type: "text", text: prefetch }] : []),
-    {
-      type: "text",
-      text: turnSystem({
-        role: input.role,
-        personLabel: input.personLabel,
-        scope: input.scope,
-        surface: input.surface,
-        language: input.language,
-        timezone: input.timezone,
-        closures: input.facts.closures,
-        now,
-        snapshot: !!snapshot,
-        prefetched: !!prefetch,
-      }),
-    },
+  // Two cache breakpoints in system: the rules and facts for every turn in the workspace, and the shape of the
+  // workspace, the same bytes for its people for five minutes. A third on the page's data, its last block (D10): this
+  // turn's later rounds read it from the cache, and so does another first question on the same page within the
+  // cache's life. A follow-up does not: its earlier turns come before the page, as text, so its prefix after the
+  // shape is new bytes and the page is written to the cache again. The clock, the person and the question come after
+  // it; the fourth is on each request's last block (withMarkers), so the next round reads all before it.
+  const head = turnHead(model, input.role, input.facts, shape);
+  const { system } = head;
+  const pageBlocks: SearchResultBlock[] = [
+    ...(built?.blocks ?? []),
+    ...(scopedRow ? [readBlock(scopedRow.run, scopedRow.out.result)] : []),
   ];
-  const messages = foldHistory(input.history, input.text);
-  const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS)];
+  const crossBlocks = prefetched.map((p) => readBlock(p.run, p.out.result));
+  // Whether the question still carries the data blocks: a request the API refuses for them is asked once more without
+  // them (D14), and the words stop pointing at them (wordsBlock).
+  let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
+  const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read });
+  const question = { type: "text", text: input.text };
+  // The tools as the API takes them (registry.ts): the same bytes every round, until the API refuses their examples.
+  let examples = true;
+  let { tools } = head;
   // The answer has its format until the API refuses it: then it is dropped and
   // the same round is asked again. No tool is strict: the API takes twenty
   // strict tools and twenty-four optional parameters across them (26 tools,
   // then 31 parameters in the act tools alone, were refused on every operator
   // turn, 23 Sep), and the tools ran as they always had without it.
   let format = true;
+  // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
+  const requestOf = (msgs: Msg[], at: unknown, last: boolean) => ({
+    model: head.model,
+    max_tokens: ASK_MAX_TOKENS,
+    system,
+    messages: withMarkers(msgs, at),
+    tools,
+    // The last round may call no tool: all that is left is the answer.
+    tool_choice: last ? { type: "none" as const } : head.tool_choice,
+    output_config: format ? head.output_config : { effort: model.effort },
+  });
+  // The earlier turns (memory.ts, the Phase 5 plan, D1–D4): replayed as the model was sent them while the thread is
+  // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else the
+  // rebuilt history, each answer one line, the question after it (bp3 on the page's last block).
+  const cold = () => {
+    const words = sayWords(false, dataDropped);
+    const data = dataDropped ? [] : [...pageBlocks, ...crossBlocks];
+    return { messages: foldHistory(input.history, [...data, words, question]), anchor: pageBlocks.at(-1), words };
+  };
+  const asked = { data: [...pageBlocks, ...crossBlocks], words: sayWords(true, dataDropped), question };
+  const replayed = replayFor(input.chain, asked, (msgs, at) => requestOf(msgs, at, false));
+  let { messages, anchor, words } = replayed ?? cold();
+  // A replay the API refuses (D12) is asked again cold, once: the turn then keeps its words history, the next base.
+  let live = !!replayed;
+  // Where the question sits in every request of the turn: a later round only appends.
+  let questionAt = messages.length - 1;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ASK_TURN_BUDGET_MS);
 
-  const done = (r: {
-    answer: AskAnswer;
-    failed: boolean;
-    failure: string | null;
-    rounds: number;
-    ungrounded?: boolean;
-  }): TurnResult => {
+  const done = (r: TurnEnd): TurnResult => {
     clearTimeout(timer);
-    console.log(
-      JSON.stringify({
-        level: "info",
-        event: "ask_turn_shape",
-        tenant: input.tenantId,
-        snapshot_ms: snapshotMs,
-        snapshot: !!snapshot,
-        prefetched: plan.map((p) => p.name),
-        rounds: r.rounds,
-        tools: toolsUsed,
-        form: r.answer.form,
-      }),
-    );
-    return {
-      ungrounded: false,
-      tools: toolsUsed,
+    return finishTurn(r, {
+      input,
+      model,
+      t0,
+      built,
+      contextMs,
+      dataDropped,
+      pageBlocks,
+      crossBlocks,
+      plan,
+      meter,
+      format,
+      toolsUsed,
       proposals,
-      latencyMs: Date.now() - t0,
-      ...r,
-      text: answerText(r.answer),
-    };
+      questionAt,
+      live,
+      promptHash: systemHash(system),
+    });
   };
   /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */
   const fail = (sentence: string, failure: string, rounds: number) =>
@@ -311,7 +446,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       if (k) {
         firstKey = k[1];
         if (firstKey !== "say")
-          console.warn("ask_say_not_first", JSON.stringify({ first: firstKey.slice(0, 40), tenant: input.tenantId }));
+          log.warn("ask_say_not_first", { first: firstKey.slice(0, 40), tenant_id: input.tenantId });
       }
     }
     const part = json ? partialSay(soFar) : format ? null : { headline: "", detail: soFar };
@@ -324,6 +459,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     if (key === said || at - saidAt < SAY_EVERY_MS) return;
     said = key;
     saidAt = at;
+    meter.said();
     input.emit({ t: "say", headline: say.headline, detail: say.detail });
   };
   /** An answer set aside after its Say was sent: an empty Say takes it back, and the Line shows the reads again. */
@@ -354,10 +490,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     }
   };
   const cutOff = (b: RoundBlock) => {
-    console.error(
-      "ask_tool_input_cut_off",
-      JSON.stringify({ tool: b.name, bytes: b.json.length, tenant: input.tenantId }),
-    );
+    log.error("ask_tool_input_cut_off", { tool: b.name, bytes: b.json.length, tenant_id: input.tenantId });
     return {
       result: JSON.stringify({
         error:
@@ -367,70 +500,89 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     };
   };
 
+  /** A tool call's time, kept in the order the calls ran. */
+  const timed = async <T>(name: string, run: () => Promise<T>): Promise<T> => {
+    const t = Date.now();
+    try {
+      return await run();
+    } finally {
+      meter.toolsMs.push({ name, ms: Date.now() - t });
+    }
+  };
+
   const propose = async (b: RoundBlock) => {
-    toolsUsed.push(b.name);
     const args = argsOf(b);
+    toolsUsed.push(calledName(b.name, args));
     if (!args) return cutOff(b);
-    const p = await ports.propose(tc, b.name, args);
-    if (p.proposal) proposals.push(p.proposal);
-    return { result: p.result, isError: p.isError };
+    return timed(calledName(b.name, args), async () => {
+      const p = await ports.propose(tc, b.name, args);
+      if (p.proposal) proposals.push(p.proposal);
+      return { result: p.result, isError: p.isError };
+    });
   };
 
   const read = async (b: RoundBlock) => {
-    toolsUsed.push(b.name);
     const args = argsOf(b);
+    toolsUsed.push(calledName(b.name, args));
     if (!args) return cutOff(b);
-    const out = await ports.tool(tc, { name: b.name, input: args });
-    if (!out.isError) reads++;
-    return { result: out.result, isError: out.isError };
+    return timed(calledName(b.name, args), async () => {
+      const out = await ports.tool(tc, { name: b.name, input: args });
+      if (!out.isError) reads++;
+      return { result: out.result, isError: out.isError };
+    });
   };
 
   try {
     for (let round = 1; round <= ASK_MAX_ROUNDS; round++) {
       const last = round === ASK_MAX_ROUNDS;
-      const request = {
-        model: ASK_MODEL,
-        max_tokens: ASK_MAX_TOKENS,
-        system,
-        messages,
-        tools: baseTools.map((d) => ({ name: d.name, description: d.description, input_schema: d.input_schema })),
-        // The last round may call no tool: all that is left is the answer.
-        tool_choice: last ? { type: "none" } : { type: "auto" },
-        output_config: format
-          ? {
-              effort: EFFORT,
-              format: { type: "json_schema" as const, schema: ASK_ANSWER_FORMAT as unknown as Record<string, unknown> },
-            }
-          : { effort: EFFORT },
-      };
+      const request = { ...requestOf(messages, anchor, last), diagnostics: meter.follows(live, input.chain) };
 
+      const roundAt = Date.now();
       let blocks: RoundBlock[];
       let stopReason: string | null;
       let streamError: string | null;
       try {
-        ({ blocks, stopReason, streamError } = await ports.round(
+        const r = await ports.round(
           { tenantId: input.tenantId, userId: input.ctx.userId, request, signal: controller.signal },
           onText,
-        ));
+        );
+        ({ blocks, stopReason, streamError } = r);
+        meter.round(r, roundAt);
       } catch (e) {
         if (e instanceof GatewayRefused) {
-          // The format refused: the same round is asked again without it, and
-          // what comes back is read as JSON when it is, else as prose (D15).
+          // Something the turn can do without, refused (refusals.ts): the same round is asked again without it, once
+          // each. Without the page's data, their reads leave the count and the words stop pointing at them; without
+          // the format, what comes back is read as JSON when it is, else as prose (D15).
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
-          if (m && format && featureRejected(m)) {
-            console.error("ask_format_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
-            format = false;
+          const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, examples, format });
+          if (drop) {
+            log.error(DROP_EVENTS[drop], { error: m.slice(0, 200), tenant_id: input.tenantId });
+            if (drop === "replay") {
+              ({ messages, anchor, words } = cold());
+              live = false;
+              questionAt = messages.length - 1;
+            } else if (drop === "context") {
+              dataDropped = true;
+              reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
+              const bare = sayWords(live, dataDropped);
+              messages[questionAt] = {
+                role: "user",
+                content: (messages[questionAt].content as Array<{ type?: string }>)
+                  .filter((b) => b.type !== "search_result")
+                  .map((b) => (b === words ? bare : b)),
+              };
+            } else if (drop === "examples") {
+              examples = false;
+              tools = toApiTools(input.role, examples);
+            } else format = false;
             round--;
             continue;
           }
-          console.error(
-            "ask_gateway_refused",
-            JSON.stringify({
-              kind: e.refusal.kind,
-              tenant: input.tenantId,
-              message: "message" in e.refusal ? String(e.refusal.message).slice(0, 300) : undefined,
-            }),
-          );
+          log.error("ask_gateway_refused", {
+            kind: e.refusal.kind,
+            tenant_id: input.tenantId,
+            message: "message" in e.refusal ? String(e.refusal.message).slice(0, 300) : undefined,
+          });
           return fail(refusalText(e.refusal, es), e.refusal.kind, round);
         }
         if (controller.signal.aborted) {
@@ -460,14 +612,12 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // recorded here, because a turn that keeps hitting the cap is a budget
       // that is too small and not a model that keeps changing its mind.
       if (stopReason === "max_tokens") {
-        console.error(
-          "ask_round_hit_cap",
-          JSON.stringify({
-            round,
-            tools: blocks.filter((b) => b.type === "tool_use").map((b) => b.name),
-            tenant: input.tenantId,
-          }),
-        );
+        meter.capHits++;
+        log.error("ask_round_hit_cap", {
+          round,
+          tools: blocks.filter((b) => b.type === "tool_use").map((b) => calledName(b.name, argsOf(b))),
+          tenant_id: input.tenantId,
+        });
       }
       if (stopReason === "refusal") {
         return fail(es ? "No puedo responder a eso aquí." : "I can't answer that here.", "refusal", round);
@@ -489,10 +639,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // An answer beside a read was written before its rows: it is set aside,
       // and the model answers next round with them.
       if (written && calls.length > acts.length) {
-        console.warn(
-          "ask_answer_beside_read",
-          JSON.stringify({ tools: calls.map((b) => b.name), tenant: input.tenantId }),
-        );
+        log.warn("ask_answer_beside_read", {
+          tools: calls.map((b) => calledName(b.name, argsOf(b))),
+          tenant_id: input.tenantId,
+        });
         written = "";
         unsay();
       }
@@ -506,23 +656,24 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       }
 
       // Reads and proposals, in parallel; every result goes back at once.
-      for (const b of calls)
-        input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
+      for (const b of calls) input.emit({ t: "trace", text: toolLabel(b.name, argsOf(b)) });
       const before = proposals.length;
       const outcomes = await Promise.all(
         calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
       );
       const refused = outcomes.some(({ out }) => out.isError);
+      // The round as it went out and came back: a turn that ends on it keeps it as the turn it was (memory.ts).
+      const lastRound = { request, blocks, outcomes, roundAt, streamError };
 
       // Beside acts, the answer stands when every card was made: an act only
       // checks and proposes. A card refused or cut off would leave an answer
       // claiming a card that is not there, so the answer goes back with the
       // round, and the model answers again knowing why.
       if (written && refused) {
-        console.warn(
-          "ask_answer_beside_refused_card",
-          JSON.stringify({ tools: acts.map((b) => b.name), tenant: input.tenantId }),
-        );
+        log.warn("ask_answer_beside_refused_card", {
+          tools: acts.map((b) => calledName(b.name, argsOf(b))),
+          tenant_id: input.tenantId,
+        });
         written = "";
         unsay();
       }
@@ -532,10 +683,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         if (written.startsWith("{")) {
           const shaped = normalizeAnswer(written, tc.read, input.language);
           if (!shaped.ok) {
-            console.error(
-              "ask_answer_unparsed",
-              JSON.stringify({ error: shaped.error.slice(0, 200), stop: stopReason, tenant: input.tenantId }),
-            );
+            log.error("ask_answer_unparsed", {
+              error: shaped.error.slice(0, 200),
+              stop: stopReason,
+              tenant_id: input.tenantId,
+            });
             // An answer cut off by a broken stream says so: the connection dropped, not the shape.
             if (streamError)
               return fail(
@@ -551,13 +703,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
               round,
             );
           }
-          if (shaped.dropped)
-            console.warn("ask_sources_dropped", JSON.stringify({ dropped: shaped.dropped, tenant: input.tenantId }));
+          if (shaped.dropped) log.warn("ask_sources_dropped", { dropped: shaped.dropped, tenant_id: input.tenantId });
           answer = shaped.answer;
         } else {
           // Words with no shape: the format was refused (D15), or words came where the JSON should have.
-          if (format)
-            console.warn("ask_answer_not_json", JSON.stringify({ chars: written.length, tenant: input.tenantId }));
+          if (format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
           answer = proseAnswer(written, input.language);
         }
         return done({
@@ -566,6 +716,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           failed: false,
           failure: null,
           rounds: round,
+          lastRound,
         });
       }
 
@@ -574,19 +725,12 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // round -- the model must say why and what the person can do instead.
       if (acts.length === calls.length && !refused && proposals.length > before) {
         const answer = answerForCards(proposals.slice(before), input.language);
+        meter.said();
         input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
-        return done({ answer, failed: false, failure: null, rounds: round });
+        return done({ answer, failed: false, failure: null, rounds: round, lastRound });
       }
       messages.push({ role: "assistant", content: replayBlocks(blocks) });
-      messages.push({
-        role: "user",
-        content: outcomes.map(({ block, out }) => ({
-          type: "tool_result",
-          tool_use_id: block.id,
-          content: out.result,
-          is_error: out.isError,
-        })),
-      });
+      messages.push({ role: "user", content: resultBlocks(outcomes) });
       if (Date.now() - t0 > ASK_TURN_BUDGET_MS - 8_000 && !last) {
         // Not enough time for another read: the next round is the last, and
         // answers with what there is. Appended to the newest message, never an
@@ -607,10 +751,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       ASK_MAX_ROUNDS,
     );
   } catch (e) {
-    console.error(
-      "ask_turn_failed",
-      JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }),
-    );
+    log.error("ask_turn_failed", { error: e, tenant_id: input.tenantId });
     return fail(
       es ? "Algo falló al responder. Inténtalo de nuevo." : "Something went wrong while answering. Try again.",
       e instanceof Error ? e.message : String(e),

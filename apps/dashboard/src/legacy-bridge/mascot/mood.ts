@@ -11,7 +11,9 @@ export type MoodEvent =
   | { t: "react"; kind: Reaction }
   | { t: "beat"; strength: number }
   | { t: "hear"; level: number }
-  | { t: "pulse"; strength: number };
+  | { t: "pulse"; strength: number }
+  | { t: "glow"; on: boolean }
+  | { t: "voice"; level: number; live: boolean };
 
 export interface Mood {
   readonly state: CharacterState;
@@ -24,11 +26,17 @@ export interface Mood {
   hear(level: number): void;
   /** a read that landed: every face's orbit surges and a light runs down its stack */
   pulse(strength?: number): void;
+  /** lit at rest (a page arriving): every face takes the AI's colour where it stands; false is the ink again */
+  glow(on: boolean): void;
+  /** the AI's own voice as it speaks (the agent's, legacy-bridge/ask/voice.ts): every face moves to its level; `live` false is silence again */
+  voice(level: number, live?: boolean): void;
+  readonly lit: boolean;
   subscribe(fn: (ev: MoodEvent) => void): () => void;
 }
 
 export function createMood(): Mood {
   let state: CharacterState = "idle";
+  let lit = false;
   const listeners = new Set<(ev: MoodEvent) => void>();
   const emit = (ev: MoodEvent) => {
     for (const fn of [...listeners]) fn(ev);
@@ -36,6 +44,9 @@ export function createMood(): Mood {
   return {
     get state() {
       return state;
+    },
+    get lit() {
+      return lit;
     },
     set(next) {
       if (next === state || !STATES.includes(next)) return;
@@ -54,6 +65,15 @@ export function createMood(): Mood {
     pulse(strength = 0.7) {
       emit({ t: "pulse", strength });
     },
+    glow(on) {
+      const next = !!on;
+      if (next === lit) return;
+      lit = next;
+      emit({ t: "glow", on: lit });
+    },
+    voice(level, live = true) {
+      emit({ t: "voice", level: Math.max(0, Math.min(1, level)), live });
+    },
     subscribe(fn) {
       listeners.add(fn);
       return () => {
@@ -70,16 +90,21 @@ export interface Face {
   beat(strength?: number): void;
   hear(level: number): void;
   pulse?(strength?: number): void;
+  glow?(v: number): void;
+  voice?(level: number, live?: boolean): void;
 }
 
 /** Points a face at a mood: the state it is in now, then every change after. Returns what stops it. */
 export function follow(face: Face, mood: Mood): () => void {
   face.set(mood.state);
+  if (mood.lit) face.glow?.(1);
   return mood.subscribe((ev) => {
     if (ev.t === "state") face.set(ev.state);
+    else if (ev.t === "glow") face.glow?.(ev.on ? 1 : 0);
     else if (ev.t === "react") face.react(ev.kind);
     else if (ev.t === "beat") face.beat(ev.strength);
     else if (ev.t === "pulse") face.pulse?.(ev.strength);
+    else if (ev.t === "voice") face.voice?.(ev.level, ev.live);
     else face.hear(ev.level);
   });
 }

@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, UUID } from "@chanlytics/contracts";
 
 /**
  * The checks every mutating request should pass before anything reads a
@@ -42,21 +42,12 @@ export function isSameOrigin(request: Request): boolean {
   }
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
- * A route parameter that must be an id.
+ * A route parameter that must be an id (contracts' UUID; `isUuid` there is the same test as a boolean).
  *
  * PostgREST answers a malformed uuid with 22P02, which `withRoute` turns into
  * a generic 500 "Something went wrong" — so a typo in a URL read as a server
  * fault. It is a 404: the thing named does not exist, because it cannot.
- */
-export function isUuid(value: unknown): boolean {
-  return UUID.test(String(value ?? ""));
-}
-
-/**
- * The same shape as an AppError.
  *
  * `requireUuid` is for a URL's own parameter, where a malformed id means the
  * thing named cannot exist (404). An id that arrives in a request BODY is a

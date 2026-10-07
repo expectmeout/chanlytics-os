@@ -1611,4 +1611,23 @@ PR text:
 
 ## As built
 
-(Filled in after each PR merges: the numbers, the SHAs, and what differed from this plan.)
+- **PR 1** #1024 → 833bb06a, 00174 on prod. As planned, plus: suppression now covers free mail too (the runner), the
+  address actually mailed is suppressed beside the contact's, `campaign_series` skips `email_marketing`, and the
+  canonical redirect skips `/u/`.
+- **PR 2** #1028 → f24d16a8, 00175 on prod. Differed: a verified domain is never asked to verify (the provider marks
+  it pending); DMARC missing holds only on the second read in a row; a lost create adopts the account's domain by
+  name (the list is paged); another workspace's never-verified reservation is taken over after 72 h; the clock's 503
+  is only for every row answering 401/403; remove touches the row first; the limit is a trigger with an advisory lock.
+- **PR 3** #1032 → f1c2dfbd. As planned, plus: a held-for-DNS domain shows its records, non-owners see one reason, and
+  Setup makes no edge call without a mailbox and draws no block when the domains read fails.
+- **PR 4** #1036 → f267e51b. Differed: the wire has lanes (`EmailRoute.lane`, `WirePayload.purpose`), so an own
+  domain carries outreach only and outreach never leaves as the hosted mailbox; the door compares the whole From
+  (`from_local@host`), not the host; each webhook secret verifies on its own; a failed domains read keeps the hosted
+  route instead of failing every job; `AskedPurpose` keys the two consent questions (the page, the profile, the
+  audiences, the voice gate), so outreach cannot be answered where nobody is asked. The lead check reads
+  `conversations.contact_id`.
+- **PR 5** (this one), 00176. Differed: counting lives in `checkSendingDomain`, so the owner's Check and the clock
+  judge the same facts; a count that cannot be read judges no reputation that time; Resume clears the stored counts
+  with the window. **Not done, on purpose:** the column-level revoke of `provider_domain_id` from members. No table
+  here revokes a table-wide SELECT and grants columns back, realtime's row filter reads column privileges, and the id
+  is useless without the cold key. The dashboard's read never selects it (`SENDING_DOMAIN_COLUMNS`, tested).
