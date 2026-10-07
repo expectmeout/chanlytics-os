@@ -118,8 +118,11 @@ test("the installable shell: a public manifest, real icons, full-screen on iOS, 
   }
   const layout = readCode("apps/dashboard/app/layout.tsx");
   assert.ok(layout.includes('manifest: "/manifest.webmanifest"'));
+  // The phone's own bar stands over the app. Under "black-translucent" iOS 26 and 27 laid the installed app out one
+  // bar short of the screen, on a strip at its foot nothing can be drawn in (7 Oct 2026).
   assert.ok(
-    layout.includes('appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Chanlytics" }'),
+    layout.includes('appleWebApp: { capable: true, statusBarStyle: "default", title: "Chanlytics" }'),
+    "the page is never drawn under the phone's bar: an installed iPhone app then ends a bar short of its screen",
   );
   assert.ok(layout.includes('viewportFit: "cover"'));
   assert.ok(
