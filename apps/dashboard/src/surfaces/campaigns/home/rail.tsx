@@ -208,7 +208,7 @@ function PhoneStage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
       {turnOn ? (
         <Button
           size="sm"
-          variant={s.hint ? "primary" : "quiet"}
+          variant={s.hint ? "primary" : "secondary"}
           onClick={() => acts.onAct(turnOn)}
           data-testid="cmh-turn-on"
           {...acts.gated}

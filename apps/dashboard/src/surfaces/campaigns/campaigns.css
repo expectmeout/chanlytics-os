@@ -4051,6 +4051,25 @@ section:has(> .tpl-composer:not(.is-translate)) {
 .pb-grow-word {
   white-space: nowrap;
 }
+/* On a phone a row's word stands over what it asks, which takes the pane's whole width: in a 48px column beside it, what
+   To and Says explain stood in what was left of a phone's sheet and broke every few words (Ruben, 7 Oct 2026). */
+@media (max-width: 900px) {
+  .bc-grow,
+  .pb-grow {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-2);
+  }
+  .bc-grow-word,
+  .pb-grow-word {
+    padding-top: 0;
+  }
+  /* And a hint under what a row asks reads from the left, as the row does: centred, a short one ("None of the channels
+     ticked can carry this message yet.") stood apart from the picker over it. */
+  .bc-grow-body .bc-excl-hint,
+  .pb-grow-body .bc-excl-hint {
+    align-self: stretch;
+  }
+}
 /* The ledger is always the list, in the split's one pane (parts/split.tsx): its head is the runs by state (the kit's
    sub-tabs, whose strip keeps the list's own sides), what went out under them, and the week ahead; then the runs, which
    fold their columns under the name where the list is narrow (their container queries above read the box they stand
@@ -4634,8 +4653,20 @@ div.tpl-slotbox:not([data-lines="1"]) {
   letter-spacing: var(--tracking-tight);
   color: var(--ink);
 }
+/* A tile's door ("Calendar ›", "All runs ›", "People ›") is its words and its chevron, with no underline: the chevron says
+   it goes somewhere, and underlined at 17px it read as a sentence's link (Ruben, 7 Oct 2026). Under a finger it takes 44px
+   from a margin no one sees. */
 .cmh-more {
+  position: relative;
   margin-left: auto;
+  text-decoration: none;
+}
+@media (pointer: coarse) {
+  .cmh-more::after {
+    content: "";
+    position: absolute;
+    inset: -14px -8px;
+  }
 }
 .cmh-dim {
   color: var(--ink-dim);
@@ -5224,13 +5255,14 @@ div.tpl-slotbox:not([data-lines="1"]) {
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  /* And it is the glass control the Calendar's options are (calendar.css .cal-options): a 44px circle round its glyph, a
-     capsule where its count stands beside it, in the muted ink. The kit's small outlined button stood a narrow 33px square
-     beside New, and all but vanished on the light side (7 Oct 2026). */
+  /* And it is the glass control the Calendar's options are (calendar.css .cal-options), at the size of the acts on the
+     name's row (components.css, the frame's phone block): a 36px circle round its glyph, a capsule where its count stands
+     beside it, in the muted ink. The kit's small outlined button stood a narrow 33px square beside New, and all but
+     vanished on the light side (7 Oct 2026). */
   a.cmh-library {
-    min-width: 44px;
-    height: 44px;
-    padding: 0 14px;
+    min-width: var(--control-h-lg);
+    height: var(--control-h-lg);
+    padding: 0 11px;
     justify-content: center;
     border: 0;
     border-radius: var(--radius-full);

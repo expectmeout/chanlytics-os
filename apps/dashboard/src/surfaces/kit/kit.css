@@ -1986,12 +1986,14 @@ textarea.rec-input {
 }
 /* A title said in place (a pane's head, where its name is written where it is read): the words are the page's own
    and a box only as it is hovered or touched. It takes its width from its words where the browser can size a box by
-   them, and the whole line where it cannot. The page's pencil beside it, and where it stands, are the page's. */
+   them, and the whole line where it cannot. The page's pencil beside it, and where it stands, are the page's. Its box
+   hangs 6px past the words on either side (the margin), so it may be 12px wider than the line it stands in: held to the
+   line's width, the words lost those 12px and "Win-back" read "Win-b…" (7 Oct 2026). */
 .rec-input-title {
   flex: 0 1 auto;
   width: auto;
   min-width: 4ch;
-  max-width: 100%;
+  max-width: calc(100% + 12px);
   height: auto;
   field-sizing: content;
   margin: -2px -6px;
