@@ -122,7 +122,7 @@ function LeaveAsk({
       }
       yes="Yes, leave"
       no="Stay"
-      danger={!leaving.saving}
+      discard={!leaving.saving}
       onYes={onYes}
       onNo={onNo}
       testid="set-leave"

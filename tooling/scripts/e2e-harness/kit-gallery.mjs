@@ -52,9 +52,10 @@ const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
  * here and there, or here and drawn by no entry, is a stale line.
  */
 export const UNLISTED = {
-  "cl-bucket-link":
-    "the quiet link button Confirm, EmptyState and FailedRead draw, under People's name for it (components.css)",
-  "confirm-danger": "Confirm's mark on a question that destroys, which no stylesheet names yet (data-bits.jsx Confirm)",
+  "cl-bucket-link": "the quiet link button EmptyState and FailedRead draw, under People's name for it (components.css)",
+  "confirm-danger": "Confirm's mark on a question that destroys, which no stylesheet names yet (kit/confirm)",
+  "confirm-discard":
+    "Confirm's mark on a question about what was typed and not saved, which no stylesheet names (kit/confirm)",
   "pp-toast-ok":
     "usePPToast's tone class on a confirmation, which no stylesheet names (data-bits.jsx, pp-toast-<tone>)",
   "stabs-inbox": "the Inbox's strip as SurfaceTabs marks each group's (stabs-<group>), which no stylesheet names",
@@ -167,8 +168,19 @@ const SERVICE_ROWS = [
   )
   .join("");
 
-/** A record sheet over its wash; `leaving` draws the still copies that play its leaving (data-bits leaving). */
-const recSheet = (leaving = false) =>
+/** A question that destroys, as a sheet's own foot asks it (a run's Skip): the red Yes, and the No a pair with it. */
+const dangerAsk = () =>
+  `<span class="confirm confirm-danger" role="group" aria-label="Skip this run?"><span class="confirm-words">` +
+  `<span class="confirm-q">Skip this run?</span>` +
+  `<span class="confirm-detail">Nothing sends, and the run closes.</span></span>` +
+  `<span class="confirm-acts"><button type="button" class="btn btn-sm btn-danger">Yes, skip it</button>` +
+  `<button type="button" class="btn btn-sm btn-ghost">No</button></span></span>`;
+
+/**
+ * A record sheet over its wash; `leaving` draws the still copies that play its leaving (data-bits leaving), and
+ * `asking` a question that destroys in its foot.
+ */
+const recSheet = (leaving = false, asking = false) =>
   `<div class="rec-sheet-backdrop" aria-hidden="true"${leaving ? ' data-leaving="true"' : ""}></div>` +
   `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"` +
   `${leaving ? ' data-leaving="true"' : ""}>` +
@@ -176,10 +188,23 @@ const recSheet = (leaving = false) =>
   `<div class="rec-sheet-tools">${recCombo({ label: "Find a service", placeholder: "Find a service" })}` +
   `<span class="rec-sr" role="status" aria-live="polite">3 services</span></div>` +
   `<div class="rec-sheet-body">${SERVICE_ROWS}</div>` +
-  `<footer class="rec-sheet-foot">${recFoot({ note: "Saved for every line." })}</footer></section>`;
+  (asking
+    ? `<footer class="rec-sheet-foot" data-asking="true">${dangerAsk()}</footer></section>`
+    : `<footer class="rec-sheet-foot">${recFoot({ note: "Saved for every line." })}</footer></section>`);
 
-/** A fold drawn as a sheet (RecordFold's `frame`), its row behind it; `leaving` draws the copies that go. */
-const recFoldSheet = (leaving = false) =>
+/** The question a discard asks (Confirm's `discard`): red words on no ground, and the No as the plain button beside it. */
+const discardAsk = () =>
+  `<span class="confirm confirm-discard" role="group" aria-label="Discard your changes?"><span class="confirm-words">` +
+  `<span class="confirm-q">Discard your changes?</span>` +
+  `<span class="confirm-detail">Nothing you changed here has been saved.</span></span>` +
+  `<span class="confirm-acts"><button type="button" class="btn btn-sm btn-ghost danger">Yes, discard</button>` +
+  `<button type="button" class="btn btn-sm">Keep editing</button></span></span>`;
+
+/**
+ * A fold drawn as a sheet (RecordFold's `frame`), its row behind it; `leaving` draws the copies that go, and `asking`
+ * the question in its foot, in Save's and Cancel's place.
+ */
+const recFoldSheet = (leaving = false, asking = false) =>
   (leaving
     ? ""
     : `<div class="rec-fold-behind" aria-hidden="true" inert><section class="rec-card">` +
@@ -194,7 +219,9 @@ const recFoldSheet = (leaving = false) =>
   recField("Monday opens", "09:30") +
   recField("Monday closes", "18:00") +
   `</div></div>` +
-  `<footer class="rec-sheet-foot">${recFoot()}</footer></section>`;
+  (asking
+    ? `<footer class="rec-sheet-foot" data-asking="true">${discardAsk()}</footer></section>`
+    : `<footer class="rec-sheet-foot">${recFoot()}</footer></section>`);
 
 /** Rows in a card (the record's card). */
 const recCard = (rows, head = "") => `<section class="rec-card">${head}${rows}</section>`;
@@ -284,7 +311,7 @@ const jobBody = () =>
   `<span class="confirm-words"><span class="confirm-q">Delete the list?</span>` +
   `<span class="confirm-detail">The people stay.</span></span>` +
   `<span class="confirm-acts"><button type="button" class="btn btn-sm btn-danger">Yes, delete</button>` +
-  `<button type="button" class="cl-bucket-link">No</button></span></span>`;
+  `<button type="button" class="btn btn-sm btn-ghost">No</button></span></span>`;
 /** The kit's sheet in a job's shape (Sheet's `shape="job"`): a step's way back, its title and its word, the job under them. */
 const jobSheet = (leaving = false) =>
   `<div class="sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
@@ -1037,7 +1064,7 @@ export const FAMILIES = [
   {
     family: "Confirm",
     about:
-      "The one armed question, Confirm: a line where the control was, its Yes red when the act destroys; a panel under the row, with the name erasure asks to be typed and what went wrong.",
+      "The one armed question, Confirm: a line where the control was, its Yes red when the act destroys and red words alone when it discards what was typed; a panel under the row, with the name erasure asks to be typed and what went wrong. Its two answers are buttons, side by side, each half the width in a panel, in a sheet's foot and on a phone.",
     entries: [
       {
         id: "confirm",
@@ -1046,7 +1073,7 @@ export const FAMILIES = [
           `<span class="confirm-q">Disconnect Google?</span>` +
           `<span class="confirm-detail">The public listing stays; replies and the history do not.</span></span>` +
           `<span class="confirm-acts"><button type="button" class="btn btn-sm">Yes, disconnect</button>` +
-          `<button type="button" class="cl-bucket-link">No</button></span></span>`,
+          `<button type="button" class="btn btn-sm btn-ghost">No</button></span></span>`,
       },
       {
         id: "confirm-danger",
@@ -1055,8 +1082,9 @@ export const FAMILIES = [
           `<span class="confirm-q">Delete the list?</span>` +
           `<span class="confirm-detail">The people on it stay.</span></span>` +
           `<span class="confirm-acts"><button type="button" class="btn btn-sm btn-danger">Yes, delete</button>` +
-          `<button type="button" class="cl-bucket-link">No</button></span></span>`,
+          `<button type="button" class="btn btn-sm btn-ghost">No</button></span></span>`,
       },
+      { id: "confirm-discard", html: discardAsk() },
       {
         id: "confirm-block",
         html:
@@ -1067,7 +1095,7 @@ export const FAMILIES = [
           `<input class="confirm-typed" value="" placeholder="Sam Ortega" aria-label="Type Sam Ortega to confirm">` +
           `<span class="confirm-error" role="alert">That didn't go through. Try again in a moment.</span>` +
           `<span class="confirm-acts"><button type="button" class="btn btn-sm btn-danger" disabled>Yes, erase</button>` +
-          `<button type="button" class="cl-bucket-link">No</button></span></span>`,
+          `<button type="button" class="btn btn-sm btn-ghost">No</button></span></span>`,
       },
     ],
   },
@@ -1467,11 +1495,13 @@ export const FAMILIES = [
   {
     family: "Record sheet",
     about:
-      "RecordSheet, beside the page over its wash: its head, tools, rows and foot; a fold drawn as a sheet with its row behind it; and the still copies that play each one's leaving.",
+      "RecordSheet, beside the page over its wash: its head, tools, rows and foot; a fold drawn as a sheet with its row behind it, and with the question a discard asks in its foot; and the still copies that play each one's leaving.",
     entries: [
       { id: "rec-sheet", stage: "sheet", html: recSheet() },
       { id: "rec-sheet-leaving", stage: "sheet", html: recSheet(true) },
+      { id: "rec-sheet-asking", stage: "sheet", html: recSheet(false, true) },
       { id: "rec-fold-sheet", stage: "sheet", html: recFoldSheet() },
+      { id: "rec-fold-sheet-asking", stage: "sheet", html: recFoldSheet(false, true) },
       { id: "rec-fold-sheet-leaving", stage: "sheet", html: recFoldSheet(true) },
     ],
   },

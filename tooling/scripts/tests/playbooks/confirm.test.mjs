@@ -93,7 +93,7 @@ test("the shape: the question, what happens, a Yes that names the verb as a real
   assert.equal(textOf(yes), "Yes, disconnect");
   assert.equal(yes.props.autoFocus, true, "the Yes takes focus as the question appears");
   assert.equal(textOf(no), "No");
-  assert.equal(no.props.className, "cl-bucket-link");
+  assert.equal(no.props.className, "btn btn-sm btn-ghost", "a button of the Yes's height, quiet");
   assert.ok(textOf(c).includes("The public listing stays."));
   assert.equal(byTestId(c, "google-disconnect-typed"), null, "no typing unless asked");
 });
@@ -116,6 +116,26 @@ test("danger fills the Yes red; block draws a panel; busy holds both buttons and
   assert.equal(yes.props.disabled, true);
   assert.equal(textOf(yes), "Deleting…");
   assert.equal(byTestId(d, "x-no").props.disabled, true);
+});
+
+test("a discard is never the red fill: red words on no ground, and the No as the plain button beside it", () => {
+  // Ruben, 7 Oct 2026: a red "Yes, discard" stood over a coral Save. A discard touches nothing that was kept, so one
+  // question holds no filled colour for it, whatever else it is handed.
+  const d = Confirm({
+    question: "Discard your changes?",
+    detail: "Nothing you changed here has been saved.",
+    yes: "Yes, discard",
+    no: "Keep editing",
+    discard: true,
+    danger: true,
+    onYes() {},
+    onNo() {},
+    testid: "x",
+  });
+  assert.equal(d.props.className, "confirm confirm-discard", "its own mark, and not the mark of an act that destroys");
+  assert.equal(byTestId(d, "x-yes").props.className, "btn btn-sm btn-ghost danger", "the quiet red, never btn-danger");
+  assert.equal(byTestId(d, "x-no").props.className, "btn btn-sm", "the plain button, a pair with the Yes");
+  assert.equal(textOf(byTestId(d, "x-no")), "Keep editing");
 });
 
 test("Escape is No -- unless the act is already on its way", () => {

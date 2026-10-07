@@ -745,10 +745,11 @@ test("the timezone row says the zone and the time there, and saves through the w
       ["danger", "Only the owner can change the timezone."],
     );
     assert.deepEqual(openRows(tree), ["timezone"]);
-    // Cancel with a change asks first.
+    // Cancel with a change closes it at once: a row holds one value, and its own Cancel asks nothing.
     cancelRow(tree, "timezone");
     tree = redrawTab(flash);
-    assert.match(textOf(byTestId(tree, "rec-inline-timezone-cancel-confirm")), /Discard your changes\?/);
+    assert.equal(byTestId(tree, "rec-inline-timezone-cancel-confirm"), null);
+    assert.deepEqual(openRows(tree), []);
   } finally {
     delete W.__workspace;
   }
@@ -2343,4 +2344,34 @@ test("the page draws itself again when the settings surface is read again: the c
   quiet();
   W.dispatchEvent({ type: "surface:settings" });
   assert.equal(redrawWanted(), false, "the page lets go of the event as it goes");
+});
+
+test("a fold of one value closes on its own Cancel without asking, and still asks when another row is reached for", () => {
+  // Ruben, 7 Oct 2026, of "Where your bookings come from": a question over one picked word is in the way. The fold's
+  // own Cancel is the person saying they are done with it. Another row's act is not that decision, so the registry is
+  // still told of what was typed and still asks (a person who typed and pressed the next thing may believe it was kept).
+  let tree = drawTab();
+  const type = (value) => {
+    find(foldOf(tree, "calendar"), (n) => classes(n).includes("rec-input")).props.onChange({ target: { value } });
+    tree = redrawTab();
+  };
+  openFold(tree, "calendar");
+  tree = redrawTab();
+  type("https://calendar.example/feed.ics");
+  assert.equal(W.__settingsUnsaved(), true, "the rail and the browser are told of it while it stands open");
+  cancelFoldOf(tree, "calendar");
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-fold-calendar-cancel-confirm"), null, "nothing asked");
+  assert.deepEqual(openFolds(tree), [], "closed at once");
+  assert.equal(W.__settingsUnsaved(), false);
+
+  openFold(tree, "calendar");
+  tree = redrawTab();
+  type("https://calendar.example/feed.ics");
+  openFold(tree, "website");
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "rec-fold-calendar-ask-confirm")), /Discard your changes\?/);
+  press(byTestId(tree, "rec-fold-calendar-ask-no"));
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), ["calendar"], "keep editing keeps it open");
 });

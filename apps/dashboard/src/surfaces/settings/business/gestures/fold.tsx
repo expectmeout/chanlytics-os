@@ -57,6 +57,8 @@ interface BtFoldProps<D = unknown> {
   check?: ((draft: D) => BtProblems | null | undefined) | null;
   door?: BtEditDoor<D> | null;
   after?: ((draft: D) => void) | null;
+  /** A fold of one value (an address pasted, a tool picked): its own Cancel closes it without asking (common.tsx). */
+  light?: boolean;
   body: (fields: BtFields<D>) => ReactNode;
 }
 
@@ -81,6 +83,7 @@ function btFoldProps<D>(p: BtFoldProps<D>) {
     check: dflt(p.check, null),
     door: dflt(p.door, null),
     after: dflt(p.after, null),
+    light: dflt(p.light, false),
     body: p.body,
   };
 }
@@ -217,6 +220,7 @@ export function BtFold<D = unknown>(props: BtFoldProps<D>) {
     check: r.check,
     door,
     after: r.after,
+    light: r.light,
     nothingYet: (!!rest && !has) || !!(door && door.initial == null),
     prefix: `rec-fold-${id}`,
   });

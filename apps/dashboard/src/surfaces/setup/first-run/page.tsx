@@ -540,7 +540,7 @@ function leaveAsk(leaving: Leaving, setLeaving: (l: Leaving | null) => void): Re
       detail={leaving.saving ? W.leave.savingDetail : W.leave.detail}
       yes={W.leave.yes}
       no={W.leave.no}
-      danger={!leaving.saving}
+      discard={!leaving.saving}
       onYes={() => {
         const { move } = leaving;
         setLeaving(null);

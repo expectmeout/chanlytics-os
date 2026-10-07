@@ -51,6 +51,8 @@ interface BtEditorArgs<D> {
   nothingYet?: boolean;
   door?: BtEditDoor<D> | null;
   after?: ((draft: D) => void) | null;
+  /** An editor of one value: its own Cancel closes it without asking (common.tsx). */
+  light?: boolean;
   prefix: string;
 }
 
@@ -68,6 +70,7 @@ function btEditorArgs<D>(a: BtEditorArgs<D>) {
     nothingYet: dflt(a.nothingYet, false),
     door: dflt(a.door, null),
     after: dflt(a.after, null),
+    light: dflt(a.light, false),
     prefix: a.prefix,
   };
 }
@@ -622,7 +625,7 @@ export function useBtEditor<D>(args: BtEditorArgs<D>) {
     fold.close();
   };
   const refused = !!(gate && gate["aria-disabled"]);
-  const asks = btAsks({ ask, fold, prefix: a.prefix, busy, dirty, close, reset });
+  const asks = btAsks({ ask, fold, prefix: a.prefix, busy, dirty, light: a.light, close, reset });
   const submit = btEditorSubmit(a, opening, ed, { busy, open, draft, refused, close });
   const will = btEditorWill(a, opening, open, now);
 

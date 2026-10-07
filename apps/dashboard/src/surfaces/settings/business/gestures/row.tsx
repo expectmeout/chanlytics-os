@@ -136,7 +136,8 @@ function useBtRowEditor<D>(r: BtRowR<D>) {
   const [problem, setProblem] = useState<string | null>(null);
   const ask = useBtAsk();
   // What the registry reads when it asks whether this row holds changes. A keystroke lands here as it is typed, so a
-  // press on another row straight after typing is asked about even before the page has drawn again.
+  // press on another row straight after typing is asked about even before the page has drawn again. (The row's own
+  // Cancel asks nothing: it holds one value, common.tsx's `light`.)
   const live = useRef<BtRowLive<D>>({ draft: null, initial, storedAs, open: false });
   const holds = () => {
     const l = live.current;
@@ -191,7 +192,7 @@ function useBtRowEditor<D>(r: BtRowR<D>) {
     fold.close();
   };
   const refused = !!(gate && gate["aria-disabled"]);
-  const asks = btAsks({ ask, fold, prefix: `rec-inline-${id}`, busy, dirty, close, reset });
+  const asks = btAsks({ ask, fold, prefix: `rec-inline-${id}`, busy, dirty, light: true, close, reset });
   const submit = () => {
     if (busy || !open || refused) return;
     const bad = check(now);

@@ -54,7 +54,7 @@ tables with more than one writer     58   387 writers among them
 personal columns with no erasure strategy  195   in 44 tables
 breakpoints outside the set          35   in 11 files
 literal style values                982   in 23 stylesheets
-primitives outside the kit         1866   selectors naming 769 classes
+primitives outside the kit         1865   selectors naming 768 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     292

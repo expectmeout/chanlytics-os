@@ -650,10 +650,14 @@ a.more-item {
   }
 }
 
-/* ---- Confirm — the one armed question (data-bits.jsx Confirm) ----
-   A line where the control that armed it was, or a panel under the row when
-   `block`: the question in ink, what happens in dim, then the Yes as a real
-   button (red when it destroys) and a quiet No. */
+/* ---- Confirm — the one armed question (kit/confirm/confirm.tsx) ----
+   A line where the control that armed it was, or a panel under the row when `block`: the question in ink, what happens
+   in dim, then its two answers, buttons of one height. The Yes is the red fill only where something kept is destroyed
+   (danger); for what was typed and not saved (discard) it is red words on no ground, with the No as the plain button
+   beside it. A question holds one filled colour at most, and Save is never drawn beside it (record/fold.tsx).
+   As a panel, in a sheet's foot and at a phone's width it stacks: the question on a line of its own, what happens
+   under it, and the two answers side by side, each half the width. Nothing is bunched at the left edge, and either
+   answer is under a thumb (Ruben, 7 Oct 2026). */
 .confirm {
   display: inline-flex;
   flex-wrap: wrap;
@@ -675,26 +679,107 @@ a.more-item {
 .confirm-acts {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .confirm-block {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
+  padding: 12px;
   margin-top: 6px;
   max-width: 440px;
   border: 1px solid var(--surface-inset-edge);
   border-radius: var(--surface-inset-radius);
   background: var(--surface-inset-fill);
 }
-.confirm-block .confirm-words {
+.confirm-block,
+.rec-sheet-foot .confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.confirm-block .confirm-words,
+.rec-sheet-foot .confirm-words {
   display: block;
 }
-.confirm-block .confirm-detail {
+.confirm-block .confirm-q,
+.rec-sheet-foot .confirm-q {
+  display: block;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.confirm-block .confirm-detail,
+.rec-sheet-foot .confirm-detail {
   display: block;
   margin: 2px 0 0;
+  font-size: var(--text-sm);
+}
+.confirm-block .confirm-acts,
+.rec-sheet-foot .confirm-acts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.confirm-block .confirm-acts .btn,
+.rec-sheet-foot .confirm-acts .btn {
+  justify-content: center;
+  font-size: var(--text-sm);
+}
+.confirm-block .confirm-acts .btn {
+  height: var(--control-h-md);
+}
+/* In a pair the No is the plain button: a quiet one, half the width, read as a word adrift. A discard's Yes stays
+   quiet, red words on no ground (on the plain button's ground, a third layer of glass in a dark sheet's foot, they
+   read 4.21:1). Weighed as one class (:where), so the quiet button's own hover and the house's focus ring, which a
+   heavier rule here outranked, still answer. */
+:where(.confirm-block .confirm-acts, .rec-sheet-foot .confirm-acts) .btn-ghost:where(:not(.danger)) {
+  background: var(--secondary-fill);
+  border-color: var(--line);
+  color: var(--ink);
+}
+@media (max-width: 900px) {
+  .confirm {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+    max-width: 440px;
+  }
+  .confirm-words {
+    display: block;
+  }
+  .confirm-q {
+    display: block;
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+  }
+  .confirm-detail {
+    display: block;
+    margin: 2px 0 0;
+    font-size: var(--text-sm);
+  }
+  .confirm-acts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .confirm .confirm-acts .btn {
+    justify-content: center;
+    height: 44px;
+    padding: 0 12px;
+    font-size: var(--text-base);
+  }
+  :where(.confirm .confirm-acts) .btn-ghost:where(:not(.danger)) {
+    background: var(--secondary-fill);
+    border-color: var(--line);
+    color: var(--ink);
+  }
+  /* The name to type: the width its question has, a thumb's height, and the size a phone does not zoom in on. */
+  .confirm .confirm-typed {
+    max-width: none;
+    height: 44px;
+    font-size: var(--field-text-touch);
+  }
 }
 .confirm-typed {
   width: 100%;
@@ -2934,7 +3019,8 @@ a.list-row {
   gap: 14px;
   padding: 4px 16px 8px;
 }
-/* A question the job asks (Delete the list): the sheet's width, the words a step up, its two buttons 48px tall. */
+/* A question the job asks (Delete the list): the sheet's width, the words a step up, its two answers 48px tall, each
+   half the width as every question's are. */
 .sheet-job-body .confirm-block {
   max-width: none;
   margin: 0;
@@ -2945,15 +3031,8 @@ a.list-row {
   font-size: var(--text-md);
   color: var(--ink);
 }
-.sheet-job-body .confirm-block .confirm-acts {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-}
 .sheet-job-body .confirm-block .confirm-acts .btn {
   height: 48px;
-  justify-content: center;
   font-size: var(--text-md);
 }
 /* A toast while a sheet is open clears the sheet's foot, where its Save is (the record sheet's, above, and
@@ -3522,6 +3601,14 @@ a.list-row {
 footer.rec-sheet-foot .btn {
   height: var(--control-h-lg);
   padding: 0 16px;
+}
+/* While it asks, the foot is the question: its words keep the foot's own inset from the rim, and its two answers
+   stand where Save and Cancel stood, 6px in, their capsules following the foot's corner. */
+.rec-sheet-foot[data-asking="true"] {
+  padding: 14px 6px 6px;
+}
+.rec-sheet-foot[data-asking="true"] .confirm-words {
+  padding: 0 10px;
 }
 
 /* ---- The composer's rows (campaigns3.py, the compact composer C2; deals3.py, the deal's pane D2) ----

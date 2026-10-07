@@ -3,7 +3,9 @@
  * which seed-globals publishes as window.Confirm for the pages that still read it).
  *
  * Armed inline, where the control that armed it was: the question names the thing, the detail says what happens, the
- * Yes names the verb and is a real button (red when the act destroys or cannot be undone), the No is quiet.
+ * Yes names the verb and is a real button (red when the act destroys or cannot be undone), the No is quiet. Both are
+ * buttons of one height: side by side at the question's end on a desk, and each half the width under its words on a
+ * phone, in a panel and in a sheet's foot (kit.css), where a thumb reaches either.
  * Five idioms did this before -- a hand-rolled Yes/No sentence in four wordings, a button that changed its own label
  * on the first click, a typed name, commit-then-Undo, and nothing at all on the most destructive act on Settings (the
  * audit's D13). One shape now; pure, so any harness can draw it.
@@ -13,6 +15,10 @@
  *
  * `typed` with `value`/`onType` gates the Yes on a typed match -- for erasure only; `ready` overrides the match when
  * the page knows better (a phone number for a name). `block` draws a panel under the row instead of a line beside it.
+ * `discard` is the question about what was typed and not saved (Cancel's, a sheet's Close): nothing kept is touched,
+ * so its Yes is red words on no ground, never the red fill, and its No ("Keep editing") is the plain button beside it:
+ * the answer that keeps the work is the one with a ground. One filled colour at most stands in a question: the red,
+ * and only where something kept is destroyed.
  * The Yes takes focus as the question appears; Escape is No.
  * Testids from `testid`: `${testid}-confirm` on the group, -yes, -no, -typed.
  */
@@ -28,6 +34,8 @@ interface ConfirmProps {
   busy?: boolean;
   busyLabel?: ReactNode;
   danger?: boolean;
+  /** The question is about what was typed here and not saved: red words, no red fill, and the No is the plain button. */
+  discard?: boolean;
   /** What must be typed for the Yes to work (an erasure's name); null for a Yes that needs no typing. */
   typed?: string | null;
   value?: string;
@@ -40,6 +48,15 @@ interface ConfirmProps {
   testid?: string | null;
 }
 
+/**
+ * The question's mark and its two answers' classes. A discard is never the red fill, whatever else it was handed, and
+ * its No is the plain button; any other question's No is quiet.
+ */
+const toneOf = (discard: boolean, danger: boolean) =>
+  discard
+    ? { mark: " confirm-discard", yes: " btn-ghost danger", no: "" }
+    : { mark: danger ? " confirm-danger" : "", yes: danger ? " btn-danger" : "", no: " btn-ghost" };
+
 export function Confirm({
   question,
   detail = null,
@@ -50,6 +67,7 @@ export function Confirm({
   busy = false,
   busyLabel = "Working…",
   danger = false,
+  discard = false,
   typed = null,
   value = "",
   onType = null,
@@ -61,6 +79,7 @@ export function Confirm({
 }: ConfirmProps) {
   const ok = ready != null ? !!ready : typed == null || String(value).trim() === String(typed);
   const id = (part: string) => (testid ? `${testid}-${part}` : undefined);
+  const tone = toneOf(discard, danger);
   const onKey = (e: KeyboardEvent<HTMLSpanElement>) => {
     if (e.key === "Escape" && !busy && onNo) {
       e.stopPropagation();
@@ -70,7 +89,7 @@ export function Confirm({
   return (
     // eslint-disable-next-line jsx-a11y-x/no-noninteractive-element-interactions -- kept as the JSX drew it: Escape anywhere in the armed question is No
     <span
-      className={`confirm${block ? " confirm-block" : ""}${danger ? " confirm-danger" : ""}${className ? ` ${className}` : ""}`}
+      className={`confirm${block ? " confirm-block" : ""}${tone.mark}${className ? ` ${className}` : ""}`}
       role="group"
       aria-label={typeof question === "string" ? question : undefined}
       data-testid={id("confirm")}
@@ -101,7 +120,7 @@ export function Confirm({
       <span className="confirm-acts">
         <button
           type="button"
-          className={`btn btn-sm${danger ? " btn-danger" : ""}`}
+          className={`btn btn-sm${tone.yes}`}
           disabled={busy || !ok}
           onClick={onYes}
           autoFocus={typed == null}
@@ -109,7 +128,7 @@ export function Confirm({
         >
           {busy ? busyLabel : yes}
         </button>
-        <button type="button" className="cl-bucket-link" disabled={busy} onClick={onNo} data-testid={id("no")}>
+        <button type="button" className={`btn btn-sm${tone.no}`} disabled={busy} onClick={onNo} data-testid={id("no")}>
           {no}
         </button>
       </span>

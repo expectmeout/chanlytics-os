@@ -59,8 +59,10 @@
  * Enter saves. As it opens, focus moves to the first thing in it to type into or press, since the act that opened it has
  * gone; as it closes, focus that went with it comes back to that row's act (data-rec-act).
  *
- * `confirm` is the page's ask (its Confirm), drawn above the foot while it is open: the section's own "Discard your
- * changes?", or the registry's `asking`. Answered with "Keep editing", focus comes back into the fold (useRecFocus).
+ * `confirm` is the page's ask (its Confirm), drawn in the foot's place while it is asked: the section's own "Discard
+ * your changes?", or the registry's `asking`. A question stands alone: Save and Cancel are not drawn beside its two
+ * answers (four presses in two colours, Ruben, 7 Oct 2026), and come back with "Keep editing", as focus comes back into
+ * the fold (useRecFocus).
  * `focusOn` ({ row }) names a row a list in it has just been given, by the data-rec-row the page put on it: focus goes to
  * that row's first box. A new object each time, so the same row named twice is focused twice. `changed` and
  * `goneChanged` are the lines of `says` and `gone` the draft has just changed, for RecordSays to mark. Not while it
@@ -163,7 +165,8 @@ function foldFoot(props: RecordFoldProps) {
 
 /**
  * The sheet's frame, as RecordSheet draws it: a wash over the page, and the sheet beside it (from the bottom, on a phone)
- * with its head, a body that scrolls and a foot that holds still. Drawn in the app's root for RecordSheet's reasons (a
+ * with its head, a body that scrolls and a foot that holds still (the ask in its place while one is asked, which the
+ * foot says, data-asking, for kit.css to give the words their room). Drawn in the app's root for RecordSheet's reasons (a
  * Settings pane animates itself in with a transform and sizes every child to its column; People's keys hold still under
  * a dialog there, PL_OVERLAY), or in the first run's own shell, which is drawn in place of the app's (.fr-shell). The
  * fields and what saving writes scroll; the ask, Save and Cancel stay in the foot, clear of the home indicator.
@@ -246,9 +249,8 @@ function foldSheetNode(props: RecordFoldProps, d: FoldDraw) {
           </div>
         </div>
         {d.ask || d.foot ? (
-          <footer className="rec-sheet-foot">
-            {d.ask}
-            {d.foot}
+          <footer className="rec-sheet-foot" data-asking={d.ask ? "true" : undefined}>
+            {d.ask || d.foot}
           </footer>
         ) : null}
       </section>
@@ -333,8 +335,7 @@ function foldRow(props: RecordFoldProps, d: FoldDraw) {
         <div className="rec-fold-inner">
           {children}
           {d.told}
-          {d.ask}
-          {d.foot}
+          {d.ask || d.foot}
         </div>
       </div>
     </div>

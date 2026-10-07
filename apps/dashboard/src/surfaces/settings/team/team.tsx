@@ -154,7 +154,11 @@ function personRow(m: Person, k: RowKit): ReactNode {
     { label: pending ? "Revoke invite" : "Remove", icon: "x", danger: true, onClick: () => k.setArmRemove(m.id) },
   ];
   return (
-    <div key={m.id} className={`set-team-row ${pending ? "pending" : ""} ${invite.expired ? "expired" : ""}`}>
+    <div
+      key={m.id}
+      className={`set-team-row ${pending ? "pending" : ""} ${invite.expired ? "expired" : ""}`}
+      data-asking={k.armRemove === m.id ? "true" : undefined}
+    >
       <span
         className="avatar set-team-face"
         aria-hidden="true"
@@ -173,28 +177,31 @@ function personRow(m: Person, k: RowKit): ReactNode {
           )}
         </span>
         <span className="set-team-mail">{[m.sub, pending ? invite.words : ""].filter(Boolean).join(" · ")}</span>
-        {k.armRemove === m.id && (
-          <Confirm
-            question={pending ? `Revoke the invitation to ${m.email}?` : `Remove ${m.name} from the team?`}
-            detail={
-              pending
-                ? "The link in their email stops working."
-                : "They lose access at once; what they decided stays on the record."
-            }
-            yes={pending ? "Yes, revoke" : "Yes, remove"}
-            danger
-            busy={k.teamBusy}
-            onYes={() => k.remove(m)}
-            onNo={() => k.setArmRemove(null)}
-            testid="team-remove"
-          />
-        )}
       </span>
       <RolePill role={m.role} />
       {k.canManage && !m.isMe ? (
         <MoreMenu btnClass="btn btn-icon btn-sm" items={items} />
       ) : (
         <span className="set-team-spacer" />
+      )}
+      {/* The question takes a line of its own under the row (settings.css, .set-row-ask): in the body's column it
+          stood in what a phone leaves between the face and the role, its two answers pinched (Ruben, 7 Oct 2026). */}
+      {k.armRemove === m.id && (
+        <Confirm
+          className="set-row-ask"
+          question={pending ? `Revoke the invitation to ${m.email}?` : `Remove ${m.name} from the team?`}
+          detail={
+            pending
+              ? "The link in their email stops working."
+              : "They lose access at once; what they decided stays on the record."
+          }
+          yes={pending ? "Yes, revoke" : "Yes, remove"}
+          danger
+          busy={k.teamBusy}
+          onYes={() => k.remove(m)}
+          onNo={() => k.setArmRemove(null)}
+          testid="team-remove"
+        />
       )}
     </div>
   );

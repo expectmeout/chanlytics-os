@@ -102,7 +102,7 @@ export function UnsavedAsk({
       detail={`Nothing has been ${what}.`}
       yes="Yes, throw it away"
       no="Keep writing"
-      danger
+      discard
       busy={busy}
       onYes={onYes}
       onNo={onNo}
