@@ -33050,16 +33050,16 @@ GRANT ALL ON TABLE public.contact_identities TO service_role;
 -- Name: TABLE contact_marks; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.contact_marks TO service_role;
 GRANT SELECT ON TABLE public.contact_marks TO authenticated;
+GRANT ALL ON TABLE public.contact_marks TO service_role;
 
 
 --
 -- Name: TABLE contact_reads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.contact_reads TO service_role;
 GRANT SELECT ON TABLE public.contact_reads TO authenticated;
+GRANT ALL ON TABLE public.contact_reads TO service_role;
 
 
 --
