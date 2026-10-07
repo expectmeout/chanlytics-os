@@ -450,8 +450,11 @@ test("Templates: an email-only workspace is not 'nothing on file'; unread says n
   let tree = page();
   assert.equal(rowsOf(tree).length, 2);
   assert.equal(byTestId(tree, "templates-nothing"), null, "its email rows are on file");
+  // Read, and nothing of any kind, with no WhatsApp number: the list is never bare, for the starter set is offered (its
+  // email and text versions are written without a number), so "Nothing on file yet." has nothing left to say.
   tree = page({ chains: [] });
-  assert.ok(byTestId(tree, "templates-nothing"), "read, and nothing of any kind");
+  assert.equal(byTestId(tree, "templates-nothing"), null, 'the starter set stands where "nothing" was said');
+  assert.ok(byTestId(tree, "starters"), "and the set is offered");
   tree = page({ chains: undefined });
   assert.equal(byTestId(tree, "templates-nothing"), null, "the chains not read yet: no claim");
   const refreshed = [];

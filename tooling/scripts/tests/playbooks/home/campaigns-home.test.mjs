@@ -946,3 +946,53 @@ test("the Library's count is the Library page's own: the same templates, languag
     "each language a row, the two emails, never the sample or the hidden one",
   );
 });
+
+test("the Library's count and the home's count both take a message written for email or text alone, once, whatever channels it has", () => {
+  const pb = playbooksSample(new Date(NOW));
+  const first = pb.templates[0];
+  // Two messages with no WhatsApp row: one an email and a text (one message), one an email in two languages (two), and an
+  // email beside a WhatsApp version, which is no message of its own.
+  const own = (n, over) => ({
+    ...first,
+    id: `own-${n}`,
+    channel: "email",
+    name: "fall_hours",
+    language: "en_US",
+    meta_status: "approved",
+    source: "chanlytics",
+    ...over,
+  });
+  const versions = [
+    own(1, {}),
+    own(2, { channel: "sms" }),
+    own(3, { name: "spring_news", category: "marketing" }),
+    own(4, { name: "spring_news", category: "marketing", language: "es" }),
+    own(5, { name: first.name, language: first.language }),
+  ];
+  const messages = contracts.campaignMessagesOf([...pb.templates, ...versions]);
+  surfaces({ settings: { templatesAll: pb.templates, templateVersions: versions, messages } });
+  setSurfaceValue("settings", {
+    settings: { config: { brain: { business_name: "Northside Studio" } } },
+    channels: [{ kind: "whatsapp" }],
+    templatesAll: pb.templates,
+    templateVersions: versions,
+    messages,
+  });
+  fresh();
+  TemplatesPage();
+  const said = Number(/\d+/.exec(textOf(byTestId(headSaid(), "messages-count")))[0]);
+  fresh();
+  page();
+  const act = Number(/\d+/.exec(textOf(byTestId(headSaid(), "cmh-library")).replace("Library", ""))[0]);
+  assert.equal(act, said, "one count");
+  assert.equal(
+    act,
+    pb.templates.length + 3,
+    "each WhatsApp row, and the three own-only: not the email beside a WhatsApp version",
+  );
+  assert.equal(
+    contracts.libraryCount(messages, 0),
+    pb.templates.length + 3,
+    "and it is contracts' libraryCount that says it",
+  );
+});

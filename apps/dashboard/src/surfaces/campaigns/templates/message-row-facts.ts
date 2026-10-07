@@ -5,18 +5,31 @@
  * two that read a surface (`usageOf`) read what the surface holds now, as the JSX read `window.__TEMPLATE_USE`,
  * `__TEMPLATE_SENT` and `__PLAYBOOKS` with no surface argument.
  */
-import type { TemplateSentWords } from "@chanlytics/contracts";
+import { messageHolds, messageStandingWords } from "@chanlytics/contracts";
+import type { CampaignMessage, TemplateSentWords } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { surfaceValue } from "../../surface-values";
+import { onFileOf } from "./group";
 import type { PresentRow, TemplateGroup, TemplateRow, TplLang } from "./group";
 import type { StarterLibrary } from "./verbs";
-import { channelsWords, versionsOfMessage } from "./versions";
+import { channelsWords, messageName, purposeOfMessage, versionsOfMessage } from "./versions";
 import { tplLangLabel, tplOneLine, tplOwn, tplSaid, tplSlotWord } from "./words";
 
-/** The first language a message has on file, else the set's first: where a row opens. */
-function firstLang(present: PresentRow[], langs: readonly TplLang[]): string {
-  return present[0] ? present[0].lang.id : langs[0] ? langs[0].id : "en_US";
+/**
+ * The first language a message has on file, else the set's first: where a row opens. The first WhatsApp holds, as it
+ * always was, and for a message WhatsApp holds none of, the first it has a version in on any channel.
+ */
+function firstLang(present: readonly TemplateRow[], onFile: readonly TemplateRow[], langs: readonly TplLang[]): string {
+  const first = present[0] ?? onFile[0];
+  return first ? first.lang.id : langs[0] ? langs[0].id : "en_US";
 }
+
+/**
+ * Where a language stands, for the glyph and the picker's state: WhatsApp's status where WhatsApp holds it, "approved" for
+ * one written as an email or a text alone (an own version is approved the moment it is saved), null for none.
+ */
+export const languageStatus = (r: TemplateRow): string | null =>
+  r.row ? r.row.meta_status : r.message ? "approved" : null;
 
 interface LanguageInput {
   g: TemplateGroup;
@@ -24,6 +37,7 @@ interface LanguageInput {
   S: StarterLibrary;
   canAdd: boolean;
   present: PresentRow[];
+  onFile: TemplateRow[];
   langId: string;
   back: string | null;
   adding: string | null;
@@ -39,17 +53,18 @@ interface TranslationSource {
 
 /** The language in view, and what is on file or written in it. */
 function languageFacts(p: LanguageInput) {
-  const { g, langs, S, canAdd, present, langId, back, adding, sentLang } = p;
-  // The language in view: the one picked while it is on file, written by the
+  const { g, langs, S, canAdd, present, onFile, langId, back, adding, sentLang } = p;
+  // The language in view: the one picked while it is on file (on any channel), written by the
   // library, being written or just sent; otherwise the message's first.
   const known = (id: string) =>
-    present.some((r) => r.lang.id === id) || !!(g.starter && g.starter.texts && g.starter.texts[id]);
-  const view = known(langId) || langId === adding || langId === sentLang ? langId : firstLang(present, langs);
+    onFile.some((r) => r.lang.id === id) || !!(g.starter && g.starter.texts && g.starter.texts[id]);
+  const view = known(langId) || langId === adding || langId === sentLang ? langId : firstLang(present, onFile, langs);
   // Any language WhatsApp takes, not only one of the message's own: a new one has
-  // no row and no library words until it is written.
+  // no version and no library words until it is written.
   const cur: TemplateRow = g.rows.find((r) => r.lang.id === view) || {
     lang: { id: view, label: tplLangLabel(view) },
     row: null,
+    message: null,
   };
   const row = cur.row;
   // The library's words ONLY where it wrote them: `starterText` answers English for
@@ -73,7 +88,7 @@ function languageFacts(p: LanguageInput) {
   // other than one link, would not come with it (contracts templateUntranslatable).
   const untranslatable = fromRow ? S.untranslatable(fromRow.row) : null;
   const mayAdd = !!(canAdd && source && !untranslatable);
-  return { view, cur, row, written, starterText, fromRow, source, untranslatable, mayAdd };
+  return { view, cur, row, message: cur.message, written, starterText, fromRow, source, untranslatable, mayAdd };
 }
 
 type StarterText = ReturnType<StarterLibrary["text"]>;
@@ -105,27 +120,26 @@ function rowWords(p: {
 }
 
 /** What sends this message, how much of it went out, and what the running playbooks do with the language in view. */
-function usageOf(p: { g: TemplateGroup; present: PresentRow[]; row: TemplateDto | null }) {
-  const { g, present, row } = p;
+function usageOf(p: { g: TemplateGroup; onFile: TemplateRow[]; row: TemplateDto | null }) {
+  const { g, onFile, row } = p;
   const settings = surfaceValue("settings");
   const playbooks = surfaceValue("playbooks");
   // What sends this MESSAGE, in the words the bridge composed: the playbooks,
   // the broadcasts a person sent and the Inbox's booking template, joined on the
   // server. Keyed by name, because a message is one thing in several languages.
   // Null: the usage was not read, and the row says nothing rather than guessing.
-  const named = g.rows.find((r): r is PresentRow => !!r.row);
-  const gName = g.starter ? g.starter.name : named ? named.row.name : null;
+  const gName = messageName(g);
   const useMap = settings ? settings.templateUse : null;
   const use = gName && useMap ? useMap[gName] || null : null;
   // How many of it went out and when the latest did, in the words the bridge
   // composed: the people a run SENT to and what the Inbox sent on it, never the
   // audience a run was scheduled for. Keyed by name like the usage; null is not read.
-  // A starter with no row has no entry -- the map is one per message ON FILE -- and
+  // A starter with no version has no entry -- the map is one per message ON FILE -- and
   // says it was never added, when the sends were read at all.
   const sentMap = settings ? settings.templateSent : null;
   const notAdded: TemplateSentWords = { count: null, when: "Not added" };
   const sent: TemplateSentWords | null =
-    gName && sentMap ? sentMap[gName] || (g.starter && !present.length ? notAdded : null) : null;
+    gName && sentMap ? sentMap[gName] || (g.starter && !onFile.length ? notAdded : null) : null;
   // The playbooks that send the template in view, found the way a run finds it: by name and language. Null: not read.
   // Per ROW, not per message: this is what a delete of ONE language must refuse on.
   const pbRows = playbooks ? playbooks.rows || [] : null;
@@ -143,8 +157,8 @@ function usageOf(p: { g: TemplateGroup; present: PresentRow[]; row: TemplateDto 
         : "";
   // The languages a running playbook sends this message in (a run sends its one
   // `template_language` to everyone on it, run-playbook.ts), and the first of them
-  // WhatsApp does not hold approved: every run of that playbook is skipped until it
-  // is. Null when the playbooks were not read.
+  // the message holds on no channel (WhatsApp's version not approved, and no email or text beside it): every run of
+  // that playbook is skipped until it does. Null when the playbooks were not read.
   const sentIn =
     pbRows && gName
       ? [
@@ -155,26 +169,26 @@ function usageOf(p: { g: TemplateGroup; present: PresentRow[]; row: TemplateDto 
       : null;
   const skipped = sentIn
     ? sentIn.find((id) => {
-        const r = g.rows.find((x) => x.lang.id === id);
-        return !r || !r.row || r.row.meta_status !== "approved";
+        const m = g.rows.find((x) => x.lang.id === id)?.message;
+        return !m || !Object.values(messageHolds(m)).some(Boolean);
       }) || null
     : null;
   const skippedAt = skipped ? g.rows.find((x) => x.lang.id === skipped) || null : null;
-  const skippedMissing = !!skipped && !(skippedAt && skippedAt.row);
+  const skippedMissing = !!skipped && !(skippedAt && (skippedAt.row || skippedAt.message));
   return { gName, use, sent, sending, pausedWords, sentIn, skipped, skippedAt, skippedMissing };
 }
 
 type Usage = ReturnType<typeof usageOf>;
 
 /** What the row says beside its title, and whether it asks for attention or stands quiet. */
-function marksOf(p: { g: TemplateGroup; row: TemplateDto | null; usage: Usage }) {
-  const { g, row, usage } = p;
+function marksOf(p: { g: TemplateGroup; message: CampaignMessage | null; usage: Usage }) {
+  const { g, message, usage } = p;
   const { use, sentIn, skipped, skippedAt, skippedMissing } = usage;
   // Marketing or not is a RULE, not a label: a marketing message may only go to
   // people who said yes to offers, so it rides the row as its own mark rather
-  // than being discovered at send time. A starter declares its purpose; a row
-  // carries Meta's own category.
-  const offer = /market/i.test(String((row && row.category) || g.purpose || ""));
+  // than being discovered at send time. It is the message's purpose (contracts rule 4: Meta's category where there is
+  // a WhatsApp version, else the category its own versions were filed with); a starter not on file declares its own.
+  const offer = purposeOfMessage(g, message) === "marketing";
   // Said in words beside the title, once per MESSAGE, when a language of it is
   // not simply approved: "Spanish in review", "Spanish rejected". It was the state
   // of whichever language was in view, so a message half in review read as fine
@@ -193,7 +207,8 @@ function marksOf(p: { g: TemplateGroup; row: TemplateDto | null; usage: Usage })
       ? { words: `${skippedAt ? skippedAt.lang.label : tplLangLabel(skipped)} missing`, tone: "warn" }
       : null;
   // The row asks for attention when a language something sends is not one WhatsApp
-  // holds approved: those sends are refused or skipped. A language nobody sends is
+  // holds approved: those sends are refused or skipped. (A language of a message with no WhatsApp version says nothing
+  // of WhatsApp: only its tag, above, names one WhatsApp has.) A language nobody sends is
   // not that -- written or not, it holds nobody back -- and neither is a language in
   // review beside the approved one a playbook sends. Without the playbooks read, a
   // language on file that is not approved, on a message something sends. A message
@@ -215,9 +230,9 @@ interface LangView {
 
 const presentOf = (g: TemplateGroup): PresentRow[] => g.rows.filter((r): r is PresentRow => !!r.row);
 
-/** Where a message opens: on the first language it has on file, nothing being written. */
+/** Where a message opens: on the first language it has a version in, nothing being written. */
 export const firstView = (g: TemplateGroup, langs: readonly TplLang[]): LangView => ({
-  langId: firstLang(presentOf(g), langs),
+  langId: firstLang(presentOf(g), onFileOf(g), langs),
   back: null,
   adding: null,
   sentLang: null,
@@ -238,24 +253,32 @@ interface FactsInput {
 /**
  * What a message's row and the pane it opens both read, worked out from its group and the language in view: the
  * language's facts, the words in it, the one line of them, what sends it and how much went out, the marks it wears,
- * the note a refused language carries, and its versions: its rows on each channel, and which channels they say.
- * The row reads it for the language it opens on; the pane for the one picked.
+ * the note a refused language carries, and its versions: its rows on each channel, which channels they say, and where
+ * the language in view stands on each (contracts messageStandingWords). The row reads it for the language it opens on;
+ * the pane for the one picked.
  */
 export function messageFacts({ g, langs, S, view, canAdd = false, addWhy = null, versions = [] }: FactsInput) {
   const present = presentOf(g);
-  const lang = languageFacts({ g, langs, S, canAdd, present, ...view });
-  const { row, starterText, fromRow, untranslatable } = lang;
+  const onFile = onFileOf(g);
+  const lang = languageFacts({ g, langs, S, canAdd, present, onFile, ...view });
+  const { row, message, starterText, fromRow, untranslatable } = lang;
+  const has = versionsOfMessage(g, versions);
   const words = rowWords({ g, S, row, starterText, view: lang.view });
-  const usage = usageOf({ g, present, row });
-  const marks = marksOf({ g, row, usage });
-  const line = lineWords({ g, S, row, starterText, fromRow, view: lang.view });
+  const usage = usageOf({ g, onFile, row });
+  const marks = marksOf({ g, message, usage });
+  const own = [...has.email, ...has.sms];
+  const line = lineWords({ g, S, row, starterText, fromRow, view: lang.view, own });
   const note =
     addWhy ||
     (untranslatable
       ? `Chanlytics can’t write this one in another language: ${untranslatable}. Add its other languages in WhatsApp Manager.`
       : null);
-  const has = versionsOfMessage(g, versions);
-  return { present, lang, words, usage, marks, line, note, has, channels: channelsWords(has) };
+  // Where the language in view stands on each channel; a language the message has no version in says none, and that a
+  // text of an offer can never be written.
+  const standing = messageStandingWords(
+    message ?? { versions: { whatsapp: null, email: null, sms: null }, purpose: purposeOfMessage(g, null) },
+  );
+  return { present, onFile, lang, words, usage, marks, line, note, has, channels: channelsWords(has), standing };
 }
 
 /**
@@ -271,11 +294,17 @@ function lineWords(p: {
   starterText: StarterText | null;
   fromRow: PresentRow | null;
   view: string;
+  /** The message's email and text rows: a message with no WhatsApp version quotes the words it has. */
+  own: readonly TemplateDto[];
 }): string {
-  const { g, S, row, starterText, fromRow, view } = p;
+  const { g, S, row, starterText, fromRow, view, own } = p;
   // A language nobody has written yet quotes the words it is being written from,
-  // so the row still reads as the message while its new language is drafted.
-  const lineRow = row || (!starterText && fromRow ? fromRow.row : null);
+  // so the row still reads as the message while its new language is drafted. A message
+  // WhatsApp holds no version of quotes its email's or its text's, in this language where it has one.
+  const lineRow =
+    row ||
+    (!starterText && fromRow ? fromRow.row : null) ||
+    (!starterText ? (own.find((r) => r.language === view) ?? own[0] ?? null) : null);
   const lineText = lineRow
     ? lineRow.body_preview || ""
     : starterText

@@ -841,6 +841,16 @@ test("a draft is judged in the body's words before the assistant is asked; the s
     [["visit_reminder", "exists", "approved"]],
   );
   assert.deepEqual([onFile.submitted, onFile.existing, onFile.synced, onFile.failed], [0, 1, 0, 0]);
+  // With no WhatsApp number there is no WhatsApp version to make and nothing to ask the edge, so its guard is never met:
+  // the version is skipped, in the edge's own no_channel words, and nothing is thrown.
+  const noNumber = await starter.POST.run(send("POST", { keys: ["winback_reply"] }, inB), ctxFor(tables));
+  assert.deepEqual(
+    noNumber.results.map((r) => [r.key, r.status, r.detail]),
+    [["winback_reply", "skipped", "Connect a WhatsApp number first — templates belong to a number's account."]],
+  );
+  assert.deepEqual([noNumber.submitted, noNumber.skipped], [0, 1]);
+  // With a number the submission is the edge's, and a preview stops at its guard.
+  tables.tenant_channels = [{ tenant_id: B, kind: "whatsapp", status: "active", config: {} }];
   await refused(
     starter.POST.run(send("POST", { keys: ["winback_reply"] }, inB), ctxFor(tables)),
     "upstream_meta",

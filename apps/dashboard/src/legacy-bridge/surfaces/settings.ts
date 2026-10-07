@@ -238,7 +238,10 @@ export const settingsOverride: SurfaceOverride = {
       console.error("settings_templates_fetch_failed", tpl.message);
     } else {
       w.__TEMPLATES_ALL = (tpl.templates ?? []).filter((t) => t.channel === "whatsapp");
-      const names = [...new Set(w.__TEMPLATES_ALL.map((t) => t.name))];
+      // Every message on file, WhatsApp's or not: a message written for email or text alone is as much a row of the Library
+      // as one WhatsApp holds, and what sends it and how much went out are read of it by its name too.
+      const everyMessage = settingsMessagesOf(tpl, w.__TEMPLATES_ALL, versionRowsOf(tpl)) ?? [];
+      const names = [...new Set([...w.__TEMPLATES_ALL.map((t) => t.name), ...everyMessage.map((m) => m.name)])];
       // The usage covers every starter too, added or not: a starter nobody added
       // is still a row on the page, and "nothing sends it" is a reading about it,
       // not a gap in the map.

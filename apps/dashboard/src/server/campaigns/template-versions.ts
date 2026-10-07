@@ -170,6 +170,15 @@ async function beginVersion(db: Db, tenantId: string, v: VersionRequest): Promis
 }
 
 /**
+ * One version of a message, its words not yet checked: beside the rows the message has (`held` is how many values they
+ * say), or, with none, as its first (beginVersion). The one place that tells a message that exists from one that begins:
+ * a member's save and the starter set both write through it.
+ */
+function writeOrBegin(db: Db, tenantId: string, v: VersionRequest, held: number | null): Promise<VersionSaved> {
+  return held !== null ? writeVersion(db, tenantId, v, held) : beginVersion(db, tenantId, v);
+}
+
+/**
  * POST templates/versions: one email or text version of a message, in a language, written or rewritten. A name the
  * workspace holds a row of is a message that exists, and its version is checked against that message's slots and written
  * beside its rows (`message`, if sent, is ignored: the message already says what it is); one it holds no row of
@@ -184,8 +193,7 @@ export async function saveVersion(ctx: RouteContext, member: Member, v: VersionR
   if (!TEMPLATE_LANGUAGES.some((l) => l.id === v.language))
     throw new AppError("validation", "Pick a language from the list.");
   const held = await messageSlots(ctx.supabase, member.tenantId, v.name, v.language);
-  if (held !== null) return writeVersion(ctx, member.tenantId, v, held);
-  return beginVersion(ctx, member.tenantId, v);
+  return writeOrBegin(ctx, member.tenantId, v, held);
 }
 
 /** DELETE templates/versions/:id: an email or text version a member wrote, and nothing else (the door says which rows). */
@@ -224,10 +232,13 @@ function starterWords(s: StarterTemplate, channel: OwnVersionChannel, language: 
 }
 
 /**
- * The starter's email and text versions in one language, filed beside its WhatsApp one (which is on file: the caller
- * knows). A version already on file is left as it is, so a person's own words are never replaced by a second click on
- * "Add the set"; a channel the starter writes nothing for (a call's text has no email, an offer no text) is not an
- * outcome and is not listed. A version that cannot be filed is said and does not stop the rest, nor the answer.
+ * The starter's email and text versions in one language, for the channels asked (both, unless the caller names fewer).
+ * Beside its WhatsApp version where the message has one, and with none the first version of the name begins the message
+ * as the starter (beginVersion: its category and its values), the other then written beside it, so a workspace with no
+ * WhatsApp number files them all the same. A version already on file is left as it is, so a person's own words are never
+ * replaced by a second click on "Add the set"; a channel the starter writes nothing for (a call's text has no email, an
+ * offer no text) is not an outcome and is not listed. A version that cannot be filed is said and does not stop the
+ * rest, nor the answer.
  */
 export async function fileStarterVersions(
   db: Db,
@@ -235,10 +246,14 @@ export async function fileStarterVersions(
   s: StarterTemplate,
   language: string,
   filed: Set<string>,
+  channels: readonly OwnVersionChannel[] = OWN_VERSION_CHANNELS,
 ): Promise<StarterVersionResult[]> {
   const out: StarterVersionResult[] = [];
   const slots = starterText(s, language).slots.length;
-  for (const channel of OWN_VERSION_CHANNELS) {
+  // Whether the message has a row yet, on any channel and in any language: read when there is a version to write, and
+  // true from the first one written.
+  let held: number | null | undefined;
+  for (const channel of channels) {
     const words = starterWords(s, channel, language);
     if (!words) continue;
     const key = `${channel}|${s.name}|${language}`;
@@ -247,7 +262,9 @@ export async function fileStarterVersions(
       continue;
     }
     try {
-      await writeVersion(db, tenantId, { name: s.name, language, channel, ...words }, slots);
+      held = held === undefined ? await messageSlots(db.supabase, tenantId, s.name, language) : held;
+      await writeOrBegin(db, tenantId, { name: s.name, language, channel, ...words }, held === null ? null : slots);
+      held = slots;
       filed.add(key);
       out.push({ channel, status: "saved" });
     } catch (e) {

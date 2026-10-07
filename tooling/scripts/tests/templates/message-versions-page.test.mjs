@@ -41,7 +41,13 @@ W.usePPToast = () => [null, (t) => toasts.push(t)];
 const S = "../../../../apps/dashboard/src/surfaces";
 const { TemplatesPage } = await import(`${S}/campaigns/templates/templates-page.tsx`);
 const { templates: verbs } = await import(`${S}/campaigns/templates/verbs.ts`);
-const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
+const { listingOf } = await import(`${S}/campaigns/templates/group.ts`);
+const { messageFacts, firstView } = await import(`${S}/campaigns/templates/message-row-facts.ts`);
+const { starters: library } = await import(`${S}/campaigns/templates/verbs.ts`);
+const { starterWords } = await import(`${S}/campaigns/templates/composer.tsx`);
+const { Picker } = await import(`${S}/kit/picker/picker.tsx`);
+const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
 const { Segmented } = await import(`${S}/kit/segmented/segmented.tsx`);
 const { Field } = await import(`${S}/kit/field/field.tsx`);
 const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
@@ -128,15 +134,18 @@ const custom = (name, over = {}) =>
 /* ---------------------------------- the page ---------------------------------- */
 
 const draw = () => W.React.createElement(TemplatesPage, {});
-/** Templates over what the settings surface holds: the WhatsApp rows, the email and text rows, and who is acting. */
-const page = ({ rows = [], versions = [], role = "owner" } = {}) => {
+/**
+ * Templates over what the settings surface holds: the WhatsApp rows, the email and text rows, who is acting, and the
+ * channels the workspace has (a WhatsApp number, unless the test says none).
+ */
+const page = ({ rows = [], versions = [], role = "owner", channels = [{ kind: "whatsapp" }] } = {}) => {
   W.ST_STORE.can = (a) => !!contracts.ROLE_PERMS[role][a];
   W.ST_STORE.myRole = () => role;
   W.__TEMPLATES_ALL = rows;
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: BIZ } } },
     facts: null,
-    channels: [{ kind: "whatsapp" }],
+    channels,
     templatesAll: rows,
     templateVersions: versions,
     // The messages the surface holds, made of those rows as the bridge makes them where the read carries none.
@@ -151,6 +160,13 @@ const page = ({ rows = [], versions = [], role = "owner" } = {}) => {
   return again(draw);
 };
 const redraw = () => again(draw);
+/** What the page last said to the frame's head (kit/head/standing.ts): its line and its act, which the frame draws, not the page. */
+const headSaid = () => {
+  const said = standingSaid();
+  return { props: { children: [said?.sentence ?? null, said?.act ?? null] } };
+};
+/** A part of the page, or of its head where the page says it to the frame. */
+const headed = (tree, id) => byTestId(tree, id) ?? byTestId(headSaid(), id);
 const rowOf = (tree, name) => find(tree, (n) => n.props?.["data-template"] === name);
 const paneOf = (tree) => byTestId(tree, "template-pane");
 /** A message opened beside the list, as a press on its row opens it. */
@@ -927,4 +943,405 @@ test("a starter nobody added shows the version the set wrote, says it comes with
   const call = viewing(page({ rows: [], versions: [] }), "call_text", "email");
   assert.ok(textOf(paneOf(call)).includes("The starter set has no email version of this message."));
   assert.equal(byTestId(paneOf(call), "template-version-write"), null);
+});
+
+/* ---------------------------------- the Library lists every message ---------------------------------- */
+
+/** An email or a text of a message the workspace wrote, with no WhatsApp row of its name: approved the moment it was saved. */
+const ownRow = (channel, name, over = {}) =>
+  baseRow({
+    id: `${channel}-${name}-${over.language ?? "en_US"}`,
+    channel,
+    name,
+    category: "marketing",
+    header: channel === "email" ? "Our hours" : null,
+    body_preview: "Hi {{1}}, our hours start {{2}}.",
+    variables: [
+      { position: 1, label: "First name", example: "Dani" },
+      { position: 2, label: "Date", example: "Oct 1" },
+    ],
+    ...over,
+  });
+const HOURS = "fall_hours";
+const standingOf = (tree) => textOf(byTestId(paneOf(tree), "template-standing"));
+const messagesOf = (rows, versions) => contracts.campaignMessagesOf([...rows, ...versions]);
+
+test("listingOf lists messages, not WhatsApp rows: an own-only message is a group with its languages, a starter whose Spanish is an email counts Spanish as on file, a hidden own-only message is in the fold", () => {
+  const langs = library.languages;
+  // A message written as an email and a text, and again as an email in Spanish: no WhatsApp row of its name anywhere.
+  const own = [
+    ownRow("email", HOURS, { category: "utility" }),
+    ownRow("sms", HOURS, { category: "utility" }),
+    ownRow("email", HOURS, { category: "utility", language: "es" }),
+  ];
+  let listing = listingOf([], messagesOf([], own), library);
+  assert.deepEqual(
+    listing.customGroups.map((g) => [
+      g.key,
+      g.title,
+      g.purpose,
+      g.rows.map((r) => [r.lang.id, r.row, r.message?.versions.email !== null, r.message?.versions.sms !== null]),
+    ]),
+    [
+      [
+        "c:fall_hours",
+        "Fall hours",
+        "written here",
+        [
+          ["en_US", null, true, true],
+          ["es", null, true, false],
+        ],
+      ],
+    ],
+    "a custom group with its languages, each a message though none is a WhatsApp row",
+  );
+  assert.deepEqual([listing.hiddenGroups.length, listing.hiddenMessages.length], [0, 0]);
+
+  // A starter whose only version in Spanish is an email: Spanish is on file, English is still to add.
+  const n = library.list.length;
+  listing = listingOf([], messagesOf([], [emailRow(VISIT, "es")]), library);
+  const visit = listing.starters.find((g) => g.starter.name === VISIT);
+  assert.deepEqual(
+    visit.rows.map((r) => [r.lang.id, r.row, r.message !== null]),
+    [
+      ["en_US", null, false],
+      ["es", null, true],
+    ],
+  );
+  assert.equal(listing.missingTotal, 2 * n - 1, "Spanish of that starter is present: one fewer to add");
+  assert.equal(listing.allMissing, false, "and the set is part-way, not starting");
+  assert.equal(listing.leftToAdd, `${n} in English and ${n - 1} in Spanish`);
+  // Nothing on any channel: the whole set is missing.
+  listing = listingOf([], [], library);
+  assert.deepEqual([listing.missingTotal, listing.allMissing], [2 * n, true]);
+
+  // A hidden own-only message is in the hidden fold, not the list; a message in review beside an email is one message.
+  const hidden = ownRow("email", "old_news", { hidden_at: "2026-09-01T00:00:00Z" });
+  const pending = custom(HOURS, { meta_status: "pending" });
+  listing = listingOf([pending], messagesOf([pending], [hidden, ownRow("email", HOURS)]), library);
+  assert.deepEqual(
+    listing.hiddenMessages.map((m) => m.name),
+    ["old_news"],
+  );
+  assert.deepEqual(
+    listing.hiddenGroups.map((g) => [g.key, g.purpose]),
+    [["c:old_news", "hidden from the composers"]],
+  );
+  assert.deepEqual(
+    listing.customGroups.map((g) => g.key),
+    ["c:fall_hours"],
+    "the message in review has one row, and the hidden one is not in the list",
+  );
+  const [one] = listing.customGroups;
+  assert.equal(one.rows[0].row.meta_status, "pending", "its WhatsApp version is the row's");
+  assert.equal(one.rows[0].message.versions.whatsapp.status, "pending", "and its standing is the message's");
+  assert.equal(one.rows[0].message.versions.email !== null, true, "with its email beside it");
+  assert.deepEqual(
+    [listing.shown.length, listing.pending],
+    [1, 1],
+    "the head's counts of what WhatsApp is reading are still the WhatsApp rows'",
+  );
+
+  // Meta's sample is nobody's message, whatever channel it came on.
+  const sample = baseRow({ id: "w-sample", name: "hello_world" });
+  listing = listingOf([sample], messagesOf([sample], [ownRow("email", "hello_world")]), library);
+  assert.deepEqual([listing.customGroups.length, listing.hiddenGroups.length, listing.list.length], [0, 0, 0]);
+  assert.equal(langs.length, 2);
+});
+
+test("a message's marks: the offer mark is its purpose, whichever channel it has; the tag names a language WhatsApp has not simply approved and says nothing of a message with no WhatsApp version", () => {
+  const factsOf = (rows, versions, name) => {
+    page({ rows, versions });
+    const listing = listingOf(rows, surfaceValue("settings").messages, library);
+    const g = [...listing.starters, ...listing.customGroups].find(
+      (x) => (x.starter ? x.starter.name : x.key.slice(2)) === name,
+    );
+    return messageFacts({ g, langs: listing.langs, S: library, versions, view: firstView(g, listing.langs) });
+  };
+  // An own-only message is an offer (marketing) or a note (utility) by the category its versions were filed with.
+  assert.equal(factsOf([], [ownRow("email", HOURS)], HOURS).marks.offer, true, "an offer by email");
+  assert.equal(factsOf([], [ownRow("email", HOURS, { category: "utility" })], HOURS).marks.offer, false);
+  // A category nobody gave is read as an offer, as every send reads it.
+  assert.equal(factsOf([], [ownRow("email", HOURS, { category: null })], HOURS).marks.offer, true);
+  // Where WhatsApp has a version its category is the message's, whatever the email beside it says.
+  const w = (over) => custom(HOURS, over);
+  assert.equal(
+    factsOf([w({ category: "marketing" })], [ownRow("email", HOURS, { category: "utility" })], HOURS).marks.offer,
+    true,
+  );
+  assert.equal(factsOf([w({ category: "utility" })], [], HOURS).marks.offer, false);
+  // A starter nobody added is what the library declares it.
+  assert.equal(factsOf([], [], WINBACK).marks.offer, true);
+  assert.equal(factsOf([], [], VISIT).marks.offer, false);
+
+  // A language in review keeps its tag, with an email beside it or not.
+  const en = w({ id: "w-en" });
+  const es = w({ id: "w-es", language: "es", meta_status: "pending" });
+  assert.deepEqual(factsOf([en, es], [ownRow("email", HOURS)], HOURS).marks.tag, {
+    words: "Spanish in review",
+    tone: "info",
+  });
+  assert.deepEqual(factsOf([en, w({ id: "w-es", language: "es", meta_status: "rejected" })], [], HOURS).marks.tag, {
+    words: "Spanish rejected",
+    tone: "danger",
+  });
+  // A message with no WhatsApp version has no tag, and no attention asked of a language it holds on another channel.
+  assert.equal(factsOf([], [ownRow("email", HOURS)], HOURS).marks.tag, null);
+  const sends = (language) =>
+    setSurfaceValue("playbooks", {
+      rows: [{ id: "pb-1", name: "Hours", template_name: HOURS, template_language: language, state: "running" }],
+    });
+  const own = [ownRow("email", HOURS)];
+  page({ rows: [], versions: own });
+  sends("en_US");
+  let listing = listingOf([], messagesOf([], own), library);
+  let g = listing.customGroups[0];
+  let marks = messageFacts({
+    g,
+    langs: listing.langs,
+    S: library,
+    versions: own,
+    view: firstView(g, listing.langs),
+  }).marks;
+  assert.deepEqual([marks.tag, marks.attn], [null, false], "a running playbook sends the English the email holds");
+  // It sends Spanish, which the message holds on no channel: that, and only that, is missing.
+  sends("es");
+  listing = listingOf([], messagesOf([], own), library);
+  g = listing.customGroups[0];
+  marks = messageFacts({ g, langs: listing.langs, S: library, versions: own, view: firstView(g, listing.langs) }).marks;
+  assert.deepEqual(marks.tag, { words: "Spanish missing", tone: "warn" });
+  assert.equal(marks.attn, true);
+});
+
+test("the open message says where each language stands on each channel, in contracts' words, and opens on the channel its anchor is on", () => {
+  const open = (rows, versions, name = HOURS) => opened(page({ rows, versions }), name);
+  // WhatsApp in review with an email beside it.
+  let tree = open([custom(HOURS, { meta_status: "pending" })], [ownRow("email", HOURS)]);
+  assert.equal(standingOf(tree), "WhatsApp · in review, Email · ready, Text · not written");
+  assert.equal(find(paneOf(tree), (n) => n.type === Segmented).props.value, "whatsapp", "opens on WhatsApp's");
+  // An email and a text, no WhatsApp: the message is whole, and opens on its email.
+  const both = [ownRow("email", HOURS, { category: "utility" }), ownRow("sms", HOURS, { category: "utility" })];
+  tree = open([], both);
+  assert.equal(standingOf(tree), "WhatsApp · not added, Email · ready, Text · ready");
+  assert.equal(find(paneOf(tree), (n) => n.type === Segmented).props.value, "email");
+  tree = open([], [ownRow("sms", HOURS, { category: "utility" })]);
+  assert.equal(standingOf(tree), "WhatsApp · not added, Email · not written, Text · ready");
+  assert.equal(find(paneOf(tree), (n) => n.type === Segmented).props.value, "sms", "a text alone opens on the text");
+  // WhatsApp alone, approved.
+  tree = open([custom(HOURS, { category: "utility" })], []);
+  assert.equal(standingOf(tree), "WhatsApp · approved, Email · not written, Text · not written");
+  // WhatsApp refused, and an offer: its text can never be written, and says so.
+  tree = open([custom(HOURS, { meta_status: "rejected", category: "marketing" })], []);
+  assert.equal(standingOf(tree), "WhatsApp · refused, Email · not written, Text · not for offers");
+  // Said once per channel, as separate words (a screen reader reads each), in the order the switch offers them.
+  assert.deepEqual(
+    all(byTestId(paneOf(tree), "template-standing"), (n) => n.type === "span").map((n) => n.props["data-channel"]),
+    ["whatsapp", "email", "sms"],
+  );
+  // The words are contracts' one set.
+  assert.deepEqual(
+    contracts.messageStandingWords(
+      contracts.campaignMessageOf([custom(HOURS, { meta_status: "pending", category: "marketing" })], HOURS, "en_US"),
+    ),
+    { whatsapp: "WhatsApp · in review", email: "Email · not written", sms: "Text · not for offers" },
+  );
+  assert.deepEqual(contracts.messageStandingWords(null), {
+    whatsapp: "WhatsApp · not added",
+    email: "Email · not written",
+    sms: "Text · not written",
+  });
+});
+
+test("the language control lists a language the message holds on any channel under one heading, with where it stands, and a language on no channel is the library's to add", () => {
+  const own = [
+    ownRow("email", HOURS, { category: "utility" }),
+    ownRow("email", HOURS, { category: "utility", language: "es" }),
+  ];
+  let tree = opened(page({ rows: [], versions: own }), HOURS);
+  const groups = find(paneOf(tree), (n) => n.type === Picker && n.props["data-testid"] === "template-lang").props
+    .groups;
+  assert.deepEqual(
+    groups.map((g) => [g.label, g.options.map((o) => [o.value, o.meta])]),
+    [
+      [
+        contracts.LANGUAGE_GROUP_WORDS.on,
+        [
+          ["en_US", "Approved"],
+          ["es", "Approved"],
+        ],
+      ],
+    ],
+    "both languages are on file, an email's as much as a WhatsApp version; a number to add more is not there",
+  );
+  assert.equal(contracts.LANGUAGE_GROUP_WORDS.on, "On file");
+  // The face: the language in view and, where it holds another, how many more.
+  const face = find(paneOf(tree), (n) => n.type === Picker && n.props["data-testid"] === "template-lang").props.face;
+  assert.equal(textOf(face).trim(), "EN +1");
+  assert.equal(
+    find(face, (n) => n.type === "svg").props["data-tone"],
+    "ok",
+    "an own version is approved the moment it is saved",
+  );
+  // With no WhatsApp number a WhatsApp version is not on offer, and the picker says why in the one sentence.
+  tree = opened(page({ rows: [], versions: own, channels: [] }), HOURS);
+  const note = find(paneOf(tree), (n) => n.type === Picker && n.props["data-testid"] === "template-lang").props.note;
+  assert.equal(textOf(note).trim(), "Connect a WhatsApp number to add a WhatsApp version.");
+  assert.equal(contracts.LIBRARY_WORDS.addNeedsNumber, "Connect a WhatsApp number to add a WhatsApp version.");
+});
+
+test("an own-only message is a row the Library draws whole: its words quoted, its channels said, found by its words, and the pane writes and removes its versions with no WhatsApp number", async () => {
+  const calls = stubbed();
+  const own = [ownRow("email", HOURS, { category: "utility" })];
+  let tree = page({ rows: [], versions: own, channels: [] });
+  const row = rowOf(tree, HOURS);
+  assert.ok(row, "the row is there, found by the name it is filed under");
+  assert.equal(row.props["data-testid"], "custom-row");
+  assert.ok(textOf(row).includes("“Hi {first name}, our hours start {date}.”"), "the words of its email");
+  assert.equal(textOf(byTestId(row, "template-channels")), "Email");
+  // The search finds it by the words of an email's subject and body, as it finds a WhatsApp message by its own.
+  find(tree, (n) => n.props?.["data-testid"] === "templates-search").props.onValueChange("our hours start");
+  tree = redraw();
+  assert.ok(rowOf(tree, HOURS), "found by its words");
+  find(tree, (n) => n.props?.["data-testid"] === "templates-search").props.onValueChange("no such words");
+  tree = redraw();
+  assert.equal(rowOf(tree, HOURS), null);
+  find(tree, (n) => n.props?.["data-testid"] === "templates-search").props.onValueChange("");
+
+  // Opened, its email reads as any message's does, with an Edit and a Remove that need no number.
+  tree = opened(redraw(), HOURS);
+  assert.equal(
+    byTestId(paneOf(tree), "template-version").props["data-channel"],
+    "email",
+    "its email is in view, on the version it is filed under",
+  );
+  assert.deepEqual(
+    menuOf(tree)
+      .props.groups.flatMap((g) => g.items)
+      .map((i) => i.label),
+    ["Edit", "Remove"],
+  );
+  assert.equal(byTestId(paneOf(tree), "template-pane-status"), null, "no WhatsApp badge: it has no WhatsApp version");
+  // WhatsApp's own verbs are the WhatsApp version's alone (and need a number): its tab has none to rename, hide or delete.
+  tree = switched(tree, "whatsapp");
+  assert.equal(menuOf(tree), null);
+  assert.equal(byTestId(paneOf(tree), "template-new-refused") !== null, true);
+  // Its text is written, from the email's words, under the message's own name.
+  tree = switched(tree, "sms");
+  assert.match(textOf(byTestId(paneOf(tree), "template-version-none")), /^No text version in English yet\./);
+  press(byTestId(paneOf(tree), "template-version-write"));
+  tree = redraw();
+  assert.equal(boxOf(tree, "Message").props.value, "Hi {{1}}, our hours start {{2}}.", "a copy of the email's words");
+  press(saveOf(tree));
+  await settle();
+  assert.deepEqual(calls, [
+    ["save", { name: HOURS, language: "en_US", channel: "sms", body: "Hi {{1}}, our hours start {{2}}." }],
+  ]);
+  // Removing the email asks first, and calls the verb with the version's own id.
+  tree = switched(redraw(), "email");
+  itemOf(tree, "Remove").onSelect();
+  find(redraw(), (n) => n.type === Confirm).props.onYes();
+  await settle();
+  assert.deepEqual(calls.at(-1), ["remove", `email-${HOURS}-en_US`]);
+});
+
+test("with no number the page still lists the starter set, offers it with what is written now, says WhatsApp waits, and writes a template only where there is a number to write it to", async () => {
+  const noNumber = (over = {}) => page({ rows: [], versions: [], channels: [], ...over });
+  let tree = noNumber();
+  const n = library.list.length;
+  assert.equal(all(tree, (nd) => nd.props?.["data-testid"] === "starter-row").length, n, "the starter set is listed");
+  assert.ok(headed(tree, "template-new"), "New is drawn whenever the person may act, number or none");
+  assert.ok(
+    textOf(byTestId(tree, "messages-no-number")).startsWith(contracts.LIBRARY_WORDS.noNumber),
+    "one quiet notice, in contracts' words",
+  );
+  assert.equal(
+    contracts.LIBRARY_WORDS.noNumber,
+    "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
+  );
+  const banner = textOf(byTestId(tree, "starters"));
+  assert.ok(
+    banner.includes(
+      "In English and Spanish — email and text versions are written at once; WhatsApp versions are added when a number is connected.",
+    ),
+    banner,
+  );
+  assert.ok(byTestId(tree, "starter-add-all"), "and the one act that adds it");
+  // With a number the same notice says WhatsApp reviews each of its versions.
+  tree = page({ rows: [], versions: [] });
+  assert.equal(byTestId(tree, "messages-no-number"), null);
+  assert.ok(
+    textOf(byTestId(tree, "starters")).includes(
+      "In English and Spanish — email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.",
+    ),
+  );
+
+  // Adding the set asks for no channel (the server writes what the workspace can), and says what it wrote.
+  const asked = [];
+  Object.assign(verbs, REAL, {
+    addStarters: async (body) => (
+      asked.push(body),
+      {
+        ok: true,
+        data: {
+          results: [],
+          submitted: 0,
+          existing: 0,
+          synced: 0,
+          failed: 0,
+          skipped: 6,
+          versions_saved: 11,
+          versions_existing: 0,
+          versions_failed: 0,
+        },
+      }
+    ),
+  });
+  tree = noNumber();
+  press(byTestId(tree, "starter-add-all"));
+  await settle();
+  assert.deepEqual(asked, [{ languages: ["en_US", "es"] }]);
+  assert.equal(textOf(toasts.at(-1).msg), "11 email and text versions written · WhatsApp versions wait for a number");
+
+  // A new template is a WhatsApp template: where there is no number its composer says so, in place of its rows, and
+  // submits nothing. With a number it is the composer it was.
+  tree = noNumber();
+  press(headed(tree, "template-new"));
+  tree = redraw();
+  assert.ok(byTestId(tree, "messages-composer"), "the composer opens");
+  assert.ok(textOf(byTestId(tree, "tpl-no-number")).startsWith(contracts.LIBRARY_WORDS.writeNeedsNumber));
+  assert.equal(byTestId(tree, "tpl-composer"), null, "none of its rows");
+  assert.equal(byTestId(tree, "tpl-submit").props.disabled, true);
+  tree = page({ rows: [], versions: [] });
+  press(headed(tree, "template-new"));
+  tree = redraw();
+  assert.ok(byTestId(tree, "tpl-composer"));
+  assert.equal(byTestId(tree, "tpl-no-number"), null);
+});
+
+test("what the starter set says it did: what went to WhatsApp, what was written as email and text, what could not be and why, and that WhatsApp waits for a number", () => {
+  const none = { submitted: 0, synced: 0, existing: 0, failed: 0 };
+  assert.equal(starterWords(none), "Nothing to add");
+  assert.equal(starterWords({ ...none, skipped: 7 }), "WhatsApp versions wait for a number");
+  assert.equal(
+    starterWords({ ...none, existing: 7, versions_saved: 1, skipped: 7 }),
+    "7 already on file · 1 email and text version written · WhatsApp versions wait for a number",
+  );
+  assert.equal(
+    starterWords({
+      ...none,
+      submitted: 2,
+      versions_saved: 3,
+      versions_failed: 2,
+      results: [
+        { status: "submitted", title: "Win-back", versions: [{ status: "saved" }] },
+        { status: "submitted", title: "Reminder", versions: [{ status: "failed", detail: "Not switched on." }] },
+      ],
+    }),
+    "2 submitted to WhatsApp for review — usually approved within minutes · 3 email and text versions written · 2 email and text versions could not be written: Not switched on.",
+  );
+  assert.equal(
+    starterWords({ ...none, failed: 1, results: [{ status: "failed", title: "Win-back", detail: "Meta said no" }] }),
+    "1 could not be added: Win-back (Meta said no)",
+    "a WhatsApp failure reads as it did",
+  );
 });

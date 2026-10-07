@@ -25891,7 +25891,7 @@ function languageLabels(codes) {
   return out;
 }
 var LANGUAGE_GROUP_WORDS = {
-  on: "On WhatsApp",
+  on: "On file",
   ready: "Ready to add",
   add: "Translate into"
 };
@@ -26271,23 +26271,37 @@ var PLAYBOOK_DELETE_WORDS = {
   detail: `Its runs stay in ${sent} with their numbers.`
 };
 var NO_TEMPLATE_WORDS = {
-  lead: "No approved template yet \u2014 add the starter set, write one here, or sync yours from WhatsApp Manager in the",
+  lead: "No message to send yet \u2014 add the starter set, or write one in the",
   link: library
 };
 function noMessageWords(forThisMoment) {
   return {
-    lead: `No approved message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one, or sync yours from WhatsApp Manager, in the`,
+    lead: `No message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one in the`,
     link: library
   };
 }
 var LIBRARY_WORDS = {
   title: library,
-  demo: `The ${library} reads a real workspace \u2014 what WhatsApp has approved for it.`,
+  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
   reading: `Reading the ${library}\u2026`,
   failed: `The ${library} couldn\u2019t be loaded right now`,
   failedWhat: `the ${library}`,
   failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
-  noNumber: `The ${library} holds what WhatsApp approves for a number, so it needs one.`
+  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
+  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
+  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
+  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
+  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
+};
+var LIBRARY_STARTER_WORDS = {
+  /** The banner's second line: the languages it comes in, and what is written now. */
+  banner: (languages, hasNumber) => hasNumber ? `In ${languages} \u2014 email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.` : `In ${languages} \u2014 email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
+  /** The toast's clauses: what was written, what could not be, and what waits. */
+  versionsWritten: (n) => `${n} email and text version${n === 1 ? "" : "s"} written`,
+  versionsFailed: (n, why) => `${n} email and text version${n === 1 ? "" : "s"} could not be written${why ? `: ${why}` : ""}`,
+  waitsForNumber: "WhatsApp versions wait for a number",
+  /** The route's refusal when the channels it is asked for are none it knows. */
+  pickAChannel: "Pick at least one channel: WhatsApp, email or text."
 };
 var OFFERS_IN_WRITING_WORDS = {
   lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
@@ -30796,6 +30810,22 @@ function messageWhyNot(m, channel) {
   if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
   return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
 }
+var WHATSAPP_STANDING_WORDS = {
+  approved: "approved",
+  pending: "in review",
+  rejected: "refused",
+  paused: "paused",
+  disabled: "disabled"
+};
+function messageStandingWords(m) {
+  const at3 = (channel, word) => `${VERSION_CHANNEL_WORDS[channel]} \xB7 ${word}`;
+  const w = m?.versions.whatsapp ?? null;
+  return {
+    whatsapp: at3("whatsapp", w ? WHATSAPP_STANDING_WORDS[w.status] : "not added"),
+    email: at3("email", m?.versions.email ? "ready" : "not written"),
+    sms: at3("sms", m?.versions.sms ? "ready" : m?.purpose === "marketing" ? "not for offers" : "not written")
+  };
+}
 function whatsappStoppedRunWords(m) {
   const why = m === null ? null : messageWhyNot(m, "whatsapp");
   return `${why ?? NO_WHATSAPP_VERSION_WORDS} Everyone on this run goes by WhatsApp, so nothing was sent.`;
@@ -35126,6 +35156,7 @@ export {
   LEAD_UNREACHABLE_WORD,
   LEAD_WORDS,
   LENS_ROUTES,
+  LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
@@ -36211,6 +36242,7 @@ export {
   messageFitsMoment,
   messageHolds,
   messageLanguageChoices,
+  messageStandingWords,
   messageStatusLabel,
   messageText,
   messageVia,

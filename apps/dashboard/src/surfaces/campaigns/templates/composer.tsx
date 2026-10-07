@@ -11,6 +11,7 @@
  * composer-forms.tsx: plain functions the composer calls, so its tree and its hooks are what they were.
  */
 import { useEffect, useRef } from "react";
+import { LIBRARY_STARTER_WORDS } from "@chanlytics/contracts";
 import { canDo } from "../../legacy-verbs";
 import { useUnsavedWork } from "../../kit/record/work";
 import { composerActs, composerFacts, useComposerState, wroteWords } from "./composer-acts";
@@ -24,15 +25,28 @@ interface TemplateComposerProps {
   translate?: TemplateTranslation | null;
   /** Drawn as the pane beside the Templates list (parts/split.tsx): a new message's head, rows and foot, not a card. */
   pane?: boolean;
+  /** Why a template cannot be written yet (a WhatsApp number is what it is written to): said in place of the rows, and nothing is submitted. */
+  numberWhy?: string | null;
 }
 
-/** What happened to the starter set, as the answer of adding it says: each count, and what a failure was. */
+/**
+ * What happened to the starter set, as the answer of adding it says: each count, what a failure was, how many email and
+ * text versions were written or could not be and why, and how many starters' WhatsApp version was skipped (no number).
+ */
 interface StarterOutcome {
   submitted: number;
   synced: number;
   existing: number;
   failed: number;
-  results?: readonly { status: string; title: string; detail?: string }[];
+  skipped?: number;
+  versions_saved?: number;
+  versions_failed?: number;
+  results?: readonly {
+    status: string;
+    title: string;
+    detail?: string;
+    versions?: readonly { status: string; detail?: string }[];
+  }[];
 }
 
 // What happened to the starter set, in one line.
@@ -53,7 +67,15 @@ export const starterWords = (d: StarterOutcome): string => {
           : ""
       }`,
     );
-  return parts.length ? parts.join(" · ") : "Nothing to add";
+  if (d.versions_saved) parts.push(LIBRARY_STARTER_WORDS.versionsWritten(d.versions_saved));
+  if (d.versions_failed) {
+    // The door's own words for why, once: they are the same for every version a database refuses alike.
+    const why = d.results?.flatMap((r) => r.versions ?? []).find((v) => v.status === "failed")?.detail ?? null;
+    parts.push(LIBRARY_STARTER_WORDS.versionsFailed(d.versions_failed, why));
+  }
+  if (parts.length === 0 && !d.skipped) return "Nothing to add";
+  if (d.skipped) parts.push(LIBRARY_STARTER_WORDS.waitsForNumber);
+  return parts.join(" · ");
 };
 
 export function TemplateComposer({
@@ -62,6 +84,7 @@ export function TemplateComposer({
   businessName = "",
   translate = null,
   pane = false,
+  numberWhy = null,
 }: TemplateComposerProps) {
   const draftKey = translate ? `${translate.name}|${translate.language}` : "new";
   const st = useComposerState(translate, draftKey);
@@ -84,7 +107,7 @@ export function TemplateComposer({
     void acts.translateNow();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival: a composer is keyed by its language
   }, []);
-  const ctx = { st, facts, acts, work, businessName, onCancel, pane };
+  const ctx = { st, facts, acts, work, businessName, onCancel, pane, numberWhy };
   // The fields the words are changed in and the preview beside them are made before the form is chosen, as the JSX made them.
   const made = { fields: composerFields(ctx), preview: composerPreview(ctx) };
   return translate ? translationForm(ctx, translate, made) : newTemplateForm(ctx, made);

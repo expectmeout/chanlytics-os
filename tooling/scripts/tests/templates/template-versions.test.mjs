@@ -15,6 +15,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import {
+  LIBRARY_STARTER_WORDS,
+  LIBRARY_WORDS,
   MESSAGE_BEGIN_WORDS,
   TEMPLATE_NAME_WORDS,
   channelNeverCarries,
@@ -520,8 +522,11 @@ test("a version that cannot be filed is said and stops nothing: the rest are fil
   ]);
 });
 
-test("a starter whose WhatsApp version is not on file gets no versions: the message is not there for the door to find", async () => {
-  const tables = { memberships: both("viewer", "operator"), templates: [] };
+/** A WhatsApp number the workspace B has: the starter set's WhatsApp versions are made only where there is one. */
+const NUMBER = { tenant_id: B, kind: "whatsapp", status: "active", config: {} };
+
+test("with a number, a starter whose WhatsApp version cannot be made stops at the guard and files no version; one the set no longer offers is not added", async () => {
+  const tables = { memberships: both("viewer", "operator"), templates: [], tenant_channels: [NUMBER] };
   const w = world(tables);
   // Nothing on file, so the submission is the production guard here, as it is for the whole set.
   await refused(
@@ -535,6 +540,138 @@ test("a starter whose WhatsApp version is not on file gets no versions: the mess
   // And a starter the set no longer offers is not added, asked for or not.
   await refused(post(w, { keys: ["welcome_new"] }), "validation", 400, "Pick at least one starter template");
   await refused(post(w, {}, inA), "forbidden", 403);
+});
+
+const NO_CHANNEL = "Connect a WhatsApp number first — templates belong to a number's account.";
+/** Each result of the answer: the starter, the language, what became of its WhatsApp version and of each version beside it. */
+const detailed = (r) =>
+  r.results.map((x) => [x.key, x.language, x.status, x.detail, x.versions.map((v) => `${v.channel}:${v.status}`)]);
+
+test("with no number the set is written as emails and texts: the first version of a name begins the message as the starter, the other is written beside it, the WhatsApp version is skipped and Meta is not asked", async () => {
+  const { tables, w } = empty();
+  // A preview answers a submission with its guard, a thrown refusal (the test above): a call to Meta would end this run.
+  const r = await post(w, { keys: ["visit_reminder", "quick_note", "call_text"], languages: ["en_US"] });
+  assert.deepEqual(detailed(r), [
+    ["visit_reminder", "en_US", "skipped", NO_CHANNEL, ["email:saved", "sms:saved"]],
+    ["quick_note", "en_US", "skipped", NO_CHANNEL, ["email:saved"]],
+    ["call_text", "en_US", "skipped", NO_CHANNEL, ["sms:saved"]],
+  ]);
+  assert.deepEqual(
+    [r.submitted, r.existing, r.synced, r.failed, r.skipped, r.versions_saved, r.versions_existing, r.versions_failed],
+    [0, 0, 0, 0, 3, 4, 0, 0],
+  );
+  assert.equal(NO_CHANNEL, LIBRARY_WORDS.writeNeedsNumber, "the sentence is contracts', the one the composer says too");
+  // The door is asked as saveVersion asks it: a name with no row is begun, the next version of it written beside.
+  assert.deepEqual(
+    w.calls.map(([door, a]) => `${door}:${a.p_name}/${a.p_channel}`),
+    ["create:visit_reminder/email", "save:visit_reminder/sms", "create:quick_note/email", "create:call_text/sms"],
+  );
+  const created = Object.fromEntries(w.calls.filter(([d]) => d === "create").map(([, a]) => [a.p_name, a]));
+  assert.deepEqual(
+    [created.visit_reminder.p_category, created.quick_note.p_category, created.call_text.p_category],
+    ["utility", "marketing", "utility"],
+    "only a starter is a message about their own visit: the starter's category, whichever number there is",
+  );
+  assert.deepEqual(created.visit_reminder.p_variables, valuesOf(starterByName("visit_reminder"), "en_US"));
+  assert.equal(created.visit_reminder.p_title, "", "the starter's title is the registry's, not a row's");
+  assert.deepEqual(
+    tables.templates.map((t) => [t.name, t.channel, t.source]),
+    [
+      ["visit_reminder", "email", "chanlytics"],
+      ["visit_reminder", "sms", "chanlytics"],
+      ["quick_note", "email", "chanlytics"],
+      ["call_text", "sms", "chanlytics"],
+    ],
+    "no WhatsApp row is made, and a message with versions on its own channels needs none",
+  );
+  assert.equal(tables.templates.find((t) => t.name === "visit_reminder" && t.channel === "sms").category, "utility");
+
+  // Said again, nothing is filed twice.
+  const before = w.calls.length;
+  const second = await post(w, { keys: ["visit_reminder", "quick_note", "call_text"], languages: ["en_US"] });
+  assert.equal(w.calls.length, before, "no door was called");
+  assert.deepEqual(
+    detailed(second).map((x) => x[4]),
+    [["email:exists", "sms:exists"], ["email:exists"], ["sms:exists"]],
+  );
+  assert.deepEqual([second.versions_saved, second.versions_existing, second.skipped], [0, 4, 3]);
+});
+
+test("a language of a starter is written beside the message that exists in another, in its own words, whichever channel began it", async () => {
+  const { w } = empty();
+  const r = await post(w, { keys: ["visit_reminder"], languages: ["en_US", "es"] });
+  assert.deepEqual(
+    detailed(r).map((x) => [x[1], x[4]]),
+    [
+      ["en_US", ["email:saved", "sms:saved"]],
+      ["es", ["email:saved", "sms:saved"]],
+    ],
+  );
+  assert.deepEqual(
+    w.calls.map(([door, a]) => `${door}:${a.p_language}/${a.p_channel}`),
+    ["create:en_US/email", "save:en_US/sms", "save:es/email", "save:es/sms"],
+    "only the first version of the name begins it: the door refuses a name that has any row, in any language",
+  );
+  const visit = starterByKey("visit_reminder");
+  const es = w.calls.map(([, a]) => a).find((a) => a.p_language === "es" && a.p_channel === "email");
+  assert.equal(es.p_subject, starterEmailText(visit, "es").subject);
+});
+
+test("the channels asked for are the ones written: a number and WhatsApp alone asks Meta and writes no email or text; a number and email alone never asks Meta", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    templates: [
+      tpl(1, B, { name: "visit_reminder", variables: [SLOTS[0], SLOTS[1], { position: 3 }, { position: 4 }] }),
+    ],
+    tenant_channels: [NUMBER],
+  };
+  const w = world(tables);
+  // WhatsApp alone: a starter with a version on file is left as it is and no email or text is written beside it; one with
+  // none is submitted, which a preview refuses at its guard, as it always did.
+  const only = await post(w, { keys: ["visit_reminder"], languages: ["en_US"], channels: ["whatsapp"] });
+  assert.deepEqual(detailed(only), [["visit_reminder", "en_US", "exists", undefined, []]]);
+  assert.deepEqual(w.calls, [], "no door was called");
+  await refused(
+    post(w, { keys: ["quick_note"], languages: ["en_US"], channels: ["whatsapp"] }),
+    "upstream_meta",
+    502,
+    "Adding templates only works on the production dashboard.",
+  );
+  // Email alone, with a number: nothing is asked of Meta (its guard would have refused), its version is skipped without
+  // a word (it was not asked for), and the email is written, beginning the message.
+  const mail = await post(w, { keys: ["quick_note"], languages: ["en_US"], channels: ["email"] });
+  assert.deepEqual(detailed(mail), [["quick_note", "en_US", "skipped", undefined, ["email:saved"]]]);
+  assert.deepEqual(
+    w.calls.map(([door, a]) => `${door}:${a.p_name}/${a.p_channel}`),
+    ["create:quick_note/email"],
+  );
+  // The default, with a number, asks for every channel: a starter with none on file meets the guard.
+  await refused(
+    post(w, { keys: ["call_text"], languages: ["en_US"] }),
+    "upstream_meta",
+    502,
+    "Adding templates only works on the production dashboard.",
+  );
+  // A request that names no channel it knows is refused in one plain sentence.
+  for (const channels of [[], ["fax"]])
+    await refused(post(w, { keys: ["quick_note"], channels }), "validation", 400, LIBRARY_STARTER_WORDS.pickAChannel);
+  assert.equal(LIBRARY_STARTER_WORDS.pickAChannel, "Pick at least one channel: WhatsApp, email or text.");
+});
+
+test("with no number and the door not switched on, each version says so in one plain sentence and the answer arrives whole", async () => {
+  const { tables, w } = empty();
+  w.refuse.create = doorError(
+    "Could not find the function public.create_message_version in the schema cache",
+    "PGRST202",
+  );
+  const r = await post(w, { keys: ["visit_reminder", "quick_note"], languages: ["en_US"] });
+  assert.deepEqual(detailed(r), [
+    ["visit_reminder", "en_US", "skipped", NO_CHANNEL, ["email:failed", "sms:failed"]],
+    ["quick_note", "en_US", "skipped", NO_CHANNEL, ["email:failed"]],
+  ]);
+  assert.equal(r.results[0].versions[0].detail, MESSAGE_BEGIN_WORDS.doorNotSwitchedOn);
+  assert.deepEqual([r.versions_saved, r.versions_failed], [0, 3]);
+  assert.equal(tables.templates.length, 0, "nothing was written");
 });
 
 /* ------------------------ a message may begin as an email or a text ------------------------ */

@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import { gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
+import { EmptyState } from "../../kit/empty/empty";
 import { Field } from "../../kit/field/field";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
@@ -38,6 +39,8 @@ interface ComposerCtx {
   onCancel?: () => void;
   /** Drawn as the pane beside the Templates list (composer.tsx), where a new message is not a card. */
   pane?: boolean;
+  /** Why nothing can be submitted yet (no WhatsApp number to write it to): said where the rows would be. */
+  numberWhy: string | null;
 }
 
 // The fields the words are changed in: a translation's are the same as a new
@@ -339,7 +342,7 @@ function newRows(c: ComposerCtx, made: Made) {
  * the foot, where the glass bar stands. It was a card over the list, which pushed the messages down while it was open.
  */
 function newTemplatePane(c: ComposerCtx, made: Made) {
-  const { st, facts, acts, work, businessName } = c;
+  const { st, facts, acts, work, businessName, numberWhy } = c;
   const { submitting } = st;
   const { submit } = acts;
   const { ready } = facts;
@@ -362,7 +365,7 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
             </span>
             <Button
               variant="primary"
-              disabled={!ready}
+              disabled={!ready || numberWhy !== null}
               onClick={submit}
               data-testid="tpl-submit"
               {...gate("approve", "submit a template")}
@@ -373,9 +376,19 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
         )
       }
     >
-      <div className="tpl-compose" data-testid="tpl-composer">
-        {newRows(c, made)}
-      </div>
+      {numberWhy !== null ? (
+        <EmptyState
+          kind="line"
+          glyph="phone"
+          title={numberWhy}
+          action={{ label: "Open Connections", to: "admin/integrations" }}
+          testid="tpl-no-number"
+        />
+      ) : (
+        <div className="tpl-compose" data-testid="tpl-composer">
+          {newRows(c, made)}
+        </div>
+      )}
     </CmPane>
   );
 }

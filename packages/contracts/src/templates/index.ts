@@ -103,6 +103,7 @@ export {
   campaignMessagesOf,
   messageHolds,
   messageWhyNot,
+  messageStandingWords,
   MESSAGE_GONE_WORDS,
   MESSAGE_BEGIN_WORDS,
   whatsappStoppedRunWords,

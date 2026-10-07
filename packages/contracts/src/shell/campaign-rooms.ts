@@ -28,29 +28,57 @@ export interface NoMessageWords {
   link: string;
 }
 
-/** The send screen's picker: no approved template, in review or none. */
+/** The send screen's picker: no message it can send, whichever channel a message is written for. */
 export const NO_TEMPLATE_WORDS: NoMessageWords = {
-  lead: "No approved template yet — add the starter set, write one here, or sync yours from WhatsApp Manager in the",
+  lead: "No message to send yet — add the starter set, or write one in the",
   link: library,
 };
 
-/** A playbook composer's picker: no approved message, for this moment where the moment has a starter. */
+/** A playbook composer's picker: no message, for this moment where the moment has a starter. */
 export function noMessageWords(forThisMoment: boolean): NoMessageWords {
   return {
-    lead: `No approved message ${forThisMoment ? "for this moment " : ""}yet — write one, or sync yours from WhatsApp Manager, in the`,
+    lead: `No message ${forThisMoment ? "for this moment " : ""}yet — write one in the`,
     link: library,
   };
 }
 
-/** The Library page's own lines: the waiting line, the read that failed, and the empty state before a number is connected. */
+/**
+ * The Library page's own lines: the waiting line, the read that failed, what a workspace with no WhatsApp number is told
+ * (a message needs none: only its WhatsApp version waits for one) and what writing a WhatsApp version asks of a number.
+ */
 export const LIBRARY_WORDS = {
   title: library,
-  demo: `The ${library} reads a real workspace — what WhatsApp has approved for it.`,
+  demo: `The ${library} reads a real workspace — the messages it holds, by email, text and WhatsApp.`,
   reading: `Reading the ${library}…`,
   failed: `The ${library} couldn’t be loaded right now`,
   failedWhat: `the ${library}`,
   failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
-  noNumber: `The ${library} holds what WhatsApp approves for a number, so it needs one.`,
+  noNumber:
+    "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
+  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
+  writeNeedsNumber: "Connect a WhatsApp number first — templates belong to a number's account.",
+  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
+  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version.",
+} as const;
+
+/**
+ * What the starter set says it does, on the Library's banner and after it is added. Its email and text versions are
+ * written at once, whatever the workspace has connected; its WhatsApp versions go to a number's account, so they wait
+ * for one, and WhatsApp reviews each.
+ */
+export const LIBRARY_STARTER_WORDS = {
+  /** The banner's second line: the languages it comes in, and what is written now. */
+  banner: (languages: string, hasNumber: boolean): string =>
+    hasNumber
+      ? `In ${languages} — email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.`
+      : `In ${languages} — email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
+  /** The toast's clauses: what was written, what could not be, and what waits. */
+  versionsWritten: (n: number): string => `${n} email and text version${n === 1 ? "" : "s"} written`,
+  versionsFailed: (n: number, why: string | null): string =>
+    `${n} email and text version${n === 1 ? "" : "s"} could not be written${why ? `: ${why}` : ""}`,
+  waitsForNumber: "WhatsApp versions wait for a number",
+  /** The route's refusal when the channels it is asked for are none it knows. */
+  pickAChannel: "Pick at least one channel: WhatsApp, email or text.",
 } as const;
 
 /**

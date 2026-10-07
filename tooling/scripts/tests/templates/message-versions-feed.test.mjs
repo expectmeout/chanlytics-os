@@ -135,6 +135,35 @@ test("the page is handed a message's email and text rows beside its WhatsApp one
   assert.ok(named.includes("visit_reminder") && !named.includes("reach_out_9f2c"), "the usage names no reach-out");
 });
 
+test("what sends a message and how much of it went out is read of every message by its name, one written for email or text alone included, and of no reach-out's email", async () => {
+  const when = new Date(Date.now() - 60_000).toISOString();
+  wire({
+    templates: [
+      row("w1", "whatsapp", "visit_reminder"),
+      row("e1", "email", "spring_news", { category: "marketing", header: "Spring" }),
+      row("e2", "email", "reach_out_9f2c", { header: "Hello" }),
+    ],
+    usedBy: {
+      spring_news: {
+        playbooks: [{ id: "pb-1", name: "Spring", paused: false }],
+        broadcasts: 0,
+        recent: [],
+        booking: false,
+      },
+    },
+    sends: { spring_news: { count: 3, lastAt: when } },
+  });
+  await settingsOverride.apply();
+  const use = globalThis.window.__TEMPLATE_USE;
+  assert.equal(use.spring_news.unused, false, "a playbook sends the email-only message, and the row can say so");
+  assert.equal(use.spring_news.playbook, "pb-1");
+  assert.equal(use.visit_reminder.unused, true, "a WhatsApp message nothing sends says so, as it did");
+  const sent = globalThis.window.__TEMPLATE_SENT;
+  assert.equal(sent.spring_news.count, "3", "and how many went out");
+  assert.deepEqual(sent.visit_reminder, { count: null, when: "Never sent" });
+  for (const map of [use, sent]) assert.ok(!("reach_out_9f2c" in map), "a reach-out's email is nobody's message");
+});
+
 test("a workspace with no email or text row is handed an empty list, and a failed read is null, never none", async () => {
   wire({ templates: [row("w1", "whatsapp", "visit_reminder")], usedBy: {} });
   await settingsOverride.apply();

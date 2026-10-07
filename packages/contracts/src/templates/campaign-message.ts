@@ -24,6 +24,7 @@
  *     and text when the row exists. Whether the workspace is ready on a channel is channelsReady's, not this module's.
  *  6. The message is hidden when its anchor is, and offered when it is not hidden and holds at least one channel.
  *  7. A channel the message does not hold has one sentence for it (messageWhyNot), whichever page or verb says it.
+ *  8. Where one language of it stands on each channel has one set of words, the Library's (messageStandingWords).
  */
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 import { purposeOfTemplate, type AskedPurpose } from "../consent/consent";
@@ -236,6 +237,36 @@ export function messageWhyNot(m: Pick<CampaignMessage, "versions">, channel: Con
   return w.blocked === null
     ? null
     : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
+}
+
+/**
+ * What WhatsApp's standing says of a version, as the word that follows its channel ("WhatsApp · in review"). They are the
+ * pill's own words for a template (tone.ts) in lower case, but for a refusal, which every sentence here says as refused.
+ */
+const WHATSAPP_STANDING_WORDS: Record<TemplateStatus, string> = {
+  approved: "approved",
+  pending: "in review",
+  rejected: "refused",
+  paused: "paused",
+  disabled: "disabled",
+};
+
+/**
+ * Where one language of a message stands on each channel, in the words the Library says it in (rule 8): its email and its
+ * text are "ready" the moment they are written, its WhatsApp version is where WhatsApp has it ("in review", "refused"), and
+ * a channel with no version in the language says so ("WhatsApp · not added", "Email · not written"). A text of an offer
+ * can never be written, and says that. Null is a language the message has no version in at all.
+ */
+export function messageStandingWords(
+  m: Pick<CampaignMessage, "versions" | "purpose"> | null,
+): Record<VersionChannel, string> {
+  const at = (channel: VersionChannel, word: string): string => `${VERSION_CHANNEL_WORDS[channel]} · ${word}`;
+  const w = m?.versions.whatsapp ?? null;
+  return {
+    whatsapp: at("whatsapp", w ? WHATSAPP_STANDING_WORDS[w.status] : "not added"),
+    email: at("email", m?.versions.email ? "ready" : "not written"),
+    sms: at("sms", m?.versions.sms ? "ready" : m?.purpose === "marketing" ? "not for offers" : "not written"),
+  };
 }
 
 /**

@@ -5,9 +5,10 @@
  * returns its element, called by the page and not drawn as a component of its own, so the page's tree is the tree it was.
  */
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { LIBRARY_WORDS } from "@chanlytics/contracts";
+import { LIBRARY_STARTER_WORDS, LIBRARY_WORDS } from "@chanlytics/contracts";
 import { libraryCount } from "@chanlytics/contracts";
 import type { CampaignMessage, ChannelVM } from "@chanlytics/contracts";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import { gate } from "../../legacy-verbs";
 import type { useLegacyToast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -18,8 +19,9 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { CmBanner, CmDot } from "../parts/head";
 import { TemplateComposer } from "./composer";
 import type { TemplateGroup, TemplateListing, TplLang } from "./group";
-import { TplEmailRows, TplNothing, tplAllApproved, tplHeadTip } from "./emails";
+import { TplEmailRows, TplEmailsFailed, tplAllApproved, tplHeadTip } from "./emails";
 import type { StarterLibrary } from "./verbs";
+import { versionsOfMessage } from "./versions";
 import { tplAgo, tplAnd, tplSpell } from "./words";
 
 type Emails = Parameters<typeof tplHeadTip>[0];
@@ -72,20 +74,22 @@ export function headSub({ listing, messages, emails }: HeadSubProps) {
 }
 
 interface HeadRightProps {
-  hasWhatsApp: boolean;
   onNew: () => void;
 }
 
-/** The head's act: the page's one, drawn as the kit's button, as Playbooks' and Broadcasts' are. */
-export function headRight({ hasWhatsApp, onNew }: HeadRightProps) {
-  return hasWhatsApp ? (
+/**
+ * The head's act: the page's one, drawn as the kit's button, as Playbooks' and Broadcasts' are. It is there whenever the
+ * person may act: a message needs no WhatsApp number, so the number is the composer's to ask for, where it says so.
+ */
+export function headRight({ onNew }: HeadRightProps) {
+  return (
     <Button onClick={onNew} data-testid="template-new" {...gate("approve", "write a template")}>
       <Icon name="plus" size={12} />{" "}
       <span>
         New<span className="cm-act-noun"> template</span>
       </span>
     </Button>
-  ) : null;
+  );
 }
 
 interface BarProps {
@@ -149,9 +153,15 @@ interface ComposerPaneProps {
   bizName: string | null;
   setComposing: Dispatch<SetStateAction<boolean>>;
   flash: ReturnType<typeof useLegacyToast>[1];
+  /** Whether the workspace has a WhatsApp number, which a template is written to: the composer says so where it has none. */
+  hasWhatsApp: boolean;
 }
 
-/** A failed read of the numbers is not "no number": say what could not be read. */
+/**
+ * What a workspace with no WhatsApp number is told, once and quietly: a message needs none, so the Library lists and
+ * writes email and text versions all the same, and only its WhatsApp versions wait. A failed read of the numbers is not
+ * "no number": say what could not be read.
+ */
 export function numberNotice(p: { channels: ChannelVM[] | null | undefined; hasWhatsApp: boolean }) {
   return p.channels === null ? (
     <FailedRead
@@ -164,10 +174,9 @@ export function numberNotice(p: { channels: ChannelVM[] | null | undefined; hasW
   ) : (
     !p.hasWhatsApp && (
       <EmptyState
-        kind="card"
+        kind="line"
         glyph="phone"
-        title="Connect a WhatsApp number first"
-        body={LIBRARY_WORDS.noNumber}
+        title={LIBRARY_WORDS.noNumber}
         action={{ label: "Open Connections", to: "admin/integrations" }}
         testid="messages-no-number"
       />
@@ -175,35 +184,45 @@ export function numberNotice(p: { channels: ChannelVM[] | null | undefined; hasW
   );
 }
 
+/** The words of a message's email and text versions, subject included: what the search reads where WhatsApp has none. */
+const ownWordsOf = (g: TemplateGroup, versions: readonly TemplateDto[]): string[] => {
+  const has = versionsOfMessage(g, versions);
+  return [...has.email, ...has.sms].map((r) => `${r.header || ""} ${r.body_preview || ""}`);
+};
+
 /**
  * The search box: a message's title, the name WhatsApp knows it by, and its words in every language on file or in the
- * library. Rows that do not match stand down; the starter set's notice and the fold stay, because they are about the
- * set, not the search.
+ * library, on every channel it is written for (an email's subject and body, a text's). Rows that do not match stand
+ * down; the starter set's notice and the fold stay, because they are about the set, not the search.
  */
-export const matchesOf = (needle: string, langs: readonly TplLang[], S: StarterLibrary) => (g: TemplateGroup) =>
-  !needle ||
-  [
-    g.title,
-    g.starter ? g.starter.name : "",
-    ...g.rows.map(({ row: r }) => (r ? `${r.name} ${r.body_preview || ""}` : "")),
-  ]
-    .join(" ")
-    .toLowerCase()
-    .includes(needle) ||
-  !!(
-    g.starter &&
-    langs.some((l) =>
-      String(S.text(g.starter, l.id)?.body || "")
-        .toLowerCase()
-        .includes(needle),
-    )
-  );
+export const matchesOf =
+  (needle: string, langs: readonly TplLang[], S: StarterLibrary, versions: readonly TemplateDto[]) =>
+  (g: TemplateGroup) =>
+    !needle ||
+    [
+      g.title,
+      g.starter ? g.starter.name : "",
+      ...g.rows.map(({ row: r }) => (r ? `${r.name} ${r.body_preview || ""}` : "")),
+      ...ownWordsOf(g, versions),
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(needle) ||
+    !!(
+      g.starter &&
+      langs.some((l) =>
+        String(S.text(g.starter, l.id)?.body || "")
+          .toLowerCase()
+          .includes(needle),
+      )
+    );
 
 /** A new message, written here: the composer in the pane beside the list, and what is said once it is submitted. */
-export function composerPane({ bizName, setComposing, flash }: ComposerPaneProps) {
+export function composerPane({ bizName, setComposing, flash, hasWhatsApp }: ComposerPaneProps) {
   return (
     <TemplateComposer
       pane
+      numberWhy={hasWhatsApp ? null : LIBRARY_WORDS.writeNeedsNumber}
       businessName={bizName || ""}
       onCancel={() => setComposing(false)}
       onDone={(made) => {
@@ -226,16 +245,19 @@ interface StartersProps {
   busy: boolean;
   addingAll: boolean;
   addStarters: (keys: string[] | null, languages: string[]) => Promise<void>;
+  /** Whether a WhatsApp number is there for the set's WhatsApp versions to go to: the notice says which is written now. */
+  hasNumber: boolean;
 }
 
 /**
  * A workspace with none of the starter set is starting, not broken: it is offered the set, in one notice with its one
- * act. A workspace part-way through (the set in English, Spanish never added) hears no notice: a run sends one language
- * to everyone on it, so a language never added holds nobody back -- the notice that said "your Spanish-speaking
- * customers get nothing from Win-back" said what the product does not do. What is left to add is a quiet line at the
- * list's foot, and each message's own languages are in its pane.
+ * act, with or without a WhatsApp number (its email and text versions are written at once; its WhatsApp versions wait
+ * for a number, contracts LIBRARY_STARTER_WORDS). A workspace part-way through (the set in English, Spanish never added)
+ * hears no notice: a run sends one language to everyone on it, so a language never added holds nobody back -- the
+ * notice that said "your Spanish-speaking customers get nothing from Win-back" said what the product does not do. What
+ * is left to add is a quiet line at the list's foot, and each message's own languages are in its pane.
  */
-export function startersOffer({ S, langs, busy, addingAll, addStarters }: StartersProps) {
+export function startersOffer({ S, langs, busy, addingAll, addStarters, hasNumber }: StartersProps) {
   return (
     <div className="msg-starters" data-testid="starters">
       <CmBanner
@@ -258,7 +280,7 @@ export function startersOffer({ S, langs, busy, addingAll, addStarters }: Starte
           </Button>
         }
       >
-        In {tplAnd(langs.map((l) => l.label))} — WhatsApp reviews each, usually within minutes.
+        {LIBRARY_STARTER_WORDS.banner(tplAnd(langs.map((l) => l.label)), hasNumber)}
       </CmBanner>
     </div>
   );
@@ -269,20 +291,17 @@ interface ListProps {
   listStarters: TemplateGroup[];
   listCustom: TemplateGroup[];
   listEmails: Emails;
-  emails: Emails;
   openKey: string | null;
   onOpenKey: (key: string) => void;
   card: (g: TemplateGroup) => ReactNode;
   needle: string;
   q: string;
-  hasWhatsApp: boolean;
-  customN: number;
 }
 
 /** The list: what each column of a row is, once, above them, then the messages, the emails and what is said of none. */
 export function templateList(p: ListProps) {
-  const { listed, listStarters, listCustom, listEmails, emails, openKey, onOpenKey, card } = p;
-  const { needle, q, hasWhatsApp, customN } = p;
+  const { listed, listStarters, listCustom, listEmails, openKey, onOpenKey, card } = p;
+  const { needle, q } = p;
   return (
     <section className="msg-section" data-testid="templates">
       <div className="msg-list">
@@ -305,7 +324,7 @@ export function templateList(p: ListProps) {
       {needle && listed === 0 && (
         <EmptyState kind="line" title={`No template’s words have “${q.trim()}” in them.`} testid="templates-no-match" />
       )}
-      <TplNothing hasWhatsApp={hasWhatsApp} customN={customN} emails={emails} />
+      <TplEmailsFailed />
     </section>
   );
 }
@@ -373,10 +392,10 @@ interface ListFootProps {
 /** Under the list: its foot, and what the workspace kept out of the composers while the fold is open. */
 export function listFoot(p: ListFootProps) {
   const { listing, partialSet, busy, addingAll, addStarters, showHidden, setShowHidden, card } = p;
-  const { hiddenRows, hiddenGroups, langs, leftToAdd } = listing;
+  const { hiddenMessages, hiddenGroups, langs, leftToAdd } = listing;
   return (
     <>
-      {(partialSet || hiddenRows.length > 0) && (
+      {(partialSet || hiddenMessages.length > 0) && (
         <TplFoot
           partialSet={partialSet}
           busy={busy}
@@ -388,7 +407,7 @@ export function listFoot(p: ListFootProps) {
           }
           leftToAdd={leftToAdd}
           addingAll={addingAll}
-          hidden={hiddenRows.length}
+          hidden={hiddenMessages.length}
           showHidden={showHidden}
           setShowHidden={setShowHidden}
         />

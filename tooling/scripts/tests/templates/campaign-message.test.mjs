@@ -15,6 +15,7 @@ import {
   campaignMessageOf,
   campaignMessagesOf,
   messageHolds,
+  messageStandingWords,
   messageWhyNot,
   reachOutRowName,
   whatsappStoppedRunWords,
@@ -477,5 +478,38 @@ test("a message whole, as a page reads it: every field it carries and no other",
       email: { id: "e-row" },
       sms: { id: "s-row" },
     },
+  });
+});
+
+test("where a language of a message stands on each channel is one set of words: WhatsApp's own standing, an email and a text ready the moment they are written, and what is not there said as such", () => {
+  const words = (rows) => messageStandingWords(campaignMessageOf(rows, NAME, LANGUAGE));
+  // WhatsApp, by its standing: the pill's words for a template in lower case, but a refusal is refused.
+  for (const [status, said] of [
+    ["approved", "approved"],
+    ["pending", "in review"],
+    ["rejected", "refused"],
+    ["paused", "paused"],
+    ["disabled", "disabled"],
+  ])
+    assert.equal(words([W({ meta_status: status })]).whatsapp, `WhatsApp · ${said}`, status);
+  assert.deepEqual(words([E(), T()]), {
+    whatsapp: "WhatsApp · not added",
+    email: "Email · ready",
+    sms: "Text · ready",
+  });
+  assert.deepEqual(words([W({ meta_status: "pending" }), E()]), {
+    whatsapp: "WhatsApp · in review",
+    email: "Email · ready",
+    sms: "Text · not written",
+  });
+  // A text of an offer can never be written, and is not "not written yet".
+  assert.equal(words([E({ category: "marketing" })]).sms, "Text · not for offers");
+  assert.equal(words([E({ category: "utility" })]).sms, "Text · not written");
+  assert.equal(words([T({ category: "utility" })]).email, "Email · not written");
+  // A language the message has no version in at all.
+  assert.deepEqual(messageStandingWords(null), {
+    whatsapp: "WhatsApp · not added",
+    email: "Email · not written",
+    sms: "Text · not written",
   });
 });
