@@ -1,6 +1,6 @@
 {
   "apps/dashboard/app/globals.css": {
-    "font": 33,
+    "font": 32,
     "radius": 5,
     "shadow": 1,
     "colour": 18,
