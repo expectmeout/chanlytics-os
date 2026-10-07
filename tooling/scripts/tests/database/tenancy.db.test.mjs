@@ -933,19 +933,35 @@ test("the list of tenant tables is the database's own", { skip }, async () => {
   for (const n of Object.keys(TENANT_TABLES)) assert.ok(defs[n], `${n} is in the suite but not in the database`);
 });
 
+/**
+ * The tables whose rows a sweep takes away, in whichever suite runs one beside this. The relay (relay_events, 00334:
+ * the first step of every tick) takes every workspace's outbox rows, oldest first, and deletes each: this workspace's
+ * seeded one too, when the relay's own suite, a job's, a broadcast's or a reach-out's runs a tick while this one is
+ * judging. The row was then gone before it was counted ("nothing was seeded"), or between the two counts, and a suite
+ * that passes alone failed in the whole run for another suite's reason. The proof still needs the row (an update that
+ * a policy let through moves no row of an empty table), so it is not excused: it is put back, and the table judged again.
+ */
+const TAKEN_BY_A_SWEEP = new Set(["event_outbox"]);
+const NOTHING_SEEDED = "nothing was seeded, so the proof would be vacuous";
+const ROWS_WENT = "the workspace's rows went from";
+/** A finding that is about the table's own row count: the two a sweep's take produces. */
+const aboutItsRows = (found) => found.includes(NOTHING_SEEDED) || found.includes(ROWS_WENT);
+
 test(
   "every tenant table: a member reads what the policy says, a stranger reads nothing, and neither a stranger nor a viewer writes",
   { skip },
   async () => {
     const offences = [];
-    const note = (table, what) => offences.push(`${table}: ${what}`);
-    for (const [table, [mode, fixture]] of Object.entries(TENANT_TABLES)) {
+    /** One table judged once: what was found wrong with it, as sentences. */
+    const judge = async (table, mode, fixture) => {
+      const found = [];
+      const note = (of, what) => found.push(`${of}: ${what}`);
       const before = await db.from(table).select("*", { count: "exact", head: true }).eq("tenant_id", A);
       if (before.error) {
         note(table, `the service role could not count: ${before.error.message}`);
-        continue;
+        return found;
       }
-      if (!(before.count >= 1)) note(table, "nothing was seeded, so the proof would be vacuous");
+      if (!(before.count >= 1)) note(table, NOTHING_SEEDED);
 
       // Reads.
       const asViewer = await seen(viewer.client, table, [["tenant_id", A]]);
@@ -1025,10 +1041,18 @@ test(
       }
       const afterwards = await db.from(table).select("*", { count: "exact", head: true }).eq("tenant_id", A);
       if (afterwards.count !== before.count)
-        note(
-          table,
-          `the workspace's rows went from ${before.count} to ${afterwards.count} under a stranger's and a viewer's hands`,
-        );
+        note(table, `${ROWS_WENT} ${before.count} to ${afterwards.count} under a stranger's and a viewer's hands`);
+      return found;
+    };
+    for (const [table, [mode, fixture]] of Object.entries(TENANT_TABLES)) {
+      let found = await judge(table, mode, fixture);
+      // A sweep took this table's row while it was being judged (TAKEN_BY_A_SWEEP): the row is put back and the table
+      // judged again, whole. Whatever a stranger or a viewer did to it is found again each time, so nothing is excused.
+      for (let again = 0; again < 3 && TAKEN_BY_A_SWEEP.has(table) && found.some(aboutItsRows); again++) {
+        await seed(table, fixture(), null);
+        found = await judge(table, mode, fixture);
+      }
+      offences.push(...found);
     }
     assert.deepEqual(offences, [], "tenancy holds on every table");
   },

@@ -7,7 +7,7 @@ const Body = z
   .object({
     seen: z.boolean({ message: "Say whether you have seen them: { seen: true } or { seen: false }." }),
     // How far they have seen: when the customer had last written or called, as the row they opened said it.
-    heard_at: z.string().datetime({ offset: true, message: "heard_at is a moment, in ISO 8601." }).optional(),
+    heard_at: z.iso.datetime({ offset: true, message: "heard_at is a moment, in ISO 8601." }).optional(),
   })
   .strict();
 

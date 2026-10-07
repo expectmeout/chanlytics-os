@@ -1,10 +1,18 @@
-# The release: a tag v1.2.3 fingerprints the native code, reuses a store build whose fingerprint matches (then only an
-# update ships), else builds both platforms and submits them. Expo's own golden path; the submit profiles are in
-# eas.json and need the App Store Connect API key and the Play service account in EAS credentials (PR 6 of the app).
+# The release: it fingerprints the native code, reuses a store build whose fingerprint matches (then only an update
+# ships), else builds both platforms and submits them. Expo's own golden path; the submit profiles are in eas.json
+# and need the App Store Connect API key and the Play service account in EAS credentials (PR 6 of the app).
+#
+# Run by hand, and only on Ruben's word: the phone app is paused (7 October 2026) and nothing in this repository
+# sends anything to Expo by itself (apps/mobile/test/expo-by-hand.test.mjs). From apps/mobile:
+#   npx eas-cli@latest workflow:run .eas/workflows/deploy.yml
+#
+# It ran on a tag v*.*.* until then, and release.yml names every merge to main vYYYY.MM.DD-<sha>, which that pattern
+# takes too. From 29 September to 7 October each merge started a release: an iOS store build that failed for want of
+# Apple's credentials, and an update to the production channel. A tag that starts it again is the app's own
+# (app-v1.2.3), never one the release note's tags can match.
 name: Deploy to the stores
 on:
-  push:
-    tags: ["v*.*.*", "!v*.*.*-rc.*"]
+  workflow_dispatch: {}
 jobs:
   fingerprint:
     type: fingerprint

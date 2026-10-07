@@ -4,9 +4,9 @@
  * export with zod inside it: on 28 September 2026 that was 1.36 MB of the app's 3.34 MB of JavaScript, and every
  * update carried it. What this module reaches is eight modules.
  *
- * A name the app needs is added here from the module that declares it, never through a barrel. The preview
- * workflow publishes an update when one of the modules this reaches changes, so its paths list them
- * (apps/mobile/.eas/workflows/preview.yml, held to this module's imports by apps/mobile/test/preview-paths.test.mjs).
+ * A name the app needs is added here from the module that declares it, never through a barrel, and no package is
+ * imported by this or by a module it reaches (apps/mobile/test/phone-entry.test.mjs). A change here reaches an
+ * installed app when a hand runs the preview workflow, never by itself (apps/mobile/.eas/workflows/preview.yml).
  */
 export { APP_ROUTE_RE, parsePageMessage } from "./app-bridge";
 export type { PageMessage, ShellMessage } from "./app-bridge";

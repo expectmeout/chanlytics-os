@@ -739,7 +739,10 @@ test(
     const first = await claim(iso(Date.now() - 90_000));
     assert.ok(first, "claimed: the moment it was taken");
     assert.equal(await claim(iso(Date.now() - 90_000)), null, "a live claim holds it");
-    const second = await claim(iso(Date.now() + 1000));
+    // Stale by the claim's own moment, the database's clock: a second after it was taken, it is older than the lease asked
+    // for. Measured from this machine's clock instead, the claim was still live whenever the database's ran a second
+    // ahead (a container's does, some days), and the test failed for the two clocks' reason, not the claim's.
+    const second = await claim(iso(Date.parse(first) + 1000));
     assert.ok(second && second !== first, "a claim older than the lease is taken again");
     assert.equal(await claim(iso(Date.now() + 1000), B), null, "another workspace claims nothing");
     assert.equal(await told(first), false, "a stale claim's run marks nothing: the claim is another run's now");
