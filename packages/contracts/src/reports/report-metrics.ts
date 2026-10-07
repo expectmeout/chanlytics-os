@@ -3,7 +3,7 @@
  * is counted, and what is not). One definition per metric id (report-tiles.ts), and `Record` makes a figure with no
  * definition a compile error, so the page never says a number it has not said the meaning of (the lenses spec, §7). The
  * words follow the SQL each figure is read from: `report_series` and `metrics_summary` (00304, with 00303's connected call,
- * first moment and first reply), `campaign_series` (00329) and Google's own count (google.ts). Where a window is a number
+ * first moment and first reply), `campaign_series` (00329), Google's own count (google.ts) and the reviews on record (review-report.ts). Where a window is a number
  * of days, it is the constant the report counts by, never a second spelling of it.
  */
 import { DELIVERY_RECEIPTS_WORDS, REPLY_WINDOW_WORDS } from "../broadcasts/run-words";
@@ -39,6 +39,12 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
     "How many ratings Google's count rose by in this period, from the daily checks Chanlytics keeps: new ratings, with words or without. It needs two days of readings.",
   newest_review:
     "The newest of the five reviews Google shows for your listing, and when it was written. Google shows five at most.",
+  reviews_written:
+    "Reviews written in this period, with words or without, by the day Google dates them, from your Business Profile. A review Google later removes stays on record and is still counted.",
+  reviews_answered:
+    "Of the reviews written in this period, how many have a reply on Google, from you or the receptionist. A review with no reply yet is not answered. A reply counts as the receptionist's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
+  review_reply_time:
+    "The middle time from a review being written to its reply, over this period's reviews that have one. A reply you changed later counts from the change. It needs three replies to be said.",
 };
 
 /** The words over a figure's label: what it counts and what it leaves out. */

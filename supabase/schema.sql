@@ -16936,6 +16936,107 @@ COMMENT ON FUNCTION public.resume_email_offers(p_tenant_id uuid) IS 'The back of
 
 
 --
+-- Name: reviews_ledger(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer DEFAULT 30) RETURNS jsonb
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tz        text;
+  v_days      integer := least(greatest(coalesce(p_days, 30), 1), 92);
+  v_today     date;
+  v_since     date;         -- the period's first day
+  v_prior     date;         -- the period before's first day
+  v_read_from timestamptz;  -- the instant the period before begins, in the zone
+  -- The most reviews that wait the answer lists: contracts REVIEWS_WAITING_SHOWN, which the database test holds to this.
+  v_waiting_shown constant integer := 5;
+  -- How far a receptionist's event may be from the reply it wrote: Google's updateTime on the reply moves when the owner
+  -- rewrites it on Google, and the event then names a reply that is no longer there.
+  v_slack     constant interval := interval '6 hours';
+  v_result    jsonb;
+begin
+  select timezone into v_tz from tenants where id = p_tenant_id;
+  if v_tz is null then
+    return jsonb_build_object('error', 'unknown_tenant');
+  end if;
+
+  v_today     := (now() at time zone v_tz)::date;
+  v_since     := v_today - (v_days - 1);
+  v_prior     := v_since - v_days;
+  v_read_from := (v_prior::timestamp) at time zone v_tz;
+
+  select jsonb_build_object(
+    'timezone', v_tz,
+    'today', to_char(v_today, 'YYYY-MM-DD'),
+    'days', v_days,
+    'on_record', jsonb_build_object(
+      'profile', c.profile,
+      'places', c.places,
+      'complete', coalesce((select g.reviews_complete from google_connections g where g.tenant_id = p_tenant_id), false)),
+    -- The profile's reviews dated from the period before's first day, each on its day in the zone, oldest first.
+    'written', coalesce((select jsonb_agg(jsonb_build_object(
+                 'id', w.id,
+                 'd', to_char(w.d, 'YYYY-MM-DD'),
+                 'rating', w.rating,
+                 'replied', w.replied,
+                 'secs', w.secs,
+                 'by', w.by) order by w.published_at, w.id)
+               from (select r.id, r.rating, r.published_at,
+                            (r.published_at at time zone v_tz)::date as d,
+                            (r.reply_text is not null) as replied,
+                            case when r.reply_text is not null and r.replied_at >= r.published_at
+                                 then extract(epoch from (r.replied_at - r.published_at))::integer end as secs,
+                            case when r.reply_text is not null and ev.writer = 'receptionist'
+                                  and abs(extract(epoch from (ev.wrote_at - r.replied_at))) <= extract(epoch from v_slack)
+                                 then 'receptionist' end as by
+                       from google_reviews r
+                       -- The reply's last event, whoever wrote it: a person's reply through Chanlytics files one with no `by`.
+                       left join lateral (
+                         select e.data->>'by' as writer, e.created_at as wrote_at
+                           from events e
+                          where e.tenant_id = r.tenant_id and e.kind = 'google.replied'
+                            and e.subject_type = 'review' and e.subject_id = r.id
+                          order by e.created_at desc, e.id desc
+                          limit 1) ev on true
+                      where r.tenant_id = p_tenant_id and r.origin = 'profile' and r.published_at >= v_read_from) w), '[]'::jsonb),
+    'waiting_total', c.waiting,
+    -- The oldest that wait, the ones with no date last: the columns the Google read draws a review by, and why a reply
+    -- written for it was held (google.reply_held), where one was.
+    'waiting', coalesce((select jsonb_agg(to_jsonb(q) order by q.published_at asc nulls last, q.id)
+                 from (select r.id, r.review_id, r.origin, r.rating, r.author, r.author_uri, r.author_photo_uri, r.body,
+                              r.language_code, r.published_at, r.reply_text, r.replied_at, r.maps_uri, r.first_seen_at,
+                              (select e.data->>'why'
+                                 from events e
+                                where e.tenant_id = r.tenant_id and e.kind = 'google.reply_held'
+                                  and e.subject_type = 'review' and e.subject_id = r.id
+                                  and e.data->>'why' is not null
+                                order by e.created_at desc, e.id desc
+                                limit 1) as held
+                         from google_reviews r
+                        where r.tenant_id = p_tenant_id and r.origin = 'profile' and r.reply_text is null
+                        order by r.published_at asc nulls last, r.id
+                        limit v_waiting_shown) q), '[]'::jsonb)
+  ) into v_result
+  from (select count(*) filter (where origin = 'profile')                            as profile,
+               count(*) filter (where origin = 'places')                             as places,
+               count(*) filter (where origin = 'profile' and reply_text is null)     as waiting
+          from google_reviews
+         where tenant_id = p_tenant_id) c;
+
+  return v_result;
+end $$;
+
+
+--
+-- Name: FUNCTION reviews_ledger(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer) IS 'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin, whether the record is all of Google''s, and the oldest five that wait for a reply with why a reply written for one was held. One statement, under the caller''s RLS.';
+
+
+--
 -- Name: runtime_stamp(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -20679,6 +20780,7 @@ CREATE TABLE public.google_connections (
     facts jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    reviews_complete boolean DEFAULT false NOT NULL,
     CONSTRAINT google_connections_account_name_check CHECK ((account_name ~~ 'accounts/%'::text)),
     CONSTRAINT google_connections_location_name_check CHECK (((location_name IS NULL) OR (location_name ~~ 'locations/%'::text)))
 );
@@ -20689,6 +20791,13 @@ CREATE TABLE public.google_connections (
 --
 
 COMMENT ON TABLE public.google_connections IS 'A workspace''s Google Business Profile, connected by its owner: the account, the location, whose Google account, when it last synced. The token is in Vault. Members read; the edge writes.';
+
+
+--
+-- Name: COLUMN google_connections.reviews_complete; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.google_connections.reviews_complete IS 'True when the last successful sync read the whole of Google''s list of this location''s reviews (no page was left), so the reviews on record are all of them; false when it stopped at its page limit, and before the first sync.';
 
 
 --
@@ -32187,6 +32296,15 @@ GRANT ALL ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_
 
 REVOKE ALL ON FUNCTION public.resume_email_offers(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.resume_email_offers(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION reviews_ledger(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer) TO authenticated;
+GRANT ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer) TO service_role;
 
 
 --

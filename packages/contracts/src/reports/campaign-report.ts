@@ -9,10 +9,10 @@
  * a text or an email keeps no read receipt. Colors are the page's.
  */
 import { DELIVERY_RECEIPTS_WORDS, REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
-import { REPORT_CHANNELS, dayDate, fmtDay, priorOf, rangeLabelOf, type ReportChannelKey } from "./reports";
+import { REPORT_CHANNELS, dayPointOf, priorOf, rangeLabelOf, type ReportChannelKey } from "./reports";
 import { compareWords, deltaOf, pointsDelta, type ReportTileVM } from "./report-tiles";
 import { templateTitle } from "../templates/template-titles";
-import { sumOf } from "../shared/numbers";
+import { pct, sumOf } from "../shared/numbers";
 import { formatterOnUse } from "../shared/time";
 import { plural } from "../shared/words";
 
@@ -158,7 +158,6 @@ const CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
   (c): c is { key: CampaignChannelKey; label: string } => c.key !== "voice",
 );
 
-const pct = (n: number, d: number): number | null => (d ? Math.round((n / d) * 100) : null);
 const WHEN = formatterOnUse([], { month: "short", day: "numeric" });
 
 /** Each channel that sent in the period, its figures over its own sends; a read is WhatsApp's alone (0030). */
@@ -200,9 +199,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const current = series.slice(-days);
   const previous = series.slice(0, Math.max(0, series.length - days));
   const points: CampaignPointVM[] = current.map((d) => ({
-    day: d.day,
-    label: fmtDay(d.day),
-    short: String(dayDate(d.day).getDate()),
+    ...dayPointOf(d.day),
     sent: d.sent,
     delivered: d.delivered,
     replied: d.replied,

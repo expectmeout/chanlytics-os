@@ -18,6 +18,7 @@ import type {
 } from "./reach-out-dtos";
 import { HOLD_DOOR_WORDS, holdDoors, holdWords, type HoldDoor } from "./reach-out-words";
 import type { HandKind } from "./reach-out-hand";
+import { pct } from "../shared/numbers";
 import { dateFormat } from "../shared/time";
 
 export const REACH_OUT_SHEET_WORDS = {
@@ -94,16 +95,13 @@ export function isReachOutRefusal(message: string | null | undefined): boolean {
   return REFUSAL_SET.has(message ?? "");
 }
 
-/** A whole-number share, 0 of nothing: the chain's row and Reports' reach-outs say their rates by it. */
-export const pct = (n: number, of: number): number => (of > 0 ? Math.round((n / of) * 100) : 0);
-
 /** Who gets it (the reach block): the count, the bar, and the reasons, each with its door. */
 export function reachLineOf(r: ReachOutReachDto, includeUnconfirmed: boolean) {
   const unconfirmed = Math.max(0, r.with_unconfirmed - r.ready);
   const count = includeUnconfirmed ? r.with_unconfirmed : r.ready;
   const held = includeUnconfirmed ? 0 : unconfirmed;
-  const will = pct(count, r.of);
-  const heldPct = pct(held, r.of);
+  const will = pct(count, r.of) ?? 0;
+  const heldPct = pct(held, r.of) ?? 0;
   const why: Array<{ tone: "warn" | "plain"; text: string; door: string | null }> = [];
   if (unconfirmed > 0)
     why.push(
@@ -408,8 +406,8 @@ function reportRowOf(
     label,
     when,
     String(s.written),
-    `${s.delivered} (${pct(s.delivered, s.written)}%)`,
-    `${s.wrote_back} (${pct(s.wrote_back, s.written)}%)`,
+    `${s.delivered} (${pct(s.delivered, s.written) ?? 0}%)`,
+    `${s.wrote_back} (${pct(s.wrote_back, s.written) ?? 0}%)`,
     // Interested and booked (Part 6, H7): absent from a report read before 00241, and then unknown, never a zero.
     s.interested === undefined ? "—" : String(s.interested),
     s.booked === undefined ? "—" : String(s.booked),

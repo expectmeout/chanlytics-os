@@ -155,10 +155,21 @@ test("the answered share and the one before, as fractions of the answered", () =
 });
 
 test("the two periods are named once, the way every legend, tooltip and table says them", () => {
-  assert.deepEqual(toReportVM(dto()).period, { now: "Last 7 days", before: "The 7 days before" });
+  assert.deepEqual(toReportVM(dto()).period, {
+    now: "Last 7 days",
+    before: "The 7 days before",
+    within: "in the last 7 days",
+  });
   assert.deepEqual(toReportVM({ ...dto(), days: 30, series: span(60, "2026-09-18", () => ({})) }).period, {
     now: "Last 30 days",
     before: "The 30 days before",
+    within: "in the last 30 days",
+  });
+  // one day (Month on the 1st): the period before is the day before, and a count of one is no number to say there
+  assert.deepEqual(toReportVM({ ...dto(), days: 1 }).period, {
+    now: "Last 1 day",
+    before: "The day before",
+    within: "in the last 1 day",
   });
 });
 

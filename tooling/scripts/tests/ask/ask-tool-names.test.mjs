@@ -33,8 +33,15 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runTool, buildProposal, newToolContext, ACT_TOOL_NAMES, ACT_DEFS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
-const { MOMENTS_RETIRED, PERSON_STATE_LABELS, PLAYBOOK_TRIGGERS, PROPOSAL_SPECS, momentOffered, roleAtLeast } =
-  await import("@chanlytics/contracts");
+const {
+  MOMENTS_RETIRED,
+  PERSON_STATE_LABELS,
+  PLAYBOOK_TRIGGERS,
+  PROPOSAL_SPECS,
+  momentOffered,
+  roleAtLeast,
+  toReviewsReportVM,
+} = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 beforeEach(() => readerCache.clear());
 
@@ -351,6 +358,16 @@ const RPCS = {
     sentiments: {},
     voicemail: 0,
   }),
+  // The Reviews lens's ledger, which the report reads beside the series (readers/report.ts reviewsReport): nothing on record.
+  reviews_ledger: ({ p_days: days }) => ({
+    timezone: TZ,
+    today: dayKey(NOW.getTime()),
+    days,
+    on_record: { profile: 0, places: 0, complete: false },
+    written: [],
+    waiting_total: 0,
+    waiting: [],
+  }),
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
   lead_niche_prior: () => null,
 };
@@ -515,7 +532,7 @@ function withHold(result) {
 
 /**
  * 6 Oct 2026 (decision 0030): the report says the Campaigns lens beside it, from the lens's own read (readers/
- * campaign-report.ts), the last thing it says: an error in this world, whose database has no campaign_series (a function
+ * campaign-report.ts), said after its deals: an error in this world, whose database has no campaign_series (a function
  * it does not have is no read it counts). The one change to the bytes of a report it answers.
  */
 function withCampaigns(result) {
@@ -524,6 +541,39 @@ function withCampaigns(result) {
     ? result
     : JSON.stringify({ ...said, campaigns: { error: "the campaign numbers could not be read just now" } });
 }
+
+/**
+ * 7 Oct 2026 (Reports phase C, lens 1, T4): the report says the Reviews lens after the Campaigns lens, from the lens's own
+ * read (readers/report.ts reviewsReport: Google as GET google reads it, and the reviews the database counted where a
+ * profile has synced). This world has no Google listing and a deployment that can look none up, so it says `linked: false` and
+ * the fold's words for that, and the read is six reads more: the ledger function, the listing, the connection, the newest reviews, the daily readings
+ * and the Autonomy row for reviews. The one change to the bytes and to the reads of a report it answers.
+ */
+function withReviews(result) {
+  const said = JSON.parse(result);
+  return said.error ? result : JSON.stringify({ ...said, reviews: { linked: false, words: NOTHING_LINKED } });
+}
+/** What the Reviews fold says of a workspace with nothing linked, where nothing can be looked up (this world's deployment). */
+const NOTHING_LINKED = toReviewsReportVM(
+  {
+    timezone: "America/New_York",
+    today: "2026-09-14",
+    days: 7,
+    google: { listing: null, connection: null, reviews: [], days: [], reply_mode: "ask" },
+    readable: false,
+    ledger: null,
+  },
+  { nowMs: 0 },
+).lines.empty;
+const withReviewReads = (reads) => [
+  ...reads,
+  "rpc:reviews_ledger",
+  "google_listings.select",
+  "google_connections.select",
+  "google_reviews.select",
+  "google_listing_days.select",
+  "policies.select",
+];
 
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
@@ -716,7 +766,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     let result = want.result.replaceAll("+19295550100", "+442079460100");
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
-    if (NAMES[old] === "report") result = withCampaigns(withHold(result));
+    if (NAMES[old] === "report") result = withReviews(withCampaigns(withHold(result)));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
@@ -796,7 +846,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // the read holds anyone. The old tools that read through the Inbox's hundred make it, and a search of People with
     // no list (a list is counted over the pool, which is not a page). Their bytes are unchanged: no tool says it.
     const readsSeen = THROUGH_THE_HUNDRED.has(old) || (old === "search_people" && !input.list);
-    const reads = readsSeen ? [...withCalendar, "rpc:contact_seen"] : withCalendar;
+    const withSeen = readsSeen ? [...withCalendar, "rpc:contact_seen"] : withCalendar;
+    // 7 Oct 2026 (Reports phase C, lens 1, T4): the report reads the Reviews lens too: six reads more (withReviewReads).
+    const reads = NAMES[old] === "report" ? withReviewReads(withSeen) : withSeen;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)

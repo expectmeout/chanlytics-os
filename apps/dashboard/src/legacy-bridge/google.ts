@@ -6,6 +6,11 @@
  * typed client. After a write lands the refresh map re-reads this surface
  * and Setup's, since the Setup row reads the same facts; a draft touches
  * nothing and refreshes nothing.
+ *
+ * It is read where it is drawn and nowhere else: Today's review line and Settings' Connections pane name it in `ROUTE_DRAWS`, and
+ * every other page leaves it alone (`onDemand`). The Reviews lens draws from its own read (surfaces/reports/reviews-surface.ts), which
+ * carries Google's own beside its ledger and publishes it here (`publishGoogleRead`), so while the lens is on screen this surface is
+ * not read for the same events a second time.
  */
 import {
   toGoogleVM,
@@ -16,13 +21,17 @@ import {
   connectionWords,
   reviewSnippet,
   type GoogleDto,
+  type GoogleReadDto,
   type GoogleVM,
   type GoogleCandidateDto,
   type GoogleLocationDto,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "./surface-data";
+import { readAged, type SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
-import { setSurfaceValue } from "../surfaces/surface-values";
+import { ownsTheScreen } from "./surface-registry";
+import { surfaceMoved } from "./surface-status";
+import { routeOnScreen } from "./workspace";
+import { setSurfaceValue, surfaceValue } from "../surfaces/surface-values";
 
 export interface GoogleSurface {
   dto: GoogleDto;
@@ -30,8 +39,8 @@ export interface GoogleSurface {
 }
 
 export interface GoogleApi {
-  /** The view model for a period, from the surface's rows. */
-  vm(dto: GoogleDto, periodDays: number, nowMs?: number): GoogleVM;
+  /** The view model for a period, from the surface's rows, said at `nowMs` in the workspace's zone. */
+  vm(dto: GoogleDto, periodDays: number, nowMs: number, tz: string): GoogleVM;
   /** What Google finds: for the facts on record, or for the words given. Owners only; the route says so. */
   find(
     query?: string,
@@ -68,12 +77,36 @@ export interface GoogleApi {
   };
 }
 
+/** Whether Google has been read at all in what this tab holds, and within the measure every on-demand read is held to (`readAged`): when not, it wants a read. */
+function googleIsStale(): boolean {
+  return readAged(surfaceValue("google")?.fetchedAt);
+}
+
+/**
+ * Google's read as another read of the same facts carried it: the Reviews lens's, which holds the listing, the connection, the newest
+ * reviews and the daily readings beside its ledger. Published as Google's own, so Today's line and Connections hold what the lens just
+ * saw. Only where this tab already holds Google's: what this deployment can do (`ready`) is the one thing that read does not carry, and
+ * is Google's alone.
+ */
+export function publishGoogleRead(google: GoogleReadDto, readAt: number): void {
+  const held = surfaceValue("google");
+  if (!held) return;
+  setSurfaceValue("google", { dto: { ...google, ready: held.dto.ready }, fetchedAt: readAt });
+  surfaceMoved("google");
+}
+
 export const googleOverride: SurfaceOverride = {
   key: "google",
   value: "google",
+  // Read where Today's line and Settings' Connections pane are drawn, as they come on screen, and again then when the read has aged.
+  // The live feed (below) and a write's refresh by name (refresh-map.ts) keep what is held current meanwhile.
+  onDemand: true,
+  isStale: googleIsStale,
   events: ["surface:google"],
   // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen.
   refreshOnTables: ["google_listings", "google_reviews", "google_connections"],
+  // Not while the Reviews lens is on screen: its own read hears the same tables and publishes Google's beside its ledger.
+  refreshWhen: () => !ownsTheScreen("reports_reviews", routeOnScreen()),
   apply: async () => {
     const d = await read("GET google");
     setSurfaceValue("google", { dto: d.google, fetchedAt: Date.now() });
@@ -121,7 +154,7 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
 
 /** Google's verbs, each through its door. */
 export const googleVerbs: GoogleApi = {
-  vm: (dto, periodDays, nowMs) => toGoogleVM(dto, periodDays, nowMs),
+  vm: (dto, periodDays, nowMs, tz) => toGoogleVM(dto, periodDays, nowMs, tz),
   async find(query) {
     const r = await api()("POST google/search", { body: query ? { query } : {} });
     if (!r.ok) return { ok: false, candidates: [], query: query ?? "", fromFacts: false, message: r.message };

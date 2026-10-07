@@ -241,8 +241,9 @@ that budget in one go.
 The signed-in specs run in the suite's own workspace, never a customer's.
 `tooling/scripts/ops/e2e-workspace.mjs --apply` makes it, or puts it back, before
 each nightly run: a test owner and a teammate at example.com, two fictional
-people, one conversation, one call, and a WhatsApp channel with no credentials.
-Every row is one the production sweeps leave alone, and the script refuses an
+people, one conversation, one call, a WhatsApp channel with no credentials, and
+a Google listing with its Business Profile and four reviews (no credentials, and
+a place no Google place has). Every row is one the production sweeps leave alone, and the script refuses an
 address outside example.com, so `E2E_USER_EMAIL` can never name a real account.
 The specs do write there (a profile name, a saved view, a probe workspace that
 `workspace-create.spec.ts` makes and deletes), and the script resets all of it.

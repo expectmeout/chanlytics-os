@@ -16,7 +16,7 @@ function answersStrip(cm: CampaignReportVM) {
   const by = Object.fromEntries(cm.tiles.map((t) => [t.id, t]));
   const tiles = [by.optins, by.optouts].filter((t): t is ReportTileVM => !!t);
   return (
-    <dl className="rpt-figures two rpt-span-12" data-testid="campaign-answers">
+    <dl className="rpt-figures answers rpt-span-12" data-testid="campaign-answers">
       {tiles.map((t) => (
         <RptFigure key={t.id} t={t} />
       ))}

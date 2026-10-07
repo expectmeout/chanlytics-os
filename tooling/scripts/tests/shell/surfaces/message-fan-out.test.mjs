@@ -70,6 +70,7 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/leads/surface.ts")).leadsOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/headline.ts")).reportsHeadlineOverride,
+  (await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts")).reviewsOverride,
   (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,
@@ -83,12 +84,16 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/settings/billing/surface.ts")).billingOverride,
 ];
 
-/** The real overrides' routing, each read recorded rather than made, through a runner whose live feed this holds. */
-async function running({ debounceMs = 1 } = {}) {
+/**
+ * The real overrides' routing, each read recorded rather than made, through a runner whose live feed this holds. A read recorded
+ * holds nothing, so a surface that asks whether what it holds has aged always says it has; `fresh` names the ones that say it has not.
+ */
+async function running({ debounceMs = 1, fresh = [] } = {}) {
   const asked = [];
   const overrides = REAL.map((o) => ({
     ...o,
     debounceMs,
+    ...(fresh.includes(o.key) ? { isStale: () => false } : {}),
     apply: async () => {
       asked.push(o.key);
     },
@@ -274,8 +279,8 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     await settle();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["people", "reports_headline"],
-      "People once, as nothing passed it since; and the headline Today draws, which a run that opened on People never read (it is on demand), once as Today came on screen",
+      ["google", "people", "reports_headline"],
+      "People once, as nothing passed it since; and what Today draws that a run that opened on People never read (they are on demand): the headline and Google's, once as Today came on screen",
     );
   } finally {
     r.stop();
@@ -315,9 +320,9 @@ test("Campaigns' home owns what it draws: a message re-reads the playbooks and t
     win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(
-      r.asked,
-      ["reports_headline"],
-      "nothing was missed; the headline Today draws, which a run that opened on Campaigns never read (it is on demand), is read once as Today comes on screen",
+      [...r.asked].sort(),
+      ["google", "reports_headline"],
+      "nothing was missed; the headline and Google's read, which Today draws and a run that opened on Campaigns never read (they are on demand), are read once as Today comes on screen",
     );
     r.asked.length = 0;
     await r.message();
@@ -355,8 +360,65 @@ test("Campaigns' home owns what it draws: a message re-reads the playbooks and t
   }
 });
 
-test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home, and no other page's draws are owned", async () => {
+test("the Reviews lens hears the listing's tables only while it is on screen, and is read once as it comes back; no other page of Reports hears them", async () => {
+  win.location.hash = "#/reports/reviews";
+  const r = await running({ fresh: ["reports_reviews"] });
+  try {
+    // A review seen for the first time: the lens re-reads its own, and Google's own surface lets it pass, for the lens's read carries
+    // Google's and publishes it (no second read of the same listing while the lens is open).
+    await r.change("google_reviews", "INSERT");
+    assert.deepEqual([...r.asked].sort(), ["reports_reviews"], "the lens on screen follows the listing, alone");
+    for (const table of ["google_listings", "google_connections"]) {
+      r.asked.length = 0;
+      await r.change(table, "UPDATE");
+      assert.equal(r.asked.includes("reports_reviews"), true, `${table}: heard on the lens`);
+      assert.equal(r.asked.includes("google"), false, `${table}: and not by Google's own`);
+    }
+    r.asked.length = 0;
+
+    // Elsewhere it is Google's surface alone that hears them, as it always did: the lens's read is left for its lens.
+    for (const hash of ["#/reports", "#/reports/people", "#/inbox"]) {
+      win.location.hash = hash;
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      r.asked.length = 0;
+      await r.change("google_reviews", "INSERT");
+      await r.change("google_reviews", "INSERT");
+      assert.equal(r.asked.includes("reports_reviews"), false, `${hash}: the lens is not on screen`);
+      assert.deepEqual([...new Set(r.asked)].sort(), ["google"], `${hash}: Google's own, as it was`);
+
+      // And what passed is read once, when the lens comes back.
+      r.asked.length = 0;
+      win.location.hash = "#/reports/reviews";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(r.asked, ["reports_reviews"], `${hash}: read once as the lens came back`);
+      r.asked.length = 0;
+      win.location.hash = "#/reports/campaigns";
+      win.dispatchEvent({ type: "popstate" });
+      win.location.hash = "#/reports/reviews";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(r.asked, [], `${hash}: and once: the next arrival reads nothing new`);
+    }
+
+    // A message moves none of it: the lens counts reviews, not messages.
+    await r.message();
+    assert.equal(r.asked.includes("reports_reviews"), false, "a message is not a review");
+  } finally {
+    r.stop();
+    win.location.hash = "#/today";
+  }
+});
+
+test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home and Reports' Reviews lens, and no other page's draws are owned", async () => {
   const owns = (key, route) => registry.ownsTheScreen(key, route);
+  // Reports owns what it names for a lens, and that lens alone: Reviews' read, and no other of its pages or lenses.
+  assert.equal(owns("reports_reviews", "reports/reviews"), true);
+  for (const route of ["reports", "reports/people", "reports/campaigns", "today", "campaigns"])
+    assert.equal(owns("reports_reviews", route), false, `${route} does not own the Reviews lens's read`);
+  assert.equal(owns("reports", "reports/reviews"), true, "and the page's own surface is still its own");
+  assert.equal(owns("reports_headline", "reports/reviews"), false, "while what Today draws is not drawn there");
   for (const key of ["playbooks", "broadcasts"]) assert.equal(owns(key, "campaigns"), true, key);
   // Settings and the reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route
   // that draws them owns them for the refreshes that name a page.

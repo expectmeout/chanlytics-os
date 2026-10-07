@@ -1,7 +1,8 @@
 /**
- * Rows as the database holds them, for the ten tables the suite's fixtures seed most (messages, tenants, tenant_config,
- * conversations, events, contacts, tenant_channels, lines, memberships, billing_accounts): every column the table has,
- * each the database's own default or a made-up value, so a fixture names only what its test is about.
+ * Rows as the database holds them, for the thirteen tables the suite's fixtures seed most (messages, tenants, tenant_config,
+ * conversations, events, contacts, tenant_channels, lines, memberships, billing_accounts, and Google's listing, connection
+ * and reviews): every column the table has, each the database's own default or a made-up value, so a fixture names only
+ * what its test is about.
  *
  *   const t = rows.tenant({ timezone: "America/Chicago" });
  *   const k = rows.contact({ tenant_id: t.id, phone_e164: "+13055550101" });
@@ -122,6 +123,39 @@ const DEFAULTS = {
     created_at: AT,
     updated_at: AT,
   }),
+  // A listing the public Places read found, linked at the made-up instant and not read yet.
+  google_listings: () => ({
+    tenant_id: TENANT,
+    place_id: "ChIJ-harbor-studio-1",
+    name: "Harbor Studio",
+    facts: {},
+    linked_at: AT,
+    created_at: AT,
+    updated_at: AT,
+  }),
+  // A Business Profile connected at the made-up instant: a location is chosen by a test that needs one, and it has not synced.
+  google_connections: () => ({
+    tenant_id: TENANT,
+    account_name: "accounts/100000000001",
+    scopes: [],
+    connected_at: AT,
+    facts: {},
+    reviews_complete: false,
+    created_at: AT,
+    updated_at: AT,
+  }),
+  // A review from the owner's Business Profile, first and last seen at the made-up instant, with no reply.
+  google_reviews: () => {
+    const id = uuid();
+    return {
+      id,
+      tenant_id: TENANT,
+      review_id: `g-${id.slice(-6)}`,
+      origin: "profile",
+      first_seen_at: AT,
+      last_seen_at: AT,
+    };
+  },
 };
 
 /** One row of `table`: the factory's defaults under the test's own values, every other column null. */
@@ -144,7 +178,7 @@ function rowOf(table, overrides) {
   return row;
 }
 
-/** A row for each of the ten tables, the test's own values over the database's. */
+/** A row for each of the thirteen tables, the test's own values over the database's. */
 export const rows = {
   tenant: (o = {}) => rowOf("tenants", o),
   config: (o = {}) => rowOf("tenant_config", o),
@@ -156,4 +190,7 @@ export const rows = {
   line: (o = {}) => rowOf("lines", o),
   membership: (o = {}) => rowOf("memberships", o),
   billing: (o = {}) => rowOf("billing_accounts", o),
+  googleListing: (o = {}) => rowOf("google_listings", o),
+  googleConnection: (o = {}) => rowOf("google_connections", o),
+  googleReview: (o = {}) => rowOf("google_reviews", o),
 };

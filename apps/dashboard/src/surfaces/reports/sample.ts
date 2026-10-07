@@ -4,17 +4,21 @@
  * the same day is the same report. Every total agrees with its parts: the channels, the hours and the week add up to
  * the messages and calls, the replies to what the receptionist answered, the reasons to the handovers, the moods to
  * the calls and the sources to what was sent. The page imports it, and draws it only in a demo session that has read
- * nothing of its own (the standalone mockup's Reports went with the shell's: a moved surface is drawn by the app).
+ * nothing of its own (the standalone mockup's Reports went with the shell's: a moved surface is drawn by the app). The Reviews
+ * lens has its own, a listing Google shows with no Business Profile behind it (`reviewsSample`), drawn the same way.
  */
 import {
   toReportVM,
   toCampaignReportVM,
   toBookingReportVM,
   toDealReportVM,
+  toReviewsReportVM,
   reportFacts,
   type ReportDto,
   type CampaignReportDto,
   type BookingReportDto,
+  type GoogleReviewDto,
+  type ReviewsReportDto,
   HOUR_MS,
   sumOf,
   REPORT_PERIOD_DEFAULT,
@@ -23,6 +27,7 @@ import {
   monthDaysAt,
   type ReportPeriodId,
 } from "@chanlytics/contracts";
+import type { ReviewsSurface } from "./reviews-surface";
 import type { ReportsSurface } from "./surface";
 
 const ZONE = "America/New_York";
@@ -308,5 +313,85 @@ export function reportsSample(period: ReportPeriodId, today: string = todayIn(ZO
     fetchedAt: 0,
   };
   keptReports.set(key, surface);
+  return surface;
+}
+
+/** The five reviews Google shows of the demo's listing, newest first: who, how many stars, in what words, and how many days ago. */
+const PUBLIC_REVIEWS: ReadonlyArray<readonly [string, number, string, number]> = [
+  ["Ana P.", 5, "Careful and kind, and right on time.", 1],
+  ["Marco D.", 5, "Booked in minutes, and they remembered my name.", 3],
+  ["Bea R.", 4, "Lovely work. A little wait at the door.", 6],
+  ["Jon K.", 5, "Fast, clear and fair.", 9],
+  ["Lee W.", 3, "Good, though hard to reach by phone.", 15],
+];
+
+const keptReviews = new Map<string, ReviewsSurface>();
+
+/**
+ * The demo's Reviews for a period as of `today`: the listing Google shows with no Business Profile behind it, so the four figures it
+ * counts, the ratings its daily readings gained, the five public reviews, and what a profile would add. Nothing here can be answered:
+ * a demo posts no reply to Google.
+ */
+export function reviewsSample(period: ReportPeriodId, today: string = todayIn(ZONE)): ReviewsSurface {
+  const id = isReportPeriod(period) ? period : REPORT_PERIOD_DEFAULT;
+  const n = fixedDaysOf(id) ?? monthDaysAt(today);
+  const key = `${id}:${today}`;
+  const hit = keptReviews.get(key);
+  if (hit) return hit;
+  const r = seeded(11);
+  let count = 180;
+  const days = Array.from({ length: n + 1 }, (_, i) => {
+    count += r() > 0.6 ? 1 : 0;
+    return { day: back(today, n - i), rating: 4.8, review_count: count };
+  });
+  const reviews = PUBLIC_REVIEWS.map(([author, rating, body, ago], i): GoogleReviewDto => {
+    const day = back(today, ago);
+    return {
+      id: `sample-review-${i + 1}`,
+      review_id: `sample-${i + 1}`,
+      origin: "places",
+      rating,
+      author,
+      author_uri: null,
+      author_photo_uri: null,
+      body,
+      language_code: "en",
+      published_at: `${day}T14:00:00Z`,
+      reply_text: null,
+      replied_at: null,
+      maps_uri: null,
+      first_seen_at: `${day}T15:00:00Z`,
+    };
+  });
+  const dto: ReviewsReportDto = {
+    timezone: ZONE,
+    today,
+    days: n,
+    readable: true,
+    ledger: null,
+    google: {
+      listing: {
+        place_id: "sample-place",
+        name: "Harbor Studio",
+        address: "1 Dock Street",
+        maps_uri: "https://maps.example.com/harbor",
+        business_status: "OPERATIONAL",
+        rating: 4.8,
+        review_count: count,
+        linked_at: `${back(today, 60)}T12:00:00Z`,
+        checked_at: `${today}T12:00:00Z`,
+        check_error: null,
+      },
+      connection: null,
+      reviews,
+      days,
+      reply_mode: "ask",
+    },
+  };
+  const surface: ReviewsSurface = {
+    vm: toReviewsReportVM(dto, { nowMs: Date.parse(`${today}T16:00:00Z`) }),
+    period: id,
+  };
+  keptReviews.set(key, surface);
   return surface;
 }

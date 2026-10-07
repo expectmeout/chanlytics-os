@@ -22,7 +22,9 @@ import {
   toCampaignReportVM,
   toDealReportVM,
   toReportVM,
+  toReviewsReportVM,
 } from "@chanlytics/contracts";
+import { REVIEWS_NOW, reviewsDto } from "../_report-world.mjs";
 
 const OWNER = { sellsBy: "booking", role: "owner" };
 
@@ -171,13 +173,20 @@ test("the head says the lens's own sentence, from the view models that hold it",
     },
     "1 day",
   );
-  const parts = { vm, campaigns, deals };
+  const parts = { vm, campaigns, deals, reviews: null };
   assert.equal(lensAnswerOf("overview", parts), vm.lines.hero);
   assert.equal(lensAnswerOf("receptionist", parts), vm.lines.answered ?? undefined);
   assert.equal(lensAnswerOf("people", parts), vm.lines.channels ?? undefined);
   assert.equal(lensAnswerOf("pipeline", parts), deals.headline);
   assert.equal(lensAnswerOf("campaigns", parts), campaigns.lines.funnel);
-  assert.equal(lensAnswerOf("reviews", parts), undefined, "Reviews says nothing of itself in this phase");
+  assert.equal(lensAnswerOf("reviews", parts), undefined, "Reviews says nothing until its own read has landed");
+  const reviews = toReviewsReportVM(reviewsDto(), { nowMs: REVIEWS_NOW });
+  assert.equal(
+    lensAnswerOf("reviews", { ...parts, reviews }),
+    "4.8 on Google from 213 reviews; 6 new in the last 30 days, 3 answered.",
+  );
+  assert.equal(lensAnswerOf("reviews", { ...parts, reviews }), reviews.lines.head);
+  assert.equal(lensAnswerOf("overview", { ...parts, reviews }), vm.lines.hero, "another lens's sentence is its own");
   assert.equal(
     lensAnswerOf("overview", { ...parts, vm: quiet }),
     undefined,

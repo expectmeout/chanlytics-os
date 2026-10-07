@@ -16,11 +16,11 @@
 import { reasonShort } from "../conversations/escalations";
 import { absoluteBuckets, heroSpeed, holdBuckets, holdLine, holdOf, type ReportHoldVM } from "./report-speed";
 import { closedOf, hoursUnsetOf, type ReportArrivalDto, type ReportProfile } from "./report-closed";
-import { REPORT_TILES, fmtSeconds, type ReportTileVM } from "./report-tiles";
+import { REPORT_TILES, beforeWords, fmtSeconds, type ReportTileVM } from "./report-tiles";
 import type { ReportHeadlineDto } from "./report-headline";
 import type { ReportPeriodId } from "./report-periods";
 import type { BookingReportDto } from "../calendar/calendar-people";
-import { sumOf } from "../shared/numbers";
+import { pct, sumOf } from "../shared/numbers";
 import { DATE_FMT } from "../shared/time";
 import { capitalize, plural } from "../shared/words";
 
@@ -228,21 +228,26 @@ export interface ReportVM {
   hoursUnset: boolean;
   /** v3: null on a v2 payload; channels with nothing now or before are left out. */
   channels: ReportChannelVM[] | null;
-  /** The two periods by name, said the same way in every legend, tooltip and table: "Last 30 days", "The 30 days before". */
-  period: { now: string; before: string };
+  /** The two periods by name, said the same way in every legend, tooltip and table: "Last 30 days", "The 30 days before"; and "in the last 30 days" for a sentence. */
+  period: { now: string; before: string; within: string };
   lines: ReportLinesVM;
   table: { columns: string[]; rows: (string | number)[][] };
 }
 
 /** A calendar day ("2026-09-04") as a local date, without the UTC shift that
  *  `new Date("2026-09-04")` would apply. */
-export function dayDate(day: string): Date {
+function dayDate(day: string): Date {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
 export function fmtDay(day: string): string {
   return DATE_FMT.format(dayDate(day));
+}
+
+/** A calendar day as a chart's point names it: the day, "Aug 28", and the date alone, "28". */
+export function dayPointOf(day: string): { day: string; label: string; short: string } {
+  return { day, label: fmtDay(day), short: String(dayDate(day).getDate()) };
 }
 
 export function quantile(sorted: number[], q: number): number | null {
@@ -406,7 +411,7 @@ function channelsLine(channels: ReportChannelVM[] | null, rangeLabel: string): s
   const before = channels.reduce((s, c) => s + c.prior, 0);
   if (!before) return `${lead}.`;
   const wasTop = channels.reduce((a, c) => (c.prior > a.prior ? c : a));
-  if (wasTop.key === top.key) return `${lead}, as the ${rangeLabel} before.`;
+  if (wasTop.key === top.key) return `${lead}, as ${beforeWords(rangeLabel)}.`;
   return `${capitalize(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
 }
 
@@ -436,11 +441,18 @@ function rhythmLine(week: ReportWeekVM): string | null {
 export const rangeLabelOf = (days: number): string =>
   REPORT_RANGES.find((r) => r.days === days)?.label ?? plural(days, "day");
 
-/** The two periods by name, said the same way wherever they are said: "Last 30 days", "The 30 days before". */
-export const periodWords = (rangeLabel: string): { now: string; before: string } => ({
+/**
+ * The two periods by name, said the same way wherever they are said: "Last 30 days", "The 30 days before", and where a
+ * sentence says when something happened, "in the last 30 days".
+ */
+export const periodWords = (rangeLabel: string): { now: string; before: string; within: string } => ({
   now: `Last ${rangeLabel}`,
-  before: `The ${rangeLabel} before`,
+  before: capitalize(beforeWords(rangeLabel)),
+  within: `in the last ${rangeLabel}`,
 });
+
+/** Where a sentence says when: "in the last 30 days", and "today" where the period is the one day (Month on the 1st). */
+export const withinWords = (days: number): string => (days === 1 ? "today" : periodWords(rangeLabelOf(days)).within);
 
 /**
  * What every part of the report is built from, counted once: the period asked for (the series' last `days`) and the
@@ -453,9 +465,7 @@ function periodFactsOf(dto: ReportDto) {
   const current = series.slice(-days);
   const previous = series.slice(0, Math.max(0, series.length - days));
   const points: ReportPointVM[] = current.map((d) => ({
-    day: d.day,
-    label: fmtDay(d.day),
-    short: String(dayDate(d.day).getDate()),
+    ...dayPointOf(d.day),
     in: d.messages_in,
     ai: d.answered_ai,
     you: d.answered_you,
@@ -503,9 +513,9 @@ function periodFactsOf(dto: ReportDto) {
     /** Nobody wrote or called in the period: no customer message and no call. */
     empty: tot.in === 0 && tot.calls === 0,
     answeredTotal,
-    aiShare: answeredTotal ? Math.round((tot.ai / answeredTotal) * 100) : null,
+    aiShare: pct(tot.ai, answeredTotal),
     prevAnsweredTotal,
-    prevShare: prevAnsweredTotal ? Math.round((prev.ai / prevAnsweredTotal) * 100) : null,
+    prevShare: pct(prev.ai, prevAnsweredTotal),
     sortedReply,
     median: quantile(sortedReply, 0.5),
     p90: quantile(sortedReply, 0.9),
@@ -621,9 +631,7 @@ function linesOf(f: PeriodFacts, week: ReportWeekVM, channels: ReportChannelVM[]
     hero: answeredTotal
       ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}`
       : "No customer wrote in this period.",
-    heroBefore: prevAnsweredTotal
-      ? `${Math.round((prev.ai / prevAnsweredTotal) * 100)}% the ${rangeLabel} before`
-      : null,
+    heroBefore: prevAnsweredTotal ? `${pct(prev.ai, prevAnsweredTotal)}% ${beforeWords(rangeLabel)}` : null,
     answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
     reply: replyLine(f),
     calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,

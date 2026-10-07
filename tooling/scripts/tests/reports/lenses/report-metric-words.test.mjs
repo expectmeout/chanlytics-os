@@ -7,7 +7,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
-import { DEALS, campaignDto, cday, surface } from "../_report-world.mjs";
+import { DEALS, campaignDto, cday, reviewsDto, reviewsGoogle, reviewsHeld, surface } from "../_report-world.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.window.fetch = async () =>
@@ -15,6 +15,7 @@ globalThis.window.fetch = async () =>
 const S = "../../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
 const { forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { bookedTileOf, metricWordsOf, toGoogleVM, REPLY_WINDOW_WORDS, DELIVERY_RECEIPTS_WORDS } =
   await import("@chanlytics/contracts");
@@ -73,10 +74,16 @@ const workspace = () => {
   ];
   globalThis.__ACTIVE_WORKSPACE = "w1";
 };
-const draw = (lens, R) => {
+const held = reviewsHeld;
+/** Google's public listing alone: the five reviews it shows, the Business Profile not connected, and so no ledger. */
+const PUBLIC_LISTING = held(reviewsDto({ days: 7, google: GOOGLE, ledger: null }));
+/** Harbor Studio with its Business Profile synced: the reviews on record are counted. */
+const PROFILE_SYNCED = held(reviewsDto({ days: 7, google: reviewsGoogle() }));
+const draw = (lens, R, reviews = PUBLIC_LISTING) => {
   workspace();
+  keepReportPeriod("7d");
   setSurfaceValue("reports", R);
-  setSurfaceValue("google", { dto: GOOGLE, fetchedAt: 1 });
+  setSurfaceValue("reports_reviews", reviews);
   fresh();
   return ReportsPage({ pathname: `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}` });
 };
@@ -90,9 +97,20 @@ const said = (fig) => ({
 
 test("every figure the reports build names a metric that has words, and no two metrics say the same", () => {
   const R = surface({ deals: DEALS });
-  const tiles = [...R.vm.tiles, bookedTileOf(R.booking), ...R.campaigns.tiles, ...toGoogleVM(GOOGLE, 7, NOW).tiles];
+  const reviews = reviewsHeld(reviewsDto({ days: 7 })).vm;
+  const tiles = [
+    ...R.vm.tiles,
+    bookedTileOf(R.booking),
+    ...R.campaigns.tiles,
+    ...toGoogleVM(GOOGLE, 7, NOW, "UTC").tiles,
+    ...reviews.tiles,
+  ];
   const metrics = [...new Set(tiles.map((t) => t.metric))];
-  assert.equal(metrics.length, 16, "the receptionist's six, booked, the campaigns' five and Google's four");
+  assert.equal(
+    metrics.length,
+    19,
+    "the receptionist's six, booked, the campaigns' five, Google's four and the three more the profile's reviews add",
+  );
   for (const m of metrics) {
     const words = metricWordsOf(m);
     assert.ok(typeof words === "string" && words.length > 40 && words.endsWith("."), `${m}: a sentence of words`);
@@ -156,6 +174,21 @@ test("Google's four figures say what they count too", () => {
       ["reviews", true],
       ["ratings_gained", true],
       ["newest_review", true],
+    ],
+  );
+});
+
+test("with the Business Profile synced the Reviews lens draws five figures, and the three the reviews on record add say what they count too", () => {
+  const strip = byTestId(draw("reviews", surface({ deals: DEALS }), PROFILE_SYNCED), "google-tiles");
+  assert.ok(strip, "the strip stands under a synced profile");
+  assert.deepEqual(
+    figures(strip).map((f) => [said(f).metric, said(f).tip === metricWordsOf(said(f).metric)]),
+    [
+      ["rating", true],
+      ["reviews", true],
+      ["reviews_written", true],
+      ["reviews_answered", true],
+      ["review_reply_time", true],
     ],
   );
 });

@@ -760,6 +760,10 @@ test("a WhatsApp connection, a milestone and a held review reply say what they a
     activityWords("google.reply_held", { review_id: "r1", why: "money" }),
     "A review reply was written and not posted · it named money",
   );
+  assert.equal(
+    activityWords("google.reply_held", { review_id: "r1", why: "tone" }),
+    "A review reply was written and not posted",
+  );
 });
 
 test("the partner programme reads in the owner's words, with what each writer files and never an amount, an invoice or an id", () => {

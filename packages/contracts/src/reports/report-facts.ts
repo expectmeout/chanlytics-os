@@ -6,6 +6,7 @@
  * estimate, and none says a tile's number again (the tiles already did). Pure; the page draws what this returns.
  */
 import { reportHourWords, type ReportVM } from "./reports";
+import { beforeWords } from "./report-tiles";
 import type { CampaignReportVM } from "./campaign-report";
 import { plural } from "../shared/words";
 
@@ -125,7 +126,7 @@ export function reportFacts(vm: ReportVM, campaigns: CampaignReportVM | null): R
           tone: "",
           icon: "chat",
           text: `${moved.c.label} ${moved.delta > 0 ? "grew" : "fell"} to ${moved.share}% of messages and calls`,
-          sub: `from ${moved.before}% the ${vm.rangeLabel} before`,
+          sub: `from ${moved.before}% ${beforeWords(vm.rangeLabel)}`,
           door: null,
         });
       }

@@ -3,7 +3,14 @@
  * bridge's contracts functions make its view models (the fixtures every Reports test shares; nothing here is a real
  * business: Harbor Studio's numbers are made up).
  */
-import { toReportVM, toCampaignReportVM, toBookingReportVM, toDealReportVM, reportFacts } from "@chanlytics/contracts";
+import {
+  toReportVM,
+  toCampaignReportVM,
+  toBookingReportVM,
+  toDealReportVM,
+  toReviewsReportVM,
+  reportFacts,
+} from "@chanlytics/contracts";
 
 /* ------------- a week that has everything: Sat Aug 29 to Fri Sep 4, 2026, after a quieter week ------------- */
 
@@ -214,3 +221,153 @@ export const surface = ({
     fetchedAt: 1,
   };
 };
+
+/* ------------- Reviews: Harbor Studio on Google, the Business Profile synced, Fri Sep 4, 2026, New York ------------- */
+
+/** The workspace's day when the reviews were read, and an instant on it (11:00 there). */
+export const REVIEWS_TODAY = "2026-09-04";
+export const REVIEWS_NOW = Date.parse("2026-09-04T15:00:00Z");
+
+export const googleListing = (over = {}) => ({
+  place_id: "place-1",
+  name: "Harbor Studio",
+  address: "1 Dock Street",
+  maps_uri: "https://maps.example.com/harbor",
+  business_status: "OPERATIONAL",
+  rating: 4.8,
+  review_count: 213,
+  linked_at: "2026-08-01T12:00:00Z",
+  checked_at: "2026-09-04T12:00:00Z",
+  check_error: null,
+  ...over,
+});
+export const googleConnection = (over = {}) => ({
+  google_email: "owner@example.com",
+  account_title: "Harbor Studio",
+  location_name: "locations/1",
+  location_title: "Harbor Studio",
+  connected_at: "2026-08-01T12:00:00Z",
+  last_synced_at: "2026-09-04T12:00:00Z",
+  sync_error: null,
+  ...over,
+});
+/** A review as the page's read holds it (GoogleReviewDto): through the profile unless `origin` says it is one of the five public. */
+export const googleReview = (id, published, over = {}) => ({
+  id,
+  review_id: `g-${id}`,
+  origin: "profile",
+  rating: 5,
+  author: "Ana P.",
+  author_uri: null,
+  author_photo_uri: null,
+  body: "Fast, careful, and on time.",
+  language_code: null,
+  published_at: published,
+  reply_text: null,
+  replied_at: null,
+  maps_uri: null,
+  first_seen_at: published,
+  ...over,
+});
+/** The day an instant falls on in the world's zone, as the database says it ("2026-09-03"). */
+const worldDay = (iso) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+/**
+ * A review as the database counts it (reviews_ledger's `written`): its stars, the day Google dates it in the world's zone,
+ * whether it has a reply and how many seconds after the review the reply came (none where the reply is dated before it), and
+ * who wrote the reply where the receptionist's own event names it (`over.by`).
+ */
+export const writtenReview = (id, published, rating, repliedAt = null, over = {}) => ({
+  id,
+  d: worldDay(published),
+  rating,
+  replied: repliedAt !== null,
+  secs:
+    repliedAt !== null && Date.parse(repliedAt) >= Date.parse(published)
+      ? (Date.parse(repliedAt) - Date.parse(published)) / 1000
+      : null,
+  by: null,
+  ...over,
+});
+/** A review that waits, as the database lists it: the page's read of it, and why a reply written for it was held (`held`: null where none was). */
+export const waitingReview = (id, published, over = {}) => ({ ...googleReview(id, published), held: null, ...over });
+
+/**
+ * Six reviews written in the last 30 days (Aug 6 to Sep 4), three of them answered, 5 of 6 at four or five stars; three in
+ * the 30 before (Jul 7 to Aug 5); and one on each side of a day's edge in New York, which is four hours behind UTC.
+ * a (answered by the receptionist, 6h), b (by the owner here, 10m), c (by the owner on Google, 24h), d (held: it named a
+ * price), e, f unanswered; g, h, i the period before; j just before it.
+ */
+const REVIEWS_WRITTEN = [
+  writtenReview("a", "2026-09-03T14:00:00Z", 5, "2026-09-03T20:00:00Z", { by: "receptionist" }),
+  writtenReview("b", "2026-09-01T14:00:00Z", 5, "2026-09-01T14:10:00Z"),
+  writtenReview("c", "2026-08-20T10:00:00Z", 4, "2026-08-21T10:00:00Z"),
+  writtenReview("d", "2026-08-14T12:00:00Z", 2),
+  writtenReview("e", "2026-08-12T12:00:00Z", 5),
+  writtenReview("f", "2026-08-06T04:00:00Z", 4),
+  writtenReview("g", "2026-08-06T03:59:00Z", 5, "2026-08-06T09:00:00Z"),
+  writtenReview("h", "2026-07-20T12:00:00Z", 3, "2026-07-20T13:00:00Z"),
+  writtenReview("i", "2026-07-07T04:00:00Z", 4),
+  writtenReview("j", "2026-07-07T03:59:00Z", 5),
+];
+/** The reviews with no reply, oldest first, as the database lists them (the page's read of each, and the reason a reply was held). */
+const UNANSWERED = [
+  waitingReview("old", "2026-06-01T12:00:00Z", { rating: 3 }),
+  waitingReview("f", "2026-08-06T04:00:00Z", { rating: 4 }),
+  waitingReview("e", "2026-08-12T12:00:00Z"),
+  waitingReview("d", "2026-08-14T12:00:00Z", { rating: 2, held: "price" }),
+];
+
+/** `GET reports/reviews`'s `google`: the listing, the profile connected and synced, the newest reviews and three days' counts. */
+export const reviewsGoogle = (over = {}) => ({
+  listing: googleListing(),
+  connection: googleConnection(),
+  reviews: [
+    googleReview("a", "2026-09-03T14:00:00Z", { reply_text: "Thank you, Ana!", replied_at: "2026-09-03T20:00:00Z" }),
+    googleReview("b", "2026-09-01T14:00:00Z", { reply_text: "Glad to hear it.", replied_at: "2026-09-01T14:10:00Z" }),
+    googleReview("c", "2026-08-20T10:00:00Z", {
+      rating: 4,
+      reply_text: "Thanks for coming in.",
+      replied_at: "2026-08-21T10:00:00Z",
+    }),
+    ...UNANSWERED,
+  ],
+  days: [
+    { day: "2026-07-06", rating: 4.6, review_count: 190 },
+    { day: "2026-08-05", rating: 4.7, review_count: 205 },
+    { day: "2026-09-04", rating: 4.8, review_count: 213 },
+  ],
+  reply_mode: "ask",
+  ...over,
+});
+
+/** The ledger the database answers (reviews_ledger) for 30 days: the whole record is on hand, 213 of 213, and the sync says so. */
+export const reviewsLedger = (over = {}) => ({
+  timezone: "America/New_York",
+  today: REVIEWS_TODAY,
+  days: 30,
+  on_record: { profile: 213, places: 0, complete: true },
+  written: REVIEWS_WRITTEN,
+  waiting_total: UNANSWERED.length,
+  waiting: UNANSWERED,
+  ...over,
+});
+
+/** What `GET reports/reviews` answers for a period of 30 days, the profile synced. */
+export const reviewsDto = (over = {}) => ({
+  timezone: "America/New_York",
+  today: REVIEWS_TODAY,
+  days: 30,
+  google: reviewsGoogle(),
+  readable: true,
+  ledger: reviewsLedger(),
+  ...over,
+});
+
+/** The Reviews read as the surface holds it (reviews-surface.ts): the fold of an answer, and the period it is of. */
+export const reviewsHeld = (dto, period = "7d") => ({ vm: toReviewsReportVM(dto, { nowMs: REVIEWS_NOW }), period });

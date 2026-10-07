@@ -181,6 +181,11 @@ export interface ProfileSyncPlan {
   replied: string[];
   bells: ReviewBell[];
   synced_at: string;
+  /**
+   * Whether Google's list of the location's reviews ended on this pass, with no page left when the pages the sync may
+   * read ran out: the reviews on record are then every one Google lists (google_connections.reviews_complete).
+   */
+  complete: boolean;
 }
 
 export function planProfileSync(
@@ -220,5 +225,6 @@ export function planProfileSync(
     replied,
     bells: reviewBells(news, 0, { rating: listing?.rating ?? null, review_count: count }),
     synced_at: now,
+    complete: page.next_page_token === null,
   };
 }

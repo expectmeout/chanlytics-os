@@ -2329,24 +2329,28 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .pg-head-slot {
     padding-right: 56px;
   }
-  /* Where the date's place holds the way back instead, its 36px capsule is centred on the bell's line (26px from the top)
-     like the date's text is, 8px from the top. */
-  .pg-dateline-slot:has(.pg-back) {
-    top: 8px;
-    height: 36px;
-  }
-  /* The way back (a person's page) is a 36px capsule of the control layer's glass on a phone (P-phone-person). */
+  /* The way back in the date's place (a person's ‹ People, a room's ‹ Campaigns, a pane's ‹ Settings) is a capsule of the
+     control layer's glass on a phone (P-phone-person), as tall as the bell beside it and on the bell's line: the date's
+     own place holds it, 10px from the top. It was written 36px and drawn 44, twelve taller than the bell, because a
+     touch screen's floor for a button (legacy.css) outranks a height. So it names its own floor, and the 44px a thumb
+     needs stays as a margin no one sees, as the bell's does (Ruben, 7 Oct 2026). */
   .pg-dateline-slot .pg-back {
     position: relative;
-    height: 36px;
+    height: var(--control-h-md);
+    min-height: var(--control-h-md);
     margin: 0;
-    padding: 0 14px 0 10px;
+    padding: 0 12px 0 9px;
     border-radius: var(--radius-full);
     background-color: var(--surface-control-fill);
     background-image: var(--surface-control-sheen);
     box-shadow: var(--surface-control-depth);
     font-size: var(--text-base);
     color: var(--ink);
+  }
+  .pg-dateline-slot .pg-back::after {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
   }
   .pg-act-slot {
     grid-column: 1;
@@ -2357,8 +2361,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
      act stands at the right of the name's row, under the bell, rather than on a row of its own under the name at the left
      (Ruben, 7 Oct 2026). Its controls are the control layer's 36px, each 44px to a finger by a margin no one sees, as the
      bell's is. The name's row stands 13px lower, so the act clears the bell (32px on the date's line, its foot 42px from
-     the top) by 8; so does a row under a way back in the date's place (its 36px capsule), the same on Campaigns, Sent and
-     the Library. A person's page draws its own head, so its slot holds no name and stays where it is. */
+     the top) by 8; so does a row under a way back in the date's place (its capsule is the bell's height, on the bell's
+     line), the same on Campaigns, Sent and the Library. A person's page draws its own head, so its slot holds no name and stays where it is. */
   .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)),
   .main:has(> .pg-dateline-slot > .pg-back) .pg-slot:has(> .pg-head-slot > header) {
     padding-top: 13px;
@@ -2548,12 +2552,14 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 
 /* An app on a phone's home screen stands under the phone's own bar (the clock, the battery), which keeps its own room
    over the date and the bell: the 10px the head keeps over them stood under that room as a second one. So the frame's
-   column starts 6px higher there, the head with it (the date, the bell, the way back, an open thread's own head), and
-   the page under it is that much taller (Ruben, 7 Oct 2026). The column's first 8px hold nothing: the date and the
-   bell stand 10px down it, the way back 8. A browser's tab is not an installed app and is drawn as it was. */
+   column starts 10px higher there, the head with it (the date, the bell, the way back, an open thread's own head), and
+   the page under it is that much taller (Ruben, 7 Oct 2026: 6px first, then all of it). The column's first 10px hold
+   nothing: the date, the bell and the way back all stand 10px down it, so the bell and the way back now begin at the
+   screen's own edge under the phone's bar, and nothing can go higher. A browser's tab is not an installed app and is
+   drawn as it was. */
 @media (max-width: 720px) and (display-mode: standalone) {
   .app-root .main {
-    margin-top: -6px;
+    margin-top: -10px;
   }
 }
 

@@ -7,9 +7,10 @@
 import { clockDate, clockNear } from "../shared/clock";
 import { plural } from "../shared/words";
 import { domainHoldWords } from "../email/sending-domains";
-import { pct, stepLabelOf } from "../reach-out/reach-out-sheet";
+import { stepLabelOf } from "../reach-out/reach-out-sheet";
+import { pct } from "../shared/numbers";
 import type { HandKind } from "../reach-out/reach-out-hand";
-import { dayDate, fmtDay } from "./reports";
+import { dayPointOf, periodWords, rangeLabelOf } from "./reports";
 
 export interface ReachOutReportCounts {
   written: number;
@@ -129,7 +130,10 @@ export interface ReachOutReportVM {
   lines: { funnel: string; angles: string; domains: string; written: string; empty: string };
 }
 
-const pctText = (n: number, d: number): string => (d ? `${pct(n, d)}%` : "—");
+const pctText = (n: number, d: number): string => {
+  const share = pct(n, d);
+  return share === null ? "—" : `${share}%`;
+};
 /** A rate to a tenth, where two in a hundred is the line a domain holds at: "2.4%". */
 const rateText = (n: number, d: number): string => (d ? `${Math.round((n / d) * 1000) / 10}%` : "—");
 
@@ -161,7 +165,7 @@ function anglesOf(dto: ReachOutReportDto): ReachOutReportVM["angles"] {
   const rows: ReachOutAngleRow[] = dto.angles.map((a) => ({
     id: a.angle,
     label: a.angle,
-    value: pct(a.wrote_back, a.written),
+    value: pct(a.wrote_back, a.written) ?? 0,
     display: `${a.wrote_back} of ${a.written}  ${pctText(a.wrote_back, a.written)}`,
   }));
   const o = dto.other_angles;
@@ -169,7 +173,7 @@ function anglesOf(dto: ReachOutReportDto): ReachOutReportVM["angles"] {
     rows.push({
       id: "other",
       label: "Other angles",
-      value: pct(o.wrote_back, o.written),
+      value: pct(o.wrote_back, o.written) ?? 0,
       display: `${o.wrote_back} of ${o.written}  ${pctText(o.wrote_back, o.written)}`,
     });
   return { rows, max: Math.max(1, ...rows.map((r) => r.value)) };
@@ -201,7 +205,10 @@ function domainsOf(dto: ReachOutReportDto, nowMs: number): ReachOutDomainRow[] {
 }
 
 /** A count and its share of what was written: "12% (3)". */
-const shareOf = (n: number, of: number): string => (of ? `${pct(n, of)}% (${n})` : String(n));
+const shareOf = (n: number, of: number): string => {
+  const share = pct(n, of);
+  return share === null ? String(n) : `${share}% (${n})`;
+};
 
 function chainLineOf(c: ReachOutReportChainDto, nowMs: number, tz: string): ReachOutSourceLine {
   const sum = (k: keyof ReachOutReportCounts) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
@@ -279,7 +286,7 @@ function linesOf(dto: ReachOutReportDto): ReachOutReportVM["lines"] {
       : "No email in these days had an opening, so there is no angle to compare.",
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote in the last ${plural(dto.days, "day")}.`,
+    empty: `No reach-out wrote ${periodWords(rangeLabelOf(dto.days)).within}.`,
   };
 }
 
@@ -317,12 +324,7 @@ function wholeOf(raw: Partial<ReachOutReportDto>): ReachOutReportDto {
 
 export function toReachOutReportVM(raw: ReachOutReportDto, nowMs: number = Date.now()): ReachOutReportVM {
   const dto = wholeOf(raw);
-  const points = dto.series.map((d) => ({
-    day: d.day,
-    label: fmtDay(d.day),
-    short: String(dayDate(d.day).getDate()),
-    written: d.written,
-  }));
+  const points = dto.series.map((d) => ({ ...dayPointOf(d.day), written: d.written }));
   const sources: ReachOutSourceLine[] = [];
   for (const c of dto.chains) {
     sources.push(chainLineOf(c, nowMs, dto.timezone));

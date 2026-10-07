@@ -47,7 +47,7 @@
 /* ---- Google reviews: the words Google shows, with their stars ---- */
 /* The reviews take the whole row, so they read in columns at a comfortable measure rather than as one line of text
    the width of the page; a column holds its own review, and the row keeps them the same height. */
-.rp2-reviews { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
+.rp2-reviews { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
 .rp2-review { display: grid; gap: 3px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); }
 /* A new review says "new" in words; the coral accent is for live state, never a review. */
 .rp2-review.is-new { border-color: var(--line-strong); }
@@ -161,13 +161,14 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
 .rpt-fact-door { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; transition: background var(--duration-fast), color var(--duration-fast); }
 .rpt-fact-quiet { margin: 4px 0 6px; font-size: 13px; color: var(--ink-dim); }
 
-/* The strip: five figures (the kit's Figure) in one frame with hairline dividers, a list of terms and their values; Google's four are
-   the same strip with one cell fewer. */
-.rpt-figures { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+/* The strip: five figures (the kit's Figure) in one frame with hairline dividers, a list of terms and their values. --cells is how many
+   stand in a row; a strip of fewer figures says what it is, not how many it holds: the listing's own figures (Google, before a Business
+   Profile is connected) and the answers Campaigns counts. */
+.rpt-figures { --cells: 5; display: grid; grid-template-columns: repeat(var(--cells), minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
 .rpt-cell { padding: 12px 18px 13px; }
 .rpt-cell + .rpt-cell { border-left: 1px solid var(--line); }
-.rpt-figures.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.rpt-figures.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rpt-figures.listing { --cells: 4; }
+.rpt-figures.answers { --cells: 2; }
 
 /* ---------- inside the cards ---------- */
 .rpt-hours { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -206,14 +207,14 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-grid > :is(.rpt-span-5, .rpt-span-7, .rpt-span-8) + .rpt-span-4:last-child,
   .rpt-grid > .rpt-span-4:nth-child(odd):not(:has(+ .rpt-span-4)) { grid-column: 1 / -1; }
   .rpt-grid > .rpt-deals-lines { padding-left: 0; }
-  .rpt-figures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rpt-figures { --cells: 3; }
   .rpt-cell:nth-child(4) { border-left: none; }
   .rpt-cell:nth-child(n + 4) { border-top: 1px solid var(--line); }
   /* Four make two rows of two, not three and one. */
-  .rpt-figures.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rpt-figures.four .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
-  .rpt-figures.four .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
-  .rpt-figures.four .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .rpt-figures.listing { --cells: 2; }
+  .rpt-figures.listing .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
+  .rpt-figures.listing .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
+  .rpt-figures.listing .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
 }
 /* On a phone the panes stand at the boards' 12px from the screen's edges, under the frame's row of views, which stands
    there on every page (components.css): they stood at the head's 16, so the row and the page's width changed between the
@@ -239,12 +240,12 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-hero-number { font-size: 25px; }
   .rpt-fact-sub::before { content: ""; }
   .rpt-fact-sub { display: block; }
-  .rpt-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rpt-figures { --cells: 2; }
   .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
   .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
   .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .rpt-cell:last-child { grid-column: 1 / -1; border-left: none; }
-  .rpt-figures.four .rpt-cell:last-child, .rpt-figures.two .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
+  .rpt-figures.listing .rpt-cell:last-child, .rpt-figures.answers .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
   .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
   .rpt .ck-pie { flex-direction: column; align-items: stretch; }
   .rpt .ck-pie-figure { align-self: center; }
@@ -276,8 +277,8 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
-/* Google's strip of four: an inset, not glass on glass. */
-.rpt-figures.four {
+/* Google's strip, whatever it counts (the profile's five, the listing's four): an inset, not glass on glass. */
+.rpt-figures:is(.profile, .listing) {
   border: 0;
   border-radius: var(--surface-inset-radius);
   background: var(--surface-inset-fill);

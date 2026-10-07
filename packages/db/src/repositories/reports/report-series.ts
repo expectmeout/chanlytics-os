@@ -1,11 +1,13 @@
 /**
- * The report functions Reports reads (00251, 00304, 00241): the receptionist's series, the campaigns' and the reach-outs',
- * each over a period of days and the period before it. The one place they are called by name; the dashboard asks on the
- * session client, so RLS decides what a member reads (`report_series` and `campaign_series` are SECURITY INVOKER;
- * `reach_out_report` is a definer that checks the member again). A read that fails throws: "we could not read" is never "none".
+ * The report functions Reports reads (00251, 00304, 00241, 00350): the receptionist's series, the campaigns', the reviews'
+ * and the reach-outs', each over a period of days and the period before it. The one place they are called by name; the
+ * dashboard asks on the session client, so RLS decides what a member reads (`report_series`, `campaign_series` and
+ * `reviews_ledger` are SECURITY INVOKER; `reach_out_report` is a definer that checks the member again). A read that
+ * fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
+import { isMissingDoor } from "../templates";
 
 type Db = SupabaseClient<Database>;
 
@@ -20,6 +22,22 @@ export async function reportSeries(db: Db, tenantId: string, days: number): Prom
 export async function campaignSeries(db: Db, tenantId: string, days: number): Promise<Json> {
   const { data, error } = await db.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days });
   if (error) throw new Error(`campaign_series: ${error.message}`);
+  return data;
+}
+
+/**
+ * The reviews on record for the Reviews lens, over `days` and the period before (`reviews_ledger`, 00350): the profile's
+ * reviews dated in the workspace's own zone, the counts, the oldest few that wait. Contracts' `isReviewsLedgerDto` tells
+ * its answer from `{ error: "unknown_tenant" }`. Null is a database that does not have the function yet: the dashboard
+ * deploys at the merge and 00350 goes to production on the owner's word, so for that window every read answers it, and
+ * the lens draws the listing alone (the function itself never answers null). Any other failure throws.
+ */
+export async function reviewsLedger(db: Db, tenantId: string, days: number): Promise<Json | null> {
+  const { data, error } = await db.rpc("reviews_ledger", { p_tenant_id: tenantId, p_days: days });
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`reviews_ledger: ${error.message}`);
+  }
   return data;
 }
 

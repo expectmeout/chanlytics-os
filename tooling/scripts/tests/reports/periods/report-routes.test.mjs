@@ -1,11 +1,13 @@
 /**
- * The one query the three report routes take (readers/report.ts): `period` names the window, `days` is read until
- * its day (report-periods.test.mjs holds it), and Month is the days since the 1st in the workspace's own zone, read from the
- * membership's facts and only when Month is asked.
+ * The one query the four report routes take (readers/report.ts): `period` names the window, `days` is read until
+ * its day (report-periods.test.mjs holds it) by the three routes that existed before there was a Month, and Month is the days
+ * since the 1st in the workspace's own zone, read from the membership's facts and only when Month is asked. The Reviews route
+ * is newer than `days` and takes the period alone.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { rows } from "../../_rows.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -79,6 +81,69 @@ test("a route sent period=month answers the days since the 1st in the workspace'
       (e) => e.status === 400,
       `period=${bad} is no id of the table`,
     );
+});
+
+test("the reviews' route takes the period alone: Month is the days since the 1st in the workspace's zone, the ledger is asked for those days, any other period is refused at the door, and `days` is none of its query", async () => {
+  setRateStore(memoryStore());
+  const route = await importSrc("apps/dashboard/app/api/v1/reports/reviews/route.ts");
+  const ctx = () => ({
+    supabase: fakeDb(
+      {
+        memberships: [
+          {
+            user_id: "u1",
+            tenant_id: W,
+            role: "viewer",
+            tenants: { slug: "harbor", name: "Harbor Studio", timezone: "America/New_York" },
+            created_at: "2026-01-01",
+          },
+        ],
+        policies: [],
+        google_listings: [rows.googleListing({ tenant_id: W, name: "Harbor Studio", rating: 4.8, review_count: 213 })],
+        google_connections: [],
+        google_reviews: [],
+        google_listing_days: [],
+        events: [],
+      },
+      {},
+      {
+        reviews_ledger: (a) => ({
+          timezone: "America/New_York",
+          today: "2026-10-07",
+          days: a.p_days,
+          on_record: { profile: 0, places: 0, complete: false },
+          written: [],
+          waiting_total: 0,
+          waiting: [],
+        }),
+      },
+    ),
+    userId: "u1",
+    email: "ada@example.com",
+    params: {},
+  });
+  const c = ctx();
+  const out = await route.GET.run(
+    new Request(`http://localhost/api/v1/reports/reviews?period=month&workspace=${W}`),
+    c,
+  );
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  assert.deepEqual([out.timezone, out.today, out.days], ["America/New_York", today, Number(today.slice(8, 10))]);
+  assert.equal(out.ledger, null, "no Business Profile has synced: the five public reviews are no record");
+  assert.deepEqual(
+    c.supabase.seen.filter((q) => q.rpc),
+    [{ rpc: "reviews_ledger", args: { p_tenant_id: W, p_days: out.days } }],
+    "the database counts the month's days, and the period before them",
+  );
+  for (const bad of ["14d", "7", "MONTH"])
+    await assert.rejects(
+      route.GET.run(new Request(`http://localhost/api/v1/reports/reviews?period=${bad}&workspace=${W}`), ctx()),
+      (e) => e.status === 400,
+      `period=${bad} is no id of the table`,
+    );
+  // No page ever sent `days` to this route, so it is not read here as it is on the three older ones: none named is thirty.
+  const aged = await route.GET.run(new Request(`http://localhost/api/v1/reports/reviews?days=7&workspace=${W}`), ctx());
+  assert.equal(aged.days, 30, "thirty days, whatever the old query says");
 });
 
 test("the table is the one list of periods: the closed set a request names, and the counts of days the Ask report tool takes, said from it", async () => {

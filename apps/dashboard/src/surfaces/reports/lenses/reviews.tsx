@@ -1,24 +1,33 @@
 /**
- * The Reviews lens: Google's listing, its rating and its newest reviews, over the period (google.tsx draws the section). Reports does
- * not wait for Google, so "no value" is two things and the lens says which: a read still out draws nothing, and a read that failed
- * is the house's failed read, with its Retry. "Find your business on Google once" is only what Google answers when nothing is linked.
+ * The Reviews lens: what customers say on Google, drawn from its own read (`reports_reviews`, reviews-surface.ts) and nothing else
+ * (google.tsx draws the section). The page does not wait for that read, so "no value" is two things and the lens says which: a read
+ * still out draws nothing, and a read that failed is the house's failed read, with its Retry. The read is of the period it says, and
+ * Reports' strip of the one it says: a pick lands in two reads, each when it is made, and while they differ the page dims by the one
+ * rule every page uses (the follower's `coming`, which the page reads for its `busy`); when the Reviews read for the pick could not
+ * be made, the lens says so with its Retry, and never holds the period it left under the new one's name.
  */
+import type { LensRange } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
-import { useSurface, useSurfaceFailed } from "../../use-surface";
-import { GoogleSection, googleReadable } from "../google";
-import { LensEmpty, type LensProps } from "./shared";
+import type { Follower } from "../../use-surface";
+import { GoogleSection } from "../google";
+import type { ReviewsSurface } from "../reviews-surface";
 
-export function ReviewsLens({ R }: LensProps) {
-  const G = useSurface("google");
-  const failed = useSurfaceFailed("google");
-  if (!G) {
-    return failed ? (
-      <FailedRead kind="card" what="your Google reviews" surface="google" testid="reviews-failed" />
-    ) : null;
-  }
-  return googleReadable(G) ? (
-    <GoogleSection days={R.days} range={{ since: R.vm.since, until: R.vm.until }} />
-  ) : (
-    <LensEmpty lens="reviews" vm={R.vm} />
-  );
+/** The house's failed read for the Reviews read: its Retry reads the surface again. */
+function readFailed() {
+  return <FailedRead kind="card" what="your Google reviews" surface="reports_reviews" testid="reviews-failed" />;
+}
+
+export function ReviewsLens({
+  reviews,
+  range,
+  phone,
+}: {
+  reviews: Follower<ReviewsSurface>;
+  range: LensRange;
+  phone: boolean;
+}) {
+  const { value, state } = reviews;
+  if (state === "failed") return readFailed();
+  if (!value) return null;
+  return <GoogleSection V={value.vm} range={range} phone={phone} />;
 }

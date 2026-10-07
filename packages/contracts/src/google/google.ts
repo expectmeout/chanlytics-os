@@ -15,13 +15,16 @@
  * gained. Pure: the routes feed it rows, the tests feed it fixtures.
  */
 import type { SchemaSet } from "../shared/schema-sets";
-import { agoWords, DATE_FMT, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
+import { clockDate, zoneDayKey } from "../shared/clock";
+import { agoWords, isoMs, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
-import { dayDate, fmtDay } from "../reports/reports";
-import { deltaOf, type ReportTileVM } from "../reports/report-tiles";
+import { lensRoute } from "../reports/lenses";
+import { dayPointOf, fmtDay, rangeLabelOf, withinWords } from "../reports/reports";
+import { beforeWords, compareWords, type ReportTileVM } from "../reports/report-tiles";
 import type { Hours } from "../config/workspace-config/business-profile";
 import { DAYS, dayProblems } from "../config/workspace-config/config-rules";
+import { shiftKey } from "../calendar/day-keys";
 import { WEEKDAY_KEYS } from "../calendar/zone-math";
 import { normalizePhone } from "../shared/phone";
 import { bookingPageOf } from "./booking-page";
@@ -223,10 +226,8 @@ export interface GoogleConnectionDto {
 /** Google's consent-screen audience for our app, as the operator set it on the edge; null = nothing to say. */
 export type GoogleAudience = "testing" | "unverified" | "verified";
 
-/** What `GET /api/v1/google` returns. */
-export interface GoogleDto {
-  /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge), and which audience Google's consent screen has. */
-  ready: { places: boolean; profile: boolean; audience?: GoogleAudience | null };
+/** What the database holds of Google for a workspace, as the dashboard reads it (the Google reader): everything `GET /api/v1/google` returns but what the deployment can do. */
+export interface GoogleReadDto {
   listing: GoogleListingDto | null;
   connection: GoogleConnectionDto | null;
   /** The newest first; at most a screenful. */
@@ -235,6 +236,12 @@ export interface GoogleDto {
   days: GoogleDayDto[];
   /** The Autonomy row for reviews: what the receptionist does under a new one. */
   reply_mode: ReviewReplyMode;
+}
+
+/** What `GET /api/v1/google` returns. */
+export interface GoogleDto extends GoogleReadDto {
+  /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge), and which audience Google's consent screen has. */
+  ready: { places: boolean; profile: boolean; audience?: GoogleAudience | null };
 }
 
 /** What a search found: what the owner confirms with one tap. */
@@ -353,6 +360,17 @@ export function connectionWords(c: GoogleConnectionDto, nowMs: number): string {
   return `${who} · not synced yet`;
 }
 
+/**
+ * Whether the reviews on record are the owner's Business Profile's: a location is chosen and a sync has finished. A sync
+ * stores every review it read before it stamps itself (the edge's syncProfile), so before the stamp the rows are still the
+ * five Google shows, though the connection is there. The one test, for the source's words here and for the reviews report.
+ */
+export function reviewsFromProfile(
+  c: Pick<GoogleConnectionDto, "location_name" | "last_synced_at"> | null | undefined,
+): boolean {
+  return !!c && !!c.location_name && !!c.last_synced_at;
+}
+
 /** A review's words, cut for a line: the first sentence or so. */
 export function reviewSnippet(body: string | null | undefined, max = 90): string {
   const t = (body ?? "").replace(/\s+/g, " ").trim();
@@ -417,6 +435,8 @@ export interface GoogleVM {
     total: number | null;
     /** "Sep 3" — the first day the count is known from, when it is inside the period. */
     sinceLabel: string | null;
+    /** The gain in words, made once (gainedWords): the Gained figure's value and line, and the clause the Reviews head ends on. */
+    words: { value: string; meta: string; head: string };
   };
   latest: GoogleReviewVM[];
   /** "the five Google shows first" or "every review, from your Business Profile". */
@@ -426,19 +446,19 @@ export interface GoogleVM {
   todayLine: { text: string; to: string } | null;
 }
 
-function whenWords(iso: string | null, nowMs: number): string {
-  if (!iso) return "";
-  const at = Date.parse(iso);
-  if (Number.isNaN(at)) return "";
-  return agoWords(at, nowMs, { dateAfterMs: WEEK_MS, date: (ms) => DATE_FMT.format(new Date(ms)) });
+/** The rating against the one before the period, in words: "up from 4.7", "down from 4.9", "same as the 30 days before". */
+function ratingCompareWords(rating: number, before: number, rangeLabel: string): string {
+  const now = Math.round(rating * 10);
+  const was = Math.round(before * 10);
+  if (now === was) return `same as ${beforeWords(rangeLabel)}`;
+  return `${now > was ? "up" : "down"} from ${(was / 10).toFixed(1)}`;
 }
 
-/** "2026-09-04" plus n days, as the same kind of string. */
-function shiftDay(day: string, n: number): string {
-  const d = dayDate(day);
-  d.setDate(d.getDate() + n);
-  const p = (x: number) => String(x).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+/** "3d ago", and past a week the date in the workspace's zone ("Sep 6", with the year when it is not this year there). */
+function whenWords(iso: string | null, tz: string, nowMs: number): string {
+  const at = isoMs(iso);
+  if (at === null) return "";
+  return agoWords(at, nowMs, { dateAfterMs: WEEK_MS, date: (ms) => clockDate(ms, tz, nowMs) });
 }
 
 /** Whether a review is news: first seen recently, written recently, and after the first read. */
@@ -447,23 +467,22 @@ export function reviewIsNew(
   linkedAt: string,
   nowMs: number,
 ): boolean {
-  const seen = Date.parse(r.first_seen_at);
-  const linked = Date.parse(linkedAt);
-  if (Number.isNaN(seen)) return false;
-  if (nowMs - seen > REVIEW_NEWS_MS) return false;
-  if (!Number.isNaN(linked) && seen - linked < BOOTSTRAP_MS) return false;
-  const written = r.published_at ? Date.parse(r.published_at) : NaN;
-  if (Number.isNaN(written)) return false;
-  return nowMs - written <= REVIEW_NEWS_MAX_AGE_MS;
+  const seen = isoMs(r.first_seen_at);
+  if (seen === null || nowMs - seen > REVIEW_NEWS_MS) return false;
+  const linked = isoMs(linkedAt);
+  if (linked !== null && seen - linked < BOOTSTRAP_MS) return false;
+  const written = isoMs(r.published_at);
+  return written !== null && nowMs - written <= REVIEW_NEWS_MAX_AGE_MS;
 }
 
-export function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, nowMs: number): GoogleReviewVM {
+/** A review as a card draws it; "when" is in the workspace's zone (`tz`), never the runtime's. */
+export function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, tz: string, nowMs: number): GoogleReviewVM {
   return {
     id: r.id,
     stars: starsOf(r.rating),
     rating: r.rating,
     author: r.author?.trim() || "A customer",
-    when: whenWords(r.published_at, nowMs),
+    when: whenWords(r.published_at, tz, nowMs),
     text: (r.body ?? "").replace(/\s+/g, " ").trim(),
     replied: !!r.reply_text,
     replyText: (r.reply_text ?? "").replace(/\s+/g, " ").trim(),
@@ -473,7 +492,62 @@ export function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, nowMs: nu
   };
 }
 
-const EMPTY_GAINED: GoogleVM["gained"] = { points: [], max: 0, total: null, sinceLabel: null };
+/** The reviews as a table, the twin of a card that lists them: who, how many stars, when, and their words. */
+export function googleReviewsTable(rows: readonly GoogleReviewVM[]): GoogleVM["table"] {
+  return {
+    columns: ["Reviewer", "Stars", "Written", "Words"],
+    rows: rows.map((r) => [r.author, r.rating ?? "—", r.when || "—", r.text || "—"]),
+  };
+}
+
+/** The period's gain from the day snapshots, before it is put in words. */
+type GoogleGained = Omit<GoogleVM["gained"], "words">;
+
+/** What the readings cannot say until Google's count has been read on two days: said here once, in the figure, the head and the card. */
+const NEEDS_SECOND_READING = "needs a second day of reading";
+
+const noGainYet = (): GoogleVM["gained"]["words"] => ({
+  value: "—",
+  meta: NEEDS_SECOND_READING,
+  head: `what changed ${NEEDS_SECOND_READING}`,
+});
+
+/** A period with no gain to count, made afresh each time: a caller that writes to it writes to its own. */
+const noGained = (): GoogleGained => ({ points: [], max: 0, total: null, sinceLabel: null });
+
+/**
+ * Which days a gain is of, as a clause: since the first day on record where the period reaches back past it, up to the
+ * last reading where that is behind the day (a missed read; the count stopped, and "the last 30 days" would claim a
+ * window it did not see), else the period itself.
+ */
+function gainedScope(g: GoogleGained, days: number, last: string, behind: boolean): string {
+  if (g.sinceLabel) return `since ${g.sinceLabel}`;
+  if (!behind) return withinWords(days);
+  return days === 1 ? `on ${fmtDay(last)}` : `in the ${rangeLabelOf(days)} to ${fmtDay(last)}`;
+}
+
+/**
+ * What the daily readings gained, put in words once: the Gained figure's value and its line, and the clause the Reviews
+ * head ends on, so the head's number is the figure's. A fall is said as one ("down 4"), never as a minus sign. `today` is
+ * the workspace's day.
+ */
+function gainedWords(g: GoogleGained, days: number, today: string): GoogleVM["gained"]["words"] {
+  const { total, sinceLabel } = g;
+  if (total === null) return noGainYet();
+  const last = g.points.at(-1)?.day ?? today;
+  const behind = last < shiftKey(today, -1);
+  const scope = gainedScope(g, days, last, behind);
+  const head =
+    total < 0
+      ? `down ${plural(-total, "rating")} ${scope}`
+      : `${total ? `${plural(total, "rating")} gained` : "none gained"} ${scope}`;
+  const meta = sinceLabel
+    ? `since ${sinceLabel}, the first day on record`
+    : total < 0
+      ? "Google's count fell"
+      : `new ratings${behind ? ` to ${fmtDay(last)}` : ""}, words or not`;
+  return { value: total < 0 ? `down ${-total}` : String(total), meta, head };
+}
 
 /**
  * What a period gained, from the day snapshots: the count on the last read
@@ -483,11 +557,11 @@ const EMPTY_GAINED: GoogleVM["gained"] = { points: [], max: 0, total: null, sinc
 export function gainedOver(
   days: GoogleDayDto[],
   periodDays: number,
-): { current: GoogleVM["gained"]; previous: number | null } {
+): { current: GoogleGained; previous: number | null } {
   const sorted = [...days].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
-  if (sorted.length < 2) return { current: EMPTY_GAINED, previous: null };
+  if (sorted.length < 2) return { current: noGained(), previous: null };
   const last = sorted[sorted.length - 1];
-  const since = shiftDay(last.day, -(periodDays - 1));
+  const since = shiftKey(last.day, -(periodDays - 1));
   const before = sorted.filter((d) => d.day < since);
   const inside = sorted.filter((d) => d.day >= since);
   const baseline = before.length ? before[before.length - 1] : inside[0];
@@ -497,15 +571,15 @@ export function gainedOver(
   const byDay = new Map(sorted.map((d) => [d.day, d.review_count]));
   const points: GoogleGainedPointVM[] = [];
   let prev: number | null = before.length ? baseline.review_count : null;
-  for (let day = since; day <= last.day; day = shiftDay(day, 1)) {
+  for (let day = since; day <= last.day; day = shiftKey(day, 1)) {
     const count = byDay.get(day);
     const gained = count !== undefined && prev !== null ? Math.max(0, count - prev) : 0;
     if (count !== undefined) prev = count;
-    points.push({ day, label: fmtDay(day), short: String(dayDate(day).getDate()), gained });
+    points.push({ ...dayPointOf(day), gained });
   }
   const max = Math.max(0, ...points.map((p) => p.gained));
   // The period before: the same arithmetic one period earlier, null without a baseline of its own.
-  const prevSince = shiftDay(since, -periodDays);
+  const prevSince = shiftKey(since, -periodDays);
   const prevBefore = sorted.filter((d) => d.day < prevSince);
   const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since);
   const previous =
@@ -515,7 +589,8 @@ export function gainedOver(
   return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
 }
 
-export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now()): GoogleVM {
+/** The listing, the reviews and the readings as the pages draw them, in the workspace's zone (`tz`) at `nowMs`. */
+export function toGoogleVM(dto: GoogleReadDto, periodDays: number, nowMs: number, tz: string): GoogleVM {
   const l = dto.listing;
   const c = dto.connection ?? null;
   const connection: GoogleVM["connection"] = c
@@ -529,7 +604,6 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     : null;
   const canReply = !!c && !!c.location_name;
   const reply = { mode: dto.reply_mode, words: reviewReplyWords(dto.reply_mode, canReply) };
-  const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] as (string | number)[][] };
   if (!l)
     return {
       listing: null,
@@ -537,43 +611,40 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       canReply,
       reply,
       tiles: [],
-      gained: EMPTY_GAINED,
+      gained: { ...noGained(), words: noGainYet() },
       latest: [],
       source: "",
-      table,
+      table: googleReviewsTable([]),
       todayLine: null,
     };
 
   const latest = [...dto.reviews]
-    .sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0))
-    .map((r) => toGoogleReviewVM(r, l.linked_at, nowMs));
-  table.rows = latest.map((r) => [r.author, r.rating ?? "—", r.when || "—", r.text || "—"]);
-  const source = canReply
+    .sort((a, b) => (isoMs(b.published_at) ?? 0) - (isoMs(a.published_at) ?? 0))
+    .map((r) => toGoogleReviewVM(r, l.linked_at, tz, nowMs));
+  const source = reviewsFromProfile(c)
     ? "every review, from your Business Profile"
     : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
 
   const days = [...dto.days].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
-  const { current: gained, previous } = gainedOver(days, periodDays);
+  const { current, previous } = gainedOver(days, periodDays);
+  const gained: GoogleVM["gained"] = { ...current, words: gainedWords(current, periodDays, zoneDayKey(nowMs, tz)) };
   const noun = plural(periodDays, "day");
   const inPeriod = days.length
-    ? days.filter((d) => d.day >= shiftDay(days[days.length - 1].day, -(periodDays - 1)))
+    ? days.filter((d) => d.day >= shiftKey(days[days.length - 1].day, -(periodDays - 1)))
     : [];
-  const ratingSpark = inPeriod.map((d) => d.rating ?? 0);
+  const ratingSpark = inPeriod.flatMap((d) => (d.rating === null ? [] : [d.rating]));
   const countSpark = inPeriod.map((d) => d.review_count);
   const baselineRating = (() => {
     if (!days.length) return null;
-    const since = shiftDay(days[days.length - 1].day, -(periodDays - 1));
+    const since = shiftKey(days[days.length - 1].day, -(periodDays - 1));
     const before = days.filter((d) => d.day < since);
     return before.length ? before[before.length - 1].rating : null;
   })();
-  const ratingDelta: ReportTileVM["delta"] =
+  // The period before sits beside the figure in counts (compareWords): a percentage of a rating, or of counts this small, lies.
+  const rangeLabel = rangeLabelOf(periodDays);
+  const ratingCompare =
     typeof l.rating === "number" && typeof baselineRating === "number"
-      ? Math.abs(l.rating - baselineRating) < 0.05
-        ? { text: `same as ${noun} ago`, tone: "" }
-        : {
-            text: `${l.rating - baselineRating > 0 ? "+" : ""}${(l.rating - baselineRating).toFixed(1)} vs ${noun} ago`,
-            tone: l.rating > baselineRating ? "pos" : "neg",
-          }
+      ? ratingCompareWords(l.rating, baselineRating, rangeLabel)
       : null;
   const newest = latest[0] ?? null;
   const checked = checkedWords(l, nowMs);
@@ -585,9 +656,9 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       label: "Rating on Google",
       value: typeof l.rating === "number" ? l.rating.toFixed(1) : "—",
       meta: `${reviewsWords(l.review_count)} · ${checked.toLowerCase()}`,
-      delta: ratingDelta,
+      delta: null,
       spark: ratingSpark,
-      compare: null,
+      compare: ratingCompare,
     },
     {
       id: "reviews",
@@ -603,16 +674,15 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       id: "gained",
       metric: "ratings_gained",
       label: `Gained in ${noun}`,
-      value: gained.total === null ? "—" : String(gained.total),
-      meta:
-        gained.total === null
-          ? "needs a second day of reading"
-          : gained.sinceLabel
-            ? `since ${gained.sinceLabel}, the first day on record`
-            : `new ratings, words or not`,
-      delta: gained.total !== null && previous !== null ? deltaOf(gained.total, previous, true, noun) : null,
+      value: gained.words.value,
+      meta: gained.words.meta,
+      delta: null,
       spark: gained.points.map((p) => p.gained),
-      compare: null,
+      // A count that fell in the period before is no figure to measure against ("up from -2").
+      compare:
+        gained.total !== null && previous !== null && previous >= 0
+          ? compareWords(gained.total, previous, rangeLabel, true)
+          : null,
     },
     {
       id: "newest",
@@ -634,7 +704,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
   const todayLine = news
     ? {
         text: `New on Google: ${news.stars} from ${news.author}${news.text ? ` — “${reviewSnippet(news.text)}”` : ""}`,
-        to: "reports",
+        to: lensRoute("reviews"),
       }
     : null;
 
@@ -655,7 +725,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     gained,
     latest,
     source,
-    table,
+    table: googleReviewsTable(latest),
     todayLine,
   };
 }
