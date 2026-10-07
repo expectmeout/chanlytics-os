@@ -3,10 +3,9 @@
  * `ReportHeadlineVM`, `GET reports/headline`), never the whole report. Part of the SurfaceData seam
  * (legacy-bridge/surface-data.ts); Today reads what it publishes through `useSurface("reports_headline")`.
  *
- * It follows the period Reports shows (`shownReportPeriod`, kept in this browser), as the one `reports` surface did when Today
- * read it, so the line and the leaks say the same last N days Reports prints. Held by period, with when each was read, as Reports'
- * own views are: a pick of one this tab has read paints at once (`paintHeldHeadline`, called by `setReportRange`), and is read
- * again behind it only if it has aged (`isHeadlineStale`).
+ * It follows the period Reports shows, as the one `reports` surface did when Today read it, so the line and the leaks say the same
+ * last N days Reports prints (period-surface.ts holds it by period, paints a held one at once on a pick, and reads again behind it
+ * only if it has aged).
  *
  * It has no live-feed rule. Its page is Today, whose own surface the live feed re-reads on a message; the headline counts a period
  * of days and reaches for the people pool and the calendar for its booking line, so a message would move it by one in a hundred
@@ -16,69 +15,12 @@
  * screen after it has aged.
  */
 import { read } from "@/legacy-bridge/api";
-import { heldViews } from "@/legacy-bridge/held-views";
-import { toHeadlineVM, type ReportHeadlineVM } from "@chanlytics/contracts";
-import { ON_DEMAND_STALE_MS, type SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { setSurfaceValue, surfaceValue } from "../surface-values";
-import { shownReportPeriod } from "./surface";
+import { toHeadlineVM } from "@chanlytics/contracts";
+import { periodSurface } from "./period-surface";
 
-/** A period's headline, and when this tab read it. */
-interface Held {
-  vm: ReportHeadlineVM;
-  readAt: number;
-}
-
-/** The periods this tab has read: going back to one paints at once, and a read behind it keeps it current. */
-const headlineHeld = heldViews<Held>(4);
-
-/** Paint the headline this tab holds for the period now shown; whether it did. The read behind it is the caller's. */
-export function paintHeldHeadline(): boolean {
-  const have = headlineHeld.get(shownReportPeriod());
-  if (!have) return false;
-  setSurfaceValue("reports_headline", have.vm);
-  window.dispatchEvent(new CustomEvent("surface:reports_headline"));
-  return true;
-}
-
-/**
- * After a pick that failed, Today says the period Reports kept: the headline held for it, or, where this tab holds none (Today was
- * never on screen), no period line until Today reads one. Never the period the page left, whose headline may have landed behind
- * the pick.
- */
-export function paintKeptHeadline(): void {
-  if (paintHeldHeadline()) return;
-  if (surfaceValue("reports_headline")?.period === shownReportPeriod()) return;
-  setSurfaceValue("reports_headline", undefined);
-  window.dispatchEvent(new CustomEvent("surface:reports_headline"));
-}
-
-/**
- * Whether the headline for the period now shown is held at all, and was read within ON_DEMAND_STALE_MS (the measure every
- * on-demand read is held to: a pick of its period, or Today's coming on screen, reads it again past it): when not, it wants a read.
- */
-export function isHeadlineStale(): boolean {
-  const have = headlineHeld.get(shownReportPeriod());
-  return !have || Date.now() - have.readAt > ON_DEMAND_STALE_MS;
-}
-
-export const reportsHeadlineOverride: SurfaceOverride = {
+export const headline = periodSurface({
   key: "reports_headline",
-  value: "reports_headline",
-  // Read where Today is drawn, as Today comes on screen, and again then when it has aged (a pick on Reports keeps it fresh behind the
-  // control: period.ts).
-  onDemand: true,
-  isStale: isHeadlineStale,
-  events: ["surface:reports_headline"],
-  // A period's reads take their turn; a pick of another period is read at once (activateOverride).
-  view: () => shownReportPeriod(),
-  apply: async () => {
-    const period = shownReportPeriod();
-    const { headline } = await read("GET reports/headline", { query: { period } });
-    const vm = toHeadlineVM(headline);
-    // Held for the period it is of, even if the page has moved on: the read was made, and a pick back to it paints it.
-    headlineHeld.hold(period, { vm, readAt: Date.now() });
-    // A pick of another period while this read was out: its answer is for a period left, and is never painted over the new one.
-    if (period !== shownReportPeriod()) return;
-    setSurfaceValue("reports_headline", vm);
-  },
-};
+  read: async (period) => toHeadlineVM((await read("GET reports/headline", { query: { period } })).headline),
+});
+
+export const reportsHeadlineOverride = headline.override;

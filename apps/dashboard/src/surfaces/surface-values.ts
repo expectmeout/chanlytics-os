@@ -37,7 +37,7 @@ export interface SurfaceValues {
   reports: ReportsSurface;
   /** Today's one small read of the period (contracts ReportHeadlineVM): the card's period line and Worth a look read it. */
   reports_headline: ReportHeadlineVM;
-  /** The Reviews lens's own read, folded once: its figures and cards, and the sentence at its head (reports/reviews-surface.ts). */
+  /** The Reviews lens's own read, folded once: its figures and cards, and the sentence at its head (reports/reviews-surface.ts). It follows the period (reports/period-surface.ts). */
   reports_reviews: ReviewsSurface;
   google: GoogleSurface;
   inbox: InboxSurface;
@@ -74,6 +74,27 @@ export function declareSurfaceValue(key: SurfaceKey, mirror: string): void {
 function mirrorTo(key: SurfaceKey, value: SurfaceValues[SurfaceKey] | undefined): void {
   const name = mirrors.get(key);
   if (name && typeof window !== "undefined") Reflect.set(window, name, value);
+}
+
+/**
+ * Where a read that follows the period Reports shows stands against it (reports/period-surface.ts): "current" when what is
+ * published is of the period shown, "coming" while the read for it is out (what is published, if anything, is of a period left),
+ * "failed" when that read could not be made.
+ */
+export type FollowState = "current" | "coming" | "failed";
+
+const followers = new Map<SurfaceKey, () => FollowState>();
+
+/** A surface that follows the period says how it stands against it, for `useFollower` (use-surface.ts) to read. */
+export function declareFollower(key: SurfaceKey, state: () => FollowState): void {
+  followers.set(key, state);
+}
+
+/** How a surface stands against the period shown: a surface that follows nothing is current once it holds a value. */
+export function followState(key: SurfaceKey): FollowState {
+  const state = followers.get(key);
+  if (state) return state();
+  return values.has(key) ? "current" : "coming";
 }
 
 /** The override's answer, published: held here, and mirrored where the pages that have not moved look. */

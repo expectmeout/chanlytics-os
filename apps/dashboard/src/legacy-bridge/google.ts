@@ -8,7 +8,9 @@
  * nothing and refreshes nothing.
  *
  * It is read where it is drawn and nowhere else: Today's review line and Settings' Connections pane name it in `ROUTE_DRAWS`, and
- * every other page leaves it alone (`onDemand`). The Reviews lens draws from its own read (surfaces/reports/reviews-surface.ts).
+ * every other page leaves it alone (`onDemand`). The Reviews lens draws from its own read (surfaces/reports/reviews-surface.ts), which
+ * carries Google's own beside its ledger and publishes it here (`publishGoogleRead`), so while the lens is on screen this surface is
+ * not read for the same events a second time.
  */
 import {
   toGoogleVM,
@@ -19,12 +21,16 @@ import {
   connectionWords,
   reviewSnippet,
   type GoogleDto,
+  type GoogleReadDto,
   type GoogleVM,
   type GoogleCandidateDto,
   type GoogleLocationDto,
 } from "@chanlytics/contracts";
-import { ON_DEMAND_STALE_MS, type SurfaceOverride } from "./surface-data";
+import { readAged, type SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
+import { ownsTheScreen } from "./surface-registry";
+import { surfaceMoved } from "./surface-status";
+import { routeOnScreen } from "./workspace";
 import { setSurfaceValue, surfaceValue } from "../surfaces/surface-values";
 
 export interface GoogleSurface {
@@ -71,10 +77,22 @@ export interface GoogleApi {
   };
 }
 
-/** Whether Google has been read at all in what this tab holds, and within ON_DEMAND_STALE_MS of its own `fetchedAt`: when not, it wants a read. */
+/** Whether Google has been read at all in what this tab holds, and within the measure every on-demand read is held to (`readAged`): when not, it wants a read. */
 function googleIsStale(): boolean {
+  return readAged(surfaceValue("google")?.fetchedAt);
+}
+
+/**
+ * Google's read as another read of the same facts carried it: the Reviews lens's, which holds the listing, the connection, the newest
+ * reviews and the daily readings beside its ledger. Published as Google's own, so Today's line and Connections hold what the lens just
+ * saw. Only where this tab already holds Google's: what this deployment can do (`ready`) is the one thing that read does not carry, and
+ * is Google's alone.
+ */
+export function publishGoogleRead(google: GoogleReadDto, readAt: number): void {
   const held = surfaceValue("google");
-  return !held || Date.now() - held.fetchedAt > ON_DEMAND_STALE_MS;
+  if (!held) return;
+  setSurfaceValue("google", { dto: { ...google, ready: held.dto.ready }, fetchedAt: readAt });
+  surfaceMoved("google");
 }
 
 export const googleOverride: SurfaceOverride = {
@@ -87,6 +105,8 @@ export const googleOverride: SurfaceOverride = {
   events: ["surface:google"],
   // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen.
   refreshOnTables: ["google_listings", "google_reviews", "google_connections"],
+  // Not while the Reviews lens is on screen: its own read hears the same tables and publishes Google's beside its ledger.
+  refreshWhen: () => !ownsTheScreen("reports_reviews", routeOnScreen()),
   apply: async () => {
     const d = await read("GET google");
     setSurfaceValue("google", { dto: d.google, fetchedAt: Date.now() });

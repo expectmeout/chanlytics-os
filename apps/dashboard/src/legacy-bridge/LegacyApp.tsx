@@ -196,6 +196,7 @@ const SURFACE_LABELS: Record<string, string> = {
   people: "People",
   reports: "Reports",
   reports_headline: "Today's period",
+  reports_reviews: "Reviews",
   live: "Calls",
   calendar: "Calendar",
 };

@@ -933,8 +933,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   );
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST google/link"]().map((o) => o.key),
-    ["google", "setup", "reports_reviews"],
-    "a link repaints Setup too, and the Reviews lens's read, which draws the same listing",
+    ["google", "setup"],
+    "a link repaints Setup too; the Reviews lens's read, which draws the same listing, is forgotten and read as the lens comes on screen",
   );
   // The app lists Google's surface and installs nothing for it: its verbs are imported (`googleVerbs`), its value is the
   // seam's alone, so no window door or `__GOOGLE` mirror is published.
@@ -943,8 +943,9 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   assert.ok(bridge.includes("export const googleVerbs: GoogleApi = {") && !bridge.includes("__GOOGLE"));
   assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT"]]);
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
-  // Reports' Reviews page draws the section from its own read (`reports_reviews`) and holds no `google` value when it does, the source
-  // named and what the receptionist does under a new review beside it (executed: reports-page.test.mjs, Google's reviews under the period).
+  // Reports' Reviews page draws the section from its own read (`reports_reviews`), which carries Google's own and publishes it as the
+  // `google` value where one is held (executed: reports/lenses/reviews-surface.test.mjs); the source is named and what the receptionist
+  // does under a new review beside it (executed: reports-page.test.mjs, Google's reviews under the period).
   // Today's line reads the seam's Google, the one value there is, and its door opens the Reviews lens: executed in
   // today/today-page.test.mjs, over a review that landed this morning.
   const settings = readCode("apps/dashboard/src/surfaces/settings/connections/row.tsx");

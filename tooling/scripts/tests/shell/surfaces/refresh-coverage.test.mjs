@@ -158,25 +158,42 @@ test("a run made or moved is heard by Campaigns' two surfaces wherever the tab i
   }
 });
 
-test("a write that moves the listing, its reviews, an answer or the day a review is counted on re-reads the Reviews lens's read with Google's own", async () => {
-  // The lens counts the reviews of a period by the day Google dates them in the workspace's zone, and who answered; the live feed is
-  // told of a review's first sight, never of a reply, so a reply posted from the page names the surface itself.
+test("a write that moves the listing, its reviews or the day a review is counted on makes the Reviews lens's read forgotten, not read from the page it was made on; a reply posted, and a reply mode saved, name it", async () => {
+  // The lens counts the reviews of a period by the day Google dates them in the workspace's zone, and who answered. Settings' Google verbs
+  // and the zone are never made from the lens, so its read is dropped (as a template written is for the Inbox) and read as the lens comes
+  // on screen. A reply is posted from the lens, and the live feed is told of a review's first sight, never of a reply, so it names the
+  // surface itself; the receptionist's mode for reviews is in the answer, and decides whether a composer asks for a draft.
+  const { reviews } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
+  const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+  const held = () => setSurfaceValue("reports_reviews", { vm: {}, period: "30d" });
   for (const route of [
     "POST google/link",
     "DELETE google/link",
     "POST google/refresh",
     "POST google/locations",
     "DELETE google/connection",
-    "POST google/reviews/[id]/reply",
     "PATCH workspaces",
-  ])
-    assert.ok(keysOf(route).includes("reports_reviews"), `${route} re-reads the Reviews lens's read: ${keysOf(route)}`);
+  ]) {
+    held();
+    const keys = keysOf(route);
+    assert.equal(
+      keys.includes("reports_reviews"),
+      false,
+      `${route} does not read the Reviews lens's read from where it was made: ${keys}`,
+    );
+    assert.equal(surfaceValue("reports_reviews"), undefined, `${route} drops what the lens held`);
+    assert.equal(reviews.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
+  }
+  assert.deepEqual(keysOf("POST google/link"), ["google", "setup"], "beside Google's own and Setup's row");
+  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "reports", "reports_headline", "today"]);
+  held();
   assert.deepEqual(
-    keysOf("POST google/link"),
-    ["google", "setup", "reports_reviews"],
-    "beside Google's own and Setup's row",
+    keysOf("POST google/reviews/[id]/reply"),
+    ["reports_reviews"],
+    "the lens's read carries Google's own, and publishes it",
   );
-  assert.deepEqual(keysOf("POST google/reviews/[id]/reply"), ["google", "reports_reviews"]);
+  assert.notEqual(surfaceValue("reports_reviews"), undefined, "a reply forgets nothing: the lens is on screen");
+  assert.ok(keysOf("PUT policies").includes("reports_reviews"), "the reply mode is in the lens's read");
   // A draft and a search change nothing the lens counts.
   for (const route of ["POST google/reviews/[id]/draft", "POST google/search"])
     assert.ok(route in REFRESHES_NOTHING, route);

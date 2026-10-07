@@ -7,9 +7,9 @@
  * The typed door onto the seam, where the shell's pages read `window.__PEOPLE`. A surface reads nothing off `window`.
  */
 import { useCallback, useSyncExternalStore } from "react";
-import { surfaceValue } from "./surface-values";
-import type { SurfaceKey, SurfaceValues } from "./surface-values";
-import { isSurfaceDegraded, isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
+import { followState, surfaceValue } from "./surface-values";
+import type { FollowState, SurfaceKey, SurfaceValues } from "./surface-values";
+import { isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
 
 export function useSurface<K extends SurfaceKey>(key: K): SurfaceValues[K] | undefined {
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
@@ -28,13 +28,22 @@ export function useSurfaceFailed(key: SurfaceKey): boolean {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
+/** A surface that follows the period Reports shows: what it holds, and where that stands against the period shown. */
+export interface Follower<V> {
+  value: V | undefined;
+  state: FollowState;
+}
+
 /**
- * Whether the surface holds a read and its latest one failed (`isSurfaceDegraded`): what `useSurfaceFailed` leaves unsaid once any
- * read has landed. A page that asks for a view other than the one it holds (a period picked) says the failure by this, and not by
- * dimming the held view for good. Drawn again when the surface's status moves.
+ * A read that follows the period Reports shows (reports/period-surface.ts): its value, and `state`: "current" when the value is
+ * of the period shown, "coming" while the read for a pick is out (the value, if any, is of the period left, and a page dims it),
+ * "failed" when that read could not be made (a page says so, with its Retry, and never holds the period it left for good). Drawn
+ * again when the surface moves: its rows landed, its status changed, or the period shown did.
  */
-export function useSurfaceDegraded(key: SurfaceKey): boolean {
+export function useFollower<K extends SurfaceKey>(key: K): Follower<SurfaceValues[K]> {
+  const value = useSurface(key);
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
-  const snapshot = () => isSurfaceDegraded(key);
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
+  const snapshot = () => followState(key);
+  const state = useSyncExternalStore(subscribe, snapshot, snapshot);
+  return { value, state };
 }

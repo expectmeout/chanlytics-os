@@ -7,30 +7,41 @@ import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { ownsTheScreen } from "@/legacy-bridge/surface-registry";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import { surfaceValue } from "../surface-values";
-import { isHeadlineStale, paintHeldHeadline, paintKeptHeadline, reportsHeadlineOverride } from "./headline";
-import { isReviewsStale, paintHeldReviews, reviewsOverride } from "./reviews-surface";
+import { headline } from "./headline";
+import { reviews } from "./reviews-surface";
 import { keepReportPeriod, paintHeldReports, reportsOverride, shownReportPeriod } from "./surface";
 
 /**
- * The Reviews lens says the period too: the read this tab holds for it paints at once, wherever the pick was made, and a read is made
- * behind it only while the lens is on screen and none is held or the held one is old (reviews-surface.ts). Off the lens nothing is
- * read: it reads as it comes on screen (readWhatWasMissed), a period it does not hold being stale.
+ * The reads that say the period too (period-surface.ts). Each is read behind a pick only when none is held for the period or the held
+ * one is old, so a pick does not double a read nobody is looking at. `preReads`: Today's line is read behind a pick wherever it was
+ * made, so it is right when Today opens; the Reviews lens is read only while it is on screen, and otherwise as it comes on screen
+ * (readWhatWasMissed), a period it does not hold being stale.
  */
-function followReviews(): void {
-  paintHeldReviews();
-  if (ownsTheScreen(reviewsOverride.key, routeOnScreen()) && isReviewsStale()) void refreshSurfaces([reviewsOverride]);
+const followers = [
+  { surface: headline, preReads: true },
+  { surface: reviews, preReads: false },
+];
+
+/**
+ * The period shown moved, to a pick or back from one that failed (`kept`): each read paints what this tab holds for it, and, where it
+ * holds none that is fresh, is read behind it where its page is on screen (and, for a pick, where it reads ahead of its page).
+ */
+function followShownPeriod(kept: boolean): void {
+  for (const { surface, preReads } of followers) {
+    if (kept) surface.paintKept();
+    else surface.paintHeld();
+    const reads = (preReads && !kept) || ownsTheScreen(surface.override.key, routeOnScreen());
+    if (reads && surface.isStale()) void refreshSurfaces([surface.override]);
+  }
 }
 
 /** Whether the period was changed: `false` when its read failed, and the page still shows the one it had. */
 export async function setReportRange(period: ReportPeriodId): Promise<boolean> {
   const prev = surfaceValue("reports")?.period ?? period;
   keepReportPeriod(period);
-  // Today's line and Worth a look say the period too (the headline). One this tab holds paints at once; it is read behind that
-  // only when none is held for the period or the held one is old (headline.ts), so a pick on Reports does not double the heaviest
-  // read for a line nobody is looking at. Its sentence always names its own period, so it is never wrong, only a read behind.
-  paintHeldHeadline();
-  if (isHeadlineStale()) void refreshSurfaces([reportsHeadlineOverride]);
-  followReviews();
+  // Today's line and Worth a look say the period too (the headline), and so does the Reviews lens. One this tab holds paints at once;
+  // it is read behind that only when none is held for the period or the held one is old.
+  followShownPeriod(false);
   // A period this tab has read paints at once; the read behind it keeps it current (the loading standard's held
   // views). Only a period never read waits for its read.
   if (paintHeldReports()) {
@@ -45,10 +56,8 @@ export async function setReportRange(period: ReportPeriodId): Promise<boolean> {
   // old period, so the preferred period goes back too, or the next background refresh would load the new one silently.
   if (surfaceValue("reports")?.period !== period) {
     keepReportPeriod(prev);
-    // And Today says the period kept: the headline of the period that failed may have landed behind the pick.
-    paintKeptHeadline();
-    // So does the Reviews lens: what it read for the period that failed may have landed too.
-    followReviews();
+    // And what follows it says the period kept: what it read for the period that failed may have landed behind the pick.
+    followShownPeriod(true);
     return false;
   }
   return true;

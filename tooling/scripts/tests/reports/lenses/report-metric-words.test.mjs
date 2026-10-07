@@ -7,7 +7,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
-import { DEALS, REVIEWS_NOW, campaignDto, cday, reviewsDto, reviewsGoogle, surface } from "../_report-world.mjs";
+import { DEALS, campaignDto, cday, reviewsDto, reviewsGoogle, reviewsHeld, surface } from "../_report-world.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.window.fetch = async () =>
@@ -15,8 +15,9 @@ globalThis.window.fetch = async () =>
 const S = "../../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
 const { forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
-const { bookedTileOf, metricWordsOf, toGoogleVM, toReviewsReportVM, REPLY_WINDOW_WORDS, DELIVERY_RECEIPTS_WORDS } =
+const { bookedTileOf, metricWordsOf, toGoogleVM, REPLY_WINDOW_WORDS, DELIVERY_RECEIPTS_WORDS } =
   await import("@chanlytics/contracts");
 after(() => forgetStanding());
 
@@ -73,19 +74,14 @@ const workspace = () => {
   ];
   globalThis.__ACTIVE_WORKSPACE = "w1";
 };
-/** The Reviews read for seven days as the surface holds it, folded once by contracts. */
-const held = (dto) => ({
-  dto,
-  vm: toReviewsReportVM(dto, { nowMs: REVIEWS_NOW }),
-  period: "7d",
-  fetchedAt: 1,
-});
+const held = reviewsHeld;
 /** Google's public listing alone: the five reviews it shows, the Business Profile not connected, and so no ledger. */
 const PUBLIC_LISTING = held(reviewsDto({ days: 7, google: GOOGLE, ledger: null }));
 /** Harbor Studio with its Business Profile synced: the reviews on record are counted. */
 const PROFILE_SYNCED = held(reviewsDto({ days: 7, google: reviewsGoogle() }));
 const draw = (lens, R, reviews = PUBLIC_LISTING) => {
   workspace();
+  keepReportPeriod("7d");
   setSurfaceValue("reports", R);
   setSurfaceValue("reports_reviews", reviews);
   fresh();
@@ -101,7 +97,7 @@ const said = (fig) => ({
 
 test("every figure the reports build names a metric that has words, and no two metrics say the same", () => {
   const R = surface({ deals: DEALS });
-  const reviews = toReviewsReportVM(reviewsDto({ days: 7 }), { nowMs: REVIEWS_NOW });
+  const reviews = reviewsHeld(reviewsDto({ days: 7 })).vm;
   const tiles = [
     ...R.vm.tiles,
     bookedTileOf(R.booking),

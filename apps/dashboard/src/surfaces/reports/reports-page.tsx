@@ -3,11 +3,12 @@
  * lenses, each at its own address (`/w/<slug>/reports/<lens>`, the Overview at `/w/<slug>/reports`). The page follows its own
  * address, as People's does (the path the App Router page hands it), so a move between two lenses is a pushed or replaced entry and
  * never a request for a page, and every lens but Reviews draws from the one read the surface holds, so a move asks for nothing and
- * never blanks the body (Reviews draws from a read of its own, reviews-surface.ts, made as it comes on screen). The frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the period is the page's
- * act at the strip's right, a round button that opens it (period-picker.tsx), with its days beside it on a desk; the page draws
- * the lens's body (lenses/). A real workspace draws the bridge's own numbers
- * (`useSurface("reports")`); a demo session draws the same page from the contracts sample (sample.ts); without either, the page says
- * what Reports reads.
+ * never blanks the body. Reviews draws from a read of its own (reviews-surface.ts, made as it comes on screen) that follows the period
+ * shown: the page asks how it stands against it once (`useFollower`) and hands that to the lens, the head and its own dimming. The
+ * frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the period is the page's act at the strip's right, a
+ * round button that opens it (period-picker.tsx), with its days beside it on a desk; the page draws the lens's body (lenses/). A real
+ * workspace draws the bridge's own numbers (`useSurface("reports")`); a demo session draws the same page from the contracts sample
+ * (sample.ts); without either, the page says what Reports reads.
  */
 import { useEffect, useState } from "react";
 import {
@@ -20,7 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { demoSession } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
-import { useSurface } from "../use-surface";
+import { useFollower, useSurface, type Follower } from "../use-surface";
 import { useRptDesk, useRptPhone } from "./blocks";
 import { lensShownHere } from "./chrome";
 import { useReportsStanding } from "./head";
@@ -29,11 +30,12 @@ import { OverviewLens } from "./lenses/overview";
 import { PeopleLens } from "./lenses/people";
 import { PipelineLens } from "./lenses/pipeline";
 import { ReceptionistLens } from "./lenses/receptionist";
-import { ReviewsLens, useReviewsLag } from "./lenses/reviews";
+import { ReviewsLens } from "./lenses/reviews";
 import { LensEmpty, type LensProps } from "./lenses/shared";
 import { setReportRange } from "./period";
 import { PeriodPicker } from "./period-picker";
-import { reportsSample } from "./sample";
+import type { ReviewsSurface } from "./reviews-surface";
+import { reportsSample, reviewsSample } from "./sample";
 import type { ReportsSurface } from "./surface";
 
 /** Reports read nothing: a session with no workspace, and no demo to draw. */
@@ -64,7 +66,7 @@ function failedRow(failed: ReportPeriodId | null, R: ReportsSurface) {
 }
 
 /** The lens's body: nothing where it is not yet known to be shown, what it says where it is not shown, else its cards. */
-function lensBody(lens: LensId, props: LensProps, shown: boolean | null) {
+function lensBody(lens: LensId, props: LensProps, shown: boolean | null, reviews: Follower<ReviewsSurface>) {
   if (shown === null) return null;
   if (!shown) return <LensEmpty lens={lens} vm={props.R.vm} />;
   switch (lens) {
@@ -79,7 +81,13 @@ function lensBody(lens: LensId, props: LensProps, shown: boolean | null) {
     case "campaigns":
       return <CampaignsLens {...props} />;
     case "reviews":
-      return <ReviewsLens {...props} />;
+      return (
+        <ReviewsLens
+          reviews={reviews}
+          range={{ since: props.R.vm.since, until: props.R.vm.until }}
+          phone={props.phone}
+        />
+      );
   }
 }
 
@@ -89,6 +97,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const lens = lensOfRoute(routeOfPath(pathname) ?? "reports") ?? "overview";
   const phone = useRptPhone();
   const live = useSurface("reports");
+  const following = useFollower("reports_reviews");
   // A demo's own period: the sample answers at once, so the tabs switch it here.
   const [samplePeriod, setSamplePeriod] = useState<ReportPeriodId>(REPORT_PERIOD_DEFAULT);
   // The period picked and not yet shown: what the control says, and what dims the body until its answer lands.
@@ -101,8 +110,9 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
     setPending(null);
   }, [fetchedAt]);
   const R = live || (demoSession() ? reportsSample(samplePeriod) : null);
-  // The Reviews read is its own: a pick lands it after the report or before it, and the lens it dims is its own to say.
-  const reviewsLag = useReviewsLag(R);
+  // The Reviews read is its own: a pick lands it after the report or before it, and what it says of that is its state. A demo draws the sample.
+  const reviews: Follower<ReviewsSurface> =
+    !live && R ? { value: reviewsSample(R.period), state: "current" } : following;
   const desk = useRptDesk();
   const pick = async (period: ReportPeriodId) => {
     // The one shown, or the one on its way: nothing to read. Any other pick is read, whatever else is out.
@@ -123,12 +133,13 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const act = R ? (
     <PeriodPicker chosen={pending ?? R.period} today={R.vm.today} timezone={R.vm.timezone} pick={pick} desk={desk} />
   ) : null;
-  useReportsStanding(lens, R, act);
+  // Its sentence names its period: nothing is said of one the lens cannot show.
+  useReportsStanding(lens, R, reviews.state === "failed" ? null : (reviews.value?.vm ?? null), act);
   if (!R) return readsAWorkspace();
   // Dimmed while the page shows another period than the one picked. A pick painted at once from a held view (a pick back to
   // the period on screen, made while another loads) waits on nothing, though the read behind it is still out. On the Reviews lens
   // the same, while its own read is of another period than the one shown (one that failed is the lens's own card, not a dimming).
-  const busy = (pending !== null && pending !== R.period) || (lens === "reviews" && reviewsLag === "coming");
+  const busy = (pending !== null && pending !== R.period) || (lens === "reviews" && reviews.state === "coming");
   return (
     // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
     <div
@@ -142,7 +153,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
             frame's head says Reports and the lens's answer; the page does not title itself. */}
         {failedRow(failed, R)}
         <div className="rpt-body" data-dims aria-busy={busy ? "true" : "false"}>
-          {lensBody(lens, { R, pick, phone }, lensShownHere(lens))}
+          {lensBody(lens, { R, pick, phone }, lensShownHere(lens), reviews)}
         </div>
       </div>
     </div>

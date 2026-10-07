@@ -1,12 +1,13 @@
 /**
  * The demo's Reports (surfaces/reports/sample.ts, which the page imports and draws in a demo session), EXECUTED: a
  * sample business through the contracts functions a real workspace's numbers go through. The same day gives the same numbers, and every total agrees with its parts, because a demo that adds up
- * wrong teaches the viewer to distrust the real page.
+ * wrong teaches the viewer to distrust the real page. The Reviews lens's sample is the listing Google shows with no Business Profile
+ * behind it, through the Reviews fold.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fixedDaysOf } from "@chanlytics/contracts";
-import { reportsSample } from "../../../../apps/dashboard/src/surfaces/reports/sample.ts";
+import { reportsSample, reviewsSample } from "../../../../apps/dashboard/src/surfaces/reports/sample.ts";
 
 const TODAY = "2026-09-18";
 
@@ -108,5 +109,35 @@ test("the sample's channels (0030) share each period's figures, every part insid
       }
       assert.ok(campaigns.totals.read <= campaigns.totals.readOf, `${at}: a read of WhatsApp's own`);
     }
+  }
+});
+
+test("the Reviews sample is the public listing through the Reviews fold: four figures, the ratings it gained, the five reviews Google shows, and what a profile would add; kept per period and day", () => {
+  const a = reviewsSample("30d", TODAY);
+  assert.equal(a, reviewsSample("30d", TODAY), "kept rather than rebuilt on every draw");
+  assert.deepEqual(Object.keys(a).sort(), ["period", "vm"], "what the surface holds");
+  assert.equal(reviewsSample("14d", TODAY).period, "30d", "a period Reports does not offer is the default one");
+  for (const id of ["7d", "30d", "90d", "month"]) {
+    const s = reviewsSample(id, TODAY);
+    const days = fixedDaysOf(id) ?? 18;
+    assert.equal(s.period, id);
+    assert.deepEqual(
+      [s.vm.state, s.vm.source, s.vm.days, s.vm.empty],
+      ["linked", "places", days, false],
+      `${id}: a listing is linked and no profile is`,
+    );
+    assert.deepEqual(
+      s.vm.tiles.map((t) => t.metric),
+      ["rating", "reviews", "ratings_gained", "newest_review"],
+      `${id}: the listing's own four`,
+    );
+    assert.equal(s.vm.google.gained.points.length, days, `${id}: a reading's difference for each day of the period`);
+    assert.equal(s.vm.latest.length, 5, `${id}: the five Google shows`);
+    assert.ok(
+      s.vm.latest.every((r) => !r.fromProfile && !r.replied),
+      `${id}: none can be answered from here`,
+    );
+    assert.equal(s.vm.lines.connect, "Connect your Business Profile to see every review, who answered, and how fast.");
+    assert.equal(typeof s.vm.lines.head, "string", `${id}: and its head says the listing`);
   }
 });

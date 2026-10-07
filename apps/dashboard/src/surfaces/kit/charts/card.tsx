@@ -5,7 +5,7 @@
  * and stay while the table shows. The card owns the series: `config` is published as --color-<key> on its <section>.
  */
 import { useState } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import type { MouseEvent, ReactNode, Ref } from "react";
 import { csvCell } from "@chanlytics/contracts";
 import { holdStill } from "../../legacy-verbs";
 import { downloadCsv } from "../download";
@@ -106,6 +106,8 @@ interface ChartCardProps {
   twin?: ChartTwin | null;
   /** A card whose body is already a table passes false: the CSV stays, the switch would only swap a table for a table. */
   switchable?: boolean;
+  /** The title as a place focus can be sent to (a page that takes a row out of the card sends focus here); it takes no tab stop. */
+  titleRef?: Ref<HTMLHeadingElement>;
   children?: ReactNode;
 }
 
@@ -120,6 +122,7 @@ export function ChartCard({
   table = null,
   twin = null,
   switchable = true,
+  titleRef,
   children,
 }: ChartCardProps) {
   const [asTable, setAsTable] = useState(false);
@@ -136,7 +139,9 @@ export function ChartCard({
     >
       <header className="ck-card-head">
         <div className="ck-card-titles">
-          <h3 className="ck-card-title">{title}</h3>
+          <h3 className="ck-card-title" ref={titleRef} {...(titleRef && { tabIndex: -1 })}>
+            {title}
+          </h3>
           {takeaway && <p className="ck-card-takeaway">{takeaway}</p>}
         </div>
         {data && (

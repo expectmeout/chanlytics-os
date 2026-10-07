@@ -3,7 +3,14 @@
  * bridge's contracts functions make its view models (the fixtures every Reports test shares; nothing here is a real
  * business: Harbor Studio's numbers are made up).
  */
-import { toReportVM, toCampaignReportVM, toBookingReportVM, toDealReportVM, reportFacts } from "@chanlytics/contracts";
+import {
+  toReportVM,
+  toCampaignReportVM,
+  toBookingReportVM,
+  toDealReportVM,
+  toReviewsReportVM,
+  reportFacts,
+} from "@chanlytics/contracts";
 
 /* ------------- a week that has everything: Sat Aug 29 to Fri Sep 4, 2026, after a quieter week ------------- */
 
@@ -361,3 +368,6 @@ export const reviewsDto = (over = {}) => ({
   ledger: reviewsLedger(),
   ...over,
 });
+
+/** The Reviews read as the surface holds it (reviews-surface.ts): the fold of an answer, and the period it is of. */
+export const reviewsHeld = (dto, period = "7d") => ({ vm: toReviewsReportVM(dto, { nowMs: REVIEWS_NOW }), period });

@@ -2,7 +2,9 @@
  * Reports' page by lens (surfaces/reports/reports-page.tsx), EXECUTED on the stub React over the one read the surface holds: each
  * lens draws its own body and none another's, the head says "Reports" and the lens's answer, a move between lenses asks for
  * nothing and never blanks the body, and a lens the workspace has no use for, or a period with nothing in it, says so in the
- * registry's words.
+ * registry's words. The Reviews lens draws from the read that follows the period shown (`useFollower`): while it is of another
+ * period the page dims once, when it could not be made the lens says so with its Retry, and what it says where nothing is linked is
+ * the fold's, with a door only for a person who may use it.
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,11 +12,11 @@ import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from 
 import {
   DEALS,
   NO_DEALS,
-  REVIEWS_NOW,
   campaignDto,
   quiet,
   reviewsDto,
   reviewsGoogle,
+  reviewsHeld,
   surface,
 } from "../_report-world.mjs";
 
@@ -29,9 +31,10 @@ globalThis.window.fetch = async (url) => {
 const S = "../../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
 const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { standingSaid, forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
-const { lensAnswerOf, toReviewsReportVM } = await import("@chanlytics/contracts");
+const { lensAnswerOf, lensEmpty } = await import("@chanlytics/contracts");
 after(() => forgetStanding());
 
 const at = (lens) => `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}`;
@@ -49,18 +52,12 @@ const workspace = (sellsBy) => {
   ];
   globalThis.__ACTIVE_WORKSPACE = "w1";
 };
-/** The Reviews read as the surface holds it: the answer, its fold, the period it is of and when it was made. */
-const held = (dto, period = "7d") => ({
-  dto,
-  vm: toReviewsReportVM(dto, { nowMs: REVIEWS_NOW }),
-  period,
-  fetchedAt: 1,
-});
+const held = reviewsHeld;
 const NOTHING_LINKED = { listing: null, connection: null, reviews: [], days: [] };
 /** Google answered, and nothing is linked: this deployment can look a listing up, and none is kept. */
 const REVIEWS_NONE = held(reviewsDto({ days: 7, google: reviewsGoogle(NOTHING_LINKED), ledger: null }));
 /** Google answered, and nothing is linked: this deployment cannot look a listing up and none is kept. */
-const REVIEWS_UNLINKED = held(
+const REVIEWS_UNAVAILABLE = held(
   reviewsDto({
     days: 7,
     google: reviewsGoogle(NOTHING_LINKED),
@@ -72,6 +69,8 @@ const REVIEWS_UNLINKED = held(
 const REVIEWS_LINKED = held(reviewsDto({ days: 7 }));
 /** The lens drawn over a surface: the page for its address. */
 const draw = (lens, opts = {}) => {
+  // The period the strip shows, which the Reviews read follows: what it holds is current when it is of this one.
+  keepReportPeriod("7d");
   setSurfaceValue("reports", opts.R ?? surface({ deals: DEALS }));
   setSurfaceValue("reports_reviews", "reviews" in opts ? opts.reviews : REVIEWS_NONE);
   fresh();
@@ -188,7 +187,7 @@ test("a lens the workspace has no use for says so at its address, in the registr
   assert.ok(byTestId(none, "lens-empty"), "deals on and none ever recorded: the same words, never a blank");
 });
 
-test("a period with nothing in it says so on each lens that draws sections, and Reviews says what it needs where Google answered that nothing is linked", () => {
+test("a period with nothing in it says so on each lens that draws sections", () => {
   workspace("booking");
   const R = surface({ report: quiet(), deals: NO_DEALS });
   for (const lens of ["overview", "receptionist", "people"]) {
@@ -198,8 +197,47 @@ test("a period with nothing in it says so on each lens that draws sections, and 
       lens,
     );
   }
-  const reviews = draw("reviews", { reviews: REVIEWS_UNLINKED });
-  assert.ok(textOf(byTestId(reviews, "lens-empty")).includes("Find your business on Google once."));
+});
+
+test("Reviews says why nothing is drawn where nothing is linked, in the fold's words: a deployment that cannot look a listing up says so and offers no door, one that can says what the lens would show, and the door to find it is for a person who may use it", () => {
+  workspace("booking");
+  const wasCanDo = globalThis.canDo;
+  const door = (tree) => find(byTestId(tree, "google-none"), (n) => n.type === "button");
+  const found = lensEmpty("reviews", { since: "Aug 29", until: "Sep 4" });
+  try {
+    for (const [who, may] of [
+      ["an owner", () => true],
+      ["an operator", (action) => action === "approve"],
+      ["a viewer", () => false],
+    ]) {
+      globalThis.canDo = may;
+      // Nothing can be looked up or connected: the words say so, and no door leads anywhere.
+      const unavailable = draw("reviews", { reviews: REVIEWS_UNAVAILABLE });
+      assert.equal(REVIEWS_UNAVAILABLE.vm.state, "unavailable");
+      assert.notEqual(
+        REVIEWS_UNAVAILABLE.vm.lines.empty,
+        found.title,
+        "its own words, not the registry's for a listing still to find",
+      );
+      assert.ok(textOf(byTestId(unavailable, "google-none")).includes(REVIEWS_UNAVAILABLE.vm.lines.empty), who);
+      assert.equal(door(unavailable), null, `${who}: a door to nothing is not drawn`);
+      assert.equal(
+        byTestId(unavailable, "lens-empty"),
+        null,
+        `${who}: and the registry's words for a listing still to find are not said`,
+      );
+      // A listing can be found: the fold's words, the registry's body, and the door for who may find it.
+      const unlinked = draw("reviews", { reviews: REVIEWS_NONE });
+      assert.equal(REVIEWS_NONE.vm.state, "unlinked");
+      const said = textOf(byTestId(unlinked, "google-none"));
+      assert.ok(said.includes(REVIEWS_NONE.vm.lines.empty) && said.includes(found.body), who);
+      if (who === "an owner")
+        assert.equal(textOf(door(unlinked)), found.door.label, `${who}: the door to the first run's Find`);
+      else assert.equal(door(unlinked), null, `${who}: the words without a door`);
+    }
+  } finally {
+    globalThis.canDo = wasCanDo;
+  }
 });
 
 test("Reviews draws nothing while its own read is out: a read still out is not 'nothing is linked'", () => {
@@ -259,6 +297,7 @@ test("a pick whose Reviews read could not be made says so, with its Retry, and n
   setStatus("reports_reviews", "degraded");
   const left = held(reviewsDto({ days: 30 }), "30d");
   const stuck = draw("reviews", { reviews: left });
+  assert.equal(standingSaid().sentence, undefined, "the head says nothing of a period the lens cannot show");
   const words = byTestId(stuck, "reviews-failed");
   assert.ok(words, "the house's failed read, drawn in place of the period left");
   assert.ok(textOf(words).includes("Couldn't read your Google reviews"), textOf(words));
@@ -271,6 +310,11 @@ test("a pick whose Reviews read could not be made says so, with its Retry, and n
   assert.equal(dims(stuck)[0].props["aria-busy"], "false");
   // The same failed read, with what is held of the period the strip shows, says nothing: the figures are current.
   const current = draw("reviews", { reviews: REVIEWS_LINKED });
+  assert.equal(
+    standingSaid().sentence,
+    REVIEWS_LINKED.vm.lines.head,
+    "and the figures that stand are said at the head",
+  );
   assert.equal(byTestId(current, "reviews-failed"), null);
   assert.ok(byTestId(current, "google-tiles"), "the figures stand");
   // And the lens is the only page that says it: on another lens the Reviews read is nobody's.

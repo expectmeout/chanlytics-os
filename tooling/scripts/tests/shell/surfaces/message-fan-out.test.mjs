@@ -364,17 +364,19 @@ test("the Reviews lens hears the listing's tables only while it is on screen, an
   win.location.hash = "#/reports/reviews";
   const r = await running({ fresh: ["reports_reviews"] });
   try {
-    // A review seen for the first time: the lens re-reads its own, beside Google's own surface, which hears it everywhere.
+    // A review seen for the first time: the lens re-reads its own, and Google's own surface lets it pass, for the lens's read carries
+    // Google's and publishes it (no second read of the same listing while the lens is open).
     await r.change("google_reviews", "INSERT");
-    assert.deepEqual([...r.asked].sort(), ["google", "reports_reviews"], "the lens on screen follows the listing");
+    assert.deepEqual([...r.asked].sort(), ["reports_reviews"], "the lens on screen follows the listing, alone");
     for (const table of ["google_listings", "google_connections"]) {
       r.asked.length = 0;
       await r.change(table, "UPDATE");
       assert.equal(r.asked.includes("reports_reviews"), true, `${table}: heard on the lens`);
+      assert.equal(r.asked.includes("google"), false, `${table}: and not by Google's own`);
     }
     r.asked.length = 0;
 
-    // Elsewhere on Reports it is Google's surface alone that hears them: the lens's read is left for its lens.
+    // Elsewhere it is Google's surface alone that hears them, as it always did: the lens's read is left for its lens.
     for (const hash of ["#/reports", "#/reports/people", "#/inbox"]) {
       win.location.hash = hash;
       win.dispatchEvent({ type: "popstate" });
