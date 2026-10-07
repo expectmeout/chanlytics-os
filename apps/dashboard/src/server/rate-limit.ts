@@ -24,12 +24,17 @@
  * when the shared count cannot be read, it refuses (503) instead of falling
  * back to a per-instance count that a burst across instances walks past --
  * a ceiling on spend that cannot be held is not a ceiling.
+ *
+ * Cross-workspace: a limit counts per person or network, never per workspace; rate_hits holds no tenant_id.
  */
-import { AppError } from "@chanlytics/contracts";
-import { createServiceClient, type Database } from "@chanlytics/db";
+import { AppError, MIN_MS, HOUR_MS, waitWords } from "@chanlytics/contracts";
+import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isProduction } from "@/server/env";
+import { log } from "@/server/log";
+import { serviceDbIfConfigured } from "@/server/service-db";
 
-export interface RateRule {
+interface RateRule {
   limit: number;
   windowMs: number;
   /** What the refusal calls the thing being limited. */
@@ -39,24 +44,30 @@ export interface RateRule {
 /** One rule per bucket. Named by what the route DOES, not by its path. */
 export const RATE = {
   /** Invitations send real email. */
-  invite: { limit: 10, windowMs: 3_600_000, noun: "invitations" },
+  invite: { limit: 10, windowMs: HOUR_MS, noun: "invitations" },
   /** A role change or a removal. Neither had a limit and nothing said why; one person reshaping a roster stays well under this, a script does not. */
-  team: { limit: 30, windowMs: 3_600_000, noun: "team changes" },
+  team: { limit: 30, windowMs: HOUR_MS, noun: "team changes" },
   /** A reply reaches a real person. */
-  reply: { limit: 30, windowMs: 60_000, noun: "replies" },
+  reply: { limit: 30, windowMs: MIN_MS, noun: "replies" },
   /**
    * Taking a thread over, handing it back, snoozing, waking, archiving,
    * resolving, calling back a send. None had a limit and nothing said why.
    * One person working an inbox stays well under two a second; a script
    * flipping a thread between the receptionist and a person does not.
    */
-  thread_state: { limit: 120, windowMs: 60_000, noun: "conversation changes" },
+  thread_state: { limit: 120, windowMs: MIN_MS, noun: "conversation changes" },
   /** Irreversible, and a job per erasure. */
-  erase: { limit: 5, windowMs: 3_600_000, noun: "erasures" },
+  erase: { limit: 5, windowMs: HOUR_MS, noun: "erasures" },
+  /** Irreversible too (0028), and refused pairs spend a turn: an owner tidying a list of duplicates stays under this. */
+  merge: { limit: 20, windowMs: HOUR_MS, noun: "merges" },
   /** A sentence into a live call. */
-  whisper: { limit: 20, windowMs: 60_000, noun: "whispers" },
+  whisper: { limit: 20, windowMs: MIN_MS, noun: "whispers" },
   /** Ending a call, or passing it to the business. */
-  call_control: { limit: 20, windowMs: 60_000, noun: "call controls" },
+  call_control: { limit: 20, windowMs: MIN_MS, noun: "call controls" },
+  /** A voice conversation started on the agent (spec 2026-10-03-ask-spoken-design.md, §3.1): each one mints a token. */
+  voice: { limit: 30, windowMs: HOUR_MS, noun: "voice conversations" },
+  /** A brief or an answer read aloud in Ask's voice (spec §3.5, amended 4 Oct 2026): each one is a vendor call. */
+  speech: { limit: 60, windowMs: HOUR_MS, noun: "spoken briefs" },
   /**
    * metrics_summary, report_series, the campaign series and the calendar
    * feed: the plpgsql aggregates and the one outside read. One load of Today
@@ -66,32 +77,38 @@ export const RATE = {
    * workspace" for a rate limit. Sixty loads a minute clears honest use; a
    * script still cannot hammer the database.
    */
-  aggregate: { limit: 240, windowMs: 60_000, noun: "report requests" },
+  aggregate: { limit: 240, windowMs: MIN_MS, noun: "report requests" },
   /** Whole-config writes and policy flips. */
-  settings: { limit: 30, windowMs: 60_000, noun: "settings changes" },
+  settings: { limit: 30, windowMs: MIN_MS, noun: "settings changes" },
   /** A new tenant, its rows and its provisioning. */
-  create_workspace: { limit: 5, windowMs: 3_600_000, noun: "new workspaces" },
+  create_workspace: { limit: 5, windowMs: HOUR_MS, noun: "new workspaces" },
   /** A person's receptionist mode. */
-  person_mode: { limit: 60, windowMs: 60_000, noun: "receptionist changes" },
-  consent: { limit: 60, windowMs: 60_000, noun: "consent changes" },
-  lists: { limit: 60, windowMs: 60_000, noun: "list changes" },
+  person_mode: { limit: 60, windowMs: MIN_MS, noun: "receptionist changes" },
+  consent: { limit: 60, windowMs: MIN_MS, noun: "consent changes" },
+  lists: { limit: 60, windowMs: MIN_MS, noun: "list changes" },
   broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" },
-  playbook: { limit: 30, windowMs: 60_000, noun: "playbook changes" },
+  playbook: { limit: 30, windowMs: MIN_MS, noun: "playbook changes" },
   /** A person added by hand — from an appointment, before they ever write. */
-  person_create: { limit: 60, windowMs: 3_600_000, noun: "people added" },
+  person_create: { limit: 60, windowMs: HOUR_MS, noun: "people added" },
+  /** A client list arrives in parts of fifty: two hundred and forty parts an hour is twelve thousand people, and a script is not. */
+  person_import: { limit: 240, windowMs: HOUR_MS, noun: "import parts" },
   /** A person's name or the notes the receptionist reads. */
-  person_edit: { limit: 60, windowMs: 60_000, noun: "profile edits" },
+  person_edit: { limit: 60, windowMs: MIN_MS, noun: "profile edits" },
   /** Read and dismiss marks on the bell. */
-  notify_mark: { limit: 120, windowMs: 60_000, noun: "notification marks" },
-  setup_request: { limit: 5, windowMs: 3_600_000, noun: "setup requests" },
-  lines_search: { limit: 20, windowMs: 3_600_000, noun: "number searches" },
-  lines_buy: { limit: 3, windowMs: 3_600_000, noun: "lines" },
-  lines_retry: { limit: 10, windowMs: 3_600_000, noun: "line retries" },
-  lines_forwarding: { limit: 10, windowMs: 3_600_000, noun: "forwarding changes" },
+  notify_mark: { limit: 120, windowMs: MIN_MS, noun: "notification marks" },
+  setup_request: { limit: 5, windowMs: HOUR_MS, noun: "setup requests" },
+  lines_search: { limit: 20, windowMs: HOUR_MS, noun: "number searches" },
+  lines_buy: { limit: 3, windowMs: HOUR_MS, noun: "lines" },
+  lines_retry: { limit: 10, windowMs: HOUR_MS, noun: "line retries" },
+  lines_forwarding: { limit: 10, windowMs: HOUR_MS, noun: "forwarding changes" },
+  /** The codes texted to the line, read while Meta's sign-up window is open: the page asks every three seconds (twenty a minute), and once when it opens. */
+  lines_codes: { limit: 40, windowMs: MIN_MS, noun: "checks for codes" },
+  /** Asking Meta what it holds about a number: a Graph read each, asked only when a page opens on a standing that is missing or not available. */
+  whatsapp_standing: { limit: 12, windowMs: HOUR_MS, noun: "checks of your WhatsApp number" },
   /** The business on record: edited freely, but it is a write that leaves for a provider. */
-  business_record: { limit: 20, windowMs: 3_600_000, noun: "changes to your business record" },
+  business_record: { limit: 20, windowMs: HOUR_MS, noun: "changes to your business record" },
   /** Filing with the carriers costs money and cannot be undone. */
-  lines_register: { limit: 3, windowMs: 3_600_000, noun: "registrations" },
+  lines_register: { limit: 3, windowMs: HOUR_MS, noun: "registrations" },
   /*
    * THE BACK OFFICE'S OWN CEILINGS, because the three ops routes were borrowing
    * the owner buckets above and this table's own rule is "named by what the route
@@ -112,45 +129,79 @@ export const RATE = {
    * registration is exactly what a limit is for. Release stays the tightest --
    * it is permanent, and a number handed back cannot be reclaimed.
    */
-  platform_line_retry: { limit: 30, windowMs: 3_600_000, noun: "line retries for other workspaces" },
-  platform_line_refile: { limit: 20, windowMs: 3_600_000, noun: "registrations resent for other workspaces" },
-  platform_line_release: { limit: 5, windowMs: 3_600_000, noun: "numbers handed back" },
+  platform_line_retry: { limit: 30, windowMs: HOUR_MS, noun: "line retries for other workspaces" },
+  platform_line_refile: { limit: 20, windowMs: HOUR_MS, noun: "registrations resent for other workspaces" },
+  platform_line_release: { limit: 5, windowMs: HOUR_MS, noun: "numbers handed back" },
   /**
    * Marking somebody on the waiting list as invited. Generous, because working
    * down a queue is exactly this action repeated -- it costs nothing, sends
    * nothing and can be undone by nobody, so the ceiling is here to stop a loop
    * rather than to ration a support shift.
    */
-  platform_waitlist_invited: { limit: 200, windowMs: 3_600_000, noun: "people marked as invited" },
-  profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
+  platform_waitlist_invited: { limit: 200, windowMs: HOUR_MS, noun: "people marked as invited" },
+  profile_set: { limit: 10, windowMs: HOUR_MS, noun: "name changes" },
+  /** Becoming a partner (0012): once per account, so the bucket is for the codes tried. */
+  partner_become: { limit: 10, windowMs: HOUR_MS, noun: "partner codes tried" },
+  /** A partner's daily letter on or off (0014): a switch, pressed by hand. */
+  partner_letters: { limit: 30, windowMs: HOUR_MS, noun: "email settings changed" },
+  /**
+   * A partner sets a workspace up for a business, or sends its handover again (0016): each writes to a person who has
+   * not asked for anything yet, so the ceiling is a working session's, not a loop's.
+   */
+  partner_handover: { limit: 20, windowMs: 3_600_000, noun: "workspaces handed over" },
+  /** The owner's answer to a handover (0016): accept or decline, pressed by hand. */
+  handover_answer: { limit: 30, windowMs: 3_600_000, noun: "handover answers" },
+  /** An owner asks a partner to join, or takes it back (0020): each writes to a partner, so the ceiling is a working session's. */
+  partner_invite: { limit: 20, windowMs: HOUR_MS, noun: "partner invitations" },
+  /** A partner's answer to a workspace that asked (0020): join or decline, pressed by hand. */
+  partner_invite_answer: { limit: 30, windowMs: HOUR_MS, noun: "invitation answers" },
+  /**
+   * The back office's partner verbs (0012, P5): a person's decision on a workspace a partner brought, and a payout
+   * recorded. Worked down a list like the waiting list, but each one moves money or a partner's standing, so the
+   * ceilings are a support session's, not a loop's.
+   */
+  platform_partner_standing: { limit: 60, windowMs: HOUR_MS, noun: "partner standings set" },
+  platform_partner_payout: { limit: 30, windowMs: HOUR_MS, noun: "partner payouts recorded" },
+  platform_partner_status: { limit: 20, windowMs: HOUR_MS, noun: "partners paused or restored" },
+  /**
+   * A failed job run again for another workspace (the back office's requeue door): worked down a list of failures after
+   * an outage is fixed, so a support session's ceiling, and still a ceiling: each one is a job run again.
+   */
+  platform_job_requeue: { limit: 60, windowMs: HOUR_MS, noun: "jobs run again for other workspaces" },
+  /** A partner's authenticator removed after a person checked it is them (0013): rare, and each one is a phone call. */
+  platform_partner_second_factor: { limit: 10, windowMs: HOUR_MS, noun: "second factors reset" },
   /** The native app's sign-in door (app/auth/native): per network, a token that does not verify costs a call each time. */
-  native_sign_in: { limit: 20, windowMs: 3_600_000, noun: "sign-ins" },
+  native_sign_in: { limit: 20, windowMs: HOUR_MS, noun: "sign-ins" },
   /** The phone app registers its push token on launch (me/devices); sixty an hour is a loop, not a person. */
-  device_register: { limit: 60, windowMs: 3_600_000, noun: "device registrations" },
+  device_register: { limit: 60, windowMs: HOUR_MS, noun: "device registrations" },
   /** A stranger at the door: per network they came from and per address they typed. */
-  signup_ip: { limit: 5, windowMs: 3_600_000, noun: "sign-ups" },
-  signup_email: { limit: 3, windowMs: 3_600_000, noun: "sign-ups" },
+  signup_ip: { limit: 5, windowMs: HOUR_MS, noun: "sign-ups" },
+  signup_email: { limit: 3, windowMs: HOUR_MS, noun: "sign-ups" },
   /** Each is a paid call to Google, made for an owner who typed a few words. */
-  google_search: { limit: 20, windowMs: 3_600_000, noun: "listing searches" },
-  google_link: { limit: 10, windowMs: 3_600_000, noun: "listing changes" },
-  google_refresh: { limit: 6, windowMs: 3_600_000, noun: "listing reads" },
+  google_search: { limit: 20, windowMs: HOUR_MS, noun: "listing searches" },
+  google_link: { limit: 10, windowMs: HOUR_MS, noun: "listing changes" },
+  google_refresh: { limit: 6, windowMs: HOUR_MS, noun: "listing reads" },
   /** A reply reaches Google under the business's name. */
-  google_reply: { limit: 20, windowMs: 3_600_000, noun: "review replies" },
-  google_draft: { limit: 30, windowMs: 3_600_000, noun: "review drafts" },
+  google_reply: { limit: 20, windowMs: HOUR_MS, noun: "review replies" },
+  google_draft: { limit: 30, windowMs: HOUR_MS, noun: "review drafts" },
   /** A Checkout or portal session, a resume, a sync: each a call to Stripe for an owner that changes something. */
-  billing: { limit: 20, windowMs: 3_600_000, noun: "billing requests" },
+  billing: { limit: 20, windowMs: HOUR_MS, noun: "billing requests" },
   /** Reading the invoices: a call to Stripe that changes nothing, and must not spend the Checkout bucket. */
-  billing_read: { limit: 60, windowMs: 3_600_000, noun: "billing reads" },
+  billing_read: { limit: 60, windowMs: HOUR_MS, noun: "billing reads" },
   /** A whole thread, a whole call, or everyone, as a file. */
-  export: { limit: 10, windowMs: 60_000, noun: "exports" },
+  export: { limit: 10, windowMs: MIN_MS, noun: "exports" },
   /** A page remembering its view: a sort, a tab. One small write per click at most. */
-  view_set: { limit: 60, windowMs: 60_000, noun: "view changes" },
+  view_set: { limit: 60, windowMs: MIN_MS, noun: "view changes" },
+  /** A page load's timings (vitals), sent each time a tab is put away: sixty a minute is a loop, not a person. */
+  vitals: { limit: 60, windowMs: MIN_MS, noun: "page timings" },
+  /** An error a page hit, sent by its boundary once per error per load: twenty an hour is a broken page, not a flood. */
+  client_errors: { limit: 20, windowMs: HOUR_MS, noun: "error reports" },
   /** A lead search: a provider run and a judge on the platform's account (the door reserves the month; this stops a loop). */
-  lead_search: { limit: 10, windowMs: 3_600_000, noun: "lead searches" },
+  lead_search: { limit: 10, windowMs: HOUR_MS, noun: "lead searches" },
   /** An answer to the question after 25, or a Stop. */
-  lead_answer: { limit: 30, windowMs: 3_600_000, noun: "search answers" },
+  lead_answer: { limit: 30, windowMs: HOUR_MS, noun: "search answers" },
   /** Keep, exclude, put back, undo, and every B act on ONE lead or ONE search: one click each, many in a session. */
-  lead_member: { limit: 120, windowMs: 60_000, noun: "lead changes" },
+  lead_member: { limit: 120, windowMs: MIN_MS, noun: "lead changes" },
   /**
    * The lead finder's three from release B. There is deliberately no fourth for
    * a single lead's edit: it would be this file's `lead_member` to the
@@ -158,33 +209,39 @@ export const RATE = {
    * apart. The two model buckets are per PERSON and small because both spend
    * Ask's one daily budget.
    */
-  lead_bulk: { limit: 30, windowMs: 60_000, noun: "changes to many leads" },
-  lead_draft: { limit: 60, windowMs: 3_600_000, noun: "email drafts" },
-  lead_suggest: { limit: 10, windowMs: 3_600_000, noun: "suggestion requests" },
+  lead_bulk: { limit: 30, windowMs: MIN_MS, noun: "changes to many leads" },
+  lead_draft: { limit: 60, windowMs: HOUR_MS, noun: "email drafts" },
+  /** A reach-out's preview (Part 4, R12): one business's email written by the model, counted in Ask's day as well. */
+  reach_out_preview: { limit: 10, windowMs: MIN_MS, noun: "previews" },
+  lead_suggest: { limit: 10, windowMs: HOUR_MS, noun: "suggestion requests" },
   /** A question to the workspace assistant: a model turn, tools and all. */
   ask: { limit: 20, windowMs: 60_000, noun: "questions" },
 } as const satisfies Record<string, RateRule>;
 
 export type RateBucket = keyof typeof RATE;
 
-export type RateVerdict = { allowed: true } | { allowed: false; retryAfterS: number };
+type RateVerdict = { allowed: true } | { allowed: false; retryAfterS: number };
 
 /**
  * Where the count lives. `take` counts the hit or says when to try again.
  * `strict` means the count must be the shared one: a store that cannot give
  * it refuses (503) rather than answering from this instance alone.
  */
-export interface RateStore {
+interface RateStore {
   take(bucket: RateBucket, actor: string, rule: RateRule, now: number, strict?: boolean): Promise<RateVerdict>;
 }
 
 /** The refusal when a strict count cannot be given: the verb is not run on a ceiling nobody can hold. */
-export function uncountable(why: string): AppError {
+function uncountable(why: string): AppError {
   return new AppError("internal", `The shared count could not be read just now (${why}) — try again in a moment.`, 503);
 }
 
 /** Past this many live keys the map is swept; a long-lived instance must not grow forever. */
 const SWEEP_AT = 5_000;
+/** A key with no hit this recent is forgotten when the map is swept: no window is longer. */
+const FORGET_AFTER_MS = HOUR_MS;
+/** A shared store that does not answer is said once a minute, not once a request. */
+const WARN_EVERY_MS = MIN_MS;
 
 /**
  * This instance's memory: the fallback behind the shared store, and the whole
@@ -204,7 +261,7 @@ export function memoryStore(): RateStore & { reset(): void } {
       hits.set(key, recent);
       if (hits.size > SWEEP_AT) {
         for (const [k, times] of hits) {
-          if (!times.some((t) => now - t < 3_600_000)) hits.delete(k);
+          if (!times.some((t) => now - t < FORGET_AFTER_MS)) hits.delete(k);
         }
       }
       return { allowed: true };
@@ -240,9 +297,9 @@ export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallbac
         throw new Error("take_rate answered without a verdict");
       } catch (e) {
         const why = e instanceof Error ? e.message : String(e);
-        if (now - warnedAt > 60_000) {
+        if (now - warnedAt > WARN_EVERY_MS) {
           warnedAt = now;
-          console.error("rate_store_failed", JSON.stringify({ bucket, error: why }));
+          log.error("rate_store_failed", { bucket, error: why });
         }
         // Money is not spent on a count this instance alone would hold.
         if (strict) throw uncountable("the shared store did not answer");
@@ -262,25 +319,19 @@ let store: RateStore | null = null;
  * strict take refuses: a deployment that cannot count across instances does
  * not spend on a ceiling it cannot hold.
  */
-export function memoryByConfiguration(
-  fallback: RateStore,
-  production = process.env.VERCEL_ENV === "production",
-): RateStore {
+export function memoryByConfiguration(fallback: RateStore, production = isProduction()): RateStore {
   let said = false;
   return {
     async take(bucket, actor, rule, now, strict = false) {
       if (!said) {
         said = true;
-        console.error(
-          "rate_store_memory_by_configuration",
-          JSON.stringify({
-            production,
-            bucket,
-            note: production
-              ? "NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing: every ceiling is per instance"
-              : "no database keys: ceilings are per instance, which is the whole limiter on a laptop",
-          }),
-        );
+        log.error("rate_store_memory_by_configuration", {
+          production,
+          bucket,
+          note: production
+            ? "NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing: every ceiling is per instance"
+            : "no database keys: ceilings are per instance, which is the whole limiter on a laptop",
+        });
       }
       if (strict) throw uncountable("this deployment has no shared store");
       return fallback.take(bucket, actor, rule, now);
@@ -291,19 +342,9 @@ export function memoryByConfiguration(
 /** Postgres when the server has its keys, else this instance's memory, said once. Chosen once. */
 function activeStore(): RateStore {
   if (store) return store;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  store =
-    url && serviceRoleKey
-      ? postgresStore(createServiceClient({ url, serviceRoleKey }), memory)
-      : memoryByConfiguration(memory);
+  const db = serviceDbIfConfigured();
+  store = db ? postgresStore(db, memory) : memoryByConfiguration(memory);
   return store;
-}
-
-function human(seconds: number): string {
-  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
-  const m = Math.ceil(seconds / 60);
-  return `${m} minute${m === 1 ? "" : "s"}`;
 }
 
 /**
@@ -325,7 +366,7 @@ export async function takeRate(
   if (!verdict.allowed) {
     throw new AppError(
       "rate_limited",
-      `Too many ${rule.noun} in a short time — try again in ${human(verdict.retryAfterS)}.`,
+      `Too many ${rule.noun} in a short time — try again in ${waitWords(verdict.retryAfterS)}.`,
       429,
       { retry_after_s: verdict.retryAfterS },
     );

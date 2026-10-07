@@ -28,7 +28,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   padding: 7px 10px;
   border: 1px dashed var(--line);
@@ -42,43 +42,7 @@
 .rp-agents { padding: 0; overflow: hidden; }
 .rp-agents .fl-card-head { padding: 14px 16px 10px; margin-bottom: 0; }
 
-/* ====================================================================
-   Shared with other surfaces: Messages draws rp2 cards; Today draws its
-   week, and Google its listing, with RpTile.
-   ==================================================================== */
 
-.rp2-card { position: relative; display: flex; flex-direction: column; }
-.rp2-card .fl-card-head { align-items: center; }
-.rp2-foot { font-size: 11.5px; color: var(--ink-dim); }
-
-/* The strip: the indicators in one frame with hairline dividers — not six cards. */
-.rp2-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
-.rp2-tiles.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.rp2-tile { display: flex; flex-direction: column; gap: 2px; padding: 11px 14px 9px; border: none; border-right: 1px solid var(--line); border-radius: 0; background: transparent; min-width: 0; box-shadow: none; }
-.rp2-tile:last-child { border-right: none; }
-.rp2-tile-label { font-family: var(--font-mono); text-transform: uppercase; color: var(--ink-faint); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rp2-tile-value { font-size: 21px; font-weight: 500; letter-spacing: -0.015em; color: var(--ink); line-height: 1.15; font-variant-numeric: tabular-nums; }
-.rp2-tile-meta { font-size: 11px; color: var(--ink-dim); line-height: 1.35; text-overflow: ellipsis; }
-.rp2-tiles.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@media (max-width: 1100px) {
-  .rp2-tiles, .rp2-tiles.five, .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .rp2-tile { border-bottom: 1px solid var(--line); }
-  .rp2-tile:nth-child(3n) { border-right: none; }
-}
-@media (max-width: 640px) {
-  .rp2-tiles, .rp2-tiles.five, .rp2-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rp2-tile:nth-child(3n) { border-right: 1px solid var(--line); }
-  .rp2-tile:nth-child(2n) { border-right: none; }
-}
-
-/* Cards: the same frame as the strip, tighter. */
-.rp2-card { padding: 12px 14px; border-radius: var(--radius-md); gap: 8px; }
-.rp2-card .fl-card-title { font-size: 12.5px; }
-.rp2-card .fl-card-sub { font-variant-numeric: tabular-nums; }
-/* The meaning line may take two lines before it clips. */
-.rp2-tile-meta { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-/* Twenty-one small capitals must fit a strip cell beside a sidebar. */
-.rp2-tile-label { font-size: 9px; letter-spacing: 0.05em; }
 
 /* ---- Google reviews: the words Google shows, with their stars ---- */
 /* The reviews take the whole row, so they read in columns at a comfortable measure rather than as one line of text
@@ -89,9 +53,9 @@
 .rp2-review.is-new { border-color: var(--line-strong); }
 .rp2-review-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .rp2-review-stars { color: var(--warn); letter-spacing: 1px; font-size: 12px; white-space: nowrap; }
-.rp2-review-who { font-size: 12.5px; font-weight: 500; color: var(--ink); }
-.rp2-review-when { font-size: 11px; color: var(--ink-dim); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.rp2-review-text { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.rp2-review-who { font-size: var(--text-sm); font-weight: 500; color: var(--ink); }
+.rp2-review-when { font-size: var(--text-xs); color: var(--ink-dim); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rp2-review-text { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .rp2-review-text.dim { color: var(--ink-dim); font-style: italic; }
 /* The way out of the five: the whole listing, on Google, in its own tab. Sits on the card's foot under a hairline,
    because it is not a sixth review. */
@@ -103,12 +67,10 @@
 .rp2-review-composer { display: grid; gap: 6px; }
 .rp2-review-drafted { font-size: 11.5px; line-height: 1.4; color: var(--ink-muted); }
 .rp2-review-drafted.dim { color: var(--ink-dim); }
-.rp2-review-textarea { width: 100%; resize: vertical; font: inherit; font-size: 12.5px; line-height: 1.45; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--ink); }
-.rp2-review-textarea:focus { outline: none; border-color: var(--line-strong); box-shadow: var(--focus-ring); }
 
 /* ====================================================================
-   The Reports page: pages/reports.jsx (the shell and Google) and
-   pages/reports-sections.jsx. One radius scale: cards 12px (the kit's),
+   The Reports page (surfaces/reports/): the page, its lenses and Google's
+   section. One radius scale: cards 12px (the kit's),
    controls 6 to 9px. Ink blue is the one data hue and the coral accent
    never marks data here. The page owns its scroll, as a pane route does:
    the scroller is full width so its bar sits at the window edge, and the
@@ -120,19 +82,20 @@
 .rpt-inner { width: 100%; max-width: var(--measure-wide); margin: 0; padding: 0 var(--gutter-page) 56px; display: flex; flex-direction: column; }
 
 /* The one row above everything; it stays while the page scrolls, with a hairline so cards pass under an edge. */
-.rpt-head { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 12px 0 10px; background: var(--bg); box-shadow: 0 1px 0 var(--line); }
-.rpt-range { display: inline-flex; padding: 3px; gap: 2px; border-radius: 9px; background: var(--bg-sunken); border: 1px solid var(--line); }
-.rpt-range button { font-size: 12.5px; line-height: 1; padding: 7px 12px; border-radius: 6px; color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
-.rpt-range button:hover { color: var(--ink); }
-.rpt-range button.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); font-weight: 500; }
-.rpt-range button[aria-disabled="true"] { cursor: progress; }
-.rpt-range button:focus-visible, .rpt-ask:focus-visible, .rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.rpt-dates { font-size: 12.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.rpt-head { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.rpt-dates { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .rpt-failed { font-size: 12px; color: var(--warn-ink); }
-.rpt-ask { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 8px; font-size: 12.5px; color: var(--ink-muted); border: 1px solid var(--line); background: var(--bg-raised); transition: color var(--duration-fast), border-color var(--duration-fast); }
-.rpt-ask:hover { color: var(--ink); border-color: var(--line-strong); }
+/* The period: the page's act at the right of the strip of lenses (period-picker.tsx), a round button that opens it, with the
+   days it covers before it on a desk. */
+.rpt-period { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; }
+/* What it opens: the days in words, the four periods, then the month, at the width seven days need. */
+.rpt-when { display: grid; gap: 14px; width: 312px; max-width: calc(100vw - 24px); }
+.rpt-when-head { display: grid; gap: 2px; padding: 2px 4px 0; }
+.rpt-when-range { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
+.rpt-when-said { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 
-.rpt-body { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; transition: opacity var(--duration-base) var(--ease-out); }
+.rpt-body { display: flex; flex-direction: column; padding-top: 12px; transition: opacity var(--duration-base) var(--ease-out); }
 /* A period on its way: the one rule (components.css [data-loading] [data-dims]). */
 
 /* Twelve columns; the page places each card (the kit knows no grid). */
@@ -145,8 +108,8 @@
 
 .rpt-section { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .rpt-section-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.rpt-section-title { margin: 0; font-size: 14.5px; font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
-.rpt-section-meta { font-size: 12.5px; color: var(--ink-dim); }
+.rpt-section-title { margin: 0; font-size: var(--text-md); font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
+.rpt-section-meta { font-size: var(--text-sm); color: var(--ink-dim); }
 
 /* A part-bar under a plot or a donut in the same card is a second reading: a hairline sets it apart. It follows
    what it reads a second time and is never pushed to the card's foot -- the plot above it fills instead, so there is
@@ -160,9 +123,9 @@
 .rpt-top > .rpt-hero:only-child { grid-column: 1 / -1; }
 .rpt-hero-number { font-size: 29px; font-weight: 500; letter-spacing: -0.035em; line-height: 1; color: var(--ink); }
 .rpt-hero-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.rpt-hero-lead { margin: 0; font-size: 16px; font-weight: 500; color: var(--ink); letter-spacing: -0.015em; }
+.rpt-hero-lead { margin: 0; font-size: var(--text-lg); font-weight: 500; color: var(--ink); letter-spacing: -0.015em; }
 .rpt-hero-line { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-muted); max-width: 48ch; }
-.rpt-hero-compare { margin: 2px 0 0; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-dim); }
+.rpt-hero-compare { margin: 2px 0 0; display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--ink-dim); }
 .rpt-tick { width: 2px; height: 11px; border-radius: 1px; background: var(--ink-muted); display: inline-block; }
 
 .rpt-facts { grid-column: span 7; gap: 4px; padding: 14px 20px 10px; }
@@ -170,33 +133,25 @@
 .rpt-fact-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .rpt-fact + .rpt-fact { border-top: 1px solid var(--line); }
 /* A fact is one row; with a door the whole row is the button. */
-.rpt-fact-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 0; text-align: left; border-radius: 6px; }
-button.rpt-fact-row { cursor: pointer; }
-button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--ink); }
+.rpt-fact .rpt-fact-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 0; text-align: left; border-radius: var(--radius-sm); }
+/* A row that is a link is not underlined text: its words keep their own ink, and the door's chip is what answers a hover. */
+a.rpt-fact-row { text-decoration: none; }
+a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--ink); }
 /* The fact's kind is the one mark (.mark), neutral; a fact that asks for a look says so in its words. */
 .rpt-fact.is-warn .rpt-fact-text { color: var(--warn-ink); }
-.rpt-fact-copy { min-width: 0; font-size: 13px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpt-fact-copy { min-width: 0; font-size: 13px; line-height: 1.45; }
 .rpt-fact-text { color: var(--ink); }
 .rpt-fact-sub { color: var(--ink-dim); }
 .rpt-fact-sub::before { content: ", "; }
-.rpt-fact-door { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px; font-size: 12.5px; color: var(--ink-muted); white-space: nowrap; transition: background var(--duration-fast), color var(--duration-fast); }
+.rpt-fact-door { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; transition: background var(--duration-fast), color var(--duration-fast); }
 .rpt-fact-quiet { margin: 4px 0 6px; font-size: 13px; color: var(--ink-dim); }
 
-/* The strip: five counts in one frame with hairline dividers, a list of terms and their values. */
-.rpt-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.rpt-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 18px 13px; min-width: 0; }
-.rpt-tile + .rpt-tile { border-left: 1px solid var(--line); }
-.rpt-tile dt, .rpt-tile dd { margin: 0; }
-.rpt-tile-label { font-size: 12.5px; color: var(--ink-muted); }
-.rpt-tile-value { display: flex; align-items: baseline; gap: 8px; font-size: 22px; font-weight: 500; letter-spacing: -0.025em; color: var(--ink); line-height: 1.2; min-width: 0; }
-.rpt-tile-compare { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rpt-tile-meta { font-size: 12px; color: var(--ink-dim); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Google's tiles further down are the shared RpTile (Today draws its week with it); on this page they wear this look. */
-.rpt .rp2-tiles { border-radius: var(--radius-lg); }
-.rpt .rp2-tile { padding: 12px 18px 13px; }
-.rpt .rp2-tile-label { font-family: inherit; font-size: 12.5px; letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--ink-muted); }
-.rpt .rp2-tile-value { font-size: 22px; letter-spacing: -0.025em; line-height: 1.2; font-variant-numeric: normal; }
-.rpt .rp2-tile-meta { font-size: 12px; }
+/* The strip: five figures (the kit's Figure) in one frame with hairline dividers, a list of terms and their values; Google's four are
+   the same strip with one cell fewer. */
+.rpt-figures { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.rpt-cell { padding: 12px 18px 13px; }
+.rpt-cell + .rpt-cell { border-left: 1px solid var(--line); }
+.rpt-figures.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 /* ---------- inside the cards ---------- */
 .rpt-hours { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -207,9 +162,9 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 /* Asked, then booked: the share in the room it is given, its other side on a hairline at the foot. */
 .rpt-booked { display: flex; flex-direction: column; gap: 14px; flex: 1; }
 .rpt-booked-share { display: flex; align-items: center; gap: 20px; flex: 1; }
-.rpt-booked-number { font-size: 22px; font-weight: 500; letter-spacing: -0.03em; color: var(--ink); }
-.rpt-booked-copy { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); max-width: 32ch; }
-.rpt-booked-rest { margin: 0; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
+.rpt-booked-number { font-size: var(--text-2xl); font-weight: 500; letter-spacing: -0.03em; color: var(--ink); }
+.rpt-booked-copy { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); max-width: 32ch; }
+.rpt-booked-rest { margin: 0; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: flex-start; gap: 8px; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); }
 .rpt-booked-rest .icon { flex: none; margin-top: 1px; color: var(--ink-dim); }
 .rpt-booked-rest .cl-bucket-link { margin-left: 6px; }
 .rpt-booked-rest.is-done .icon { color: var(--ok); }
@@ -218,11 +173,10 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
    stock under the one hairline (.rpt-booked-rest). The kit's own type and ink; figures keep their width. */
 .rpt-deals { display: flex; flex-direction: column; gap: 12px; font-variant-numeric: tabular-nums; }
 .rpt-deals-headline { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
-.rpt-deals-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
+.rpt-deals-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
 .rpt-grid > .rpt-deals-lines { align-self: center; padding-left: 8px; }
 .rpt-sources { max-height: none; }
-.rpt-src { font-size: 13px; color: var(--ink); font-weight: 500; text-align: left; border-radius: 4px; }
-.rpt-src:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rpt-sources .rpt-src { text-align: left; border-radius: var(--radius-xs); }
 .rpt-src-meta { display: block; font-size: 11.5px; color: var(--ink-dim); }
 .rpt-dim { color: var(--ink-dim); }
 
@@ -231,33 +185,44 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   .rpt-hero, .rpt-facts { grid-column: 1 / -1; }
   .rpt-grid > .rpt-span-4 { grid-column: span 6; }
   .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
+  /* A half card the row leaves alone takes the row: the one after a wide card (How fast it answers), and the last of an odd
+     run of thirds (Asked, then booked). Each stood at half width beside nothing (6 Oct 2026). */
+  .rpt-grid > :is(.rpt-span-5, .rpt-span-7, .rpt-span-8) + .rpt-span-4:last-child,
+  .rpt-grid > .rpt-span-4:nth-child(odd):not(:has(+ .rpt-span-4)) { grid-column: 1 / -1; }
   .rpt-grid > .rpt-deals-lines { padding-left: 0; }
-  .rpt-tiles, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .rpt-tile:nth-child(4) { border-left: none; }
-  .rpt-tile:nth-child(n + 4) { border-top: 1px solid var(--line); }
+  .rpt-figures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rpt-cell:nth-child(4) { border-left: none; }
+  .rpt-cell:nth-child(n + 4) { border-top: 1px solid var(--line); }
+  /* Four make two rows of two, not three and one. */
+  .rpt-figures.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rpt-figures.four .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
+  .rpt-figures.four .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
+  .rpt-figures.four .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
 }
 @media (max-width: 760px) {
   .rpt-inner { padding: 0 16px 40px; }
   .rpt-head { padding: 10px 0; }
+  /* The period stands over what scrolls, as every page's strip does (25 Sep): sticky, the head rode a pull down with
+     the rows. Only the body scrolls, edge to edge so a thumb at the side scrolls it too, and it keeps the page's foot. */
+  .rpt { overflow: hidden; display: flex; flex-direction: column; }
+  .rpt-inner { flex: 1 1 auto; min-height: 0; padding-bottom: 0; }
+  .rpt-head { position: static; flex: none; }
+  .rpt-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-inline: -16px; padding: 12px 16px 40px; }
   .rpt-dates { display: none; }
-  .rpt-ask { padding: 8px 10px; }
-  .rpt-ask-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .rpt-hero, .rpt-facts, .rpt-grid > .rpt-span-4, .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
   .rpt-hero { padding: 18px; gap: 16px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; }
   .rpt-hero-copy { display: contents; }
   .rpt-hero-lead { grid-column: 2; grid-row: 1; }
   .rpt-hero-line, .rpt-hero-compare { grid-column: 1 / -1; }
   .rpt-hero-number { font-size: 25px; }
-  .rpt-fact-copy { white-space: normal; }
   .rpt-fact-sub::before { content: ""; }
   .rpt-fact-sub { display: block; }
-  .rpt-tiles, .rpt .rp2-tiles, .rpt .rp2-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rpt-tile:nth-child(n) { border-left: none; border-top: none; }
-  .rpt-tile:nth-child(even) { border-left: 1px solid var(--line); }
-  .rpt-tile:nth-child(n + 3) { border-top: 1px solid var(--line); }
-  .rpt-tile:last-child { grid-column: 1 / -1; border-left: none; }
-  /* Half a phone is narrow for a meta line: it may take two lines rather than lose its end ("1 to voicemail"). */
-  .rpt-tile-meta { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .rpt-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
+  .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
+  .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .rpt-cell:last-child { grid-column: 1 / -1; border-left: none; }
+  .rpt-figures.four .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
   .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
   .rpt .ck-pie { flex-direction: column; align-items: stretch; }
   .rpt .ck-pie-figure { align-self: center; }
@@ -269,6 +234,43 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 @media print {
   .rpt { height: auto; overflow: visible; }
   .rpt-head { position: static; box-shadow: none; }
-  .rpt-ask, .ck-card-actions { display: none; }
+  .ck-card-actions { display: none; }
   .ck-card { break-inside: avoid; }
+}
+
+/* ====================================================================
+   Glass: Reports (no canvas of its own; the panes the other surfaces wear). On a phone the period row stands on the page
+   under the frame's head with the kit's segmented control (a desk's is the frame's act, below); the tiles are one pane with
+   hairlines between them, and every card of the grid a pane. Each rule names the look inside :where(); none matches in Classic.
+   ==================================================================== */
+.rpt-head {
+  background: transparent;
+  box-shadow: none;
+  padding: 2px 0 12px;
+}
+.rpt :is(.rpt-grid, .rpt-top) > * {
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+/* Google's strip of four: an inset, not glass on glass. */
+.rpt-figures.four {
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+.rpt-body {
+  gap: 14px;
+}
+.rpt :is(.rpt-grid, .rpt-top) {
+  gap: 14px;
+}
+
+/* The frame's row of views over Reports: the strip of lenses, and on a desk the period at its right (the page's act), held to the
+   page's measure so the period ends where the cards do, not at the window's edge (Ruben, 6 Oct 2026). Where the row is too
+   narrow for both, it wraps (components.css). */
+.main:has(> .main-scroll > .rpt) .pg-slot {
+  max-width: var(--measure-wide);
 }

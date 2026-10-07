@@ -1,5 +1,16 @@
-import { normalizeEmail } from "@chanlytics/contracts";
+import {
+  CONVERSATION_OPT_IN_PATTERN,
+  EMAIL_STOP_PATTERN,
+  EMAIL_UNSUBSCRIBE_PATTERN,
+  MARKETING_OPT_IN_PATTERN,
+  normalizeEmail,
+  replyTextOf,
+} from "@chanlytics/contracts";
+import { logger } from "@chanlytics/channels";
 import type { Json } from "@chanlytics/db";
+
+/** The intake's own lines, by name: a yes the sender's proof does not stand behind. */
+const emailLog = logger();
 
 /**
  * email_ingest: one received email, taken in (00127).
@@ -43,6 +54,13 @@ export interface IncomingEmail {
   receivedAt: string | null;
   claim: EmailClaim;
   attachments: Array<{ filename: string | null; contentType: string | null; size: number | null }>;
+  /**
+   * The receiving side PROVES the sender is who the From line says (channels senderAuthenticated: an aligned DMARC pass, or
+   * a DKIM pass signed by the From domain). A From anyone can forge is not one: a yes (YES OFFERS) is taken only from an
+   * email that has it, and is refused, and logged, from one that does not or whose header says nothing. A no (STOP,
+   * UNSUBSCRIBE) is always taken, since a no only narrows. Required: no caller may leave a proof out and have a yes taken.
+   */
+  senderAuthenticated: boolean;
 }
 
 export interface EmailIngestPorts {
@@ -65,6 +83,24 @@ export interface EmailIngestPorts {
     body: string | null;
     channelTs: string | null;
     meta: Json;
+    /** The email's own words are the opt-out (asksToStop): ingest_inbound then records the STOP, as it does for a text. */
+    optOut: boolean;
+    /**
+     * The email's own words are START, from a sender the receiving side proved (asksToStart): ingest_inbound records the
+     * yes to hearing from the business again, as it does for a text, and the yes covers email.
+     */
+    optIn: boolean;
+    /** The email's own words are UNSUBSCRIBE (asksToUnsubscribe): offers by email end, through the unsubscribe link's door. */
+    unsubscribe: boolean;
+    /** The email's own words are YES OFFERS, from a sender the receiving side proved (asksForOffers): the yes to offers by email. */
+    optInOffers: boolean;
+    /**
+     * A person wrote it, from a sender the receiving side proved: the address works, whatever a hard bounce once said of
+     * it, so that stop is lifted (a complaint's, and the provider's own, are not this email's to lift).
+     */
+    fromThemProven: boolean;
+    /** What they wrote, as the ledger quotes it: the words of the reply, never the history their client quoted. */
+    words: string | null;
   }): Promise<{ message_id: string; conversation_id: string; is_new: boolean; processed: boolean }>;
   /**
    * Flag the thread for a person: a new hold, one that now means something else,
@@ -88,6 +124,13 @@ export interface EmailIngestPorts {
       claim: EmailClaim;
     },
   ): Promise<void>;
+  /**
+   * Is this kept message a reply to one of the workspace's reach-outs (00222 reach_out_reply_of)? Throws when it cannot
+   * be asked: a reply taken for nobody's would never be read, and a no in it would be missed.
+   */
+  reachOutReply(tenantId: string, messageId: string): Promise<boolean>;
+  /** Hand the reply to the reading (a reply_read job), at most once per message however often this runs. */
+  readReply(tenantId: string, messageId: string): Promise<void>;
   markProcessed(tenantId: string, messageId: string): Promise<void>;
   received(mailboxId: string, at: string): Promise<void>;
   now(): number;
@@ -95,6 +138,7 @@ export interface EmailIngestPorts {
 
 export type EmailIngestOutcome =
   | "kept_for_a_person"
+  | "kept_for_the_reading"
   | "kept_quietly"
   | "already_handled"
   | "not_a_conversation"
@@ -107,11 +151,14 @@ export type EmailIngestOutcome =
 export const EMAIL_BODY_MAX = 20_000;
 
 /** What the person who opens the thread is told, by what the email claimed to be. */
-export const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated">, string> = {
+export const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated"> | "reach_out", string> = {
   person:
     "An email arrived. The receptionist does not answer email yet, so nothing was sent: read it and reply from here.",
   automated:
     "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
+  // A reply to a reach-out (Reach out Part 5): the reading tells the owner what it meant, so this flag says only where.
+  reach_out:
+    "They wrote back to your reach-out. Nothing is sent without you: read it here, with the receptionist's draft when it wrote one.",
 };
 
 export async function ingestEmail(
@@ -142,6 +189,7 @@ export async function ingestEmail(
   // sends to an address is the provider's signed receipt, never this.
   if (claim === "report") return "not_a_conversation";
 
+  const said = answersOf(email);
   const kept = await ports.record({
     tenantId: mailbox.tenant_id,
     address,
@@ -149,42 +197,149 @@ export async function ingestEmail(
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
     meta: metaOf(email),
+    optOut: said.optOut,
+    optIn: said.optIn,
+    unsubscribe: said.unsubscribe,
+    optInOffers: said.optInOffers,
+    fromThemProven: said.fromThemProven,
+    words: replyTextOf(email.text).slice(0, 80) || null,
   });
   if (!kept.is_new && kept.processed) return "already_handled";
+  // Said once the email is known to be new work, so a delivery the provider repeats says it once.
+  if (said.unproven)
+    emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
 
-  if (claim !== "auto_reply") {
-    const flagged = await ports.escalate(
-      mailbox.tenant_id,
-      kept.conversation_id,
-      "email_review",
-      EMAIL_REVIEW_WORDS[claim],
-    );
-    // Kept and not flagged is an email nobody will be shown: the job fails and
-    // the next try, finding the row unhandled, flags it.
-    if (flagged === "failed")
-      throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
-    // Once per hold, not once per email: a second email on a thread already
-    // waiting for the same reason refreshes the flag quietly. But a thread
-    // waiting for something ELSE -- the carriers, an opt-out, a failed send --
-    // has just had that reason replaced by this one, and an email nobody is
-    // told about is an email nobody answers. A hold that now means something
-    // different is a different hold.
-    if (flagged === "opened" || flagged === "changed") {
-      await ports.tell(mailbox.tenant_id, {
-        conversationId: kept.conversation_id,
-        from: address,
-        fromName: email.from?.name ?? null,
-        subject: email.subject,
-        preview: bodyOf(email)?.slice(0, 280) ?? null,
-        claim,
-      });
-    }
-  }
+  // A reply to a reach-out is read for what it means (reply_read), whatever it claims: an automatic reply may still
+  // say no (B1). The reading tells the owner, so the intake does not tell them twice. Asked before anything is marked,
+  // so a failed read or a failed schedule is the job's to try again, and the next try finds the reading scheduled.
+  const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
+
+  if (claim !== "auto_reply")
+    await flagForAPerson(ports, email, {
+      tenantId: mailbox.tenant_id,
+      conversationId: kept.conversation_id,
+      address,
+      claim,
+      reachOut,
+    });
+  // After the flag: the reading closes what the intake opened (reply-read.ts closeWhatTheIntakeOpened), so it must find
+  // the flag there. Scheduled first, a reading could run before a flag that failed and was tried again, close nothing,
+  // archive a "no", and leave the retried flag on an archived thread.
+  if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
   // Last, and only once the flag a person acts on is durable: a run that dies
   // above leaves the row unhandled, and the next try finishes it.
   await ports.markProcessed(mailbox.tenant_id, kept.message_id);
   await ports.received(mailbox.id, at);
+  if (reachOut) return "kept_for_the_reading";
   return claim === "auto_reply" ? "kept_quietly" : "kept_for_a_person";
+}
+
+/**
+ * Flag the thread for a person, and tell them unless the reading will (a reach-out's reply). Every claim but an
+ * automatic reply is flagged.
+ */
+async function flagForAPerson(
+  ports: EmailIngestPorts,
+  email: IncomingEmail,
+  p: { tenantId: string; conversationId: string; address: string; claim: "person" | "automated"; reachOut: boolean },
+): Promise<void> {
+  const { tenantId, conversationId, claim, reachOut } = p;
+  const flagged = await ports.escalate(
+    tenantId,
+    conversationId,
+    "email_review",
+    reachOut ? EMAIL_REVIEW_WORDS.reach_out : EMAIL_REVIEW_WORDS[claim],
+  );
+  // Kept and not flagged is an email nobody will be shown: the job fails and
+  // the next try, finding the row unhandled, flags it.
+  if (flagged === "failed")
+    throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
+  // Once per hold, not once per email: a second email on a thread already
+  // waiting for the same reason refreshes the flag quietly. But a thread
+  // waiting for something ELSE -- the carriers, an opt-out, a failed send --
+  // has just had that reason replaced by this one, and an email nobody is
+  // told about is an email nobody answers. A hold that now means something
+  // different is a different hold.
+  if (reachOut || (flagged !== "opened" && flagged !== "changed")) return;
+  await ports.tell(tenantId, {
+    conversationId,
+    from: p.address,
+    fromName: email.from?.name ?? null,
+    subject: email.subject,
+    preview: bodyOf(email)?.slice(0, 280) ?? null,
+    claim,
+  });
+}
+
+/**
+ * What the email's own words answer about being written to, one word, one answer: a STOP stops everything and says
+ * nothing of offers; an unsubscribe and a yes to offers are about offers; a START is the way back from a STOP, for a
+ * person with no other line to say it on. A no only narrows, so it is taken whoever the sender claims to be. A yes
+ * (to offers, or a START) widens what may be sent, so it is taken only from a sender the receiving side proved
+ * (`senderAuthenticated`): one whose words say yes and whose proof is missing or says no is not recorded, and
+ * `unproven` has it said in the log, as either a forgery or a header this does not yet read.
+ */
+function answersOf(e: IncomingEmail): {
+  optOut: boolean;
+  unsubscribe: boolean;
+  optInOffers: boolean;
+  optIn: boolean;
+  unproven: boolean;
+  /** A person's own email from a proven sender, whatever it says: proof that their address takes and sends mail. */
+  fromThemProven: boolean;
+} {
+  const optOut = asksToStop(e);
+  const yes = !optOut && saysYesToOffers(e);
+  const start = !optOut && asksToStart(e);
+  const proven = e.senderAuthenticated === true;
+  return {
+    optOut,
+    unsubscribe: !optOut && asksToUnsubscribe(e),
+    optInOffers: yes && proven,
+    optIn: start && proven,
+    unproven: (yes || start) && !proven,
+    fromThemProven: e.claim === "person" && proven,
+  };
+}
+
+/**
+ * Is the email's own reply the opt-out? The words a WhatsApp message is read by, except UNSUBSCRIBE (contracts
+ * EMAIL_STOP_PATTERN: STOP, BAJA or ALTO and nothing else), over the words the sender wrote, never the history their client
+ * quoted under them (replyTextOf): "STOP" above "On Tue ... wrote: > Your appointment is tomorrow" is a STOP, and a quote
+ * of an earlier STOP under "Thanks!" is not. The carriers' extra words (CANCEL, END) are a text line's alone: in an email
+ * they are a booking. An unsubscribe is not a STOP (the spec's decision 12): it is asksToUnsubscribe's.
+ */
+function asksToStop(e: IncomingEmail): boolean {
+  return EMAIL_STOP_PATTERN.test(replyTextOf(e.text));
+}
+
+/**
+ * Is the email's own reply an unsubscribe? "Unsubscribe" and nothing else, in the words they wrote
+ * (EMAIL_UNSUBSCRIBE_PATTERN): offers by email end, through the same door the link's page writes through, and their visit
+ * messages and replies go on. A no only narrows, so whoever the sender claims to be, it is taken.
+ */
+function asksToUnsubscribe(e: IncomingEmail): boolean {
+  return EMAIL_UNSUBSCRIBE_PATTERN.test(replyTextOf(e.text));
+}
+
+/**
+ * Does the email's own reply SAY yes to offers by email? YES OFFERS or SÍ OFERTAS and nothing else (contracts
+ * MARKETING_OPT_IN_PATTERN, the words a WhatsApp message says it by), in the words they wrote, from a person (not a list or a
+ * program). Whether the sender is who they say is the caller's to ask next (`senderAuthenticated`): a yes widens what may
+ * be sent, so it is the one thing an email header anyone can write cannot give.
+ */
+function saysYesToOffers(e: IncomingEmail): boolean {
+  return e.claim === "person" && MARKETING_OPT_IN_PATTERN.test(replyTextOf(e.text));
+}
+
+/**
+ * Does the email's own reply say START? START, UNSTOP, RESUME or ALTA and nothing else (contracts
+ * CONVERSATION_OPT_IN_PATTERN, the words a text says it by), in the words they wrote, from a person. It undoes a STOP, so
+ * it widens what may be sent, and is taken on the same proof a yes to offers is (`senderAuthenticated`): until this was
+ * read, a person who only has email and wrote STOP had no way to be heard from again.
+ */
+function asksToStart(e: IncomingEmail): boolean {
+  return e.claim === "person" && CONVERSATION_OPT_IN_PATTERN.test(replyTextOf(e.text));
 }
 
 /** The words, bounded. */
@@ -209,5 +364,5 @@ function metaOf(e: IncomingEmail): Json {
       more_attachments: Math.max(0, e.attachments.length - 5),
       truncated: (e.text?.length ?? 0) > EMAIL_BODY_MAX,
     },
-  } as Json;
+  };
 }

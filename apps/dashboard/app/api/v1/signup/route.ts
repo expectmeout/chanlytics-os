@@ -12,7 +12,9 @@ import {
 import { isSameOrigin } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
 import { ipOf, hashKey as hash } from "@/server/request-ip";
-import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/signup";
+import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/platform/signup";
+import { env } from "@/server/env";
+import { log } from "@/server/log";
 
 /**
  * /api/v1/signup — the one door a stranger may use.
@@ -37,7 +39,7 @@ export async function GET(): Promise<Response> {
   // The page asks what to render before it renders anything. `posture` is the
   // one field it needs; the two booleans stay so a client deployed before this
   // keeps working, which matters because the page and the API ship separately.
-  const posture = signupPosture(process.env.SIGNUP_CODE);
+  const posture = signupPosture(env.SIGNUP_CODE);
   return NextResponse.json(ok({ posture, open: posture !== "waitlist", code_required: posture === "invite" }), {
     headers: PRIVATE,
   });
@@ -52,7 +54,7 @@ export async function POST(req: Request): Promise<Response> {
     const input = parsed.data;
     await takeRate(`ip:${hash(ipOf(req))}`, "signup_ip");
     await takeRate(`email:${hash(input.email)}`, "signup_email");
-    const posture = signupPosture(process.env.SIGNUP_CODE);
+    const posture = signupPosture(env.SIGNUP_CODE);
 
     // THE WAITLIST BRANCH RETURNS BEFORE ANYTHING IS CREATED.
     //
@@ -65,7 +67,7 @@ export async function POST(req: Request): Promise<Response> {
     // limiter, and a queue is exactly what a script would want to flood.
     if (posture === "waitlist") {
       await joinWaitlist({ email: input.email, name: input.name, source: req.headers.get("referer") ?? undefined });
-      console.log(JSON.stringify({ level: "info", event: "waitlist_join", ms: Date.now() - started }));
+      log.info("waitlist_join", { ms: Date.now() - started });
       // The same shape a real sign-up returns, so the form needs no new state:
       // one sentence and somewhere to go. `next` is null because there is no
       // code coming and no screen to enter one on.
@@ -88,15 +90,7 @@ export async function POST(req: Request): Promise<Response> {
     // proved password is handed over explicitly rather than passing `input`
     // and asserting. No cast, and the compiler keeps the guarantee.
     const out = await signUp({ ...input, password: input.password });
-    console.log(
-      JSON.stringify({
-        level: "info",
-        event: "signup",
-        created: out.created,
-        code_unsent: out.codeUnsent,
-        ms: Date.now() - started,
-      }),
-    );
+    log.info("signup", { created: out.created, code_unsent: out.codeUnsent, ms: Date.now() - started });
     // THE CODE IS THE ONLY WAY IN, so a send WE could not make is worth saying.
     // The usual answer stays deliberately opaque -- whether an address is already
     // registered is not a stranger's to learn from this form -- but "we are over
@@ -113,7 +107,7 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json(ok({ sent: true, next: null }), { headers: PRIVATE });
   } catch (e) {
     if (e instanceof AppError) return NextResponse.json(err(e.code, e.message), { status: e.status, headers: PRIVATE });
-    console.error("signup_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+    log.error("signup_failed", { error: e instanceof Error ? e.message : String(e) });
     return NextResponse.json(err("internal", "Could not start your sign-up just now. Try again in a moment."), {
       status: 500,
       headers: PRIVATE,

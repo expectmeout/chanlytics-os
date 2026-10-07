@@ -1,7 +1,7 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/request-guards";
-import { edgeGoogle } from "@/server/google";
+import { edgeGoogle } from "@/server/connections/google";
 
 /**
  * POST /api/v1/google/reviews/:id/draft — the receptionist's draft of a

@@ -3,8 +3,10 @@
  * what each means. The adapter that knows the tables and the runtime's
  * services is packages/jobs/src/handlers.ts.
  */
-import type { JobNews, SendPurpose } from "@chanlytics/contracts";
-import type { Delivered, Delivery } from "../deliver";
+import type { EmailHold, JobNews, SendPurpose } from "@chanlytics/contracts";
+import type { EmailRequest } from "@chanlytics/channels";
+import type { Json } from "@chanlytics/db";
+import type { Channel, Delivered, Delivery } from "../deliver";
 
 /** The door, handed in: a verb never builds it, so a test can answer whatever the case needs. */
 export type Door = (d: Delivery) => Promise<Delivered>;
@@ -21,16 +23,60 @@ export interface SendQueuedPorts {
     channel: string | null;
     sender: string | null;
     /** The frozen request, on an email's row. */ email?: Delivery["email"] | null;
+    /** A person's reply to a reach-out, frozen again on the chain's own domain (meta.email.own_request, G15). */
+    ownEmail?: Delivery["ownEmail"];
+    /** The lead a reach-out's email was written for (its row's meta.reach_out.lead_id): the door asks about that lead. */
+    leadId?: string | null;
   } | null>;
   /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
   purposeOf(template: { name: string; language: string } | undefined): Promise<SendPurpose>;
   deliver: Door;
-  /** The thread flagged for a person, with why. */
-  escalate(conversationId: string, reason: string, details: string): Promise<unknown>;
+  /** The thread flagged for a person, with why; how it landed (jobs upsertEscalation: a hold is told once). */
+  escalate(
+    conversationId: string,
+    reason: string,
+    details: string,
+  ): Promise<"opened" | "changed" | "refreshed" | "failed">;
   /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
   alert(news: JobNews): Promise<void>;
   /** The platform's own pager, for a provider refusing every send on a wire. */
   page?(key: string, subject: string, body: string): Promise<unknown>;
+  /**
+   * The same send, as a FRESH job of its kind, due then (the ledger's scheduleJob). Asked when the wire could not be
+   * bound (deliver WireUnavailableError): nothing left and nothing was written, so a second job is safe where a second
+   * run of this one is not -- the ledger never tries a kind that speaks to a person again (SPEAKS_TO_A_PERSON), because
+   * a run that threw mid-send may have sent. The payload carries how many fresh jobs this send is already the result
+   * of (`resumes`, as a resumed broadcast's does), and the verb bounds them.
+   */
+  retry(dueAt: Date, payload: SendQueuedCommand["payload"]): Promise<void>;
+  /** Epoch ms; injected so the wait is testable. */
+  now?: () => number;
+  /** The draw a wait is lengthened by (contracts jittered); Math.random when absent. */
+  random?: () => number;
+}
+
+/** The command sendQueued takes: here rather than in send.ts, so the port above can name its payload without a cycle. */
+export interface SendQueuedCommand {
+  tenantId: string;
+  /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
+  payload: {
+    message_id: string;
+    conversation_id: string;
+    to_phone?: string;
+    to_email?: string;
+    body?: string;
+    template?: { name: string; language: string; params: string[] };
+    /**
+     * What the send IS, when the job knows better than a template can: an offer is marketing whatever its words, and a
+     * first email starts a conversation. Both can only make the door stricter: a payload never makes a template's
+     * purpose looser, and only `true` makes a send proactive. "outreach" (a cold email, Reach out) is its own lane,
+     * which the door holds to its own rules.
+     */
+    purpose?: SendPurpose;
+    proactive?: boolean;
+    /** How many fresh jobs this send is already the result of, after a wire that could not be bound (retry above). */
+    resumes?: number;
+  };
 }
 
 export interface ProvisionLinePorts {
@@ -38,7 +84,12 @@ export interface ProvisionLinePorts {
   provision?(
     lineId: string,
     by: "owner" | "support" | "sweep",
-  ): Promise<{ ok: boolean; step?: string; error?: string }>;
+    deadline?: number,
+  ): Promise<{ ok: boolean; step?: string; error?: string; more?: boolean }>;
+  /** One more job of this kind, for the steps a run left at its deadline. */
+  next?(payload: Record<string, unknown>): Promise<void>;
+  /** Epoch ms: the run starts no provider call after it. */
+  deadline?: number;
 }
 
 export interface BroadcastRow {
@@ -55,16 +106,32 @@ export interface BroadcastRow {
 export interface RecipientRow {
   contact_id: string;
   facts: unknown;
+  /** The channel the run picked for them at enrolment (contracts reachFor); null or absent on a run made before: WhatsApp. */
+  channel?: string | null;
+  /**
+   * How many times this person was claimed and given back (00301: the guard adds one on every release): what a broadcast's
+   * email to them is named by. Absent from the read of a database that has not reached that migration.
+   */
+  attempt?: number;
 }
 export interface ContactRow {
   id: string;
   phone_e164: string | null;
+  /** Their email address as stored, which the door compares a frozen request's To with; null or absent with none. */
+  email?: string | null;
+  /** Email's own answer about offers (00174): an offer's foot says why they get it from it (asked for them, or a customer). */
+  email_marketing?: string | null;
   erased_at: string | null;
   display_name: string | null;
   wa_profile_name: string | null;
 }
 export type RecipientMark = {
-  state: "sent" | "skipped" | "failed";
+  /**
+   * `queued` only releases a claim the provider did not take: WhatsApp's "not now" or a mail provider's limit
+   * (`throttled`, 00216), or a request that never reached it (`not_taken`, 00282): the send was not taken, so it is tried
+   * again. The database refuses any other release.
+   */
+  state: "sent" | "skipped" | "failed" | "queued";
   reason?: string | null;
   message_id?: string | null;
   sent_at?: string | null;
@@ -77,19 +144,82 @@ export interface BroadcastBatchPorts {
   fail(id: string, failure: string): Promise<void>;
   /** scheduled → sending, only while scheduled. True iff the row changed: false is a cancel that landed first. */
   startSending(id: string): Promise<boolean>;
-  /** The template as Meta has it: its status, its words, its category. Null when gone; throws when it cannot be read. */
+  /**
+   * The template of this name and language on a channel: WhatsApp's as Meta has it, or the email or text version of the
+   * message (a templates row of that name and language on that channel): its status, its words (`components` is where an
+   * email's subject is stored), its category. Null when gone; throws when it cannot be read.
+   */
   template(
     name: string,
     language: string,
-  ): Promise<{ meta_status: string | null; body_preview: string | null; category: string | null } | null>;
-  /** The workspace's own words for the slots that name it. */
-  facts(): Promise<{ businessName: string; bookingLink: string | null }>;
+    channel: Channel,
+  ): Promise<{
+    meta_status: string | null;
+    body_preview: string | null;
+    category: string | null;
+    components?: unknown;
+  } | null>;
+  /**
+   * The workspace's own words for the slots that name it, and its clock (IANA zone), which the sending hours are kept
+   * by; and the postal address its emails' foot gives (the Business record's), null when it has none.
+   */
+  facts(): Promise<{ businessName: string; bookingLink: string | null; timezone: string; address?: string | null }>;
   /** Up to `limit` people still queued; throws when it cannot be read. */
   batch(id: string, limit: number): Promise<RecipientRow[]>;
   /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */
   contacts(contactIds: string[]): Promise<Map<string, ContactRow>>;
   /** The thread this send belongs to, never created here. */
   target(phoneE164: string): Promise<{ conversationId: string } | null>;
+  /** The same thread by the person, for an email, which reaches them by an address rather than a number; null for one that is gone. */
+  targetOfContact(contactId: string): Promise<{ conversationId: string } | null>;
+  /**
+   * The request one person's email leaves as, frozen (channels buildEmailRequest) from the hosted mailbox: From the
+   * workspace's address, Reply-To its reply route, To `to`, the subject and body, and `footer` after them, under
+   * `messageId` as its idempotency key. An OFFER (`offer`) leaves from the mailbox on the campaigns domain instead, with the
+   * one-click unsubscribe headers and its foot in HTML (`footerHtml`, which carries `unsubscribeUrl`). Null when the workspace
+   * has no mailbox or this deployment no mail domain (no campaigns domain, for an offer), and for words no email may carry
+   * (a subject posing as a reply): the person is held, never sent as something else.
+   */
+  emailRequest(i: {
+    messageId: string;
+    to: string;
+    subject: string;
+    body: string;
+    footer: string;
+    offer?: { unsubscribeUrl: string; footerHtml: string };
+  }): Promise<EmailRequest | null>;
+  /**
+   * The link that unsubscribes this person from this email (the page every offer's foot and List-Unsubscribe carry),
+   * sealed for them: `/u/<token>` on the deployment's unsubscribe origin (channels unsubscribeUrl). Null where this runtime
+   * cannot seal one (no secret, no campaigns domain): the person is held, an offer never goes without its way out.
+   */
+  unsubscribeUrl(i: { messageId: string; contactId: string }): Promise<string | null>;
+  /**
+   * An email written as the queued row its request was frozen for, before it is sent (deliver assertFrozenFor), and only
+   * once its person is claimed, so a claim that is lost or fails leaves no row behind: "written" when this call made it,
+   * else the row that was already there under that id and how it stands. A write that fails throws.
+   */
+  queueEmail(row: {
+    id: string;
+    conversationId: string;
+    contactId: string;
+    body: string;
+    /** The frozen request: the row keeps it as meta.email (subject, To and the request itself), as every email's row does. */
+    request: EmailRequest;
+    /** What marks the row a broadcast's: its source and the broadcast's ids (the adapter adds meta.email). */
+    meta: Record<string, Json>;
+  }): Promise<{ status: string }>;
+  /**
+   * An email written and never sent, because the provider did not take it (a send handed back) or the door threw before
+   * the wire: withdrawn while it is still queued (a row the door settled is left as it settled it), so nothing is left
+   * queued for a sweep to call lost, or counted against the month. Best effort: the caller logs a failure and goes on.
+   */
+  withdrawEmail(messageId: string): Promise<void>;
+  /**
+   * How many emails or texts this workspace's campaigns sent this calendar month (packages/db campaignMonthSent): what
+   * contracts CAMPAIGN_MONTH_ALLOWANCE is held against. Throws when it cannot be read.
+   */
+  monthSent(channel: "sms" | "email"): Promise<number>;
   /**
    * The messages this broadcast already sent these people, if a run died
    * between the wire and its own bookkeeping: contact id → the message's id
@@ -101,24 +231,85 @@ export interface BroadcastBatchPorts {
    * to stop.
    */
   alreadySent(id: string, contactIds: string[]): Promise<Map<string, { id: string; sentAt: string | null }>>;
-  mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
+  /**
+   * Whether any person on the run, whatever their state, goes another way than `than` (a recipient row's channel): the
+   * run's own question when one channel is held for everyone on it. WhatsApp's template not being approved holds the run's
+   * WhatsApp people alone, and a hold on the workspace's offers and news by email its email people alone: the run goes on
+   * for the others, and only a run with nobody else on it stops. On a database that keeps no channel on a recipient
+   * everyone goes by WhatsApp. Throws when it cannot be read.
+   */
+  byOtherChannels(id: string, than: "whatsapp" | "email"): Promise<boolean>;
+  /**
+   * One person's row, written. The claim (failed, outcome_unknown) is a compare-and-set: it answers whether THIS call
+   * took the person, true, or false when they were no longer queued (another run took them first), and then nobody is
+   * claimed twice, so nobody is sent twice. Every other write answers true.
+   */
+  mark(id: string, contactId: string, patch: RecipientMark): Promise<boolean>;
   deliver: Door;
+  /**
+   * Why the run's wire cannot be bound right now -- the workspace's credentials could not be read (deliver
+   * WireUnavailable) -- or null when the door can be asked. Asked BEFORE anyone is claimed: a claim settles only to
+   * sent or skipped (00182), never back to queued, so a wire known to be unbound claims nobody and the batch waits.
+   * A number that is ABSENT is not this port's to say: the door answers that per person, as it always did.
+   */
+  wireUnavailable(channel: Channel): Promise<string | null>;
+  /**
+   * Why an OFFER by email cannot leave from this runtime right now though the deployment is meant to send them (it names
+   * a campaigns domain, and the mail provider says the domain is not verified for sending), or null when it can, and for a
+   * deployment that names none (an offer is then held person by person at enrolment and the door, as it always was).
+   * Asked BEFORE anyone is claimed, for a run whose message is an offer and whose batch has anyone going by email: the
+   * platform is paged with the reason, once (the pager's own quiet). A run of email alone stops, the reason said, rather
+   * than skip each of them, a skip that is final; a run that also goes another way (byOtherChannels) skips its email people
+   * (`email_marketing_disabled`) and goes on for everyone else. A domain that could not be read at all is not this port's:
+   * that is the email wire not bound (`wireUnavailable`), and the run waits.
+   */
+  offersClosed(): Promise<string | null>;
+  /**
+   * Why it cannot yet be known whether an OFFER by email may leave: the deployment names a campaigns domain and the mail
+   * provider could not be asked about it (a failed or slow read), or null. Asked where offersClosed is, before anyone is
+   * claimed: the run waits a minute and asks again (a stall), as a wire that could not be bound does. Only an offer asks
+   * it: a visit's email leaves from the mail domain, which is not in question, so a domain that could not be read holds
+   * no reminder back.
+   */
+  offersUnread(): Promise<string | null>;
+  /** The platform's own pager, for a wire that could not be bound: said once per six hours by the pager's own quiet. */
+  page?(key: string, subject: string, body: string): Promise<unknown>;
   /** How many are still queued; throws when it cannot be counted. */
   remaining(id: string): Promise<number>;
   /** The broadcast's state now; null when gone. Throws when it cannot be read: an unreadable state is not a cancel. */
   state(id: string): Promise<string | null>;
-  /** The next batch, as this tenant, through the same door the dashboard uses; now unless told when. */
-  scheduleNext(id: string, dueAt?: Date): Promise<void>;
+  /**
+   * The next batch, as this tenant, through the same door the dashboard uses; now unless told when. `carry` is what
+   * the run has waited through so far (BatchCarry), carried to the next batch; a batch scheduled without it starts
+   * the counts again.
+   */
+  scheduleNext(id: string, dueAt?: Date, carry?: BatchCarry): Promise<void>;
   /** Who got it and who was held, once nobody is queued. */
   tally(id: string): Promise<{ sent: number; held: number }>;
+  /**
+   * Which of the workspace's holds on email (contracts EMAIL_HOLDS) anyone on the run was skipped for: the finished run's
+   * news names those, and only those, among its reasons. Asked once nobody is queued, of a run that held someone back.
+   */
+  heldForEmail(id: string): Promise<EmailHold[]>;
   /** sending → sent, and the event with the tally. */
   finish(id: string, tally: { sent: number; held: number }): Promise<void>;
   /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
   alert(news: JobNews): Promise<void>;
   now(): number;
   sleep(ms: number): Promise<void>;
+  /** The draw a wait is lengthened by (contracts jittered); Math.random when absent. */
+  random?: () => number;
 }
-export interface BroadcastBatchCommand {
+/** What a run has waited through, carried from one batch to the next in the job's payload. */
+export interface BatchCarry {
+  /**
+   * How many times WhatsApp said "not now", or could not be reached at all, running (BROADCAST_THROTTLE_WAITS_MS).
+   */
+  waits?: number;
+  /** How many batches in a row reached nobody because a read failed, the credentials' or the people's (BROADCAST_STALLS_MAX). */
+  stalls?: number;
+}
+export interface BroadcastBatchCommand extends BatchCarry {
   tenantId: string;
   broadcastId: string;
   deadline: number;

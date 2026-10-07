@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { inviteMember } from "@/server/service";
+import { inviteMember } from "@/server/workspace/team";
 
 const Body = z.object({
   /** Stored lowercased at the door, so the same address invited twice is the same address. */
@@ -21,9 +21,10 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "invite",
   input: Body,
   handle: async ({ ctx, member, input }) =>
-    await inviteMember(ctx.supabase, member.tenantId, ctx.userId, input.email, input.role, ctx.via),
+    await inviteMember(member.tenantId, ctx.userId, input.email, input.role, ctx.via),
 });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CONSENT_STATES } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/route";
-import { recordConsentMany } from "@/server/consent";
+import { recordConsentMany } from "@/server/people/consent";
 
 const Body = z.object({
   ids: z.array(z.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time."),
@@ -18,7 +18,7 @@ const Body = z.object({
  * The visit answer for many people at once: a yes given at the desk by a whole
  * class, say. One request where the page used to send one per person, through
  * the door each would go through alone (set_contact_consent, a decision per
- * person; server/consent.ts), held to the workspace the tab named. Operator or
+ * person; server/people/consent.ts), held to the workspace the tab named. Operator or
  * owner, and one take of the consent bucket for the batch rather than fifty.
  */
 export const PUT = write({

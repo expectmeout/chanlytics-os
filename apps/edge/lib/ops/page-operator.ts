@@ -4,13 +4,24 @@
  * page per condition key per six hours, stamped only after delivery -- a page
  * that did not send earns no quiet, so the next tick tries again.
  *
- * Six conditions call it today: the heartbeat failing many jobs in one run
- * (api/jobs/tick.ts); a provider refusing a send with 401 or 403 -- credentials,
- * not content (core/messages/send.ts); due jobs nobody is claiming, and
- * WhatsApp messages Meta accepted that have had no receipt for six hours
- * (api/cron/health.ts); a customer waiting in a workspace with nobody on file
- * to tell (api/cron/deadman.ts); and the receptionist having no model key
- * (whatsapp/inbound.ts). Each reaches the platform, never an owner.
+ * Who calls it: the heartbeat failing many jobs in one run (api/jobs/tick.ts);
+ * a provider refusing a send with 401 or 403 -- credentials, not content -- a
+ * workspace's credentials that could not be READ, the reply left queued for a
+ * fresh job, and the mail provider's day or month used up (core/messages/send.ts); due jobs
+ * nobody is claiming, WhatsApp messages Meta accepted that have had no receipt
+ * for six hours, and the mail domain losing its standing (api/cron/health.ts);
+ * a customer waiting in a workspace with nobody on file to tell
+ * (api/cron/deadman.ts); the receptionist having no model key
+ * (core/inbound/model-turn.ts); and cold email's own: a sending domain another
+ * workspace holds, one the cold account already holds verified with no
+ * workspace's row, or one the provider no longer knows (lib/email/sending-domains.ts, sending-domain-holds.ts),
+ * receipts that never arrive (lib/email/cold-receipts.ts), and unsubscribe links
+ * that do not open (lib/email/unsubscribe-probe.ts). Each reaches the platform,
+ * never an owner.
+ *
+ * A page is mail, sent with the platform's own provider key. So a condition
+ * that IS that key failing -- its 401, its used-up quota -- is recorded here
+ * and shown on /api/diag, and its mail cannot leave until the key works again.
  *
  * The callers do not act on the outcome: the memory does. A condition whose
  * last firing was never told (a failed or unaddressed page) is readable as
@@ -34,7 +45,29 @@ export interface PagePorts {
   now?: () => number;
 }
 
+/**
+ * The pages of each key in flight in this instance, one after another. The memory is read, then the page sent, then
+ * stamped: two firings of one condition at the same moment (the ledger's slots run jobs side by side, and two replies
+ * held on one unreadable vault page together) would both read no stamp and both send. In turn, the second reads the
+ * first's stamp and is suppressed; and when the first could not send, the second tries, as the next tick would.
+ */
+const inFlight = new Map<string, Promise<PageOutcome>>();
+
 export async function pageOperator(ports: PagePorts, key: string, subject: string, body: string): Promise<PageOutcome> {
+  const before = inFlight.get(key);
+  const mine = (before ?? Promise.resolve()).then(
+    () => pageOnce(ports, key, subject, body),
+    () => pageOnce(ports, key, subject, body),
+  );
+  inFlight.set(key, mine);
+  try {
+    return await mine;
+  } finally {
+    if (inFlight.get(key) === mine) inFlight.delete(key);
+  }
+}
+
+async function pageOnce(ports: PagePorts, key: string, subject: string, body: string): Promise<PageOutcome> {
   const L = logger();
   const now = ports.now?.() ?? Date.now();
   const send = ports.send ?? post;

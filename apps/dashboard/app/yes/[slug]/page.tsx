@@ -8,8 +8,8 @@ import {
   CONSENT_PHRASE,
   CONSENT_PHRASE_ES,
 } from "@chanlytics/contracts";
-import { consentPageFor } from "@/server/consent-page";
-import { businessPageFor } from "@/server/business-page";
+import { consentPageFor } from "@/server/public/consent-page";
+import { businessPageFor } from "@/server/public/business-page";
 
 /** How many services the page names before it sends the reader to the business's own page for the rest. */
 const SERVICES_SHOWN = 6;

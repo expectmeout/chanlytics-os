@@ -16,7 +16,7 @@
  *   gone          released meanwhile; nothing to do
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { tenantDb, type Database } from "../packages/db.js";
 import { lineProviderFromEnv, rowToLine, type LineProviderChoice } from "./lines.js";
 import { provisionLine } from "./provision.js";
 import {
@@ -28,23 +28,25 @@ import {
 } from "./line-resume.js";
 import { env } from "../env.js";
 
-export interface LineProvisionOutcome {
+interface LineProvisionOutcome {
   ok: boolean;
   step?: string;
   error?: string;
+  /** The run stopped at its deadline with steps left: the job hands the rest to the next one. */
+  more?: boolean;
   /** What the run did, for the log: ran, resumed, nothing (and why). */
   did: "ran" | "resumed" | "nothing";
   why?: string;
 }
 
-export interface LineProvisionDeps {
+interface LineProvisionDeps {
   provider: () => LineProviderChoice | null;
   env: { apiKey: string | undefined; fnSecret: string | undefined };
   provision: typeof provisionLine;
   now: () => number;
 }
 
-export function realLineProvisionDeps(): LineProvisionDeps {
+function realLineProvisionDeps(): LineProvisionDeps {
   return {
     provider: lineProviderFromEnv,
     env: { apiKey: env.RETELL_API_KEY, fnSecret: env.RETELL_FN_SECRET },
@@ -55,9 +57,13 @@ export function realLineProvisionDeps(): LineProvisionDeps {
 
 export async function provisionLineJob(
   db: SupabaseClient<Database>,
+  /** The job's workspace: the line named is that workspace's, or there is nothing to do. */
+  tenantId: string,
   lineId: string,
   by: ResumedBy,
   deps: LineProvisionDeps = realLineProvisionDeps(),
+  /** The job's deadline (JobContext.deadline): no provider call starts after it. */
+  deadline?: number,
 ): Promise<LineProvisionOutcome> {
   const choice = deps.provider();
   if (!choice) return { ok: false, error: "no_line_provider", did: "nothing", why: "no provider" };
@@ -65,7 +71,7 @@ export async function provisionLineJob(
   if (!apiKey || !fnSecret)
     return { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret", did: "nothing", why: "no credentials" };
 
-  const row = await db.from("lines").select("*").eq("id", lineId).maybeSingle();
+  const row = await tenantDb(db, tenantId).from("lines").select("*").eq("id", lineId).maybeSingle();
   if (row.error) throw new Error(`line_provision: ${row.error.message}`);
   if (!row.data) return { ok: true, did: "nothing", why: "released" };
   let line = row.data;
@@ -113,6 +119,7 @@ export async function provisionLineJob(
     did = "resumed";
   }
 
-  const r = await deps.provision(db, choice, { apiKey }, { fnSecret }, tenant.data, rowToLine(line), by);
+  const r = await deps.provision(db, choice, { apiKey }, { fnSecret }, tenant.data, rowToLine(line), by, deadline);
+  if (r.ok && r.later) return { ok: true, did, more: true, step: r.step };
   return r.ok ? { ok: true, did } : { ok: false, step: r.step, error: r.error, did };
 }

@@ -44,7 +44,7 @@
   flex: 1;
 }
 .st-reco-title {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink);
 }
@@ -54,7 +54,7 @@
   line-height: 1.45;
 }
 .st-reco-proof {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -72,7 +72,7 @@
   text-align: center;
   padding: 40px;
   color: var(--ink-faint);
-  font-size: 12.5px;
+  font-size: var(--text-sm);
 }
 
 .st-card {
@@ -117,7 +117,7 @@
   color: var(--ink-muted);
   border: 1px solid var(--line);
 }
-.st-tile.lg { width: 42px; height: 42px; font-size: 16px; border-radius: 11px; }
+.st-tile.lg { width: 42px; height: 42px; font-size: var(--text-lg); border-radius: 11px; }
 
 .st-card-titles {
   display: flex;
@@ -136,12 +136,12 @@
 }
 .st-reco-dot {
   width: 6px; height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--accent);
   flex-shrink: 0;
 }
 .st-card-role {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   line-height: 1.45;
 }
@@ -161,7 +161,7 @@
   color: var(--ink-muted);
   background: var(--bg-sunken);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 2px 7px;
   white-space: nowrap;
 }
@@ -174,7 +174,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -190,10 +190,10 @@
   border-top: 1px solid var(--line);
 }
 .st-price {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
 }
-.st-price .tabular { font-weight: 500; color: var(--ink); font-size: 12.5px; }
+.st-price .tabular { font-weight: 500; color: var(--ink); font-size: var(--text-sm); }
 .st-price.lg { margin-left: auto; flex-shrink: 0; }
 
 .st-installed-chip {
@@ -204,7 +204,7 @@
   font-weight: 500;
   color: var(--ok);
   background: var(--ok-soft);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 2px 8px;
   white-space: nowrap;
 }
@@ -252,7 +252,7 @@
   display: grid;
   grid-template-columns: 14px 1fr;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink);
   line-height: 1.5;
 }
@@ -267,7 +267,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 .st-requires .icon, .st-proofline .icon { color: var(--ink-faint); }

@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { AppError, MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
+import { SPEND_TEXTING, AppError, MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { edgeLines } from "@/server/lines";
+import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
+import { edgeRefusalWords } from "@/server/edge";
 
 const Body = z.object({
   line_id: z.string().trim().min(1, "Which line?"),
@@ -36,12 +37,17 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lines_register",
   spend: true,
+  // A refusal here is about registering for texting, not about buying a number.
+  spendWords: SPEND_TEXTING,
   input: Body,
-  handle: async ({ member, input }) => {
-    const a = await edgeLines({ op: "register", tenant_id: member.tenantId, line_id: input.line_id }, 60_000);
+  handle: async ({ ctx, member, input }) => {
+    const a = await edgeLines(
+      { op: "register", tenant_id: member.tenantId, user_id: ctx.userId, line_id: input.line_id },
+      EDGE_LINES_TIMEOUT_MS,
+    );
     const b = a.body ?? {};
     if (a.status === 404) throw new AppError("not_found", "That line does not exist.", 404);
     if (a.status === 503 && b.error === "preview")
@@ -104,7 +110,8 @@ export const POST = write({
       pending: b.pending === true,
       line: b.line ?? null,
       step: typeof b.step === "string" ? b.step : null,
-      error: typeof b.error === "string" ? b.error : null,
+      // Where the filing stopped, in the carrier's words (`detail`): the page shows it as it is.
+      error: edgeRefusalWords(b),
     };
   },
 });

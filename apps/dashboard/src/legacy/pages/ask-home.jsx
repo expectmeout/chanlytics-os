@@ -38,8 +38,14 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view, phone
   }
   // At rest: Right now is the first row, with the counts its sentence was built from as pills, and ↵ on the empty line
   // asks who needs you (the quick answer). On a phone Earlier is the head's, not a section here (spec 5.2).
-  const parts = A.rightNowParts ? A.rightNowParts(lang) : { sentence: A.rightNow(lang), people: 0, runs: 0 };
-  const sections = [{ key: "now", items: [{ type: "now", label: parts.sentence, q: t.needsQ, people: parts.people, runs: parts.runs }] }];
+  const parts = A.rightNowParts ? A.rightNowParts(lang) : { sentence: A.rightNow(lang), people: 0, runs: 0, searches: 0 };
+  const sections = [
+    {
+      key: "now",
+      // On a phone the standing pills are the hero's, under the three (ask-real.jsx), so the row draws them on a desk only.
+      items: [{ type: "now", label: parts.sentence, q: t.needsQ, people: parts.people, runs: parts.runs, searches: parts.searches, pills: !phone }],
+    },
+  ];
   const asks = A.suggestions(surface, scope, lang).filter((s) => s.kind !== "act" && s.q !== t.needsQ).slice(0, 3);
   // On Leads the consent rule stands under the section's chips (spec F3), one dim line; nowhere else has a note.
   if (asks.length)
@@ -63,6 +69,16 @@ const flatRows = (sections) => sections.flatMap((sec) => sec.items);
 // A question, an act and the door to every conversation are chips; the rest are rows.
 const ahChip = (it) => it.type === "sug" || it.type === "act" || it.type === "all";
 
+// The standing pills: who needs you, the runs and the searches waiting. Right now's row draws them on a desk; on a phone
+// they are the hero's, under the three, so they stay while the field is in use (the Stage's 5.9).
+const AskNowPills = ({ people, runs, searches, t }) => (
+  <span className="ask-now-pills">
+    {people ? <span className="pill pill-warn" data-testid="ask-pill">{t.needYou(people)}</span> : null}
+    {runs ? <span className="pill pill-warn" data-testid="ask-pill">{t.runsWaiting(runs)}</span> : null}
+    {searches ? <span className="pill pill-warn" data-testid="ask-pill">{t.searchWaiting(searches)}</span> : null}
+  </span>
+);
+
 // Right now is one option: its pills, its sentence and Brief me (a span dressed as the kit's button: one row, one door,
 // Enter or a press anywhere on it asks; a second option would be the same question twice). A section's chips sit in a
 // wrap under its rows, so Earlier is its rows, then the chip for the rest.
@@ -84,15 +100,10 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
     };
     // With nothing needing anyone, the sentence alone (spec 4.3): no pill and no Brief me; the row still asks.
     if (it.type === "now") {
-      const waiting = !!(it.people || it.runs);
+      const waiting = !!(it.people || it.runs || it.searches);
       return (
         <div key={i} {...shared} className={`ask-row now${sel ? " sel" : ""}`}>
-          {waiting ? (
-            <span className="ask-now-pills">
-              {it.people ? <span className="pill pill-warn" data-testid="ask-pill">{t.needYou(it.people)}</span> : null}
-              {it.runs ? <span className="pill pill-warn" data-testid="ask-pill">{t.runsWaiting(it.runs)}</span> : null}
-            </span>
-          ) : null}
+          {waiting && it.pills ? <AskNowPills people={it.people} runs={it.runs} searches={it.searches} t={t} /> : null}
           <span className="ask-row-label">{it.label}</span>
           {waiting ? <span className="btn btn-sm ask-now-brief" data-testid="ask-row-brief">{t.briefMe}</span> : null}
         </div>
@@ -153,4 +164,4 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
   );
 };
 
-window.AskHome = { buildLineRows, AskRows, flatRows, ahAgo };
+window.AskHome = { buildLineRows, AskRows, flatRows, AskNowPills, ahAgo };

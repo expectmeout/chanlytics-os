@@ -1,2290 +1,695 @@
+// src/events.ts
+import {
+  SHARED_EVENT_VERSIONS
+} from "../../contracts/dist/index.js";
+
+// src/observe.ts
+var DB_REQUEST_HEADER = "x-chanlytics-request-id";
+var OBSERVER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.db.observer");
+var observerHolder = globalThis;
+function fallbackLine(level, event, fields = {}) {
+  const text2 = JSON.stringify({ level, event, ...fields });
+  if (level === "error") console.error(text2);
+  else if (level === "warn") console.warn(text2);
+  else console.log(text2);
+}
+var FALLBACK = {
+  log: {
+    info: (event, fields) => fallbackLine("info", event, fields),
+    warn: (event, fields) => fallbackLine("warn", event, fields),
+    error: (event, fields) => fallbackLine("error", event, fields)
+  },
+  requestId: () => null
+};
+function observeDb(observer) {
+  observerHolder[OBSERVER_SLOT] = observer;
+}
+function dbLog() {
+  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).log;
+}
+function dbRequestId() {
+  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).requestId();
+}
+function namedFetch(base) {
+  return (input, init) => {
+    const send = base ?? globalThis.fetch;
+    const id = dbRequestId();
+    if (!id) return send(input, init);
+    const headers = new Headers(init?.headers);
+    headers.set(DB_REQUEST_HEADER, id);
+    return send(input, { ...init, headers });
+  };
+}
+
+// src/events.ts
+var WRITES = {
+  "billing.paused": { category: "billing", version: 1 },
+  "billing.resumed": { category: "billing", version: 1 },
+  "billing.updated": { category: "billing", version: 1 },
+  "broadcast.sent": { category: "message", version: 1 },
+  "broadcast.stopped": { category: "message", version: 1 },
+  "business.recorded": { category: "setup", version: 1 },
+  "channel.connected": { category: "system", version: 1 },
+  "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
+  "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
+  "contact.email_suppressed": { category: "contact", version: 1 },
+  "google.connected": { category: "google", version: 1 },
+  "google.disconnected": { category: "google", version: 1 },
+  "google.linked": { category: "google", version: 1 },
+  "google.replied": { category: "google", version: 1 },
+  "google.reply_held": { category: "google", version: 1 },
+  "google.reviews": { category: "google", version: 1 },
+  "google.unlinked": { category: "google", version: 1 },
+  "ingest.allowlist_skip": { category: "ingest", version: 1 },
+  "ingest.unreachable_sender": { category: "ingest", version: 1 },
+  "ingest.unroutable": { category: "ingest", version: 1 },
+  "lead.emailed": { category: "lead", version: 1 },
+  "line.answering": { category: "setup", version: 1 },
+  "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_verified": { category: "setup", version: 1 },
+  "line.released": { category: "setup", version: 1 },
+  "line.texting_approved": { category: "setup", version: 1 },
+  "line.texting_on": { category: "setup", version: 1 },
+  "line.texting_rejected": { category: "setup", version: 1 },
+  "message.send_blocked": { category: "message", version: 1 },
+  "message.send_failed": { category: "message", version: 1 },
+  "message.send_raced_cancel": { category: "message", version: 1 },
+  "message.sent": { category: "message", version: 1 },
+  "platform.acted": { category: "platform", version: SHARED_EVENT_VERSIONS["platform.acted"] },
+  "playbook.run": { category: "message", version: 1 },
+  "policy.changed": { category: "system", version: 1 },
+  "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "sending_domain.added": { category: "setup", version: 1 },
+  "sending_domain.held": { category: "setup", version: 1 },
+  "sending_domain.released": { category: "setup", version: 1 },
+  "sending_domain.removed": { category: "setup", version: 1 },
+  "sending_domain.resumed": { category: "setup", version: 1 },
+  "sending_domain.verified": { category: "setup", version: 1 },
+  "settings.changed": { category: "system", version: 1 },
+  "usage.ask_tokens": { category: "usage", version: 1 },
+  "usage.llm_tokens": { category: "usage", version: 1 },
+  "voice.provisioned": { category: "setup", version: 1 },
+  "webhook.auth": { category: "ingest", version: 1 },
+  "webhook.delivery": { category: "ingest", version: 1 },
+  "workspace.activated": { category: "setup", version: 1 }
+};
+var WABA_WRITE = { category: "system", version: 1 };
+function rowOf(tenantId, kind, subjectType, subjectId, data) {
+  const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
+  const requestId = dbRequestId();
+  return {
+    tenant_id: tenantId,
+    kind,
+    category: write.category,
+    version: write.version,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    data,
+    ...requestId ? { request_id: requestId } : {}
+  };
+}
+async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const row = rowOf(tenantId, kind, subjectType, subjectId, data);
+  let { error } = await db.from("events").insert(row);
+  if (error?.code === "PGRST204" && "request_id" in row) {
+    const { request_id: _name, ...unnamed } = row;
+    ({ error } = await db.from("events").insert(unnamed));
+  }
+  return { error: error?.message ?? null };
+}
+async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
+  if (error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind, error });
+}
+async function subjectsWith(db, tenantId, kind, subjectIds) {
+  if (!subjectIds.length) return /* @__PURE__ */ new Set();
+  const { data, error } = await db.from("events").select("subject_id").eq("tenant_id", tenantId).eq("kind", kind).in("subject_id", subjectIds);
+  if (error) throw new Error(`events: ${error.message}`);
+  return new Set((data ?? []).map((r) => r.subject_id).filter((id) => typeof id === "string"));
+}
+async function recordActivation(db, tenantId, milestone, via) {
+  const { data, error } = await db.from("events").select("id").eq("tenant_id", tenantId).eq("kind", "workspace.activated").eq("data->>milestone", milestone).limit(1);
+  if (error) {
+    dbLog().error("activation_read_failed", { tenant_id: tenantId, milestone, error: error.message });
+    return false;
+  }
+  if (data && data.length) return false;
+  const w = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
+  if (w.error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind: "workspace.activated", error: w.error });
+  return !w.error;
+}
+async function relayEvents(db, limit) {
+  const { data, error } = await db.rpc("relay_events", { p_limit: limit });
+  if (error) throw new Error(`relay_events: ${error.message}`);
+  return data ?? 0;
+}
+async function eventOfDelivery(db, tenantId, eventId) {
+  const { data, error } = await db.from("events").select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version, aggregate_version, causation_id").eq("tenant_id", tenantId).eq("id", eventId).maybeSingle();
+  if (error) throw new Error(`events: ${error.message}`);
+  return data;
+}
+async function subscriptionPaused(db, kind, subscriber) {
+  const { data, error } = await db.from("event_subscriptions").select("paused").eq("kind", kind).eq("subscriber", subscriber).maybeSingle();
+  if (error) throw new Error(`event_subscriptions: ${error.message}`);
+  return data ? data.paused : true;
+}
+async function deliveryOf(db, tenantId, eventId, subscriber) {
+  const { data, error } = await db.from("event_deliveries").select("state, attempts").eq("tenant_id", tenantId).eq("event_id", eventId).eq("subscriber", subscriber).maybeSingle();
+  if (error) throw new Error(`event_deliveries: ${error.message}`);
+  return data;
+}
+async function settleDelivery(db, d) {
+  const { error } = await db.from("event_deliveries").update({ state: d.state, attempts: d.attempts, last_error: d.error }).eq("tenant_id", d.tenantId).eq("event_id", d.eventId).eq("subscriber", d.subscriber);
+  if (error) throw new Error(`event_deliveries: ${error.message}`);
+}
+
+// src/ai-usage.ts
+import { mayUseModels, RETENTION_DAYS } from "../../contracts/dist/index.js";
+async function recordModelUsage(db, rows) {
+  const { error } = await db.from("ai_usage").insert(rows);
+  if (error) throw new Error(`ai_usage: ${error.message}`);
+}
+async function workspaceMayUseModels(db, tenantId) {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (!tenant.data || !billing.data) return false;
+  return mayUseModels(billing.data.mode, billing.data.status, {
+    paused: tenant.data.status === "paused",
+    ended: !!tenant.data.left_empty_at
+  });
+}
+async function aiFailuresHour(db, min) {
+  const { data, error } = await db.rpc("ai_failures_hour", { p_min: min });
+  if (error) throw new Error(`ai_failures_hour: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    tenant_id: r.tenant_id,
+    failed_calls: Number(r.failed_calls) || 0,
+    brain_errors: Number(r.brain_errors) || 0
+  }));
+}
+async function purgeAiUsage(db) {
+  const { data, error } = await db.rpc("ai_usage_purge", { p_keep: `${RETENTION_DAYS.ai_usage} days` });
+  if (error) throw new Error(`ai_usage_purge: ${error.message}`);
+  return Number(data) || 0;
+}
+async function usageMonth(db, tenantId, month) {
+  const { data, error } = await db.rpc("ai_usage_month", { p_tenant_id: tenantId, p_month: month });
+  if (error) throw new Error(`ai_usage_month: ${error.message}`);
+  const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
+  return (data ?? []).map((r) => ({
+    meter: r.meter,
+    purpose: r.purpose ?? null,
+    model: r.model ?? null,
+    uses: n(r.uses),
+    quantity: n(r.quantity),
+    input_tokens: n(r.input_tokens),
+    output_tokens: n(r.output_tokens),
+    cache_read_tokens: n(r.cache_read_tokens),
+    cache_write_tokens: n(r.cache_write_tokens),
+    usd: r.usd === null || r.usd === void 0 ? null : n(r.usd)
+  }));
+}
+
+// src/billing-events.ts
+async function keepInvoiceAmount(db, eventId, amountCents, currency) {
+  const { data, error } = await db.rpc("billing_event_keep_amount", {
+    p_id: eventId,
+    p_amount_cents: amountCents,
+    p_currency: currency
+  });
+  if (error) throw new Error(`billing_event_keep_amount: ${error.message}`);
+  return data === true;
+}
+
+// src/ops.ts
+async function migrationHead(db) {
+  const { data, error } = await db.rpc("migration_head");
+  if (error) throw new Error(error.message);
+  const row = data?.[0];
+  return { head: row?.head ?? null, applied: row?.applied ?? 0 };
+}
+
+// src/erasure-registry.ts
+var ERASURE_LEGS = {
+  erase_contact: "erase_contact: the person's calls, messages, conversations and identities deleted, scheduled jobs and decision payloads scrubbed, the tombstone written (00027, 00151)",
+  notes_trigger: "person_notes_erase_on_contact: their own notes deleted, the old notes field cleared, a note_for_you about them removed (00158)",
+  events_trigger: "contact_events_on_erase: an event that named them cut to who did it and from where (00131)",
+  consent_trigger: "erase_marketing_consent, consent_channels_on_erase, email_marketing_on_erase: their answers and where they came from cleared (00101)",
+  email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)",
+  proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
+  deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
+  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, its keys kept as digests",
+  jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten",
+  ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
+  deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
+  notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)"
+};
+var withPerson = (by) => ({ kind: "with_person", by });
+var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
+var byAge = (days) => ({ kind: "by_age", days });
+var DIGEST = { kind: "digest" };
+var NOT_PERSONAL = { kind: "not_personal" };
+var all = (strategy, ...names) => Object.fromEntries(names.map((n) => [n, strategy]));
+var ERASURE_STRATEGIES = {
+  ask_messages: { content: scrubbedBy("ask_scrub") },
+  calls: all(
+    withPerson("erase_contact"),
+    "retell_call_id",
+    "agent_id",
+    "call_type",
+    "from_e164",
+    "to_e164",
+    "from_raw",
+    "disconnection_reason",
+    "sentiment",
+    "summary",
+    "transcript",
+    "transcript_object",
+    "recording",
+    "public_log_url",
+    "cost",
+    "latency",
+    "raw",
+    "wanted",
+    "follow_up",
+    "caller_name",
+    "analysis"
+  ),
+  contact_identities: all(withPerson("erase_contact"), "external_id", "raw"),
+  contacts: {
+    phone_e164: scrubbedBy("erase_contact"),
+    display_name: scrubbedBy("erase_contact"),
+    wa_profile_name: scrubbedBy("erase_contact"),
+    consent_source: scrubbedBy("erase_contact"),
+    notes: scrubbedBy("notes_trigger", "erase_contact"),
+    marketing_consent_source: scrubbedBy("consent_trigger"),
+    email_marketing_source: scrubbedBy("consent_trigger"),
+    consent_channels: scrubbedBy("consent_trigger"),
+    marketing_channels: scrubbedBy("consent_trigger"),
+    email: scrubbedBy("email_trigger"),
+    email_suppressed_reason: scrubbedBy("email_trigger"),
+    proposal_url: scrubbedBy("proposal_trigger"),
+    erased_phone_hash: DIGEST,
+    erased_email_hash: DIGEST
+  },
+  conversations: all(withPerson("erase_contact"), "control_kind", "control_ref"),
+  deals: all(scrubbedBy("deals_trigger"), "note", "evidence", "proposal_url"),
+  decisions: { payload: scrubbedBy("erase_contact") },
+  escalations: { details: withPerson("erase_contact") },
+  event_deliveries: all(NOT_PERSONAL, "subscriber", "kind"),
+  event_outbox: { kind: NOT_PERSONAL },
+  events: {
+    data: scrubbedBy("events_trigger"),
+    ...all(NOT_PERSONAL, "kind", "category", "subject_type", "request_id")
+  },
+  idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
+  jobs: { payload: scrubbedBy("jobs_scrub", "erase_contact") },
+  lead_places: all(withPerson("leads_trigger"), "place_id", "title", "street"),
+  lead_search_members: all(scrubbedBy("leads_trigger"), "judgment", "reason"),
+  lead_suppressions: { hash: DIGEST },
+  leads: all(
+    scrubbedBy("leads_trigger"),
+    "place_id",
+    "business_name",
+    "category",
+    "street",
+    "city",
+    "region",
+    "postal_code",
+    "website_host",
+    "instagram_url",
+    "phone_e164",
+    "email",
+    "email_alternates",
+    "last_outcome",
+    "last_note",
+    "about",
+    "hours",
+    "image_url",
+    "price",
+    "reviews_dist",
+    "facebook_url",
+    "linkedin_url",
+    "tiktok_url",
+    "maps_url",
+    "neighborhood",
+    "logo_url",
+    "mark_path"
+  ),
+  messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
+  notifications: {
+    ...all(byAge("notifications"), "title", "body"),
+    ...all(NOT_PERSONAL, "route", "subject_type", "subject_id")
+  },
+  person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
+  platform_metrics: all(
+    NOT_PERSONAL,
+    "messages_in",
+    "messages_out",
+    "provider_failures",
+    "handled",
+    "topics",
+    "ai_tokens",
+    "ai_usd",
+    "job_lag_ms",
+    "first_answer_ms",
+    "dead_letters",
+    "intake_lag_ms"
+  ),
+  provider_events: {
+    body: scrubbedBy("deliveries_scrub"),
+    ...all(byAge("provider_events"), "provider_event_id", "door", "url", "headers")
+  }
+};
+
+// src/auth.ts
+import {
+  createClient
+} from "@supabase/supabase-js";
+async function signUpOnPublicKey(cfg, args) {
+  if (!cfg.url || !cfg.anonKey) {
+    throw new Error("public_client_unconfigured: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+  const anon = createClient(cfg.url, cfg.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+  return anon.auth.signUp({ email: args.email, password: args.password, options: { data: args.userData } });
+}
+async function inviteUserByEmail(db, email) {
+  return db.auth.admin.inviteUserByEmail(email);
+}
+async function listSecondFactors(db, userId) {
+  return db.auth.admin.mfa.listFactors({ userId });
+}
+async function deleteSecondFactor(db, userId, factorId) {
+  return db.auth.admin.mfa.deleteFactor({ id: factorId, userId });
+}
+
+// src/waitlist.ts
+async function addToWaitlist(db, row) {
+  return db.from("waitlist").insert(row);
+}
+async function refreshWaitlistRow(db, email, said) {
+  return db.from("waitlist").update(said).eq("email", email).is("invited_at", null);
+}
+async function waitlistWaiting(db, limit) {
+  return db.from("waitlist").select("id, email, business, source, created_at", { count: "exact" }).is("invited_at", null).order("created_at", { ascending: true }).limit(limit);
+}
+async function markWaitlistInvited(db, id, by, at) {
+  return db.from("waitlist").update({ invited_at: at, invited_by: by }).eq("id", id).is("invited_at", null).select("id");
+}
+
 // src/service-client.ts
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createClient2 } from "@supabase/supabase-js";
+var SERVICE_FETCH_TIMEOUT_MS = 4e4;
+function boundedFetch(ms, base) {
+  return async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (!url.includes("/rest/v1/")) return base(input, init);
+    const bound = AbortSignal.timeout(ms);
+    try {
+      return await base(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, bound]) : bound });
+    } catch (e) {
+      if (!bound.aborted || init?.signal?.aborted) throw e;
+      const said = new Error(`the database did not answer within ${ms} ms (timeout)`, { cause: e });
+      said.name = "AbortError";
+      throw said;
+    }
+  };
+}
 function createServiceClient(cfg) {
-  return createClient(cfg.url, cfg.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
+  return createClient2(cfg.url, cfg.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: boundedFetch(cfg.fetchTimeoutMs ?? SERVICE_FETCH_TIMEOUT_MS, namedFetch(cfg.fetch)) }
   });
 }
 
-// ../contracts/dist/index.js
-import { z } from "zod";
-import { z as z2 } from "zod";
-import { z as z3 } from "zod";
-import { z as z5 } from "zod";
-import { z as z4 } from "zod";
-import { z as z7 } from "zod";
-import { z as z6 } from "zod";
-import { z as z8 } from "zod";
-import { z as z9 } from "zod";
-import { z as z10 } from "zod";
-z.config({ jitless: true });
-function normalizePhone(raw) {
-  if (raw == null) return null;
-  const digits2 = String(raw).replace(/[^\d]/g, "");
-  if (!digits2) return null;
-  if (digits2.length === 10) return `+1${digits2}`;
-  if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
-  return null;
+// src/tenant-db.ts
+function builderOf(db, table) {
+  return db.from(table);
 }
-var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
-var EVENT_KINDS = [
-  "message.received",
-  "message.sent",
-  "contact.consent_changed",
-  "usage.llm_tokens",
-  "usage.wa_conversation",
-  "ingest.allowlist_skip",
-  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
-  "ingest.unreachable_sender",
-  "message.send_failed",
-  "message.send_blocked",
-  "message.send_raced_cancel",
-  "conversation.reopened",
-  "conversation.pause_expired",
-  "contact.erased",
-  "setup.requested",
-  "voice.provisioned",
-  "line.answering",
-  "line.failed",
-  "line.released",
-  "line.forwarding_verified",
-  /**
-   * Somebody at Chanlytics acted on a workspace they are not a member of.
-   *
-   * The back office's write half. Recorded BEFORE the action, and the action is
-   * refused if it cannot be recorded: a cross-tenant write that nobody can be
-   * held to is worse than one that did not happen. What happened next is the
-   * line's own event, written by the edge, immediately after this one.
-   */
-  "platform.acted",
-  /** The carriers answered: texting is on, the business is through, or it came back. */
-  "line.texting_on",
-  "line.texting_approved",
-  "line.texting_rejected",
-  /** The business on record for the carriers, saved or changed. */
-  "business.recorded",
-  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
-  "google.linked",
-  "google.unlinked",
-  "google.reviews",
-  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
-  "google.connected",
-  "google.disconnected",
-  "google.replied",
-  "workspace.created",
-  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
-  "settings.changed",
-  "policy.changed",
-  "billing.updated",
-  "billing.paused",
-  "billing.resumed",
-  /** A call: the row (00007) and the seconds it cost. */
-  "call.recorded",
-  "usage.voice_seconds",
-  /** The assistant's model usage, per turn (ask-gateway). */
-  "usage.ask_tokens",
-  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
-  "webhook.auth",
-  "webhook.delivery",
-  /** A person who came from the calendar or a hand, not from a message (00053). */
-  "contact.added",
-  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
-  "contact.named",
-  "contact.noted",
-  /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
-  "contact.note_changed",
-  "contact.note_removed",
-  "contact.note_suggested",
-  "contact.note_kept",
-  "contact.note_dismissed",
-  "contact.note_done",
-  "contact.note_undone",
-  "contact.email_set",
-  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
-  "contact.proposal_set",
-  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
-  "contact.email_suppressed",
-  /** An inbound the router could not place on any workspace. */
-  "ingest.unroutable",
-  /** A reply skipped because its veto window had already been spent. */
-  "policy.veto_window_skipped",
-  /** The sweep woke a snooze whose time had passed (00082). */
-  "conversation.snooze_expired",
-  /** A broadcast finished, with its tally; a playbook made a run. */
-  "broadcast.sent",
-  "playbook.run",
-  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
-  "channel.connected",
-  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
-  "mailbox.created",
-  "mailbox.renamed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
-  "lead.round",
-  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
-  "lead.no_card",
-  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
-  "lead.stage",
-  "lead.emailed",
-  "lead.call",
-  "lead.converted",
-  "lead.not_a_fit",
-  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
-  "deal.proposed",
-  "deal.won",
-  "deal.lost",
-  "deal.ended"
-];
-var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
-var DECISION_VERBS = [
-  "approve",
-  "edit",
-  "decline",
-  "snooze",
-  "wake",
-  "take_over",
-  "hand_back",
-  "resolve",
-  "archive",
-  "reply",
-  "cancel_send",
-  "pause_agent",
-  "resume_agent",
-  /**
-   * What one member can do to another.
-   *
-   * The ledger recorded every conversation verb and nothing about the team —
-   * the one table where "who did this" is hardest to reconstruct afterwards
-   * and matters most. Promoting someone to owner hands them billing, the
-   * ability to remove everyone else, and the receptionist's voice.
-   *
-   * These must stay in step with decisions_verb_check (migration 00023): the
-   * database rejects a verb this list allows, and a verb the database allows
-   * but this omits cannot be written by any typed caller.
-   */
-  "invite",
-  "revoke_invite",
-  "change_role",
-  "remove_member",
-  /**
-   * The only irreversible verb. privacy.html promises deletion on verified
-   * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written by the owner (actor_type
-   * 'user'), and again by the route for a leg that finished after the rows
-   * were gone — the storage sweep.
-   */
-  "erase",
-  /**
-   * A sentence handed to the phone receptionist mid-call, heard by it alone
-   * and worked into its next answer (Retell update-live-call). Subject
-   * 'call'. The ledger keeps the words: they are the operator's, and they
-   * changed what a customer was told.
-   */
-  "whisper",
-  /**
-   * A business connected its own channel (Embedded Signup): subject
-   * 'channel', payload the number, the WABA and the registration outcome.
-   * The one verb whose consequence is a credential in Vault.
-   */
-  "connect_channel",
-  /**
-   * A customer's answer about marketing messages, recorded by the person
-   * who heard it: subject 'contact', payload the answer, how it was given,
-   * and what it was before. The record a broadcast stands on.
-   */
-  "consent_change",
-  /**
-   * A broadcast: one approved template to the people who said yes. The
-   * decision to send (subject 'broadcast', payload the template, the
-   * audience and the count) and the decision to stop one.
-   */
-  "send_broadcast",
-  "cancel_broadcast",
-  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
-  "start_playbook",
-  "pause_playbook",
-  /**
-   * An answer to a review on Google, in the business's own words: subject
-   * 'review' (the row's id), payload the words and when Google took them.
-   * Replaces the previous answer; Google keeps one per review.
-   */
-  "reply_review",
-  /**
-   * A copy of the workspace's data left the building: everyone as a CSV, a
-   * thread, a call, or the whole workspace. Subject "workspace" for the two
-   * that carry everyone; the thread's or the call's own row for the others.
-   * The one verb an auditor asks about that the ledger did not keep.
-   */
-  "export",
-  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call",
-  "record_deal",
-  /**
-   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
-   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
-   */
-  "make_list",
-  "rename_list",
-  "change_list_rule",
-  "add_to_list",
-  "drop_from_list",
-  "archive_list",
-  "restore_list",
-  "delete_list"
-];
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var FORMATS = /* @__PURE__ */ new Map();
-function formatsFor(tz) {
-  const hit = FORMATS.get(tz);
-  if (hit) return hit;
-  let zone = tz || "UTC";
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone });
-  } catch {
-    zone = "UTC";
-  }
-  const made = {
-    zone,
-    time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
-    date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
-    dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
-    weekday: new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }),
-    parts: new Intl.DateTimeFormat("en-US", {
-      timeZone: zone,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit"
-    })
-  };
-  FORMATS.set(tz, made);
-  return made;
+var FILTERED = ["select", "update", "delete"];
+var STAMPED = ["insert", "upsert"];
+function stamped(row, tenantId) {
+  if (typeof row !== "object" || row === null) return row;
+  const named = Reflect.get(row, "tenant_id");
+  if (named !== void 0 && named !== tenantId) throw new Error("tenantDb: a row names another workspace");
+  return { ...row, tenant_id: tenantId };
 }
-var WALLS = /* @__PURE__ */ new Map();
-var WALLS_MAX = 2048;
-function wall(atMs, tz) {
-  const id = `${tz}|${atMs}`;
-  const hit = WALLS.get(id);
-  if (hit) return hit;
-  const p = {};
-  for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
-  const made = {
-    key: `${p.year}-${p.month}-${p.day}`,
-    year: Number(p.year),
-    hh: Number(p.hour) % 24,
-    mm: Number(p.minute)
-  };
-  if (WALLS.size >= WALLS_MAX) WALLS.clear();
-  WALLS.set(id, made);
-  return made;
+function unmoved(patch, tenantId) {
+  if (typeof patch !== "object" || patch === null) return;
+  const named = Reflect.get(patch, "tenant_id");
+  if (named !== void 0 && named !== tenantId) throw new Error("tenantDb: a patch names another workspace");
 }
-function clockDate(atMs, tz, nowMs) {
-  const f = formatsFor(tz);
-  return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
+function conflictsOnWorkspace(options) {
+  const on = typeof options === "object" && options !== null ? Reflect.get(options, "onConflict") : void 0;
+  const columns = typeof on === "string" ? on.split(",").map((c) => c.trim()) : [];
+  if (!columns.includes("tenant_id")) throw new Error("tenantDb: an upsert must conflict on tenant_id as well");
 }
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: "What the customer is after."
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-var BrainOutputSchema = z2.object({
-  reply: z2.string(),
-  intent: z2.enum(BRAIN_INTENTS).catch("other"),
-  escalate: z2.boolean().catch(false),
-  reason: z2.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z2.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z2.array(z2.string()).catch([]).transform(
-    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
-  ),
-  language: z2.enum(BRAIN_LANGUAGES).catch("other")
-});
-var WA_WINDOW_MS = 24 * 3600 * 1e3;
-var REPLY_LIMITS = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
-var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
-var RETENTION_DAYS = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
-  call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
-  events_evidence: 30,
-  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
-  ask_threads: 90,
-  /** The bell's rows and their marks (purge_notifications, 00057). */
-  notifications: 90,
-  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
-  leads_untouched: 90,
-  leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30
-};
-var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
-var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
-var RECORDING_NOTE = {
-  none: "No recording",
-  pending: "Recording still processing",
-  failed: "Recording couldn't be saved",
-  purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
-};
-var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-function feedUrlOk(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (PRIVATE_HOST.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
-  return u.toString();
-}
-function feedProblemWords(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
-var POLICY_CLASS_WORDS = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  }
-};
-var PolicyLimitsSchema = z3.object({
-  max_replies_day: z3.number().int().min(1).max(200).optional(),
-  pause_hours: z3.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z3.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z3.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
-var TIME = z3.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z3.object({ open: TIME, close: TIME });
-var HoursSchema = z3.object({
-  /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: TIME.nullable().optional(),
-  close: TIME.nullable().optional(),
-  /**
-   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-   * actually keeps. Additive: a day that has always been one stretch keeps
-   * saying so with open/close, and no stored config is rewritten.
-   */
-  intervals: z3.array(IntervalSchema).optional()
-}).strict();
-var DATE = z3.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z3.object({
-  date: DATE,
-  until: DATE.optional(),
-  note: z3.string().max(200).optional()
-});
-var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema = z3.object({
-  name: z3.string().min(1).max(80),
-  /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z3.number().int().min(1).max(1440).optional(),
-  /**
-   * Free text, not a number, and deliberately so: "from $45", "quoted at
-   * consult", "varies by length". A price the business cannot state flatly
-   * must not be forced into a field that looks like it can.
-   */
-  price_note: z3.string().max(120).optional()
-}).strict();
-var GuardrailsSchema = z3.object({
-  never_quote_prices: z3.boolean().optional(),
-  never_confirm_booking: z3.boolean().optional(),
-  disclose_ai: z3.boolean().optional(),
-  /**
-   * OPT-IN, unlike the three above. Those default on because absent means
-   * "the safe reading"; this one arrived after prompts were live, and a
-   * rule that defaulted on would have changed every composed prompt in
-   * production the moment it deployed.
-   */
-  no_health_advice: z3.boolean().optional()
-}).strict();
-var NoteSchema = z3.object({
-  title: z3.string().min(1).max(80),
-  text: z3.string().min(1).max(1200)
-}).strict();
-var BookingRulesSchema = z3.object({
-  /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z3.number().int().min(0).max(168).optional(),
-  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z3.number().int().min(0).max(120).optional(),
-  /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z3.number().int().min(1).max(90).optional(),
-  /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z3.number().int().min(15).max(240).optional(),
-  /** Services that need a consultation before they can be booked. */
-  consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
-  party_max: z3.number().int().min(1).max(20).optional(),
-  /** Anything else about booking, one short line each. */
-  notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
-}).strict();
-var E164 = /^\+[1-9]\d{6,14}$/;
-var INSTRUCTIONS_MAX = 2e4;
-var BusinessProfileSchema = z3.object({
-  address: z3.string().max(300).optional(),
-  hours: z3.partialRecord(z3.enum(DAYS), HoursSchema).optional(),
-  /** Dates the business is shut regardless of the weekly grid. */
-  closures: z3.array(ClosureSchema).optional(),
-  services: z3.array(ServiceSchema).max(60).optional(),
-  languages: z3.array(z3.string().min(2).max(40)).max(8).optional(),
-  guardrails: GuardrailsSchema.optional(),
-  /** What must reach a person. One short line each. */
-  escalate_when: z3.array(z3.string().min(1).max(200)).max(20).optional(),
-  tone: z3.string().max(200).optional(),
-  /**
-   * The line a PERSON answers. The phone receptionist warm-transfers here
-   * during opening hours; absent, it takes a message instead. Never the
-   * receptionist's own line — that would ring itself.
-   */
-  handoff_number: z3.string().regex(E164, "E.164, like +12125550143").optional(),
-  website: z3.string().url().max(500).optional(),
-  notes: z3.array(NoteSchema).max(10).optional(),
-  booking_rules: BookingRulesSchema.optional(),
-  /**
-   * Anything the owner wants said that no field covers.
-   *
-   * The escape hatch that keeps this model honest — without it, structuring
-   * the facts would mean losing whatever did not fit, and the first migration
-   * would be a downgrade.
-   *
-   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
-   * the form carries that prompt into it.
-   */
-  extra_instructions: z3.string().max(INSTRUCTIONS_MAX).optional()
-}).strict();
-var BrainConfigSchema = z3.object({
-  business_name: z3.string().min(1).max(120),
-  /**
-   * The number the receptionist tells customers to call — an OVERRIDE, and
-   * optional because it should almost never be set.
-   *
-   * It was required, free text, and named the same as the line the
-   * receptionist answers, so every workspace typed something into it and
-   * nothing checked what. On the first live salon that produced a
-   * receptionist publishing the number it transfers to: customers who rang
-   * it reached a person's mobile and never the receptionist standing by,
-   * and the same string went to Google.
-   *
-   * Absent is now the right answer and the default: resolveFacts falls back
-   * to the provisioned voice line, formatted for speech, so the number
-   * published is the number answered by construction. A value here means a
-   * business deliberately publishes something else — a tracking line, a
-   * shopfront — and the pane says so in those words.
-   */
-  phone_display: z3.string().min(3).max(40).optional(),
-  /**
-   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
-   */
-  booking_link: z3.string().url().max(500).optional(),
-  /** The complete system prompt the model receives — the "AI memory" pane's
-   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
-  /**
-   * The business's facts, as fields.
-   *
-   * Optional: every config written before this existed stays valid, and
-   * nothing composes until a workspace actually fills it in. When present
-   * it REPLACES system_prompt as the source the prompt is built from.
-   */
-  profile: BusinessProfileSchema.optional(),
-  fallbacks: z3.object({
-    /** Sent when no model key is configured. */
-    greeting: z3.string().min(1).max(2e3),
-    /** Sent when the model call failed. */
-    error: z3.string().min(1).max(2e3),
-    /** Sent for voice notes / photos before escalating. */
-    non_text: z3.string().min(1).max(2e3)
-  }).strict()
-}).strict();
-var NotificationsConfigSchema = z3.object({
-  escalation_emails: z3.array(z3.string().email()).min(1).max(10),
-  from: z3.string().max(200).optional()
-}).strict();
-var CalendarConfigSchema = z3.object({
-  ical_url: z3.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strict();
-var FeaturesConfigSchema = z3.object({ vision: z3.boolean().optional() }).strict();
-var TenantConfigSchema = z3.object({
-  brain: BrainConfigSchema.optional(),
-  notifications: NotificationsConfigSchema.optional(),
-  calendar: CalendarConfigSchema.optional(),
-  features: FeaturesConfigSchema.optional()
-});
-var MAX_INTERVALS_PER_DAY = 4;
-var MAX_CLOSURES = 60;
-function isRealDate(key) {
-  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
-}
-var DAY_NAMES2 = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday"
-};
-var DAY_NAME = DAY_NAMES2;
-function dayProblems(h, day) {
-  const name = DAY_NAME[day] ?? day;
-  const out = [];
-  const open = h.open ?? void 0;
-  const close = h.close ?? void 0;
-  if (!!open !== !!close) {
-    out.push({
-      path: [open ? "close" : "open"],
-      message: `${name} needs both an opening and a closing time, or neither.`
+function scoped(builder, tenantId) {
+  for (const verb of FILTERED) {
+    const build = Reflect.get(builder, verb);
+    if (typeof build !== "function") continue;
+    Object.defineProperty(builder, verb, {
+      value: (...args) => {
+        if (verb === "update") unmoved(args[0], tenantId);
+        const statement = Reflect.apply(build, builder, args);
+        const eq = statement && Reflect.get(statement, "eq");
+        if (typeof eq !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
+        const filtered = Reflect.apply(eq, statement, ["tenant_id", tenantId]);
+        return filtered;
+      }
     });
   }
-  if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
+  for (const verb of STAMPED) {
+    const build = Reflect.get(builder, verb);
+    if (typeof build !== "function") continue;
+    Object.defineProperty(builder, verb, {
+      value: (rows, ...rest) => {
+        if (verb === "upsert") conflictsOnWorkspace(rest[0]);
+        const statement = Reflect.apply(build, builder, [
+          Array.isArray(rows) ? rows.map((r) => stamped(r, tenantId)) : stamped(rows, tenantId),
+          ...rest
+        ]);
+        return statement;
+      }
+    });
   }
-  const iv = h.intervals ?? [];
-  if (iv.length > MAX_INTERVALS_PER_DAY) {
-    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
-  }
-  iv.forEach((x, n) => {
-    if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
-    }
-  });
-  const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  for (let n = 1; n < sorted.length; n++) {
-    if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
-    }
+  return builder;
+}
+function tenantDb(db, tenantId) {
+  if (!tenantId) throw new Error("tenantDb: a workspace is required");
+  return {
+    tenantId,
+    from: (table) => scoped(builderOf(db, table), tenantId)
+  };
+}
+function platformWide(db) {
+  return db;
+}
+
+// src/repositories/ingest.ts
+import {
+  CARRIER_CONSENT_SOURCE,
+  conversationPatch,
+  normalizePhone,
+  HOUR_MS
+} from "../../contracts/dist/index.js";
+
+// src/repositories/people.ts
+import {
+  openDealsFromJson
+} from "../../contracts/dist/index.js";
+var PEOPLE_PAGE = 1e3;
+var IDS_PER_READ = 100;
+async function namesOfPeople(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`namesOfPeople: ${error.message}`);
+    out.push(...data ?? []);
   }
   return out;
 }
-function checkDay(h, day, ctx) {
-  for (const p of dayProblems(h, day)) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: ["brain", "profile", "hours", day, ...p.path],
-      message: p.message
-    });
+var PERSON_DECISIONS = 500;
+async function personDecisions(db, tenantId, contactId, conversationIds) {
+  const { data, error } = await db.from("decisions").select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload").eq("tenant_id", tenantId).in("subject_type", ["contact", "conversation"]).in("subject_id", [contactId, ...conversationIds]).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(PERSON_DECISIONS);
+  if (error) throw new Error(`person decisions: ${error.message}`);
+  return (data ?? []).map((d) => ({ ...d, payload: d.payload }));
+}
+function peopleCursorOf(row) {
+  return row?.in_touch_at && row.added_at ? { at: row.in_touch_at, added: row.added_at, id: row.id } : null;
+}
+async function peoplePage(db, tenantId, page = {}) {
+  const offset = page.offset ?? 0;
+  const limit = page.limit ?? PEOPLE_PAGE;
+  const after = page.after ?? null;
+  const { data, error } = await db.rpc("people_list", {
+    p_tenant_id: tenantId,
+    ...page.q ? { p_query: page.q } : {},
+    ...offset > 0 ? { p_offset: offset } : {},
+    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {},
+    ...after ? { p_after_at: after.at, p_after_added: after.added, p_after_id: after.id } : {}
+  });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return (data ?? []).map(rowOfPeopleList);
+}
+function rowOfPeopleList({ open_deals, ...row }) {
+  const deals = openDealsFromJson(open_deals);
+  return deals === void 0 ? row : { ...row, open_deals: deals };
+}
+async function personRow(db, tenantId, contactId) {
+  const { data, error } = await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contactId });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  const first = (data ?? [])[0];
+  return first ? rowOfPeopleList(first) : null;
+}
+async function everyoneIn(db, tenantId) {
+  const all2 = [];
+  for (let after = null; ; ) {
+    const page = await peoplePage(db, tenantId, after ? { after } : { offset: all2.length });
+    all2.push(...page);
+    if (page.length < PEOPLE_PAGE) return all2;
+    after = peopleCursorOf(page[page.length - 1]);
   }
 }
-function checkClosure(c, n, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
-  if (!isRealDate(c.date)) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("date"),
-      message: `${c.date} is not a date on the calendar.`
-    });
+async function erasureDigests(db, tenantId, values) {
+  const asked = [...new Set(values.filter((v) => v !== ""))];
+  if (asked.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.rpc("erasure_digests", { p_tenant_id: tenantId, p_values: asked });
+  if (error) throw new Error(`cannot make the erasure digests: ${error.message}`);
+  const digests = data ?? [];
+  if (digests.length !== asked.length) throw new Error("the erasure digests came back short");
+  const out = /* @__PURE__ */ new Map();
+  for (const [i, value] of asked.entries()) {
+    const digest = digests[i];
+    if (digest === void 0) throw new Error("the erasure digests came back short");
+    out.set(value, digest);
   }
-  if (c.until && !isRealDate(c.until)) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("until"),
-      message: `${c.until} is not a date on the calendar.`
-    });
-  }
-  if (c.until && c.until < c.date) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("until"),
-      message: "A closure cannot end before it starts."
-    });
-  }
+  return out;
 }
-var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
-  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: ["calendar", "ical_url"],
-      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
-    });
-  }
-  const p = cfg.brain?.profile;
-  if (!p) return;
-  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
-  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: ["brain", "profile", "closures"],
-      message: `At most ${MAX_CLOSURES} closures.`
-    });
-  }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
-});
-var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
-var REPLY_VIA = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS = {
-  whatsapp: REPLY_VIA.whatsapp,
-  sms: REPLY_VIA.sms,
-  email: REPLY_VIA.email,
-  call: PERSON_CHANNEL_WORDS.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported history",
-  lead: "A lead you found"
-};
-var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
-var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
-var LEAD_MAX_PLACES = 1e3;
-var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
-var US_STATES = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY"
-};
-var US_CODES = new Set(Object.values(US_STATES));
-var KEY = /^[a-z][a-z0-9_]{0,39}$/;
-var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words = (min, max) => z4.string().transform((s) => stripUnsafe(s).trim()).pipe(z4.string().min(min).max(max));
-var LeadSearchPlanSchema = z4.object({
-  version: z4.number().int().min(1),
-  card: z4.literal("local_businesses"),
-  name: words(2, 80),
-  asked: words(1, 400),
-  terms: z4.array(words(2, 60)).min(1).max(5),
-  area: z4.object({
-    kind: z4.enum(["zip", "city", "radius"]),
-    label: words(2, 80),
-    state: z4.string().regex(/^[A-Z]{2}$/),
-    center: z4.object({ lat: z4.number().min(-90).max(90), lng: z4.number().min(-180).max(180) }).nullable(),
-    radius_m: z4.number().int().min(500).max(2e5),
-    zip: z4.string().regex(/^\d{5}$/).optional(),
-    query: words(2, 120)
-  }),
-  count: z4.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z4.enum(["phone", "email"]),
-  criteria: z4.array(
-    z4.object({
-      key: z4.string().regex(KEY),
-      text: words(2, 120),
-      standard: z4.enum(["likely", "seen"]),
-      required: z4.boolean()
-    })
-  ).max(8),
-  exclusions: z4.array(
-    z4.object({
-      key: z4.string().regex(KEY),
-      text: words(2, 80),
-      origin: z4.enum(["claude", "you_said"]),
-      category_key: z4.string().regex(KEY).optional()
-    })
-  ).max(8)
-}).superRefine((p, ctx) => {
-  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length)
-    ctx.addIssue({
-      code: "custom",
-      message: "every criterion and exclusion has a key of its own",
-      path: ["criteria"]
-    });
-  const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length)
-    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null)
-    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip)
-    ctx.addIssue({
-      code: "custom",
-      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
-      path: ["area", "zip"]
-    });
-  if (!US_CODES.has(p.area.state))
-    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
-});
-var US_NAMES = Object.fromEntries(
-  Object.entries(US_STATES).map(([name, code2]) => [code2, name])
-);
-var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
-function dealsAreOn(sellsBy) {
-  return sellsBy === "proposal";
+async function scrubPersonNotes(db, tenantId, contactId, needles) {
+  const { data, error } = await db.rpc("person_notes_scrub", {
+    p_tenant_id: tenantId,
+    p_contact_id: contactId,
+    p_needles: [...needles]
+  });
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`person_notes_scrub: ${error.message}`);
+  return data ?? 0;
 }
-function isDealStage(s) {
-  return typeof s === "string" && DEAL_STAGES.includes(s);
+async function mergePeople(db, keep, merge) {
+  const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
+  if (error) throw error;
+  return mergedOf(data);
 }
-function pickCurrentDeal(rows) {
-  const sorted = [...rows].sort(
-    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
-  );
-  return sorted[0] ?? null;
-}
-function dealIsOpen(d) {
-  return !!d && (d.stage === "proposed" || d.stage === "won");
-}
-function proposalLinkOf(current, personLink) {
-  if (!current) return personLink?.trim() || null;
-  if (current.stage !== "proposed") return null;
-  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
-}
-function dealSinceMs(d) {
-  const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
-  const ms2 = at2 ? Date.parse(at2) : NaN;
-  return Number.isFinite(ms2) ? ms2 : null;
-}
-function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
-  if (!d || !isDealStage(d.stage)) return null;
-  const svc = d.service ? ` (${d.service})` : "";
-  const sinceMs = dealSinceMs(d);
-  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
-  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
-  switch (d.stage) {
-    case "won":
-      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
-    case "proposed":
-      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
-    case "lost":
-      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
-    case "ended":
-      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
-  }
-}
-var FIRST_RUN_ROUTE = "start";
-var FIND_PARAM = "find";
-var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
-var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
-var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
-var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES = [
-  "interested",
-  "call_back",
-  "not_interested",
-  "voicemail",
-  "no_answer",
-  "wrong_number"
-];
-var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS = {
-  said_no: "Said no",
-  not_a_fit: "Not a fit",
-  customer: "Already a customer",
-  stale: "Went quiet",
-  search_removed: "Search removed"
-};
-var LEAD_CALL_OUTCOME_TONES = {
-  interested: "ok",
-  call_back: "warn",
-  voicemail: "plain",
-  no_answer: "plain",
-  not_interested: "danger",
-  wrong_number: "danger"
-};
-var LEAD_CALL_OUTCOME_WORDS = {
-  interested: "Interested",
-  call_back: "Call back later",
-  not_interested: "Not interested",
-  voicemail: "Left a voicemail",
-  no_answer: "No answer",
-  wrong_number: "Wrong number"
-};
-var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
-var LEAD_NOT_A_FIT_WORDS = {
-  chain: "A chain or franchise",
-  wrong_kind: "The wrong kind of business",
-  too_far: "Too far away",
-  customer: "Already a customer",
-  other: "Something else"
-};
-var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
-var LEAD_SENT_QUESTION = "Did you send it?";
-var LEAD_CALL_QUESTION = "How did the call go?";
-var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
-var LEAD_NOTE_MAX = 280;
-var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a call goes well.";
-function leadNoteLeft(left, max) {
-  return left >= max ? `Up to ${max} characters` : `${left} left`;
-}
-var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
-var LEAD_FIRST_DAY_TITLE = "Your people gather here";
-var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
-var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
-var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
-var LEAD_WORDS = {
-  /**
-   * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
-   * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
-   * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
-   *
-   * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
-   * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
-   * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
-   */
-  callWays: {
-    dial: { label: "Call from your phone" },
-    copy: { label: "Copy the number" },
-    /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
-    log: { label: "Log a call you already made", meta: "how did it go?" }
-  },
-  close: "Close",
-  open: "Open",
-  stageLabel: "Stage",
-  notFit: LEAD_CLOSED_WORDS.not_a_fit,
-  notFitTitle: LEAD_NOT_A_FIT_TITLE,
-  whys: LEAD_NOT_A_FIT_WHYS.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS[id] })),
-  keep: "Keep",
-  exclude: "Exclude",
-  putBack: "Put back",
-  leftOut: "Left out of this search. It doesn't count.",
-  reach: "How you can reach them",
-  checked: "Checked",
-  found: "Found",
-  call: "Call",
-  copy: "Copy",
-  copyAria: "Copy the email",
-  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
-  copyPhoneAria: "Copy the number",
-  draftAria: "Draft an email",
-  draft: "Draft",
-  noWebsite: "No website listed",
-  instagram: "Instagram",
-  talkingNote: LEAD_TALKING_NOTE,
-  sentQuestion: LEAD_SENT_QUESTION,
-  sentYes: "Yes, mark contacted",
-  sentNo: "Not yet",
-  callQuestion: LEAD_CALL_QUESTION,
-  callSave: "Save",
-  callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({
-    id,
-    label: LEAD_CALL_OUTCOME_WORDS[id],
-    tone: LEAD_CALL_OUTCOME_TONES[id]
-  })),
-  noteLabel: "A note about the call",
-  notePlaceholder: LEAD_NOTE_PLACEHOLDER,
-  noteMax: LEAD_NOTE_MAX,
-  noteLeft: leadNoteLeft,
-  backTo: "Back to",
-  to: "To",
-  subject: "Subject",
-  draftRewrite: "Rewrite",
-  tones: [
-    { id: "shorter", label: "Shorter" },
-    { id: "warmer", label: "Warmer" }
-  ],
-  draftWriting: "Writing it\u2026",
-  draftNote: LEAD_DRAFT_NOTE,
-  draftOpen: "Open in your email",
-  draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email.",
-  firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
-  about: "About",
-  reachHeading: "Reach",
-  unclaimed: LEAD_UNCLAIMED_NOTE,
-  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
-  // D5: the peek re-cut, and the photo expanded.
-  expand: "Expand",
-  photos: "Photos",
-  noPhoto: "No photo on the listing",
-  whereSits: "Where it sits",
-  openHours: "Open hours",
-  fromListing: "From the listing",
-  openMaps: "Open in Maps",
-  ratedHeading: "What people say",
-  closePhotos: "Close",
-  // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at2, of) => `${at2} of ${of}`,
-  deckPrev: "The lead before",
-  deckNext: "The next lead",
-  callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
-};
-var LeadsQuerySchema = z5.object({
-  list: z5.enum(LEAD_LISTS).default("all"),
-  search: z5.string().uuid().optional(),
-  class: z5.enum(LEAD_CLASSES).optional(),
-  sort: z5.enum(LEAD_SORTS).default("fit"),
-  dir: z5.enum(["asc", "desc"]).default("asc"),
-  after_key: z5.string().max(80).optional(),
-  after_id: z5.string().uuid().optional(),
-  limit: z5.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z5.discriminatedUnion("kind", [
-  z5.object({ kind: z5.literal("stage"), stage: z5.enum(["ready", "nurture", "converted"]) }),
-  z5.object({ kind: z5.literal("not_a_fit"), why: z5.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z5.object({ kind: z5.literal("said_no") }),
-  z5.object({
-    kind: z5.literal("outcome"),
-    outcome: z5.enum(LEAD_CALL_OUTCOMES),
-    note: z5.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z5.object({ kind: z5.literal("emailed") })
-]);
-var LeadsBulkSchema = z5.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z5.object({
-    by: z5.literal("ids"),
-    action: z5.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z5.array(z5.string().uuid()).min(1).max(500),
-    search_id: z5.string().uuid().optional()
-  }),
-  z5.object({ by: z5.literal("view"), action: z5.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
-]);
-var LeadsCheckAgainSchema = z5.object({ ids: z5.array(z5.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z5.object({
-  tone: z5.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z5.object({ subject: z5.string().max(200), body: z5.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema = z5.object({ name: z5.string().trim().min(1).max(80) });
-var BusinessLineSchema = z5.object({ business_line: z5.string().trim().min(3).max(160) });
-var planChip = (max) => z5.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z5.object({
-  looking_for: z5.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z5.string().trim().min(2).max(40),
-  count: z5.number().int().min(1).max(LEAD_MAX_PLACES),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip(60),
-  category_key: z5.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z5.array(planChip(60)).min(1).max(5),
-  city: z5.string().trim().max(60).nullable().default(null),
-  region: z5.string().trim().min(2).max(40),
-  zip: z5.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z5.enum(["phone", "email"]),
-  criteria: z5.array(z5.object({ text: planChip(120), standard: z5.enum(["likely", "seen"]), required: z5.boolean() })).max(6).default([]),
-  leave_out: z5.array(z5.object({ words: planChip(40) })).max(6).default([]),
-  asked: z5.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema = z5.object({
-  subject: z5.string().trim().min(3).max(120),
-  body: z5.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema = z5.object({
-  line: z5.string().trim().min(3).max(160),
-  items: z5.array(
-    z5.object({
-      words: z5.string().trim().min(3).max(80),
-      who_for: z5.string().trim().min(3).max(120),
-      category_key: z5.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
-var LIST_RULE_FIELDS = [
-  {
-    id: "last_visit",
-    label: "Last visit",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days since their last appointment on the calendar"
-  },
-  {
-    id: "next_visit",
-    label: "Next visit",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
-  },
-  { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
-  {
-    id: "asked_not_booked",
-    label: "Asked, never booked",
-    kind: "yesno",
-    needs: ["calendar"],
-    draft: "wrote or called in the last 30 days and nothing on the calendar answers it"
-  },
-  {
-    id: "last_heard",
-    label: "Last heard from",
-    kind: "days",
-    needs: [],
-    draft: "days since THEY last wrote or called"
-  },
-  { id: "first_contact", label: "First contact", kind: "days", needs: [], draft: "days since they first got in touch" },
-  {
-    id: "channel",
-    label: "Reaches you by",
-    kind: "channel",
-    needs: [],
-    draft: "a way they reach the business: whatsapp, sms, voice (phone calls) or email"
-  },
-  {
-    id: "came_from",
-    label: "Came from",
-    kind: "came_from",
-    needs: [],
-    draft: "how they first came: whatsapp, sms, email, call, calendar, manual, import or lead"
-  },
-  { id: "calls", label: "Calls", kind: "count", needs: [], draft: "how many calls" },
-  { id: "conversations", label: "Conversations", kind: "count", needs: [], draft: "how many conversations" },
-  {
-    id: "has_chat",
-    label: "Has written with you",
-    kind: "yesno",
-    needs: [],
-    draft: "a written conversation either way (no means they have only phoned)"
-  },
-  {
-    id: "said_yes",
-    label: "Said yes to",
-    kind: "purpose",
-    needs: [],
-    draft: "said yes to offers, or to messages (to: offers or messages)"
-  },
-  {
-    id: "can_receive",
-    label: "Can be sent",
-    kind: "purpose",
-    needs: [],
-    draft: "can be sent offers or messages: the yes and a number to send to (to: offers or messages)"
-  },
-  { id: "stopped", label: "Asked to stop", kind: "yesno", needs: [], draft: "asked to stop, or on do-not-contact" },
-  {
-    id: "standing",
-    label: "Standing",
-    kind: "standing",
-    needs: [],
-    draft: "value needs_you (waiting for a person) or waiting_on_you (you have the thread and they wrote last)"
-  },
-  {
-    id: "assigned",
-    label: "Thread is with",
-    kind: "assigned",
-    needs: [],
-    draft: "who has their thread: value me, teammate or nobody"
-  },
-  {
-    id: "deal_stage",
-    label: "Deal",
-    kind: "deal_stage",
-    needs: ["deals"],
-    draft: "where they are on the way to a deal: value consultation, proposed, won, lost (passed) or ended"
-  },
-  {
-    id: "consultation",
-    label: "A consultation",
-    kind: "yesno",
-    needs: ["calendar", "consult"],
-    draft: "their next or last visit is a consultation"
-  },
-  { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
-  {
-    id: "in_list",
-    label: "On the list",
-    kind: "list",
-    needs: [],
-    draft: "on another list, by its token (list); never use it in a draft"
-  }
-];
-var FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
-var fieldOf = (id) => LIST_RULE_FIELDS.find((f) => f.id === id);
-var CHANNELS = ["whatsapp", "sms", "voice", "email"];
-var CAME_FROM = [
-  "whatsapp",
-  "sms",
-  "email",
-  "call",
-  "calendar",
-  "manual",
-  "import",
-  "lead"
-];
-var LIST_PURPOSES = ["offers", "messages"];
-var LIST_STANDINGS = ["needs_you", "waiting_on_you"];
-var LIST_ASSIGNED = ["me", "teammate", "nobody"];
-var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
-var LIST_RULE_MAX = 12;
-var LIST_ANY_MAX = 6;
-var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
-var Days = { op: z6.enum(DAY_OPS), days: z6.number().int().min(1).max(3650).optional() };
-var YesNo = { op: z6.literal("is"), yes: z6.boolean() };
-var Count = { op: z6.enum(["at_least", "at_most"]), n: z6.number().int().min(0).max(1e4) };
-var IsOrNot = z6.enum(["is", "is_not"]);
-var Token = z6.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact = (shape) => z6.object(shape).strict();
-var ListFactSchema = z6.discriminatedUnion("field", [
-  fact({ field: z6.literal("last_visit"), ...Days }),
-  fact({ field: z6.literal("next_visit"), ...Days }),
-  fact({ field: z6.literal("booked"), ...YesNo }),
-  fact({ field: z6.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z6.literal("last_heard"), ...Days }),
-  fact({ field: z6.literal("first_contact"), ...Days }),
-  fact({ field: z6.literal("channel"), op: IsOrNot, channel: z6.enum(CHANNELS) }),
-  fact({ field: z6.literal("came_from"), op: IsOrNot, from: z6.enum(CAME_FROM) }),
-  fact({ field: z6.literal("calls"), ...Count }),
-  fact({ field: z6.literal("conversations"), ...Count }),
-  fact({ field: z6.literal("has_chat"), ...YesNo }),
-  fact({ field: z6.literal("said_yes"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  fact({ field: z6.literal("can_receive"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  fact({ field: z6.literal("stopped"), ...YesNo }),
-  fact({ field: z6.literal("standing"), op: IsOrNot, value: z6.enum(LIST_STANDINGS) }),
-  fact({ field: z6.literal("assigned"), op: IsOrNot, value: z6.enum(LIST_ASSIGNED) }),
-  fact({ field: z6.literal("deal_stage"), op: IsOrNot, value: z6.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z6.literal("consultation"), ...YesNo }),
-  fact({ field: z6.literal("step_due"), ...YesNo }),
-  fact({ field: z6.literal("in_list"), op: IsOrNot, list: Token })
-]);
-var AnySchema = z6.object({ any: z6.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
-var ListConditionSchema = z6.union([AnySchema, ListFactSchema]);
-function factProblem(f) {
-  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
-    return null;
-  if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
-  if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
-  return null;
-}
-var ListRuleSchema = z6.object({
-  v: z6.literal(2).optional(),
-  all: z6.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
-}).strict().superRefine((r2, ctx) => {
-  for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
-    const p = factProblem(f);
-    if (p) ctx.addIssue({ code: z6.ZodIssueCode.custom, message: p });
-  }
-});
-function ruleFacts(rule) {
-  return rule.all.flatMap((c) => "any" in c ? c.any : [c]);
-}
-function factNeeds(f) {
-  const needs = new Set(fieldOf(f.field).needs);
-  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
-  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
-  if (f.field === "deal_stage" && f.value === "consultation") {
-    needs.add("calendar");
-    needs.add("consult");
-  }
-  return LIST_NEEDS.filter((n) => needs.has(n));
-}
-function ruleNeeds(rule) {
-  const needs = new Set(ruleFacts(rule).flatMap(factNeeds));
-  return LIST_NEEDS.filter((n) => needs.has(n));
-}
-function dayHolds(days, op, n) {
-  switch (op) {
-    case "never":
-      return days === null;
-    case "ever":
-      return days !== null;
-    case "within":
-      return days !== null && days <= (n ?? 0);
-    case "more_than":
-      return days !== null && days > (n ?? 0);
-    case "this_week":
-      return false;
-  }
-}
-function holds(f, v, inList) {
-  const is = "op" in f && f.op === "is";
-  switch (f.field) {
-    case "last_visit":
-      return dayHolds(v.lastVisitDays, f.op, f.days);
-    case "next_visit":
-      return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds(v.nextVisitDays, f.op, f.days);
-    case "last_heard":
-      return dayHolds(v.heardDays, f.op, f.days);
-    case "first_contact":
-      return f.op === "within" && !v.firstContact.evidence ? false : dayHolds(v.firstDays, f.op, f.days);
-    case "booked":
-      return v.booked === f.yes;
-    case "asked_not_booked":
-      return v.askedNotBooked === f.yes;
-    case "has_chat":
-      return v.hasChat === f.yes;
-    case "stopped":
-      return v.stopped === f.yes;
-    case "consultation":
-      return v.consultationVisit === f.yes;
-    case "step_due":
-      return v.stepDue === f.yes;
-    case "said_yes":
-      return v.saidYes[f.to] === f.yes;
-    case "can_receive":
-      return v.canReceive[f.to] === f.yes;
-    case "channel":
-      return v.channels.includes(f.channel) === is;
-    case "came_from":
-      return v.cameFrom?.key === f.from === is;
-    case "calls":
-      return f.op === "at_least" ? v.calls >= f.n : v.calls <= f.n;
-    case "conversations":
-      return f.op === "at_least" ? v.threads >= f.n : v.threads <= f.n;
-    case "standing":
-      return v.standing === f.value === is;
-    case "assigned":
-      return v.assigned === f.value === is;
-    case "deal_stage":
-      return v.dealStage === f.value === is;
-    case "in_list":
-      return inList(f.list, v.id) === is;
-  }
-}
-var noLists = () => false;
-function listRuleMatches(rule, v, inList = noLists) {
-  return rule.all.every((c) => "any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList));
-}
-var LEAF_PROPERTIES = {
-  field: { type: "string", enum: FIELD_IDS.filter((id) => id !== "in_list") },
-  op: { type: "string", enum: [...DAY_OPS, "at_least", "at_most", "is", "is_not"] },
-  days: { type: "integer" },
-  n: { type: "integer" },
-  yes: { type: "boolean" },
-  channel: { type: "string", enum: [...CHANNELS] },
-  from: { type: "string", enum: [...CAME_FROM] },
-  to: { type: "string", enum: [...LIST_PURPOSES] },
-  value: { type: "string", enum: [.../* @__PURE__ */ new Set([...LIST_STANDINGS, ...LIST_ASSIGNED, ...LIST_DEAL_STAGES])] }
-};
-var LIST_DRAFT_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name", "all", "cannot"],
-  properties: {
-    name: { type: "string" },
-    cannot: { type: "string" },
-    all: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          ...LEAF_PROPERTIES,
-          any: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["field", "op"],
-              properties: LEAF_PROPERTIES
-            }
-          }
-        }
-      }
-    }
-  }
-};
-var ListDraftAnswerSchema = z6.object({
-  name: z6.string().trim().min(1).max(60),
-  cannot: z6.string().trim().max(200),
-  all: z6.array(z6.unknown()).max(LIST_RULE_MAX)
-});
-var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-var BUILTIN_ID = /^[a-z_]{1,40}$/;
-function parseListToken(token) {
-  if (typeof token !== "string") return null;
-  const at2 = token.indexOf(":");
-  const kind = token.slice(0, at2);
-  const id = token.slice(at2 + 1);
-  if ((kind === "seg" || kind === "state") && BUILTIN_ID.test(id)) return { kind: "builtin", id };
-  if (kind === "list" && SAVED_ID.test(id)) return { kind: "saved", id: id.toLowerCase() };
-  return null;
-}
-var r = (...all) => ({ v: 2, all });
-var BUILTIN_LISTS = [
-  {
-    id: "needs_you",
-    label: "Needs you",
-    tip: "An open escalation, or a thread waiting for a person",
-    group: "attention",
-    onProfile: false,
-    rule: r({ field: "standing", op: "is", value: "needs_you" })
-  },
-  // Yours, or nobody's: a teammate's thread waits on them (standing.ts).
-  {
-    id: "waiting_on_you",
-    label: "Waiting on you",
-    tip: "You have the thread, or nobody does, and they wrote last \u2014 a teammate's waits on them",
-    group: "attention",
-    onProfile: false,
-    rule: r({ field: "standing", op: "is", value: "waiting_on_you" })
-  },
-  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
-  {
-    id: "steps_due",
-    label: "Steps due",
-    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
-    group: "attention",
-    onProfile: false,
-    rule: r({ field: "step_due", op: "is", yes: true })
-  },
-  // New by the date they first got in touch, whatever their standing: someone new who needs you is both.
-  {
-    id: "new_week",
-    label: "New this week",
-    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
-    group: "journey",
-    rule: r({ field: "first_contact", op: "within", days: 7 })
-  },
-  // This week, Monday to Sunday, by the workspace's clock.
-  {
-    id: "booked_week",
-    label: "Booked this week",
-    tip: "An appointment this week, Monday to Sunday",
-    group: "journey",
-    rule: r({ field: "next_visit", op: "this_week" })
-  },
-  {
-    id: "booked",
-    label: "Booked",
-    tip: "An appointment ahead on your calendar \u2014 the booking is the conversion",
-    group: "journey",
-    rule: r({ field: "booked", op: "is", yes: true })
-  },
-  // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
-  {
-    id: "asked_never_booked",
-    label: "Asked, never booked",
-    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
-    group: "journey",
-    rule: r({ field: "asked_not_booked", op: "is", yes: true })
-  },
-  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    tip: "Forty-five days or more since their last visit, nothing ahead \u2014 the win-back list, from visits rather than silence",
-    group: "journey",
-    rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
-  },
-  // The journey past the booking (0004), as the Pipeline groups it (deals.ts dealStageOf).
-  {
-    id: "consultation_booked",
-    label: "Consultations",
-    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "consultation" })
-  },
-  {
-    id: "proposal_out",
-    label: "Proposal out",
-    tip: "A proposal went out and is waiting on their answer",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "proposed" })
-  },
-  {
-    id: "clients",
-    label: "Clients",
-    tip: "Said yes, or paid \u2014 the engagement is running",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "won" })
-  },
-  {
-    id: "deal_passed",
-    label: "Passed",
-    tip: "They passed on a proposal",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "lost" })
-  },
-  {
-    id: "deal_ended",
-    label: "Ended",
-    tip: "An engagement that ended \u2014 the win-back list for clients",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "ended" })
-  },
-  // Heard from them, then nothing for thirty days: someone we never heard from is not quiet, and our own sends are
-  // not their word.
-  {
-    id: "quiet",
-    label: "Quiet 30+ days",
-    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
-    group: "reach",
-    rule: r({ field: "last_heard", op: "more_than", days: 30 })
-  },
-  {
-    id: "phoned_only",
-    label: "Phoned only",
-    tip: "Only ever phoned \u2014 no WhatsApp thread",
-    group: "reach",
-    rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
-  },
-  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one is the yes to hearing from the business, which says nothing
-  // about offers; the next is the promotional audience, who a marketing broadcast may reach: the yes AND a number.
-  {
-    id: "opted_in",
-    label: "Said yes to messages",
-    tip: "Said yes to hearing from you \u2014 replies and messages about their own visit",
-    group: "reach",
-    onProfile: false,
-    rule: r({ field: "said_yes", op: "is", to: "messages", yes: true })
-  },
-  {
-    id: "offers_ok",
-    label: "Can receive offers",
-    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
-    group: "reach",
-    onProfile: false,
-    rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })
-  },
-  // A fact, not the state: someone who opted out AND needs you is in both lists.
-  {
-    id: "opted_out",
-    label: "Opted out",
-    tip: "Asked to stop; the receptionist stays silent, offers included",
-    group: "reach",
-    onProfile: false,
-    rule: r({ field: "stopped", op: "is", yes: true })
-  }
-];
-var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
-  const needs = ruleNeeds(l.rule);
+function mergedOf(v) {
+  const o = v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  const word = (k) => typeof o[k] === "string" ? o[k] : "";
+  if (!word("contact_id") || !word("merged")) throw new Error("merge_people answered without the two records");
+  const counts = o.counts && typeof o.counts === "object" && !Array.isArray(o.counts) ? o.counts : {};
+  const out = {};
+  for (const [k, n] of Object.entries(counts)) if (typeof n === "number" || typeof n === "string") out[k] = n;
   return {
-    ...l,
-    ...needs.includes("calendar") ? { needsCalendar: true } : {},
-    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
-    ...needs.includes("deals") ? { needsDeals: true } : {},
-    ...needs.includes("viewer") ? { needsViewer: true } : {},
-    test: (vm) => listRuleMatches(l.rule, vm)
+    contact_id: word("contact_id"),
+    merged: word("merged"),
+    tenant_id: word("tenant_id"),
+    decision_id: word("decision_id"),
+    consent: word("consent"),
+    marketing_consent: word("marketing_consent"),
+    email_marketing: word("email_marketing"),
+    counts: out
   };
-});
-var PeopleExportQuerySchema = z7.object({
-  list: z7.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
-});
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = {
-  ...PERSON_MODE_LABELS,
-  inherit: "Follow the workspace"
-};
-var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
-var MONTH_MS = 30 * DAY_MS4;
-var NOTE_MAX = 600;
-var NOTE_REFUSALS = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
-};
-var L = (id, name, region, native) => ({
-  id,
-  label: region ? `${name} (${region})` : name,
-  name,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES = [
-  L("af", "Afrikaans", null, "Afrikaans"),
-  L("sq", "Albanian", null, "Shqip"),
-  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L("ca", "Catalan", null, "Catal\xE0"),
-  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L("hr", "Croatian", null, "Hrvatski"),
-  L("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L("da", "Danish", null, "Dansk"),
-  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L("nl", "Dutch", null, "Nederlands"),
-  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L("en", "English", null, "English"),
-  L("en_AU", "English", "Australia", "English"),
-  L("en_CA", "English", "Canada", "English"),
-  L("en_GH", "English", "Ghana", "English"),
-  L("en_IN", "English", "India", "English"),
-  L("en_IE", "English", "Ireland", "English"),
-  L("en_JM", "English", "Jamaica", "English"),
-  L("en_MY", "English", "Malaysia", "English"),
-  L("en_NZ", "English", "New Zealand", "English"),
-  L("en_QA", "English", "Qatar", "English"),
-  L("en_SG", "English", "Singapore", "English"),
-  L("en_ZA", "English", "South Africa", "English"),
-  L("en_AE", "English", "UAE", "English"),
-  L("en_UG", "English", "Uganda", "English"),
-  L("en_GB", "English", "UK", "English"),
-  L("en_US", "English", "US", "English"),
-  L("et", "Estonian", null, "Eesti"),
-  L("fil", "Filipino", null, "Filipino"),
-  L("fi", "Finnish", null, "Suomi"),
-  L("fr", "French", null, "Fran\xE7ais"),
-  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L("de", "German", null, "Deutsch"),
-  L("de_AT", "German", "Austria", "Deutsch"),
-  L("de_CH", "German", "Switzerland", "Deutsch"),
-  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L("ha", "Hausa", null, "Hausa"),
-  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L("hu", "Hungarian", null, "Magyar"),
-  L("id", "Indonesian", null, "Bahasa Indonesia"),
-  L("ga", "Irish", null, "Gaeilge"),
-  L("it", "Italian", null, "Italiano"),
-  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L("lv", "Latvian", null, "Latvie\u0161u"),
-  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L("ms", "Malay", null, "Bahasa Melayu"),
-  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L("pl", "Polish", null, "Polski"),
-  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L("sk", "Slovak", null, "Sloven\u010Dina"),
-  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L("es", "Spanish", null, "Espa\xF1ol"),
-  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L("sw", "Swahili", null, "Kiswahili"),
-  L("sv", "Swedish", null, "Svenska"),
-  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L("uz", "Uzbek", null, "O\u02BBzbek"),
-  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
-function parseParamSpec(raw) {
-  if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
-    if (m) return { kind: m[1] };
-    return { kind: "text", value: raw };
-  }
-  if (raw && typeof raw === "object") {
-    const o = raw;
-    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
-      return { kind: o.kind };
-  }
-  return null;
 }
-function parseParamSpecs(raw) {
-  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+
+// src/repositories/campaigns/campaign-channels.ts
+async function whatsappChannelConfig(db, tenantId) {
+  const { data, error } = await db.from("tenant_channels").select("config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle();
+  if (error) throw new Error(`whatsapp_channel_config: ${error.message}`);
+  if (!data) return null;
+  const cfg = data.config;
+  return cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {};
 }
-var DAY_MS5 = 864e5;
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
-var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
-function parts(tz, now) {
-  try {
-    const f = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false
-    });
-    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
-    const hour = Number(p.hour) % 24;
-    return { date: `${p.year}-${p.month}-${p.day}`, hour };
-  } catch {
-    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+async function textLineFacts(db, tenantId) {
+  const { data, error } = await db.from("lines").select("sms_state, reg_mock").eq("tenant_id", tenantId).not("messaging_service_sid", "is", null).neq("voice_state", "failed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`text_line_facts: ${error.message}`);
+  return data ?? null;
+}
+async function playbookChannels(db, playbookId) {
+  const { data, error } = await db.from("playbooks").select("channels").eq("id", playbookId).maybeSingle();
+  if (error) {
+    if (/channels/.test(error.message) && /does not exist|could not find/i.test(error.message)) return null;
+    throw new Error(`playbook_channels: ${error.message}`);
+  }
+  return data?.channels ?? null;
+}
+function noChannelColumns(error) {
+  return !!error && /\b(consent_channels|marketing_channels|channel)\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
+}
+function noRelationshipColumn(error) {
+  return !!error && /\bhas_relationship\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
+}
+var UNDEFINED_COLUMN = "42703";
+async function queuedRecipients(db, p) {
+  const withAttempt = await db.from("broadcast_recipients").select("contact_id, facts, channel, attempt").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (!withAttempt.error) return withAttempt.data ?? [];
+  if (withAttempt.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withAttempt.error.message}`);
+  const withChannel = await db.from("broadcast_recipients").select("contact_id, facts, channel").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (!withChannel.error) return withChannel.data ?? [];
+  if (withChannel.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withChannel.error.message}`);
+  const bare = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
+  return bare.data ?? [];
+}
+async function runGoesByOthers(db, tenantId, broadcastId, than) {
+  const of = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
+  const { count, error } = await (than === "whatsapp" ? of.in("channel", ["sms", "email"]) : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
+  if (noChannelColumns(error)) return than === "email";
+  if (error) throw new Error(`run_goes_by_others: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+async function campaignMonthSent(db, tenantId, channel, at) {
+  const { data, error } = await db.rpc("campaign_month_sent", {
+    p_tenant_id: tenantId,
+    p_channel: channel,
+    ...at ? { p_at: at.toISOString() } : {}
+  });
+  if (error) throw new Error(`cannot count the month's ${channel} campaign messages: ${error.message}`);
+  if (typeof data !== "number")
+    throw new Error(`cannot count the month's ${channel} campaign messages: the database answered no count`);
+  return data;
+}
+async function holdRecipients(db, p) {
+  for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ) {
+    const { error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`hold_recipients: ${error.message}`);
   }
 }
-function localDate(tz, now) {
-  return parts(tz, now).date;
-}
-var SWEEP_TICK_MS = 5 * 6e4;
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short
-};
-var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES = { ...FIRST, label: "Nombre" };
-var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
-var LINK_ES = { ...LINK, label: "Enlace de reservas" };
-var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
-var PROPOSAL = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
-var LIMIT_TIERS = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
-var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var SOLE_PROP_LIMITS = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
-var DAY_MS6 = 24 * 3600 * 1e3;
-var DAY_MS7 = 864e5;
-var QUIET_AFTER_MS = 7 * DAY_MS7;
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var CHANNEL_KIND_WORDS = {
-  whatsapp: "WhatsApp",
-  voice: "Phone line",
-  sms: "Texting",
-  email: "Email",
-  instagram: "Instagram"
-};
-var KIND_META = {
-  whatsapp: {
-    name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
-    icon: "chat",
-    noun: "message"
-  },
-  voice: {
-    name: CHANNEL_KIND_WORDS.voice,
-    what: "Customers call this number; the receptionist picks up",
-    icon: "phone",
-    noun: "call"
-  },
-  sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
-};
-var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
-var NOTE_SUGGEST_SCHEMA = {
-  type: "object",
-  properties: {
-    worth: { type: "boolean" },
-    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS, "none"] },
-    text: { type: "string" },
-    quote: { type: "string" }
-  },
-  required: ["worth", "kind", "text", "quote"],
-  additionalProperties: false
-};
-var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
-var ASK_LANGUAGES = ["en", "es", "other"];
-var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z8.object({
-  state: z8.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z8.string().max(300).catch(""),
-  atMs: z8.number().catch(0),
-  undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
-});
-var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
-  z8.object({
-    op: z8.literal("add_closure"),
-    date: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z8.string().max(200).optional()
-  }),
-  z8.object({
-    op: z8.literal("set_hours"),
-    day: z8.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z8.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z8.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z8.object({ op: z8.literal("add_note"), title: z8.string().min(1).max(80), text: z8.string().min(1).max(1200) }),
-  z8.object({
-    op: z8.literal("add_service"),
-    name: z8.string().min(1).max(80),
-    duration_min: z8.number().int().min(1).max(1440).optional()
-  })
-]);
-var ASK_ANSWER_CAPS = {
-  headline: 160,
-  detail: 700,
-  figures: 4,
-  items: 5,
-  parts: 4,
-  next: 2,
-  value: 24,
-  label: 60,
-  note: 60,
-  title: 80,
-  meta: 60,
-  line: 160,
-  question: 90
-};
-var C = ASK_ANSWER_CAPS;
-var SOURCE = {
-  type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
-  properties: {
-    kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
-    id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C.label} characters.` }
-  },
-  required: ["kind", "id", "label"],
-  additionalProperties: false
-};
-var ASK_ANSWER_FORMAT = {
-  type: "object",
-  properties: {
-    say: {
-      type: "object",
-      properties: {
-        headline: {
-          type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C.headline} characters.`
-        },
-        detail: {
-          type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C.detail} characters.`
-        }
-      },
-      required: ["headline", "detail"],
-      additionalProperties: false
-    },
-    show: {
-      type: "object",
-      properties: {
-        figures: {
-          type: "array",
-          description: `The numbers the headline rests on, at most ${C.figures}; empty when there is none.`,
-          items: {
-            type: "object",
-            properties: {
-              value: {
-                type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C.value} characters.`
-              },
-              label: { type: "string", description: `What it counts, at most ${C.label} characters.` },
-              note: {
-                type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C.note} characters.`
-              },
-              source: SOURCE
-            },
-            required: ["value", "label", "note", "source"],
-            additionalProperties: false
-          }
-        },
-        items: {
-          type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C.items}; empty when it names none. Each opens its row.`,
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C.title} characters.` },
-              meta: {
-                type: "string",
-                description: `The channel and how long, or empty; at most ${C.meta} characters.`
-              },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C.line} characters.` },
-              source: SOURCE
-            },
-            required: ["title", "meta", "line", "source"],
-            additionalProperties: false
-          }
-        },
-        breakdown: {
-          type: "object",
-          description: `One whole in its parts, at most ${C.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
-          properties: {
-            label: {
-              type: "string",
-              description: `What the whole is ("customer messages"), at most ${C.label} characters.`
-            },
-            total: { type: "number" },
-            parts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  label: { type: "string", description: `At most ${C.label} characters.` },
-                  value: { type: "number" },
-                  warn: { type: "boolean", description: "True for the one part that needs attention." }
-                },
-                required: ["label", "value", "warn"],
-                additionalProperties: false
-              }
-            },
-            source: SOURCE
-          },
-          required: ["label", "total", "parts", "source"],
-          additionalProperties: false
-        }
-      },
-      required: ["figures", "items", "breakdown"],
-      additionalProperties: false
-    },
-    do: {
-      type: "object",
-      properties: {
-        open: {
-          type: "object",
-          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
-          properties: {
-            source: SOURCE,
-            label: { type: "string", description: `The button's words, at most ${C.label} characters.` },
-            now: {
-              type: "boolean",
-              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
-            }
-          },
-          required: ["source", "label", "now"],
-          additionalProperties: false
-        },
-        next: {
-          type: "array",
-          description: `Up to ${C.next} short questions they might ask next, at most ${C.question} characters each, never one about a place already offered; empty when nothing follows.`,
-          items: { type: "string" }
-        }
-      },
-      required: ["open", "next"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES] }
-  },
-  required: ["say", "show", "do", "language"],
-  additionalProperties: false
-};
-var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var SIGNUP_NAME_MIN = 2;
-var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z9.string().trim().max(80);
-var SignupSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z9.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z9.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: InviteCodeSchema.optional()
-}).strict();
-var PendingWorkspaceSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
-});
-var DEFAULT_TIMEZONE = "America/New_York";
-function isTimezone(raw) {
-  if (typeof raw !== "string" || !raw.trim()) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
-var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
-var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
-var PASSWORD_MIN = 12;
-var PASSWORD_WORDS = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
-var JUDGE_FACT_KEYS = [
-  "name",
-  "category",
-  "city",
-  "state",
-  "host",
-  "rating",
-  "reviews",
-  "emails",
-  "phone_matches_site"
-];
-var JUDGE_OUTPUT_SCHEMA = {
-  type: "object",
-  properties: {
-    places: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          ref: { type: "integer" },
-          criteria: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                key: { type: "string" },
-                answer: { type: "string", enum: ["pass", "fail", "unknown"] },
-                facts: { type: "array", items: { type: "string", enum: [...JUDGE_FACT_KEYS] } }
-              },
-              required: ["key", "answer", "facts"],
-              additionalProperties: false
-            }
-          },
-          email_index: { anyOf: [{ type: "integer" }, { type: "null" }] },
-          reason: { type: "string" }
-        },
-        required: ["ref", "criteria", "email_index", "reason"],
-        additionalProperties: false
-      }
-    }
-  },
-  required: ["places"],
-  additionalProperties: false
-};
-var AnswerSchema = z10.object({
-  places: z10.array(
-    z10.object({
-      ref: z10.number().int(),
-      criteria: z10.array(
-        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
-      ),
-      email_index: z10.number().int().nullable(),
-      reason: z10.string()
-    })
-  )
-});
-var K = new Uint32Array([
-  1116352408,
-  1899447441,
-  3049323471,
-  3921009573,
-  961987163,
-  1508970993,
-  2453635748,
-  2870763221,
-  3624381080,
-  310598401,
-  607225278,
-  1426881987,
-  1925078388,
-  2162078206,
-  2614888103,
-  3248222580,
-  3835390401,
-  4022224774,
-  264347078,
-  604807628,
-  770255983,
-  1249150122,
-  1555081692,
-  1996064986,
-  2554220882,
-  2821834349,
-  2952996808,
-  3210313671,
-  3336571891,
-  3584528711,
-  113926993,
-  338241895,
-  666307205,
-  773529912,
-  1294757372,
-  1396182291,
-  1695183700,
-  1986661051,
-  2177026350,
-  2456956037,
-  2730485921,
-  2820302411,
-  3259730800,
-  3345764771,
-  3516065817,
-  3600352804,
-  4094571909,
-  275423344,
-  430227734,
-  506948616,
-  659060556,
-  883997877,
-  958139571,
-  1322822218,
-  1537002063,
-  1747873779,
-  1955562222,
-  2024104815,
-  2227730452,
-  2361852424,
-  2428436474,
-  2756734187,
-  3204031479,
-  3329325298
-]);
-var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 
 // src/repositories/ingest.ts
+function stoppedNow(r) {
+  return r?.consent === "opted_out" || r?.dnc === true;
+}
+async function noteYesOnChannel(db, p, contactId) {
+  const failed = (error) => dbLog().error("consent_channel_write_failed", { tenant_id: p.tenantId, contact_id: contactId, error });
+  try {
+    const { error } = await db.rpc("note_yes_on_channel", {
+      p_tenant_id: p.tenantId,
+      p_contact_id: contactId,
+      p_channel: p.channel,
+      p_message_external_id: p.messageExternalId,
+      p_words: (p.body ?? "").slice(0, 80)
+    });
+    const missing = error?.code === "PGRST202" || /Could not find the function public\.note_yes_on_channel/.test(error?.message ?? "");
+    if (error && !missing) failed(error.message);
+  } catch (e) {
+    failed(e instanceof Error ? e.message : String(e));
+  }
+}
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,
@@ -2303,7 +708,10 @@ async function ingestInbound(db, p) {
   });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data;
-  if (p.optInMarketing && out?.contact_id) {
+  if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
+  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
+  } else if (p.optInMarketing && out?.contact_id) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
@@ -2320,18 +728,27 @@ async function ingestInbound(db, p) {
     if (mErr && /p_evidence/.test(mErr.message))
       ({ error: mErr } = await db.rpc("set_marketing_consent", args));
     if (mErr) {
-      console.error(
-        JSON.stringify({
-          level: "error",
-          event: "marketing_consent_write_failed",
-          tenant_id: p.tenantId,
-          contact_id: out.contact_id,
-          error: mErr.message
-        })
-      );
+      dbLog().error("marketing_consent_write_failed", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: mErr.message
+      });
     }
   }
   return out;
+}
+async function recordCarrierOptOut(db, p) {
+  const { data, error } = await db.from("contacts").update({
+    consent: "opted_out",
+    dnc: true,
+    consent_source: CARRIER_CONSENT_SOURCE,
+    consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", p.contactId).eq("tenant_id", p.tenantId).neq("consent", "opted_out").select("id");
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
+  return true;
 }
 async function markProcessed(db, tenantId, messageId) {
   const { error } = await db.rpc("mark_processed", {
@@ -2340,7 +757,18 @@ async function markProcessed(db, tenantId, messageId) {
   });
   if (error) throw new Error(`mark_processed: ${error.message}`);
 }
+async function stampHandled(db, tenantId, messageId, handled, intent) {
+  const { error } = await db.rpc("message_stamp_handled", {
+    p_tenant_id: tenantId,
+    p_message_id: messageId,
+    p_handled: handled,
+    ...intent ? { p_intent: intent } : {}
+  });
+  if (error) throw new Error(`message_stamp_handled: ${error.message}`);
+}
 async function recordOutbound(db, p) {
+  if (p.channel === "email")
+    throw new Error("record_outbound: an email's row is written before it is sent, never after");
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
     conversation_id: p.conversationId,
@@ -2361,7 +789,7 @@ async function recordOutbound(db, p) {
   const status = p.status ?? "sent";
   await Promise.all([
     db.from("conversations").update({ last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.conversationId),
-    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender }) : Promise.resolve()
+    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", data.id, { sender: p.sender }) : Promise.resolve()
   ]);
   return data.id;
 }
@@ -2376,18 +804,22 @@ async function getOrCreateContact(db, tenantId, phoneE164) {
 async function resolveOutboundTarget(db, p) {
   const phone = normalizePhone(p.phoneE164);
   if (!phone) return null;
-  const { data: existing, error: selErr } = await db.from("contacts").select("id, consent, dnc, marketing_consent").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle();
+  const first = await db.from("contacts").select("id, consent, dnc, marketing_consent, consent_channels, marketing_channels").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle();
+  const { data: existing, error: selErr } = noChannelColumns(first.error) ? await db.from("contacts").select("id, consent, dnc, marketing_consent").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle() : first;
   if (selErr) throw new Error(`resolve_outbound_target: ${selErr.message}`);
   let contact = existing;
   if (!contact) {
     if (!p.create) return null;
     contact = await getOrCreateContact(db, p.tenantId, phone);
   }
+  return threadOf(db, p.tenantId, contact, p.touch);
+}
+async function threadOf(db, tenantId, contact, touch) {
   const { data: conv, error: cErr } = await db.from("conversations").upsert(
     {
-      tenant_id: p.tenantId,
+      tenant_id: tenantId,
       contact_id: contact.id,
-      ...p.touch === false ? {} : { last_message_at: (/* @__PURE__ */ new Date()).toISOString() }
+      ...touch === false ? {} : { last_message_at: (/* @__PURE__ */ new Date()).toISOString() }
     },
     { onConflict: "tenant_id,contact_id" }
   ).select("id, paused_until").single();
@@ -2398,11 +830,31 @@ async function resolveOutboundTarget(db, p) {
     pausedUntil: conv.paused_until ?? null,
     consent: contact.consent ?? null,
     dnc: contact.dnc ?? false,
-    marketing_consent: contact.marketing_consent ?? null
+    marketing_consent: contact.marketing_consent ?? null,
+    consent_channels: contact.consent_channels ?? null,
+    marketing_channels: contact.marketing_channels ?? null
   };
 }
+async function resolveOutboundTargetForContact(db, p) {
+  const first = await db.from("contacts").select(
+    "id, consent, dnc, marketing_consent, consent_channels, marketing_channels, erased_at, merged_into_contact_id"
+  ).eq("tenant_id", p.tenantId).eq("id", p.contactId).maybeSingle();
+  const { data, error } = noChannelColumns(first.error) ? await db.from("contacts").select("id, consent, dnc, marketing_consent, erased_at, merged_into_contact_id").eq("tenant_id", p.tenantId).eq("id", p.contactId).maybeSingle() : first;
+  if (error) throw new Error(`resolve_outbound_target_for_contact: ${error.message}`);
+  if (!data || data.erased_at || data.merged_into_contact_id) return null;
+  return threadOf(db, p.tenantId, data, p.touch);
+}
+async function wireRowOf(db, p) {
+  const head = "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
+  const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
+  const read = (columns) => db.from("conversations").select(`${head}${columns}${tail}`).eq("id", p.conversationId).eq("tenant_id", p.tenantId).maybeSingle();
+  const full = await read(`consent_channels, marketing_channels, ${p.relationship ? "has_relationship, " : ""}`);
+  if (!noRelationshipColumn(full.error) && !noChannelColumns(full.error)) return full;
+  const withChannels = noRelationshipColumn(full.error) ? await read("consent_channels, marketing_channels, ") : full;
+  return noChannelColumns(withChannels.error) ? read("") : withChannels;
+}
 async function countSentToday(db, p) {
-  const since = new Date(Date.now() - 24 * 3600 * 1e3).toISOString();
+  const since = new Date(Date.now() - 24 * HOUR_MS).toISOString();
   const { count, error } = await db.from("messages").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("direction", "outbound").gte("created_at", since).contains("meta", { source: p.source });
   if (error) throw new Error(`count_sent_today: ${error.message}`);
   return count ?? 0;
@@ -2412,8 +864,31 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
   if (errorDetail) patch.error = errorDetail;
   const { error } = await db.from("messages").update(patch).eq("tenant_id", tenantId).eq("external_id", externalId);
   if (error && !/monotone|terminal/.test(error.message)) {
-    console.error("record_status_failed", externalId, error.message);
+    dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
   }
+}
+async function messageByExternalId(db, tenantId, externalId) {
+  const { data, error } = await db.from("messages").select("id, conversation_id, direction, sender, channel, status, meta, contacts (phone_e164, email)").eq("tenant_id", tenantId).eq("external_id", externalId).maybeSingle();
+  if (error) throw new Error(`messageByExternalId: ${error.message}`);
+  if (!data) return null;
+  return {
+    messageId: data.id,
+    conversationId: data.conversation_id,
+    direction: data.direction,
+    sender: data.sender,
+    status: data.status,
+    meta: data.meta,
+    to: (data.channel === "email" ? data.contacts?.email : data.contacts?.phone_e164) ?? null
+  };
+}
+async function keepMessageCost(db, tenantId, externalId, pricing) {
+  const { data, error } = await db.rpc("message_keep_cost", {
+    p_tenant_id: tenantId,
+    p_external_id: externalId,
+    p_pricing: pricing
+  });
+  if (error) throw new Error(`message_keep_cost: ${error.message}`);
+  return data === true;
 }
 async function recordEchoAndPause(db, p) {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
@@ -2421,12 +896,15 @@ async function recordEchoAndPause(db, p) {
   try {
     contact = await getOrCreateContact(db, p.tenantId, phone);
   } catch (e) {
-    console.error("record_echo_contact_failed", e instanceof Error ? e.message : e);
+    dbLog().error("record_echo_contact_failed", {
+      tenant_id: p.tenantId,
+      error: e instanceof Error ? e.message : String(e)
+    });
     return;
   }
   const { data: conv, error: verr } = await db.from("conversations").upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" }).select("id").single();
   if (verr || !conv) {
-    console.error("record_echo_conv_failed", verr?.message);
+    dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
     return;
   }
   const { error } = await db.from("messages").insert({
@@ -2442,37 +920,139 @@ async function recordEchoAndPause(db, p) {
     status: "sent",
     meta: { echo: true }
   });
-  if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
+  if (error && error.code !== "23505")
+    dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
   if (error?.code === "23505" && p.externalId) return;
-  const { error: perr } = await db.from("conversations").update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", conv.id).eq("tenant_id", p.tenantId);
-  if (perr) console.error("record_echo_pause_failed", perr.message);
+  const { error: perr } = await db.from("conversations").update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
+  if (perr)
+    dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
 }
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
-  const { data, error } = await db.from("conversations").update({ state: "needs_human", paused_until: pausedUntilIso }).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
+  const { data, error } = await db.from("conversations").update(conversationPatch("hand_off", { until: pausedUntilIso })).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
   if (error) {
-    console.error("pause_conversation_failed", conversationId, error.message);
+    dbLog().error("pause_conversation_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: error.message
+    });
     return false;
   }
   if (!data || data.length === 0) {
-    console.error("pause_conversation_noop", conversationId);
+    dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }
   let withdraw = db.from("messages").update({ status: "canceled", error: { reason: "superseded_by_human" } }).eq("conversation_id", conversationId).eq("tenant_id", tenantId).eq("sender", "ai").eq("status", "queued");
   if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
   const { error: wErr } = await withdraw;
-  if (wErr) console.error("pause_withdraw_drafts_failed", conversationId, wErr.message);
+  if (wErr)
+    dbLog().error("pause_withdraw_drafts_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: wErr.message
+    });
   return true;
 }
-async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, data = {}) {
-  const { error } = await db.from("events").insert({
-    tenant_id: tenantId,
-    kind,
-    category,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    data
+async function claimReplyTurn(db, tenantId, conversationId, messageId) {
+  const { data, error } = await db.rpc("claim_reply_turn", {
+    p_tenant: tenantId,
+    p_conversation: conversationId,
+    p_message: messageId
   });
-  if (error) console.error("emit_event_failed", kind, error.message);
+  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  return data !== false;
+}
+async function holdsReplyTurn(db, conversationId, messageId) {
+  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  return data !== false;
+}
+
+// src/repositories/campaigns/email-offers.ts
+import { offerPauseOf } from "../../contracts/dist/index.js";
+function noColumn(error, ...columns) {
+  return !!error && error.code === "42703" && columns.some((c) => error.message.includes(c));
+}
+function noFunction(error, name) {
+  return !!error && (error.code === "PGRST202" || error.code === "42883") && error.message.includes(name);
+}
+async function emailOffersPause(db, tenantId) {
+  const { data, error } = await db.from("mailboxes").select("offers_paused_at, offers_paused_reason").eq("tenant_id", tenantId).maybeSingle();
+  if (noColumn(error, "offers_paused_at", "offers_paused_reason")) return null;
+  if (error) throw new Error(`cannot read whether offers by email are paused: ${error.message}`);
+  return offerPauseOf(data?.offers_paused_at, data?.offers_paused_reason);
+}
+async function pauseEmailOffers(db, p) {
+  const { data, error } = await db.rpc("pause_email_offers", {
+    p_tenant_id: p.tenantId,
+    p_reason: p.reason,
+    p_counts: {
+      complaint_sample: p.counts.complaintSample,
+      complaints: p.counts.complaints,
+      bounce_sample: p.counts.bounceSample,
+      bounces: p.counts.bounces
+    }
+  });
+  if (error) throw new Error(`cannot pause offers by email: ${error.message}`);
+  return data === true;
+}
+async function emailOfferCounts(db, p) {
+  const { data, error } = await db.rpc("email_offer_counts", { p_tenant_id: p.tenantId, p_host: p.host });
+  if (error) throw new Error(`cannot count the offers by email: ${error.message}`);
+  const c = data ?? {};
+  const n = (k) => typeof c[k] === "number" ? c[k] : 0;
+  return {
+    complaintSample: n("complaint_sample"),
+    complaints: n("complaints"),
+    bounceSample: n("bounce_sample"),
+    bounces: n("bounces")
+  };
+}
+async function setEmailOffersYes(db, p) {
+  const { data, error } = await db.rpc("set_email_offers_yes", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_source: p.source,
+    ...p.messageId ? { p_message_id: p.messageId } : {},
+    p_evidence: p.evidence
+  });
+  if (error) throw new Error(`cannot record the yes to offers by email: ${error.message}`);
+  const said = data ?? null;
+  if (said?.changed === true) return "recorded";
+  return said?.refused === "unsubscribed" ? "unsubscribed" : "unchanged";
+}
+async function offerLanguageOf(db, p) {
+  const { data, error } = await db.from("broadcasts").select("template_language").eq("tenant_id", p.tenantId).eq("id", p.broadcastId).maybeSingle();
+  if (error) throw new Error(`cannot read the language the offer was sent in: ${error.message}`);
+  return data?.template_language ?? null;
+}
+async function setEmailUnsubscribed(db, p) {
+  const { data, error } = await db.rpc("set_email_marketing", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_state: "opted_out",
+    p_source: "unsubscribe",
+    ...p.messageId ? { p_message_id: p.messageId } : {},
+    p_evidence: p.evidence
+  });
+  if (error) throw new Error(`cannot record the unsubscribe: ${error.message}`);
+  const said = data ?? null;
+  return { business: typeof said?.business === "string" ? said.business : null, changed: said?.changed === true };
+}
+async function stopAllMessages(db, p) {
+  const { data, error } = await db.rpc("stop_all_messages", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    ...p.messageId ? { p_message_id: p.messageId } : {}
+  });
+  if (error) throw new Error(`cannot record that all messages stop: ${error.message}`);
+  const said = data ?? null;
+  return { business: typeof said?.business === "string" ? said.business : null, changed: said?.changed === true };
+}
+async function offersEmailReach(db, tenantId) {
+  const { data, error } = await db.rpc("offers_email_reach", { p_tenant_id: tenantId });
+  if (noFunction(error, "offers_email_reach")) return null;
+  if (error) throw new Error(`cannot count who an offer by email reaches: ${error.message}`);
+  return typeof data === "number" ? data : null;
 }
 
 // src/repositories/email.ts
@@ -2497,6 +1077,13 @@ async function ingestInboundEmail(db, p) {
     );
     if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
   }
+  let optIn = p.optIn ?? false;
+  if (optIn) {
+    const held = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.receivedId).limit(1);
+    if (held.error)
+      throw new Error(`ingest_email: cannot read whether the email is already held: ${held.error.message}`);
+    optIn = (held.data ?? []).length === 0;
+  }
   const out = await ingestInbound(db, {
     tenantId: p.tenantId,
     channel: "email",
@@ -2507,14 +1094,52 @@ async function ingestInboundEmail(db, p) {
     type: "text",
     body: p.body,
     channelTs: p.channelTs,
-    meta: p.meta
+    meta: p.meta,
+    optOut: p.optOut ?? false,
+    optIn
   });
   if (!known.data) {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error)
-      console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
+    if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
+  }
+  if (p.fromThemProven && !out.processed) {
+    const { error } = await db.from("contacts").update({ email_suppressed_at: null, email_suppressed_reason: null }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).eq("email", p.address).eq("email_suppressed_reason", "hard_bounce");
+    if (error) throw new Error(`ingest_email: cannot lift the bounce from the address: ${error.message}`);
+  }
+  const evidence = { channel: "email", message_external_id: p.receivedId, words: (p.words ?? "").slice(0, 80) || null };
+  if (p.unsubscribe && !out.processed)
+    await setEmailUnsubscribed(db, {
+      tenantId: p.tenantId,
+      contactId: out.contact_id,
+      messageId: out.message_id,
+      evidence: { ...evidence, via: "reply" }
+    });
+  if (p.optInOffers && !out.processed && stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: "email" });
+  } else if (p.optInOffers && !out.processed) {
+    try {
+      const yes = await setEmailOffersYes(db, {
+        tenantId: p.tenantId,
+        contactId: out.contact_id,
+        source: "customer_message",
+        messageId: out.message_id,
+        evidence
+      });
+      if (yes === "unsubscribed")
+        dbLog().warn("email_yes_refused", {
+          tenant_id: p.tenantId,
+          contact_id: out.contact_id,
+          reason: "unsubscribed"
+        });
+    } catch (e) {
+      dbLog().error("email_yes_not_recorded", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: e instanceof Error ? e.message : String(e)
+      });
+    }
   }
   return out;
 }
@@ -2525,7 +1150,7 @@ async function sentEmailWithMessageId(db, tenantId, rfcMessageId) {
 }
 async function stampMailboxReceived(db, mailboxId, at) {
   const { error } = await db.from("mailboxes").update({ last_received_at: at, last_error: null }).eq("id", mailboxId);
-  if (error) console.error("mailbox_stamp_failed", error.message);
+  if (error) dbLog().error("mailbox_stamp_failed", { mailbox_id: mailboxId, error: error.message });
 }
 async function mailboxOfTenant(db, tenantId) {
   const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
@@ -2542,9 +1167,32 @@ async function lastInboundEmail(db, tenantId, conversationId) {
     messageId: data.id,
     from: str(e.from),
     rfcMessageId: str(e.message_id),
-    references: Array.isArray(e.references) ? e.references.filter((r2) => typeof r2 === "string") : [],
+    references: Array.isArray(e.references) ? e.references.filter((r) => typeof r === "string") : [],
     subject: str(e.subject)
   };
+}
+var ANSWERED_LOOKBACK = 50;
+async function answeredReachOutEmail(db, p) {
+  const { data, error } = await db.from("messages").select("id, meta, status").eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("channel", "email").eq("direction", "outbound").order("created_at", { ascending: false }).limit(ANSWERED_LOOKBACK);
+  if (error) throw new Error(`email: cannot read the reach-out being answered: ${error.message}`);
+  const left = /* @__PURE__ */ new Set(["sent", "delivered", "read"]);
+  const sent = (data ?? []).flatMap((m) => {
+    const meta = m.meta ?? {};
+    if (meta.source !== "reach_out" || !left.has(String(m.status))) return [];
+    const req = meta.email?.request ?? {};
+    const replyTo = Array.isArray(req.reply_to) && typeof req.reply_to[0] === "string" ? req.reply_to[0] : null;
+    return [
+      {
+        messageId: m.id,
+        rfc: typeof meta.email?.message_id === "string" ? meta.email.message_id : null,
+        from: typeof req.from === "string" ? req.from : null,
+        replyTo
+      }
+    ];
+  });
+  const named = new Set(p.references);
+  const hit = sent.find((e) => e.rfc !== null && named.has(e.rfc)) ?? sent[0];
+  return hit ? { messageId: hit.messageId, from: hit.from, replyTo: hit.replyTo } : null;
 }
 async function stampEmailSent(db, p) {
   const { data, error } = await db.rpc("stamp_email_sent", {
@@ -2556,6 +1204,51 @@ async function stampEmailSent(db, p) {
   if (error) throw new Error(`stamp_email_sent: ${error.message}`);
   const row = data?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
+}
+async function stampEmailLeftAs(db, p) {
+  const { data, error } = await db.rpc("stamp_email_left_as", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_left_as: p.leftAs,
+    p_why: p.why
+  });
+  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  return data === true;
+}
+async function sentEmailOf(db, p) {
+  const { data, error } = await db.from("messages").select("meta").eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound").maybeSingle();
+  if (error) throw new Error(`sent email request: ${error.message}`);
+  if (!data) return null;
+  const meta = data.meta ?? null;
+  const lead = meta?.reach_out?.lead_id;
+  return { request: meta?.email?.request ?? null, leadId: typeof lead === "string" && lead ? lead : null };
+}
+async function stampEmailComplaint(db, p) {
+  const { data, error } = await db.rpc("stamp_email_complaint", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_at: p.at
+  });
+  if (error) throw new Error(`stamp_email_complaint: ${error.message}`);
+  return data === true;
+}
+async function recordEmailNo(db, p) {
+  const { data, error } = await db.from("messages").select("contact_id, meta").eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound").maybeSingle();
+  if (error) throw new Error(`email receipt: cannot read message ${p.messageId}: ${error.message}`);
+  const meta = data?.meta ?? {};
+  const from = typeof meta.email?.request?.from === "string" ? meta.email.request.from : null;
+  const contactId = data?.contact_id ?? null;
+  if (!contactId) return { contactId: null, from };
+  const r = await db.rpc("set_email_marketing", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: contactId,
+    p_state: "opted_out",
+    p_source: p.source,
+    p_message_id: p.messageId,
+    p_evidence: { channel: "email", via: p.source }
+  });
+  if (r.error) throw new Error(`email receipt: cannot record the ${p.source} as a no: ${r.error.message}`);
+  return { contactId, from };
 }
 async function recordEmailStatus(db, p) {
   const { error } = await db.from("messages").update({ status: p.status, ...p.error ? { error: p.error } : {} }).eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound");
@@ -2573,9 +1266,1007 @@ async function suppressEmailOf(db, p) {
   return data?.[0]?.id ?? null;
 }
 
+// src/repositories/campaigns/offers-answer.ts
+import { WHATSAPP_CONSENT_SOURCE } from "../../contracts/dist/index.js";
+async function offersAnswerOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("marketing_consent, marketing_consent_source").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? { marketingConsent: data.marketing_consent, marketingConsentSource: data.marketing_consent_source } : null;
+}
+async function recordWhatsAppOffersStop(db, p) {
+  const sent = await db.from("messages").select("contact_id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
+  if (sent.error) throw new Error(`reading the message WhatsApp refused (${p.externalId}): ${sent.error.message}`);
+  const contactId = sent.data?.contact_id;
+  if (!contactId) return false;
+  const who = await db.from("contacts").select("marketing_consent, erased_at").eq("id", contactId).eq("tenant_id", p.tenantId).maybeSingle();
+  if (who.error) throw new Error(`reading contact ${contactId} for WhatsApp's stop: ${who.error.message}`);
+  if (!who.data || who.data.erased_at || who.data.marketing_consent === "opted_out") return false;
+  const { data, error } = await db.from("contacts").update({
+    marketing_consent: "opted_out",
+    marketing_consent_source: WHATSAPP_CONSENT_SOURCE,
+    marketing_consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", contactId).eq("tenant_id", p.tenantId).neq("marketing_consent", "opted_out").select("id");
+  if (error) throw new Error(`recording WhatsApp's stop for contact ${contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", contactId, {
+    purpose: "marketing",
+    consent: "opted_out",
+    previous: who.data.marketing_consent,
+    source: WHATSAPP_CONSENT_SOURCE,
+    channel: "whatsapp",
+    message_external_id: p.externalId
+  });
+  return true;
+}
+async function recordLateCarrierOptOut(db, p) {
+  const sent = await db.from("messages").select("contact_id, conversation_id, direction, channel, created_at").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
+  if (sent.error) throw new Error(`reading the text the carrier refused (${p.externalId}): ${sent.error.message}`);
+  const text2 = sent.data;
+  if (!text2 || text2.direction !== "outbound" || text2.channel !== "sms") return "not_our_text";
+  let contactId = text2.contact_id;
+  if (!contactId) {
+    const thread = await db.from("conversations").select("contact_id").eq("id", text2.conversation_id).eq("tenant_id", p.tenantId).maybeSingle();
+    if (thread.error) throw new Error(`reading the thread of the text the carrier refused: ${thread.error.message}`);
+    contactId = thread.data?.contact_id ?? null;
+  }
+  if (!contactId) return "no_person";
+  const who = await db.from("contacts").select("consent, consent_updated_at, erased_at").eq("id", contactId).eq("tenant_id", p.tenantId).maybeSingle();
+  if (who.error) throw new Error(`reading contact ${contactId} for the carrier's stop: ${who.error.message}`);
+  if (!who.data || who.data.erased_at) return "no_person";
+  if (who.data.consent === "opted_out") return "already_stopped";
+  if (who.data.consent_updated_at && who.data.consent_updated_at > text2.created_at) return "newer_answer";
+  const wrote = await recordCarrierOptOut(db, {
+    tenantId: p.tenantId,
+    contactId,
+    channel: "sms",
+    previous: who.data.consent
+  });
+  return wrote ? "recorded" : "already_stopped";
+}
+
+// src/repositories/campaigns/stranded-runs.ts
+import { isReachOutRun } from "../../contracts/dist/index.js";
+async function strandedRuns(db, p) {
+  const { data, error } = await db.from("broadcasts").select("id, tenant_id, name, playbook_id, audience, scheduled_for").eq("state", "scheduled").gt("scheduled_for", p.since.toISOString()).lt("scheduled_for", p.before.toISOString()).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("scheduled_for", { ascending: true }).limit(p.limit);
+  if (error) throw new Error(`stranded runs: cannot read the scheduled runs: ${error.message}`);
+  const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
+  if (!runs.length) return [];
+  const jobs = await db.from("jobs").select("payload").eq("kind", "broadcast_send").in("state", ["scheduled", "fired"]).in(
+    "payload->>broadcast_id",
+    runs.map((r) => r.id)
+  );
+  if (jobs.error) throw new Error(`stranded runs: cannot read their jobs: ${jobs.error.message}`);
+  const live = new Set(
+    (jobs.data ?? []).map((j) => {
+      const id = j.payload?.broadcast_id;
+      return typeof id === "string" ? id : "";
+    })
+  );
+  return runs.filter((r) => !live.has(r.id));
+}
+async function failStrandedRun(db, p) {
+  const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.id).eq("tenant_id", p.tenantId).eq("state", "scheduled").select("id");
+  if (error) throw new Error(`stranded runs: cannot mark run ${p.id} not sent: ${error.message}`);
+  if (!(data ?? []).length) return false;
+  await emitEvent(db, p.tenantId, "broadcast.stopped", "broadcast", p.id, { failure: "run_interrupted", sent: 0 });
+  return true;
+}
+
+// src/repositories/sending-domains.ts
+var must = (what, r) => {
+  if (r.error) throw new Error(`sending_domains: ${what}: ${r.error.message}`);
+  return r.data;
+};
+async function sendingDomainsOf(db, tenantId) {
+  return must(
+    "read a workspace's domains",
+    await db.from("sending_domains").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: true })
+  ) ?? [];
+}
+async function sendingDomainOf(db, tenantId, id) {
+  return must(
+    "read a domain",
+    await db.from("sending_domains").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle()
+  );
+}
+async function sendingDomainByHost(db, tenantId, host) {
+  return must(
+    "read a domain by host",
+    await db.from("sending_domains").select("*").eq("tenant_id", tenantId).eq("host", host.trim().toLowerCase()).maybeSingle()
+  );
+}
+async function dueSendingDomains(db, limit) {
+  return must(
+    "read the due domains",
+    await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).or("held_why.is.null,held_why.neq.complaint").order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
+  ) ?? [];
+}
+async function coldReceiptsOwed(db, from, to) {
+  return must(
+    "count the receipts owed",
+    await db.rpc("cold_receipts_owed", { p_from: from.toISOString(), p_to: to.toISOString() })
+  ) ?? [];
+}
+async function countSendingDomains(db, tenantId) {
+  const r = await db.from("sending_domains").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
+  if (r.error) throw new Error(`sending_domains: count a workspace's domains: ${r.error.message}`);
+  return r.count ?? 0;
+}
+async function reserveSendingDomain(db, i) {
+  const r = await db.from("sending_domains").insert({
+    tenant_id: i.tenantId,
+    host: i.host,
+    from_local: i.fromLocal,
+    from_name: i.fromName,
+    created_by: i.by,
+    // Where every domain starts: its records to publish. Said, not left to the column's default.
+    state: "records"
+  }).select("*").single();
+  const code = r.error?.code;
+  if (code === "P0001" && r.error.hint === "too_many") return { ok: false, reason: "too_many" };
+  if (code === "23505") {
+    const holder = must(
+      "read who holds a host",
+      await db.from("sending_domains").select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at, records").eq("host", i.host).maybeSingle()
+    );
+    return { ok: false, reason: "taken", holder: holder ?? null };
+  }
+  return { ok: true, row: must("reserve a domain", r) };
+}
+async function touchSendingDomain(db, row) {
+  return must(
+    "touch a domain",
+    await db.from("sending_domains").update({ checked_at: row.checked_at }).eq("id", row.id).eq("tenant_id", row.tenant_id).select("*").maybeSingle()
+  );
+}
+async function recordProviderDomain(db, id, p) {
+  return must(
+    "record the provider's domain",
+    await db.from("sending_domains").update({ provider_domain_id: p.providerDomainId, records: p.records, provider_status: p.providerStatus }).eq("id", id).select("*").single()
+  );
+}
+async function applyDomainCheck(db, row, patch) {
+  const r = await db.from("sending_domains").update(patch).eq("id", row.id).eq("updated_at", row.updated_at).select("*").maybeSingle();
+  return must("write a domain's check", r);
+}
+async function sendingDomainCounts(db, tenantId, host, since) {
+  const r = await db.rpc("sending_domain_counts", { p_tenant_id: tenantId, p_host: host, p_since: since });
+  const c = must("count a domain's sends", r) ?? {};
+  const n = (k) => typeof c[k] === "number" ? c[k] : Number(c[k] ?? 0) || 0;
+  return {
+    sent: n("sent"),
+    bounced: n("bounced"),
+    complained: n("complained"),
+    unsubscribed: n("unsubscribed"),
+    // A count from before 00188 says none apart: every complaint is taken as new, as it was.
+    complained_new: "complained_new" in c ? n("complained_new") : n("complained")
+  };
+}
+async function reputationHoldsSince(db, p) {
+  const r = await db.from("events").select("id").eq("tenant_id", p.tenantId).eq("kind", "sending_domain.held").gte("created_at", p.sinceIso).eq("data->>host", p.host).in("data->>why", [...p.whys]).limit(20);
+  if (r.error) throw new Error(`sending_domains: read a domain's reputation holds: ${r.error.message}`);
+  return (r.data ?? []).length;
+}
+async function platformHoldStands(db, p) {
+  const r = await db.from("events").select("kind, data, created_at").eq("tenant_id", p.tenantId).in("kind", ["sending_domain.held", "sending_domain.resumed"]).gte("created_at", p.sinceIso).eq("data->>host", p.host).order("created_at", { ascending: false }).limit(20);
+  if (r.error) throw new Error(`sending_domains: read a domain's platform holds: ${r.error.message}`);
+  for (const e of r.data ?? []) {
+    const d = e.data ?? {};
+    if (e.kind === "sending_domain.held" && d.resume_by === "platform") return true;
+    if (e.kind === "sending_domain.resumed" && d.by === "platform") return false;
+  }
+  return false;
+}
+async function deleteSendingDomainAsRead(db, row) {
+  const r = must(
+    "remove a domain as it was read",
+    await db.from("sending_domains").delete().eq("tenant_id", row.tenant_id).eq("id", row.id).eq("updated_at", row.updated_at).select("id")
+  );
+  return (r ?? []).length > 0;
+}
+async function domainHeldSince(db, tenantId, domainId, sinceIso, whys) {
+  const r = await db.from("events").select("data").eq("tenant_id", tenantId).eq("kind", "sending_domain.held").eq("subject_id", domainId).gte("created_at", sinceIso).limit(20);
+  if (r.error) throw new Error(`sending_domains: read a domain's holds: ${r.error.message}`);
+  return (r.data ?? []).some((e) => whys.includes(String(e.data?.why ?? "")));
+}
+async function deleteSendingDomain(db, tenantId, id) {
+  const r = must(
+    "remove a domain",
+    await db.from("sending_domains").delete().eq("tenant_id", tenantId).eq("id", id).select("id")
+  );
+  return (r ?? []).length > 0;
+}
+
+// src/repositories/outreach.ts
+import { conversationPatch as conversationPatch2 } from "../../contracts/dist/index.js";
+async function outreachFactsOf(db, p) {
+  const { data, error } = await db.rpc("outreach_facts", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_to: p.to,
+    p_host: p.host,
+    p_since: p.since,
+    // Named only when there is a lead: a database before 00184 knows five arguments, and a sixth it has never heard of
+    // would fail every cold send rather than answer as it did.
+    ...p.leadId ? { p_lead_id: p.leadId } : {}
+  });
+  if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
+  const f = data ?? {};
+  if (typeof f.wrote_back !== "boolean")
+    throw new Error("cannot read the outreach facts: the database did not say whether this person wrote back");
+  return {
+    lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
+    suppressed: f.suppressed === true,
+    wrote_back: f.wrote_back,
+    // Absent before 00226: not away, as it was.
+    away: f.away === true,
+    // Absent before 00241: not stopped. The stop still holds without it: its planned and held sends are skipped, and
+    // the followers leave the lead out, both in SQL.
+    stopped: f.stopped === true,
+    domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
+      state: f.domain.state,
+      from_local: String(f.domain.from_local ?? ""),
+      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null,
+      // A database before 00184 says nothing of it: no days sent, the ramp's first step.
+      sent_days: Math.max(0, Number(f.domain.sent_days ?? 0) || 0)
+    } : null,
+    sent_since: Number(f.sent_since ?? 0) || 0
+  };
+}
+async function addressesSuppressed(db, tenantId, addresses) {
+  const asked = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter((a) => a !== ""))];
+  if (!asked.length) return /* @__PURE__ */ new Set();
+  const { data, error } = await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenantId, p_addresses: asked });
+  if (error && missingDoor(error)) return addressesHeldBefore00220(db, tenantId, asked);
+  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  return new Set((data ?? []).filter((a) => typeof a === "string"));
+}
+var missingDoor = (e) => e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
+async function addressesHeldBefore00220(db, tenantId, asked) {
+  const byHash = new Map([...await erasureDigests(db, tenantId, asked)].map(([a, h]) => [h, a]));
+  const { data, error } = await db.from("lead_suppressions").select("hash").eq("tenant_id", tenantId).eq("kind", "email").in("hash", [...byHash.keys()]);
+  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  return new Set((data ?? []).flatMap((r) => byHash.get(r.hash) ?? []));
+}
+var textOf = (v) => typeof v === "string" && v !== "" ? v : null;
+async function reachOutReplyOf(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_of", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_days: p.days
+  });
+  if (error && missingDoor(error)) return null;
+  if (error) throw new Error(`cannot read whose reply this is: ${error.message}`);
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : null;
+  const sendId = textOf(o?.send_id);
+  const leadId = textOf(o?.lead_id);
+  const conversationId = textOf(o?.conversation_id);
+  const receivedAt = textOf(o?.received_at);
+  if (!o || !sendId || !leadId || !conversationId || !receivedAt) return null;
+  const claim = o.claim === "auto_reply" || o.claim === "automated" ? o.claim : "person";
+  return {
+    send_id: sendId,
+    lead_id: leadId,
+    lead_contact_id: textOf(o.lead_contact_id),
+    lead_email: textOf(o.lead_email),
+    lead_website: textOf(o.lead_website),
+    lead_website_root: typeof o.lead_website_root === "boolean" ? o.lead_website_root : null,
+    answered_message_id: textOf(o.answered_message_id),
+    answered_text: textOf(o.answered_text),
+    business: textOf(o.business) ?? "",
+    chain: textOf(o.chain),
+    signed_by: textOf(o.signed_by),
+    tz: textOf(o.tz),
+    conversation_id: conversationId,
+    contact_id: textOf(o.contact_id),
+    claim,
+    from: textOf(o.from),
+    subject: textOf(o.subject),
+    text: textOf(o.text),
+    received_at: receivedAt
+  };
+}
+async function replyReadingOf(db, p) {
+  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
+  if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
+  return data ?? null;
+}
+async function markReplyDraft(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_draft", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_state: p.state,
+    p_draft: p.draft,
+    p_why: p.why
+  });
+  if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
+  return data === true;
+}
+async function takeReplyRead(db, p) {
+  const { data, error } = await db.rpc("reach_out_read_take", {
+    p_tenant_id: p.tenantId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString()
+  });
+  if (error) throw new Error(`cannot take the day's read: ${error.message}`);
+  return data === true;
+}
+async function applyReplyReading(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_apply", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_reading: p.reading,
+    p_plan: p.plan,
+    p_reread: p.reread,
+    p_days: p.days
+  });
+  if (error) throw new Error(`cannot apply the reply's reading: ${error.message}`);
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return o.applied === true;
+}
+async function claimReplyTell(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_tell_claim", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_stale_before: p.staleBefore.toISOString()
+  });
+  if (error) throw new Error(`cannot claim the reply's notice: ${error.message}`);
+  return typeof data === "string" && data !== "" ? data : null;
+}
+async function markReplyTold(db, p) {
+  const { error } = await db.rpc("reach_out_reply_told", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_claimed_at: p.claim
+  });
+  if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
+}
+async function resolveEscalationByReason(db, p) {
+  const { data, error } = await db.from("escalations").update({ state: "resolved" }).eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("reason", p.reason).eq("state", "open").select("id");
+  if (error) throw new Error(`cannot resolve the thread's flag: ${error.message}`);
+  return !!data && data.length > 0;
+}
+async function archiveConversation(db, p) {
+  const { data, error } = await db.from("conversations").update(conversationPatch2("archive")).eq("tenant_id", p.tenantId).eq("id", p.conversationId).neq("state", "archived").select("id");
+  if (error) throw new Error(`cannot archive the thread: ${error.message}`);
+  return !!data && data.length > 0;
+}
+var REPLY_LIST_COLUMNS = "message_id, conversation_id, read_at, intent, claim, summary, named_day, refer_to, unread, rereads, undone_at, draft, draft_state, draft_why, plan, until_at, lead_id, send_id";
+async function repliesFor(db, p) {
+  let q = db.from("reach_out_replies").select(REPLY_LIST_COLUMNS).eq("tenant_id", p.tenantId).gte("read_at", p.since);
+  if (p.conversationId) q = q.eq("conversation_id", p.conversationId);
+  const { data, error } = await q.order("read_at", { ascending: false }).limit(p.limit);
+  if (error) throw new Error(`cannot read the replies: ${error.message}`);
+  const rows = data ?? [];
+  const ids = (k) => [...new Set(rows.map((r) => r[k]).filter((v) => !!v))];
+  const [leads, sends] = await Promise.all([
+    ids("lead_id").length ? db.from("leads").select("id, business_name").eq("tenant_id", p.tenantId).in("id", ids("lead_id")) : Promise.resolve({ data: [], error: null }),
+    ids("send_id").length ? db.from("reach_out_sends").select("id, playbook_id, root_id").eq("tenant_id", p.tenantId).in("id", ids("send_id")) : Promise.resolve({ data: [], error: null })
+  ]);
+  if (leads.error) throw new Error(`cannot read the replies' leads: ${leads.error.message}`);
+  if (sends.error) throw new Error(`cannot read the replies' emails: ${sends.error.message}`);
+  const business = new Map((leads.data ?? []).map((l) => [l.id, l.business_name]));
+  const step = new Map((sends.data ?? []).map((s) => [s.id, s]));
+  return rows.map(({ lead_id, send_id, ...r }) => ({
+    ...r,
+    business: lead_id && business.get(lead_id) || null,
+    playbook_id: send_id && step.get(send_id)?.playbook_id || null,
+    root_id: send_id && step.get(send_id)?.root_id || null
+  }));
+}
+async function replyReadingRefOf(db, messageId) {
+  const { data, error } = await db.from("reach_out_replies").select("message_id, tenant_id").eq("message_id", messageId).maybeSingle();
+  if (error) throw new Error(`cannot read the reply: ${error.message}`);
+  return data ? { id: data.message_id, tenant_id: data.tenant_id } : null;
+}
+async function replyUndoableOf(db, messageId) {
+  const { data, error } = await db.rpc("reach_out_reply_undoable", { p_message_id: messageId });
+  if (error) throw new Error(`cannot ask whether the reply can be undone: ${error.message}`);
+  return typeof data === "string" && data ? data : null;
+}
+async function undoReplyReading(db, messageId) {
+  const { data, error } = await db.rpc("reach_out_reply_undo", { p_message_id: messageId });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return data;
+}
+async function reachOutDayDue(db, now, limit) {
+  const { data, error } = await db.rpc("reach_out_day_due", { p_now: now.toISOString(), p_limit: limit });
+  if (error) throw new Error(`cannot read the day's reach-out numbers: ${error.message}`);
+  return (data ?? []).map((r) => {
+    const n = r.numbers && typeof r.numbers === "object" ? r.numbers : {};
+    const num2 = (k) => Number(n[k] ?? 0) || 0;
+    return {
+      tenant_id: r.tenant_id,
+      day: r.day,
+      numbers: {
+        written: num2("written"),
+        wrote_back: num2("wrote_back"),
+        interested: num2("interested"),
+        said_no: num2("said_no"),
+        bounced: num2("bounced"),
+        held: num2("held")
+      }
+    };
+  });
+}
+
+// src/repositories/reach-out.ts
+import { maySpend } from "../../contracts/dist/index.js";
+
+// src/repositories/reach-out-sheet.ts
+import { versionWords } from "../../contracts/dist/index.js";
+var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+async function reachOutStepsOf(db, tenantId) {
+  const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
+  if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
+  return data ?? [];
+}
+async function reachOutRootOf(db, id) {
+  const { data, error } = await db.from("playbooks").select("id, tenant_id, name, state, trigger, lead_search_id").eq("id", id).eq("kind", "reach_out").eq("trigger", "lead_first").maybeSingle();
+  if (error) throw new Error(`cannot read the reach-out: ${error.message}`);
+  return data;
+}
+async function reachOutSendRefOf(db, id) {
+  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason").eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the email: ${error.message}`);
+  return data;
+}
+function emailWordsFrom(row) {
+  const words = versionWords({ channel: "email", components: row.components, body_preview: row.body_preview });
+  return words.body.trim() ? words : null;
+}
+async function emailWordsByTemplate(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("templates").select("id, components, body_preview").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the reach-outs' words: ${error.message}`);
+  return new Map((data ?? []).map((t) => [t.id, emailWordsFrom(t)]));
+}
+async function searchNamesByIds(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the searches: ${error.message}`);
+  return new Map((data ?? []).map((s) => [s.id, s.name]));
+}
+async function leadNamesByIds(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
+  return new Map((data ?? []).map((l) => [l.id, l.business_name]));
+}
+async function handRun(db, p) {
+  const { data, error } = await db.rpc("reach_out_hand_run", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_run_id: p.runId,
+    p_day: p.day,
+    p_items: p.items
+  });
+  if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
+  const r = data ?? {};
+  return { made: r.made ?? 0, already: r.already ?? 0 };
+}
+async function runsWaitingOf(db, tenantId) {
+  const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
+  if (error) throw new Error(`cannot read the runs waiting: ${error.message}`);
+  return data ?? [];
+}
+async function reachOutRunSendsOf(db, tenantId, runId) {
+  const { data, error } = await db.from("reach_out_sends").select(
+    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, domain_id, lead:leads(business_name, email, city)"
+  ).eq("tenant_id", tenantId).eq("broadcast_id", runId);
+  if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
+  return data ?? [];
+}
+async function stampReachOutStep(db, id, p) {
+  const { error } = await db.from("playbooks").update({ last_run_at: p.at.toISOString(), ...p.runFor ? { last_run_for: p.runFor } : {} }).eq("id", id);
+  if (error) throw new Error(`cannot stamp the step's day: ${error.message}`);
+}
+async function recheckSends(db, p) {
+  if (p.ids.length === 0) return 0;
+  const { data, error } = await db.rpc("reach_out_recheck", {
+    p_send_ids: p.ids,
+    p_tenant_id: p.tenantId,
+    ...p.fromState ? { p_from_state: p.fromState } : {}
+  });
+  if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+async function outreachModeOf(db, tenantId) {
+  const { data, error } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "outreach").is("subject_type", null).maybeSingle();
+  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
+  const said = data?.mode;
+  return said === "veto" || said === "never" ? said : "ask";
+}
+async function tenantZoneOf(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
+  return error ? null : data?.timezone ?? null;
+}
+var markOf = (v) => v && typeof v === "object" && !Array.isArray(v) && typeof v.claimed_at === "string" ? { claimed_at: v.claimed_at, ...typeof v.sent_at === "string" ? { sent_at: v.sent_at } : {} } : null;
+async function heldNoticeDue(db, p) {
+  let sends = db.from("reach_out_sends").select("tenant_id, broadcast_id, reason").eq("state", "held").gte("updated_at", p.since).limit(p.limit);
+  if (p.tenantId) sends = sends.eq("tenant_id", p.tenantId);
+  const held = await sends;
+  if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
+  const byRun = /* @__PURE__ */ new Map();
+  for (const s of held.data ?? []) {
+    if (!s.broadcast_id) continue;
+    const r = byRun.get(s.broadcast_id) ?? { held: 0, reasons: /* @__PURE__ */ new Set() };
+    r.held += 1;
+    if (s.reason) r.reasons.add(s.reason);
+    byRun.set(s.broadcast_id, r);
+  }
+  if (byRun.size === 0) return [];
+  const runs = await db.from("broadcasts").select("id, tenant_id, name, state, audience, updated_at").in("id", [...byRun.keys()]).in("state", ["scheduled", "sending"]);
+  if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
+  return (runs.data ?? []).flatMap((b) => {
+    const audience = b.audience && typeof b.audience === "object" && !Array.isArray(b.audience) ? b.audience : {};
+    if (audience.kind !== "reach_out") return [];
+    const mark = markOf(audience.held_notice);
+    if (mark && (mark.sent_at || mark.claimed_at >= p.staleBefore)) return [];
+    const r = byRun.get(b.id);
+    return [
+      {
+        id: b.id,
+        tenant_id: b.tenant_id,
+        name: b.name,
+        audience,
+        updated_at: b.updated_at,
+        held: r.held,
+        reasons: [...r.reasons]
+      }
+    ];
+  });
+}
+async function markHeldNotice(db, p) {
+  let q = db.from("broadcasts").update({ audience: { ...p.audience, held_notice: { ...p.mark } } }).eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (p.ifUpdatedAt) q = q.eq("updated_at", p.ifUpdatedAt);
+  const { data, error } = await q.select("id");
+  if (error) throw new Error(`cannot mark the run: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+
+// src/repositories/reach-out.ts
+async function domainCapacityOf(db, domainId, at) {
+  const { data, error } = await db.rpc("sending_domain_capacity", {
+    p_domain_id: domainId,
+    p_at: at.toISOString()
+  });
+  if (error) throw new Error(`cannot read the domain's capacity: ${error.message}`);
+  const c = data ?? {};
+  if (typeof c.used !== "number" || typeof c.sent_days !== "number")
+    throw new Error("cannot read the domain's capacity: the database answered without its counts");
+  return {
+    state: String(c.state ?? ""),
+    clean_since: typeof c.clean_since === "string" ? c.clean_since : null,
+    sent_days: c.sent_days,
+    used: c.used,
+    recent: Array.isArray(c.recent) ? c.recent.map(Number).filter(Number.isFinite) : [],
+    last_sent_at: typeof c.last_sent_at === "string" ? c.last_sent_at : null
+  };
+}
+async function reachOutAudience(db, p) {
+  const { data, error } = await db.rpc("reach_out_audience", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    p_limit: p.limit,
+    p_include_unconfirmed: p.includeUnconfirmed
+  });
+  if (error) throw new Error(`cannot read who a reach-out may write to: ${error.message}`);
+  return data ?? [];
+}
+async function reachOutPerson(db, tenantId, leadId) {
+  const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId });
+  if (error) throw new Error(`cannot make the person this send is for: ${error.message}`);
+  const r = data ?? {};
+  if (r.refused === "lead_gone" || r.refused === "lead_closed" || r.refused === "no_address" || r.refused === "already_yours")
+    return { ok: false, refused: r.refused };
+  if (!r.contact_id || !r.conversation_id)
+    throw new Error("cannot make the person this send is for: no person came back");
+  return { ok: true, contactId: r.contact_id, conversationId: r.conversation_id, made: r.made === true };
+}
+async function claimSends(db, p) {
+  if (!Number.isInteger(p.cap) || !Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
+    throw new Error(`cannot claim the domain's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
+  const { data, error } = await db.rpc("reach_out_claim", {
+    p_domain_id: p.domainId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString(),
+    p_limit: p.limit
+  });
+  if (error) throw new Error(`cannot claim the domain's due sends: ${error.message}`);
+  return data ?? [];
+}
+async function moveSend(db, p) {
+  const { data, error } = await db.from("reach_out_sends").update(p.patch).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", p.from).select("id");
+  if (error) throw new Error(`cannot move the send: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+async function reachOutFollowers(db, p) {
+  const { data, error } = await db.rpc("reach_out_followers", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_parent_id: p.parentId,
+    p_after_days: p.afterDays,
+    p_limit: p.limit
+  });
+  if (error) throw new Error(`cannot read who a step may write to: ${error.message}`);
+  const rows = data ?? [];
+  for (const r of rows)
+    if (typeof r.facts?.wrote_back !== "boolean")
+      throw new Error("cannot read who a step may write to: the database did not say whether they wrote back");
+  return rows;
+}
+async function queuedOutcomes(db, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_queued_outcomes", {
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the queued sends: ${error.message}`);
+  return data ?? [];
+}
+async function stuckClaims(db, before, limit, tenantId) {
+  let q = db.from("reach_out_sends").select("*").eq("state", "claimed");
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q.lt("claimed_at", before.toISOString()).order("claimed_at", { ascending: true }).limit(limit);
+  if (error) throw new Error(`cannot read the claimed sends: ${error.message}`);
+  return data ?? [];
+}
+async function staleSends(db, before, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_stale_sends", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
+  return data ?? [];
+}
+async function closedRunSends(db, stuckBefore, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_closed_sends", {
+    p_stuck_before: stuckBefore.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the closed runs' sends: ${error.message}`);
+  return data ?? [];
+}
+async function finishableRuns(db, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_finishable", {
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the runs to finish: ${error.message}`);
+  return (data ?? []).map(
+    (r) => typeof r === "string" ? r : String(r.reach_out_finishable ?? "")
+  );
+}
+async function writtenEmails(db, ids) {
+  const out = /* @__PURE__ */ new Set();
+  const all2 = [...new Set(ids)];
+  for (let i = 0; i < all2.length; i += 100) {
+    const { data, error } = await db.from("messages").select("id").in("id", all2.slice(i, i + 100));
+    if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
+    for (const m of data ?? []) out.add(m.id);
+  }
+  return out;
+}
+async function withdrawEmail(db, p) {
+  const why = { reason: p.reason };
+  const { data, error } = await db.from("messages").update({ status: "canceled", error: why }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("status", "queued").select("id");
+  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function dueDomains(db, at, limit, opts = {}) {
+  const { data, error } = await db.rpc("reach_out_due_domains", {
+    p_at: at.toISOString(),
+    p_limit: limit,
+    ...opts.tenantId ? { p_tenant_id: opts.tenantId } : {},
+    p_skip_tenants: [...opts.skipTenants ?? []],
+    p_skip_domains: [...opts.skipDomains ?? []]
+  });
+  if (error) throw new Error(`cannot read the domains with sends due: ${error.message}`);
+  return data ?? [];
+}
+async function monthSent(db, tenantId, at) {
+  const { data, error } = await db.rpc("reach_out_month_sent", {
+    p_tenant_id: tenantId,
+    p_at: at.toISOString()
+  });
+  if (error) throw new Error(`cannot count the month's cold emails: ${error.message}`);
+  if (typeof data !== "number") throw new Error("cannot count the month's cold emails: the database answered no count");
+  return data;
+}
+async function insertQueuedEmail(db, row) {
+  const { error } = await db.from("messages").insert(row);
+  if (!error) return "written";
+  if (error.code === "23505") return "exists";
+  throw new Error(`cannot write the email: ${error.message}`);
+}
+async function writtenEmail(db, p) {
+  const { data, error } = await db.from("messages").select("conversation_id, contact_id, status, meta").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
+  if (error) throw new Error(`cannot read the written email: ${error.message}`);
+  if (!data) return null;
+  const to = data.meta?.email?.request?.to;
+  return {
+    conversation_id: data.conversation_id,
+    contact_id: data.contact_id,
+    status: data.status,
+    to: Array.isArray(to) && typeof to[0] === "string" ? to[0] : null
+  };
+}
+async function sendJobScheduled(db, p) {
+  const { data, error } = await db.from("jobs").select("id").eq("tenant_id", p.tenantId).eq("kind", "outbound_send").eq("payload->>message_id", p.messageId).limit(1);
+  if (error) throw new Error(`cannot read the email's job: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function sendStanding(db, s) {
+  const [run, chain] = await Promise.all([
+    db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
+    db.from("playbooks").select("id, state, template_id, after_playbook_id, signed_by").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
+  ]);
+  if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
+  if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
+  const step = s.playbook_id ? (chain.data ?? []).find((p) => p.id === s.playbook_id) : void 0;
+  return {
+    run: run.data?.state ?? null,
+    step: step?.template_id ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
+    root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
+    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null
+  };
+}
+async function emailWordsOf(db, tenantId, templateId) {
+  const { data, error } = await db.from("templates").select("components, body_preview").eq("tenant_id", tenantId).eq("id", templateId).eq("channel", "email").maybeSingle();
+  if (error) throw new Error(`cannot read the step's words: ${error.message}`);
+  return data ? emailWordsFrom(data) : null;
+}
+async function workspaceNameAndConfig(db, tenantId) {
+  const [t, cfg] = await Promise.all([
+    db.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
+    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (t.error) throw new Error(`cannot read the workspace: ${t.error.message}`);
+  if (cfg.error) throw new Error(`cannot read the workspace's configuration: ${cfg.error.message}`);
+  return { name: t.data?.name ?? null, config: cfg.data?.config ?? null };
+}
+async function leadSlotsOf(db, tenantId, leadId) {
+  const { data, error } = await db.from("leads").select("business_name, city").eq("tenant_id", tenantId).eq("id", leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead: ${error.message}`);
+  return data;
+}
+async function contactEmailOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("email").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(`cannot read the person: ${error.message}`);
+  return data?.email ?? null;
+}
+async function sendNow(db, p) {
+  const { data, error } = await db.from("reach_out_sends").select("state, message_id").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
+  if (error) throw new Error(`cannot read the send: ${error.message}`);
+  return data;
+}
+async function runSending(db, p) {
+  const { error } = await db.from("broadcasts").update({ state: "sending" }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "scheduled");
+  if (error) throw new Error(`cannot start the run: ${error.message}`);
+}
+async function parentEmailOf(db, p) {
+  const { data: sends, error } = await db.from("reach_out_sends").select("message_id").eq("tenant_id", p.tenantId).eq("root_id", p.rootId).eq("lead_id", p.leadId).eq("playbook_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
+  if (error) throw new Error(`cannot read the step before's send: ${error.message}`);
+  const id = sends?.[0]?.message_id;
+  if (!id) return null;
+  const { data: m, error: me } = await db.from("messages").select("id, meta").eq("tenant_id", p.tenantId).eq("id", id).maybeSingle();
+  if (me) throw new Error(`cannot read the step before's email: ${me.message}`);
+  if (!m) return null;
+  const e = m.meta?.email ?? {};
+  const refs = e.request?.headers?.References;
+  const subject = typeof e.subject === "string" ? e.subject : e.request?.subject;
+  return {
+    messageId: m.id,
+    rfcMessageId: typeof e.message_id === "string" && e.message_id ? e.message_id : null,
+    references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
+    subject: typeof subject === "string" ? subject : null
+  };
+}
+async function leadAddressBounced(db, p) {
+  const { data: lead, error } = await db.from("leads").select("version, email_state, erased_at, blanked_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead whose address bounced: ${error.message}`);
+  if (!lead || lead.erased_at || lead.blanked_at || lead.email_state === "invalid") return false;
+  const { data: moved, error: e2 } = await db.from("leads").update({ email_state: "invalid", email_checked_at: p.at, version: lead.version + 1 }).eq("tenant_id", p.tenantId).eq("id", p.leadId).eq("version", lead.version).select("id");
+  if (e2) throw new Error(`cannot mark the lead's address bounced: ${e2.message}`);
+  if ((moved ?? []).length === 0) {
+    if (p.retried) throw new Error("the lead whose address bounced moved while it was marked");
+    return leadAddressBounced(db, { ...p, retried: true });
+  }
+  return true;
+}
+async function leadWritten(db, p) {
+  const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
+  if (!lead) return false;
+  const { data: moved, error: e2 } = await db.from("leads").update({
+    stage: lead.stage === "ready" ? "nurture" : lead.stage,
+    contacted_at: lead.contacted_at ?? p.at,
+    last_outcome: "emailed",
+    version: lead.version + 1
+  }).eq("tenant_id", p.tenantId).eq("id", p.leadId).eq("version", lead.version).select("id");
+  if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
+  if ((moved ?? []).length === 0) return p.retried ? false : leadWritten(db, { ...p, retried: true });
+  const said = { by: "reach_out", send_id: p.sendId };
+  const { error: e3 } = await recordEvent(db, p.tenantId, "lead.emailed", "lead", p.leadId, said);
+  if (e3) throw new Error(`cannot record the lead's email: ${e3}`);
+  return true;
+}
+var num = (v) => v === null || v === void 0 || v === "" ? null : Number(v);
+var text = (v) => typeof v === "string" ? v : null;
+function recordOf(r) {
+  return {
+    business_name: text(r.business_name),
+    category: text(r.category),
+    city: text(r.city),
+    region: text(r.region),
+    rating: num(r.rating),
+    reviews: num(r.reviews),
+    website_host: text(r.website_host),
+    hours: r.hours ?? null,
+    about: text(r.about),
+    email: text(r.email),
+    why_it_fits: text(r.why_it_fits),
+    what_you_asked: text(r.what_you_asked),
+    site_listings: Number(r.site_listings ?? 0),
+    name_listings: Number(r.name_listings ?? 0),
+    email_domain_shared: r.email_domain_shared === true
+  };
+}
+async function uncheckedSends(db, p) {
+  const { data, error } = await db.rpc("reach_out_unchecked", {
+    p_limit: p.limit,
+    p_per_workspace: p.perWorkspace,
+    p_ahead_minutes: p.aheadMinutes,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  return (data ?? []).map((r) => {
+    const send = r.send;
+    return {
+      send,
+      check_gen: Number(r.check_gen ?? send.check_gen ?? 0),
+      template_id: String(r.template_id),
+      template_language: String(r.template_language ?? "en"),
+      signed_by: text(r.signed_by),
+      included_for: Array.isArray(r.included_for) ? r.included_for.filter((x) => typeof x === "string") : [],
+      record: recordOf(r)
+    };
+  });
+}
+async function uncheckedWaiting(db, tenantId) {
+  let q = db.from("reach_out_sends").select("id").eq("state", "planned").is("checked_at", null);
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q.limit(1);
+  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function reachOutRecord(db, p) {
+  const { data, error } = await db.rpc("reach_out_record", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    p_lead_id: p.leadId
+  });
+  if (error) throw new Error(`cannot read the business's record: ${error.message}`);
+  const row = (data ?? [])[0];
+  return row ? recordOf(row) : null;
+}
+async function recordCheck(db, p) {
+  const { data, error } = await db.from("reach_out_sends").update({ ...p.patch, check_started_at: null }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "planned").is("checked_at", null).eq("check_gen", p.gen).select("id");
+  if (error) throw new Error(`cannot record the send's check: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+async function heldStale(db, before, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_held_stale", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the held sends: ${error.message}`);
+  return data ?? [];
+}
+async function releaseUnavailableHolds(db, p) {
+  const { data, error } = await db.rpc("reach_out_release_unavailable", {
+    p_before: p.before.toISOString(),
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot put the holds back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+async function takeCheckAttempt(db, p) {
+  const { data, error } = await db.rpc("reach_out_check_take", {
+    p_tenant_id: p.tenantId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString()
+  });
+  if (error) throw new Error(`cannot take the check's attempt: ${error.message}`);
+  return data === true;
+}
+async function workspaceMaySpend(db, tenantId) {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.data?.status === "paused" || !billing.data) return false;
+  return maySpend(billing.data.mode, billing.data.status);
+}
+async function workspaceAbout(db, tenantId) {
+  const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the business record: ${error.message}`);
+  return data?.about?.trim() || null;
+}
+
+// src/repositories/reports/report-series.ts
+async function reportSeries(db, tenantId, days) {
+  const { data, error } = await db.rpc("report_series", { p_tenant_id: tenantId, p_days: days });
+  if (error) throw new Error(`report_series: ${error.message}`);
+  return data;
+}
+async function campaignSeries(db, tenantId, days) {
+  const { data, error } = await db.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days });
+  if (error) throw new Error(`campaign_series: ${error.message}`);
+  return data;
+}
+async function reachOutReport(db, tenantId, days) {
+  const { data, error } = await db.rpc("reach_out_report", { p_tenant_id: tenantId, p_days: days });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, data };
+}
+
+// src/repositories/reports/first-replies.ts
+async function firstReplies(db, tenantId, since) {
+  const { data, error } = await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: since.toISOString() });
+  if (error) throw new Error(`first_replies: ${error.message}`);
+  return (data ?? []).flatMap(
+    (r) => Number.isFinite(r.ai_seconds) ? [
+      {
+        asked_at: r.asked_at,
+        s: Math.round(r.ai_seconds),
+        hold: Number.isFinite(r.ai_hold_s) ? Math.round(r.ai_hold_s) : 0
+      }
+    ] : []
+  );
+}
+
+// src/repositories/notifications.ts
+async function forgetNotification(db, p) {
+  const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (error) throw new Error(`cannot take the notification back: ${error.message}`);
+}
+async function noticeKept(db, p) {
+  const { data, error } = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).limit(1);
+  if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function activityTokensOf(db, tenantId, roles) {
+  const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
+  if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
+  const people = (members ?? []).map((m) => m.user_id);
+  if (!people.length) return [];
+  const { data: devices, error: de } = await db.from("push_devices").select("activity_token").in("user_id", people).not("activity_token", "is", null);
+  if (de) throw new Error(`cannot read the phones: ${de.message}`);
+  return [...new Set((devices ?? []).map((d) => d.activity_token).filter((t) => !!t))];
+}
+async function forgetActivityTokens(db, tokens) {
+  if (!tokens.length) return;
+  const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
+  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+}
+
+// src/repositories/campaigns/workspace.ts
+async function workspacePaused(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data?.status === "paused";
+}
+
 // src/repositories/routing.ts
-var POS_TTL_MS = 5 * 60 * 1e3;
-var NEG_TTL_MS = 60 * 1e3;
+import { MIN_MS } from "../../contracts/dist/index.js";
+var POS_TTL_MS = 5 * MIN_MS;
+var NEG_TTL_MS = MIN_MS;
 var cache = /* @__PURE__ */ new Map();
 async function resolveChannelDetailed(db, kind, externalId) {
   const key = `${kind}:${externalId}`;
@@ -2583,7 +2274,7 @@ async function resolveChannelDetailed(db, kind, externalId) {
   if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
   const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id").eq("kind", kind).eq("external_id", externalId).maybeSingle();
   if (error) {
-    console.error("resolve_channel_failed", error.message);
+    dbLog().error("resolve_channel_failed", { kind, error: error.message });
     if (hit?.v) return { channel: hit.v, lookupFailed: false };
     return { channel: null, lookupFailed: true };
   }
@@ -2641,15 +2332,24 @@ async function ingestCall(db, tenantId, n, raw) {
 }
 async function linkCallMessage(db, tenantId, callId, messageId) {
   const { data, error } = await db.from("calls").update({ message_id: messageId }).eq("id", callId).eq("tenant_id", tenantId).select("id");
-  if (error) console.error("link_call_message_failed", error.message);
+  if (error) dbLog().error("link_call_message_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
   else if (!data || data.length === 0)
-    console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+    dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
+}
+async function callersOf(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("calls").select("id, from_e164, from_raw").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`callersOf: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
 }
 async function setCallRecording(db, tenantId, callId, recording) {
   const { data, error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId).select("id");
-  if (error) console.error("set_call_recording_failed", error.message);
+  if (error) dbLog().error("set_call_recording_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
   else if (!data || data.length === 0)
-    console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+    dbLog().error("set_call_recording_noop", { tenant_id: tenantId, call_id: callId });
 }
 async function recordCallNote(db, p) {
   const { data, error } = await db.from("messages").insert({
@@ -2670,7 +2370,7 @@ async function recordCallNote(db, p) {
       const { data: prior } = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
       return prior?.id ?? null;
     }
-    console.error("record_call_note_failed", error.message);
+    dbLog().error("record_call_note_failed", { tenant_id: p.tenantId, error: error.message });
     return null;
   }
   return data.id;
@@ -2680,10 +2380,36 @@ async function claimCallNotification(db, tenantId, callId) {
   if (error) throw new Error(`claim_call_notification: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }
+async function claimCallActivity(db, tenantId, callId) {
+  const { data, error } = await db.from("calls").update({ activity_started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("activity_started_at", null).select("id");
+  if (error) throw new Error(`claim_call_activity: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function callerNameOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("display_name, wa_profile_name").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(`caller_name: ${error.message}`);
+  return (data?.display_name || data?.wa_profile_name || "").trim() || null;
+}
+async function isWorkspaceCall(db, tenantId, retellCallId) {
+  const { data, error } = await tenantDb(db, tenantId).from("calls").select("id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
+  if (error) return null;
+  return data !== null;
+}
 
 // src/repositories/thread.ts
+import {
+  fencedInline,
+  promptSafeName,
+  clockDate,
+  DAY_MS,
+  dealIsOpen,
+  dealSentence,
+  dealsAreOn,
+  offersFacts,
+  pickCurrentDeal,
+  proposalLinkOf
+} from "../../contracts/dist/index.js";
 var DELIVERED = ["sent", "delivered", "read"];
-var DAY_MS2 = 24 * 3600 * 1e3;
 var IMPORTED_CALL_NOTE = /^\[voice call note /;
 var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
 var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;
@@ -2706,26 +2432,27 @@ function assembleHistory(rows, limit) {
 }
 var HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
 async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
-  const since = new Date(Date.now() - DAY_MS2).toISOString();
-  const [recent, replies] = await Promise.all([
+  const since = new Date(Date.now() - DAY_MS).toISOString();
+  const [recent, replies, texted] = await Promise.all([
     db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
     // headroom: duplicates and blanks drop out below
-    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since)
+    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since),
+    // One row is the answer: a text of ours that left, at any time. Not read off `recent`, which is the last few
+    // rows of every wire: a long thread's first text would fall out of it, and a campaign by WhatsApp or email is in it.
+    db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("channel", "sms").in("status", DELIVERED).limit(1)
   ]);
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
+  if (texted.error) throw new Error(`readThreadState/texted: ${texted.error.message}`);
   const history = assembleHistory(recent.data ?? [], historyLimit);
-  const repliedBefore = (recent.data ?? []).some(
-    (m) => m.direction === "outbound" && DELIVERED.includes(String(m.status))
-  );
   return {
     history,
-    repliedBefore,
+    textedBefore: (texted.data ?? []).length > 0,
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it
     // never actually spent.
-    replies: (replies.data ?? []).filter((r2) => !isBackfill(r2) && !isAcknowledgement(r2)).map((r2) => new Date(r2.created_at).getTime())
+    replies: (replies.data ?? []).filter((r) => !isBackfill(r) && !isAcknowledgement(r)).map((r) => new Date(r.created_at).getTime())
   };
 }
 function sellsByOf(embedded) {
@@ -2734,6 +2461,7 @@ function sellsByOf(embedded) {
   return typeof v === "string" ? v : null;
 }
 var noSellsBy = (message) => /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
+var noOffersColumns = (message) => /\b(offers_asked_at|marketing_channels)\b/.test(message) && /does not exist|could not find/i.test(message);
 var EMPTY_LEAD = {
   contactId: null,
   conversationId: null,
@@ -2744,11 +2472,22 @@ var EMPTY_LEAD = {
   optedOut: false
 };
 async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
-  const withAnswer = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, tenants(sells_by)").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  const withAnswer = await db.from("contacts").select(
+    "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"
+  ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
   let contact = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
   let cErr = withAnswer.error;
+  if (cErr && noOffersColumns(cErr.message)) {
+    const unasked = await db.from("contacts").select(
+      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, tenants(sells_by)"
+    ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+    contact = unasked.data ? { ...unasked.data, sellsBy: sellsByOf(unasked.data.tenants) } : null;
+    cErr = unasked.error;
+  }
   if (cErr && noSellsBy(cErr.message)) {
-    const older = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+    const older = await db.from("contacts").select(
+      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent"
+    ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
     contact = older.data ? { ...older.data, sellsBy: null } : null;
     cErr = older.error;
   }
@@ -2765,6 +2504,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
   }
   const { data: dealRows } = dealsOn ? await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false }) : { data: [] };
   const current = pickCurrentDeal(dealRows ?? []);
+  const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
   const { data: noteRows, error: nErr } = await db.from("person_notes").select("body, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("state", "kept").eq("team_only", false).order("created_at", { ascending: false }).limit(NOTES_READ);
   return {
     contactId: contact.id,
@@ -2778,51 +2518,76 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     lastSeenAt: contact.last_seen_at ?? null,
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
+    hasEmail: !!contact.email,
+    marketingConsent: contact.marketing_consent,
+    marketingChannels: contact.marketing_channels,
+    // Undefined where the column could not be read: not null, which says "never asked".
+    offersAskedAt: contact.offers_asked_at,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
-    deal: current ? {
-      stage: current.stage,
-      service: current.service,
-      proposed_at: current.proposed_at,
-      decided_at: current.decided_at,
-      ended_at: current.ended_at
-    } : null
+    deal: current ? dealRowFacts(current) : null,
+    otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url }))
+  };
+}
+function dealRowFacts(d) {
+  return {
+    stage: d.stage,
+    service: d.service,
+    proposed_at: d.proposed_at,
+    decided_at: d.decided_at,
+    ended_at: d.ended_at
   };
 }
 async function readDealForPhone(db, tenantId, phoneE164) {
   const { data: c } = await db.from("contacts").select("id, tenants(sells_by)").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
   if (!c || !dealsAreOn(sellsByOf(c.tenants))) return null;
   const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false });
-  const d = pickCurrentDeal(data ?? []);
-  return d ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at } : null;
+  const d = (data ?? []).find((x) => x.stage === "won") ?? pickCurrentDeal(data ?? []);
+  return d ? dealRowFacts(d) : null;
 }
 var NOTES_READ = 12;
 var NOTES_BUDGET = 1200;
 function notesForReceptionist(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (Array.isArray(lead.noteList)) {
-    const parts2 = [];
+    const parts = [];
     let used = 0;
     for (const n of lead.noteList) {
       const body = n.body.replace(/\s+/g, " ").trim();
       if (!body) continue;
       const t = Date.parse(n.at);
       const part = Number.isFinite(t) ? `(${clockDate(t, tz, now.getTime())}) ${body}` : body;
-      if (parts2.length && used + part.length > NOTES_BUDGET) break;
-      parts2.push(part);
+      if (parts.length && used + part.length > NOTES_BUDGET) break;
+      parts.push(part);
       used += part.length + 2;
     }
-    return parts2.length ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts2.join("; ")}` : null;
+    return parts.length ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts.join("; ")}` : null;
   }
   const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
   return notes ? `Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}` : null;
 }
-function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
+function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC", channel) {
   if (!lead.contactId) return "New contact \u2014 no prior history on record.";
   const bits = [];
-  bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
+  const name = promptSafeName(lead.name);
+  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.` : "No name on record.");
+  if (lead.hasEmail === true) bits.push("Their email address is on file.");
+  else if (lead.hasEmail === false) bits.push("No email address on file.");
+  bits.push(
+    ...offersFacts(
+      {
+        marketingConsent: lead.marketingConsent,
+        marketingChannels: lead.marketingChannels,
+        offersAskedAt: lead.offersAskedAt,
+        optedOut: lead.optedOut
+      },
+      channel,
+      now,
+      tz
+    )
+  );
   if (lead.returning) {
-    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / 864e5) : null;
+    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;
     const when = days === null ? "" : days <= 0 ? " Last in touch today." : days === 1 ? " Last in touch yesterday." : ` Last in touch ${days} days ago.`;
     bits.push(`Returning contact.${when}`);
   } else {
@@ -2833,12 +2598,200 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (notes) bits.push(notes);
   const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
   if (deal) bits.push(deal);
-  const proposal = (lead.proposalUrl ?? "").trim();
-  if (proposal)
-    bits.push(
-      `The owner has a proposal ready for them at ${proposal}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out \u2014 say it is being sent to them in writing.`
-    );
+  const others = lead.otherDeals ?? [];
+  for (const d of others) {
+    const said = dealSentence(d, now.getTime(), tz, { hasLink: !!(d.proposal_url ?? "").trim() });
+    if (said) bits.push(said);
+  }
+  const links = proposalLinkWords(lead);
+  if (links) bits.push(links);
   return bits.join(" ");
+}
+function proposalLinkWords(lead) {
+  const others = lead.otherDeals ?? [];
+  const links = [
+    { url: (lead.proposalUrl ?? "").trim(), service: lead.deal?.service ?? null },
+    ...others.filter((d) => d.stage === "proposed").map((d) => ({ url: (d.proposal_url ?? "").trim(), service: d.service }))
+  ].filter((x) => x.url);
+  const [first] = links;
+  if (!first) return null;
+  if (!others.length)
+    return `The owner has a proposal ready for them at ${first.url}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out \u2014 say it is being sent to them in writing.`;
+  const rest = "and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out \u2014 say it is being sent to them in writing.";
+  if (links.length === 1)
+    return `The owner has a proposal${first.service ? ` for ${first.service}` : ""} ready for them at ${first.url}. If they ask about that proposal, its price or a quote for it, send that link ${rest}`;
+  const named = links.map((x) => x.service ? `${x.service} at ${x.url}` : x.url).join("; ");
+  return `The owner has proposals ready for them: ${named}. If they ask about one of these, its price or a quote for it, send the link for the one they mean (ask which, if it is not clear) ${rest}`;
+}
+function hitKind(kind) {
+  if (kind === "message" || kind === "call") return kind;
+  throw new Error(`searchMessages: unknown kind ${kind}`);
+}
+async function searchMessages(db, tenantId, words, since, limit) {
+  const { data, error } = await db.rpc("search_messages", {
+    p_tenant: tenantId,
+    p_words: words,
+    p_since: since.toISOString(),
+    p_limit: limit
+  });
+  if (error) throw new Error(`searchMessages: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    kind: hitKind(r.kind),
+    id: r.id,
+    conversationId: r.conversation_id ?? null,
+    contactId: r.contact_id ?? null,
+    channel: r.channel ?? null,
+    direction: r.direction,
+    at: r.at,
+    snippet: r.snippet ?? ""
+  }));
+}
+async function failedMessageErrors(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("messages").select("id, error").eq("tenant_id", tenantId).eq("status", "failed").in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`failedMessageErrors: ${error.message}`);
+    for (const r of data ?? [])
+      if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
+        out.push({ id: r.id, error: r.error });
+  }
+  return out;
+}
+async function messageSenders(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("messages").select("id, sender, status, type").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`messageSenders: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
+
+// src/ask-voice-session.ts
+import { isVoiceEndReason } from "../../contracts/dist/index.js";
+var VOICE_SESSION_COLUMNS = "id, tenant_id, user_id, thread_id, conversation_id, token_cipher, token_expires_at, surface, scope, context, language, turn_key, turn_started_at, duration_s, created_at, ended_at, end_reason, connect_ms, first_audio_ms";
+function voiceRowOf(r) {
+  return { ...r, end_reason: isVoiceEndReason(r.end_reason) ? r.end_reason : null };
+}
+async function insertVoiceSession(db, row) {
+  const { error } = await db.from("ask_voice_sessions").insert(row);
+  if (error) throw new Error(`ask voice session: ${error.message}`);
+}
+async function readVoiceSession(db, id) {
+  const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw new Error(`ask voice session: ${error.message}`);
+  return data ? voiceRowOf(data) : null;
+}
+async function readVoiceSessionByConversation(db, conversationId) {
+  const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`ask voice session by conversation: ${error.message}`);
+  return data ? voiceRowOf(data) : null;
+}
+async function claimVoiceTurn(db, id, turnKey, now, staleMs) {
+  const stale = new Date(now.getTime() - staleMs).toISOString();
+  const { data, error } = await db.from("ask_voice_sessions").update({ turn_key: turnKey, turn_started_at: now.toISOString() }).eq("id", id).or(`turn_key.is.null,turn_key.neq.${turnKey},turn_started_at.lt.${stale}`).select("id");
+  if (error) throw new Error(`ask voice session claim: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function endVoiceSession(db, id, fields) {
+  const { data, error } = await db.from("ask_voice_sessions").update({
+    ended_at: fields.endedAt,
+    ...fields.durationS === void 0 ? {} : { duration_s: fields.durationS },
+    ...fields.endReason === void 0 ? {} : { end_reason: fields.endReason },
+    ...fields.connectMs === void 0 ? {} : { connect_ms: fields.connectMs },
+    ...fields.firstAudioMs === void 0 ? {} : { first_audio_ms: fields.firstAudioMs }
+  }).eq("id", id).select("id");
+  if (error) throw new Error(`ask voice session end: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function moveVoiceSessionContext(db, id, fields) {
+  const { data, error } = await db.from("ask_voice_sessions").update({ context: fields.context, surface: fields.surface }).eq("id", id).select("id");
+  if (error) throw new Error(`ask voice session context: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+// src/repositories/idempotency.ts
+var HOLD_COLUMNS = "response, created_at, request_hash";
+async function claimIdempotencyKey(db, p) {
+  const claimed = await db.from("idempotency_keys").upsert(
+    {
+      tenant_id: p.tenantId,
+      key: p.key,
+      route: p.route,
+      request_hash: p.requestHash,
+      response: null,
+      created_at: p.nowIso
+    },
+    { onConflict: "tenant_id,key", ignoreDuplicates: true }
+  ).select("key");
+  if (claimed.error) throw new Error(`idempotency claim: ${claimed.error.message}`);
+  if ((claimed.data ?? []).length > 0) return { won: true };
+  const held = await db.from("idempotency_keys").select(HOLD_COLUMNS).eq("tenant_id", p.tenantId).eq("key", p.key).maybeSingle();
+  if (held.error) throw new Error(`idempotency lookup: ${held.error.message}`);
+  return { won: false, held: held.data };
+}
+async function takeIdempotencyKey(db, p) {
+  const taken = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: null, created_at: p.nowIso }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.from).select("key");
+  if (taken.error) throw new Error(`idempotency take: ${taken.error.message}`);
+  return (taken.data ?? []).length > 0;
+}
+async function releaseIdempotencyKey(db, p) {
+  const released = await db.from("idempotency_keys").delete().eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.nowIso);
+  if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
+}
+async function keepIdempotencyReceipt(db, p) {
+  const kept = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: p.response }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.stamp).select("key");
+  if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
+  return (kept.data ?? []).length > 0;
+}
+
+// src/jobs.ts
+async function readJobToRequeue(db, tenantId, jobId) {
+  const { data, error } = await db.from("jobs").select("id, kind, state, payload, created_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`read_job: ${error.message}`);
+  return data;
+}
+async function hasNewerCopy(db, tenantId, job) {
+  const { data, error } = await db.from("jobs").select("id").eq("tenant_id", tenantId).eq("kind", job.kind).filter("payload", "eq", JSON.stringify(job.payload)).neq("state", "failed").gt("created_at", job.created_at).limit(1);
+  if (error) throw new Error(`read_job_copies: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function assembleBroadcast(db, args) {
+  const { data, error } = await db.rpc("assemble_broadcast", {
+    p_tenant: args.tenantId,
+    p_run: args.run,
+    p_recipients: args.recipients,
+    ...args.sendAt ? { p_send_at: args.sendAt.toISOString() } : {}
+  });
+  if (error || !data) throw new Error(error?.message ?? "broadcast not created");
+  return data;
+}
+
+// src/provider-events.ts
+async function keepProviderEvent(db, d) {
+  const { error } = await db.from("provider_events").upsert(
+    { ...d, headers: d.headers, verified: true },
+    { onConflict: "provider,provider_event_id", ignoreDuplicates: true }
+  );
+  return { error: error?.message ?? null };
+}
+async function providerEventOf(db, provider, providerEventId) {
+  const { data, error } = await db.from("provider_events").select("provider, provider_event_id, door, url, tenant_id, verified, headers, body, received_at").eq("provider", provider).eq("provider_event_id", providerEventId).maybeSingle();
+  if (error) throw new Error(`provider_events: ${error.message}`);
+  return data ? { ...data, provider, headers: headersOf(data.headers) } : null;
+}
+function headersOf(v) {
+  const out = {};
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    for (const [k, s] of Object.entries(v)) if (typeof s === "string") out[k] = s;
+  }
+  return out;
+}
+async function scrubProviderEvents(db, tenantId, needles) {
+  const { data, error } = await db.rpc("provider_events_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`provider_events_scrub: ${error.message}`);
+  return data ?? 0;
 }
 
 // src/repositories/control.ts
@@ -2873,8 +2826,78 @@ async function templatesFor(db, tenantId, channel = "whatsapp") {
   if (error) throw new Error(`templatesFor: ${error.message}`);
   return data ?? [];
 }
+async function templatesToSend(db, tenantId, channel = "whatsapp") {
+  const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables, components").eq("tenant_id", tenantId).eq("channel", channel);
+  if (error) throw new Error(`templatesToSend: ${error.message}`);
+  return data ?? [];
+}
+function slotsOf(variables) {
+  if (!Array.isArray(variables)) return 0;
+  const positions = variables.map((v) => Number(v?.position)).filter(Number.isFinite);
+  return Math.max(variables.length, ...positions);
+}
+async function messageSlots(db, tenantId, name, language) {
+  const { data, error } = await db.from("templates").select("channel, language, variables").eq("tenant_id", tenantId).eq("name", name);
+  if (error) throw new Error(`messageSlots: ${error.message}`);
+  const rows = (data ?? []).slice().sort((a, b) => {
+    const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
+    return wa || Number(b.language === language) - Number(a.language === language);
+  });
+  const row = rows[0];
+  return row ? slotsOf(row.variables) : null;
+}
+async function ownVersionsFiled(db, tenantId, names) {
+  if (names.length === 0) return [];
+  const { data, error } = await db.from("templates").select("channel, name, language").eq("tenant_id", tenantId).in("channel", ["email", "sms"]).in("name", names);
+  if (error) throw new Error(`ownVersionsFiled: ${error.message}`);
+  return data ?? [];
+}
+function versionRefOf(data) {
+  const v = data;
+  return v && typeof v.id === "string" && typeof v.channel === "string" && typeof v.name === "string" && typeof v.language === "string" ? { id: v.id, channel: v.channel, name: v.name, language: v.language } : null;
+}
+async function saveTemplateVersion(db, p) {
+  const { data, error } = await db.rpc("save_template_version", {
+    p_tenant_id: p.tenantId,
+    p_name: p.name,
+    p_language: p.language,
+    p_channel: p.channel,
+    p_subject: p.subject ?? "",
+    p_body: p.body
+  });
+  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  const version = versionRefOf(data);
+  if (!version) throw new Error("saveTemplateVersion: the door answered without the version it wrote");
+  return { ok: true, version };
+}
+async function removeTemplateVersion(db, templateId) {
+  const { data, error } = await db.rpc("remove_template_version", { p_template_id: templateId });
+  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  const version = versionRefOf(data);
+  if (!version) throw new Error("removeTemplateVersion: the door answered without the version it removed");
+  return { ok: true, version };
+}
+async function templateIdOf(db, tenantId, name, language) {
+  const { data, error } = await db.from("templates").select("id").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.id ?? null;
+}
+async function templatesNamed(db, tenantId, names) {
+  const { data, error } = await db.from("templates").select("name, language, meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").in("name", names);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+async function templateStatusOf(db, tenantId, name, language) {
+  const { data } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+  return data;
+}
+async function setTemplateQuality(db, p) {
+  const { error } = await db.from("templates").update({ quality: p.quality }).eq("tenant_id", p.tenantId).eq("channel", "whatsapp").eq("name", p.name).eq("language", p.language);
+  if (error) throw new Error(`setTemplateQuality: ${error.message}`);
+}
 
 // src/repositories/control-plane.ts
+import { receptionistOn } from "../../contracts/dist/index.js";
 async function getTenantConfig(db, tenantId) {
   const { data, error } = await db.from("tenant_config").select("tenant_id, config, version, updated_at, updated_by").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`getTenantConfig: ${error.message}`);
@@ -2919,34 +2942,44 @@ async function setPersonReplyMode(db, tenantId, contactId, mode) {
   );
   if (error) throw new Error(error.message);
 }
-
-// src/repositories/people.ts
-var PEOPLE_PAGE = 1e3;
-async function peoplePage(db, tenantId, page = {}) {
-  const offset = page.offset ?? 0;
-  const limit = page.limit ?? PEOPLE_PAGE;
-  const { data, error } = await db.rpc("people_list", {
-    p_tenant_id: tenantId,
-    ...page.q ? { p_query: page.q } : {},
-    ...offset > 0 ? { p_offset: offset } : {},
-    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
-  });
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  return data ?? [];
+async function workspaceAnswersOnItsOwn(db, tenantId) {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
+  return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status));
 }
-async function everyoneIn(db, tenantId) {
-  const all = [];
-  for (let offset = 0; ; offset += PEOPLE_PAGE) {
-    const page = await peoplePage(db, tenantId, { offset });
-    all.push(...page);
-    if (page.length < PEOPLE_PAGE) return all;
-  }
+async function membershipCountOf(db, userId) {
+  const { count, error } = await db.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", userId);
+  if (error) throw new Error(`memberships_count: ${error.message}`);
+  return count ?? 0;
+}
+async function createWorkspaceFn(db, args) {
+  return db.rpc("create_workspace", args).single();
+}
+async function lineForwardingSet(db, args) {
+  return db.rpc("line_forwarding_set", args);
+}
+async function setPlaybookState(db, id, state) {
+  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
+  return { error };
+}
+async function updatePlaybook(db, id, patch) {
+  const { error } = await db.from("playbooks").update(patch).eq("id", id);
+  return { error };
+}
+async function removePlaybook(db, id) {
+  const { error, count } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
+  return { error, count };
 }
 
 // src/paged.ts
 var MAX_ROWS = 1e3;
 var DEFAULT_ROW_CAP = 2e4;
-async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => console.error("paged_read_capped", JSON.stringify({ what: w, cap: c }))) {
+async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
   const out = [];
   while (out.length < cap) {
     const size = Math.min(MAX_ROWS, cap - out.length);
@@ -2955,6 +2988,22 @@ async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) 
     const rows = data ?? [];
     out.push(...rows);
     if (rows.length < size) return out;
+  }
+  onCapped(what, cap);
+  return out;
+}
+async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
+  const out = [];
+  let after = null;
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(after, size);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    const last = rows.at(-1);
+    if (rows.length < size || last === void 0) return out;
+    after = key(last);
   }
   onCapped(what, cap);
   return out;
@@ -3091,6 +3140,7 @@ async function deleteList(db, id) {
 }
 
 // src/repositories/touches.ts
+import { DEFAULT_TIMEZONE, followUpKey, localDate, parseParamSpecs } from "../../contracts/dist/index.js";
 var RUN_IDS_PER_QUERY = 200;
 var STOPPED = /* @__PURE__ */ new Set(["canceled", "failed"]);
 async function touchesSince(db, tenantId, since, now) {
@@ -3101,18 +3151,18 @@ async function followUpTouchesSince(db, tenantId, since, now) {
 }
 var FOLLOW_UP_PARAMS = '[{"kind":"proposal_link"}]';
 async function touchesOf(db, tenantId, since, now, followUpsOnly) {
-  const [all, zone] = await Promise.all([
+  const [all2, zone] = await Promise.all([
     readAllRows("broadcasts", (from, to) => {
       const q = db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).gte("created_at", since.toISOString());
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
     }),
     db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle().then(
-      (r2) => r2.error ? null : r2.data?.timezone || DEFAULT_TIMEZONE,
+      (r) => r.error ? null : r.data?.timezone || DEFAULT_TIMEZONE,
       () => null
     )
   ]);
   const today = zone ? localDate(zone, now) : null;
-  const runs = all.filter(
+  const runs = all2.filter(
     (b) => !(b.state === "pending_approval" && today !== null && b.run_for !== null && b.run_for < today)
   );
   const ofRun = new Map(runs.map((b) => [b.id, b]));
@@ -3125,30 +3175,37 @@ async function touchesOf(db, tenantId, since, now, followUpsOnly) {
   for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
     const rows = await readAllRows(
       "broadcast_recipients",
-      (from, to) => db.from("broadcast_recipients").select("broadcast_id, contact_id, sent_at, state").eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
+      (from, to) => db.from("broadcast_recipients").select(
+        "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id"
+      ).eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
     );
-    for (const r2 of rows) {
-      const run = ofRun.get(r2.broadcast_id);
+    for (const r of rows) {
+      const run = ofRun.get(r.broadcast_id);
       if (!run) continue;
-      if (STOPPED.has(run.state) && r2.state !== "sent") continue;
-      const at = r2.sent_at ?? run.scheduled_for ?? run.created_at;
+      if (STOPPED.has(run.state) && r.state !== "sent") continue;
+      const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
       if (Date.parse(at) < sinceMs) continue;
       out.push({
-        contact_id: r2.contact_id,
+        contact_id: r.contact_id,
         playbook_id: run.playbook_id,
         at,
-        sent: r2.state === "sent",
+        sent: r.state === "sent",
         held: run.state === "pending_approval",
-        follow_up: followUp.has(run.id)
+        follow_up: followUp.has(run.id),
+        // As the run wrote them from the deal (contracts proposalFactsFor), so they are compared as they are.
+        deal: followUp.has(run.id) ? factString(r.proposal_deal) : null,
+        link: followUp.has(run.id) ? factString(r.proposal_link) : null
       });
     }
   }
   return out;
 }
+var factString = (v) => typeof v === "string" && v ? v : null;
 function touchIndex(touches) {
   const byThis = /* @__PURE__ */ new Map();
   const byAny = /* @__PURE__ */ new Map();
   const followUps = /* @__PURE__ */ new Map();
+  const followUpKeys = /* @__PURE__ */ new Map();
   for (const t of touches) {
     const at = Date.parse(t.at);
     if (t.playbook_id) {
@@ -3158,8 +3215,14 @@ function touchIndex(touches) {
     }
     byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
     if (t.follow_up) followUps.set(t.contact_id, Math.max(followUps.get(t.contact_id) ?? 0, at));
+    if (t.follow_up) {
+      const m = followUpKeys.get(t.contact_id) ?? /* @__PURE__ */ new Map();
+      const key = followUpKey(t);
+      m.set(key, Math.max(m.get(key) ?? 0, at));
+      followUpKeys.set(t.contact_id, m);
+    }
   }
-  return { byThis, byAny, followUps };
+  return { byThis, byAny, followUps, followUpKeys };
 }
 
 // src/repositories/deals.ts
@@ -3168,157 +3231,873 @@ async function yesesSince(db, tenantId, since) {
     "deals",
     (from, to) => db.from("deals").select("id, stage, proposed_at, decided_at").eq("tenant_id", tenantId).in("stage", ["won", "ended"]).gte("decided_at", since.toISOString()).order("id").range(from, to)
   );
-  return rows.map((r2) => ({ stage: r2.stage, proposed_at: r2.proposed_at, decided_at: r2.decided_at }));
+  return rows.map((r) => ({ stage: r.stage, proposed_at: r.proposed_at, decided_at: r.decided_at }));
+}
+
+// src/repositories/partner.ts
+var PARTNER_COLUMNS = "id, code, status, share_bp, terms_accepted_at, created_at";
+var noTable = (message) => /\bpartners\b/.test(message) && /does not exist|could not find|schema cache/i.test(message);
+async function getOwnPartner(db) {
+  const { data, error } = await db.from("partners").select(PARTNER_COLUMNS).maybeSingle();
+  if (error) {
+    if (noTable(error.message)) return null;
+    throw new Error(`getOwnPartner: ${error.message}`);
+  }
+  return data;
+}
+async function sessionHoldsPartnerSeat(db) {
+  try {
+    const { data, error } = await db.rpc("session_has_partner_seat");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+async function getPartnerBroughtCount(db, partnerId) {
+  const of = () => db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
+  const r = await of().or("origin.eq.link,origin.eq.invite,handover_accepted_at.not.is.null");
+  if (!r.error) return r.count ?? 0;
+  if (!/\b(origin|handover_accepted_at)\b/.test(r.error.message)) return null;
+  const older = await of();
+  return older.error ? null : older.count ?? 0;
+}
+async function getPartnerBalance(db) {
+  const { data, error } = await db.rpc("partner_balance");
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883" || /could not find the function/i.test(error.message))
+      return [];
+    throw new Error(`getPartnerBalance: ${error.message}`);
+  }
+  return (data ?? []).map((r) => ({
+    currency: r.currency,
+    state: r.state,
+    earned_cents: Number(r.earned_cents),
+    next_payable_at: r.next_payable_at ?? null
+  }));
+}
+async function getPartnerLetters(db) {
+  const { data, error } = await db.from("partners").select("letters").maybeSingle();
+  if (error || !data) return null;
+  return typeof data.letters === "boolean" ? data.letters : null;
+}
+async function setPartnerLetters(db, on) {
+  const { data, error } = await db.rpc("partner_letters_set", { p_on: on });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, letters: data === true };
+}
+async function becomePartner(db, code) {
+  const { data, error } = await db.rpc("partner_become", { p_code: code });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, row: data };
+}
+var noFunction2 = (e) => e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
+async function getPartnerWorkspaces(db) {
+  const [o, m] = await Promise.all([db.rpc("partner_overview"), db.rpc("partner_workspace_money")]);
+  for (const r of [o, m]) {
+    if (r.error && !noFunction2(r.error)) throw new Error(`getPartnerWorkspaces: ${r.error.message}`);
+  }
+  return {
+    overview: o.error ? [] : o.data ?? [],
+    money: m.error ? [] : (m.data ?? []).map((r) => ({
+      ...r,
+      held_cents: Number(r.held_cents),
+      payable_cents: Number(r.payable_cents),
+      paid_cents: Number(r.paid_cents),
+      month_cents: Number(r.month_cents)
+    }))
+  };
+}
+async function getPlatformPartners(db) {
+  const [b, w] = await Promise.all([db.rpc("platform_partner_balances"), db.rpc("platform_partner_workspaces")]);
+  for (const r of [b, w]) {
+    if (r.error && !noFunction2(r.error)) throw Object.assign(new Error(r.error.message), { code: r.error.code });
+  }
+  return {
+    balances: b.error ? [] : (b.data ?? []).map((r) => ({
+      ...r,
+      held_cents: Number(r.held_cents),
+      payable_cents: Number(r.payable_cents),
+      paid_cents: Number(r.paid_cents)
+    })),
+    workspaces: w.error ? [] : w.data ?? []
+  };
+}
+async function setPartnerStanding(db, tenantId, standing, why) {
+  const { data, error } = await db.rpc("partner_standing_set", {
+    p_tenant: tenantId,
+    p_standing: standing,
+    p_why: why
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return {
+    ok: true,
+    value: data
+  };
+}
+async function markPartnerPaid(db, partnerId, currency, reference, expectedCents) {
+  const { data, error } = await db.rpc("partner_payout_mark", {
+    p_partner: partnerId,
+    p_currency: currency,
+    p_reference: reference,
+    ...expectedCents === void 0 ? {} : { p_expected_cents: expectedCents }
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data;
+  return { ok: true, value: { ...v, total_cents: Number(v.total_cents) } };
+}
+async function setPartnerStatus(db, partnerId, status, why) {
+  const { data, error } = await db.rpc("partner_status_set", { p_partner: partnerId, p_status: status, p_why: why });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: data };
+}
+async function recordPartnerSecondFactorReset(db, partnerId, why) {
+  const { data, error } = await db.rpc("partner_second_factor_reset", { p_partner: partnerId, p_why: why });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: String(data) };
+}
+async function createWorkspaceForBusiness(db, input) {
+  const { data, error } = await db.rpc("create_workspace_for_business", {
+    p_name: input.name,
+    p_timezone: input.timezone ?? "",
+    p_owner_email: input.ownerEmail
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const row = data?.[0];
+  if (!row) return { ok: false, code: "", message: "The workspace was not made." };
+  return { ok: true, value: { id: row.id, slug: row.slug, name: row.name } };
+}
+async function resendHandover(db, tenantId, email) {
+  const { data, error } = await db.rpc("partner_handover_resend", { p_tenant: tenantId, p_email: email });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data ?? {};
+  return {
+    ok: true,
+    value: { email: String(v.email ?? email), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") }
+  };
+}
+async function getOpenHandovers(db) {
+  const { data, error } = await Promise.resolve().then(() => db.rpc("handovers_mine")).catch((e) => ({ data: null, error: { code: "", message: e instanceof Error ? e.message : String(e) } }));
+  if (error) return { handovers: [], error: noFunction2(error) ? null : error.message };
+  return {
+    handovers: (data ?? []).map((r) => ({
+      tenantId: r.tenant_id,
+      workspace: r.workspace,
+      partnerCode: r.partner_code,
+      expiresAt: r.expires_at
+    })),
+    error: null
+  };
+}
+async function acceptHandover(db, tenantId) {
+  const { data, error } = await db.rpc("handover_accept", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const row = data?.[0];
+  if (!row) return { ok: false, code: "P0002", message: "There is no workspace waiting for you there." };
+  return { ok: true, value: { id: row.id, slug: row.slug, name: row.name } };
+}
+async function declineHandover(db, tenantId) {
+  const { error } = await db.rpc("handover_decline", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+async function getPartnerHandovers(db) {
+  const { data, error } = await db.from("partner_tenants").select(
+    "tenant_id, handover_email, handover_sent_at, handover_expires_at, handover_accepted_at, handover_declined_at, tenants(name)"
+  ).eq("origin", "handover").order("handover_sent_at", { ascending: false });
+  if (error) {
+    if (/\b(origin|handover_\w+)\b/.test(error.message) && /does not exist|could not find/i.test(error.message))
+      return [];
+    throw new Error(`getPartnerHandovers: ${error.message}`);
+  }
+  return (data ?? []).map((r) => ({
+    tenantId: r.tenant_id,
+    name: r.tenants?.name ?? null,
+    email: r.handover_email ?? "",
+    sentAt: r.handover_sent_at ?? "",
+    expiresAt: r.handover_expires_at ?? "",
+    acceptedAt: r.handover_accepted_at,
+    declinedAt: r.handover_declined_at
+  }));
+}
+async function getHandoverInvite(db, tenantId) {
+  const { data, error } = await db.from("partner_tenants").select(
+    "handover_email, handover_expires_at, handover_accepted_at, handover_declined_at, tenants(name), partners(code)"
+  ).eq("tenant_id", tenantId).eq("origin", "handover").maybeSingle();
+  if (error) throw new Error(`getHandoverInvite: ${error.message}`);
+  if (!data?.handover_email || !data.handover_expires_at) return null;
+  if (data.handover_accepted_at || data.handover_declined_at) return null;
+  if (Date.parse(data.handover_expires_at) <= Date.now()) return null;
+  return {
+    email: data.handover_email,
+    workspace: data.tenants?.name ?? "",
+    partnerCode: data.partners?.code ?? "",
+    expiresAt: data.handover_expires_at
+  };
+}
+async function invitePartner(db, tenantId, code) {
+  const { data, error } = await db.rpc("partner_invite", { p_tenant: tenantId, p_code: code });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data ?? {};
+  return {
+    ok: true,
+    value: { code: String(v.code ?? code), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") }
+  };
+}
+async function withdrawPartnerInvite(db, tenantId) {
+  const { error } = await db.rpc("partner_invite_withdraw", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+async function getWorkspacePartner(db, tenantId) {
+  const { data, error } = await db.rpc("workspace_partner", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data ?? {};
+  const p = v.partner ?? null;
+  const i = v.invitation ?? null;
+  return {
+    ok: true,
+    value: {
+      partner: p ? {
+        code: String(p.code ?? ""),
+        origin: String(p.origin ?? ""),
+        since: String(p.since ?? ""),
+        seated: p.seated === true
+      } : null,
+      invitation: i ? {
+        code: String(i.code ?? ""),
+        sentAt: String(i.sent_at ?? ""),
+        expiresAt: String(i.expires_at ?? ""),
+        declinedAt: i.declined_at ? String(i.declined_at) : null
+      } : null
+    }
+  };
+}
+async function getPartnerInvitations(db) {
+  const { data, error } = await db.rpc("partner_invitations_mine");
+  if (error) {
+    if (noFunction2(error)) return [];
+    throw new Error(`getPartnerInvitations: ${error.message}`);
+  }
+  return (data ?? []).map((r) => ({
+    tenantId: r.tenant_id,
+    workspace: r.workspace,
+    sentAt: r.sent_at,
+    expiresAt: r.expires_at
+  }));
+}
+async function acceptPartnerInvite(db, tenantId) {
+  const { data, error } = await db.rpc("partner_invite_accept", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const row = data?.[0];
+  if (!row) return { ok: false, code: "P0002", message: "There is no invitation for you there." };
+  return { ok: true, value: { id: row.id, slug: row.slug, name: row.name, earns: row.earns } };
+}
+async function declinePartnerInvite(db, tenantId) {
+  const { error } = await db.rpc("partner_invite_decline", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+async function getPartnerInviteMail(db, tenantId) {
+  const { data, error } = await db.from("partner_invitations").select("expires_at, declined_at, tenants(name), partners(code, user_id)").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`getPartnerInviteMail: ${error.message}`);
+  if (!data || data.declined_at || Date.parse(data.expires_at) <= Date.now()) return null;
+  const userId = data.partners?.user_id;
+  if (!userId) return null;
+  const who = await db.auth.admin.getUserById(userId);
+  if (who.error) throw new Error(`getPartnerInviteMail: ${who.error.message}`);
+  const email = who.data.user?.email;
+  if (!email) return null;
+  return {
+    email,
+    workspace: data.tenants?.name ?? "",
+    partnerCode: data.partners?.code ?? "",
+    expiresAt: data.expires_at
+  };
+}
+
+// src/repositories/leads.ts
+var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
+var jsonString = (v) => typeof v === "string" ? v : null;
+function memberOf(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = jsonString(data.id);
+  const searchId = jsonString(data.search_id);
+  const cls = jsonString(data.class);
+  if (!id || !searchId || !cls) return null;
+  return {
+    id,
+    search_id: searchId,
+    class: cls,
+    excluded_by: jsonString(data.excluded_by),
+    fit: jsonString(data.fit),
+    reason: jsonString(data.reason) ?? "",
+    distance_m: typeof data.distance_m === "number" ? data.distance_m : null,
+    counted: data.counted === true,
+    judgment: data.judgment ?? null
+  };
+}
+async function readLeadOne(db, tenantId, leadId, searchId) {
+  const [l, m, places] = await Promise.all([
+    db.from("leads").select(ONE_LEAD_COLUMNS).eq("id", leadId).eq("tenant_id", tenantId).maybeSingle(),
+    db.rpc("lead_member_of", {
+      p_tenant_id: tenantId,
+      p_lead_id: leadId,
+      ...searchId ? { p_search_id: searchId } : {}
+    }),
+    db.from("lead_places").select("id", { count: "exact", head: true }).eq("lead_id", leadId)
+  ]);
+  if (l.error) throw new Error(`readLeadOne: ${l.error.message}`);
+  if (m.error) throw new Error(`lead_member_of: ${m.error.message}`);
+  if (places.error) throw new Error(`readLeadOne: ${places.error.message}`);
+  const lead = l.data;
+  const member = memberOf(m.data);
+  if (!lead || lead.tenant_id !== tenantId || lead.blanked_at || lead.erased_at || !member) return null;
+  return { lead, member, places: places.count ?? 1 };
+}
+
+// src/lines.ts
+async function ownLineOf(db, tenantId) {
+  const { data, error } = await db.from("lines").select("id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state").eq("tenant_id", tenantId).neq("provider", "carrier").neq("voice_state", "failed").order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's own line: ${error.message}`);
+  return data;
 }
 
 // src/realtime.ts
+var EVERY = ["INSERT", "UPDATE", "DELETE"];
+var INSERTS = ["INSERT"];
+var INSERTS_AND_UPDATES = ["INSERT", "UPDATE"];
 var WATCHED = [
-  { table: "messages", event: "INSERT" },
-  { table: "conversations", event: "*" },
+  { table: "messages", events: INSERTS_AND_UPDATES },
+  // arrivals, then a send's ticks and a failure written late: an update is told with its statuses (00327)
+  { table: "conversations", events: EVERY },
   // the pause and snooze clocks, other tabs
-  { table: "escalations", event: "*" },
+  { table: "escalations", events: EVERY },
   // opened by the edge, resolved elsewhere
-  { table: "calls", event: "*" },
-  // a call starting, each live turn, its end, its analysis
-  { table: "notifications", event: "INSERT" },
+  { table: "calls", events: EVERY },
+  // a call starting, each live turn, its end, its analysis: told with its statuses
+  { table: "notifications", events: INSERTS },
   // an alert the edge kept: the bell repaints
-  { table: "lines", event: "*" },
-  // a line's saga step, its failure, its answer: Setup repaints
-  { table: "google_listings", event: "*" },
+  { table: "lines", events: EVERY },
+  // a line's saga step, its failure, its answer, its release: Setup repaints
+  { table: "google_listings", events: EVERY },
   // the listing linked, read, or removed: Setup and Reports repaint
-  { table: "google_reviews", event: "INSERT" },
+  { table: "google_reviews", events: INSERTS },
   // a review seen for the first time
-  { table: "billing_accounts", event: "*" },
+  { table: "billing_accounts", events: EVERY },
   // Stripe's answer, applied by the webhook: Billing and Setup repaint
-  { table: "tenant_channels", event: "*" },
+  { table: "tenant_channels", events: EVERY },
   // a channel connected, switched off, or written by a line's saga: Setup and Connections repaint (00117)
-  { table: "capability_activations", event: "*" },
+  { table: "capability_activations", events: EVERY },
   // the owner's act, in another tab: Setup repaints (00108)
-  { table: "business_records", event: "*" },
+  { table: "business_records", events: EVERY },
   // the record the carriers read, saved on Connections: Setup repaints (00075)
-  { table: "google_connections", event: "*" },
+  { table: "google_connections", events: EVERY },
   // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
+  { table: "sending_domains", events: EVERY },
+  // a domain added, checked, verified, held or removed: Connections repaints (00175)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
-  { table: "leads", event: "*" },
-  { table: "lead_searches", event: "*" },
-  { table: "lead_rounds", event: "*" },
-  { table: "lead_search_members", event: "*" },
+  { table: "leads", events: EVERY },
+  { table: "lead_searches", events: EVERY },
+  { table: "lead_rounds", events: EVERY },
+  { table: "lead_search_members", events: EVERY },
   // a deal recorded or moved by a teammate, or by a payment: People (and its Pipeline) repaints (00156, 0008)
-  { table: "deals", event: "*" },
-  // a note written, a step set or done by a teammate: People's next steps and a person's page repaint (00157, 00166)
-  { table: "person_notes", event: "*" },
+  { table: "deals", events: EVERY },
+  // a note written, a step set or done, or a note removed by a teammate: People's next steps and a person's page repaint (00157, 00166)
+  { table: "person_notes", events: EVERY },
   // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
-  { table: "segments", event: "*" },
-  { table: "segment_members", event: "*" }
+  { table: "segments", events: EVERY },
+  { table: "segment_members", events: EVERY },
+  // a reply to a reach-out read, drafted or undone: the Inbox's strip and chip repaint (00222)
+  { table: "reach_out_replies", events: EVERY },
+  // a run made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
+  // repaint (00321). Its people are not watched: a run's page reads them when it opens.
+  { table: "broadcasts", events: EVERY }
 ];
 function watchedTables() {
   return WATCHED.map((w) => w.table);
 }
-function subscribeMessagesInserts(client, onInsert, opts = {}) {
-  const topic = `db-changes:${opts.topic ?? "bridge"}`;
-  let removed = false;
-  let channel = null;
-  void (async () => {
-    const { data } = await client.auth.getSession();
-    const token = data.session?.access_token;
-    if (token) client.realtime.setAuth(token);
-    if (removed) return;
-    channel = client.channel(topic);
-    for (const w of WATCHED) {
-      channel = channel.on(
-        "postgres_changes",
-        {
-          event: w.event,
-          schema: "public",
-          table: w.table,
-          ...opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}
-        },
-        // The event too: a surface may want a call STARTING and ENDING and
-        // not the transcript turn every few seconds in between.
-        (payload) => onInsert(
-          payload.new ?? payload.old ?? {},
-          w.table,
-          payload.eventType
-        )
-      );
-    }
-    channel = channel.subscribe((status) => {
-      if (opts.onStatus) opts.onStatus(status);
-      else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);
-    });
-  })();
-  return () => {
-    removed = true;
-    if (channel) void client.removeChannel(channel);
+function watchedEvents() {
+  return WATCHED.map((w) => ({ table: w.table, events: [...w.events] }));
+}
+var hearings = /* @__PURE__ */ new WeakMap();
+function subscribeWorkspaceChanges(client, onChange, opts = {}) {
+  const tenantId = opts.tenantId;
+  if (!tenantId) return () => {
   };
+  const topic = `workspace:${tenantId}:changes`;
+  let byTopic = hearings.get(client);
+  if (!byTopic) hearings.set(client, byTopic = /* @__PURE__ */ new Map());
+  const heard = byTopic;
+  let h = heard.get(topic);
+  if (!h) {
+    h = { listeners: /* @__PURE__ */ new Set(), channel: null, status: null, joining: null, leaving: Promise.resolve() };
+    heard.set(topic, h);
+  }
+  const hearing = h;
+  const listener = { onChange, onStatus: opts.onStatus };
+  hearing.listeners.add(listener);
+  const status = hearing.channel ? hearing.status : null;
+  if (status) queueMicrotask(() => hearing.listeners.has(listener) && report(listener, topic, status));
+  else if (!hearing.channel && !hearing.joining)
+    hearing.joining = join(client, tenantId, topic, hearing, heard).catch(() => {
+      hearing.joining = null;
+      for (const l of [...hearing.listeners]) report(l, topic, "CHANNEL_ERROR");
+    });
+  let left = false;
+  return () => {
+    if (left) return;
+    left = true;
+    hearing.listeners.delete(listener);
+    if (hearing.listeners.size || !hearing.channel) return;
+    const channel = hearing.channel;
+    hearing.channel = null;
+    hearing.status = null;
+    hearing.leaving = client.removeChannel(channel).then(
+      () => void 0,
+      () => void 0
+    );
+    void hearing.leaving.then(() => forget(heard, topic, hearing));
+  };
+}
+async function join(client, tenantId, topic, hearing, heard) {
+  await hearing.leaving;
+  const { data } = await client.auth.getSession();
+  const token = data.session?.access_token;
+  if (token) await client.realtime.setAuth(token);
+  hearing.joining = null;
+  if (!hearing.listeners.size) return forget(heard, topic, hearing);
+  const channel = client.channel(topic, { config: { private: true } }).on("broadcast", { event: "*" }, (message) => tell(hearing, tenantId, message));
+  hearing.channel = channel;
+  channel.subscribe((status) => {
+    if (hearing.channel !== channel) return;
+    hearing.status = status;
+    for (const listener of [...hearing.listeners]) report(listener, topic, status);
+  });
+}
+function forget(heard, topic, hearing) {
+  if (hearing.listeners.size || hearing.channel || hearing.joining || heard.get(topic) !== hearing) return;
+  heard.delete(topic);
+}
+function report(listener, topic, status) {
+  if (listener.onStatus) listener.onStatus(status);
+  else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);
+}
+function tell(hearing, tenantId, message) {
+  const notice = message.payload ?? {};
+  if (typeof notice.table !== "string") return;
+  const table = notice.table;
+  const event = message.event ?? "*";
+  const statuses = Array.isArray(notice.statuses) ? notice.statuses : [void 0];
+  for (const listener of [...hearing.listeners])
+    for (const status of statuses)
+      listener.onChange({ tenant_id: tenantId, ...typeof status === "string" ? { status } : {} }, table, event);
+}
+
+// src/sweeps.ts
+import { PLAYBOOK_HOURS } from "../../contracts/dist/index.js";
+function remainingOf(rows) {
+  const first = rows[0];
+  if (first === void 0) return 0;
+  const total = first.due_total;
+  if (typeof total !== "number") throw new Error("the database answered without its count of what is due");
+  return Math.max(0, total - rows.length);
+}
+async function duePlaybooks(db, p) {
+  const { data, error } = await db.rpc("playbooks_due", {
+    p_kind: p.kind,
+    p_at: p.at.toISOString(),
+    p_last_hour: PLAYBOOK_HOURS.max,
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the playbooks due: ${error.message}`);
+  const rows = data ?? [];
+  return {
+    // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
+    rows: rows.map((r) => ({ playbook: r.playbook, timezone: r.timezone })),
+    remaining: remainingOf(rows)
+  };
+}
+async function stampPlaybooksTried(db, tenantId, p) {
+  if (p.ids.length === 0) return;
+  const { error } = await db.from("playbooks").update({ last_run_at: p.at.toISOString() }).eq("tenant_id", tenantId).in("id", p.ids);
+  if (error) throw new Error(`cannot move the moments to the back of the page: ${error.message}`);
+}
+async function dueCalendars(db, p) {
+  const { data, error } = await db.rpc("calendars_due", {
+    p_before: p.before.toISOString(),
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
+  const rows = data ?? [];
+  return {
+    rows: rows.map((r) => ({ tenant_id: r.tenant_id, config: r.config, timezone: r.timezone })),
+    remaining: remainingOf(rows)
+  };
+}
+function readAtOf(config) {
+  if (config === null || typeof config !== "object" || Array.isArray(config)) return null;
+  const at = config.quality_read_at;
+  return typeof at === "string" ? at : null;
+}
+async function whatsappNumbersToRead(db, limit) {
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, external_id, waba_id, number_e164, config").eq("kind", "whatsapp").eq("status", "active").order("config->>quality_read_at", { ascending: true, nullsFirst: true }).limit(limit);
+  if (error) throw new Error(`cannot read the WhatsApp numbers: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    channel_id: r.id,
+    tenant_id: r.tenant_id,
+    phone_number_id: r.external_id,
+    waba_id: r.waba_id,
+    number_e164: r.number_e164,
+    read_at: readAtOf(r.config)
+  }));
+}
+async function whatsappNumberOf(db, tenantId) {
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, external_id, waba_id, number_e164, config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's WhatsApp number: ${error.message}`);
+  if (!data) return null;
+  return {
+    channel_id: data.id,
+    tenant_id: data.tenant_id,
+    phone_number_id: data.external_id,
+    waba_id: data.waba_id,
+    number_e164: data.number_e164,
+    read_at: readAtOf(data.config)
+  };
+}
+var KEPT_ANSWERS = ["first", "changed", "same", "gone"];
+async function keepChannelQuality(db, tenantId, channelId, rating) {
+  const { data, error } = await db.rpc("channel_keep_quality", {
+    p_tenant_id: tenantId,
+    p_channel_id: channelId,
+    p_rating: rating
+  });
+  if (error) throw new Error(`channel_keep_quality: ${error.message}`);
+  const kept = KEPT_ANSWERS.find((a) => a === data);
+  if (kept === void 0) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
+  return kept;
+}
+async function keepChannelStanding(db, tenantId, channelId, standing) {
+  const { data, error } = await db.rpc("channel_keep_standing", {
+    p_tenant_id: tenantId,
+    p_channel_id: channelId,
+    p_standing: standing
+  });
+  if (error) throw new Error(`channel_keep_standing: ${error.message}`);
+  const kept = KEPT_ANSWERS.find((a) => a === data);
+  if (kept === void 0) throw new Error(`channel_keep_standing: answered ${JSON.stringify(data)}`);
+  return kept;
 }
 export {
   CALL_CONTROL_S,
+  DB_REQUEST_HEADER,
   DEFAULT_ROW_CAP,
+  ERASURE_LEGS,
+  ERASURE_STRATEGIES,
   HISTORY_COLUMNS,
+  IDS_PER_READ,
   MAX_ROWS,
   PEOPLE_PAGE,
+  acceptHandover,
+  acceptPartnerInvite,
+  activityTokensOf,
   addToList,
+  addToWaitlist,
+  addressesSuppressed,
+  aiFailuresHour,
+  answeredReachOutEmail,
+  applyDomainCheck,
+  applyReplyReading,
+  archiveConversation,
   archiveList,
+  assembleBroadcast,
   assembleHistory,
+  becomePartner,
+  callerNameOf,
+  callersOf,
+  campaignMonthSent,
+  campaignSeries,
+  claimCallActivity,
   claimCallNotification,
   claimControl,
+  claimIdempotencyKey,
+  claimReplyTell,
+  claimReplyTurn,
+  claimSends,
+  claimVoiceTurn,
+  closedRunSends,
+  coldReceiptsOwed,
+  contactEmailOf,
+  countSendingDomains,
   countSentToday,
   createList,
   createServiceClient,
+  createWorkspaceFn,
+  createWorkspaceForBusiness,
+  declineHandover,
+  declinePartnerInvite,
   deleteList,
+  deleteSecondFactor,
+  deleteSendingDomain,
+  deleteSendingDomainAsRead,
+  deliveryOf,
   describeLead,
+  domainCapacityOf,
+  domainHeldSince,
   dropFromList,
+  dueCalendars,
+  dueDomains,
+  duePlaybooks,
+  dueSendingDomains,
+  emailOfferCounts,
+  emailOffersPause,
+  emailWordsByTemplate,
+  emailWordsFrom,
+  emailWordsOf,
   emitEvent,
+  endVoiceSession,
+  erasureDigests,
+  eventOfDelivery,
   everyoneIn,
+  failStrandedRun,
+  failedMessageErrors,
+  finishableRuns,
+  firstReplies,
   followUpTouchesSince,
+  forgetActivityTokens,
+  forgetNotification,
+  getHandoverInvite,
+  getOpenHandovers,
+  getOwnPartner,
+  getPartnerBalance,
+  getPartnerBroughtCount,
+  getPartnerHandovers,
+  getPartnerInvitations,
+  getPartnerInviteMail,
+  getPartnerLetters,
+  getPartnerWorkspaces,
+  getPlatformPartners,
   getTenantConfig,
+  getWorkspacePartner,
+  handRun,
+  hasNewerCopy,
+  heldNoticeDue,
+  heldStale,
+  holdRecipients,
+  holdsReplyTurn,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
+  insertQueuedEmail,
+  insertVoiceSession,
+  invitePartner,
+  inviteUserByEmail,
+  isWorkspaceCall,
+  keepChannelQuality,
+  keepChannelStanding,
+  keepIdempotencyReceipt,
+  keepInvoiceAmount,
+  keepMessageCost,
+  keepProviderEvent,
   lastInboundEmail,
+  leadAddressBounced,
+  leadNamesByIds,
+  leadSlotsOf,
+  leadWritten,
+  lineForwardingSet,
   linkCallMessage,
   listMemberIds,
   listPolicies,
   listRow,
+  listSecondFactors,
   mailboxById,
   mailboxFor,
   mailboxOfTenant,
+  markHeldNotice,
+  markPartnerPaid,
   markProcessed,
+  markReplyDraft,
+  markReplyTold,
+  markWaitlistInvited,
+  membershipCountOf,
+  mergePeople,
+  messageByExternalId,
+  messageSenders,
+  messageSlots,
+  migrationHead,
+  monthSent,
+  moveSend,
+  moveVoiceSessionContext,
+  namedFetch,
+  namesOfPeople,
   notesForReceptionist,
+  noticeKept,
+  observeDb,
+  offerLanguageOf,
+  offersAnswerOf,
+  offersEmailReach,
+  outreachFactsOf,
+  outreachModeOf,
+  ownLineOf,
+  ownVersionsFiled,
+  parentEmailOf,
   pauseConversation,
+  pauseEmailOffers,
+  peopleCursorOf,
   peoplePage,
+  personDecisions,
   personReplyMode,
+  personRow,
+  platformHoldStands,
+  platformWide,
+  playbookChannels,
   playbooksOnList,
+  providerEventOf,
+  purgeAiUsage,
   putTenantConfig,
+  queuedOutcomes,
+  queuedRecipients,
+  reachOutAudience,
+  reachOutDayDue,
+  reachOutFollowers,
+  reachOutPerson,
+  reachOutRecord,
+  reachOutReplyOf,
+  reachOutReport,
+  reachOutRootOf,
+  reachOutRunSendsOf,
+  reachOutSendRefOf,
+  reachOutStepsOf,
   readAllRows,
+  readAllRowsByKey,
   readDealForPhone,
+  readJobToRequeue,
   readLeadContext,
+  readLeadOne,
   readThreadState,
+  readVoiceSession,
+  readVoiceSessionByConversation,
+  recheckSends,
+  recordActivation,
   recordCallNote,
+  recordCarrierOptOut,
+  recordCheck,
   recordEchoAndPause,
+  recordEmailNo,
   recordEmailStatus,
+  recordEvent,
+  recordLateCarrierOptOut,
+  recordModelUsage,
   recordOutbound,
+  recordPartnerSecondFactorReset,
+  recordProviderDomain,
   recordStatusByExternalId,
+  recordWhatsAppOffersStop,
+  refreshWaitlistRow,
+  relayEvents,
   releaseControl,
+  releaseIdempotencyKey,
+  releaseUnavailableHolds,
+  removePlaybook,
+  removeTemplateVersion,
   renameList,
+  repliesFor,
+  replyReadingOf,
+  replyReadingRefOf,
+  replyUndoableOf,
+  reportSeries,
+  reputationHoldsSince,
+  resendHandover,
+  reserveSendingDomain,
   resolveChannel,
   resolveChannelDetailed,
+  resolveEscalationByReason,
   resolveOutboundTarget,
+  resolveOutboundTargetForContact,
+  runGoesByOthers,
+  runSending,
+  runsWaitingOf,
+  saveTemplateVersion,
   savedListFor,
   savedListsFor,
+  scrubPersonNotes,
+  scrubProviderEvents,
+  searchMessages,
+  searchNamesByIds,
+  sendJobScheduled,
+  sendNow,
+  sendStanding,
+  sendingDomainByHost,
+  sendingDomainCounts,
+  sendingDomainOf,
+  sendingDomainsOf,
+  sentEmailOf,
   sentEmailWithMessageId,
+  sessionHoldsPartnerSeat,
   setCallRecording,
+  setEmailOffersYes,
+  setEmailUnsubscribed,
   setListRule,
+  setPartnerLetters,
+  setPartnerStanding,
+  setPartnerStatus,
   setPersonReplyMode,
+  setPlaybookState,
   setPolicyMode,
+  setTemplateQuality,
+  settleDelivery,
+  signUpOnPublicKey,
+  staleSends,
+  stampEmailComplaint,
+  stampEmailLeftAs,
   stampEmailSent,
+  stampHandled,
   stampMailboxReceived,
-  subscribeMessagesInserts,
+  stampPlaybooksTried,
+  stampReachOutStep,
+  stopAllMessages,
+  strandedRuns,
+  stuckClaims,
+  subjectsWith,
+  subscribeWorkspaceChanges,
+  subscriptionPaused,
   suppressEmailOf,
+  takeCheckAttempt,
+  takeIdempotencyKey,
+  takeReplyRead,
+  templateIdOf,
+  templateStatusOf,
   templatesFor,
+  templatesNamed,
+  templatesToSend,
+  tenantDb,
+  tenantZoneOf,
+  textLineFacts,
   touchIndex,
+  touchSendingDomain,
   touchesSince,
+  uncheckedSends,
+  uncheckedWaiting,
+  undoReplyReading,
+  updatePlaybook,
+  usageMonth,
+  waitlistWaiting,
+  watchedEvents,
   watchedTables,
+  whatsappChannelConfig,
+  whatsappNumberOf,
+  whatsappNumbersToRead,
+  wireRowOf,
+  withdrawEmail,
+  withdrawPartnerInvite,
+  workspaceAbout,
+  workspaceAnswersOnItsOwn,
+  workspaceMaySpend,
+  workspaceMayUseModels,
+  workspaceNameAndConfig,
+  workspacePaused,
+  writtenEmail,
+  writtenEmails,
   yesesSince
 };

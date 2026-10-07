@@ -33,7 +33,7 @@ const NAV_INTEL = [
 ];
 
 const NAV_FOOT = [
-  { id: "admin", icon: "settings", label: "Settings" },
+  { id: "admin", icon: "cog", label: "Settings" },
 ];
 
 const ACTIVE_AGENTS_DEFAULT = [
@@ -96,7 +96,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
       onClick={(e) => { if (item.expandable) { onToggle(item.id); } else { onNavigate(item.id); } }}
       data-tip={collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined}
       data-tip-side="right"
-      aria-current={active === item.id ? "page" : undefined}
+      aria-current={active === item.id ? "page" : undefined} data-nav={item.id}
     >
       {item.icon && <Icon name={item.icon} />}
       {!collapsed && <span>{item.label}</span>}
@@ -153,6 +153,8 @@ const sbMarkOf = (n) => {
   return ((w[0]?.[0] ?? "") + (w[1]?.[0] ?? "")).toUpperCase() || "—";
 };
 const sbWorkspaceMark = () => sbMarkOf(sbWorkspaceName());
+/** The workspace's mark: in Glass the three, as every canvas's sidebar draws it (E3); in Classic the initials. */
+const sbTeamMark = (look) => (look === "glass" ? <Icon name="three" size={20} /> : sbWorkspaceMark());
 // The person, in the words contracts/identity.ts gives: the name they gave,
 // else "Your account" — never a name invented from the email. The demo keeps
 // its persona; signed in with no identity yet, we say so.
@@ -199,7 +201,7 @@ const sbMenuStyle = (rect, { collapsed, side }) => {
 
 const SbMenu = ({ menu, side = "down", collapsed, label, testid, children }) => menu.open ? (
   <>
-    <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); menu.close(); }} />
+    <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); menu.close(); }} />
     <div className="more-menu sb-menu" role="menu" aria-label={label} style={sbMenuStyle(menu.rect, { collapsed, side })} onClick={(e) => e.stopPropagation()} data-testid={testid}>
       {children}
     </div>
@@ -207,17 +209,20 @@ const SbMenu = ({ menu, side = "down", collapsed, label, testid, children }) => 
 ) : null;
 
 // The workspaces this account belongs to, the one being viewed checked, the
-// caller's role beside it, ⌘1–9 when there is a choice, and the door to its
-// settings. Switching goes through the shell, which re-runs every surface.
+// caller's role beside it, and the door to its settings. Switching goes
+// through the shell, which re-runs every surface. ⌘1–9 switch too (app-shell.jsx);
+// the ? sheet says so, and nothing here draws a key.
 const WorkspaceMenu = ({ onNavigate, close }) => {
   const all = window.__WORKSPACES || (window.__DEMO_MODE ? [{ id: "demo", name: sbWorkspaceName() }] : []);
   const active = sbWorkspace() || (window.__DEMO_MODE ? all[0] : null) || null;
   const role = sbWho().role;
-  const hotkey = (i) => (all.length > 1 && window.__chrome ? window.__chrome.workspaceHotkey(i) : null);
+  // Each workspace's own role beside it (0012): a partner's list says which are theirs and which they brought.
+  const roleOf = (w, current) =>
+    w.role && window.__identity ? window.__identity.words({ email: null, role: w.role }).role : current ? role : null;
   return (
     <>
       <div className="more-header">{all.length > 1 ? "Workspaces" : "Workspace"}</div>
-      {all.map((w, i) => {
+      {all.map((w) => {
         const current = !!active && w.id === active.id;
         return (
           <button
@@ -229,8 +234,7 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
             onClick={() => { close(); if (!current && window.__shell) window.__shell.switchWorkspace(w.id); }}
           >
             <span className="sb-ws-mark">{sbMarkOf(w.name)}</span>
-            <span className="more-item-label">{w.name}{current && role ? <span className="sb-ws-role">{role}</span> : null}</span>
-            {hotkey(i) && <span className="more-item-meta kbd">{hotkey(i)}</span>}
+            <span className="more-item-label">{w.name}{roleOf(w, current) ? <span className="sb-ws-role">{roleOf(w, current)}</span> : null}</span>
             {current && <Icon name="check" size={12} />}
           </button>
         );
@@ -242,19 +246,21 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
         </button>
       )}
       <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin"); }}>
-        <Icon name="settings" size={13} /><span className="more-item-label">Workspace settings</span>
+        <Icon name="cog" size={13} /><span className="more-item-label">Workspace settings</span>
       </button>
     </>
   );
 };
 
 // The account: who you are, the doors to your name and your alerts, the
-// theme, the shortcuts sheet, and sign out. Alerts on this device reuse the
-// bell's own switch (the notifications bridge), not a second one.
-const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
+// theme and the look, the shortcuts sheet, and sign out. Alerts on this device
+// reuse the bell's own switch (the notifications bridge), not a second one.
+const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, flash }) => {
   const real = !window.__DEMO_MODE && window.__notifs ? window.__notifs : null;
   const [alerts, setAlerts] = React.useState(() => (real ? real.alerts() : null));
   const themes = window.__chrome ? window.__chrome.themes : [];
+  // The look is drawn only once the chrome offers it (contracts LOOK_OFFERED); until then there is no Look here.
+  const looks = window.__chrome && window.__chrome.lookOffered ? window.__chrome.looks : [];
   const toggleAlerts = async () => {
     if (!real) return;
     await real.setAlerts(!alerts.on);
@@ -298,9 +304,22 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
           </button>
         ))}
       </div>
+      {looks.length > 0 && (
+        <>
+          <div className="more-header">Look</div>
+          {/* .sb-theme-seg is the theme's three columns: step 5.5, which offers the look, sizes it for two. */}
+          <div className="sb-theme-seg" role="radiogroup" aria-label="Look">
+            {looks.map((l) => (
+              <button key={l.id} role="radio" aria-checked={look === l.id} className={`sb-theme-opt ${look === l.id ? "active" : ""}`} onClick={() => onLook(l.id)} data-testid={`sb-look-${l.id}`}>
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <div className="more-divider" />
       <button className="more-item" role="menuitem" onClick={() => { close(); window.dispatchEvent(new CustomEvent("shortcuts:open")); }} data-testid="sb-me-shortcuts">
-        <Icon name="keyboard" size={13} /><span className="more-item-label">Keyboard shortcuts</span><span className="more-item-meta kbd">?</span>
+        <Icon name="keyboard" size={13} /><span className="more-item-label">Keyboard shortcuts</span>
       </button>
       <button className="more-item danger" role="menuitem" onClick={signOut} data-testid="sb-signout">
         <Icon name="logout" size={13} /><span className="more-item-label">Sign out</span>
@@ -308,6 +327,22 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
     </>
   );
 };
+
+/**
+ * The workspace's second line. Glass says the lines, as every canvas's sidebar does ("3 lines on"), in Today's own words
+ * (contracts `standing.lines.short`, TODAY_DATA; the sentence wrapped under the name), and the role where Today has not
+ * landed; Classic says the role, and how many workspaces where there are more.
+ */
+const sbTeamSub = (look, who, workspaceCount) => {
+  if (window.__DEMO_MODE) return <div className="sb-team-plan">Professional</div>;
+  const lines = look === "glass" ? window.TODAY_DATA?.standing?.lines?.short : null;
+  if (lines) return <div className="sb-team-plan">{lines}</div>;
+  if (!who.role) return null;
+  return <div className="sb-team-plan">{who.role}{workspaceCount > 1 ? ` · ${workspaceCount} workspaces` : ""}</div>;
+};
+
+/** The account row's second line: the role in Glass (the canvases' sidebar), the address in Classic. */
+const sbAccountSub = (look, who) => (look === "glass" && who.role ? who.role : who.email);
 
 const Sidebar = ({
   active = "home",
@@ -319,6 +354,7 @@ const Sidebar = ({
   onToggleCollapse = () => {},
   themePref = "dark",
   onTheme = () => {},
+  look, onLook,
 }) => {
   const [, setTick] = React.useState(0);
   const [needs, setNeeds] = React.useState(sbNeedsCount);
@@ -361,23 +397,21 @@ const Sidebar = ({
     ...badges,
   };
 
-  // Swipe-to-close (mobile drawer) — simple left-swipe threshold, no drag-follow. This, a tap on the backdrop,
-  // Escape and picking a destination are how the drawer closes: it has no bar of its own, because the desktop's
-  // sidebar has none and the two are one sidebar.
-  const touchX = React.useRef(null);
-  const onTouchStart = (e) => { touchX.current = e.touches && e.touches[0] ? e.touches[0].clientX : null; };
-  const onTouchEnd = (e) => {
-    if (touchX.current == null || !onClose) return;
-    const endX = e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientX : touchX.current;
-    if (touchX.current - endX > 48) onClose();
-    touchX.current = null;
-  };
+  // On a phone the drawer slides back under the thumb (data-bits touchSwipe onAway): it follows the finger to the left,
+  // the page behind lightens with it, and let go past a third or with a flick it goes, short of that it settles. It
+  // was a jump at 48px with nothing following, and a scroll down its list that drifted 48px left closed it too. This,
+  // a tap on the backdrop, Escape and picking a destination are how the drawer closes: it has no bar of its own,
+  // because the desktop's sidebar has none and the two are one sidebar. Nothing opens it by a swipe: from the
+  // screen's edge that is the phone's own back, so opening stays the tab bar's More.
+  const drawerSwipe = onClose && window.touchSwipe
+    ? window.touchSwipe({ onAway: onClose, when: () => !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches) })
+    : {};
   // Route id -> flat nav id (merged surfaces highlight their group)
   const groupMap = {
     people: ["clients", "leads", "segments", "pipeline"],
     // Conversations and Live highlight the Inbox: they are its views, not their own place.
     inbox: ["inbox", "conversations", "live", "calls", "chats", "email"],
-    campaigns: ["outbound", "content", "broadcasts", "messages"],
+    campaigns: ["campaigns", "outbound", "content", "broadcasts", "messages"],
     agents: ["fleet", "store", "studio", "tasks"],
   };
   const effActive = (() => {
@@ -408,7 +442,7 @@ const Sidebar = ({
   const workspaceCount = (window.__WORKSPACES || []).length;
 
   return (
-    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} data-testid="sidebar">
+    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} {...drawerSwipe} data-testid="sidebar">
       {/* Workspace — the menu's trigger */}
       <button
         type="button"
@@ -421,10 +455,10 @@ const Sidebar = ({
         data-tip-side="right"
         data-testid="sb-workspace"
       >
-        <div className="sb-team-mark">{sbWorkspaceMark()}</div>
+        <div className="sb-team-mark">{sbTeamMark(look)}</div>
         <div className="sb-team-body">
           <div className="sb-team-name">{sbWorkspaceName()}</div>
-          {window.__DEMO_MODE ? <div className="sb-team-plan">Professional</div> : who.role ? <div className="sb-team-plan">{who.role}{workspaceCount > 1 ? ` · ${workspaceCount} workspaces` : ""}</div> : null}
+          {sbTeamSub(look, who, workspaceCount)}
         </div>
         <Icon name="chevrons" size={14} style={{ color: "var(--ink-dim)" }} />
       </button>
@@ -433,12 +467,12 @@ const Sidebar = ({
       </SbMenu>
 
       {/* Scrollable nav region — grows/shrinks with the agents block. Ask has one door, the top bar's (the Line, D8). */}
-      <div className="sb-nav-scroll">
+      <nav className="sb-nav-scroll" aria-label="Pages">
         {renderGroup(NAV_PRIMARY)}
         {renderGroup(NAV_WORK, "Workspace")}
         {renderGroup(window.__DEMO_MODE ? NAV_INTEL : NAV_INTEL.filter((i) => !i.demoOnly), "Intelligence")}
         {renderGroup(NAV_FOOT)}
-      </div>
+      </nav>
 
       {/* Active Agents — demo only. The seeded roster claims eight agents doing
           live work; the real product runs two, and the Fleet surface that would
@@ -485,14 +519,13 @@ const Sidebar = ({
           type="button"
           className="sb-collapse"
           onClick={onToggleCollapse}
-          data-tip={collapsed ? "Expand the sidebar (⌘B)" : undefined}
+          data-tip={collapsed ? "Expand the sidebar" : undefined}
           data-tip-side="right"
           aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
           data-testid="sb-collapse"
         >
           <Icon name="sidebar" size={14} />
           <span className="sb-collapse-label">Collapse</span>
-          <span className="kbd sb-collapse-label">⌘B</span>
         </button>
         <button
           type="button"
@@ -508,12 +541,12 @@ const Sidebar = ({
           <div className="avatar">{who.initials}</div>
           <div className="who">
             <div className="name">{who.name}</div>
-            <div className="email">{who.email}</div>
+            <div className="email">{sbAccountSub(look, who)}</div>
           </div>
           {window.__DEMO_MODE && !collapsed && <div className="user-credits mono tabular">{sbCredits()}</div>}
         </button>
         <SbMenu menu={meMenu} side="up" collapsed={collapsed} label="Account" testid="sb-account-menu">
-          <UserMenu who={who} themePref={themePref} onTheme={onTheme} onNavigate={onNavigate} close={meMenu.close} flash={flash} />
+          <UserMenu who={who} themePref={themePref} onTheme={onTheme} look={look} onLook={onLook} onNavigate={onNavigate} close={meMenu.close} flash={flash} />
         </SbMenu>
       </div>
       {toastNode}

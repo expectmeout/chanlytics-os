@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { REPLY_MAX_ANY } from "@chanlytics/contracts";
+import { asContactId, REPLY_MAX_ANY } from "@chanlytics/contracts";
 import { replyToConversation } from "@chanlytics/core";
 import { write } from "@/server/route";
 import { conversationScope } from "@/server/verbs";
-import { replyPorts } from "@/server/core-ports";
+import { replyPorts } from "@/server/ports/core-ports";
 
 /**
  * Validated at the door, not read hopefully.
@@ -44,21 +44,34 @@ const ReplyBody = z
   .strict();
 
 /**
+ * The platform's ceiling on one reply, in seconds. Core's HOLD_EXPIRY_MS (two
+ * minutes) treats a claim on the idempotency key older than that as abandoned
+ * and lets the next caller under the key take it over, which is only safe
+ * because nothing can still be running here by then. core-reply.test.mjs
+ * holds the two in that order.
+ */
+export const maxDuration = 60;
+
+/**
  * POST /api/v1/conversations/:id/reply — the conversation is the row
  * (conversationScope): visible under RLS first, then the role judged where
  * the thread lives. Role before rate, by construction: a viewer must not
  * learn a customer's consent state from the shape of the refusal, and this
  * is the route that actually reaches a person. The rule itself is core's
- * replyToConversation; this route is its adapter.
+ * replyToConversation; this route is its adapter. The person's id enters the
+ * verb here, the one command that takes it, checked as a ContactId (a uuid
+ * column, never null, so the check refuses no row the scope loads).
  */
 export const POST = write({
   scope: conversationScope,
   role: "operator",
   rate: "reply",
+  // The reply keeps its key itself, per member, with its own window (core reply.ts, 0004): route() leaves it alone.
+  idempotent: "own",
   input: ReplyBody,
   handle: ({ ctx, req, row: conv, input }) =>
     replyToConversation(replyPorts(ctx), {
-      conv,
+      conv: { ...conv, contact_id: asContactId(conv.contact_id) },
       userId: ctx.userId,
       body: input,
       idempotencyKey: req.headers.get("idempotency-key"),

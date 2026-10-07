@@ -1,6 +1,6 @@
 import { LeadsBulkSchema } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { bulkStage } from "@/server/leads";
+import { bulkStage } from "@/server/leads/leads";
 
 /**
  * POST /api/v1/leads/bulk — mark many leads contacted, or not a fit.

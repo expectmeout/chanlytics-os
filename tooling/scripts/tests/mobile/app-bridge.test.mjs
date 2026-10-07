@@ -1,0 +1,121 @@
+/**
+ * The two wires between the native shell and the page (contracts/app-bridge.ts): what the page says and what the
+ * shell asks, each a small tagged object, parsed once on either side and refused when malformed. A route is a hash
+ * route's name, never a URL: whoever wrote it, it goes into the address bar only after this check.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { parsePageMessage, parseShellMessage } from "../../../../packages/contracts/src/mobile/app-bridge.ts";
+
+test("a page message is one of its shapes; anything else is null", () => {
+  assert.deepEqual(parsePageMessage('{"t":"route","route":"inbox"}'), { t: "route", route: "inbox" });
+  assert.deepEqual(parsePageMessage('{"t":"route","route":"clients/abc-123"}'), {
+    t: "route",
+    route: "clients/abc-123",
+  });
+  assert.deepEqual(parsePageMessage('{"t":"needs","inbox":3}'), { t: "needs", inbox: 3 });
+  assert.deepEqual(parsePageMessage('{"t":"session","state":"out"}'), { t: "session", state: "out" });
+  assert.deepEqual(parsePageMessage('{"t":"theme","theme":"light"}'), { t: "theme", theme: "light" });
+  assert.equal(parsePageMessage('{"t":"theme","theme":"system"}'), null, "a resolved theme, never a preference");
+  assert.deepEqual(parsePageMessage('{"t":"workspace","slug":"acme-plumbing"}'), {
+    t: "workspace",
+    slug: "acme-plumbing",
+  });
+  assert.equal(parsePageMessage('{"t":"needs","inbox":"three"}'), null);
+  assert.equal(parsePageMessage('{"t":"needs","inbox":-1}'), null);
+  assert.equal(parsePageMessage('{"t":"session","state":"maybe"}'), null);
+  assert.equal(parsePageMessage('{"t":"workspace","slug":"  "}'), null);
+  assert.equal(parsePageMessage("not json"), null);
+  assert.equal(parsePageMessage("[]"), null);
+  assert.equal(parsePageMessage('{"t":"route","route":"javascript:alert(1)"}'), null);
+  assert.equal(parsePageMessage('{"t":"route","route":"https://example.com"}'), null);
+  assert.deepEqual(parsePageMessage('{"t":"badge","n":4}'), { t: "badge", n: 4 });
+  assert.equal(parsePageMessage('{"t":"badge","n":-1}'), null);
+  assert.deepEqual(parsePageMessage('{"t":"device","state":"registered"}'), { t: "device", state: "registered" });
+  assert.equal(parsePageMessage('{"t":"device","state":"lost"}'), null);
+  const snap = {
+    headline: "h",
+    figures: [{ label: "calls", value: 2 }],
+    waiting: 1,
+    first: null,
+    at: "2026-09-26T15:00:00.000Z",
+  };
+  assert.deepEqual(parsePageMessage(JSON.stringify({ t: "today", snapshot: snap })), { t: "today", snapshot: snap });
+  assert.equal(parsePageMessage(JSON.stringify({ t: "today", snapshot: { headline: "h" } })), null);
+  // The native thread's token went with it: an old page's answer is no shape.
+  assert.equal(parsePageMessage('{"t":"token","access":"tok","expires":1800000000}'), null);
+  assert.deepEqual(parsePageMessage('{"t":"calls","live":0}'), { t: "calls", live: 0 });
+  assert.deepEqual(parsePageMessage('{"t":"calls","live":2}'), { t: "calls", live: 2 });
+  assert.equal(parsePageMessage('{"t":"calls","live":-1}'), null);
+  assert.equal(parsePageMessage('{"t":"calls","live":"2"}'), null);
+  // Whether something stands over the page: a yes or a no, never a count or a word.
+  assert.deepEqual(parsePageMessage('{"t":"overlay","open":true}'), { t: "overlay", open: true });
+  assert.deepEqual(parsePageMessage('{"t":"overlay","open":false}'), { t: "overlay", open: false });
+  assert.equal(parsePageMessage('{"t":"overlay","open":1}'), null);
+  assert.equal(parsePageMessage('{"t":"overlay"}'), null);
+  // A file the page made, for the phone's share sheet: words only, a plain name, a size a chart's CSV fits in.
+  const file = (o) =>
+    parsePageMessage(JSON.stringify({ t: "file", name: "calls-by-day.csv", type: "text/csv", text: "a,b", ...o }));
+  assert.deepEqual(file({}), { t: "file", name: "calls-by-day.csv", type: "text/csv", text: "a,b" });
+  assert.equal(file({ name: "../../etc/passwd.csv" }), null, "no path in a name");
+  assert.equal(file({ name: "calls.exe" }), null, "only .csv or .txt");
+  assert.equal(file({ type: "text/html" }), null, "never a page or a script");
+  assert.equal(file({ text: "x".repeat(2_000_001) }), null, "a whole export goes through the server");
+});
+
+test("a shell message is navigate, menu, top or close; a route is a hash route's name, never a URL", () => {
+  assert.deepEqual(parseShellMessage({ t: "navigate", route: "clients" }), { t: "navigate", route: "clients" });
+  const W = "22222222-2222-4222-8222-222222222222";
+  assert.deepEqual(parseShellMessage({ t: "navigate", route: "inbox", workspace: W }), {
+    t: "navigate",
+    route: "inbox",
+    workspace: W,
+  });
+  assert.deepEqual(
+    parseShellMessage({ t: "navigate", route: "inbox", workspace: "../evil" }),
+    { t: "navigate", route: "inbox" },
+    "a workspace that is not an id is dropped, never put in a path",
+  );
+  assert.deepEqual(parseShellMessage({ t: "menu" }), { t: "menu" });
+  assert.deepEqual(parseShellMessage({ t: "top" }), { t: "top" });
+  assert.deepEqual(parseShellMessage({ t: "close", route: "inbox" }), { t: "close" }, "close carries nothing");
+  // The native thread's asks went with it: an old app's are nothing the page answers.
+  assert.equal(parseShellMessage({ t: "token" }), null);
+  assert.equal(parseShellMessage({ t: "back" }), null);
+  assert.equal(parseShellMessage({ t: "navigate", route: "https://example.com" }), null);
+  assert.equal(parseShellMessage({ t: "navigate", route: "" }), null);
+  assert.equal(parseShellMessage({ t: "reload" }), null);
+  assert.equal(parseShellMessage(null), null);
+});
+
+test("the shell's device ask carries a token, a platform and a version; forget carries the token", () => {
+  assert.deepEqual(
+    parseShellMessage({ t: "device", token: " ExponentPushToken[abc] ", platform: "ios", version: "1.0.0" }),
+    {
+      t: "device",
+      token: "ExponentPushToken[abc]",
+      platform: "ios",
+      version: "1.0.0",
+    },
+  );
+  assert.equal(parseShellMessage({ t: "device", token: "", platform: "ios", version: "1" }), null);
+  assert.equal(parseShellMessage({ t: "device", token: "x", platform: "web", version: "1" }), null);
+  assert.equal(parseShellMessage({ t: "device", token: "x".repeat(201), platform: "ios", version: "1" }), null);
+  assert.deepEqual(
+    parseShellMessage({ t: "device", token: "x", platform: "ios", version: "1", activity: " act " }),
+    { t: "device", token: "x", platform: "ios", version: "1", activity: "act" },
+    "the activity token rides along when the phone has one",
+  );
+  assert.deepEqual(parseShellMessage({ t: "device", token: "x", platform: "ios", version: "1", activity: "" }), {
+    t: "device",
+    token: "x",
+    platform: "ios",
+    version: "1",
+  });
+  assert.equal(
+    parseShellMessage({ t: "forget", token: "tok" }),
+    null,
+    "the page forgets its own phone before a sign-out (forgetPhone); the shell has no such ask",
+  );
+  assert.equal(parseShellMessage({ t: "forget" }), null);
+});

@@ -1,8 +1,7 @@
 /**
- * Google on the classic pages: the listing and the connection as the edge
- * last read them (/api/v1/google → window.__GOOGLE, repainted as the tables
- * change), the view model the Reports section and Today's line derive from
- * it (contracts/google.ts), and the verbs — find, link, unlink, refresh,
+ * Google: the listing and the connection as the edge last read them (/api/v1/google, the seam's `google` value,
+ * repainted as the tables change), the view model the Reports section and Today's line derive from it
+ * (contracts/google.ts), and the verbs (`googleVerbs`, which Settings › Connections and the first run's Find import) — find, link, unlink, refresh,
  * connect, locations, choose, disconnect, reply, draft — each through the
  * typed client. After a write lands the refresh map re-reads this surface
  * and Setup's, since the Setup row reads the same facts; a draft touches
@@ -23,6 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
+import { setSurfaceValue } from "../surfaces/surface-values";
 
 export interface GoogleSurface {
   dto: GoogleDto;
@@ -68,24 +68,30 @@ export interface GoogleApi {
   };
 }
 
-declare global {
-  interface Window {
-    __GOOGLE?: GoogleSurface;
-    __google?: GoogleApi;
-  }
-}
-
 export const googleOverride: SurfaceOverride = {
   key: "google",
-  globals: ["__GOOGLE"],
+  value: "google",
   events: ["surface:google"],
   // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen.
   refreshOnTables: ["google_listings", "google_reviews", "google_connections"],
   apply: async () => {
     const d = await read("GET google");
-    window.__GOOGLE = { dto: d.google, fetchedAt: Date.now() };
+    setSurfaceValue("google", { dto: d.google, fetchedAt: Date.now() });
   },
 };
+
+/** An answer to a review, on Google. Operators and owners. */
+export async function replyToReview(id: string, comment: string): Promise<{ ok: boolean; message: string }> {
+  const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment } });
+  return { ok: r.ok, message: r.ok ? "" : r.message };
+}
+
+/** The receptionist's draft of a reply, for the composer. Nothing is posted. Refused under Never, with the words for it. */
+export async function draftReply(id: string): Promise<{ ok: boolean; text: string; message: string }> {
+  const r = await api()("POST google/reviews/[id]/draft", { params: { id }, body: {} });
+  if (!r.ok) return { ok: false, text: "", message: r.message };
+  return { ok: typeof r.data.text === "string", text: r.data.text ?? "", message: "" };
+}
 
 /** The words the card says for what came back from Google. */
 export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
@@ -97,7 +103,7 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
   state_missing: "The way back from Google was incomplete. Start the connection again.",
   state_malformed: "The way back from Google was incomplete. Start the connection again.",
   someone_else: "That connection was started by a different account. Start it again from here.",
-  not_owner: "Only an owner can connect the Business Profile.",
+  not_owner: "Only an owner or the workspace's partner can connect the Business Profile.",
   no_workspace: "The workspace the connection was started for is not one of yours.",
   no_code: "Google sent nothing back. Start the connection again.",
   scope_missing: "Google connected without access to the Business Profile. Start again and allow it.",
@@ -113,83 +119,79 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
   not_available: "Connecting a Business Profile is not available here yet.",
 };
 
-export function installGoogle(win: Window = window): void {
-  win.__google = {
-    vm: (dto, periodDays, nowMs) => toGoogleVM(dto, periodDays, nowMs),
-    async find(query) {
-      const r = await api()("POST google/search", { body: query ? { query } : {} });
-      if (!r.ok) return { ok: false, candidates: [], query: query ?? "", fromFacts: false, message: r.message };
-      return {
-        ok: true,
-        candidates: r.data.candidates,
-        query: r.data.query,
-        fromFacts: r.data.from_facts === true,
-        message: "",
-      };
-    },
-    async link(placeId) {
-      const r = await api()("POST google/link", { body: { place_id: placeId } });
-      return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
-    },
-    async unlink() {
-      const r = await api()("DELETE google/link");
-      return { ok: r.ok, message: r.ok ? "" : r.message };
-    },
-    async refresh() {
-      const r = await api()("POST google/refresh", { body: {} });
-      if (!r.ok) return { ok: false, fresh: 0, counted: 0, message: r.message };
-      return { ok: true, fresh: r.data.fresh, counted: r.data.counted, message: "" };
-    },
-    connect() {
-      win.location.assign(api().url("GET google/connect"));
-    },
-    async locations() {
-      const r = await api()("GET google/locations");
-      if (!r.ok) return { ok: false, locations: [], message: r.message };
-      return { ok: true, locations: r.data.locations, message: "" };
-    },
-    async choose(accountName, locationName) {
-      const r = await api()("POST google/locations", {
-        body: { account_name: accountName, location_name: locationName },
-      });
-      return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
-    },
-    async disconnect() {
-      const r = await api()("DELETE google/connection");
-      return { ok: r.ok, message: r.ok ? "" : r.message };
-    },
-    async reply(id, comment) {
-      const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment } });
-      return { ok: r.ok, message: r.ok ? "" : r.message };
-    },
-    async draft(id) {
-      const r = await api()("POST google/reviews/[id]/draft", { params: { id }, body: {} });
-      if (!r.ok) return { ok: false, text: "", message: r.message };
-      return { ok: typeof r.data.text === "string", text: r.data.text ?? "", message: "" };
-    },
-    outcome() {
-      try {
-        const q = new URLSearchParams(win.location.search);
-        const outcome = q.get("google");
-        if (!outcome) return null;
-        const why = q.get("why");
-        q.delete("google");
-        q.delete("why");
-        const rest = q.toString();
-        win.history.replaceState(null, "", `${win.location.pathname}${rest ? `?${rest}` : ""}${win.location.hash}`);
-        return { outcome, why };
-      } catch {
-        return null;
-      }
-    },
-    outcomeWords: CONNECT_OUTCOME_WORDS,
-    words: {
-      rating: ratingWords,
-      stars: starsOf,
-      listing: listingLine,
-      checked: checkedWords,
-      connection: connectionWords,
-      snippet: reviewSnippet,
-    },
-  };
-}
+/** Google's verbs, each through its door. */
+export const googleVerbs: GoogleApi = {
+  vm: (dto, periodDays, nowMs) => toGoogleVM(dto, periodDays, nowMs),
+  async find(query) {
+    const r = await api()("POST google/search", { body: query ? { query } : {} });
+    if (!r.ok) return { ok: false, candidates: [], query: query ?? "", fromFacts: false, message: r.message };
+    return {
+      ok: true,
+      candidates: r.data.candidates,
+      query: r.data.query,
+      fromFacts: r.data.from_facts === true,
+      message: "",
+    };
+  },
+  async link(placeId) {
+    const r = await api()("POST google/link", { body: { place_id: placeId } });
+    return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
+  },
+  async unlink() {
+    const r = await api()("DELETE google/link");
+    return { ok: r.ok, message: r.ok ? "" : r.message };
+  },
+  async refresh() {
+    const r = await api()("POST google/refresh", { body: {} });
+    if (!r.ok) return { ok: false, fresh: 0, counted: 0, message: r.message };
+    return { ok: true, fresh: r.data.fresh, counted: r.data.counted, message: "" };
+  },
+  connect() {
+    window.location.assign(api().url("GET google/connect"));
+  },
+  async locations() {
+    const r = await api()("GET google/locations");
+    if (!r.ok) return { ok: false, locations: [], message: r.message };
+    return { ok: true, locations: r.data.locations, message: "" };
+  },
+  async choose(accountName, locationName) {
+    const r = await api()("POST google/locations", {
+      body: { account_name: accountName, location_name: locationName },
+    });
+    return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
+  },
+  async disconnect() {
+    const r = await api()("DELETE google/connection");
+    return { ok: r.ok, message: r.ok ? "" : r.message };
+  },
+  reply: replyToReview,
+  draft: draftReply,
+  outcome() {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const outcome = q.get("google");
+      if (!outcome) return null;
+      const why = q.get("why");
+      q.delete("google");
+      q.delete("why");
+      const rest = q.toString();
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`,
+      );
+      return { outcome, why };
+    } catch {
+      return null;
+    }
+  },
+  outcomeWords: CONNECT_OUTCOME_WORDS,
+  words: {
+    rating: ratingWords,
+    stars: starsOf,
+    listing: listingLine,
+    checked: checkedWords,
+    connection: connectionWords,
+    snippet: reviewSnippet,
+  },
+};

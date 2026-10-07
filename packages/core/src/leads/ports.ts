@@ -19,6 +19,8 @@ import type {
   LeadRoundState,
   LeadRunState,
   LeadSearchPlan,
+  ContactId,
+  TenantId,
 } from "@chanlytics/contracts";
 
 /** The question after the probe, as lead_rounds.question keeps it (PRD §7.2, P4): contracts' LeadQuestion with when it was asked. */
@@ -31,7 +33,7 @@ export interface RoundQuestion {
 
 export interface LeadRoundRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   search_id: string;
   seq: number;
   purpose: LeadRoundPurpose;
@@ -58,7 +60,7 @@ export interface LeadRoundRow {
 
 export interface LeadRunRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   round_id: string;
   purpose: "discover" | "check";
   term: string | null;
@@ -117,6 +119,11 @@ export interface LeadColumns {
   lat: number | null;
   lng: number | null;
   website_host: string | null;
+  /**
+   * Whether the website is that host's root (00237): a page under a host (an ISP's "/~joe/") is no proof the host is
+   * the business's own, so a no from it never closes the host's whole domain.
+   */
+  website_root: boolean | null;
   instagram_url: string | null;
   /** The neighbourhood the listing names (D5, 00146): "Hawthorne", for the row's one line about where. */
   neighborhood: string | null;
@@ -152,7 +159,7 @@ export interface LeadColumns {
 export interface LeadShare {
   kind: "phone" | "email" | "host";
   lead_id?: string;
-  contact_id?: string;
+  contact_id?: ContactId;
   place_id?: string;
 }
 
@@ -274,7 +281,7 @@ export interface LeadDb {
   runsEnsure(
     rows: {
       id: string;
-      tenant_id: string;
+      tenant_id: TenantId;
       round_id: string;
       purpose: "discover" | "check";
       term: string | null;
@@ -289,17 +296,17 @@ export interface LeadDb {
   runsOfRound(roundId: string): Promise<LeadRunRow[]>;
   membersOfRound(roundId: string): Promise<LeadMemberRow[]>;
   /** place id -> lead id, for the place ids this workspace already holds (leads and folded listings). */
-  placeIdsHeld(tenantId: string, placeIds: string[]): Promise<Map<string, string>>;
+  placeIdsHeld(tenantId: TenantId, placeIds: string[]): Promise<Map<string, string>>;
   sharesOf(
-    tenantId: string,
+    tenantId: TenantId,
     keys: { phones: string[]; emails: string[]; hosts: string[] },
   ): Promise<{ key: string; share: LeadShare }[]>;
   suppressed(
-    tenantId: string,
+    tenantId: TenantId,
     keys: { emails: string[]; placeIds: string[] },
   ): Promise<{ emails: Set<string>; placeIds: Set<string> }>;
-  zoneOf(tenantId: string): Promise<string>;
-  leadSearchesOn(tenantId: string): Promise<boolean>;
+  zoneOf(tenantId: TenantId): Promise<string>;
+  leadSearchesOn(tenantId: TenantId): Promise<boolean>;
 }
 
 export interface LeadPorts {

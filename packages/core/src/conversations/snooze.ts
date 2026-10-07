@@ -1,7 +1,7 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, DAY_MS } from "@chanlytics/contracts";
 import type { Thread, ThreadPorts } from "./ports";
 
-export const MAX_SNOOZE_MS = 30 * 24 * 3600 * 1000;
+export const MAX_SNOOZE_MS = 30 * DAY_MS;
 export const NEEDS_UNTIL = "snooze needs a future `until` timestamp.";
 export type SnoozePorts = Pick<ThreadPorts, "snooze" | "record" | "now">;
 export interface SnoozeResult {

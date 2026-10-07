@@ -129,10 +129,15 @@ export async function refusedAtTheDoor(POST, route, setPg) {
     assert.deepEqual(asked(db), ["get_cron_sweep_key"]);
   }
 
+  // No database is no fake AND no credentials: pg() builds the real client whenever SUPABASE_URL and the service key
+  // are set, as they are in the nightly's node step, and there this case asked the credentialed project's Vault for
+  // the key and got a 401 (the scorecard's defect 61: the two reach-out doors failed every night).
   setPg(null);
-  assert.deepEqual(
-    await answer(await knock(POST, route)),
-    [503, { ok: false, error: "no_database" }],
-    "no database: refused before the key is even asked for",
+  await withEnv({ SUPABASE_URL: undefined, SUPABASE_SERVICE_ROLE_KEY: undefined }, async () =>
+    assert.deepEqual(
+      await answer(await knock(POST, route)),
+      [503, { ok: false, error: "no_database" }],
+      "no database: refused before the key is even asked for",
+    ),
   );
 }

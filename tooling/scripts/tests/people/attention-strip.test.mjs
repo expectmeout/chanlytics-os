@@ -1,0 +1,306 @@
+/**
+ * Where your attention matters: one row per person with a sentence that is
+ * always true, a state line in the mockup's grammar, and one button only where
+ * the state asks something of you. People draws these words on its own rows;
+ * Today's queue, Setup and the back office draw them as AttnRow.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { attentionRow, toPersonRowVM } from "@chanlytics/contracts";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
+
+// The name cell a People row draws its words in (surfaces/people/cells/columns.tsx), run rather than read.
+const { plNameCell } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
+const { peopleSample } = await importSrc("apps/dashboard/src/surfaces/people/sample.ts");
+
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
+const S = 1000,
+  M = 60 * S,
+  H = 60 * M,
+  D = 24 * H;
+const NOW = new Date("2026-09-06T16:00:00Z");
+const nowMs = NOW.getTime();
+const iso = (msAgo) => new Date(nowMs - msAgo).toISOString();
+
+/** An ordinary active person on WhatsApp: wrote two hours ago, known for two months. */
+function dto(over = {}) {
+  return {
+    id: "c1",
+    display_name: "Daniela R.",
+    wa_profile_name: "Dani",
+    phone_e164: "+17865550181",
+    consent: "unknown",
+    consent_source: null,
+    consent_updated_at: null,
+    dnc: false,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: "cv1",
+    latest_state: "open",
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: iso(2 * H),
+    last_message_at: iso(2 * H),
+    last_message_direction: "inbound",
+    last_message_sender: "customer",
+    last_inbound_text: "Can I move Saturday to 11? My sister is coming too",
+    last_inbound_at: iso(2 * H),
+    last_call_at: null,
+    last_inbound_call_at: null,
+    last_inbound_call_summary: null,
+    call_count: 0,
+    call_seconds: 0,
+    first_contact_at: iso(60 * D),
+    earliest_row_at: iso(60 * D),
+    has_backfill: false,
+    has_chat: true,
+    queued_reply_at: null,
+    effective_reply_mode: "auto",
+    visits: null,
+    ...over,
+  };
+}
+const rowOf = (over) => attentionRow(toPersonRowVM(dto(over), ZONE, NOW), ZONE, nowMs);
+
+test("their words come first, in quotes, with the channel and the moment beside the name", () => {
+  const a = rowOf({});
+  assert.deepEqual(
+    [a.channel, a.when, a.quoted, a.sentence],
+    ["WhatsApp", "2h ago", true, "Can I move Saturday to 11? My sister is coming too"],
+  );
+  assert.deepEqual(a.status, ["Receptionist", "answering on WhatsApp"]);
+  assert.deepEqual(
+    a.cta,
+    { label: "Open thread", kind: "ghost", to: "inbox/th-cv1" },
+    "an active thread is a quiet button",
+  );
+});
+
+test("needs you: the escalation's reason and its moment, and the one primary button", () => {
+  const a = rowOf({ needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(1 * H) });
+  assert.equal(a.tone, "escalated");
+  assert.equal(a.status[0], "Escalated");
+  assert.equal(a.status[1], "asked for a person");
+  assert.match(a.status[2], /^since /, "the moment travels with the state");
+  assert.deepEqual(a.cta, { label: "Open in Inbox", kind: "primary", to: "inbox/th-cv1" });
+});
+
+test("waiting on you: the state's own words, and the same primary button", () => {
+  const vm = toPersonRowVM(
+    dto({ latest_assignee_user_id: "u1", latest_paused_until: new Date(nowMs + 20 * H).toISOString() }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(vm.state, "waiting_on_you");
+  const a = attentionRow(vm, ZONE, nowMs);
+  assert.deepEqual(a.status, ["You have it", "they wrote last"], "the Inbox's own pill for a thread you have");
+  assert.equal(vm.stateDetail, "you have it, and they wrote last");
+  assert.equal(a.cta.label, "Open in Inbox");
+  // A thread you took over and answered still waits on you (you have it), but they did not write last: it said they had.
+  const answered = toPersonRowVM(
+    dto({
+      latest_assignee_user_id: "u1",
+      latest_paused_until: new Date(nowMs + 20 * H).toISOString(),
+      last_message_direction: "outbound",
+      last_message_sender: "human",
+    }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(answered.state, "waiting_on_you");
+  assert.deepEqual(
+    attentionRow(answered, ZONE, nowMs).status,
+    ["You have it"],
+    "REGRESSION: 'they wrote last' over your reply",
+  );
+  assert.equal(answered.stateDetail, "you have it");
+});
+
+test("a caller with nothing in writing: the call's summary is the sentence; the phone receptionist is the state; no button without a thread", () => {
+  const caller = {
+    display_name: null,
+    wa_profile_name: null,
+    channels: ["voice"],
+    conversation_count: 0,
+    latest_conversation_id: null,
+    has_chat: false,
+    latest_wa_inbound_at: null,
+    last_message_at: null,
+    last_message_direction: null,
+    last_message_sender: null,
+    last_inbound_text: null,
+    last_inbound_at: null,
+    last_call_at: iso(2 * D),
+    last_inbound_call_at: iso(2 * D),
+    call_count: 1,
+    call_seconds: 95,
+    first_contact_at: iso(2 * D),
+    earliest_row_at: iso(2 * D),
+  };
+  const withSummary = rowOf({
+    ...caller,
+    last_inbound_call_summary: "  Asked about a gel manicure for Saturday;\n the receptionist offered 10:00.  ",
+  });
+  assert.deepEqual([withSummary.channel, withSummary.when, withSummary.quoted], ["Phone", "2d ago", false]);
+  assert.equal(
+    withSummary.sentence,
+    "Asked about a gel manicure for Saturday; the receptionist offered 10:00.",
+    "one line, whitespace collapsed",
+  );
+  assert.deepEqual(
+    withSummary.status,
+    ["Receptionist", "takes their calls"],
+    "never 'answering on WhatsApp' for someone who has only phoned",
+  );
+  assert.equal(withSummary.cta, null, "the row is the profile; there is no thread to open");
+  const bare = rowOf(caller);
+  assert.equal(bare.sentence, "Phoned once; nothing in writing yet");
+  assert.equal(rowOf({ ...caller, call_count: 3 }).sentence, "Phoned 3 times; nothing in writing yet");
+  assert.equal(
+    rowOf({ ...caller, last_call_at: null, last_inbound_call_at: null, call_count: 0 }).sentence,
+    "Nothing written yet",
+  );
+  const long = rowOf({ ...caller, last_inbound_call_summary: "x".repeat(200) });
+  assert.equal(long.sentence.length, 160);
+  assert.ok(long.sentence.endsWith("…"));
+});
+
+test("the calendar speaks when nothing else does: the next visit, else the last", () => {
+  const caller = {
+    last_inbound_text: null,
+    last_inbound_at: null,
+    has_chat: false,
+    latest_conversation_id: null,
+    conversation_count: 0,
+    last_message_at: null,
+    last_message_direction: null,
+    last_message_sender: null,
+    latest_wa_inbound_at: null,
+    last_call_at: iso(3 * D),
+    last_inbound_call_at: iso(3 * D),
+    call_count: 1,
+  };
+  const visits = {
+    timezone: "America/New_York",
+    source: "Google Calendar",
+    state: "ok",
+    next: {
+      start: new Date(nowMs + 2 * D).toISOString(),
+      end: new Date(nowMs + 2 * D + H).toISOString(),
+      title: "Balayage",
+    },
+    last: null,
+  };
+  const next = rowOf({ ...caller, visits });
+  assert.match(next.sentence, /^Booked · .*Balayage$/);
+  const last = rowOf({
+    ...caller,
+    visits: { ...visits, next: null, last: { start: iso(10 * D), end: iso(10 * D - H), title: "Gloss" } },
+  });
+  assert.match(last.sentence, /^Last visit · .*Gloss$/);
+  const summarised = rowOf({ ...caller, visits, last_inbound_call_summary: "Wants to move Saturday." });
+  assert.equal(summarised.sentence, "Wants to move Saturday.", "the call's words beat the calendar");
+});
+
+test("the wiring: the door carries the summary, the surface carries the rows, and each row says its own words", () => {
+  const mig = readRaw("supabase/migrations/00060_people_list_call_summary.sql");
+  assert.ok(
+    mig.includes("  last_inbound_call_summary text,") &&
+      mig.includes("    lks.summary,") &&
+      mig.includes("and k.direction = 'inbound'") &&
+      mig.includes("and k.summary is not null"),
+  );
+  assert.ok(
+    mig.includes("grant execute on function public.people_list(uuid, uuid) to authenticated, service_role;"),
+    "the grants are re-stated after the drop",
+  );
+  assert.ok(
+    readCode("packages/contracts/src/people/person-row.ts").includes(
+      "callSummary: r.last_inbound_call_summary?.trim() || null,",
+    ),
+  );
+  // Run, not read: the surface's mapping (surface-map.ts, over the sample's people) carries each row's attention row.
+  const surface = peopleSample(NOW);
+  assert.ok(surface.rows.length > 0);
+  assert.deepEqual(
+    surface.attention,
+    Object.fromEntries(surface.rows.map((r) => [r.id, attentionRow(r, "America/New_York", nowMs)])),
+    "computed once with the surface",
+  );
+  // The strip that drew three of these rows above the table is gone: it showed
+  // the table's own first rows over again, with the same sentences. The row
+  // still speaks -- People reads the same attention row for its words.
+  // Run, not read: the name cell People draws (plNameCell), over a row and the attention row the surface computed for it.
+  const hadReact = globalThis.React;
+  globalThis.React = {
+    createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat() } }),
+  };
+  try {
+    const find = (node, testid) => {
+      if (!node || typeof node !== "object") return null;
+      if (node.props?.["data-testid"] === testid) return node;
+      for (const kid of node.props?.children ?? []) {
+        const hit = find(kid, testid);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    const wordsOn = (over, attention) => {
+      const vm = toPersonRowVM(dto(over), ZONE, NOW);
+      const said = attention === undefined ? { [vm.id]: attentionRow(vm, ZONE, nowMs) } : attention;
+      return { el: find(plNameCell(vm, { attention: said, onOpen() {} }), "row-words"), said: said?.[vm.id] };
+    };
+    const spoken = wordsOn({});
+    assert.equal(spoken.el.props.children[0], `“${spoken.said.sentence}”`, "every row reads its own attention row");
+    assert.equal(spoken.el.props.title, spoken.el.props.children[0], "and says their words on it");
+    const phoned = wordsOn({
+      display_name: null,
+      wa_profile_name: null,
+      channels: ["voice"],
+      conversation_count: 0,
+      latest_conversation_id: null,
+      has_chat: false,
+      last_inbound_text: null,
+      last_inbound_at: null,
+      last_message_at: null,
+      last_call_at: iso(2 * D),
+      last_inbound_call_at: iso(2 * D),
+      call_count: 1,
+      last_inbound_call_summary: "Asked about a gel manicure for Saturday.",
+    });
+    assert.equal(
+      phoned.el.props.children[0],
+      "Asked about a gel manicure for Saturday.",
+      "what they said on the phone",
+    );
+    // The confession is gone: nothing to quote and no call's summary is no line under the name, not a line saying so.
+    const silent = wordsOn({
+      last_inbound_text: null,
+      last_inbound_at: null,
+      last_message_at: null,
+      has_chat: false,
+      latest_conversation_id: null,
+      conversation_count: 0,
+    });
+    assert.equal(silent.el, null, "nothing written to quote: nothing said");
+    assert.equal(wordsOn({}, null).el, null, "before the surface has computed its attention rows, no words");
+  } finally {
+    if (hadReact === undefined) delete globalThis.React;
+    else globalThis.React = hadReact;
+  }
+  // Today's queue, Setup and the back office still draw AttnRow, so the row's
+  // own rules stay; only the strip's container, footer and empty state went.
+  const css = readRaw("apps/dashboard/src/legacy/styles/clients.css");
+  assert.ok(
+    css.includes(".cl-attn-cta.primary { background: var(--accent); color: var(--accent-fg); }"),
+    "the one primary button is the mockup's coral",
+  );
+  assert.ok(css.includes("@media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }"));
+});

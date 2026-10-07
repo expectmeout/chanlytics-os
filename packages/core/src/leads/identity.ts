@@ -8,14 +8,14 @@
  * else's. "Already yours" is the place id alone; "hidden" is a suppression by
  * what happened (already a customer, erased).
  */
-import { LEAD_FREE_MAIL } from "@chanlytics/contracts";
+import { isFreeMail as isFreeMailHost } from "@chanlytics/contracts";
 import type { CleanPlace } from "./clean";
 import type { LeadShare } from "./ports";
 
 /** A personal inbox at a free-mail domain (contracts' one list): never an identity. */
 export function isFreeMail(email: string): boolean {
   const host = (email.split("@")[1] ?? "").toLowerCase();
-  return (LEAD_FREE_MAIL as readonly string[]).includes(host);
+  return isFreeMailHost(host);
 }
 
 const norm = (s: string | null): string =>

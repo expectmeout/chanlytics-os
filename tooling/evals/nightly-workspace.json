@@ -1,0 +1,38 @@
+{
+  "timezone": "America/Chicago",
+  "now": "2026-09-28T15:00:00Z",
+  "brain": {
+    "business_name": "Example Studio",
+    "phone_display": "(555) 010-0142",
+    "booking_link": "https://book.example.com/studio",
+    "system_prompt": "You answer for Example Studio, a hair salon in Springfield.",
+    "fallbacks": {
+      "greeting": "Hi! Thanks for reaching out to Example Studio.",
+      "error": "Thanks for reaching out! A person at Example Studio will follow up shortly.",
+      "non_text": "Thanks! A person at Example Studio will look at this shortly."
+    },
+    "profile": {
+      "address": "12 Example St, Springfield",
+      "website": "https://studio.example.com",
+      "tone": "Warm and unhurried.",
+      "languages": ["English", "Spanish"],
+      "hours": {
+        "mon": {},
+        "tue": { "open": "09:00", "close": "18:00" },
+        "wed": { "open": "09:00", "close": "18:00" },
+        "thu": { "open": "09:00", "close": "18:00" },
+        "fri": { "open": "09:00", "close": "19:00" },
+        "sat": { "open": "09:00", "close": "15:00" },
+        "sun": {}
+      },
+      "services": [
+        { "name": "Cut and style", "duration_min": 60, "price_note": "quoted at a consult" },
+        { "name": "Colour", "duration_min": 120, "price_note": "quoted at a consult" },
+        { "name": "Lash lift", "duration_min": 45, "price_note": "quoted at a consult" }
+      ],
+      "guardrails": { "no_health_advice": true },
+      "escalate_when": ["They ask for the owner by name"]
+    }
+  },
+  "policy": { "booking": { "mode": "auto" }, "faq": { "mode": "auto" } }
+}

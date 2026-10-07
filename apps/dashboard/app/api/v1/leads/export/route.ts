@@ -1,6 +1,6 @@
 import { LeadExportQuerySchema } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { exportLeads } from "@/server/leads";
+import { exportLeads } from "@/server/leads/leads";
 
 /**
  * GET /api/v1/leads/export — the view, as a CSV, for the business's own
@@ -10,6 +10,7 @@ import { exportLeads } from "@/server/leads";
  */
 export const GET = read({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "export",
   query: LeadExportQuerySchema,

@@ -9,22 +9,29 @@
  * A run row's webhook token is an HMAC of its id under the service-role key,
  * so the token is made once at creation (its sha256 on the row), never
  * rewritten (E1), and any later job of ours can rebuild the URL it sent.
+ *
+ * Two more wires. A lead's own pages and pictures are read through channels' guarded fetcher (fetchText, fetchBytes):
+ * a lead's website is an address somebody else typed, and it may resolve, or redirect, to a private one. And while the
+ * second model is on (decision 0023) the judge's criteria for each place are also put to it in shadow: its answers are
+ * compared and kept, and never read by the run.
  */
-import Anthropic from "@anthropic-ai/sdk";
 import { createHmac } from "node:crypto";
 import {
   apifyClient,
+  publicFetcher,
   leadJudge,
   LEAD_JUDGE_DEFAULT_MODEL,
   type ApifyClient,
   type LeadJudge,
+  type LeadJudgeAnswer,
   type LeadJudgeClient,
 } from "../packages/channels.js";
-import { JUDGE_TIMEOUT_MS } from "../packages/core.js";
-import { env } from "../env.js";
+import { judgeShadowSpecs, readsAsModel } from "../packages/contracts.js";
+import { env, httpsOriginOf } from "../env.js";
+import { edgeOrigin } from "../dashboard-origin.js";
+import { callModel } from "../model.js";
+import { startShadow } from "../shadow.js";
 import { imageBytes, pageText } from "./lead-marks.js";
-
-const DEFAULT_ORIGIN = "https://chanlytics-messaging.vercel.app";
 
 export interface LeadWires {
   apify: ApifyClient;
@@ -37,49 +44,95 @@ export interface LeadWires {
   webhookToken(runRowId: string): Promise<string>;
 }
 
-/** This deployment's origin, where the provider's webhook lands: LEAD_WEBHOOK_BASE, else EDGE_ORIGIN, else the address the edge has always had. */
-export function leadWebhookBase(): string {
-  const o = env.LEAD_WEBHOOK_BASE || env.EDGE_ORIGIN;
-  return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_ORIGIN;
+/** This deployment's origin, where the provider's webhook lands: LEAD_WEBHOOK_BASE, else the edge's own (EDGE_ORIGIN). */
+function leadWebhookBase(): string {
+  return httpsOriginOf(env.LEAD_WEBHOOK_BASE) ?? edgeOrigin();
 }
 
-export async function leadWebhookToken(runRowId: string): Promise<string> {
+async function leadWebhookToken(runRowId: string): Promise<string> {
   const key = env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error("lead webhook: no key to derive a token from");
   return createHmac("sha256", key).update(`lead-webhook:${runRowId}`).digest("base64url");
 }
 
 /** One constant (PRD decision 3), overridable by the env to another Claude model; anything else is the default. */
-export function leadJudgeModel(v: string | undefined = env.LEAD_JUDGE_MODEL): string {
-  return v && /^claude-[a-z0-9.-]+$/.test(v) ? v : LEAD_JUDGE_DEFAULT_MODEL;
+function leadJudgeModel(v: string | undefined = env.LEAD_JUDGE_MODEL): string {
+  return readsAsModel(v) ? v : LEAD_JUDGE_DEFAULT_MODEL;
 }
 
 /** The server-side fallback (decision 14): on unless the env says off. */
-export function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBACKS): boolean {
+function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBACKS): boolean {
   return !(v === "off" || v === "0" || v === "false");
 }
 
-// output_config and fallbacks predate the SDK pin's types; the API accepts them (brain.ts:54).
-// No retry of the SDK's own: a second try doubles the window the runner's
-// JUDGE_MARGIN_MS guards, and a slow answer is the ledger's retry to make, not
-// the client's inside a job that is about to be killed.
-const realJudgeClient = (): LeadJudgeClient =>
-  new Anthropic({ timeout: JUDGE_TIMEOUT_MS, maxRetries: 0 }) as unknown as LeadJudgeClient;
-let judgeClientFor: () => LeadJudgeClient = realJudgeClient;
-/** Tests hand in their own; null restores the real one. */
-export function setLeadJudgeClient(f: (() => LeadJudgeClient) | null): void {
-  judgeClientFor = f ?? realJudgeClient;
+/**
+ * The judge's client over the model port (lib/model.ts): the registry's route for the judge (its bound, no retry and no
+ * fallback of its own: a slow or overloaded answer is the jobs ledger's retry to make, inside JUDGE_MARGIN_MS), each call
+ * written to the usage ledger for the search's workspace, with the round it was paid in as the row's subject
+ * (`subject_id`; `purpose` already says the row is the judge's, and a call that names no round leaves it empty). The
+ * API's refusal of the request (a 400 naming the beta or the format) is thrown with its status, so the judge asks again
+ * without the beta, as it did over the SDK; any other call that got no answer throws, and the job retries.
+ */
+const portJudgeClient = (): LeadJudgeClient => ({
+  beta: {
+    messages: {
+      async create(params, call) {
+        const { model, betas, ...body } = params as { model?: string; betas?: string[] } & Record<string, unknown>;
+        const r = await callModel(
+          { purpose: "lead_judge", body, ...(typeof model === "string" ? { model } : {}), ...(betas ? { betas } : {}) },
+          { tenantId: call?.tenantId ?? null, subjectId: call?.roundId ?? null },
+        );
+        if (!r || r.outcome === "held") throw new Error("lead judge: no model to ask");
+        if (r.outcome !== "ok") throw Object.assign(new Error(r.error), { status: r.status });
+        return r.message;
+      },
+    },
+  },
+});
+
+/** The judge's answer to one criterion of one place, as a label; null when it gave none. */
+function judgedLabel(out: LeadJudgeAnswer | undefined, ref: string, criterion: string): string | null {
+  if (!out || !("answers" in out)) return null;
+  const place = out.answers.find((a) => String(a.ref) === ref);
+  return place?.criteria.find((c) => c.key === criterion)?.answer ?? null;
 }
 
-export function leadWires(fetchImpl: typeof fetch = fetch): LeadWires | undefined {
+/**
+ * The judge, with each place's criteria also put to a second model in shadow when it is on (decision 0023): one call a
+ * place, its answers compared with the judge's and kept, never read by the run, each row naming the round the judge's own
+ * row names. The judge's own answer, its refusals and its throws pass through as they were.
+ */
+function shadowed(inner: LeadJudge): LeadJudge {
+  return {
+    async judge(plan, places, tenantId, roundId) {
+      const shadow = startShadow("lead_judge", { tenantId: tenantId ?? null, subjectId: roundId ?? null }, () =>
+        judgeShadowSpecs(plan, places),
+      );
+      let out: LeadJudgeAnswer | undefined;
+      try {
+        out = await inner.judge(plan, places, tenantId, roundId);
+        return out;
+      } finally {
+        await shadow?.settle((ref, criterion) => judgedLabel(out, ref, criterion));
+      }
+    },
+  };
+}
+
+/**
+ * The finder's wires. `fetchImpl` stands in for the network in a test; unset, the provider (Apify) is called with the
+ * platform's fetch, and a lead's own pages and pictures are read through the guarded one (channels publicFetcher): a
+ * lead's website is an address somebody else typed, and it may resolve, or redirect, to a private one.
+ */
+export function leadWires(fetchImpl?: typeof fetch): LeadWires | undefined {
   const token = env.APIFY_TOKEN;
   if (!token || !env.ANTHROPIC_API_KEY) return undefined;
   return {
-    apify: apifyClient(fetchImpl, token),
-    judge: leadJudge(judgeClientFor(), leadJudgeModel(), leadJudgeFallbacks()),
+    apify: apifyClient(fetchImpl ?? fetch, token),
+    judge: shadowed(leadJudge(portJudgeClient(), leadJudgeModel(), leadJudgeFallbacks())),
     webhookBase: leadWebhookBase(),
     webhookToken: leadWebhookToken,
-    fetchText: (url, timeoutMs) => pageText(fetchImpl, url, timeoutMs),
-    fetchBytes: (url, timeoutMs, maxBytes) => imageBytes(fetchImpl, url, timeoutMs, maxBytes),
+    fetchText: (url, timeoutMs) => pageText(fetchImpl ?? publicFetcher(), url, timeoutMs),
+    fetchBytes: (url, timeoutMs, maxBytes) => imageBytes(fetchImpl ?? publicFetcher(), url, timeoutMs, maxBytes),
   };
 }

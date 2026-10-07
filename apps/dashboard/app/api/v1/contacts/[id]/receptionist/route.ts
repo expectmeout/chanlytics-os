@@ -1,14 +1,6 @@
-import { z } from "zod";
-import { setPersonReplyMode } from "@chanlytics/db";
 import { write } from "@/server/route";
-import { contactScope, recordDecision } from "@/server/verbs";
-
-const MODES = ["auto", "ask", "never", "inherit"] as const;
-type Mode = (typeof MODES)[number];
-
-const Body = z.object({
-  mode: z.enum(MODES, { message: "Mode must be one of: auto, ask, never, inherit." }),
-});
+import { contactScope } from "@/server/verbs";
+import { setPersonMode, PersonModeChange } from "@/server/people/person-mode";
 
 /**
  * PUT /api/v1/contacts/:id/receptionist — { mode: auto | ask | never | inherit }
@@ -23,29 +15,14 @@ const Body = z.object({
  * Owner-only: it changes what a real customer experiences. RLS is the floor
  * (00029 lets owners insert and delete person-scoped reply rows); the role
  * is the door, judged where the contact lives (contactScope).
+ *
+ * The handle is setPersonMode in src/server/people/person-mode.ts: the route is its declaration (who may, how often),
+ * the verb is what it does.
  */
 export const PUT = write({
   scope: contactScope,
   role: "owner",
   rate: "person_mode",
-  input: Body,
-  handle: async ({ ctx, row: contact, input }) => {
-    const id = contact.id;
-    const m: Mode = input.mode;
-    await setPersonReplyMode(ctx.supabase, contact.tenant_id, id, m === "inherit" ? null : m);
-
-    // On the ledger as what it is: silencing or un-silencing the receptionist
-    // for one person, with the mode in the payload.
-    const decisionId = await recordDecision(
-      ctx,
-      contact.tenant_id,
-      "contact",
-      id,
-      m === "auto" || m === "inherit" ? "resume_agent" : "pause_agent",
-      { receptionist_mode: m },
-    );
-
-    // The ledger row rides back so an undo can name it.
-    return { contact_id: id, mode: m === "inherit" ? null : m, decision_id: decisionId };
-  },
+  input: PersonModeChange,
+  handle: ({ ctx, row, input }) => setPersonMode(ctx, row, input),
 });

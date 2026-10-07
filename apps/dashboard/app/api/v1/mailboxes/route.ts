@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { createMailbox } from "@/server/email";
+import { createMailbox } from "@/server/connections/email";
 
 const Body = z
   .object({
@@ -21,7 +21,7 @@ const Body = z
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   input: Body,
   handle: async ({ ctx, member, input }) => ({

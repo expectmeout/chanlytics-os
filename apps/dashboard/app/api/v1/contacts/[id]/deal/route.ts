@@ -13,7 +13,9 @@ import {
 } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
-import { currentDealOf } from "@/server/deals";
+import { currentDealOf } from "@/server/people/deals";
+import { log } from "@/server/log";
+import { dbRefusal } from "@/server/with-route";
 
 const Body = z
   .object({
@@ -93,16 +95,13 @@ export const POST = write({
       ...(input.lost_reason ? { p_lost_reason: input.lost_reason } : {}),
       ...(input.clear?.length ? { p_clear: input.clear } : {}),
     });
-    if (error) throw new AppError("validation", error.message);
+    if (error) throw dbRefusal(error);
     const r = (data ?? {}) as { error?: string; deal?: DealDto; from?: string | null };
     if (r.error || !r.deal) {
       // A key the sentences lack, or no deal and no error: an answer this route does not know. Logged raw before
       // the generic sentence, so a new refusal is found in the log rather than by its blandness.
       if (!(r.error && DEAL_REFUSALS[r.error])) {
-        console.error(
-          "deal_door_unknown_answer",
-          JSON.stringify({ contact: contact.id, error: r.error ?? null, deal: !!r.deal }),
-        );
+        log.error("deal_door_unknown_answer", { contact: contact.id, error: r.error ?? null, deal: !!r.deal });
       }
       throw new AppError("validation", DEAL_REFUSALS[r.error ?? ""] ?? "Could not record this.");
     }

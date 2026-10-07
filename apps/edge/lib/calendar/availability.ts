@@ -19,6 +19,7 @@ import {
   describeOpenings,
   describeVisits,
   feedUrlOk,
+  fetchPublic,
   feedBodyProblem,
   seasonHorizon,
   visitsOf,
@@ -27,11 +28,13 @@ import {
   type FeedItem,
   type Opening,
   type ParsedFeed,
+  MIN_MS,
 } from "../packages/contracts.js";
+import { publicFetcher } from "../packages/channels.js";
 import type { TenantRuntime } from "../tenant-runtime.js";
 import { logger, errField } from "../log.js";
 
-const CACHE_MS = 5 * 60 * 1000;
+const CACHE_MS = 5 * MIN_MS;
 const FETCH_TIMEOUT_MS = 6000;
 
 /**
@@ -71,7 +74,7 @@ function httpsUrl(u: string): string {
 }
 
 async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: number): Promise<string | null> {
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   const key = cacheKey(tenantId, url);
   const hit = feeds.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.text;
@@ -81,11 +84,14 @@ async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: n
     // private address, however it reached the config.
     const safe = feedUrlOk(url);
     if (!safe) throw new Error("address refused: not a public https/webcal address");
-    const r = await fetch(httpsUrl(safe), {
+    // Every hop judged by the address rule (fetchPublic), not only the first.
+    const r = await fetchPublic(publicFetcher(), httpsUrl(safe), {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: { accept: "text/calendar, text/plain;q=0.5, */*;q=0.1" },
     });
-    if (!r.ok) {
+    if (!r) {
+      L.error("availability_feed_redirect_refused", {});
+    } else if (!r.ok) {
       L.error("availability_feed_http", { status: r.status });
     } else {
       const body = await r.text();
@@ -153,7 +159,7 @@ export async function feedItemsFor(
 }
 
 /** The openings as data, for the phone tool that answers about one day. */
-export interface OpeningsData {
+interface OpeningsData {
   openings: Opening[];
   tz: string;
   daysAhead: number;
@@ -164,7 +170,7 @@ export interface OpeningsData {
  * or a feed that could not be read.
  */
 export async function openingsData(rt: TenantRuntime, now = new Date()): Promise<OpeningsData | null> {
-  const L = logger({ tenant: rt.tenantId });
+  const L = logger({ tenant_id: rt.tenantId });
   const url = rt.calendar?.ical_url;
   const profile = rt.brain?.profile;
   if (!url || !profile || !rt.timezone) return null;
@@ -219,7 +225,7 @@ export async function visitsFor(
   who: { phone: string | null; name: string | null },
   now = new Date(),
 ): Promise<string | null> {
-  const L = logger({ tenant: rt.tenantId });
+  const L = logger({ tenant_id: rt.tenantId });
   const url = rt.calendar?.ical_url;
   if (!url || !rt.timezone || (!who.phone && !who.name)) return null;
   try {

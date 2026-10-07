@@ -1,0 +1,14 @@
+diff --git a/index.js b/index.js
+index d45e67d91d38c91d05e68e8b338e4bc2de591dcc..e3f12a2f51526e345468f7894e7c55aceabbdc3d 100644
+--- a/index.js
++++ b/index.js	
+@@ -1,6 +1,8 @@
+ 'use strict';
+ const strictUriEncode = require('strict-uri-encode');
+-const decodeComponent = require('decode-uri-component');
++// decode-uri-component 0.5 is ESM only: require() hands back its module, whose default is the function.
++const decodeComponentModule = require('decode-uri-component');
++const decodeComponent = decodeComponentModule.default || decodeComponentModule;
+ const splitOnFirst = require('split-on-first');
+ const filterObject = require('filter-obj');
+ 

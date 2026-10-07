@@ -1,0 +1,276 @@
+/** Reach out: the campaign email's words and rules, its timetable, and the hours and time zones the window keeps. */
+export {
+  whyFrom,
+  isCampaignEmail,
+  CAMPAIGN_EMAIL_TAG,
+  unsubscribePageWords,
+  WHY_FROM_MAPS,
+  UNSUBSCRIBE_PAGE_HEADER,
+} from "./reach-out";
+export type { UnsubscribeView, UnsubscribePageWords } from "./reach-out";
+export { zoneOfRegion, US_STATE_ZONES } from "./us-zones";
+export type { UsStateCode } from "./us-zones";
+export { weekHoursOf, DEFAULT_WEEK } from "./lead-hours";
+export type { WeekdayKey, OpenWindow, WeekHours } from "./lead-hours";
+export {
+  sendWindowsOf,
+  timetable,
+  SEND_WINDOW_MARGIN_MIN,
+  SEND_DAY_FRAME,
+  TIMETABLE_HORIZON_DAYS,
+} from "./reach-out-timetable";
+export type { TimetableSend, TimetableDomain, TimetableInput, Placed, TimetableResult } from "./reach-out-timetable";
+export {
+  outreachRefusalOf,
+  isWaitRefusal,
+  isReachOutRun,
+  reachOutEmailOf,
+  reachOutExampleValues,
+  REACH_OUT_LANGUAGE,
+  OUTREACH_WAIT_REFUSALS,
+  REACH_OUT_MONTH_EMAILS,
+} from "./reach-out-rules";
+export type { OutreachLeadFacts, SlotLead } from "./reach-out-rules";
+export {
+  REACH_OUT_MODEL,
+  OPENING_SCHEMA,
+  READING_SCHEMA,
+  openingSystemPrompt,
+  openingUserContent,
+  readingSystemPrompt,
+  readingUserContent,
+  parseOpening,
+  parseReading,
+  openingVerdict,
+} from "./reach-out-opening";
+export type { OpeningWorkspace, Reading, OpeningVerdict } from "./reach-out-opening";
+export { REACH_OUT_CHECKS_PER_DAY } from "./reach-out-rules";
+export type { SlotWorkspace } from "./reach-out-rules";
+export {
+  REACH_OUT_SLOTS,
+  REACH_OUT_SLOT_SET,
+  REACH_OUT_SLOT_WORDS,
+  REACH_OUT_SUBJECT_MAX,
+  REACH_OUT_BODY_MAX,
+  REACH_OUT_WORDS_MAX,
+  OPENING_WORDS_MAX,
+  OPENING_CHARS_MAX,
+  ANGLE_WORDS_MAX,
+  REACH_OUT_STEPS_MAX,
+  REACH_OUT_NAME_MAX,
+  SIGNED_BY_MAX,
+  REACH_OUT_GAP_MINUTES,
+  REACH_OUT_AFTER_DAYS,
+  slotCount,
+  reachOutSlotFault,
+  reachOutRules,
+  wordsNeedOpening,
+  wordCount,
+  emailWordCount,
+  linksIn,
+  linkCount,
+  shoutingLine,
+  validateReachOutWords,
+  wordsIssueWords,
+  validateReachOutChain,
+  chainIssueWords,
+  OPENING_FACT_KEYS,
+  isOpeningFactKey,
+  factValue,
+  OPENING_PROBLEMS,
+  isOpeningProblem,
+  checkOpening,
+  openingProblemWords,
+  CHAIN_MIN_LISTINGS,
+  chainOf,
+  customerDomainOf,
+  REACH_OUT_HOLDS,
+  isReachOutHold,
+  holdWords,
+  holdDoors,
+  HOLD_DOOR_WORDS,
+} from "./reach-out-words";
+export { ReachOutStepSchema, ReachOutChainSchema } from "./reach-out-schemas";
+export type {
+  ReachOutSlot,
+  WordsProblem,
+  WordsIssue,
+  ChainProblem,
+  ChainIssue,
+  OpeningFactKey,
+  OpeningRecord,
+  WrittenOpening,
+  OpeningProblem,
+  ReachOutHold,
+  HoldDoor,
+} from "./reach-out-words";
+export type { ReachOutChainInput } from "./reach-out-schemas";
+export { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS } from "./reach-out-dtos";
+export { ReachOutPreviewSchema, ReachOutDecideSchema } from "./reach-out-schemas";
+export type {
+  ReachOutStepDto,
+  ReachOutNextFacts,
+  ReachOutChainDto,
+  ReachOutStepCounts,
+  ReachOutRunLine,
+  ReachOutChainReportDto,
+  ReachOutReachDto,
+  ReachOutPreviewDto,
+  ReachOutStartDto,
+  ReachOutSavedDto,
+  ReachOutDecision,
+  ReachOutHeldSend,
+  ReachOutRunDto,
+} from "./reach-out-dtos";
+export type { ReachOutPreviewInput } from "./reach-out-schemas";
+export {
+  REACH_OUT_SHEET_WORDS,
+  REACH_OUT_REFUSALS,
+  isReachOutRefusal,
+  reachLineOf,
+  paceWords,
+  sheetFootWords,
+  stepLabel,
+  stepLabelOf,
+  stepWhenWords,
+  startWords,
+  nextRunWords,
+  approvalWordsOf,
+  chainHintOf,
+  chainReportWordsOf,
+  emailTemplateWords,
+  emailTemplateRowsOf,
+  emailRowWrittenOf,
+  EMAIL_TEMPLATE_LIST_WORDS,
+  chainPaceOf,
+  chainPathWords,
+  REACH_OUT_ROW_WORDS,
+} from "./reach-out-sheet";
+export {
+  REACH_OUT_FIRST_WORDS,
+  REACH_OUT_GAP_FIRST,
+  REACH_OUT_PREVIEW_WORDS,
+  REACH_OUT_SHEET_PARTS,
+  reachOutDefaultName,
+  reachOutDraftOf,
+  reachOutMayAddStep,
+  reachOutAddStep,
+  reachOutAddHandStep,
+  reachOutSetHandWords,
+  reachOutDropStep,
+  reachOutAfterDayChoices,
+  reachOutChainBodyOf,
+  reachOutDraftIssues,
+  reachOutSheetPaceOf,
+  previewRefusedWords,
+  previewLinesOf,
+  reachOutDoorOf,
+  reachOutMayPickDomain,
+  reachOutPreviewOf,
+  reachOutSavedWords,
+  reachOutEditedWords,
+  reachOutSheetUnreadOf,
+  reachOutWhoWords,
+} from "./reach-out-draft";
+export type { ReachOutDraft, ReachOutDraftStep, ReachOutDraftIssues } from "./reach-out-draft";
+export { REACH_OUT_RUN_REREAD_MS, heldNoticeWords, reachOutRunWordsOf } from "./reach-out-approval";
+export {
+  REPLY_INTENTS,
+  REPLY_INTENT_WORDS,
+  REPLY_SCHEMA,
+  REACH_OUT_READS_PER_DAY,
+  REACH_OUT_REPLY_DAYS,
+  REACH_OUT_AWAY_DAYS,
+  REACH_OUT_AWAY_MAX_DAYS,
+  REPLY_SUMMARY_WORDS,
+  REPLY_REREADS,
+  REPLY_REREAD_DAYS,
+  REPLY_REFER_TO_MAX,
+  REPLY_ANSWERED_MAX,
+  REPLY_QUOTE_MAX,
+  REPLY_WORDS_MAX,
+  REPLY_SUBJECT_MAX,
+  REPLY_READ_MAX_TOKENS,
+  REPLY_NOT_NOW_DAYS,
+  REPLY_UNREADS,
+  UNREAD_READING,
+  isReplyIntent,
+  isUnread,
+  replySystemPrompt,
+  replyIntentQuestion,
+  replyUserContent,
+  parseReplyReading,
+  replyTextOf,
+  stepDayFor,
+  notNowDayOf,
+  awayUntilOf,
+  rereadAt,
+  ownedDomainOf,
+  replyStepWords,
+  readingPlan,
+  replyNoticeWords,
+} from "./reach-out-replies";
+export {
+  DRAFT_WHYS,
+  isDraftWhy,
+  DRAFT_NEEDS_MS,
+  DRAFT_NOTICE_MAX,
+  draftRefusal,
+  leadReplyNote,
+  draftExcerpt,
+} from "./reach-out-reply-draft";
+export type { DraftWhy } from "./reach-out-reply-draft";
+export {
+  REPLIES_PAGE,
+  REPLY_UNDO_REFUSALS,
+  isReplyUndoRefusal,
+  replyStripOf,
+  replyChipOf,
+  replyFromLineOf,
+  replyLeftAsOf,
+} from "./reach-out-reply-words";
+export { ReachOutRepliesQuerySchema } from "./reach-out-schemas";
+export type {
+  ReplyUndoRefusal,
+  ReplyFrom,
+  ReachOutReplyDto,
+  ReachOutRepliesDto,
+  ReplyStrip,
+  ReplyDoor,
+} from "./reach-out-reply-words";
+export type { ReachOutRepliesQuery } from "./reach-out-schemas";
+export { replyRowOf, withReplies, withoutWrongPerson, bellActionOf } from "./reach-out-reply-today";
+export type {
+  ReplyIntent,
+  ReplyReading,
+  Unread,
+  ReplyClaim,
+  ReplyContext,
+  ReplyStep,
+  ReadingPlan,
+} from "./reach-out-replies";
+export { bookedSeenOf, BOOKED_SEEN_CAP } from "./reach-out-booked";
+export type { BookedSeen } from "./reach-out-booked";
+export { handOf, handStepWords, HAND_KINDS, HAND_WORDS_MAX } from "./reach-out-hand";
+export type { HandKind, StepHand } from "./reach-out-hand";
+export {
+  reachOutLineOf,
+  reachOutStripOf,
+  reachOutTimelineOf,
+  reachOutPersonOf,
+  REACH_OUT_STOP_WORDS,
+} from "./reach-out-leads";
+export type {
+  ReachOutLineReplyDto,
+  ReachOutLeadLineDto,
+  ReachOutSearchLinesDto,
+  ReachOutTimelineSendDto,
+  ReachOutTimelineReadingDto,
+  ReachOutLeadTimelineDto,
+  ReachOutLeadsDto,
+  ReachOutStopDto,
+  ReachOutStripVM,
+  ReachOutStoryLine,
+  ReachOutTimelineVM,
+  ReachOutPersonVM,
+} from "./reach-out-leads";

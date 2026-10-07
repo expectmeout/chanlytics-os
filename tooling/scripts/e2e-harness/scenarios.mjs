@@ -5,18 +5,25 @@
  * tab's globals from the SAME scenario object (the server injects it into the bundle), so the spec and the page
  * cannot disagree the way two hand-built copies would.
  *
- *   nightly -- the seeded `chanlytics-e2e` workspace, DERIVED from tooling/scripts/e2e-workspace.mjs rather than
+ * Settings left the standalone mockup (decision 0015 step 11; Ruben, 4 Oct 2026), so no record is drawn as the Business
+ * tab any more: the nightly and the salon survive as the data the pipeline and the kit are built on, and as the
+ * workspaces the mockup's other pages are drawn for (the style-equality recorder's).
+ *
+ *   nightly -- the seeded `chanlytics-e2e` workspace, DERIVED from tooling/scripts/ops/e2e-workspace.mjs rather than
  *              copied: the WHOLE config that converge writes (its notifications included, so what the read hands
  *              over is what the nightly's row holds), the line it provisions and the clock it sets. When the seed
  *              changes, this changes with it, which is the whole reason it imports rather than restates. No profile
- *              at all, which is what makes it the record the committed spec must pass on -- every list is empty and
- *              every fold opens on nothing.
+ *              at all: every list is empty and every fold opens on nothing.
  *   pipeline -- a studio that sends proposals (deals on, 0008) with People REAL over it: eight people across the
- *              Pipeline's four groups, in people_list's row shape and the person read's own, so e2e/people.spec.ts's
+ *              Pipeline's four groups, in people_list's row shape and the person read's own, so e2e/people/people.spec.ts's
  *              Pipeline walk runs here -- the list, the peek, the person's page. Fictional, as the salon is.
  *   salon    -- a fuller record, for the branches the nightly's data cannot reach: a week of hours, closures AT the
- *              cap, services, and one language short of the cap so a single Add fills it. A FICTIONAL business: this
+ *              cap, services, and one language short of the cap so a single Add fills it (the Business tab's folds,
+ *              which were drawn here, are the app's own now). A FICTIONAL business: this
  *              file is committed, and no real business's name, address, number or link belongs in the tree.
+ *   kit      -- no workspace of its own: the nightly's record, whose page is the kit's gallery
+ *              (e2e-harness/kit-gallery.mjs) instead of the mockup, for e2e/kit/kit.spec.ts and for a person reviewing
+ *              the kit. Never served in production (decision 7).
  *
  * Every cap comes from contracts (`PROFILE_LIMITS`, `MAX_CLOSURES`), so a cap that moves moves the record with it.
  */
@@ -30,14 +37,14 @@ import {
   newReceptionistDefaults,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../e2e-workspace.mjs";
+import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../ops/e2e-workspace.mjs";
 
 /** The workspace the harness signs into. The id is the harness's own: nothing here reaches a database. */
 export const WORKSPACE = { id: "t-e2e", slug: SLUG, name: NAME };
 /** Who the harness signs in as: the server's session, the runner's address and the fixture's __ME are this one. */
 export const OWNER = { id: "u-e2e-owner", name: "E2E Owner", email: "e2e-owner@example.com" };
 
-export const SCENARIOS = ["nightly", "salon", "pipeline"];
+export const SCENARIOS = ["nightly", "salon", "pipeline", "kit"];
 
 /** What the platform knows about a channel, as tenant_channels rows reach `resolveFacts` (contracts KnownFacts). */
 const asKnownChannel = ({ kind, number_e164, status }) => ({ kind, number_e164, status });
@@ -472,8 +479,55 @@ function pipeline(name, nowMs) {
 
 /** One scenario, built now. Plain data, so the server can hand the page the very object it answers reads from. */
 export function scenario(name, nowMs = Date.now()) {
-  if (name === "nightly") return nightly(name);
-  if (name === "salon") return salon(name, nowMs);
-  if (name === "pipeline") return pipeline(name, nowMs);
-  throw new Error(`no scenario "${name}": ${SCENARIOS.join(", ")}`);
+  const record =
+    name === "nightly"
+      ? nightly(name)
+      : name === "salon"
+        ? salon(name, nowMs)
+        : name === "pipeline"
+          ? pipeline(name, nowMs)
+          : name === "kit"
+            ? { ...nightly(name), gallery: true }
+            : null;
+  if (!record) throw new Error(`no scenario "${name}": ${SCENARIOS.join(", ")}`);
+  return { ...record, notifications: bellNotes(nowMs) };
+}
+
+/**
+ * The bell's kept rows, as GET notifications hands them over (contracts NotificationDto), for every record: what a
+ * morning's bell holds -- a run of calls, two searches done, a job the runner wrote in its old words (a uuid and all),
+ * a customer named by their number, a rating -- so the phone's bell specs have rows to measure (25 Sep). Made-up
+ * numbers, as every fixture's are.
+ */
+function bellNotes(nowMs) {
+  const at = (h) => new Date(nowMs - h * 3_600_000).toISOString();
+  const note = (id, kind, title, body, route, h, about = null) => ({
+    id,
+    kind,
+    title,
+    body,
+    route,
+    subject_type: about ? about.type : null,
+    subject_id: about ? about.id : null,
+    created_at: at(h),
+    read: false,
+    dismissed: false,
+  });
+  return [
+    note("hx-n1", "call", "+1 (555) 010-0101 phoned · 12 s", "No conversation happened.", "conversations/phone", 1),
+    note("hx-n2", "leads_ready", "Your search for florists is done", "31 found.", "clients/leads", 2),
+    note("hx-n3", "call", "+1 (555) 010-0102 phoned · 3 min", "Asked about Saturday.", "conversations/phone", 3),
+    note(
+      "hx-n4",
+      "job_failed",
+      "A lead_collect job failed",
+      "Job 00000000-0000-4000-8000-000000000001 (lead_collect) failed and will not retry on its own.\n\nboom",
+      "inbox",
+      4,
+    ),
+    note("hx-n5", "leads_ready", "Your search for bakeries is done", "7 found.", "clients/leads", 5),
+    note("hx-n6", "call", "+1 (555) 010-0103 phoned · 1 min", "Booked a visit.", "conversations/phone", 6),
+    note("hx-n7", "handoff", "WhatsApp handoff needed: +15550100104", "Asked for a discount.", "inbox", 7),
+    note("hx-n8", "review", "1 new rating on Google", "Five stars.", "reports", 30),
+  ];
 }

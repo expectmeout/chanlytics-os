@@ -1,12 +1,29 @@
 /**
- * Calls repository (Slice 3). ingest_call is the atomic gate: identity
- * resolution + upsert + metering in one round trip, idempotent on
- * (tenant_id, retell_call_id) so webhook stages and the history backfill
- * converge on one row.
+ * The calls repository: what a voice call's webhook stages and the calls sweep write to the calls table, the call's
+ * note in its customer's thread, and the reads of who a call was from. Callers are the edge's Retell webhook and calls
+ * sweep (ingestCall, recordCallNote, linkCallMessage, setCallRecording), the recording copy (setCallRecording), the
+ * Live Activity start (claimCallActivity, callerNameOf) and the dashboard's message reader (callersOf).
+ *   - ingestCall is the one door a call comes in by: the ingest_call function resolves the person, upserts the call and
+ *     meters its seconds in one round trip, idempotent on (tenant_id, retell_call_id), so each webhook stage and the
+ *     sweep's re-ingest converge on one row. It is forward-only: an event ranking below the row's status writes nothing
+ *     and answers skipped.
+ *   - linkCallMessage and setCallRecording write to an existing row and count the rows they changed: an UPDATE that RLS
+ *     excludes, or that names a row that is gone, reports success, so a write that changed nothing is logged as a noop
+ *     and never trusted for the absence of an error.
+ *   - claimCallNotification and claimCallActivity are first-caller-wins claims (notified_at, activity_started_at): true
+ *     once and false after, so a redelivery repeats neither the post-call summary nor the Live Activity start. A
+ *     database error throws, and the webhook turns a failed notification claim into a 503 so the provider redelivers.
+ *   - recordCallNote files the call as a call_summary message in the customer's thread, idempotent on its external id
+ *     (call:<retell_call_id>), so the receptionist's history holds the call.
+ * The provider's recording URL is never written to a row: calls is in the realtime publication, so every column reaches
+ * every member's browser. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
 import type { SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
+import { IDS_PER_READ } from "./people";
+import { dbLog } from "../observe";
+import { tenantDb } from "../tenant-db";
 
 type Db = SupabaseClient<Database>;
 
@@ -108,9 +125,32 @@ export async function linkCallMessage(db: Db, tenantId: string, callId: string, 
     .eq("id", callId)
     .eq("tenant_id", tenantId)
     .select("id");
-  if (error) console.error("link_call_message_failed", error.message);
+  if (error) dbLog().error("link_call_message_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
   else if (!data || data.length === 0)
-    console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+    dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
+}
+
+/**
+ * What these calls' lines showed, by id -- the number (from_e164) and what the line handed over raw (from_raw), which
+ * contracts' callerName names a call by -- in one read for a hundred ids or fewer (IDS_PER_READ), under the caller's row
+ * security and the workspace's own filter: a call the caller cannot read is not answered. A read that fails THROWS.
+ */
+export async function callersOf(
+  db: Db,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Array<{ id: string; from_e164: string | null; from_raw: string | null }>> {
+  const out: Array<{ id: string; from_e164: string | null; from_raw: string | null }> = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db
+      .from("calls")
+      .select("id, from_e164, from_raw")
+      .eq("tenant_id", tenantId)
+      .in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`callersOf: ${error.message}`);
+    out.push(...(data ?? []));
+  }
+  return out;
 }
 
 /**
@@ -135,9 +175,9 @@ export async function setCallRecording(
     .eq("id", callId)
     .eq("tenant_id", tenantId)
     .select("id");
-  if (error) console.error("set_call_recording_failed", error.message);
+  if (error) dbLog().error("set_call_recording_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
   else if (!data || data.length === 0)
-    console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+    dbLog().error("set_call_recording_noop", { tenant_id: tenantId, call_id: callId });
 }
 
 /** The customer's thread gets the call as a message, so history stays in one place. */
@@ -182,7 +222,7 @@ export async function recordCallNote(
         .maybeSingle();
       return prior?.id ?? null;
     }
-    console.error("record_call_note_failed", error.message);
+    dbLog().error("record_call_note_failed", { tenant_id: p.tenantId, error: error.message });
     return null;
   }
   return data.id;
@@ -203,4 +243,48 @@ export async function claimCallNotification(db: Db, tenantId: string, callId: st
     .select("id");
   if (error) throw new Error(`claim_call_notification: ${error.message}`);
   return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Claim the one start of a call's Live Activity on the workspace's phones (00221). True for the first delivery of its
+ * call_started; false once claimed, so a redelivered one starts nothing twice. Throws on a database error.
+ */
+export async function claimCallActivity(db: Db, tenantId: string, callId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("calls")
+    .update({ activity_started_at: new Date().toISOString() })
+    .eq("id", callId)
+    .eq("tenant_id", tenantId)
+    .is("activity_started_at", null)
+    .select("id");
+  if (error) throw new Error(`claim_call_activity: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/** The caller's name as the Live page gives it (their display name, else their WhatsApp name), or null. */
+export async function callerNameOf(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("contacts")
+    .select("display_name, wa_profile_name")
+    .eq("tenant_id", tenantId)
+    .eq("id", contactId)
+    .maybeSingle();
+  if (error) throw new Error(`caller_name: ${error.message}`);
+  return (data?.display_name || data?.wa_profile_name || "").trim() || null;
+}
+
+/**
+ * Whether the call the provider knows as `retellCallId` is this workspace's: what a live-call door asks before it
+ * speaks into, ends or hands over a call for a token's workspace (the dashboard's route proved it under RLS; the edge
+ * acts through the service role and proves it again). Null when the read failed: the door answers that, never a yes.
+ */
+export async function isWorkspaceCall(db: Db, tenantId: string, retellCallId: string): Promise<boolean | null> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("calls")
+    .select("id")
+    .eq("retell_call_id", retellCallId)
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return data !== null;
 }

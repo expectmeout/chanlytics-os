@@ -7,7 +7,7 @@
  * activityWords); the page only reads them out. A person is found by name or
  * number through the People route, then filtered by id.
  */
-import { activityTone, personName, type ActivityPageDto, type PersonRowDto } from "@chanlytics/contracts";
+import { activityTone, personName, type ActivityPageDto } from "@chanlytics/contracts";
 import { api } from "./api";
 import type { ApiResult } from "../client/api";
 import { readCache } from "./read-cache";
@@ -51,7 +51,9 @@ export const activity = {
    * when a pointer or the keyboard reaches the tab, so the pane it opens has
    * its rows already. Costs one request the visit was going to make anyway.
    */
-  warm: (f: ActivityFilters = {}): void => pages.warm(keyOf(f), () => activity.list(f)),
+  warm: (f: ActivityFilters = {}): void => {
+    void pages.warm(keyOf(f), () => activity.list(f));
+  },
   /** Somebody wrote; the answers describe the world as it was. */
   forget: (): void => pages.clear(),
   /** What a row means, in the product's six tones. Pure, from contracts. */
@@ -60,9 +62,7 @@ export const activity = {
   people: async (q: string): Promise<{ id: string; name: string; phone: string | null }[]> => {
     const r = await api()("GET contacts", { query: { q } });
     if (!r.ok) return [];
-    return (r.data.people as PersonRowDto[])
-      .slice(0, 10)
-      .map((p) => ({ id: p.id, name: personName(p), phone: p.phone_e164 }));
+    return r.data.people.slice(0, 10).map((p) => ({ id: p.id, name: personName(p), phone: p.phone_e164 }));
   },
 };
 

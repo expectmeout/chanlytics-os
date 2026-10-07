@@ -2,7 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { isRetryableAuthError } from "@/server/auth-errors";
 import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
+import { linkHostAnswers, linkHostOf } from "@/link-host";
 import { writeAuthCookies } from "@/server/auth-cookies";
+import { env, isProduction, servedOverHttps } from "@/server/env";
+import { publicEnv } from "@/lib/public-env";
+import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
+import { returnFragmentOf } from "@/auth/sign-in-return";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every
@@ -34,6 +39,13 @@ const PUBLIC_PATHS = new Set([
   "/auth/callback",
   "/auth/native",
   "/api/version",
+  // The brain door ElevenLabs calls for a voice conversation with Ask (docs/decisions/0026): no cookie, so no gate
+  // here; the door itself checks the agent's secret and the session's id before it reads a byte, and runs the turn
+  // as the member under RLS with the token the session row keeps. Three exact paths, since the vendor appends
+  // /chat/completions to the address it is given.
+  "/api/ask/voice/llm",
+  "/api/ask/voice/llm/chat/completions",
+  "/api/ask/voice/llm/v1/chat/completions",
   "/manifest.webmanifest",
   "/signup",
   "/api/v1/signup",
@@ -55,11 +67,20 @@ const PUBLIC_PATHS = new Set([
  *           reviewer who gets a login screen has been shown a business that
  *           cannot be looked up, which is error 30919 with extra steps.
  *
- * Adding one here is adding a page anybody on the internet may read. Both were
+ *   /u/     the unsubscribe link every campaign email carries (RFC 8058). It
+ *           carries a token, not a slug, and it is the one public route that
+ *           takes input: its only write is a person's own "stop", under a key
+ *           only we hold, and a GET changes nothing (src/server/public/unsubscribe.ts).
+ *
+ *   /p/     a partner's link (decision 0012). It leaves one cookie naming the
+ *           partner's code and goes on to sign-up; it reads nothing and writes
+ *           nothing else (app/p/[code]/route.ts).
+ *
+ * Adding one here is adding a page anybody on the internet may read. Each was
  * built for exactly that; nothing else goes on this list without the same
  * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/"];
+const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/"];
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a
@@ -86,10 +107,13 @@ function noStore(response: NextResponse): NextResponse {
  * also a vercel.app host and must keep answering as itself.
  */
 function canonicalRedirect(request: NextRequest): NextResponse | null {
-  const canonical = process.env.CANONICAL_HOST;
-  if (!canonical || process.env.VERCEL_ENV !== "production") return null;
+  const canonical = env.CANONICAL_HOST;
+  if (!canonical || !isProduction()) return null;
   const host = request.headers.get("host");
   if (!host || host === canonical || !host.endsWith(".vercel.app")) return null;
+  // The unsubscribe link answers where it is pressed: a mail client's one click must never be redirected (RFC
+  // 8058), and the page holds no session for a second host to lose.
+  if (request.nextUrl.pathname.startsWith("/u/")) return null;
   const url = new URL(request.url);
   url.host = canonical;
   url.protocol = "https:";
@@ -98,6 +122,10 @@ function canonicalRedirect(request: NextRequest): NextResponse | null {
 }
 
 export async function proxy(request: NextRequest) {
+  // On the cold link host (D17) the unsubscribe page and nothing else: never a sign-in form on a domain cold mail names.
+  const linkHost = linkHostOf(env.UNSUBSCRIBE_ORIGIN);
+  if (!linkHostAnswers({ host: request.headers.get("host"), path: request.nextUrl.pathname, linkHost }))
+    return new NextResponse("Not found", { status: 404 });
   const moved = canonicalRedirect(request);
   if (moved) return moved;
   // The policy composed in src/csp.ts, on the response so the browser
@@ -105,9 +133,9 @@ export async function proxy(request: NextRequest) {
   // nonce a request header would carry does not reach the render on Vercel
   // (src/csp.ts says what was tried), so the policy names inline by name.
   const csp = contentSecurityPolicy({
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    leadMapBase: process.env.NEXT_PUBLIC_LEAD_MAP_BASE,
-    dev: process.env.NODE_ENV !== "production",
+    supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
+    leadMapBase: env.NEXT_PUBLIC_LEAD_MAP_BASE,
+    dev: !publicEnv.productionBuild,
     reportOnly: CSP_HEADER === "content-security-policy-report-only",
   });
   const nextWithPolicy = () => {
@@ -117,32 +145,33 @@ export async function proxy(request: NextRequest) {
   };
   let response = nextWithPolicy();
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet, headers) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = nextWithPolicy();
-          // A refreshed token rides out on THIS response, so the headers that
-          // keep it out of every cache in front of us ride with it. Dropping
-          // them lets a shared cache hand one operator's Set-Cookie to the
-          // next person who asks for the URL -- see src/server/auth-cookies.ts.
-          writeAuthCookies(response, cookiesToSet, headers);
-        },
+  const supabase = createServerClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookieOptions: sessionCookieOptions(servedOverHttps()),
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet, headers) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = nextWithPolicy();
+        // A refreshed token rides out on THIS response, so the headers that
+        // keep it out of every cache in front of us ride with it. Dropping
+        // them lets a shared cache hand one operator's Set-Cookie to the
+        // next person who asks for the URL -- see src/server/auth-cookies.ts.
+        writeAuthCookies(response, cookiesToSet, headers);
       },
     },
-  );
+  });
 
-  // getUser() validates the JWT server-side — never trust getSession() here.
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser();
+  // getClaims() VERIFIES the token's signature -- locally, over the project's public signing key (the JWKS, fetched
+  // once per process and kept ten minutes), where the project signs with an asymmetric key; over the Auth server,
+  // as getUser() did, where it still signs with the shared secret. Never getSession(), which reads the cookie and
+  // asks nobody. Measured on production (25 Sep 2026): every request paid this round trip here and again in the
+  // route wrapper, twice on a page, some fifty times on a cold load of a person's page. What the local check does
+  // not see is a session revoked before its token expires (an hour at most): the route's own reads run under RLS
+  // with that same token either way.
+  const { data: verified, error: authErr } = await supabase.auth.getClaims();
+  const user = verified?.claims ?? null;
 
   const path = request.nextUrl.pathname;
   // Exact paths, not prefixes. `path.startsWith("/auth")` made every future
@@ -151,12 +180,16 @@ export async function proxy(request: NextRequest) {
   // nothing in review would have flagged it. Adding a public route is now a
   // deliberate edit to this list, which the auth tests assert against.
   const isPublic = PUBLIC_PATHS.has(path) || PUBLIC_PREFIXES.some((p) => path.startsWith(p));
+  // A /api/v1 request that carries a bearer token (decision 0011: the phone app's native screens) has no cookie for
+  // this gate to read; the route's own wrapper verifies the token, and auth-gate.test.mjs holds every /api/v1 route
+  // to that wrapper. Only there, only with the header: a page request never passes on a header.
+  const bearer = path.startsWith("/api/v1/") && /^Bearer\s+\S+/i.test(request.headers.get("authorization") ?? "");
 
   // "We could not ask" is not "you are not signed in". withRoute answers 503
   // for a retryable auth failure so the client keeps its session — but this
   // gate ran first and answered 401, so that branch was unreachable in the
   // exact outage it was written for.
-  if (!user && !isPublic && isRetryableAuthError(authErr)) {
+  if (!user && !isPublic && !bearer && isRetryableAuthError(authErr)) {
     if (path.startsWith("/api/")) {
       return NextResponse.json(
         { ok: false, error: { code: "upstream_auth", message: "Could not verify your session just now — try again." } },
@@ -171,7 +204,7 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  if (!user && !isPublic) {
+  if (!user && !isPublic && !bearer) {
     // API callers get a machine-readable 401 — redirecting a fetch() to the
     // login HTML makes every client parse failure look like a data bug.
     if (path.startsWith("/api/")) {
@@ -184,9 +217,12 @@ export async function proxy(request: NextRequest) {
     url.pathname = "/login";
     // Drop the query string: clone() carries it over, so a conversation id in a
     // param would be copied onto the login URL and into the access logs. The
-    // app routes on the hash, which the browser preserves across redirects
-    // without the server ever seeing it — nothing is lost here.
+    // route of a workspace page rides in the fragment instead (sign-in-return.ts),
+    // which no server or log ever sees: a deep link at /w/acme/inbox/th-1 signs
+    // in and lands there. A hash address (/w/acme#/inbox) needs nothing: the
+    // browser preserves its fragment across the redirect on its own.
     url.search = "";
+    url.hash = returnFragmentOf(path);
     return noStore(NextResponse.redirect(url));
   }
   // A signed-in person has no business on either door: /signup would send a
@@ -201,5 +237,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|map)$).*)"],
+  // A font file is a static asset like an icon (public/fonts, Glass's Mona Sans): the gate skips it by extension too.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|map|woff2)$).*)"],
 };

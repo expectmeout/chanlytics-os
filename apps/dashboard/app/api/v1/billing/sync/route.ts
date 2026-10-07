@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
-import { BILLING_SAID, edgeBilling } from "@/server/billing";
+import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
 
 /**
  * POST /api/v1/billing/sync — read the subscription from Stripe now and
@@ -11,8 +11,8 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "billing",
-  handle: async ({ member }) => {
-    const a = await edgeBilling({ op: "sync", tenant_id: member.tenantId }, 25_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeBilling({ op: "sync", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : "failed";

@@ -83,7 +83,7 @@ unconditionally (`:1255`, resolved at `:1505`); `fallbackMessages`
 (`:1655-1665`), which fills `{booking link}` into the greeting, the error and
 the non-text messages and already drops a sentence naming a detail the
 workspace does not have (`fillDetails`, `:1623-1639`); the voice tool
-`send_booking_link` (`packages/channels/src/voice-shell.ts:136-159`), whose edge
+`send_booking_link` (`packages/channels/src/voice/voice-shell.ts:136-159`), whose edge
 door reads `brain.booking_link.replace(...)` **with no guard**
 (`apps/edge/api/retell-fn.ts:303`); and `layerTwo`
 (`packages/core/src/inbound/steps.ts:127`, moved into core by #843), which

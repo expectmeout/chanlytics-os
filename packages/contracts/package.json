@@ -8,12 +8,19 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "browser": "./dist/browser.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
-    }
+    },
+    "./write-rules": {
+      "types": "./dist/write-rules.d.ts",
+      "import": "./dist/write-rules.js",
+      "default": "./dist/write-rules.js"
+    },
+    "./phone-app": "./src/mobile/phone-app.ts"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts",
+    "build": "tsup",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,6 +28,6 @@
   },
   "devDependencies": {
     "tsup": "^8.3.0",
-    "typescript": "^5.7.0"
+    "typescript": "catalog:"
   }
 }

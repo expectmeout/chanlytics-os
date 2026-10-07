@@ -1,13 +1,14 @@
 /**
  * Everything answerInbound reaches outside itself, as one object.
  *
- * The verb is the customer path: nine hundred lines of decisions, most of them
- * pure steps (./steps.ts), joined to the world by a dozen modules -- the
- * database, the memory, the tenant runtime, the sink and the sender, the
- * alerts, the pager, the model. On the edge those were module imports, which
- * is why no test could run the handler and fifty source reads pinned its text
- * instead; here they are named ports, and the adapter that knows the tables,
- * the provider and the environment is apps/edge/lib/whatsapp/ports.ts.
+ * The verb is the customer path: an order of phases (./answer.ts), each a
+ * module beside it, their decisions most of them pure steps (./steps.ts),
+ * joined to the world by a dozen modules -- the database, the memory, the
+ * tenant runtime, the sink and the sender, the alerts, the pager, the model.
+ * On the edge those were module imports, which is why no test could run the
+ * handler and fifty source reads pinned its text instead; here they are named
+ * ports, and the adapter that knows the tables, the provider and the
+ * environment is apps/edge/lib/whatsapp/ports.ts.
  *
  * Every member was `typeof someEdgeModule` there. Written out here because a
  * verb may not import the edge: the signature is the contract, copied from the
@@ -15,9 +16,11 @@
  */
 import type {
   BrainConfig,
+  BrainIntent,
   BrainMeta,
   CalendarConfig,
   FeaturesConfig,
+  Handled,
   KnownFacts,
   NotificationsConfig,
   PolicyLimits,
@@ -110,6 +113,8 @@ export interface InboundRuntime {
   loadFailed: boolean;
   /** The config row EXISTS but does not parse — a mistake somebody can fix. */
   configBroken?: boolean;
+  /** tenant_config.version, stamped on each answer's meta; absent or null when it could not be read. */
+  configVersion?: number | null;
 }
 
 /**
@@ -139,6 +144,21 @@ export interface InboundHandoff {
   about?: { type: string; id: string } | null;
 }
 
+/**
+ * Who an answer is for: the ledger's row (ai_usage, written by the model port) and the stamp on its meta (the settings'
+ * version its prompt was composed from). The purpose is the receptionist's own unless a draft says otherwise.
+ */
+export interface BrainCall {
+  tenantId: string | null;
+  /** The conversation it answers. */
+  subjectId?: string | null;
+  /** tenant_config.version the prompt was composed from; null when it could not be read. */
+  configVersion?: number | null;
+  purpose?: "receptionist" | "reply_draft";
+  /** The customer's own words, when a second model may be put beside this turn in shadow (decision 0023). */
+  shadowText?: string;
+}
+
 /** What the model answered, and what the row remembers about it (the edge's brain.ts `BrainReply`). */
 export interface InboundBrainReply {
   text: string;
@@ -165,10 +185,24 @@ export interface InboundSink {
     purpose?: SendPurpose,
     kind?: SendKind,
   ): Promise<Delivered>;
-  processed(): Promise<unknown>;
+  /**
+   * The message is finished with, and says what it became (contracts Handled) and, where the model read it, what it was
+   * about; the adapter marks it processed and stamps both (K1, ./handled.ts). Both are optional so a caller with nothing
+   * to say still marks it.
+   */
+  processed(handled?: Handled, intent?: BrainIntent | null): Promise<unknown>;
+  /**
+   * Say what the message became WITHOUT marking it processed: for the one way out that leaves a message unfinished on
+   * purpose, a reply that could not be delivered, whose `send_failed` escalation landed (the deadman sweep finishes it,
+   * ./handled.ts). The adapter writes the same stamp `processed` does, through the same door and the same guard, and
+   * never touches processed_at.
+   */
+  noteHandled(handled: Handled, intent?: BrainIntent | null): Promise<unknown>;
   allowlistSkip(): Promise<unknown>;
   /** The sender cannot receive a reply (a short code). Recorded like any other message, and not answered. */
   unreachableSender(): Promise<unknown>;
+  /** An address the customer gave in their own words: kept only where none is on file; a taken address is said, never moved. */
+  noteEmail(address: string): Promise<unknown>;
   /** A veto window this workspace CONFIGURED did not happen, and the customer has the words already. */
   vetoFallback(delayMs: number, source?: "veto_window" | "low_confidence"): Promise<unknown>;
   /** The thread handed to a person; its held drafts go with it, all but the one this handoff queued. */
@@ -197,11 +231,22 @@ export interface InboundPorts {
     /** People → profile → "Receptionist for …": this person's own mode, or null. */
     personReplyMode(db: InboundDb, tenantId: string, contactId: string): Promise<string | null>;
     /**
+     * This person's answer about offers and how it was given, or null where there is no such person: what a START's
+     * confirmation on WhatsApp reads to say a STOP ended their yes (reply-gates.ts). Absent in an adapter that has
+     * none: the confirmation is then the filed words alone.
+     */
+    offersAnswer?(
+      db: InboundDb,
+      tenantId: string,
+      contactId: string,
+    ): Promise<{ marketingConsent: string | null; marketingConsentSource: string | null } | null>;
+    /**
      * That context in a line or two, for the model. A VALUE from the db package
      * on the edge, so it arrives as a port rather than as an import. The zone is
-     * the business's, for the dates a deal's sentence says (0004).
+     * the business's, for the dates a deal's sentence says (0004). The channel is the conversation's: a text rides this
+     * road on the WhatsApp prompt, and the ask for the yes to offers is for WhatsApp alone.
      */
-    describe(lead: LeadContext, now?: Date, tz?: string): string;
+    describe(lead: LeadContext, now?: Date, tz?: string, channel?: InboundChannel): string;
   };
   calendar: {
     openings(rt: InboundRuntime, now?: Date): Promise<string | null>;
@@ -221,6 +266,8 @@ export interface InboundPorts {
       tenantId: string | null,
       n: NormalizedInbound,
       channel?: InboundChannel,
+      /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
+      line?: string | null,
     ): Promise<IngestResult | null>;
     sink(
       db: InboundDb | null,
@@ -230,6 +277,15 @@ export interface InboundPorts {
       channel?: InboundChannel,
       wire?: Wire,
     ): InboundSink;
+    /**
+     * The thread's reply turn (00284, ./turn.ts): `claim` takes it for this message before the model is asked, and
+     * withdraws the drafts an older turn left waiting; `holds` asks again before the words go out. False when a newer
+     * message of the thread holds it. Absent in an adapter that has none: the turn is then always held.
+     */
+    turn?: {
+      claim(db: InboundDb, tenantId: string, conversationId: string, messageId: string): Promise<boolean>;
+      holds(db: InboundDb, conversationId: string, messageId: string): Promise<boolean>;
+    };
     /** The reply written as a DRAFT and scheduled to fire; null when it could not be queued. */
     queueReply(
       db: InboundDb | null,
@@ -266,6 +322,7 @@ export interface InboundPorts {
       nowNote?: string,
       image?: { mime: string; base64: string },
       steer?: string,
+      call?: BrainCall,
     ): Promise<InboundBrainReply>;
   }>;
   /**

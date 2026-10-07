@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { CALL_COLUMNS, toCallDto } from "@/server/dto";
 import { requireUuid } from "@/server/request-guards";
-import type { CallDto } from "@chanlytics/contracts";
+import { load, readerContext } from "@/server/readers";
+import { calls } from "@/server/readers/calls";
 
 const Query = z.object({
   /** Narrow to one thread's calls. */
@@ -21,18 +21,7 @@ export const GET = read({
   scope: workspace,
   query: Query,
   handle: async ({ ctx, member, input }) => {
-    const tenantId = member.tenantId;
-    let q = ctx.supabase
-      .from("calls")
-      .select(CALL_COLUMNS)
-      .eq("tenant_id", tenantId)
-      .order("started_at", { ascending: false, nullsFirst: false })
-      .limit(100);
-    if (input.conversation_id) q = q.eq("conversation_id", requireUuid(input.conversation_id, "conversation"));
-    if (input.status) q = q.eq("status", input.status);
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    const calls: CallDto[] = (data ?? []).map(toCallDto);
-    return { calls };
+    const conversationId = input.conversation_id ? requireUuid(input.conversation_id, "conversation") : undefined;
+    return (await load(readerContext(ctx, member), calls, { conversationId, status: input.status })).data;
   },
 });

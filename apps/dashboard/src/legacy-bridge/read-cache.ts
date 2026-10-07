@@ -29,6 +29,7 @@
  * workspaces cannot paint the last one's rows: the prefix simply misses.
  */
 import { getActiveWorkspace } from "./workspace";
+import { publicEnv } from "@/lib/public-env";
 
 /** Entries per cache. A log paged ten deep plus its filters, and no more. */
 const MAX_ENTRIES = 24;
@@ -39,15 +40,15 @@ const TAB_ENTRY_CHARS = 200_000;
 /** The tab's storage is shared with the surfaces (surface-cache.ts, up to 2M), so what this may take stays well under it. */
 const TAB_TOTAL_CHARS = 600_000;
 /** A deploy can change a view model's shape, so the tab's copy is the build's own, as surface-cache's is. */
-const BUILD = process.env.NEXT_PUBLIC_BUILD_SHA || "dev";
+const BUILD = publicEnv.NEXT_PUBLIC_BUILD_SHA;
 
 export interface ReadCache<T> {
   /** The last answer for this key, or null. Synchronous: this is what the first paint draws. */
   peek(key: string): T | null;
   /** Read, remember the answer, hand it back. A refusal is never remembered. */
   through(key: string, fresh: () => Promise<T>): Promise<T>;
-  /** Start a read now, so a peek that follows hits. Never throws, never awaited. Held and current: nothing to read. */
-  warm(key: string, fresh: () => Promise<T>): void;
+  /** Start a read now, so a peek that follows hits, and say which (never throws): null held and current, nothing to read. */
+  warm(key: string, fresh: () => Promise<T>): Promise<T> | null;
   /** Let go of one answer: what it described is gone (a person deleted, a person the server no longer has). */
   forget(key: string): void;
   /** A write landed. A memory cache lets go of everything; a tab-kept one keeps its answers to paint and reads each again before it warms it. */
@@ -197,10 +198,12 @@ export function readCache<T>(
     warm(key, fresh) {
       load();
       const at = scoped(key);
-      if (store.has(at) && !old.has(at)) return;
+      if (store.has(at) && !old.has(at)) return null;
       // The client already shares an identical read that is still in flight
       // (client/api.ts), so warming twice costs one request, not two.
-      cache.through(key, fresh).catch(() => {});
+      const read = cache.through(key, fresh);
+      read.catch(() => {});
+      return read;
     },
     forget(key) {
       load();

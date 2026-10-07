@@ -4,9 +4,19 @@
  * dedupe; everything else is plain row work.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { EventKind } from "@chanlytics/contracts";
-import { normalizePhone, type PurposeBearing } from "@chanlytics/contracts";
+import {
+  CARRIER_CONSENT_SOURCE,
+  conversationPatch,
+  normalizePhone,
+  type BrainIntent,
+  type Handled,
+  type PurposeBearing,
+  HOUR_MS,
+} from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import { emitEvent } from "../events";
+import { dbLog } from "../observe";
+import { noChannelColumns, noRelationshipColumn } from "./campaigns/campaign-channels";
 
 type Db = SupabaseClient<Database>;
 
@@ -51,6 +61,46 @@ export interface IngestResult {
   dnc?: boolean | null;
 }
 
+/**
+ * They have said stop, and it stands: a yes to offers that arrives now is not recorded (stoppedNow, read from the
+ * ingest's own answer, which is the row after this message was applied). The way back in from a STOP is START, never
+ * YES OFFERS (one word opening both programs is what the carriers refuse, 30913), and a yes stored under a stop would
+ * be a yes nobody confirmed and no later stop could end (00323 ends a yes when the stop is RECORDED, and a second STOP
+ * from a person already stopped records nothing). After START, the confirmation on WhatsApp says how to get offers.
+ */
+export function stoppedNow(r: Pick<IngestResult, "consent" | "dnc"> | null | undefined): boolean {
+  return r?.consent === "opted_out" || r?.dnc === true;
+}
+
+/**
+ * A START is a yes on the channel it came on, and ingest_inbound writes its consent event only when the answer
+ * changes: a START by text from someone already opted in on WhatsApp left no event and covered no text. This door
+ * (00297) writes the event when their list lacks the channel, and the database adds it to the list. Best-effort, for the
+ * reason the offers write in ingestInbound is: the customer has been received, and a channel that has to be repaired is
+ * logged, never a reason to fail their message.
+ */
+async function noteYesOnChannel(db: Db, p: IngestInboundParams, contactId: string): Promise<void> {
+  const failed = (error: string) =>
+    dbLog().error("consent_channel_write_failed", { tenant_id: p.tenantId, contact_id: contactId, error });
+  try {
+    const { error } = await db.rpc("note_yes_on_channel", {
+      p_tenant_id: p.tenantId,
+      p_contact_id: contactId,
+      p_channel: p.channel,
+      p_message_external_id: p.messageExternalId,
+      p_words: (p.body ?? "").slice(0, 80),
+    });
+    // A database that has not been given 00297 has no such function, and PostgREST refuses the call by naming it:
+    // nothing is kept per channel there yet, so there is nothing to repair.
+    const missing =
+      error?.code === "PGRST202" ||
+      /Could not find the function public\.note_yes_on_channel/.test(error?.message ?? "");
+    if (error && !missing) failed(error.message);
+  } catch (e) {
+    failed(e instanceof Error ? e.message : String(e));
+  }
+}
+
 export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<IngestResult> {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,
@@ -70,6 +120,10 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data as unknown as IngestResult;
 
+  // A START is a yes on the channel it came on (contracts consent-channels.ts): see noteYesOnChannel. After the ingest,
+  // using the contact it returned.
+  if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
+
   // The OTHER answer, if that is what arrived. Separate call, separate column,
   // separate ledger entry -- which is the whole point: the carriers refused a
   // campaign because one message gave one yes that covered both (error 30913).
@@ -78,7 +132,9 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   // and answered by the time this runs; failing their message because a second
   // write did not land would be a worse outcome than a consent record that has
   // to be repaired. It is logged loudly instead.
-  if (p.optInMarketing && out?.contact_id) {
+  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
+  } else if (p.optInMarketing && out?.contact_id) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
@@ -100,18 +156,52 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
     if (mErr && /p_evidence/.test(mErr.message))
       ({ error: mErr } = await db.rpc("set_marketing_consent", args as never));
     if (mErr) {
-      console.error(
-        JSON.stringify({
-          level: "error",
-          event: "marketing_consent_write_failed",
-          tenant_id: p.tenantId,
-          contact_id: out.contact_id,
-          error: mErr.message,
-        }),
-      );
+      dbLog().error("marketing_consent_write_failed", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: mErr.message,
+      });
     }
   }
   return out;
+}
+
+/**
+ * A no the carrier reported instead of relaying: a text refused with Twilio
+ * 21610, the person having replied STOP to the number before we heard (the
+ * STOP went to the carrier, or came before the line's webhook pointed here).
+ * The number is unreachable whatever our row says (contracts enums.ts, the
+ * carriers' words), so the row is brought to agree with the carrier THE WAY
+ * ingest_inbound records a STOP it did hear: the three consent columns
+ * together, dnc with them, and one contact.consent_changed row -- the carrier
+ * as its source, since there is no message of theirs to name. A person
+ * already opted out is left as they are, with no second ledger row: the
+ * update is guarded and counted, and the event written only for a row that
+ * changed. A write that fails THROWS, as ingestInbound's does: the door
+ * reports the send as it reports any wire it could not write, rather than a
+ * no going unrecorded under a refusal that says it was.
+ */
+export async function recordCarrierOptOut(
+  db: Db,
+  p: { tenantId: string; contactId: string; channel: "sms"; previous: string | null },
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("contacts")
+    .update({
+      consent: "opted_out",
+      dnc: true,
+      consent_source: CARRIER_CONSENT_SOURCE,
+      consent_updated_at: new Date().toISOString(),
+    })
+    .eq("id", p.contactId)
+    .eq("tenant_id", p.tenantId)
+    .neq("consent", "opted_out")
+    .select("id");
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
+  return true;
 }
 
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
@@ -120,8 +210,31 @@ export async function markProcessed(db: Db, tenantId: string, messageId: string)
   const { error } = await db.rpc("mark_processed", {
     p_tenant_id: tenantId,
     p_message_id: messageId,
-  } as never);
+  });
   if (error) throw new Error(`mark_processed: ${error.message}`);
+}
+
+/**
+ * Say what a customer's message became (the Reports lenses spec, K1): `meta.handled` and, where the model read it,
+ * `meta.intent`, merged into the row by message_stamp_handled beside processed_at, never over it, the first answer
+ * standing. A door of its own, apart from markProcessed: processed_at is what the deadman sweep reads, so the two are
+ * written together and fail alone. A failure throws, and the sink that calls it guards it (pgSafe), as it guards every
+ * write of a message's bookkeeping.
+ */
+export async function stampHandled(
+  db: Db,
+  tenantId: string,
+  messageId: string,
+  handled: Handled,
+  intent: BrainIntent | null,
+): Promise<void> {
+  const { error } = await db.rpc("message_stamp_handled", {
+    p_tenant_id: tenantId,
+    p_message_id: messageId,
+    p_handled: handled,
+    ...(intent ? { p_intent: intent } : {}),
+  });
+  if (error) throw new Error(`message_stamp_handled: ${error.message}`);
 }
 
 export async function recordOutbound(
@@ -142,6 +255,10 @@ export async function recordOutbound(
     channel?: "whatsapp" | "sms" | "email";
   },
 ): Promise<string | null> {
+  // An email's row is written before its words leave, under the id its request is frozen with (core deliver.ts): an
+  // id minted here, after the send, is one no receipt can name.
+  if (p.channel === "email")
+    throw new Error("record_outbound: an email's row is written before it is sent, never after");
   const { data, error } = await db
     .from("messages")
     .insert({
@@ -174,7 +291,7 @@ export async function recordOutbound(
   await Promise.all([
     db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", p.conversationId),
     status === "sent"
-      ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender })
+      ? emitEvent(db, p.tenantId, "message.sent", "message", data.id, { sender: p.sender })
       : Promise.resolve(),
   ]);
   return data.id;
@@ -246,6 +363,9 @@ export interface OutboundTarget extends PurposeBearing {
   // whole compiled, read `marketing_consent` as absent, and failed CLOSED: every
   // promotion silently refused, with no error anywhere to say why.
   marketing_consent: string | null;
+  /** The channels each yes covers, as the database keeps them (contracts consent-channels.ts); null: WhatsApp alone. */
+  consent_channels: string[] | null;
+  marketing_channels: string[] | null;
   /** A human has this thread until then. Carried for the same reason consent
    *  is: a sender that is not handed the fact cannot honour it. */
   pausedUntil: string | null;
@@ -273,32 +393,60 @@ export async function resolveOutboundTarget(
   // duplicate contact carrying none of the original's consent history.
   const phone = normalizePhone(p.phoneE164);
   if (!phone) return null;
-  const { data: existing, error: selErr } = await db
+  const first = await db
     .from("contacts")
-    .select("id, consent, dnc, marketing_consent")
+    .select("id, consent, dnc, marketing_consent, consent_channels, marketing_channels")
     .eq("tenant_id", p.tenantId)
     .eq("phone_e164", phone)
     .maybeSingle();
+  // A database 00297 has not reached has no channel arrays: read again without them, and WhatsApp alone is what a yes covers.
+  const { data: existing, error: selErr } = noChannelColumns(first.error)
+    ? await db
+        .from("contacts")
+        .select("id, consent, dnc, marketing_consent")
+        .eq("tenant_id", p.tenantId)
+        .eq("phone_e164", phone)
+        .maybeSingle()
+    : first;
   if (selErr) throw new Error(`resolve_outbound_target: ${selErr.message}`);
 
-  let contact = existing;
+  // A contact made here has said no yes on any channel yet: its channels are none kept.
+  let contact: OutboundContact | null = existing;
   if (!contact) {
     if (!p.create) return null;
     contact = await getOrCreateContact(db, p.tenantId, phone);
   }
+  return threadOf(db, p.tenantId, contact, p.touch);
+}
 
-  // `touch` because resolving a thread is not the same as writing to it. A
-  // broadcast resolves one per recipient BEFORE the door decides whether they
-  // may be messaged, and stamping last_message_at there sends every refused
-  // person's thread to the top of the Inbox as if something had happened in it.
-  // The stamp belongs to the message: recordOutbound writes it when one lands.
+/** The contact row an outbound target is made from: who they are to the consent predicate. */
+type OutboundContact = { id: string; consent: string; dnc: boolean; marketing_consent: string } & {
+  consent_channels?: string[] | null;
+  marketing_channels?: string[] | null;
+};
+
+/**
+ * The person's one thread (opened when they have none) and the target a send is judged by, from the contact row.
+ *
+ * `touch` because resolving a thread is not the same as writing to it. A
+ * broadcast resolves one per recipient BEFORE the door decides whether they
+ * may be messaged, and stamping last_message_at there sends every refused
+ * person's thread to the top of the Inbox as if something had happened in it.
+ * The stamp belongs to the message: recordOutbound writes it when one lands.
+ */
+async function threadOf(
+  db: Db,
+  tenantId: string,
+  contact: OutboundContact,
+  touch: boolean | undefined,
+): Promise<OutboundTarget> {
   const { data: conv, error: cErr } = await db
     .from("conversations")
     .upsert(
       {
-        tenant_id: p.tenantId,
+        tenant_id: tenantId,
         contact_id: contact.id,
-        ...(p.touch === false ? {} : { last_message_at: new Date().toISOString() }),
+        ...(touch === false ? {} : { last_message_at: new Date().toISOString() }),
       },
       { onConflict: "tenant_id,contact_id" },
     )
@@ -317,7 +465,68 @@ export async function resolveOutboundTarget(
     consent: contact.consent ?? null,
     dnc: contact.dnc ?? false,
     marketing_consent: contact.marketing_consent ?? null,
+    consent_channels: contact.consent_channels ?? null,
+    marketing_channels: contact.marketing_channels ?? null,
   };
+}
+
+/**
+ * The same target by the person's id, for a send that reaches them by something other than a number (an email): their
+ * one thread, opened when they have none, with the consent they are judged by. Never creates a contact; null for one
+ * that is gone, erased or merged into another, whose thread is the other's. Carried like resolveOutboundTarget's, so
+ * no caller can send without having been handed the consent state.
+ */
+export async function resolveOutboundTargetForContact(
+  db: Db,
+  p: { tenantId: string; contactId: string; touch?: boolean },
+): Promise<OutboundTarget | null> {
+  const first = await db
+    .from("contacts")
+    .select(
+      "id, consent, dnc, marketing_consent, consent_channels, marketing_channels, erased_at, merged_into_contact_id",
+    )
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.contactId)
+    .maybeSingle();
+  // The same answer on a database 00297 has not reached: without the channel arrays, a yes covers WhatsApp alone.
+  const { data, error } = noChannelColumns(first.error)
+    ? await db
+        .from("contacts")
+        .select("id, consent, dnc, marketing_consent, erased_at, merged_into_contact_id")
+        .eq("tenant_id", p.tenantId)
+        .eq("id", p.contactId)
+        .maybeSingle()
+    : first;
+  if (error) throw new Error(`resolve_outbound_target_for_contact: ${error.message}`);
+  if (!data || data.erased_at || data.merged_into_contact_id) return null;
+  return threadOf(db, p.tenantId, data, p.touch);
+}
+
+/**
+ * What the send door re-reads at the wire for one thread, in one query: its pause and who holds it, the person's consent
+ * row (with the channels each yes covers) and email, and the workspace's status; and, when `relationship` is asked,
+ * whether they have a relationship with the business (`has_relationship`, the other way into an offer by email). The
+ * relationship is asked only by a send that needs it, an email OFFER: it is a function of the person's row that reads their
+ * messages, calls and deals, so a WhatsApp reply or a reminder never pays for it. The answer as the database gives it,
+ * `{ data, error }`: the door words a failed read itself, because "we could not check" is not "yes". A database 00299
+ * has not reached has no `has_relationship`, and one 00297 has not reached has no channel arrays either: it is read
+ * again without them, a yes then covers WhatsApp alone and no relationship is on record, as before them: code that ships
+ * before its migration must keep every reply, answer and booking link going.
+ */
+export async function wireRowOf(db: Db, p: { tenantId: string; conversationId: string; relationship: boolean }) {
+  const head = "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
+  const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
+  const read = (columns: string) =>
+    db
+      .from("conversations")
+      .select(`${head}${columns}${tail}`)
+      .eq("id", p.conversationId)
+      .eq("tenant_id", p.tenantId)
+      .maybeSingle();
+  const full = await read(`consent_channels, marketing_channels, ${p.relationship ? "has_relationship, " : ""}`);
+  if (!noRelationshipColumn(full.error) && !noChannelColumns(full.error)) return full;
+  const withChannels = noRelationshipColumn(full.error) ? await read("consent_channels, marketing_channels, ") : full;
+  return noChannelColumns(withChannels.error) ? read("") : withChannels;
 }
 
 /**
@@ -332,7 +541,7 @@ export async function countSentToday(
   db: Db,
   p: { tenantId: string; conversationId: string; source: string },
 ): Promise<number> {
-  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const since = new Date(Date.now() - 24 * HOUR_MS).toISOString();
   const { count, error } = await db
     .from("messages")
     .select("id", { count: "exact", head: true })
@@ -358,8 +567,50 @@ export async function recordStatusByExternalId(
   const { error } = await db.from("messages").update(patch).eq("tenant_id", tenantId).eq("external_id", externalId);
   // Unknown wamid (pre-dual-write history) or monotone/terminal rejection: log-and-continue.
   if (error && !/monotone|terminal/.test(error.message)) {
-    console.error("record_status_failed", externalId, error.message);
+    dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
   }
+}
+
+/**
+ * The message of this workspace a provider's id names (Meta's wamid, Twilio's sid), as it stands, and where it went:
+ * what a receipt that reports a failure needs to know before it moves the row (core raiseLateFailure). Null when none
+ * carries the id: a receipt for history we never wrote. `to` is the number a text or a WhatsApp message went to, or the
+ * address an email did, as the person's row has it now. A read that fails THROWS.
+ */
+export async function messageByExternalId(db: Db, tenantId: string, externalId: string) {
+  const { data, error } = await db
+    .from("messages")
+    .select("id, conversation_id, direction, sender, channel, status, meta, contacts (phone_e164, email)")
+    .eq("tenant_id", tenantId)
+    .eq("external_id", externalId)
+    .maybeSingle();
+  if (error) throw new Error(`messageByExternalId: ${error.message}`);
+  if (!data) return null;
+  return {
+    messageId: data.id,
+    conversationId: data.conversation_id,
+    direction: data.direction,
+    sender: data.sender,
+    status: data.status,
+    meta: data.meta,
+    to: (data.channel === "email" ? data.contacts?.email : data.contacts?.phone_e164) ?? null,
+  };
+}
+
+/**
+ * What it cost to send a message, as Meta's receipt said it, kept once on its outbound row (message_keep_cost, 00319):
+ * the `pricing` object (billable, pricing_model, category, type; no amount), checked key by key by the door, the first
+ * answer standing. A refusal throws with the database's words; the receipt door that calls it catches that and logs it,
+ * so a cost never costs a receipt. Answers whether a row was written.
+ */
+export async function keepMessageCost(db: Db, tenantId: string, externalId: string, pricing: Json): Promise<boolean> {
+  const { data, error } = await db.rpc("message_keep_cost", {
+    p_tenant_id: tenantId,
+    p_external_id: externalId,
+    p_pricing: pricing,
+  });
+  if (error) throw new Error(`message_keep_cost: ${error.message}`);
+  return data === true;
 }
 
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
@@ -386,7 +637,10 @@ export async function recordEchoAndPause(
   try {
     contact = await getOrCreateContact(db, p.tenantId, phone);
   } catch (e) {
-    console.error("record_echo_contact_failed", e instanceof Error ? e.message : e);
+    dbLog().error("record_echo_contact_failed", {
+      tenant_id: p.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return;
   }
   // The thread, without moving anything on it yet. Meta redelivers a webhook it
@@ -402,7 +656,7 @@ export async function recordEchoAndPause(
     .select("id")
     .single();
   if (verr || !conv) {
-    console.error("record_echo_conv_failed", verr?.message);
+    dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
     return;
   }
   const { error } = await db.from("messages").insert({
@@ -418,7 +672,8 @@ export async function recordEchoAndPause(
     status: "sent",
     meta: { echo: true },
   });
-  if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
+  if (error && error.code !== "23505")
+    dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
   // An echo we have already stored changes nothing else: the owner spoke once.
   // An echo carrying no id of its own cannot be told apart from its own replay,
   // so it still pauses -- a receptionist talking over the owner is the worse of
@@ -426,10 +681,11 @@ export async function recordEchoAndPause(
   if (error?.code === "23505" && p.externalId) return;
   const { error: perr } = await db
     .from("conversations")
-    .update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: new Date().toISOString() })
+    .update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: new Date().toISOString() }))
     .eq("id", conv.id)
     .eq("tenant_id", p.tenantId);
-  if (perr) console.error("record_echo_pause_failed", perr.message);
+  if (perr)
+    dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
 }
 
 /**
@@ -459,16 +715,20 @@ export async function pauseConversation(
 ): Promise<boolean> {
   const { data, error } = await db
     .from("conversations")
-    .update({ state: "needs_human", paused_until: pausedUntilIso })
+    .update(conversationPatch("hand_off", { until: pausedUntilIso }))
     .eq("id", conversationId)
     .eq("tenant_id", tenantId)
     .select("id");
   if (error) {
-    console.error("pause_conversation_failed", conversationId, error.message);
+    dbLog().error("pause_conversation_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: error.message,
+    });
     return false;
   }
   if (!data || data.length === 0) {
-    console.error("pause_conversation_noop", conversationId);
+    dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }
   // A person is taking the thread, so the receptionist's held drafts on it
@@ -487,26 +747,38 @@ export async function pauseConversation(
     .eq("status", "queued");
   if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
   const { error: wErr } = await withdraw;
-  if (wErr) console.error("pause_withdraw_drafts_failed", conversationId, wErr.message);
+  if (wErr)
+    dbLog().error("pause_withdraw_drafts_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: wErr.message,
+    });
   return true;
 }
 
-export async function emitEvent(
+/**
+ * The thread's reply turn (00284; the verb's rule is core inbound/turn.ts): claimed for a message before the model is
+ * asked, so a newer message of the thread holds it. False only when a newer message has the turn. A call that fails
+ * throws, and the verb reads that as a turn held: a reply is never lost to this bookkeeping.
+ */
+export async function claimReplyTurn(
   db: Db,
   tenantId: string,
-  kind: EventKind,
-  category: string,
-  subjectType: string | null,
-  subjectId: string | null,
-  data: Json = {},
-): Promise<void> {
-  const { error } = await db.from("events").insert({
-    tenant_id: tenantId,
-    kind,
-    category,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    data,
+  conversationId: string,
+  messageId: string,
+): Promise<boolean> {
+  const { data, error } = await db.rpc("claim_reply_turn", {
+    p_tenant: tenantId,
+    p_conversation: conversationId,
+    p_message: messageId,
   });
-  if (error) console.error("emit_event_failed", kind, error.message);
+  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  return data !== false;
+}
+
+/** Whether this message still holds its thread's turn once the model has answered: false only when a newer message took it. */
+export async function holdsReplyTurn(db: Db, conversationId: string, messageId: string): Promise<boolean> {
+  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  return data !== false;
 }

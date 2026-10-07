@@ -1,13 +1,15 @@
 /**
  * The server a signed-in spec is run against, with no deployment, no database and no Supabase.
  *
- *   node tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon]     (from the repo root)
+ *   node tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon|pipeline|kit]     (from the repo root)
  *
  * Three things, and nothing else:
  *   - the two Supabase auth calls e2e/session.ts makes, answered so `signIn()` mints a harmless local cookie;
  *   - the standalone mockup (apps/dashboard/src/legacy), read from disk on every request through serve-legacy.mjs's
  *     own static serving, so a change to a page or a stylesheet shows on the next load -- which is what makes a
- *     mutation run possible;
+ *     mutation run possible; for the `kit` record, the kit's gallery in its place (kit-gallery.mjs), on the same
+ *     stylesheets, and at /behaves the page that runs the kit's components with behaviour of their own
+ *     (kit-behaves.tsx), bundled once as the harness starts (kit-behaves.mjs);
  *   - the `/api/v1` reads the spec makes itself, answered from the same record the page was built from, in the
  *     app's own envelope (contracts `ok`/`err`).
  *
@@ -21,8 +23,19 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dealsAreOn, err, ok } from "@chanlytics/contracts";
 import { buildFixture } from "./fixture.mjs";
+import { buildBehaves } from "./kit-behaves.mjs";
+import { behavesDocument, galleryDocument } from "./kit-gallery.mjs";
 import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
-import { mascotBundle, reportsSampleBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
+import {
+  inboxGlobalsBundle,
+  kitGlobalsBundle,
+  leadsGlobalsBundle,
+  mascotBundle,
+  peopleGlobalsHarnessBundle,
+  send,
+  serveStatic,
+  TYPES,
+} from "../serve-legacy.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
@@ -90,6 +103,10 @@ export function answer(method, pathname, params, record) {
         ],
       }),
     };
+  }
+  // The bell's kept rows (scenarios.mjs bellNotes), as the route hands them over, with no seen moment yet.
+  if (pathname === "/api/v1/notifications" && record.notifications) {
+    return { status: 200, body: ok({ notifications: record.notifications, seen_at: null }) };
   }
   if (pathname === "/api/v1/settings") {
     return {
@@ -171,17 +188,26 @@ export function documentWithFixture() {
 }
 
 /**
+ * The page a record's harness serves at `/` and at its workspace's address: the kit's gallery for the `kit` record,
+ * which runs none of the mockup's scripts, and the mockup with its fixture for every other.
+ */
+export const pageOf = (record) => (record.gallery ? galleryDocument() : documentWithFixture());
+
+/**
  * Start the harness. Port 0 takes a free one, which is what the runner does. Resolves once it is listening, with the
  * record it is serving and the way to stop it.
  */
 export async function startHarness({ name = "nightly", port = 0, now = Date.now() } = {}) {
   const record = scenario(name, now);
-  const fixture = await buildFixture(record);
+  // The gallery runs none of the mockup's scripts, so the kit record builds no fixture; it builds the page that runs
+  // the kit's components instead.
+  const fixture = record.gallery ? null : await buildFixture(record);
+  const behaves = record.gallery ? await buildBehaves() : null;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://localhost");
-    // The page may stand at its workspace's address (/w/<slug>/, which the fixture puts it at for a record with
-    // people), and every file it names from there is the tree's own.
+    // The page may stand at its workspace's address (/w/<slug>/, which the fixture puts every record at in a browser),
+    // and every file it names from there is the tree's own.
     const p = decodeURIComponent(url.pathname).replace(new RegExp(`^/w/${WORKSPACE.slug}(?=/|$)`), "") || "/";
     const method = (req.method || "GET").toUpperCase();
     try {
@@ -190,8 +216,16 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         send(res, json.status, TYPES[".json"], JSON.stringify(json.body));
         return;
       }
-      if (p === "/_hx/fixture.js") {
+      if (p === "/_hx/fixture.js" && fixture) {
         send(res, 200, TYPES[".js"], fixture);
+        return;
+      }
+      if (p === "/_hx/kit-behaves.js" && behaves) {
+        send(res, 200, TYPES[".js"], behaves);
+        return;
+      }
+      if (p === "/behaves" && behaves) {
+        send(res, 200, TYPES[".html"], behavesDocument());
         return;
       }
       if (p === "/_hx/app.css") {
@@ -202,12 +236,21 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         send(res, 200, TYPES[".js"], BUSINESS_TAB_SCRIPT);
         return;
       }
-      if (p === "/data/reports-sample.js") {
-        send(res, 200, TYPES[".js"], await reportsSampleBundle());
+      if (p === "/data/kit-globals.js") {
+        send(res, 200, TYPES[".js"], await kitGlobalsBundle());
         return;
       }
-      if (p === "/data/today-sample.js") {
-        send(res, 200, TYPES[".js"], await todaySampleBundle());
+      if (p === "/data/inbox-globals.js") {
+        send(res, 200, TYPES[".js"], await inboxGlobalsBundle());
+        return;
+      }
+      // People's shared parts, over the People the fixture boots (people-src.ts), in place of the mockup's own.
+      if (p === "/data/people-globals.js") {
+        send(res, 200, TYPES[".js"], await peopleGlobalsHarnessBundle());
+        return;
+      }
+      if (p === "/data/leads-globals.js") {
+        send(res, 200, TYPES[".js"], await leadsGlobalsBundle());
         return;
       }
       if (p === "/data/mascot.js") {
@@ -215,7 +258,7 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         return;
       }
       if (p === "/" || p === "/Chanlytics.html") {
-        send(res, 200, TYPES[".html"], documentWithFixture());
+        send(res, 200, TYPES[".html"], pageOf(record));
         return;
       }
       serveStatic(res, LEGACY, p);
@@ -236,5 +279,5 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const started = await startHarness({ port: Number(process.argv[2] || 0), name: process.argv[3] || "nightly" });
-  console.log(`the ${started.record.name} record on ${started.url}/#/admin/workspace`);
+  console.log(`the ${started.record.name} record on ${started.url}/`);
 }

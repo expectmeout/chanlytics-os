@@ -6,11 +6,14 @@
  * place). Every rule is the contract's; this module only feeds it the surfaces.
  */
 import {
-  ASK_PAGES,
+  ROLE_PERMS,
   answerFromV1,
   askIntent,
   askJump,
+  askPages,
+  bellCalls,
   buildAskSuggestions,
+  callJumpSub,
   callsAnswer,
   callsToday,
   detectLanguage,
@@ -21,7 +24,6 @@ import {
   rightNowLine,
   sameQuestion,
   scopeFromRoute,
-  zoneDayKey,
   type AskAnswer,
   type AskLanguage,
   type AskMessageVM,
@@ -29,19 +31,12 @@ import {
   type AskSuggestion,
   type AskSurface,
   type AskWaiting,
+  type FeedLive,
   type JumpEntry,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { feedFromGlobals } from "../notifications";
 import type { Workspace } from "../surface-data";
-
-interface Call {
-  callId: string;
-  who: string;
-  missed: boolean;
-  live: boolean;
-  startedAtMs: number | null;
-}
 
 /** A playbook's run as the broadcasts surface publishes it, as far as who is waiting reads it. */
 interface Run {
@@ -55,12 +50,14 @@ interface Run {
 
 export interface PaletteGlobals {
   INBOX_DATA?: { THREADS?: Array<{ id: string; real?: boolean; who: string; needsYou?: boolean }> };
-  __LIVE?: { now?: Call[]; recent?: Call[] };
+  /** Live's value: the calls on the line, the page's recent few, and every missed call still news (uncapped). */
+  __LIVE?: FeedLive;
   __PEOPLE?: { rows?: Array<{ id: string; name: string }>; dealsOn?: boolean } | null;
   __SETTINGS?: { config?: { calendar?: { ical_url?: string } } | null } | null;
   __WORKSPACES?: Workspace[];
   __ACTIVE_WORKSPACE?: string | null;
-  __ME?: { role?: string | null } | null;
+  /** Who is looking: their role, and whether they are Chanlytics staff (the back office's jump is theirs alone). */
+  __ME?: { role?: string | null; platform_admin?: boolean } | null;
   __TEAM_INVITES?: unknown[] | null;
   /** Today's view model: its queue is who is waiting on you (every surface starts at boot, LegacyApp.tsx). */
   TODAY_DATA?: {
@@ -71,7 +68,7 @@ export interface PaletteGlobals {
           "id" | "kind" | "conversationId" | "callId" | "who" | "channel" | "when" | "sentence" | "quoted" | "cta"
         >
       >;
-      /** How many people wait across the whole queue, past the six rows drawn. */
+      /** How many wait across the whole queue (the people and the searches), past the six rows drawn. */
       waiting?: number;
     };
   } | null;
@@ -82,15 +79,21 @@ export interface PaletteGlobals {
 
 const LAST_LANGUAGE_KEY = "chanlytics:ask:lang";
 
-/** Where the person is, from the route. Leads is the People page's `leads` param (clients/leads, clients/leads:s-<id>). */
+/**
+ * Where the person is, from the route. Leads and the Pipeline are People's `leads` and `pipeline` params
+ * (clients/leads:s-<id>, clients/pipeline:v-<view>); the three campaign pages are one surface; Settings is admin.
+ */
 export function surfaceFor(page: string, param?: string | null): AskSurface {
   if (page === "clients" && typeof param === "string" && param.startsWith("leads")) return "leads";
+  if (page === "clients" && typeof param === "string" && param.startsWith("pipeline")) return "pipeline";
   switch (page) {
     case "today":
       return "today";
     case "inbox":
       return "inbox";
+    // People, and People › Lists (surface-registry.ts): People's own page of lists.
     case "clients":
+    case "segments":
       return "people";
     case "conversations":
       return "conversations";
@@ -100,14 +103,28 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
       return "reports";
     case "admin":
       return "settings";
+    case "calendar":
+      return "calendar";
+    case "campaigns":
+    case "outbound":
+    case "broadcasts":
+    case "messages":
+      return "campaigns";
+    case "start":
+      return "start";
     default:
       return "other";
   }
 }
 
+/**
+ * What ⌘K jumps to: the pages this workspace has for this person (contracts askPages: the Pipeline where People says
+ * deals are on, the bit its scope strip draws by; the back office for staff, the bit Settings' rail draws by), then
+ * the threads, people and calls the browser holds.
+ */
 export function jumpIndexFrom(win: Window): JumpEntry[] {
   const w = win as unknown as PaletteGlobals;
-  const out: JumpEntry[] = [...ASK_PAGES];
+  const out: JumpEntry[] = askPages({ dealsOn: !!w.__PEOPLE?.dealsOn, platformAdmin: !!w.__ME?.platform_admin });
   for (const t of w.INBOX_DATA?.THREADS ?? []) {
     if (!t.real) continue;
     out.push({
@@ -118,28 +135,25 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
     });
   }
   for (const p of w.__PEOPLE?.rows ?? []) out.push({ label: p.name, to: `clients/${p.id}`, kind: "person" });
-  for (const c of [...(w.__LIVE?.now ?? []), ...(w.__LIVE?.recent ?? [])]) {
-    out.push({
-      label: `${c.who} — call`,
-      to: `conversations/cv-${c.callId}`,
-      kind: "call",
-      sub: c.live ? "live" : c.missed ? "missed" : undefined,
-    });
+  for (const c of bellCalls(w.__LIVE)) {
+    out.push({ label: `${c.who} — call`, to: `conversations/cv-${c.callId}`, kind: "call", sub: callJumpSub(c) });
   }
   return out;
 }
 
 /**
  * Who is waiting on you: the people in Today's queue (a call worth a listen is not someone waiting) and how many more
- * wait past its six rows, and the playbook runs waiting for a yes, which the queue draws the same way
- * (dashboard-a-command.jsx runsPending). Null until Today's queue has been read: nobody is claimed to be waiting.
+ * wait past its six rows, the playbook runs waiting for a yes, which the queue draws the same way
+ * (dashboard-a-command.jsx runsPending), and the searches that stopped to ask, which the queue draws as its own
+ * rows. Null until Today's queue has been read: nobody is claimed to be waiting.
  */
 export function waitingFrom(win: Window): AskWaiting | null {
   const w = win as unknown as PaletteGlobals;
   const queue = w.TODAY_DATA?.queue;
   if (!queue) return null;
-  const people = (queue.rows ?? [])
-    .filter((r) => r.kind !== "call")
+  const rows = queue.rows ?? [];
+  const people = rows
+    .filter((r) => r.kind !== "call" && r.kind !== "search")
     .map((r) => ({
       id: r.conversationId ?? r.callId ?? r.id,
       kind: r.conversationId ? ("thread" as const) : ("call" as const),
@@ -149,9 +163,14 @@ export function waitingFrom(win: Window): AskWaiting | null {
       line: r.quoted ? `“${r.sentence}”` : r.sentence,
       to: r.cta.to,
     }));
+  const searches = rows
+    .filter((r) => r.kind === "search")
+    .map((r) => ({ id: r.id, name: r.who, question: r.sentence, to: r.cta.to }));
   return {
     people,
-    more: Math.max(0, (queue.waiting ?? people.length) - people.length),
+    // The queue's waiting counts the searches too; one past its six rows is counted here as one more, since the
+    // queue does not say which kind it hid.
+    more: Math.max(0, (queue.waiting ?? people.length) - people.length - searches.length),
     runs: (w.__BROADCASTS?.rows ?? [])
       .filter((r) => r.state === "pending_approval")
       .map((r) => ({
@@ -160,6 +179,7 @@ export function waitingFrom(win: Window): AskWaiting | null {
         reach: r.recipient_count,
         to: `broadcasts/run:${r.id}`,
       })),
+    searches,
   };
 }
 
@@ -184,7 +204,8 @@ export function askPalette(win: Window, storage: Storage | null) {
     const id = w.__ACTIVE_WORKSPACE ?? null;
     return (w.__WORKSPACES ?? []).find((x) => x.id === id) ?? null;
   };
-  const calls = () => [...(w.__LIVE?.now ?? []), ...(w.__LIVE?.recent ?? [])];
+  // Every call Live holds, each once: the page's recent few are not all of today's (Live's missedCalls is uncapped).
+  const calls = () => bellCalls(w.__LIVE);
   const timezone = () => activeWorkspace()?.timezone ?? null;
   const language = (text?: string): AskLanguage => {
     if (!text) return lastLanguage();
@@ -199,28 +220,28 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** Right now, in a sentence: Today's queue itself (the Line, D7), on every page. */
     rightNow: (lang?: AskLanguage) => rightNowLine(waiting(), lang ?? lastLanguage()),
     /** The sentence and the counts it was built from (the Stage's pills, spec 4.3). */
-    rightNowParts: (lang?: AskLanguage): { sentence: string; people: number; runs: number } => {
+    rightNowParts: (lang?: AskLanguage): { sentence: string; people: number; runs: number; searches: number } => {
       const w = waiting();
       return { sentence: rightNowLine(w, lang ?? lastLanguage()), ...rightNowCounts(w) };
     },
     suggestions: (surface: AskSurface, scope: AskScope | null, lang?: AskLanguage): AskSuggestion[] => {
       const feed = feedFromGlobals(w as Parameters<typeof feedFromGlobals>[0], Date.now());
       const who = waiting();
-      // The business's today (clock.ts): a call missed at 1 AM where the business is counts as that day's, whatever day the browser says.
+      // The business's today: a call missed at 1 AM where the business is counts as that day's, whatever day the browser says.
       const tz = timezone();
-      const today = tz ? zoneDayKey(Date.now(), tz) : null;
       return buildAskSuggestions({
         surface,
         language: lang ?? lastLanguage(),
         needsYou: rightNowCounts(who).people,
         heldDrafts: feed.filter((i) => i.kind === "held_draft").length,
-        missedToday: tz
-          ? calls().filter((c) => c.missed && c.startedAtMs && zoneDayKey(c.startedAtMs, tz) === today).length
-          : 0,
-        liveNow: calls().filter((c) => c.live).length,
+        // The count the quick answer gives (callsToday): a dial the receptionist placed is not a missed call.
+        missedToday: tz ? callsToday(calls(), Date.now(), tz).missed.length : 0,
+        // On the line by the heartbeat (callsToday's own count), never `live` alone.
+        liveNow: callsToday(calls(), Date.now(), tz).live.length,
         hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,
-        canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",
+        // Whoever acts in the workspace (owner, operator, partner): the one table, as the pages' canDo("approve").
+        canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,
         // People's surface says whether deals are on here (0008); until it does, the question is not offered.
         dealsOn: !!w.__PEOPLE?.dealsOn,
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.

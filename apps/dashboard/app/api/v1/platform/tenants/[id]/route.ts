@@ -1,8 +1,8 @@
 import { read, platform } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/request-guards";
-import { platformTenant, platformEvents } from "@/server/platform";
-import { setupDtoFor } from "@/server/setup";
+import { platformTenant, platformEvents } from "@/server/platform/platform";
+import { setupDtoFor } from "@/server/workspace/setup";
 
 /**
  * GET /api/v1/platform/tenants/:id — one workspace, as its own owner sees it.

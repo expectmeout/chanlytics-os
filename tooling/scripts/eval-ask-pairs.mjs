@@ -40,7 +40,9 @@ const load = (file) => {
   const run = JSON.parse(readFileSync(file, "utf8"));
   const models = Object.keys(run.usage?.byModel ?? {});
   if (models.length !== 1) throw new Error(`${file}: one model expected in its usage, got ${JSON.stringify(models)}`);
-  return { file, at: run.at, model: models[0], byId: new Map(run.results.map((r) => [r.id, r])) };
+  // A question's answer is its first turn's: a case's second turn (PR 5.2) is a row under the same id, never paired.
+  const firsts = run.results.filter((r) => r.turn !== 2);
+  return { file, at: run.at, model: models[0], byId: new Map(firsts.map((r) => [r.id, r])) };
 };
 const a = load(fileA);
 const b = load(fileB);

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { draftList } from "@/server/lists";
+import { draftList } from "@/server/people/lists";
 
 const Body = z.object({
   words: z.string().trim().min(4, "Say who is on the list — one line is enough.").max(300),

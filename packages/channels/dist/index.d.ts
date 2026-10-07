@@ -1,5 +1,264 @@
-import { SchemaSet, GoogleListingFacts, LeadSearchPlan, PlaceFacts, JudgePlaceAnswer } from '@chanlytics/contracts';
+import dns from 'node:dns';
+import https from 'node:https';
+import { ModelPurpose, ModelUsage, SystemOneQuestion, SystemOneAnswer, SchemaSet, LineCodeDto, DomainRecord, GoogleListingFacts, LeadSearchPlan, PlaceFacts, JudgePlaceAnswer } from '@chanlytics/contracts';
 export { GREETING_DEFAULT, greetingFor } from '@chanlytics/contracts';
+
+/** Every provider a call leaves for: the breaker keeps one state per name. */
+declare const PROVIDER_NAMES: readonly ["meta", "twilio", "retell", "resend", "google", "apify", "expo", "anthropic", "typesafe", "elevenlabs"];
+type Provider = (typeof PROVIDER_NAMES)[number];
+/** What a call to a provider came to (the header says each). */
+type SendOutcome = "ok" | "refused" | "retryable" | "unknown";
+interface ProviderReply {
+    outcome: SendOutcome;
+    /** The HTTP status, or 0 when no answer came. */
+    status: number;
+    /** The answer's body as text ("" when none). */
+    text: string;
+    /** The body parsed as JSON, or null. */
+    json: unknown;
+    /** A 2xx answer's body, unread, when the call asked for it (`stream`); null otherwise. */
+    body: ReadableStream<Uint8Array> | null;
+    headers: Headers | null;
+    /** How long the provider asked us to wait (Retry-After), in ms, when it said. */
+    retryAfterMs: number | null;
+    /** Why no answer came: "timeout", "breaker_open", or the network's own words. Null when one came. */
+    error: string | null;
+    /** How many requests left: 0 when the breaker held the call. */
+    tries: number;
+}
+interface ProviderCall extends Omit<RequestInit, "signal"> {
+    /** Each try's bound. Required: a call to a provider without one is the fault this module ends. */
+    timeoutMs: number;
+    /** Tries in all, the first included (1, no retry, unless said). */
+    tries?: number;
+    /** Asking again cannot do the work twice: a read, or a write under the provider's idempotency key. */
+    idempotent?: boolean;
+    /** The longest the whole call may take, its retries and waits included. */
+    deadlineMs?: number;
+    /** "count": always made, its faults counted, never held by an open breaker (a send to a person). Default "hold". */
+    breaker?: "hold" | "count";
+    /** The caller's own end, beside each try's bound: a call it abandons ends as a timeout does. */
+    signal?: AbortSignal;
+    /**
+     * Hand a 2xx answer's body back unread (`body`), for a caller that forwards it as it arrives (a model's event
+     * stream). Each try's bound still ends the body; any other answer is read as usual.
+     */
+    stream?: boolean;
+}
+/** What a test hands in instead of the network and the clock. */
+interface ProviderDeps {
+    fetch?: typeof fetch;
+    now?: () => number;
+    sleep?: (ms: number) => Promise<void>;
+    /** The draw a backoff is lengthened by (contracts jittered); Math.random when absent. */
+    random?: () => number;
+}
+/** A provider's breaker as it stands: what a report of the platform's health, or a test, reads. */
+declare function breakerOf(provider: Provider, now?: number): {
+    open: boolean;
+    failures: number;
+};
+/** Every provider's breaker as it stands in this instance, and until when an open one holds: what /api/diag says. */
+declare function breakerStates(now?: number): {
+    provider: Provider;
+    open: boolean;
+    failures: number;
+    opened: number;
+    open_until: string | null;
+}[];
+/** Every breaker closed: for a test, which must not inherit the last test's outage. */
+declare function resetBreakers(): void;
+/** One call to a provider, bounded, never thrown, retried only when asking again cannot do the work twice. */
+declare function providerFetch(provider: Provider, url: string, call: ProviderCall, deps?: ProviderDeps): Promise<ProviderReply>;
+/** An answer's JSON as an object, or null: what most adapters read. */
+declare function answerObject(a: ProviderReply): Record<string, unknown> | null;
+
+/**
+ * A fetch of an address a person typed: resolve the name, refuse every private answer, and connect to the address that
+ * was checked.
+ *
+ * `feedUrlOk` (contracts) judges the address as a string, so a public name that RESOLVES to a private address passed:
+ * a calendar feed at `feed.example.com` whose record points at 169.254.169.254 (a cloud's metadata service) or 10.0.0.5
+ * was read from inside the platform's own network, by the preview, the receptionist's availability tool and Ask's
+ * openings. Checking the name's addresses first and connecting afterwards is no better: a name can answer once with a
+ * public address and again with a private one (DNS rebinding) between the check and the connect. So the check is the
+ * connect: the socket's own lookup is replaced by one that resolves the name, refuses the connection if ANY of its
+ * addresses is not a public one (a name that answers both is the attack), and hands the socket the address it judged.
+ * A redirect is followed hop by hop (up to five; `redirect: "manual"` answers the 3xx as it is), each hop connected to
+ * through the same lookup, so a redirect to a private name is refused at its own connect.
+ *
+ * https and http only; a host that is an IP literal is judged before any socket is made (a literal skips the lookup).
+ * The body arrives as a stream, decompressed as fetch does, and capped once decoded (RESPONSE_MAX_BYTES): the callers
+ * read a whole page, feed or listing, and a small file that inflates to a gigabyte is an error to the reader, not
+ * the platform's memory.
+ */
+
+/** One address a name resolved to. */
+interface Resolved {
+    address: string;
+    family: number;
+}
+/** Every address a name answers (the resolver's seam: a test hands a fake one). */
+type Resolve = (host: string) => Promise<Resolved[]>;
+/** Whether an address is on the public internet: what a fetch of a person's address may connect to. */
+declare function isPublicAddress(address: string): boolean;
+/** A name's refusal: it answered an address that is not the public internet's, or nothing. */
+declare class NotPublicError extends Error {
+    constructor(host: string, detail: string);
+}
+type LookupCallback = (err: Error | null, address: string | dns.LookupAddress[], family?: number) => void;
+/**
+ * The lookup a socket is given instead of the system's: it resolves, judges every address, and answers the socket an
+ * address that passed. This is what makes the check the connect.
+ */
+declare function publicLookup(resolve: Resolve): (host: string, options: dns.LookupOptions | number | undefined, callback: LookupCallback) => void;
+/** What a caller may supply: the resolver (a test's), and the transport (a test's). */
+interface PublicFetchDeps {
+    resolve?: Resolve;
+    request?: typeof https.request;
+}
+/**
+ * A `fetch` for addresses a person typed. `redirect: "manual"` answers the 3xx as it is (the caller judges the next
+ * address); the default follows up to REDIRECTS_MAX hops, each connected to through the same lookup, so a redirect to a
+ * private address is refused at its own connect. It takes an AbortSignal. The default resolves through the system and
+ * uses node's own http and https; the deps are the seams a test uses.
+ */
+declare function publicFetch(deps?: PublicFetchDeps): typeof fetch;
+/**
+ * The fetch every server-side read of an address a person typed goes through: the guarded one, or a test's.
+ * (`setPublicFetch`, as `setPg` and `setBearerVerifier` are the other seams the suites stand in for.)
+ */
+declare function publicFetcher(): typeof fetch;
+/** For tests only: stand in for the network. Returns the one before, to put back; null restores the guarded one. */
+declare function setPublicFetch(f: typeof fetch | null): typeof fetch | null;
+
+/** A content block as the port reads it: text is all the platform's callers take from an answer. */
+interface ModelBlock {
+    type: string;
+    text?: string;
+    [k: string]: unknown;
+}
+/** The API's message, as much of it as the callers read. */
+interface ModelMessage {
+    id: string | null;
+    model: string | null;
+    stop_reason: string | null;
+    content: ModelBlock[];
+    usage: Record<string, unknown> | null;
+}
+type ModelOutcome = "ok" | "rejected" | "unreachable";
+interface Asked {
+    /** The model the purpose asked first. */
+    asked: string;
+    /** The model that answered, or the last one tried. */
+    model: string;
+    /** Whether the fallback was asked. */
+    fellBack: boolean;
+    /** The HTTP status of the last try (0 when none came). */
+    status: number;
+}
+type ModelReply = (Asked & {
+    outcome: "ok";
+    message: ModelMessage;
+    usage: ModelUsage;
+    text: string;
+}) | (Asked & {
+    outcome: "rejected" | "unreachable";
+    /** The network's words, "timeout", or the API's error message. */
+    error: string;
+    /** The API's own body, cut short, for the log. */
+    detail: string;
+    usage: ModelUsage;
+});
+type ModelStreamReply = (Asked & {
+    outcome: "ok";
+    body: ReadableStream<Uint8Array>;
+    headers: Headers | null;
+}) | (Asked & {
+    outcome: "rejected" | "unreachable";
+    error: string;
+    detail: string;
+});
+interface ModelAsk {
+    purpose: ModelPurpose;
+    /** The request without its model: system, messages, tools, output_config, … (max_tokens the route's unless named) */
+    body: Record<string, unknown>;
+    /** The model to ask first; the purpose's own when absent (Ask names its profile, the judge its setting). */
+    model?: string;
+    /** Beta features, sent as the anthropic-beta header. */
+    betas?: string[];
+    /** A sooner bound than the route's, for one try. */
+    timeoutMs?: number;
+    /** Tries after the first on a "not now"; the route's when absent. */
+    retries?: number;
+    /** The whole call's end (the tries, the waits and the fallback), in ms from its start. */
+    deadlineMs?: number;
+    /** The caller's own end: an abandoned call is a timeout. */
+    signal?: AbortSignal;
+}
+/** What a test hands in instead of the network and the clock. */
+interface ModelDeps {
+    fetch?: typeof fetch;
+    now?: () => number;
+    sleep?: (ms: number) => Promise<void>;
+}
+/**
+ * The API refused the request's format or a beta it names, not its content: a 400 that says so. The caller asks again
+ * without it (plain JSON, no beta), as it always has.
+ */
+declare function formatRejected<R extends {
+    outcome: ModelOutcome;
+    status: number;
+    error?: string;
+}>(r: R): r is R & {
+    outcome: "rejected";
+    error: string;
+};
+/** One answer from the model the purpose names, or its fallback; never thrown. */
+declare function askModel(key: string, ask: ModelAsk, deps?: ModelDeps): Promise<ModelReply>;
+/** The API's event stream for one request, from the model the purpose names or its fallback; never thrown. */
+declare function streamModel(key: string, ask: ModelAsk, deps?: ModelDeps): Promise<ModelStreamReply>;
+
+/**
+ * The second model port: TypeSafe's System One (Jev), asked in shadow (scorecard move 10, step 12; decision 0023).
+ *
+ * One adapter over providerFetch (provider `typesafe`): `POST https://api.typesafe.ai/v1/systemone` with the bearer key,
+ * the pinned model and the named questions (contracts ai/system-one.ts holds the shapes), and one outcome back. Every
+ * call has a bound (the shadow's SHADOW_TIMEOUT_MS unless the caller names a sooner one) and is asked once: a second
+ * opinion is never worth a retry, and an open breaker means a dead provider costs the next call nothing.
+ *
+ * What a call comes to:
+ *   ok           the API answered and its answers read: the answers by question name, the model that answered (the
+ *                versioned id) and the input tokens it counted (output is free).
+ *   rejected     the API refused the request itself: a 401 (the key), a 422 (the body) or any other refusal.
+ *   throttled    a 429: not now.
+ *   unavailable  a 529 (overloaded), a 5xx, a timeout, a dropped connection, an open breaker, or an answer that is not
+ *                the shape asked for.
+ *
+ * The key is a header and nowhere else: nothing here logs, and an error's words are scrubbed of it before they leave.
+ */
+
+declare const SYSTEM_ONE_URL = "https://api.typesafe.ai/v1/systemone";
+type SystemOneReply = {
+    outcome: "ok";
+    model: string;
+    answers: Record<string, SystemOneAnswer>;
+    inputTokens: number;
+} | {
+    outcome: "rejected" | "throttled" | "unavailable";
+    status: number;
+    error: string;
+};
+interface SystemOneAsk {
+    state: string;
+    questions: Record<string, SystemOneQuestion>;
+    /** A sooner bound than the shadow's own. */
+    timeoutMs?: number;
+    /** The caller's own end: an abandoned call is a timeout. */
+    signal?: AbortSignal;
+}
+/** One System One call; never thrown. */
+declare function askSystemOne(key: string, ask: SystemOneAsk, deps?: ModelDeps): Promise<SystemOneReply>;
 
 interface WaConfig {
     phoneId: string;
@@ -81,6 +340,15 @@ interface WaRawMessage {
         body?: string;
         type?: string;
     };
+    /**
+     * Present when the person came in through a click-to-WhatsApp ad or post: Meta names it (`source_id`) and says what
+     * it was (`source_type`). The rest of it (headline, link, click id) is never kept. This is the shape Meta documents,
+     * not one a message is trusted to have: `adReferralOf` reads it without assuming any of it.
+     */
+    referral?: {
+        source_id?: string;
+        source_type?: string;
+    };
 }
 interface WaChangeValue {
     metadata?: {
@@ -99,6 +367,7 @@ interface WaChangeValue {
         status?: string;
         recipient_id?: string;
         errors?: unknown;
+        pricing?: unknown;
     }>;
     message_echoes?: Array<{
         to?: string;
@@ -147,14 +416,63 @@ interface NormalizedInbound {
     optIn: boolean;
     /** The words were the OFFERS ones specifically -- express written consent to be marketed to, which is a separate answer. */
     optInMarketing: boolean;
+    /** The ad or post this person clicked to write, when Meta says: its id and kind (K3). Null for a message with none. */
+    referral: {
+        sourceId: string;
+        sourceType: string | null;
+    } | null;
 }
 declare function normalizeInbound(m: WaRawMessage, value: WaChangeValue): NormalizedInbound;
+/**
+ * What Meta says a message was billed as, on a `sent`, `delivered` or `read` receipt (K8): whether it is billable, the
+ * model that priced it and its category and type. Meta sends no amount and no currency, so none is kept: the operator
+ * prices a category by the recipient's country with Meta's rate card. A type alias, so it is a Json without a cast.
+ */
+type WaPricing = {
+    billable?: boolean;
+    pricing_model?: string;
+    category?: string;
+    type?: string;
+};
+/**
+ * Meta's `pricing` as kept, read without trusting any of it: each key stands or falls on its own, and nothing but the four
+ * is kept. The category is the key the operator prices by, and the cost door refuses an answer without one, so a pricing
+ * without a valid category is none (null), and the caller says it was dropped. Never throws.
+ */
+declare function waPricingOf(raw: unknown): WaPricing | null;
+/** Whether a receipt's `errors` say the person stopped marketing messages from this business. Never throws. */
+declare function waStoppedMarketing(errors: unknown): boolean;
 interface SendResult {
     ok: boolean;
     wamid: string | null;
     status: number;
     errorBody?: string;
+    /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
+    code?: number | null;
+    /**
+     * A person's email reply only (core emailSender): whether it left by the own domain it was frozen with, or as the
+     * mailbox's request, and why not by its own when it could not.
+     */
+    leftAs?: "own" | "mailbox";
+    leftAsWhy?: EmailLeftAsWhy;
+    /**
+     * What the send came to (provider-fetch SendOutcome): `retryable` left nothing and may be tried again later;
+     * `unknown` may have been taken, and is never sent again blind. Absent from a wire's own refusal (no credentials, a
+     * request it will not send), which asked no provider.
+     */
+    outcome?: SendOutcome;
 }
+/**
+ * Why a person's reply frozen with an own domain left as the mailbox's request instead (N5, G15). `domain_held`: the
+ * domain it was frozen with was held between the freeze and the send.
+ */
+type EmailLeftAsWhy = "no_own_route" | "domain_has_no_route" | "domain_held" | "twin_names_another_recipient" | "route_refuses_twin";
+/** Whether Graph refused a send as too many, too fast: HTTP 429, or one of GRAPH_THROTTLE_CODES. */
+declare function graphThrottled(r: {
+    ok: boolean;
+    status: number;
+    code?: number | null;
+}): boolean;
 declare function sendText(cfg: WaConfig, to: string, body: string): Promise<SendResult>;
 /** Approved-template send — the only legal path outside the 24h window. */
 declare function sendTemplate(cfg: WaConfig, to: string, template: {
@@ -249,7 +567,7 @@ interface NormalizedCall {
     cost: unknown;
     latency: unknown;
     /** The agent's post-call analysis answers (custom_analysis_data), when the
-     *  provider sent an object: caller_wanted, outcome, follow_up, caller_name. */
+     *  provider sent an object: the CALL_ANALYSIS_FIELDS answers (voice-shell.ts). */
     analysis: Record<string, unknown> | null;
 }
 /**
@@ -296,8 +614,43 @@ declare function listCalls(cfg: RetellConfig, opts: {
     ascending?: boolean;
     includeTotal?: boolean;
 }): Promise<ListCallsPage>;
-/** Full call detail — the only source of transcript/transcript_object. */
-declare function getCall(cfg: RetellConfig, callId: string): Promise<RetellCall | null>;
+/**
+ * What a read of one call came back as. `null` once stood for every non-2xx
+ * alike, and the calls sweep counted each one as a try against the recording:
+ * a Retell outage, a rate limit or a revoked key marked every pending
+ * recording failed within three ticks. The four answers a caller tells apart:
+ *
+ *   found        the call, as the provider holds it;
+ *   not_found    the provider answered and has no such call -- a 404, or any
+ *                other refusal of the request: asking again will not change it;
+ *   unavailable  the provider could not answer just now: a 408, a 425, a 429,
+ *                a 5xx, a body that is not a call, a timeout or a network
+ *                error, with the wait it named when it named one; `status` is
+ *                null when no answer came at all, a body that stalled included;
+ *   auth         the key is refused (401, 403): every read will be, until it is fixed.
+ */
+type RetellCallRead = {
+    kind: "found";
+    call: RetellCall;
+} | {
+    kind: "not_found";
+    status: number;
+} | {
+    kind: "unavailable";
+    status: number | null;
+    retryAfterMs: number | null;
+} | {
+    kind: "auth";
+    status: number;
+};
+/**
+ * Full call detail — the only source of transcript/transcript_object. Never
+ * throws: the answer says what happened, so a sweep can tell a row the
+ * provider has no record of from a provider that could not be asked.
+ */
+declare function getCall(cfg: RetellConfig, callId: string, opts?: {
+    timeoutMs?: number;
+}): Promise<RetellCallRead>;
 /** The agent settings that decide what the call pipeline can show. */
 interface RetellAgentConfig {
     agent_id: string;
@@ -351,6 +704,14 @@ declare function createAgent(cfg: RetellConfig, body: Record<string, unknown>): 
 declare function createPhoneNumber(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
 /** POST /import-phone-number — a number from an elastic SIP trunk, bound like Retell's own (lines-saga.ts builds the body). */
 declare function importPhoneNumber(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
+/**
+ * DELETE /delete-phone-number — an imported number taken off Retell (a line released: the carrier has it back, and
+ * Retell must stop answering for a number that may be somebody else's next month). Gone already (404) is gone.
+ */
+declare function deletePhoneNumber(cfg: RetellConfig, number: string): Promise<{
+    ok: boolean;
+    status: number;
+}>;
 /** PATCH /update-phone-number — the agents on a number, its inbound webhook, its nickname. */
 declare function updatePhoneNumber(cfg: RetellConfig, number: string, patch: Record<string, unknown>): Promise<RetellWrite>;
 /** GET /get-phone-number — the number as stored; null when the provider says no. Never printed whole: the inbound webhook URL carries a key. */
@@ -404,8 +765,6 @@ interface RetellLlmConfig {
 }
 /** GET /get-retell-llm at a version. Null when the provider says no. */
 declare function getRetellLlm(cfg: RetellConfig, llmId: string, version?: number | null): Promise<RetellLlmConfig | null>;
-/** True when a v3 list row still needs a getCall to be complete. */
-declare function needsHydration(c: RetellCall): boolean;
 /**
  * Recording bytes. Retell serves these from an UNSIGNED public CDN URL
  * (verified: HEAD 200 with no auth) — so we copy customer audio into private
@@ -475,8 +834,6 @@ declare const HANDOFF_VAR = "{{handoff_number}}";
 declare const FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
 /** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
 declare const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
-/** Where the booking-link tool posts. Overridable for previews. */
-declare const DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 /** The availability tool posts beside it, on the same host and secret. */
 declare function availabilityUrl(fnUrl: string): string;
 /** Retell's own tool object, loosely: the fields we set plus whatever it adds. */
@@ -498,9 +855,9 @@ interface VoiceShellTarget {
  * live tool's headers are carried over untouched, and a tool with none is
  * reported rather than silently created secret-less.
  */
-declare function voiceShellTools(fnUrl?: string, bookingHeaders?: Record<string, string> | null): RetellTool[];
+declare function voiceShellTools(fnUrl: string, bookingHeaders?: Record<string, string> | null): RetellTool[];
 /** The whole target: what a converged agent's LLM holds. */
-declare function desiredVoiceShell(fnUrl?: string, bookingHeaders?: Record<string, string> | null): VoiceShellTarget;
+declare function desiredVoiceShell(fnUrl: string, bookingHeaders?: Record<string, string> | null): VoiceShellTarget;
 /** What the converger reads off a live Retell LLM. */
 interface LiveVoiceLlm {
     general_prompt?: string | null;
@@ -530,7 +887,7 @@ declare function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTar
  * The diagnostic's view: on the shell or not, and why not. Strings only —
  * this is printed by /api/diag, and the live tools carry a secret header.
  */
-declare function voiceShellDrift(live: LiveVoiceLlm): {
+declare function voiceShellDrift(live: LiveVoiceLlm, fnUrl: string): {
     converged: boolean;
     drift: string[];
 };
@@ -542,10 +899,15 @@ declare const VOICE_WEBHOOK_TIMEOUT_MS = 20000;
 /**
  * What the agent's post-call analysis fills in after every call, in the
  * caller's own terms: what they wanted, how it ended, what a person should
- * do next, the name they gave. The provider's default summary ("The user
- * called Marisa's Beauty Salon to inquire about…") is kept beside it; these
- * are what the strip, the profile and the call card say. The webhook files
- * them through ingest_call (migration 00061).
+ * do next, the name they gave, the email address they spelled out, what the
+ * call was mainly about and the language it was spoken in (Reports read both,
+ * as the receptionist's texts carry the same two: contracts BRAIN_INTENTS,
+ * BRAIN_LANGUAGES). The provider's default summary ("The user called Marisa's
+ * Beauty Salon to inquire about…") is kept beside it; these are what the strip,
+ * the profile and the call card say. The webhook files them through ingest_call
+ * (migration 00061): the first four as columns, the rest inside the analysis it
+ * keeps whole (calls.analysis). The name and the address are suggestions for the
+ * person's page, never applied to the contact by themselves.
  */
 declare const CALL_ANALYSIS_FIELDS: readonly [{
     readonly type: "string";
@@ -567,6 +929,21 @@ declare const CALL_ANALYSIS_FIELDS: readonly [{
     readonly name: "caller_name";
     readonly description: "The caller's name exactly as they gave it. Leave empty if they did not say one.";
     readonly examples: readonly ["Ana", "Daniela R."];
+}, {
+    readonly type: "string";
+    readonly name: "caller_email";
+    readonly description: "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.";
+    readonly examples: readonly ["ana.ruiz@example.com", "daniela.r@example.net"];
+}, {
+    readonly type: "enum";
+    readonly name: "topic";
+    readonly description: "What the call was mainly about. booking: someone wants to book, reschedule or cancel. pricing: Service and pricing questions, when it is about what something costs. services: Service and pricing questions, when it is about what the business offers. money: a refund, a discount, a deposit, a payment plan or any change to what someone pays. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: a greeting or a chat with no request. other: none of these.";
+    readonly choices: readonly ["booking", "pricing", "money", "hours", "services", "location", "complaint", "smalltalk", "other"];
+}, {
+    readonly type: "enum";
+    readonly name: "language";
+    readonly description: "The language the caller mostly spoke. en: English. es: Spanish. other: any other language.";
+    readonly choices: readonly ["en", "es", "other"];
 }];
 /** The agent-level fields the plan reads, as get-agent returns them. */
 interface LiveAgentSettings {
@@ -609,7 +986,7 @@ declare function agentSettingsDrift(live: LiveAgentSettings): {
     drift: string[];
 };
 
-/** The model behind the shell. Temperature 0: the facts are read, not improvised. */
+/** The model behind the shell, in Retell's name for it (contracts RETELL_MODELS). Temperature 0: the facts are read, not improvised. */
 declare const VOICE_LLM_DEFAULTS: {
     readonly model: "claude-4.5-haiku";
     readonly model_temperature: 0;
@@ -641,7 +1018,7 @@ declare const VOICE_NUMBER_DEFAULTS: {
     readonly number_provider: "twilio";
 };
 /** The product's voice endpoints, from the one base the shell already pins. */
-declare function voiceEndpoints(fnUrl?: string): {
+declare function voiceEndpoints(fnUrl: string): {
     fn: string;
     availability: string;
     webhook: string;
@@ -660,13 +1037,13 @@ declare function withKey(url: string, secret: string): string;
 /** The URL without its query string — the only form a response or a log may carry. */
 declare function stripKey(url: string | null | undefined): string | null;
 /** POST /create-retell-llm: the shell, with the secret on its tools. */
-declare function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+declare function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl: string): Record<string, unknown>;
 /** POST /create-agent: the voice, the webhook and its events, the analysis fields, retention. */
 declare function voiceAgentCreateBody(o: {
     llmId: string;
     llmVersion: number | null;
     agentName: string;
-}, s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+}, s: ProvisionSecrets, fnUrl: string): Record<string, unknown>;
 /** The agent on the number. Pinned to latest_published, a saved draft cannot go live by itself. */
 declare function voiceNumberBinding(o: {
     agentId: string;
@@ -678,13 +1055,13 @@ declare function voiceNumberCreateBody(o: {
     agentId: string;
     pinned: boolean;
     nickname: string;
-}, s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+}, s: ProvisionSecrets, fnUrl: string): Record<string, unknown>;
 /** PATCH /update-phone-number: an existing Retell number, bound the same way. */
 declare function voiceNumberBindBody(o: {
     agentId: string;
     pinned: boolean;
     nickname: string;
-}, s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+}, s: ProvisionSecrets, fnUrl: string): Record<string, unknown>;
 interface VoiceProvisionRequest {
     /** An existing Retell number to bind, E.164. */
     number?: string | null;
@@ -732,15 +1109,79 @@ interface VoiceProvisionPlan {
 declare function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan;
 
 /**
- * Lines — a workspace's own phone number, behind a provider interface.
- *
- * The plan (docs/plans/2026-09-07-onboarding-and-lines.md §5): the product
- * owns lines through a provider, Twilio first, one subaccount per
- * workspace, and a `dry` provider outside production so the whole path
- * runs with fake SIDs. Nothing here touches the network: this file is the
- * interface, the words the product needs from a provider, and the small
- * pure helpers the saga and the endpoint share.
+ * ElevenLabs Agents, the wire (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.2, §3.6): the agent's
+ * conversation token for one browser session, minted on the edge where the key lives; the erase of a conversation
+ * once its minutes are written; and the post-call webhook's signature. The agent itself is provisioned from code
+ * (tooling/scripts/voice/elevenlabs-agent.mjs) and the custom LLM it calls is the dashboard's brain door, which this
+ * module knows nothing of. Every call leaves through providerFetch, bounded and never thrown, and comes back as one of
+ * the outcomes a door can answer with: `ok`, `rejected` (the vendor said no; asking again gets the same answer) or
+ * `unreachable` (no answer, or "not now": a 429 is the vendor's concurrency or rate limit, sources §9).
  */
+
+/** How far a webhook delivery's clock may be from ours, in seconds: the vendor's own window for a replayed delivery. */
+declare const ELEVENLABS_WEBHOOK_TOLERANCE_S: number;
+/** The header the post-call webhook's signature rides in: `t=<unix seconds>,v0=<hex>`. */
+declare const ELEVENLABS_SIGNATURE_HEADER = "elevenlabs-signature";
+interface ElevenLabsConfig {
+    apiKey: string;
+    agentId: string;
+}
+type Deps = Parameters<typeof providerFetch>[3];
+type ConversationMint = {
+    outcome: "ok";
+    token: string;
+    conversationId: string;
+} | {
+    outcome: "rejected" | "unreachable";
+    status: number;
+    error: string;
+};
+/**
+ * A WebRTC conversation token for the private agent, good for one conversation started within minutes (sources §2):
+ * `GET /v1/convai/conversation/token?agent_id=…` with the key. The answer names the conversation too, which the
+ * post-call webhook will name again.
+ */
+declare function mintConversationToken(cfg: ElevenLabsConfig, deps?: Deps): Promise<ConversationMint>;
+type SpeechStream = {
+    outcome: "ok";
+    body: ReadableStream<Uint8Array>;
+    contentType: string;
+} | {
+    outcome: "rejected" | "unreachable";
+    status: number;
+    error: string;
+};
+/**
+ * Words spoken, as they are made (`POST /v1/text-to-speech/{voice_id}/stream` with the key): the one-way speech, a
+ * brief or an answer read aloud, in Ask's one voice. The vendor's own normaliser reads the figures ("3:30", "12%") as
+ * the agent's does (`apply_text_normalization: "on"`); MP3 at 44.1 kHz and 128 kb/s is the format every plan may ask
+ * for and every browser plays. The body comes back unread, for the door to hand on as it arrives; the vendor's first
+ * byte came in 300 to 550 ms on this account (4 Oct 2026, both models, `apply_text_normalization: on` accepted), so a
+ * person hears the first word about when the connection is up.
+ */
+declare function speakText(cfg: Pick<ElevenLabsConfig, "apiKey">, input: {
+    voiceId: string;
+    modelId: string;
+    text: string;
+}, deps?: Deps): Promise<SpeechStream>;
+/** The vendor's record of a conversation, erased (`DELETE /v1/convai/conversations/{id}`): what door D does once the minutes are written. */
+declare function deleteConversation(cfg: Pick<ElevenLabsConfig, "apiKey">, conversationId: string, deps?: Deps): Promise<{
+    outcome: "ok" | "rejected" | "unreachable";
+    status: number;
+}>;
+/**
+ * The signature the vendor computes for one delivery: HMAC-SHA256, keyed with the webhook's secret, over
+ * `<timestamp>.<raw body>`, hex, prefixed `v0=`. Web Crypto, like the Resend, Twilio, Meta and Retell verifiers, so
+ * it runs on the edge as it is. Exported because a test signs with it.
+ */
+declare function elevenLabsWebhookSignature(secret: string, timestamp: string, rawBody: string): Promise<string>;
+/**
+ * Is this delivery the vendor's? The header's `t` within the window of now, and its `v0` the signature over the RAW
+ * body as it arrived (a re-serialised one signs differently). It proves who sent the event and nothing about the
+ * conversation it names: the door matches that to a session row of its own.
+ */
+declare function verifyElevenLabsWebhook(secret: string | undefined, signatureHeader: string | null, rawBody: string, nowMs: number): Promise<boolean>;
+
 type LineProviderName = "twilio" | "dry";
 /** Credentials to act as — the master account, or a workspace's subaccount. */
 interface ProviderAccount {
@@ -819,6 +1260,22 @@ interface LineProvider {
         sid: string;
     }>;
     attachNumber(acct: ProviderAccount, trunkSid: string, numberSid: string): Promise<void>;
+    findSubaccount(master: ProviderAccount, friendlyName: string): Promise<ProviderAccount | null>;
+    findTrunk(acct: ProviderAccount, domainName: string): Promise<{
+        sid: string;
+        domainName: string;
+    } | null>;
+    findCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{
+        sid: string;
+    } | null>;
+    findCredential(acct: ProviderAccount, listSid: string, username: string): Promise<{
+        sid: string;
+    } | null>;
+    /** A credential whose password was lost with the run that made it: removed, so it can be made again. */
+    deleteCredential(acct: ProviderAccount, listSid: string, credentialSid: string): Promise<void>;
+    findOrigination(acct: ProviderAccount, trunkSid: string, sipUrl: string): Promise<{
+        sid: string;
+    } | null>;
     /** The Messaging Service a line texts through: inbound to our webhook, the number in its sender pool. */
     createMessagingService(acct: ProviderAccount, o: {
         friendlyName: string;
@@ -837,6 +1294,22 @@ interface LineProvider {
         body: string;
         statusCallback?: string;
     }): Promise<SmsSendResult>;
+    /**
+     * The texts that arrived on `to` since `sinceMs`, newest first, a page of twenty at most, from the provider's own record
+     * (the account's list of messages): nothing of ours is kept. A read that FAILS throws, so a caller never mistakes it for
+     * a number nobody wrote to.
+     */
+    recentTexts(acct: ProviderAccount, to: string, sinceMs: number): Promise<ReceivedText[]>;
+}
+/**
+ * A text that arrived on one of the account's numbers, as the provider keeps it: the provider's own record, never ours.
+ * `atMs` is when the provider says it was sent (Twilio's `date_sent`, in milliseconds).
+ */
+interface ReceivedText {
+    sid: string;
+    from: string;
+    body: string;
+    atMs: number;
 }
 interface SmsSendResult {
     ok: boolean;
@@ -845,6 +1318,8 @@ interface SmsSendResult {
     status: number;
     /** The provider's error code when refused: 21610 = the person opted out at the carrier, 30034 = the line is not registered yet. */
     code: number | null;
+    /** What the send came to (provider-fetch SendOutcome), when the provider's port said. */
+    outcome?: SendOutcome;
 }
 /** Where Twilio sends a line's calls: Retell's SIP front door (Retell's Twilio guide). */
 declare const RETELL_ORIGINATION = "sip:sip.retellai.com";
@@ -868,16 +1343,22 @@ declare function chooseLineProvider(env: {
 /** The trunk's SIP domain: unique per line, letters, digits and dashes, on Twilio's suffix. */
 declare function trunkDomain(lineId: string): string;
 /** The SIP username Retell presents on the trunk (≤ 32 characters at Twilio). */
+/**
+ * The line's subaccount's name: the workspace's, and the line's own tag, so a look for it by name can only find this
+ * line's (Twilio's names are not unique, and two workspaces may share one). Within Twilio's 64 characters.
+ */
+declare function subaccountName(tenantName: string, lineId: string): string;
 declare function sipUsername(lineId: string): string;
 /**
  * A SIP password Twilio accepts: at least 12 characters, a digit, mixed
- * case (SIP Credential docs). 24 characters here; `random` is injectable so
+ * case (SIP Credential docs). 24 characters here, from node:crypto -- the
+ * source the edge token's nonce is minted from (edge-token.ts), never
+ * Math.random, which nothing in production seeds; `random` is injectable so
  * a test can pin one.
  */
 declare function sipPassword(random?: () => number): string;
 /** Twilio's rule, checked before a password is sent. */
 declare function isValidSipPassword(p: string): boolean;
-declare const isE164: (s: unknown) => s is string;
 declare const isAreaCode: (n: unknown) => n is number;
 
 /**
@@ -892,8 +1373,11 @@ declare const isAreaCode: (n: unknown) => n is number;
  */
 
 interface TwilioAnswer {
+    /** The HTTP status, or 0 when no answer came (the body then says why, as `error`). */
     status: number;
     body: Record<string, unknown> | null;
+    /** What the call came to (provider-fetch SendOutcome); absent from a test double that does not say. */
+    outcome?: SendOutcome;
 }
 type TwilioHttp = (acct: ProviderAccount, method: "GET" | "POST" | "DELETE", url: string, form?: Record<string, string>) => Promise<TwilioAnswer>;
 declare const twilioUrls: {
@@ -903,6 +1387,7 @@ declare const twilioUrls: {
     incomingNumber: (sid: string, numberSid: string) => string;
     credentialLists: (sid: string) => string;
     credentials: (sid: string, listSid: string) => string;
+    credential: (sid: string, listSid: string, credentialSid: string) => string;
     trunks: string;
     trunk: (trunkSid: string) => string;
     trunkCredentialLists: (trunkSid: string) => string;
@@ -918,7 +1403,20 @@ declare class TwilioError extends Error {
     readonly code: number | null;
     constructor(status: number, body: Record<string, unknown> | null, what: string);
 }
-/** The fetch-backed port: basic auth as `acct`, 15 s per call. */
+/**
+ * One call to Twilio as `acct`, through providerFetch: basic auth, a form body already encoded (the port's, or A2P's
+ * own encoder), 15 s unless said. A read is asked twice when the first got no answer quickly.
+ */
+declare function twilioRequest(acct: ProviderAccount, method: "GET" | "POST" | "DELETE", url: string, o?: {
+    form?: string;
+    timeoutMs?: number;
+    breaker?: "hold" | "count";
+}): Promise<ProviderReply>;
+/**
+ * The fetch-backed port: basic auth as `acct`, 15 s per call, through twilioRequest. It never throws: a call that got
+ * no answer is status 0 with the network's words as `error` (a text's send said "never throws" while this threw),
+ * which a saga step's `need` refuses as any other failure.
+ */
 declare const fetchTwilio: TwilioHttp;
 declare function twilioProvider(http?: TwilioHttp): LineProvider;
 
@@ -938,6 +1436,8 @@ interface DryProvider extends LineProvider {
     readonly calls: DryCall[];
     /** Numbers bought and not released, by SID. */
     readonly owned: Map<string, string>;
+    /** A text that "arrived" on `to`, for recentTexts to answer: the dry provider has no carrier to receive one. */
+    plantText(to: string, text: ReceivedText): void;
 }
 declare function dryProvider(seed?: number): DryProvider;
 
@@ -998,6 +1498,7 @@ interface LinePorts {
         name: string;
     };
     now: () => string;
+    /** A source for the SIP password a test can pin; absent, as the edge wires it, the password comes from node:crypto. */
     random?: () => number;
     store: {
         /** Persist a patch of the row; the saga keeps its own copy current. */
@@ -1048,9 +1549,26 @@ interface LinePorts {
     /** Where the line's texts arrive (no key: the provider signs every request). */
     smsInboundUrl: string;
     nickname: string;
+    /**
+     * Milliseconds until the run must start no more provider calls (the job's deadline). A carrier call's own timeout
+     * fits in the gap between that deadline and the function's ceiling; a step that makes more than one is asked for
+     * the difference first. At zero the saga stops between two calls, the row says where, and the job hands the rest
+     * to the next one. Absent: the run goes to the end, as it always did.
+     */
+    timeLeft?: () => number;
 }
+/**
+ * `later`: the run stopped at its deadline between two provider calls, nothing failed, and the rest is the next run's
+ * (the row stays "provisioning" at `step`, and every receipt so far is on it).
+ */
 type SagaResult = {
     ok: true;
+    line: LineRow;
+    later?: undefined;
+} | {
+    ok: true;
+    later: true;
+    step: LineStep;
     line: LineRow;
 } | {
     ok: false;
@@ -1072,6 +1590,21 @@ declare function retellImportBody(o: {
 /** The first step whose effect is missing from the row. */
 declare function nextLineStep(line: LineRow): LineStep | null;
 declare function runLineSaga(start: LineRow, ports: LinePorts): Promise<SagaResult>;
+
+/**
+ * SMS on a Chanlytics line, the pure parts: Twilio's inbound webhook read
+ * into one shape, that shape handed to the WhatsApp handler as the message
+ * it already knows how to answer, the signature every inbound request must
+ * carry, the footer the first reply carries, and the words a held text
+ * shows. Nothing here touches the network; the edge supplies fetch and the
+ * vault, the tests supply fixtures.
+ *
+ * Verified against Twilio's docs on 2026-09-07: the inbound parameters
+ * (MessageSid, From, To, Body, NumMedia, MediaContentType0, OptOutType,
+ * MessagingServiceSid) and the X-Twilio-Signature rule — HMAC-SHA1 of the
+ * exact URL plus every POST field sorted by name with its value appended,
+ * keyed with the auth token of the account the number belongs to, base64.
+ */
 
 /** Twilio's inbound message, the fields the product reads. */
 interface SmsInbound {
@@ -1119,6 +1652,51 @@ declare function mergeConsent(a: CarrierConsent | null, b: CarrierConsent | null
 /** The normalized message with the carrier's verdict added to its own. Either source is enough. */
 declare function withCarrierConsent(n: NormalizedInbound, c: CarrierConsent | null): NormalizedInbound;
 /**
+ * Whether a text is a one-time code some service sent (Meta's, when an owner connects the line's number to WhatsApp), and
+ * which. The receptionist never answers one, no person or message is made of it, and its delivery is not kept
+ * (apps/edge/lib/sms), so the rule is conservative on purpose: a text taken for a code silences a customer for good, and
+ * one missed is only answered as it was. It is a text of at most 320 characters with no question mark, in a sender's own
+ * shape, with a sender's own sign beside it:
+ *   - "your <Name> [kind] code <code>" or "<code> is your <Name> [kind] code", the phrase ending there, and a sender's kind
+ *     of code named (verification, one-time, login, sign-in, authentication: never security, access or confirmation, which a
+ *     customer's alarm, gate or booking has too, and which rule the text out) or, with no kind named, the warning not to
+ *     share it ("Your WhatsApp code: 788-963 / Don't share this code with others");
+ *   - "your <kind> code <code>" with a sender's kind and the warning; "<code> is your <kind> code" with a sender's kind or
+ *     the warning;
+ *   - "use <code> to verify" (or activate, authenticate: never confirm or sign in, a gate's words too) and the warning;
+ *   - a leading `<#>`, Android's retriever mark, and exactly one code.
+ * A customer's text has the words of one at most ("the gate code is 4512, don't share it", "your Rewards code 123456
+ * doesn't work", "I tried your Summer code 2024"): none of them is a sender's shape and sign together. Digits only, four to
+ * eight. It answers the code as it was written, and the name of the service when the text says one.
+ */
+declare function oneTimeCodeOf(body: string): {
+    code: string;
+    from: string | null;
+} | null;
+/**
+ * The codes among a number's recent texts, as the page says them: the ones sent within LINE_CODES_WITHIN_MS of `nowMs`,
+ * newest first, at most LINE_CODES_MAX, each with the instant the provider says it was sent. The provider's list is read
+ * for the number (recentTexts); nothing here is stored.
+ */
+declare function lineCodesFrom(texts: readonly ReceivedText[], nowMs: number): LineCodeDto[];
+/**
+ * The carrier's verdict on the way OUT, as carrierConsent is its verdict on
+ * the way in.
+ *
+ * Twilio refuses a text to a number that replied STOP to it with 21610,
+ * "attempt to send to unsubscribed recipient": the person's own no, which the
+ * carrier kept and we never heard -- it went to the carrier, or came before
+ * the line's webhook pointed here. The number is unreachable whatever our
+ * record says, so the send door (core deliver.ts) records it as the STOP it is
+ * and refuses as it refuses a recorded no. Every other code -- an unregistered
+ * line (30034), a bad number, a limit -- is a failure of ours, and stays one.
+ */
+declare const SMS_OPTED_OUT_CODE = 21610;
+declare function smsRefusalOf(r: {
+    ok: boolean;
+    code?: number | null;
+}): "opted_out" | null;
+/**
  * What the first reply to a number carries, once. Carrier guidance for A2P
  * traffic: the rates disclosure, how to stop, and how to get help -- the third
  * was missing while every sample the campaign files promised it.
@@ -1165,21 +1743,6 @@ declare function twilioSignature(authToken: string, url: string, form: Record<st
 declare function sameSignature(a: string, b: string): boolean;
 declare function verifyTwilioSignature(authToken: string, url: string, form: Record<string, string>, header: string | null): Promise<boolean>;
 
-/**
- * Email, the part with no network in it: a workspace's addresses, the subject
- * a reply carries, and the REQUEST an email leaves as.
- *
- * The request is built once and frozen. It is written to the queued message's
- * row before the first attempt (meta.email.request) and the wire sends those
- * bytes: a retry repeats them exactly, under the same idempotency key, so a
- * send the provider accepted before a worker died cannot leave twice, and an
- * owner's edit is a new message with a new approval rather than a mutation of
- * one that may already be in somebody's inbox. Everything in it is derived by
- * the server from stored rows. The model writes `text` and nothing else: it is
- * never read for a subject, a recipient or a header.
- *
- * docs/plans/2026-09-17-email-channel.md, §7.
- */
 /** What an email is a reply to, read off the stored parent row. */
 interface EmailParent {
     /** The Chanlytics message being answered. */
@@ -1211,31 +1774,48 @@ interface EmailRequest {
     }>;
     idempotency_key: string;
 }
+/** What a campaign carries that a reply does not: how a person stops it, and the lines its foot owes. */
+interface EmailCampaign {
+    /** One click, no sign-in (RFC 8058): an https address that takes a POST. */
+    unsubscribeUrl: string;
+    /**
+     * The same by mail, for a client that only knows mailto: a bare address, and only one the mailbox's intake reads
+     * (an address nothing receives is an unsubscribe into nothing). Optional: RFC 8058's one click needs the https
+     * address alone.
+     */
+    unsubscribeMailto?: string;
+    /** Why they are hearing from us, the business's name and postal address, the way to say no. Composed by the caller; never empty. */
+    footer: string;
+    /**
+     * The same foot in HTML (contracts emailFootHtml), the link reading "Unsubscribe" as the canvas draws it. When
+     * given it ends the HTML twin in place of the text foot, and it must carry the unsubscribe link itself.
+     */
+    footerHtml?: string;
+}
 interface EmailRequestInput {
     identity: EmailIdentity;
     /** The person's stored address (normalizeEmail's spelling). */
     to: string;
-    parent: EmailParent;
+    /** The email this answers. Null for a first email, which then names its own subject. */
+    parent: EmailParent | null;
+    /** A first email's subject. Read only when there is no parent: a reply's is always its parent's, once, with Re:. */
+    subject?: string;
     /** The words, as the receptionist or a person wrote them. */
     body: string;
     /** Composed from the business's profile by the caller; null sends none. */
     signature: string | null;
-    /** Who wrote the words: decides Auto-Submitted. */
+    /** Who wrote the words: with the parent and the campaign, decides Auto-Submitted. */
     actor: "ai" | "human";
+    /**
+     * Mail a program sends on its own schedule (a reach-out, an offer): marked as such, with its unsubscribe and its
+     * footer. Its parent, when it has one, is our own earlier email in the same campaign (a nudge), never the person's:
+     * an answer to them is a reply, and goes without this.
+     */
+    campaign?: EmailCampaign;
     /** The queued row this request belongs to: the idempotency key, and the tag every receipt names it by. */
     messageId: string;
     tenantId: string;
 }
-/** bestmovers@mail.chanlytics.com: the address a workspace publishes and sends from. */
-declare function hostedAddress(localPart: string, domain: string): string;
-/** r+<token>@mail.chanlytics.com: where a reply comes back. It routes to a workspace; it authenticates nobody. */
-declare function replyRouteAddress(replyToken: string, domain: string): string;
-/** A workspace's hosted identity, from its mailbox row and the deployment's mail domain. */
-declare function hostedIdentity(mailbox: {
-    local_part: string;
-    reply_token: string;
-    from_name: string;
-}, domain: string): EmailIdentity;
 /** `"Name" <address>`, the name quoted so a comma or a bracket in it cannot end it early. */
 declare function mailboxHeader(name: string, address: string): string;
 /** "Re: <their subject>", once, however many prefixes the chain has stacked. A parent without one still gets a subject a person can find. */
@@ -1248,22 +1828,28 @@ declare function replySubject(parentSubject: string | null | undefined): string;
  * to carry design; no markup from the words survives into it.
  */
 declare function emailHtml(text: string): string;
-/** A Message-ID as a header carries it, angle brackets and all; null for anything that is not one. */
-declare function messageIdHeader(id: string | null | undefined): string | null;
 /** The chain a reply carries: the parent's chain, then the parent. Bounded, oldest dropped first, the root kept. */
 declare function referencesFor(parent: Pick<EmailParent, "rfcMessageId" | "references">): string[];
 /**
- * The request one reply leaves as.
+ * The request one email leaves as: a reply, or a first email.
  *
  * - From and Reply-To are the workspace's identity; To is the person's stored
  *   address. Neither is read from the parent's headers or from the words.
- * - In-Reply-To and References thread it under the parent in the customer's
- *   client. No Message-ID is minted here: the provider assigns one and reports
- *   it on the sent event, which is where the ledger learns it.
- * - A receptionist's reply says so in the header a mail system reads
- *   (Auto-Submitted: auto-replied, RFC 3834), so an auto-responder on the
- *   other side does not answer it and start a loop. A person's own reply
- *   carries no such mark.
+ * - A reply threads under its parent (In-Reply-To, References) and carries the
+ *   parent's subject once, with Re:. A first email has no parent and names its
+ *   own subject; one without a subject is a mistake in the code, not an email.
+ *   No Message-ID is minted here: the provider assigns one and reports it on
+ *   the sent event, which is where the ledger learns it.
+ * - The header a mail system reads says what the email is (RFC 3834): a
+ *   receptionist's reply is auto-replied; mail a program sends on its own -- a
+ *   campaign, or a first email the receptionist wrote -- is auto-generated, so
+ *   an auto-responder on the other side does not answer it and start a loop.
+ *   A person's own words carry no such mark.
+ * - A campaign carries the way to stop it: List-Unsubscribe with an https
+ *   address and a mail address, and List-Unsubscribe-Post for one click
+ *   (RFC 8058), which the large mailbox providers require of bulk mail; and
+ *   its footer, after the signature. Both addresses are checked here, because
+ *   a header value that is not one line is a second header.
  * - The tags name the row and the workspace, so a receipt finds its message
  *   without a lookup by the provider's id, even one that arrives before the
  *   send's own write.
@@ -1271,6 +1857,93 @@ declare function referencesFor(parent: Pick<EmailParent, "rfcMessageId" | "refer
 declare function buildEmailRequest(i: EmailRequestInput): EmailRequest;
 /** Is this stored value a request the wire may send? The row's meta is JSON; the wire trusts its shape, not its type. */
 declare function isEmailRequest(v: unknown): v is EmailRequest;
+
+/** A Message-ID as a header carries it, angle brackets and all; null for anything that is not one. */
+declare function messageIdHeader(id: string | null | undefined): string | null;
+/** `Ana Reyes <ana@x.com>` or `ana@x.com`: the address and the phrase, apart. The phrase is the sender's own and proves nothing. */
+declare function addressOf(header: string | null | undefined): {
+    address: string;
+    name: string | null;
+} | null;
+
+/** bestmovers@mail.chanlytics.com: the address a workspace publishes and sends from. */
+declare function hostedAddress(localPart: string, domain: string): string;
+/** r+<token>@mail.chanlytics.com: where a reply comes back. It routes to a workspace; it authenticates nobody. */
+declare function replyRouteAddress(replyToken: string, domain: string): string;
+/** A workspace's hosted identity, from its mailbox row and the deployment's mail domain. */
+declare function hostedIdentity(mailbox: {
+    local_part: string;
+    reply_token: string;
+    from_name: string;
+}, domain: string): EmailIdentity;
+/** The addresses one workspace's email may leave as and be answered at: what the wire holds a frozen request to. */
+interface EmailSendsAs {
+    /** The From address. */
+    address: string;
+    /** Every Reply-To that still routes to this workspace: the live reply route, and the rotated-out one until it is revoked. */
+    replyRoutes: string[];
+}
+/** What a mailbox row sends as, on the deployment's mail domain. */
+declare function sendsAs(mailbox: {
+    local_part: string;
+    reply_token: string;
+    reply_token_prev: string | null;
+}, domain: string): EmailSendsAs;
+/**
+ * What the mailbox sends OFFERS as (One message, every channel, step 4; the spec's 4.6): From on the campaigns domain, so a
+ * complaint about an offer never touches the domain replies and visit messages leave from, and answered at the same reply
+ * routes as every other email, on the mail domain (the one that receives): a reply to an offer lands in the Inbox.
+ */
+declare function sendsAsCampaigns(mailbox: {
+    local_part: string;
+    reply_token: string;
+    reply_token_prev: string | null;
+}, campaignsDomain: string, mailDomain: string): EmailSendsAs;
+/** The identity an offer is frozen with: the mailbox's name and local part on the campaigns domain, Reply-To its live reply route on the mail domain. */
+declare function campaignsIdentity(mailbox: {
+    local_part: string;
+    reply_token: string;
+    from_name: string;
+}, campaignsDomain: string, mailDomain: string): EmailIdentity;
+/**
+ * What one of a workspace's own domains sends as (Reach out): From on the
+ * workspace's domain, answered at the mailbox's own reply routes, so a reply
+ * to a cold email lands in the same Inbox as every other. With cold reply
+ * domains (D17) the routes are on them too: a cold email is frozen with the
+ * one set now, and one frozen before a switch still leaves as it was.
+ */
+declare function sendsAsOwnDomain(domain: {
+    host: string;
+    from_local: string;
+}, mailbox: {
+    local_part: string;
+    reply_token: string;
+    reply_token_prev: string | null;
+}, mailDomain: string, coldReplyDomains?: string | readonly string[] | null): EmailSendsAs;
+/**
+ * The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route on
+ * the domain its replies come back on (the mail domain, or the cold reply domain when it is set, D17).
+ */
+declare function ownDomainIdentity(domain: {
+    host: string;
+    from_local: string;
+    from_name: string;
+}, mailbox: {
+    reply_token: string;
+}, replyDomain: string): EmailIdentity;
+/**
+ * Does this frozen request leave as this workspace and nobody else? The
+ * request is JSON on a row; the wire is bound to a workspace's mailbox. A
+ * request whose From or Reply-To is another's is refused rather than sent, the
+ * same promise the WhatsApp wire keeps by taking its credentials from the
+ * tenant and never from the environment.
+ */
+declare function requestLeavesAs(request: EmailRequest, as: EmailSendsAs): boolean;
+
+/**
+ * Whether a webhook delivery is Resend's: the Svix signature over it, computed and checked inside the replay window.
+ * The first thing intake asks; what a delivery carries is intake.ts and receipts.ts.
+ */
 interface SvixHeaders {
     id: string | null;
     timestamp: string | null;
@@ -1292,6 +1965,7 @@ declare function resendWebhookSignature(secret: string, id: string, timestamp: s
  * event is about.
  */
 declare function verifyResendWebhook(secret: string | undefined, h: SvixHeaders, rawBody: string, nowMs: number): Promise<boolean>;
+
 /** Which of the platform's addresses a delivery names: a workspace's published one, or a reply route. */
 type PlatformRecipient = {
     kind: "mailbox";
@@ -1304,14 +1978,11 @@ type PlatformRecipient = {
  * An address on the platform's mail domain, read for what it routes to; null
  * for any other address. Exact: the domain must be the deployment's, the local
  * part one the table could hold (00126). Nothing is inferred from a display
- * name, and a plus tag on a published address is not a second mailbox.
+ * name, and a plus tag on a published address is not a second mailbox. On the
+ * cold reply domain (Reach out D17), when there is one, a reply route routes
+ * and nothing else: no workspace publishes an address there.
  */
-declare function platformRecipient(address: string, domain: string): PlatformRecipient | null;
-/** `Ana Reyes <ana@x.com>` or `ana@x.com`: the address and the phrase, apart. The phrase is the sender's own and proves nothing. */
-declare function addressOf(header: string | null | undefined): {
-    address: string;
-    name: string | null;
-} | null;
+declare function platformRecipient(address: string, domain: string, coldReplyDomains?: string | readonly string[] | null): PlatformRecipient | null;
 /** One received email as the webhook announces it: a pointer, and who it was delivered to. */
 interface EmailReceivedEvent {
     type: "email.received";
@@ -1342,6 +2013,12 @@ interface ReceivedEmail {
     html: string | null;
     /** Lower-cased names; a header that repeats keeps its first value. */
     headers: Record<string, string>;
+    /**
+     * Every Authentication-Results header the provider listed, in the order it listed them: the one place a repeated header
+     * keeps all its values (`headers` keeps the first), because which of them the receiving side wrote is decided by the
+     * name each carries (`senderAuthenticated`), never by where it sits. Absent reads as none.
+     */
+    authResults?: string[];
     messageId: string | null;
     createdAt: string | null;
     attachments: Array<{
@@ -1371,7 +2048,26 @@ declare function messageIdsIn(header: string | null | undefined): string[];
  *   person     none of the above.
  */
 type EmailClaim = "report" | "auto_reply" | "automated" | "person";
+/**
+ * Whether the receiving side PROVES the sender is who the From line says, from the Authentication-Results header it
+ * writes (RFC 8601), as the fetched email carries it: an aligned DMARC pass for the From domain (`dmarc=pass` with
+ * `header.from` that domain), or a DKIM pass signed by it (`dkim=pass` with `header.d` that domain, or, where the verifier
+ * says only the signing identity, `header.i` on it). Anything else is no proof: no header, an SPF result alone (SPF
+ * speaks for the envelope, not the From), a pass for another domain, a failure, a DMARC failure beside a DKIM pass.
+ * FAILS CLOSED, which is the point: a yes to offers widens what may be sent, and a From line is one anyone can write, so
+ * a header this cannot read as a proof is not one. A no (STOP, UNSUBSCRIBE) never asks it, since a no only narrows.
+ *
+ * Which party wrote a header is decided by its authserv-id, the name that opens it (RFC 8601, on the trust boundary): the
+ * header is evidence only so far as the provider's own receiving side is the one that wrote it, and a sender can put any
+ * Authentication-Results line it likes into its own mail, with any name and in any place among the headers. So only a header
+ * that names `authservId`, the name the provider's receiving side writes (configuration: EMAIL_AUTHSERV_ID, to be read off a
+ * real received email), is read at all. With none given, nothing is proof: no yes by email is recorded until it is. And
+ * exactly one such header is believed: the provider writes its own once, so a second that carries its name is somebody's
+ * copy of it, and a mail with two is read as proving nothing rather than as whichever sits on top.
+ */
+declare function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "authResults">, authservId: string | null): boolean;
 declare function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from">): EmailClaim;
+
 type EmailReceiptType = "sent" | "delivered" | "delivery_delayed" | "bounced" | "complained" | "failed" | "suppressed";
 interface EmailReceipt {
     type: EmailReceiptType;
@@ -1420,27 +2116,28 @@ interface EmailReceiptEffect {
  * interim.
  */
 declare function emailReceiptEffect(r: EmailReceipt): EmailReceiptEffect;
-/** The addresses one workspace's email may leave as and be answered at: what the wire holds a frozen request to. */
-interface EmailSendsAs {
-    /** The From address. */
-    address: string;
-    /** Every Reply-To that still routes to this workspace: the live reply route, and the rotated-out one until it is revoked. */
-    replyRoutes: string[];
-}
-/** What a mailbox row sends as, on the deployment's mail domain. */
-declare function sendsAs(mailbox: {
-    local_part: string;
-    reply_token: string;
-    reply_token_prev: string | null;
-}, domain: string): EmailSendsAs;
+
 /**
- * Does this frozen request leave as this workspace and nobody else? The
- * request is JSON on a row; the wire is bound to a workspace's mailbox. A
- * request whose From or Reply-To is another's is refused rather than sent, the
- * same promise the WhatsApp wire keeps by taking its credentials from the
- * tenant and never from the environment.
+ * Two answers the provider gives a call, read: what a refusal means for the next send (resendLimitOf), and what it
+ * thinks of the mail domain (mailDomainsFrom). The calls themselves are ./email-resend.ts.
  */
-declare function requestLeavesAs(request: EmailRequest, as: EmailSendsAs): boolean;
+/**
+ * What a refusal from the provider means for the next send, read from the
+ * names Resend documents for its 429 and 409 answers:
+ *   rate       too many requests this second; the next second takes it
+ *   in_flight  a request under the same key is still being worked; its result is coming
+ *   daily      the day's sending is used up, for every workspace on the key
+ *   monthly    the month's is
+ * Null for anything else, a success included. A 429 that names nothing is read
+ * as the one that passes: the provider did not take the email, and waiting a
+ * second costs nothing.
+ */
+type ResendLimit = "rate" | "in_flight" | "daily" | "monthly";
+declare function resendLimitOf(r: {
+    ok?: boolean;
+    status: number;
+    errorBody?: string | null;
+}): ResendLimit | null;
 /** What a domain is configured FOR. Not whether it works: a verified domain can be configured not to receive at all. */
 type MailCapability = "enabled" | "disabled" | "unknown";
 /**
@@ -1463,7 +2160,7 @@ declare function emailPlainText(e: Pick<ReceivedEmail, "text" | "html">): string
 /**
  * Email over Resend: the one function with a network in it.
  *
- * It sends a request that was built and frozen elsewhere (email.ts) and says
+ * It sends a request that was built and frozen elsewhere (email/request.ts) and says
  * what happened. Like every send adapter here it RETURNS a result and never
  * throws, and it is bounded: a hung connection must not take the worker's
  * whole run with it (whatsapp.ts postGraph says why).
@@ -1473,12 +2170,77 @@ declare function emailPlainText(e: Pick<ReceivedEmail, "text" | "html">): string
  * send's result, so the one retry the ledger allows cannot deliver twice; a
  * repeated key with a different payload is refused (409), which a frozen
  * request never produces.
+ *
+ * A refusal that means "not this second" (resendLimitOf: rate, in_flight) is
+ * waited out once, when the provider's wait is short, and the same bytes are
+ * posted again under the same key: the provider did not take the first, or it
+ * answers the second with the first's result. A longer wait, a used-up day or
+ * month, or a second refusal is handed back as it came.
+ *
+ * An email the provider took as the last its rate allowed (ratelimit-remaining
+ * 0) waits out the reset before it returns (Reach out C14), so the next email
+ * this instance sends meets an open second rather than a 429.
  */
 
 interface ResendConfig {
     apiKey: string;
 }
-declare function sendEmail(cfg: ResendConfig, request: EmailRequest): Promise<SendResult>;
+/** The provider's API, once: every call in this package goes to a path under it (resendRequest). */
+declare const RESEND_API = "https://api.resend.com";
+/** The longest one request to the provider waits: a send's try, a domain's read. The domains sweep's budget counts it. */
+declare const SEND_TIMEOUT_MS = 15000;
+/**
+ * The most one send may take, both tries and a short wait included, when its caller has no ceiling of its own: Part 1
+ * measured the worst case at 32 s. A caller that runs inside a function's ceiling (the jobs tick yields at 45 s of 60,
+ * and a send may start at the yield) passes what is left of it (`deadlineMs`), which is less: this is only the cap, and
+ * ops-hygiene.test.mjs holds the room a send is given at the yield point, plus the yield, under the ceiling.
+ */
+declare const SEND_DEADLINE_MS = 32000;
+/**
+ * The least a caller's ceiling may leave one send (the email wire raises a smaller one to it): a request cannot be made in
+ * no time, and a send that starts when a function has none left to give would only time out, with the email possibly taken.
+ */
+declare const SEND_MIN_MS = 3000;
+/** What the provider answered, or that it did not: status 0 is no answer, and `timedOut` says whether we gave up. */
+interface ResendAnswer {
+    status: number;
+    json: unknown;
+    raw: string;
+    headers: Headers | null;
+    timedOut: boolean;
+    /** What the call came to (provider-fetch SendOutcome). */
+    outcome: SendOutcome;
+}
+/**
+ * One call to the provider. It never throws: every answer is a status the caller reads, and "we could not ask"
+ * (status 0) is kept apart from any answer it gave. The one place this package builds a request, so a timeout, a key
+ * and a base URL are each spelled once.
+ */
+declare function resendRequest(cfg: ResendConfig, method: "GET" | "POST" | "DELETE" | "PATCH", path: string, opts?: {
+    body?: unknown;
+    timeoutMs?: number;
+    idempotencyKey?: string;
+    breaker?: "hold" | "count";
+}): Promise<ResendAnswer>;
+interface SendEmailOptions {
+    /** How a short wait is waited (a test hands its own). */
+    wait?: (ms: number) => Promise<void>;
+    /**
+     * The most this send may take, every try included: never more than SEND_DEADLINE_MS, which is what it takes when none is
+     * given. A caller inside a function's ceiling gives what is left of it (the email wire, SEND_MIN_MS at the least).
+     */
+    deadlineMs?: number;
+    /** Epoch ms, injected so the deadline is testable. */
+    now?: () => number;
+}
+/**
+ * Post the frozen request, and try once more when the answer allows it, always under the same idempotency key, so a
+ * second try is the same email (the provider keeps a key a day):
+ *   - the provider's "not this second" (rate, in flight), waited out when it asks for 2 s or less;
+ *   - a timeout, when at least 5 s of the deadline are left: the first may never have arrived.
+ * A network failure that is not a timeout is not tried again: nothing left.
+ */
+declare function sendEmail(cfg: ResendConfig, request: EmailRequest, opts?: SendEmailOptions): Promise<SendResult>;
 /**
  * One received email, by the id its webhook named. `null` is the provider
  * saying it has no such email (404): a fact, and the intake ends. Anything
@@ -1498,6 +2260,61 @@ declare function fetchReceivedEmail(cfg: ResendConfig, receivedId: string): Prom
  * somebody for.
  */
 declare function fetchMailDomains(cfg: ResendConfig): Promise<MailDomainFacts[]>;
+
+/**
+ * A workspace's own sending domains at the mail provider (Resend's domains API): create one, read where it stands,
+ * ask for it to be checked, remove it. Reach out, Part 2 (docs/superpowers/plans/2026-09-25-reach-out-part-2-the-wire.md).
+ *
+ * These run on the COLD account's key only (the edge's RESEND_COLD_API_KEY): a business's own domains send its cold
+ * mail, apart from the account every reminder and reply leaves on. Opens and clicks are switched off by name: the
+ * provider's own example domain has open tracking on, and the product counts neither (decision 8 of the spec).
+ *
+ * Like postEmail, nothing here throws for an answer: each call returns what the provider said, and "we could not
+ * ask" (status 0) is kept apart from any answer it gave.
+ */
+
+/** One domain as the provider holds it: its id, the word for where it stands, and the records to publish. */
+interface ProviderDomain {
+    id: string;
+    name: string;
+    status: string;
+    records: DomainRecord[];
+    /** When the provider made it (its ISO time), or null when its answer did not say: how an add knows a domain is its own. */
+    createdAt: string | null;
+}
+type ProviderAnswer<T> = {
+    ok: true;
+    value: T;
+} | {
+    ok: false;
+    status: number;
+    message: string;
+};
+/** A domain in a provider's answer; null when the answer is not a domain at all. */
+declare function providerDomainFrom(body: unknown): ProviderDomain | null;
+/** Register a domain at the cold account: sending on, receiving off, opens and clicks off. */
+declare function createMailDomain(cfg: ResendConfig, host: string): Promise<ProviderAnswer<ProviderDomain>>;
+/** Where a domain stands. `value: null` is the provider saying it has no such domain (404): a fact, not a failure. */
+declare function getMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<ProviderDomain | null>>;
+/**
+ * The account's own domain by that name, or null when the account has none: the truth about whether a create whose
+ * answer was lost (a timeout, a 5xx, a shape that is not a domain) made one anyway, and what an adoption reads. The
+ * list carries no records; the caller reads the domain by its id for them.
+ */
+declare function findMailDomain(cfg: ResendConfig, name: string): Promise<ProviderAnswer<{
+    id: string;
+    name: string;
+    status: string;
+} | null>>;
+/** Ask the provider to check the records now. Asynchronous at the provider: the answer is read by getMailDomain. */
+declare function verifyMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<true>>;
+/** Remove a domain. Already gone (404) is gone: the removal the caller wanted. */
+declare function removeMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<"removed" | "gone">>;
+/**
+ * Whether a set of TXT answers holds a DMARC record: any whose chunks, joined, begin `v=DMARC1` (RFC 7489 §6.4).
+ * A record is split into 255-byte chunks on the wire, so the chunks are joined before the test.
+ */
+declare function dmarcOf(txt: readonly (readonly string[])[]): "found" | "missing";
 
 /**
  * A2P 10DLC: registering one workspace with the carriers, as pure parts.
@@ -1525,8 +2342,14 @@ declare function fetchMailDomains(cfg: ResendConfig): Promise<MailDomainFacts[]>
  * paid for. Chanlytics' own primary profile is not moved into the
  * subaccount; it is REFERENCED by sid, and that reference is the whole
  * declaration that this business is ours.
+ *
+ * This module holds the wire's own vocabulary: the Trust Hub policies, the two
+ * hosts, and a request and how its form is written. The requests themselves are
+ * trust-hub.ts (the profiles, the end users, the address) and brand-campaign.ts
+ * (the brand and the campaign); the business they describe is
+ * business-record.ts; the saga's steps are steps.ts and what the carriers
+ * answer is verdict.ts.
  */
-
 /** Trust Hub policies, by the names Twilio gives them. */
 declare const A2P_POLICIES: {
     /** The bundle one customer of an ISV gets. */
@@ -1550,6 +2373,20 @@ declare const A2P_POLICIES: {
 };
 declare const TRUSTHUB = "https://trusthub.twilio.com/v1";
 declare const MESSAGING = "https://messaging.twilio.com/v1";
+interface A2PRequest {
+    url: string;
+    method: "GET" | "POST" | "DELETE";
+    /**
+     * Form fields; the caller encodes them. A list is sent as REPEATED keys —
+     * `MessageSamples=a&MessageSamples=b` — which is the only shape Twilio
+     * parses. Indexed keys (`MessageSamples[0]`) come back as
+     * "Unable to process JSON".
+     */
+    form?: Record<string, string | string[]>;
+}
+/** One place that knows how a list is written on the wire. */
+declare function encodeForm(form: Record<string, string | string[]>): string;
+
 /** What every registration asks of a business, collected once and reused. */
 interface BusinessRecord {
     /** The name on the tax filing, not the trading name. */
@@ -1600,19 +2437,7 @@ type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
  * nothing else.
  */
 declare function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType;
-interface A2PRequest {
-    url: string;
-    method: "GET" | "POST" | "DELETE";
-    /**
-     * Form fields; the caller encodes them. A list is sent as REPEATED keys —
-     * `MessageSamples=a&MessageSamples=b` — which is the only shape Twilio
-     * parses. Indexed keys (`MessageSamples[0]`) come back as
-     * "Unable to process JSON".
-     */
-    form?: Record<string, string | string[]>;
-}
-/** One place that knows how a list is written on the wire. */
-declare function encodeForm(form: Record<string, string | string[]>): string;
+
 /** The customer's own bundle, under our primary profile. */
 declare function customerProfileRequest(o: {
     friendlyName: string;
@@ -1695,6 +2520,13 @@ declare function a2pProfileEndUserRequest(o: {
 }): A2PRequest;
 declare function evaluateTrustProductRequest(bundleSid: string): A2PRequest;
 declare function submitTrustProductRequest(bundleSid: string): A2PRequest;
+
+/**
+ * The Messaging API half of a registration, as requests: the brand registered from the two profiles, and the
+ * campaign on the line's Messaging Service, filed, corrected in place or taken off. The profiles are trust-hub.ts;
+ * the policies, the hosts and the request's shape are wire.ts.
+ */
+
 /**
  * The brand. `mock` registers against Twilio's test registry: free, never
  * routes a real message, and gone after thirty days — which is how this
@@ -1822,8 +2654,14 @@ declare function updateCampaignRequest(messagingServiceSid: string, campaignSid:
  * compliance list is then empty.
  */
 declare function deleteCampaignRequest(messagingServiceSid: string, campaignSid: string): A2PRequest;
+
+/**
+ * The registration's steps and their receipts: the order the saga walks them (A2P_STEPS), what it has made so far
+ * (A2PState), and the next step on either registration (nextA2PStep). The saga that runs them is ../a2p-saga.ts.
+ */
+
 type A2PStep = SchemaSet<"lines.reg_step">;
-/** In the order the saga walks them; schema-agreement.ts holds them to the column. */
+/** In the order the saga walks them; lines/lines.type-test.ts holds them to the column. */
 declare const A2P_STEPS: readonly ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"];
 /** What the registration has made so far. Every field is a receipt for one step. */
 interface A2PState {
@@ -1851,6 +2689,11 @@ declare const EMPTY_A2P_STATE: A2PState;
  * genuinely shared, which is why one function still answers for both.
  */
 declare function nextA2PStep(s: A2PState, brandType?: BrandType): A2PStep | null;
+
+/**
+ * What the carriers answered, in the product's words: a wait told apart from a refusal (isBrandNotReady), why they
+ * refused (refusalWords), the line's sms_state (smsStateFor), and the bell a change rings (registrationVerdict).
+ */
 /**
  * The campaign cannot be filed until the carriers have finished with the
  * brand. That is a WAIT, not a refusal: everything asked for was accepted,
@@ -1972,32 +2815,6 @@ type A2PResult = {
 };
 declare function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResult>;
 
-/**
- * Google Places (New): the public listing — what anyone can read on Maps.
- *
- * Two calls, pinned to the documented shapes. Text Search finds the business
- * from its name and address and asks for Pro fields only (a name, an
- * address, a link and the kind of place, which tells two listings of one name
- * apart — never the rating, which would bill the Enterprise SKU for a search
- * the owner confirms by eye anyway; Google's Text Search (New) field list,
- * checked on 24 Sep 2026, has primaryTypeDisplayName under Pro). Place Details reads what
- * the listing says: the rating, the count, and the five reviews Google shows
- * first — `reviews` is the Enterprise + Atmosphere field, the one that
- * costs, and it is asked for once a day per workspace.
- *
- * The key travels in a header and the field mask in another; without the
- * mask Google refuses the call. HTTP is a port, so the planner beside this
- * (google-sync.ts) and every test run without a network.
- *
- * Details also reads what the listing says beyond its name: the week, the
- * numbers, the site, the kind of place, whether it serves an area rather
- * than an address, and its zone -- kept on the listing for the first run to
- * offer the owner (contracts GoogleListingFacts). None of those costs more:
- * `reviews` already bills the read at the top tier. The names are Google's
- * Place reference's own, checked on 24 Sep 2026; one wrong name and Google
- * refuses the whole read, so the test pins them name by name.
- */
-
 declare const PLACES_BASE = "https://places.googleapis.com/v1";
 declare const PLACES_SEARCH_MASK: string;
 declare const PLACES_DETAILS_MASK: string;
@@ -2071,7 +2888,10 @@ declare function searchPlaces(http: PlacesHttp, key: string, query: string, opts
 declare function getPlace(http: PlacesHttp, key: string, placeId: string, opts?: {
     languageCode?: string;
 }): Promise<PlaceDetails>;
-/** The real port: fetch with a timeout, the body as text whatever the status. */
+/**
+ * The real port: providerFetch with a timeout, the body as text whatever the status. A call that got no answer throws
+ * the network's words, as the bare fetch it replaces did; a read (a GET) is asked twice first.
+ */
 declare function placesFetch(fetchImpl?: typeof fetch, timeoutMs?: number): PlacesHttp;
 /** A place id as Google issues them: letters, digits, dashes and underscores. */
 declare const PLACE_ID: RegExp;
@@ -2361,11 +3181,18 @@ interface EdgeClaims {
     user: string | null;
     iat: number;
     exp: number;
+    /** Minted fresh for every token: the edge refuses one it has seen before the token expires. */
     nonce: string;
+    /** The request this call was made in, when the dashboard was serving one: a name shaped by `requestIdShaped`. */
+    rid?: string | null;
+    /** The body's hash (edgeBodyHash), when the call has a body: the token opens the door for that body only. */
+    bh?: string;
 }
 declare function signEdgeToken(secret: string, aud: string, ctx?: {
     workspace?: string | null;
     user?: string | null;
+    request?: string | null;
+    body?: string;
 }, nowMs?: number): string;
 type EdgeTokenVerdict = {
     ok: true;
@@ -2376,6 +3203,98 @@ type EdgeTokenVerdict = {
 };
 /** Signature first, in constant time; only a signed payload is parsed. */
 declare function verifyEdgeToken(secret: string, token: string, aud: string, nowMs?: number): EdgeTokenVerdict;
+/** Whether a body is the one a token's hash names, in constant time. A token that names no body says nothing here. */
+declare function edgeBodyMatches(claims: Pick<EdgeClaims, "bh">, body: string): boolean;
+
+/**
+ * One request's name: how it is chosen, and what a name may look like. "What happened to this click?" is then one
+ * search across both apps' logs, the jobs the click queued and the events it wrote.
+ *
+ * This file chooses and checks names; it holds none. The name of the request being served is held in log/request.ts
+ * (an AsyncLocalStorage on globalThis, so every bundled copy of channels sees one store): `withRequestId` runs work
+ * inside a name and `requestId()` reads it back. It is read by
+ *   - the logger (log/logger.ts), which puts `request_id` on every line written inside a request;
+ *   - scheduleJob (packages/jobs schedule.ts), which stamps it into a job's payload as `request_id`, unless the
+ *     payload already names one;
+ *   - dispatchJob (packages/jobs handlers.ts), which runs a job under its payload's name, else under its own row id;
+ *   - the service-role database client (packages/db observe.ts namedFetch, made in service-client.ts), which sends it
+ *     as x-chanlytics-request-id on every call, so `events.request_id` is filled whether TypeScript or a SQL function
+ *     wrote the row (00277);
+ *   - the edge's door() and the dashboard's withRoute, which name a request as it enters, run it inside its name and
+ *     answer it back in REQUEST_ID_HEADER; and the dashboard's edgeHeaders, which sends it on to the edge in the same
+ *     header and signs it into the edge token (edge-token.ts `rid`).
+ *
+ * `requestIdOf(headers, { trustCaller })` picks the name as a request enters: the caller's x-request-id, only where
+ * the caller is trusted to name its own request and the value is shaped like a name; else the platform's own for the
+ * invocation (x-vercel-id); else a fresh uuid. Only the edge's admin doors, called by the dashboard, trust their
+ * caller. A browser's header is never taken, since it could name its requests after someone else's: withRoute passes
+ * trustCaller false, and a webhook's door is named by the platform. An admin door first takes the name signed into a
+ * verified edge token (door() in apps/edge/lib/log.ts), so a header alone never renames a call whose token verified;
+ * this is what it falls back to.
+ *
+ * `requestIdShaped` is the one shape check: 8 to 128 letters, digits and . _ : - (a log field, never a sentence or a
+ * payload). The edge token uses it to admit a name to sign and to read one back; the job runner, to read a payload's
+ * `request_id`.
+ */
+/** The header a request's name rides in: from the dashboard to the edge, and back to the browser on every answer. */
+declare const REQUEST_ID_HEADER = "x-request-id";
+/**
+ * The name this request goes by. The caller's, when it is trusted to give one (the edge's admin doors, called by the
+ * dashboard with a token) and gave a sane one; else the platform's own for this request (x-vercel-id); else a fresh
+ * one. A browser's header is not taken: it could name its requests after someone else's.
+ */
+declare function requestIdOf(headers: Headers, opts: {
+    trustCaller: boolean;
+}): string;
+/** A value that may name a request (a job's payload, a header), trimmed, or null when it is not one. */
+declare function requestIdShaped(value: unknown): string | null;
+
+type LogLevel = "info" | "warn" | "error";
+/** A line's fields: anything JSON can carry. An undefined field is dropped, not written as null. */
+type LogFields = Record<string, unknown>;
+/**
+ * A logger with context bound to it. Pass the workspace once, as `tenant_id`, where it becomes known, and every line
+ * beneath carries it. `E` is the app's closed set of names: tsc refuses a name outside it wherever the logger is typed.
+ */
+interface Logger<E extends string = string> {
+    info(event: E, fields?: LogFields): void;
+    warn(event: E, fields?: LogFields): void;
+    error(event: E, fields?: LogFields): void;
+    /** A logger with more context bound: per message inside a batch. */
+    child(extra: LogFields): Logger<E>;
+}
+declare function logger<E extends string = string>(base?: LogFields): Logger<E>;
+/** An error rendered for a log field: name and message, never a stack blob (the logger adds the stack on an error line). */
+declare function errField(e: unknown): string;
+
+/** Run `fn` as the request named `id`: every line it logs, every job it schedules and every event it writes carries the name. */
+declare function withRequestId<T>(id: string, fn: () => T): T;
+/** The name of the request the code running now serves, or null outside one (a script, a test, a clock's own SQL). */
+declare function requestId(): string | null;
+/**
+ * The workspace this request acts on, said once where it is resolved (the dashboard's route pipeline): the lines
+ * logged after it carry `tenant_id` without each call site passing it. Outside a request it does nothing.
+ */
+declare function noteTenant(tenantId: string): void;
+/** The workspace the request running now acts on, when it has said. */
+declare function requestTenant(): string | null;
+
+interface UnsubscribeClaims {
+    tenantId: string;
+    contactId: string;
+    messageId: string;
+}
+/** Where the page lives on the dashboard's origin. */
+declare const UNSUBSCRIBE_PATH = "/u/";
+declare function signUnsubscribeToken(secret: string, c: UnsubscribeClaims): string;
+/**
+ * The claims a token seals, or null for anything that is not a token one of these secrets made. Never throws.
+ * `secrets` is the current secret and, while a rotation settles, the one before it: a link already in somebody's
+ * inbox must keep working for at least thirty days (CAN-SPAM), so a rotation never closes one. A blank is skipped.
+ */
+declare function verifyUnsubscribeToken(secrets: readonly (string | null | undefined)[], token: string): UnsubscribeClaims | null;
+/** The link, on an origin: what the footer shows and List-Unsubscribe carries. */
+declare function unsubscribeUrl(origin: string, token: string): string;
 
 /**
  * The lead finder's provider, over its HTTP API (https://docs.apify.com/api/v2).
@@ -2446,14 +3365,22 @@ interface ApifyClient {
 declare function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient;
 
 /** Twenty-five places at low effort fit in about 3,000 tokens; the rest is room. A cap reached is a refusal, never a split. */
-declare const LEAD_JUDGE_MAX_TOKENS = 6000;
+declare const LEAD_JUDGE_MAX_TOKENS: 6000;
 declare const LEAD_JUDGE_FALLBACK_BETA = "server-side-fallback-2026-07-01";
-declare const LEAD_JUDGE_DEFAULT_MODEL = "claude-opus-5";
-/** The client as this call uses it. An Anthropic instance satisfies it; the edge builds one with its own timeout. */
+/** The registry's model for the judge (contracts ai/models.ts); LEAD_JUDGE_MODEL on the edge may name another. */
+declare const LEAD_JUDGE_DEFAULT_MODEL: "claude-opus-5";
+/**
+ * The client as this call uses it: the edge builds one over the model port (apps/edge/lib/leads/lead-wires.ts), which
+ * writes each call to the usage ledger for the workspace named in `call`, with the round it was paid in as the row's
+ * subject.
+ */
 interface LeadJudgeClient {
     beta: {
         messages: {
-            create(params: Record<string, unknown>): Promise<unknown>;
+            create(params: Record<string, unknown>, call?: {
+                tenantId?: string;
+                roundId?: string;
+            }): Promise<unknown>;
         };
     };
 }
@@ -2468,8 +3395,13 @@ type LeadJudgeAnswer = {
     why: string;
 };
 interface LeadJudge {
-    judge(plan: LeadSearchPlan, places: PlaceFacts[]): Promise<LeadJudgeAnswer>;
+    /**
+     * One batch judged; `tenantId` is the search's workspace, the usage ledger's row, and `roundId` the round the batch is
+     * paid in, the row's subject (and the second model's rows for the same call): what the judge cost a search is read off
+     * the ledger by it. A call that names no round leaves the subject empty.
+     */
+    judge(plan: LeadSearchPlan, places: PlaceFacts[], tenantId?: string, roundId?: string): Promise<LeadJudgeAnswer>;
 }
 declare function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boolean): LeadJudge;
 
-export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, DEFAULT_FN_URL, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type EmailClaim, type EmailIdentity, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type MailCapability, type MailDomainFacts, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type RecordingFetch, type ResendConfig, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, STATE_TTL_MS, type SagaResult, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SvixHeaders, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, apifyClient, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, buildEmailRequest, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deleteReplyRequest, desiredVoiceShell, dryProvider, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, hostedAddress, hostedIdentity, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isE164, isEmailRequest, isValidSipPassword, keywordsFor, leadJudge, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, mailDomainsFrom, mailboxHeader, mergeConsent, messageIdHeader, messageIdsIn, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, publishAgentVersion, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestLeavesAs, resendWebhookSignature, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendTemplate, sendText, sendsAs, signEdgeToken, signState, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, stripKey, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withCarrierConsent, withKey };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, type ConversationMint, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, ELEVENLABS_SIGNATURE_HEADER, ELEVENLABS_WEBHOOK_TOLERANCE_S, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type ElevenLabsConfig, type EmailCampaign, type EmailClaim, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type LogFields, type LogLevel, type Logger, MESSAGING, type MailCapability, type MailDomainFacts, type ModelAsk, type ModelBlock, type ModelDeps, type ModelMessage, type ModelOutcome, type ModelReply, type ModelStreamReply, type NormalizedCall, type NormalizedInbound, NotPublicError, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderAnswer, type ProviderCall, type ProviderDomain, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type PublicFetchDeps, REQUEST_ID_HEADER, RESEND_API, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type ReceivedText, type RecordingFetch, type ResendAnswer, type ResendConfig, type ResendLimit, type Resolve, type Resolved, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_MIN_MS, SEND_TIMEOUT_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, STATE_TTL_MS, SYSTEM_ONE_URL, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SpeechStream, type SvixHeaders, type SystemOneAsk, type SystemOneReply, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, type WaChangeValue, type WaConfig, type WaMediaRef, type WaPricing, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, askModel, askSystemOne, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, breakerOf, breakerStates, buildEmailRequest, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, campaignsIdentity, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, createAgent, createAgentVersion, createMailDomain, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deleteConversation, deletePhoneNumber, deleteReplyRequest, desiredVoiceShell, dmarcOf, dryProvider, edgeBodyMatches, elevenLabsWebhookSignature, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, errField, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, findMailDomain, formatRejected, getAgent, getAgentRaw, getCall, getMailDomain, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, graphThrottled, hostedAddress, hostedIdentity, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isEmailRequest, isPublicAddress, isValidSipPassword, keywordsFor, leadJudge, lineCodesFrom, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, logger, mailDomainsFrom, mailboxHeader, mergeConsent, messageIdHeader, messageIdsIn, mintConversationToken, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, noteTenant, oneTimeCodeOf, ownDomainIdentity, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerDomainFrom, providerFetch, publicFetch, publicFetcher, publicLookup, publishAgentVersion, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, removeMailDomain, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestId, requestIdOf, requestIdShaped, requestLeavesAs, requestTenant, resendLimitOf, resendRequest, resendWebhookSignature, resetBreakers, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendTemplate, sendText, senderAuthenticated, sendsAs, sendsAsCampaigns, sendsAsOwnDomain, setPublicFetch, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, speakText, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, streamModel, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyElevenLabsWebhook, verifyMailDomain, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, waPricingOf, waStoppedMarketing, withCarrierConsent, withKey, withRequestId };

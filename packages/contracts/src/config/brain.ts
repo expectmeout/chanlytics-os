@@ -1,0 +1,182 @@
+/**
+ * What the receptionist says back, as a record and not just a string.
+ *
+ * The brain used to return text with a handoff token hidden in it, and
+ * nothing else: no reading of what the customer wanted, no sense of how sure
+ * it was, no trace of which fact it leaned on. Every "why did it say that?"
+ * had to be guessed from the words. This is the shape it answers in now,
+ * constrained by the API (output_config.format), validated here, carried on
+ * the message row's meta, and read by the Inbox.
+ *
+ * Kept to what a salon owner can act on: the intent names the class of
+ * question, the confidence drives the hold-for-review dial, the reason is one
+ * sentence for the rail, the facts are what to check when the answer is
+ * wrong.
+ */
+import { POLICY_COVERS } from "./workspace-config/policy-classes";
+import type { BrainOutput } from "./brain-schema";
+
+export const BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other",
+] as const;
+export type BrainIntent = (typeof BRAIN_INTENTS)[number];
+
+export const INTENT_LABELS: Record<BrainIntent, string> = {
+  booking: "Booking",
+  pricing: "Pricing question",
+  money: "Money question",
+  hours: "Hours",
+  services: "Services",
+  location: "Location",
+  complaint: "Complaint",
+  smalltalk: "Small talk",
+  other: "Other",
+};
+
+export const BRAIN_LANGUAGES = ["en", "es", "other"] as const;
+
+/**
+ * The JSON Schema the API constrains decoding to. Only what the API supports:
+ * no numeric ranges, no length limits, no nullable unions — those are checked
+ * by the zod schema below after the fact, and clamped rather than refused.
+ */
+export const BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description:
+        "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here.",
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`,
+    },
+    escalate: {
+      type: "boolean",
+      description:
+        "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so.",
+    },
+    reason: {
+      type: "string",
+      description:
+        "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies.",
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1.",
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none.",
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in.",
+    },
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false,
+} as const;
+
+/**
+ * What a message row remembers about its own reasoning. Written by the edge
+ * beside source/delay_ms; read back by the Inbox through the meta the DTO
+ * already carries.
+ *
+ * Stamped with what it was written from (scorecard move 10): the model that
+ * answered (a fallback's, when it did), the sha256 of the instructions it was
+ * given, and the version of the workspace's settings they were composed from,
+ * so a past reply's prompt can be named and a settings change traced to the
+ * replies after it. Rows from before the stamp carry the model alone.
+ */
+export interface BrainMeta {
+  intent: BrainIntent;
+  confidence: number;
+  reason: string;
+  facts_used: string[];
+  language: (typeof BRAIN_LANGUAGES)[number];
+  model: string;
+  /** The first 16 hex of the sha256 of the system prompt the model was given. */
+  prompt_hash?: string;
+  /** tenant_config.version the prompt was composed from; null when it could not be read. */
+  config_version?: number | null;
+}
+
+/** What an answer was written from: its prompt's hash and the settings' version. */
+export interface BrainStamp {
+  promptHash: string;
+  configVersion: number | null;
+}
+
+export function brainMetaOf(out: BrainOutput, model: string, stamp?: BrainStamp): BrainMeta {
+  return {
+    intent: out.intent,
+    confidence: Math.round(out.confidence * 100) / 100,
+    reason: out.reason,
+    facts_used: out.facts_used,
+    language: out.language,
+    model,
+    ...(stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}),
+  };
+}
+
+/** The rail beside a reply: why it said what it said. */
+export interface ReplyWhyVM {
+  intent: BrainIntent;
+  intentLabel: string;
+  /** 0–100, or null when the row predates this. */
+  confidence: number | null;
+  reason: string | null;
+  facts: string[];
+  /** Why the draft is waiting, when it is. */
+  heldFor: "low_confidence" | "veto_window" | null;
+  /** One line for a chip: "Pricing question · 62% sure". */
+  summary: string;
+}
+
+/** From a message row's meta; null when the row carries no reasoning. */
+export function replyWhy(meta: Record<string, unknown> | null | undefined): ReplyWhyVM | null {
+  if (!meta || typeof meta !== "object") return null;
+  const intent = (BRAIN_INTENTS as readonly string[]).includes(String(meta.intent))
+    ? (meta.intent as BrainIntent)
+    : null;
+  const conf =
+    typeof meta.confidence === "number" && Number.isFinite(meta.confidence)
+      ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100)
+      : null;
+  if (intent === null && conf === null) return null;
+  const facts = Array.isArray(meta.facts_used)
+    ? (meta.facts_used as unknown[]).filter((f): f is string => typeof f === "string" && !!f.trim())
+    : [];
+  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
+  const source = typeof meta.source === "string" ? meta.source : null;
+  const heldFor = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
+  const label = intent ? INTENT_LABELS[intent] : "Reply";
+  return {
+    intent: intent ?? "other",
+    intentLabel: label,
+    confidence: conf,
+    reason,
+    facts,
+    heldFor,
+    summary: conf === null ? label : `${label} · ${conf}% sure`,
+  };
+}
+
+/** The confidence dial, as the Autonomy pane offers it. 0 means off. */
+export const CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9] as const;

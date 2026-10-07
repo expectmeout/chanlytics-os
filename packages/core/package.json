@@ -13,17 +13,17 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts",
+    "build": "tsup src/index.ts --format esm",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/db": "workspace:*",
-    "zod": "^4.6.5"
+    "@supabase/supabase-js": "^2.116.0"
   },
   "devDependencies": {
     "tsup": "^8.3.0",
-    "typescript": "^5.7.0"
+    "typescript": "catalog:"
   }
 }

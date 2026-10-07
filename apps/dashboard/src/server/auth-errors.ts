@@ -2,7 +2,7 @@
  * "We could not ask" is not "you are not signed in".
  *
  * Supabase's getUser() returns no user for BOTH a missing session and a
- * network or 5xx failure against the auth server. Every client treats a 401 as
+ * network, 5xx or rate-limit (429) failure against the auth server. Every client treats a 401 as
  * a sign-out — it wipes the surface cache (real customer transcripts) and
  * hard-redirects to /login — so answering 401 for the second case logged every
  * operator out during a blip and discarded whatever they were typing.
@@ -14,5 +14,6 @@
  */
 export function isRetryableAuthError(err: { status?: number; name?: string } | null | undefined): boolean {
   if (!err) return false;
-  return err.status === undefined || err.status >= 500 || err.name === "AuthRetryableFetchError";
+  // A 429 is the auth server asking to be asked again in a moment, which is not a session it has forgotten.
+  return err.status === undefined || err.status === 429 || err.status >= 500 || err.name === "AuthRetryableFetchError";
 }

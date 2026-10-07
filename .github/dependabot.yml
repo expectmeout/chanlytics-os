@@ -2,6 +2,10 @@
 # Monday, grouped so a week's minors and patches arrive as one pull request
 # and cost one CI run; a major arrives on its own, because a major is a
 # decision. Security updates are the repository setting beside this file.
+#
+# The updater runs pnpm 11, which reads pnpm's settings only from
+# pnpm-workspace.yaml; repo/settings/pnpm-settings.test.mjs keeps them there, and the
+# catalog manual, so the lockfile it writes is one CI's pnpm installs frozen.
 version: 2
 updates:
   - package-ecosystem: "npm"
@@ -13,20 +17,44 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 4
     ignore:
-      # @types/node describes the Node the code runs on, and that is 22 (.nvmrc,
-      # CI and the engines field). A newer major would type APIs the runtime
-      # does not have, so it moves when the runtime does.
+      # @types/node describes the oldest Node the code may run on, and that is
+      # 22 (the engines field; .nvmrc and CI run 24, as Vercel does). A newer
+      # major would type APIs Node 22 does not have, so it moves when the
+      # engines field does.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
-      # TypeScript 7 is the native compiler with a new API; tsup's --dts (every
-      # package build) dies on it (`useCaseSensitiveFileNames` of undefined) and
-      # Next 15's type plugin is not on it either. It moves when the toolchain
-      # does (#401 was that bump, closed).
+      # TypeScript 7 is the native compiler and ships no JavaScript API. tsup's
+      # declaration build, typescript-eslint, knip and the ratchets (_ast.mjs) all
+      # call the compiler's, so the toolchain stays on 6.x until each of them moves
+      # (#401 was that bump, closed). The version is pinned once, in
+      # pnpm-workspace.yaml's catalog; tests/types/ holds it.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # The phone app's SDK set. Expo pins each of these to its SDK, and
+      # expo-doctor refuses any other version, so a bump of one alone is red
+      # (#1126, #1315: react-native 0.87's types broke the app). They move
+      # together, with the SDK, by hand: `npx expo install --fix` in apps/mobile.
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "eslint-config-expo"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
+      # React is the phone's exact pin too (19.2.3, the SDK's) beside the
+      # dashboard's; a patch passes the doctor, a minor moves with the SDK and
+      # Next.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
+        # maplibre-gl's worker is vendored byte for byte into
+        # apps/dashboard/public/maplibre (maplibre-worker-vendored.test.mjs), so
+        # its bump comes alone, to carry the refreshed copy beside it.
+        exclude-patterns: ["maplibre-gl"]
     commit-message:
       prefix: "deps"
   - package-ecosystem: "github-actions"

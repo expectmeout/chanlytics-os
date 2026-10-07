@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { consentFormMetadata, consentFormVM } from "@chanlytics/contracts";
-import { consentPageFor } from "@/server/consent-page";
+import { consentPageFor } from "@/server/public/consent-page";
 import { printableOrigin } from "@/server/origin";
 
 /**

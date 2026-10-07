@@ -1,8 +1,14 @@
-import { AppError, FOLLOW_UP_NEEDS_DEALS } from "@chanlytics/contracts";
+import {
+  AppError,
+  FOLLOW_UP_NEEDS_DEALS,
+  REACH_OUT_IS_NOT_A_MOMENT,
+  CAMPAIGNS_PAUSED_WORDS,
+  triggerOf,
+} from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { playbookScope } from "@/server/verbs";
-import { runPlaybookNow } from "@/server/service";
-import { refuseOnArchivedList } from "@/server/playbooks";
+import { runPlaybookNow } from "@/server/campaigns/playbook-run";
+import { refuseOnArchivedList } from "@/server/campaigns/playbooks";
 
 /**
  * POST /api/v1/playbooks/:id/run — run it now, at this person's request.
@@ -22,6 +28,10 @@ const SAID: Record<string, string> = {
   number_flagged: "WhatsApp flagged this number's quality; wait for it to recover.",
   already_ran_today: "It already ran today. It runs again tomorrow at its hour.",
   deals_off: FOLLOW_UP_NEEDS_DEALS,
+  // A paused workspace sends nothing (the edge's 402 payment_required): the pause's own words, the ones approving a run says.
+  payment_required: CAMPAIGNS_PAUSED_WORDS,
+  // The run could not be made this once -- a read it needs (the template, the calendar) did not answer -- and the hourly run tries again.
+  run_failed: "The run could not be made just now: something it reads did not answer. Try again in a minute.",
 };
 
 export const POST = write({
@@ -30,11 +40,15 @@ export const POST = write({
   rate: "playbook",
   handle: async ({ ctx, row: p }) => {
     const id = p.id;
+    // A reach-out step runs on its day through its own verb (Reach out, Part 3): Run now is a moment's.
+    if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
     // Nor is one on an archived list run now (00169): it is paused until its list is restored or it is moved.
     await refuseOnArchivedList(ctx, p);
     const r = await runPlaybookNow(p.tenant_id, id, ctx.userId);
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The run did not happen (${r.reason}).`;
+      // A paused workspace is the workspace's to fix, not an upstream's: 402, as every other refusal to spend is.
+      if (r.reason === "payment_required") throw new AppError("payment_required", said, 402);
       throw new AppError(
         r.reason === "not_found" ? "not_found" : "upstream_meta",
         said,

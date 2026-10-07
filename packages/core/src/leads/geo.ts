@@ -5,18 +5,33 @@
  * spread. Distance is haversine, in metres, deterministic. No other gazetteer
  * is bundled.
  *
- * zcta-centroids.json is written by tooling/scripts/gen-zcta-centroids.mjs
- * from the Census 2020 gazetteer: [zip, lat, lng] triples sorted by zip.
+ * zcta-centroids.generated.ts is written by tooling/scripts/gen/zcta-centroids.mjs
+ * from the Census 2020 gazetteer: one zip,lat,lng row a line, sorted by zip.
  */
 import type { LeadArea } from "@chanlytics/contracts";
-import ZCTA from "./zcta-centroids.json" with { type: "json" };
+import { ZCTA_ROWS } from "./zcta-centroids.generated";
 
 export interface LatLng {
   lat: number;
   lng: number;
 }
 
-const TABLE = ZCTA as [string, number, number][];
+type ZctaRow = [string, number, number];
+let zctaSplit: ZctaRow[] | null = null;
+
+/**
+ * The ZIP table, split from its packed rows on the first lookup and kept. Packed, because as an array literal it cost
+ * every module that imports core about 30 ms at load (4 Oct 2026), on every cold start of the edge and the dashboard's
+ * server; as a string it costs a few, and only a ZIP lookup pays for the split, once.
+ */
+function zctaTable(): ZctaRow[] {
+  zctaSplit ??= ZCTA_ROWS.split(/\r?\n/).map((line): ZctaRow => {
+    const [zip = "", lat = "", lng = ""] = line.split(",");
+    return [zip, Number(lat), Number(lng)];
+  });
+  return zctaSplit;
+}
+
 const R = 6_371_000;
 const rad = (deg: number) => (deg * Math.PI) / 180;
 
@@ -30,11 +45,12 @@ export function haversineM(a: LatLng, b: LatLng): number {
 /** The ZCTA's internal point, or null for a ZIP the table does not have (a PO-box-only ZIP, a typo). */
 export function zctaCenter(zip: string): LatLng | null {
   const z = zip.trim();
+  const rows = zctaTable();
   let lo = 0;
-  let hi = TABLE.length - 1;
+  let hi = rows.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    const row = TABLE[mid];
+    const row = rows[mid];
     if (row[0] === z) return { lat: row[1], lng: row[2] };
     if (row[0] < z) lo = mid + 1;
     else hi = mid - 1;
@@ -82,7 +98,8 @@ export function nearestAreas(
 ): LeadArea[] {
   const max = o.maxM ?? RADIUS_MAX_M;
   const state = (o.state ?? "").trim().toUpperCase();
-  return TABLE.map(([zip, lat, lng]) => ({ zip, lat, lng, d: haversineM(center, { lat, lng }) }))
+  return zctaTable()
+    .map(([zip, lat, lng]) => ({ zip, lat, lng, d: haversineM(center, { lat, lng }) }))
     .filter((x) => x.d >= o.excludeWithinM && x.d <= max)
     .sort((a, b) => a.d - b.d || (a.zip < b.zip ? -1 : 1))
     .slice(0, Math.max(0, o.take))

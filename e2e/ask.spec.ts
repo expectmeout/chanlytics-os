@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { atRoute, routeOf } from "./address";
 import { activeWorkspace, scoped, apiGet } from "./workspace";
+import { WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "./waiting-search";
 
 /**
  * Ask on a real workspace, as the Line: it opens from ⌘K and the top bar's
@@ -74,6 +76,37 @@ test.describe("Ask on a real workspace", () => {
     await expect(say).toContainText(/waiting/);
     await expect(page.getByTestId("ask-trace")).toHaveCount(0);
     await page.screenshot({ path: "test-results/ask-quick.png" });
+  });
+
+  test("Right now says a search is waiting: its pill and its clause, and Brief me names it with a door to the pile it asks about", async ({
+    page,
+  }) => {
+    // Brief me asks "Who needs me right now?", which the Line answers from what the page holds, without a model;
+    // refuseAnswers holds that to it (a turn that reached the model would be refused and counted).
+    const attempts = await refuseAnswers(page);
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const search = await waitingSearch(page);
+    await page.keyboard.press("Control+k");
+    const pal = page.getByTestId("ask-real");
+    const now = pal.getByTestId("ask-row-now");
+    await expect(now).toBeInViewport({ ratio: 1 });
+    await expect(now.getByTestId("ask-pill").filter({ hasText: /search/ })).toHaveText("1 search waiting");
+    // The search's clause of the sentence: first, capitalised, when nobody else is waiting; after a "; " otherwise.
+    await expect(now.locator(".ask-row-label")).toContainText(
+      new RegExp(`(^|; )[Yy]our search for ${WAITING_SEARCH_NAME} is waiting for your answer[.;]`),
+    );
+    await now.getByTestId("ask-row-brief").click();
+    await expect(pal.getByTestId("ask-say")).toBeVisible();
+    await expect(pal.getByTestId("ask-trace")).toHaveCount(0);
+    const item = pal.getByTestId("ask-item").filter({ hasText: WAITING_SEARCH_NAME });
+    await expect(item).toHaveCount(1);
+    await expect(item).toContainText("Leads");
+    await expect(item).toContainText(WAITING_QUESTION);
+    await item.click();
+    await expect.poll(() => routeOf(page.url())).toBe(search.route);
+    await expect(page.getByTestId("lead-strip").getByTestId("strip-title")).toHaveText(WAITING_QUESTION);
+    expect(attempts, "Brief me spent no turn and answered nothing").toEqual([]);
   });
 
   test("a real turn reads the workspace and answers with what it read", async ({ page }) => {
@@ -161,7 +194,7 @@ test.describe("Ask on a real workspace", () => {
     await input.fill("open the transcript of the most recent call");
     await input.press("Enter");
     // The answer lands and the app goes there by itself; the palette closes.
-    await page.waitForURL(/#\/conversations\/cv-/, { timeout: 120_000 });
+    await page.waitForURL(atRoute(/^conversations\/cv-/), { timeout: 120_000 });
     await expect(page.getByTestId("ask-real")).toBeHidden();
     // A call is drawn as its card: in its thread, opened there, or alone in the thread's frame (calls-in-the-thread).
     await expect(page.getByTestId("tl-call").first()).toBeVisible({ timeout: 20_000 });
@@ -231,6 +264,69 @@ test.describe("Ask on a real workspace", () => {
   });
 });
 
+/**
+ * One paid question on each of five surfaces, each carrying its page the way the palette sends it: the context is the
+ * palette's own (window.__ask.context, legacy-bridge/ask/context.ts, over what the page drew), warmed as the Line
+ * warms it on open (POST ask/warm), then sent with the question. The turn answers, carries no failure and names
+ * nothing the workspace does not hold. The eval's cases on these surfaces (tooling/evals/ask-cases.json) grade the
+ * answers; this proves the page rides a real turn end to end.
+ */
+const ON_THE_PAGE: Array<{ surface: string; hash: string; text: string; rows: boolean }> = [
+  { surface: "today", hash: "today", text: "who needs me right now?", rows: false },
+  { surface: "inbox", hash: "inbox", text: "what does the person in this list want?", rows: false },
+  { surface: "people", hash: "clients", text: "how many people are on this list?", rows: true },
+  { surface: "leads", hash: "clients/leads", text: "which of these leads has a website?", rows: true },
+  { surface: "reports", hash: "reports", text: "how did this period go?", rows: false },
+];
+
+test.describe("Ask with the page it is asked on", () => {
+  test.skip(!HAVE_SESSION, WHY_SKIPPED);
+  test.beforeEach(async ({ page }) => {
+    await signIn(page);
+  });
+
+  for (const q of ON_THE_PAGE)
+    test(`a question on ${q.surface} carries its page, and the turn answers from this workspace alone`, async ({
+      page,
+    }) => {
+      test.skip(!PAID, WHY_UNPAID);
+      test.setTimeout(120_000);
+      await page.goto(`/#/${q.hash}`);
+      await page.waitForLoadState("networkidle");
+      test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask client on this page");
+      const context = await page.evaluate((words) => {
+        const { CHANLY } = window as unknown as { CHANLY: { address: { route: () => string } } };
+        const [p, ...rest] = CHANLY.address.route().split("/");
+        const ask = (window as unknown as { __ask: { context: (r: unknown, w: string) => unknown } }).__ask;
+        return ask.context({ page: p || "today", param: rest.length ? rest.join("/") : null }, words) as {
+          surface: string;
+          rows: Array<{ kind: string; id: string }>;
+        };
+      }, q.text);
+      expect(context.surface).toBe(q.surface);
+      if (q.rows) expect(context.rows.length, "the rows the page drew ride along").toBeGreaterThan(0);
+      const ws = await activeWorkspace(page);
+      const warm = await page.request.post(scoped("/api/v1/ask/warm", ws), { data: context, ...fromTheApp });
+      expect(warm.status(), "the palette's warm is taken").toBe(200);
+      const res = await page.request.post(scoped("/api/v1/ask", ws), {
+        data: { text: q.text, thread_id: null, scope: null, surface: q.surface, context },
+        ...fromTheApp,
+        timeout: 90_000,
+      });
+      expect(res.status()).toBe(200);
+      const lines = (await res.text())
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l));
+      const final = lines.find((l) => l.t === "final");
+      expect(final, "a final message").toBeTruthy();
+      expect(final.message.failed, final.message.text).toBeFalsy();
+      expect(final.message.text.length).toBeGreaterThan(0);
+      for (const s of INVENTED) expect(final.message.text, `invented: "${s}"`).not.toContain(s);
+      await page.request.delete(scoped(`/api/v1/ask/threads/${lines[0].id}`, ws), fromTheApp);
+    });
+});
+
 test.describe("Ask on a phone", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -250,7 +346,7 @@ test.describe("Ask on a phone", () => {
     // The takeover pushed one entry of its own as it opened (ask-real.jsx, S8): Back closes it and stays on Today.
     await page.goBack();
     await expect(ask).toHaveCount(0);
-    await expect(page).toHaveURL(/#\/today$/);
+    await expect(page).toHaveURL(atRoute(/^today$/));
     // The words are kept as typed (S9) and are back in the field on the next open.
     await page.getByTestId("phone-ask").tap();
     await expect(ask).toBeVisible();

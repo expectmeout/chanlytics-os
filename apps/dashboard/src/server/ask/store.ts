@@ -7,10 +7,13 @@ import {
   type AskProposalOutcome,
   type AskScope,
   type AskThreadVM,
+  type AskTurnShape,
   citationRoute,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
+import { answeringOf, askTurnText } from "./prompt";
+import { log } from "@/server/log";
 
 /**
  * Ask threads on the session client. RLS (migration 00040) keeps every read
@@ -87,10 +90,36 @@ export async function listThreads(ctx: RouteContext, tenantId: string): Promise<
   return (data ?? []).map(toThreadVM);
 }
 
+/**
+ * A stored turn as the model reads it on a later turn: the words, and for a person's answer to a search's question
+ * the search it answered (askTurnText), which is stored beside their words and never shown as them.
+ */
+export function modelTurnOf(r: MessageRow): { role: "user" | "assistant"; text: string } {
+  const vm = toMessageVM(r);
+  const c = (r.content ?? {}) as Record<string, unknown>;
+  return { role: vm.role, text: askTurnText(vm.text, vm.role === "user" ? answeringOf(c.answering) : null) };
+}
+
+/** How a stored turn's earlier turns reached the model (AskTurnShape.replay), or null: a question, or a turn from before. */
+function replayOf(shape: unknown): AskTurnShape["replay"] | null {
+  const kind = shape && typeof shape === "object" ? (shape as { replay?: unknown }).replay : null;
+  return kind === "live" || kind === "rebuilt" || kind === "none" ? kind : null;
+}
+
 export async function readThread(
   ctx: RouteContext,
   id: string,
-): Promise<{ thread: AskThreadVM; messages: AskMessageVM[]; tenantId: string } | null> {
+): Promise<{
+  thread: AskThreadVM;
+  messages: AskMessageVM[];
+  /** The same turns as the model reads them (modelTurnOf): the history a new turn on this thread is asked with. */
+  turns: Array<{ role: "user" | "assistant"; text: string }>;
+  /** Each row's history kind (replayOf), beside `messages`: where a live replay's chain begins (memory.ts). */
+  replays: Array<AskTurnShape["replay"] | null>;
+  /** The thread may have more rows than the read returns (MESSAGES_CAP): the oldest would not be here. */
+  truncated: boolean;
+  tenantId: string;
+} | null> {
   const { data: t, error } = await ctx.supabase
     .from("ask_threads")
     .select("id, tenant_id, title, scope, last_at, created_at")
@@ -98,15 +127,49 @@ export async function readThread(
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!t) return null;
+  // The newest MESSAGES_CAP rows, newest first (the id breaks a tie in the clock, so every read agrees), then put back
+  // in the order they were written: a thread past thirty turns reopens on its latest, and its history ends at the last.
+  // Each row's content is read key by key, by its JSON path: the keys the Line (toMessageVM) and the history
+  // (modelTurnOf) read, and never the rest -- an answer's content also holds the turn as the model was sent it
+  // (content.raw, the Phase 5 plan, D11), up to sixty of which a whole read would ship on every turn and every reopen.
+  // A key a row does not hold reads as null, which both take as absent. The shape, whole (a nested path would read
+  // each row again), says how each turn's history went: where a live replay's chain begins, before any raw is read.
   const { data: msgs, error: merr } = await ctx.supabase
     .from("ask_messages")
-    .select("id, role, content, created_at")
+    .select(
+      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering, shape:content->shape",
+    )
     .eq("thread_id", id)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(MESSAGES_CAP);
   if (merr) throw new Error(merr.message);
-  return { thread: toThreadVM(t), messages: (msgs ?? []).map(toMessageVM), tenantId: t.tenant_id };
+  const rows = (msgs ?? [])
+    .reverse()
+    .map(({ id: messageId, role, created_at, ...content }) => ({ id: messageId, role, created_at, content }));
+  return {
+    thread: toThreadVM(t),
+    messages: rows.map(toMessageVM),
+    turns: rows.map(modelTurnOf),
+    replays: rows.map((r) => replayOf(r.content.shape)),
+    truncated: rows.length >= MESSAGES_CAP,
+    tenantId: t.tenant_id,
+  };
 }
+
+/**
+ * The turns as the model was sent them (content.raw, the Phase 5 plan, D11) of the answers a live replay follows, by
+ * id, and nothing else of their rows: the one read of a raw turn, made only once the thread's rows say it is warm
+ * (memory.ts). RLS keeps it to the caller's own; a row it hides, or one gone, is absent.
+ */
+export async function readRaws(ctx: RouteContext, ids: string[]): Promise<Map<string, unknown>> {
+  const { data, error } = await ctx.supabase.from("ask_messages").select("id, raw:content->raw").in("id", ids);
+  if (error) throw new Error(error.message);
+  return new Map((data ?? []).map((r) => [r.id, r.raw]));
+}
+
+/** A scope as the thread's column holds it: its three fields, or none. */
+const scopeColumn = (s: AskScope | null): Json => (s ? { kind: s.kind, id: s.id, label: s.label } : null);
 
 export async function createThread(
   ctx: RouteContext,
@@ -116,7 +179,7 @@ export async function createThread(
 ): Promise<AskThreadVM> {
   const { data, error } = await ctx.supabase
     .from("ask_threads")
-    .insert({ tenant_id: tenantId, user_id: ctx.userId, title, scope: (scope as unknown as Json) ?? null })
+    .insert({ tenant_id: tenantId, user_id: ctx.userId, title, scope: scopeColumn(scope) })
     .select("id, title, scope, last_at, created_at")
     .single();
   if (error) throw new Error(`ask thread: ${error.message}`);
@@ -139,12 +202,27 @@ export async function appendMessage(
   return data;
 }
 
-export async function touchThread(ctx: RouteContext, threadId: string): Promise<void> {
+/**
+ * A turn saved: its thread moves up the list and keeps the scope the turn ran with (the Phase 5 plan, D9), none
+ * included, so the next question sent without one is asked with it; `undefined` leaves the scope as it is. A voice
+ * thread, made before its first question (the voice route), takes that question as its title here (`title`). The
+ * column grant allows all three (00121).
+ */
+export async function touchThread(
+  ctx: RouteContext,
+  threadId: string,
+  scope: AskScope | null | undefined,
+  title?: string,
+): Promise<void> {
   const { error } = await ctx.supabase
     .from("ask_threads")
-    .update({ last_at: new Date().toISOString() })
+    .update({
+      last_at: new Date().toISOString(),
+      ...(scope === undefined ? {} : { scope: scopeColumn(scope) }),
+      ...(title ? { title } : {}),
+    })
     .eq("id", threadId);
-  if (error) console.error("ask_thread_touch_failed", error.message);
+  if (error) log.error("ask_thread_touch_failed", { error: error.message });
 }
 
 /**
@@ -174,6 +252,8 @@ export async function setProposalOutcome(
     throw new AppError("conflict", "That card was already approved.", 409);
   }
   const next = proposals.map((p, i) => (i === idx ? { ...p, outcome } : p));
+  // Read whole and written back whole, never by path: the turn as the model was sent it (content.raw) stays beside
+  // the card's outcome.
   const { data: upd, error: uerr } = await ctx.supabase
     .from("ask_messages")
     .update({ content: { ...content, proposals: next } as unknown as Json })

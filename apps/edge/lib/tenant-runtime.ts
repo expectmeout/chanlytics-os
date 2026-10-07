@@ -19,6 +19,7 @@ import {
   type KnownFacts,
 } from "./packages/contracts.js";
 import type { RoutedChannel } from "./packages/db.js";
+import type { CredentialsRead } from "./packages/core.js";
 import { env } from "./env.js";
 import { logger, errField } from "./log.js";
 
@@ -74,6 +75,19 @@ export interface TenantRuntime {
    *  profile: the receptionist is silent either way, but this one is a
    *  mistake somebody can fix, and the escalation should say so. */
   configBroken?: boolean;
+  /** tenant_config.version the runtime was read at: stamped on every answer's meta (contracts BrainMeta). */
+  configVersion?: number | null;
+}
+
+/**
+ * What the settings row says of itself: whether it failed to parse (a mistake somebody can fix), and its version, which
+ * every answer's meta is stamped with (contracts BrainMeta); null when the row has none.
+ */
+function configState(
+  parsed: boolean,
+  row: { version?: unknown } | null,
+): Pick<TenantRuntime, "configBroken" | "configVersion"> {
+  return { configBroken: !parsed, configVersion: typeof row?.version === "number" ? row.version : null };
 }
 
 /** The backstop for what the stamp does not see: credentials in Vault, a channel row. */
@@ -89,7 +103,7 @@ const cache = new Map<string, { v: TenantRuntime; exp: number; stamp: string | n
 async function runtimeStamp(db: SupabaseClient<Database>, tenantId: string): Promise<string | null> {
   const { data, error } = await db.rpc("runtime_stamp", { p_tenant_id: tenantId });
   if (error) {
-    logger({ tenant: tenantId }).error("runtime_stamp_failed", { error: error.message });
+    logger({ tenant_id: tenantId }).error("runtime_stamp_failed", { error: error.message });
     return null;
   }
   return typeof data === "string" ? data : "";
@@ -127,9 +141,9 @@ async function resolveWaCredentials(
   db: SupabaseClient<Database>,
   routed: RoutedChannel,
 ): Promise<{ creds: { accessToken: string; phoneId: string } | null; envNumber: boolean }> {
-  let channelId: string | null = null;
-  let ref: string | null = null;
-  let externalId: string | null = null;
+  let channelId: string | null;
+  let ref: string | null;
+  let externalId: string | null;
   if (routed.kind === "whatsapp") {
     channelId = routed.channelId;
     ref = routed.credentialsRef ?? null;
@@ -151,7 +165,7 @@ async function resolveWaCredentials(
   if (!channelId || !ref) return { creds: null, envNumber };
   const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: channelId });
   if (error) {
-    logger().error("wa_credentials_lookup_failed", { tenant: routed.tenantId, error: error.message });
+    logger().error("wa_credentials_lookup_failed", { tenant_id: routed.tenantId, error: error.message });
     return { creds: null, envNumber };
   }
   const c = data as { access_token?: string; phone_id?: string } | null;
@@ -172,7 +186,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
 
   try {
     const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ] = await Promise.all([
-      db.from("tenant_config").select("config").eq("tenant_id", routed.tenantId).maybeSingle(),
+      db.from("tenant_config").select("config, version").eq("tenant_id", routed.tenantId).maybeSingle(),
       db.from("policies").select("class, mode, limits").eq("tenant_id", routed.tenantId).is("subject_type", null),
       // WhatsApp credentials belong to the tenant's WHATSAPP channel, not to
       // whichever channel happened to route this request.
@@ -212,8 +226,15 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
     const parseResult = parseTenantConfigResult(cfgQ.data?.config);
     if (!parseResult.ok) {
       logger().error("tenant_config_parse_failed", {
-        tenant: routed.tenantId,
+        tenant_id: routed.tenantId,
         issues: parseResult.issues.slice(0, 5),
+      });
+    } else if (parseResult.ignored.length > 0) {
+      // Settings this edge has never heard of, written by a newer dashboard: left out, and the receptionist answers
+      // with the rest. Said, so a split deploy that does not end is seen before the setting is missed.
+      logger().warn("tenant_config_keys_ignored", {
+        tenant_id: routed.tenantId,
+        keys: parseResult.ignored.slice(0, 8),
       });
     }
     const parsed = parseResult.ok ? parseResult.config : null;
@@ -241,13 +262,13 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
         listing: listQ.error ? null : (listQ.data ?? null),
       },
       paused: tzQ.data?.status === "paused",
-      configBroken: !parseResult.ok,
+      ...configState(parseResult.ok, cfgQ.data),
       loadFailed: false,
     };
     cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });
     return rt;
   } catch (e) {
-    logger().error("tenant_runtime_load_failed", { tenant: routed.tenantId, error: errField(e) });
+    logger().error("tenant_runtime_load_failed", { tenant_id: routed.tenantId, error: errField(e) });
     // Never cache a failure — the next message retries. loadFailed makes the
     // runtime unusable, so the handler holds the thread for a person: a read
     // that failed is never a persona, for any tenant.
@@ -269,20 +290,27 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
   }
 }
 
+/** The read's three answers (core CredentialsRead), for the callers below. */
+type WaCredentialsRead = CredentialsRead<{ phoneId: string; accessToken: string }>;
+
 /**
  * A tenant's WhatsApp credentials, for callers holding a tenant_id and no
  * routed channel -- the job runner and the template doors.
  *
- * Null means NO credentials, and the caller must refuse: the environment pair
- * is handed out only to the tenant whose channel row carries the environment's
- * own phone_number_id. A vault error is a refusal too, said in the log; a
- * fallback here is how a second business's reply left from the first one's
- * number.
+ * ABSENT means NO credentials, and the caller must refuse: the environment
+ * pair is handed out only to the tenant whose channel row carries the
+ * environment's own phone_number_id; a fallback here is how a second
+ * business's reply left from the first one's number. UNAVAILABLE means the
+ * read itself FAILED -- the channel row or the vault did not answer -- which is
+ * not the same fact: the number may well be connected, and a caller that took
+ * it for absent failed a reply for good and sent the owner to reconnect a
+ * number that worked. Said in the log either way, under the names alerting
+ * greps for; never the environment's pair.
  */
 export async function waCredentialsForTenant(
   db: SupabaseClient<Database>,
   tenantId: string,
-): Promise<{ phoneId: string; accessToken: string } | null> {
+): Promise<WaCredentialsRead> {
   const L = logger();
   try {
     const { data: ch, error: chErr } = await db
@@ -294,23 +322,26 @@ export async function waCredentialsForTenant(
       .limit(1)
       .maybeSingle();
     if (chErr) {
-      L.error("wa_credentials_channel_unreadable", { tenant: tenantId, error: chErr.message });
-      return null;
+      L.error("wa_credentials_channel_unreadable", { tenant_id: tenantId, error: chErr.message });
+      return { outcome: "unavailable", error: chErr.message };
     }
-    if (!ch) return null;
+    if (!ch) return { outcome: "absent" };
     if (ch.credentials_ref) {
       const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: ch.id });
       if (error) {
-        L.error("wa_credentials_for_tenant_failed", { tenant: tenantId, error: error.message });
-        return null;
+        L.error("wa_credentials_for_tenant_failed", { tenant_id: tenantId, error: error.message });
+        return { outcome: "unavailable", error: error.message };
       }
       const c = data as { access_token?: string; phone_id?: string } | null;
-      return c?.access_token && c?.phone_id ? { phoneId: c.phone_id, accessToken: c.access_token } : null;
+      return c?.access_token && c?.phone_id
+        ? { outcome: "present", credentials: { phoneId: c.phone_id, accessToken: c.access_token } }
+        : { outcome: "absent" };
     }
-    return isEnvNumber(ch.external_id) ? envPair() : null;
+    const pair = isEnvNumber(ch.external_id) ? envPair() : null;
+    return pair ? { outcome: "present", credentials: pair } : { outcome: "absent" };
   } catch (e) {
-    L.error("wa_credentials_for_tenant_threw", { tenant: tenantId, error: errField(e) });
-    return null;
+    L.error("wa_credentials_for_tenant_threw", { tenant_id: tenantId, error: errField(e) });
+    return { outcome: "unavailable", error: errField(e) };
   }
 }
 
@@ -375,13 +406,14 @@ export async function loadTenantNotifications(
     // the customer's words from a workspace whose mailbox we just read
     // perfectly well, which is the outcome this whole function exists to
     // avoid; `isEnvDefault` simply falls back to its safe answer.
-    if (chQ.error) L.error("tenant_notifications_channel_unreadable", { tenant: tenantId, error: chQ.error.message });
+    if (chQ.error)
+      L.error("tenant_notifications_channel_unreadable", { tenant_id: tenantId, error: chQ.error.message });
     return {
       notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
       isEnvDefault: !chQ.error && !!envPhoneId && chQ.data?.external_id === envPhoneId,
     };
   } catch (e) {
-    L.error("tenant_notifications_load_failed", { tenant: tenantId, error: errField(e) });
+    L.error("tenant_notifications_load_failed", { tenant_id: tenantId, error: errField(e) });
     // Unknown recipients: notify() will withhold customer content rather than
     // guess a mailbox.
     return { notifications: null, isEnvDefault: false };

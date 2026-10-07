@@ -8,7 +8,7 @@
  * sits: under its parent, by its type and key, among its siblings of that type. So do these frames, and a component
  * the stub draws keeps its own state whatever else is drawn around it.
  *
- * A test calling a component itself (`window.ClientsA(props)`) draws at the root; `begin()` starts a draw where the
+ * A test calling a component itself (`PeopleReal(props)`) draws at the root; `begin()` starts a draw where the
  * stubs set `seq = 0`, and `called()` is how many hooks have been called since, where the tests read `seq`.
  *
  * And as React does, a component that calls a different number of hooks from one draw to the next throws: under the

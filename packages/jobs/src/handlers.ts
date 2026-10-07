@@ -4,180 +4,58 @@
  * packages/core/src/messages as verbs over ports; each handler here is the
  * adapter that builds the ports from the job's context (no env reads here).
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseTenantConfig, pushFor, type JobKind, type JobNews, type PushMessage } from "@chanlytics/contracts";
+import {
+  pushFor,
+  type JobKind,
+  isForReader,
+  unreadFor,
+  PUSH_RECEIPTS_AFTER_MS,
+  BELL_WINDOW_DAYS,
+  REACH_OUT_REPLY_DAYS,
+  EVENT_SUBSCRIBERS,
+  type EventSubscriber,
+} from "@chanlytics/contracts";
 import {
   classifyReceived,
+  senderAuthenticated,
   emailPlainText,
   isEmailRequest,
+  logger,
   messageIdsIn,
+  requestIdShaped,
+  withRequestId,
   type ReceivedEmail,
 } from "@chanlytics/channels";
 import {
   deliver,
   ingestEmail,
   provisionLine,
-  type EmailIngestPorts,
   type IncomingEmail,
-  sendBroadcastBatch,
   sendQueued,
   templatePurpose,
   type SendQueuedCommand,
-  type Wire,
+  SUBSCRIBERS,
 } from "@chanlytics/core";
 import {
   ingestInboundEmail,
   mailboxById,
   markProcessed,
-  resolveOutboundTarget,
+  reachOutReplyOf,
   sentEmailWithMessageId,
   stampMailboxReceived,
-  type Database,
   type Json,
+  eventOfDelivery,
+  subscriptionPaused,
+  deliveryOf,
+  settleDelivery,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
+import { broadcastSend } from "./broadcast-send";
+import { replyRead } from "./reply-read";
+import { type ClaimedJob, type JobContext, must, type PushTicket } from "./context";
+export type { PushReceipt, PushPort, JobContext, ClaimedJob } from "./context";
 
-export interface PushReceipt {
-  to: string;
-  status: "ok" | "error";
-  /** Expo's name for what went wrong; "DeviceNotRegistered" is a phone to forget. */
-  error?: string;
-}
-export interface PushPort {
-  send(messages: PushMessage[]): Promise<PushReceipt[]>;
-}
-
-export interface JobContext {
-  db: SupabaseClient<Database>;
-  /**
-   * The job's own tenant's wires, bound by the edge where the credentials
-   * are: WhatsApp on the tenant's credentials, the texting line when the
-   * workspace has one. A null wire is a refusal at the door, never a guess
-   * from the environment.
-   */
-  wire: Wire;
-  /** Tell this job's tenant. The news carries its own kind and door (contracts JobNews); the runtime that addresses it never chooses them. */
-  alert: (news: JobNews) => Promise<void>;
-  /**
-   * The platform's own pager, for a condition that is the platform's: a
-   * provider refusing sends with 401 or 403 is credentials, not content.
-   * Optional so a test context need not supply one.
-   */
-  page?: (key: string, subject: string, body: string) => Promise<unknown>;
-  /**
-   * Run a line's provisioning saga, or resume it. INJECTED, not imported:
-   * the provider and the receptionist's credentials live on the edge, and a
-   * package must not reach into an app. The saga reads its own receipts, so a
-   * second run repeats nothing. Optional so a test context need not supply
-   * one; a job of this kind in a runtime without it fails loudly rather than
-   * guessing.
-   */
-  provisionLine?: (
-    lineId: string,
-    by: "owner" | "support" | "sweep",
-  ) => Promise<{ ok: boolean; step?: string; error?: string; did?: string }>;
-  /**
-   * Email's intake, as the edge holds it. INJECTED like the one above: the
-   * provider's key and the deployment's mail domain live on the edge, and so
-   * does the read of who asked to be forgotten. Optional so a test context
-   * need not supply one; an email_ingest job in a runtime without it fails
-   * loudly rather than guessing.
-   */
-  email?: {
-    /** The deployment's mail domain: what a mailbox's local part is an address on. */
-    domain: string;
-    /** One received email by the provider's id; null when the provider has none such. Throws when it cannot be asked. */
-    fetch: (receivedId: string) => Promise<ReceivedEmail | null>;
-    /** Was this email received before a person with this address asked to be forgotten (00125's digest)? */
-    erasedBefore: (tenantId: string, address: string, receivedAtIso: string) => Promise<boolean>;
-    /** Tell the workspace's people an email is waiting: the edge's notify, addressed from that workspace. Never throws. */
-    tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
-  };
-  /**
-   * The lead finder's pipeline (00140), as the edge holds it. INJECTED like
-   * the two above: the provider's token, the judge's client and the
-   * webhook base live on the edge (release A2 binds them). Optional so a
-   * test context need not supply one; a lead job in a runtime without it
-   * fails loudly rather than guessing. Each takes the claimed job whole and
-   * bounds itself to one page or one batch before ctx.deadline.
-   */
-  leads?: {
-    roundStart: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
-    collect: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
-    check: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
-  };
-  /**
-   * The phones: one message each through Expo's push service, as the edge
-   * binds it (lib/ops/push.ts). INJECTED like email's intake. A receipt per
-   * message, in order; a transport failure throws and the ledger tries again.
-   */
-  push?: PushPort;
-  /**
-   * Schedule a job of this tenant — how a broadcast continues itself, one
-   * batch after another, through the same door the dashboard uses.
-   */
-  schedule: (kind: JobKind, dueAt: Date, payload: Json) => Promise<void>;
-  /**
-   * Epoch ms. A handler that loops over outward work starts no new send after
-   * this and leaves the rest to a follow-up job through `schedule`. The runner
-   * is killed at a fixed ceiling, and a send cut off mid-flight is a send
-   * whose outcome nobody knows.
-   */
-  deadline: number;
-}
-
-export interface ClaimedJob {
-  id: string;
-  tenant_id: string;
-  kind: string;
-  payload: Record<string, unknown>;
-}
-
-/**
- * A read or a write whose failure is not an answer.
- *
- * Every port below is a question the run then acts on — may I send, was this
- * person already reached, is this broadcast still wanted — and destructuring
- * `{ data }` alone turns a failed read into a confident wrong answer. Each of
- * those wrong answers points the same way: an unreadable `tenants` row reads as
- * "not paused", an unreadable `templates` row as "Meta withdrew it", an
- * unreadable `messages` row as "this person has not been messaged yet". They
- * fail OPEN, towards a real message to a real person, or towards a broadcast
- * terminally failed over a statement timeout. So a read that cannot be made
- * throws, the job fails, and settleJob says what it was in the middle of:
- * "we could not check" is not a yes.
- */
-function must<T>(what: string, r: { data: T; error: { message: string } | null }): T {
-  if (r.error) throw new Error(`${what}: ${r.error.message}`);
-  return r.data;
-}
-
-/**
- * How many of a broadcast's people are in one state, or in any state at all.
- *
- * A COUNT, never a page of rows: PostgREST caps a plain select at `max_rows`
- * (1000, supabase/config.toml) and a broadcast may carry BROADCAST_MAX_RECIPIENTS
- * of them, so counting by reading the rows silently undercounts exactly the
- * broadcasts big enough for the number to matter.
- */
-async function countRecipients(
-  db: SupabaseClient<Database>,
-  tenantId: string,
-  broadcastId: string,
-  state?: string,
-): Promise<number> {
-  let q = db
-    .from("broadcast_recipients")
-    .select("contact_id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .eq("broadcast_id", broadcastId);
-  if (state) q = q.eq("state", state);
-  const { count, error } = await q;
-  if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
-  return count ?? 0;
-}
-
-/** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email, body?, template? } */
+/** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email, body?, template?, purpose? (marketing, or outreach: a cold email), proactive? } */
 async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await sendQueued(
     {
@@ -195,13 +73,23 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         if (!data) return null;
         // The request an email was queued with (core reply.ts). meta is JSON, so its shape is checked, not assumed:
         // a row without a sendable one reaches the wire with none and fails there by name.
-        const request = (data.meta as { email?: { request?: unknown } } | null)?.email?.request;
+        const meta = data.meta as {
+          email?: { request?: unknown; own_request?: unknown };
+          reach_out?: { lead_id?: unknown };
+        } | null;
+        const request = meta?.email?.request;
+        // A person's reply to a reach-out, frozen again on the chain's own domain (G15): the door may send it instead.
+        const own = meta?.email?.own_request;
+        // A reach-out's email names the lead it was written for, so the door asks that lead's facts and no other's.
+        const leadId = meta?.reach_out?.lead_id;
         return {
           status: data.status,
           body: data.body,
           channel: data.channel,
           sender: data.sender,
           email: isEmailRequest(request) ? request : null,
+          ownEmail: isEmailRequest(own) ? own : undefined,
+          leadId: typeof leadId === "string" && leadId ? leadId : null,
         };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
@@ -210,6 +98,19 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
       alert: ctx.alert,
       ...(ctx.page ? { page: ctx.page } : {}),
+      // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and
+      // the ledger claims the new one when it is due. Said in the log, since the tick sees only a job done.
+      retry: async (dueAt, payload) => {
+        await ctx.schedule("outbound_send", dueAt, payload as Json);
+        logger().warn("outbound_send_rescheduled", {
+          tenant_id: job.tenant_id,
+          job: job.id,
+          message_id: payload.message_id,
+          resumes: payload.resumes ?? null,
+          due_at: dueAt.toISOString(),
+        });
+      },
+      now: Date.now,
     },
     { tenantId: job.tenant_id, payload: job.payload as SendQueuedCommand["payload"] },
   );
@@ -217,213 +118,26 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
 // Flagging a thread for a person lives in escalate.ts, where the ledger's settle reaches it without loading the core.
 export { upsertEscalation };
 export type { EscalationOutcome };
-
-/** broadcast_send: core's sendBroadcastBatch, over this runtime's ports. payload: { broadcast_id } */
-async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  const p = job.payload as { broadcast_id: string };
-  const db = ctx.db;
-  await sendBroadcastBatch(
-    {
-      broadcast: async (id) => {
-        const { data, error } = await db
-          .from("broadcasts")
-          .select("id, state, name, template_name, template_language, params, recipient_count, playbook_id, audience")
-          .eq("id", id)
-          .eq("tenant_id", job.tenant_id)
-          .maybeSingle();
-        if (error) throw new Error(`broadcast_send: cannot read broadcast ${id}: ${error.message}`);
-        return data;
-      },
-      // The billing gate, so it fails CLOSED: a tenants row that cannot be read
-      // is not a workspace that is paying.
-      workspacePaused: async () => {
-        const row = must(
-          "broadcast_send: cannot read the workspace's status",
-          await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle(),
-        );
-        return row?.status === "paused";
-      },
-      fail: async (id, failure) => {
-        must(
-          "broadcast_send: cannot mark the broadcast failed",
-          await db
-            .from("broadcasts")
-            .update({ state: "failed", failure, finished_at: new Date().toISOString() })
-            .eq("id", id)
-            .eq("tenant_id", job.tenant_id),
-        );
-      },
-      startSending: async (id) => {
-        const rows = must(
-          "broadcast_send: cannot start the broadcast",
-          await db
-            .from("broadcasts")
-            .update({ state: "sending", started_at: new Date().toISOString() })
-            .eq("id", id)
-            .eq("tenant_id", job.tenant_id)
-            .eq("state", "scheduled")
-            .select("id"),
-        );
-        return !!rows && rows.length > 0;
-      },
-      // `category` is Meta's verdict on what kind of message this is, and it
-      // decides which consent the send needs. A template that cannot be READ is
-      // not a template Meta withdrew: null here fails the whole broadcast and
-      // emails the owner that WhatsApp rejected it, which would be a lie about
-      // their Meta account told over a statement timeout.
-      template: async (name, language) => {
-        return must(
-          `broadcast_send: cannot read template ${name}`,
-          await db
-            .from("templates")
-            .select("meta_status, body_preview, category")
-            .eq("tenant_id", job.tenant_id)
-            .eq("channel", "whatsapp")
-            .eq("name", name)
-            .eq("language", language)
-            .maybeSingle(),
-        );
-      },
-      // An empty business name is not a fallback: it resolves to an empty slot,
-      // and the verb marks everyone in the batch permanently "missing_value".
-      facts: async () => {
-        const [tenantRes, cfgRes] = await Promise.all([
-          db.from("tenants").select("name").eq("id", job.tenant_id).maybeSingle(),
-          db.from("tenant_config").select("config").eq("tenant_id", job.tenant_id).maybeSingle(),
-        ]);
-        const tenantRow = must("broadcast_send: cannot read the workspace", tenantRes);
-        const cfgRow = must("broadcast_send: cannot read the workspace's settings", cfgRes);
-        const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);
-        const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";
-        return { businessName, bookingLink: parsedCfg?.brain?.booking_link ?? null };
-      },
-      batch: async (id, limit) => {
-        const { data, error } = await db
-          .from("broadcast_recipients")
-          .select("contact_id, facts")
-          .eq("tenant_id", job.tenant_id)
-          .eq("broadcast_id", id)
-          .eq("state", "queued")
-          .limit(limit);
-        if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
-        return data ?? [];
-      },
-      // The batch's people in one read, not one read per person.
-      contacts: async (ids) => {
-        const { data, error } = await db
-          .from("contacts")
-          .select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name")
-          .in("id", ids)
-          .eq("tenant_id", job.tenant_id);
-        if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
-        return new Map((data ?? []).map((c) => [c.id, c]));
-      },
-      // create: false — a broadcast never opens a contact. touch: false — the
-      // door below still has to refuse some of these people, and a thread they
-      // were not messaged in has nothing new in it.
-      target: (phoneE164) =>
-        resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false, touch: false }),
-      // The messages a dying run left these people: written by deliver after the
-      // wire accepted them, with this broadcast's id in their meta, read once for
-      // the batch. It is the one check standing between a resumed run and a
-      // second WhatsApp template to the same person, so a read that FAILED must
-      // never come back as "no, they have not been messaged".
-      alreadySent: async (id, contactIds) => {
-        const rows = must(
-          "broadcast_send: cannot check what the batch was already sent",
-          await db
-            .from("messages")
-            .select("id, contact_id, created_at")
-            .eq("tenant_id", job.tenant_id)
-            .in("contact_id", contactIds)
-            .filter("meta->>broadcast_id", "eq", id)
-            .in("status", ["sent", "delivered", "read"]),
-        );
-        // created_at is written by the same statement that records the send, so
-        // it is when the message left, which is what the recipient's row wants.
-        const prior = new Map<string, { id: string; sentAt: string | null }>();
-        for (const m of rows ?? [])
-          if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
-        return prior;
-      },
-      // `sent_at` comes from the patch when the caller knows it — a resumed run
-      // reading the message a dying run left knows when it actually went out,
-      // and stamping "now" instead would reorder the broadcast's own page.
-      mark: async (id, contactId, patch) => {
-        const sentAt = patch.sent_at ?? (patch.state === "sent" ? new Date().toISOString() : null);
-        must(
-          "broadcast_send: cannot record how this person's send went",
-          await db
-            .from("broadcast_recipients")
-            .update({ ...patch, sent_at: sentAt })
-            .eq("tenant_id", job.tenant_id)
-            .eq("broadcast_id", id)
-            .eq("contact_id", contactId),
-        );
-      },
-      deliver: (d) => deliver({ db, wire: ctx.wire }, d),
-      remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
-      // Read by the verb as "is this broadcast still wanted"; null is how a
-      // cancel reads, so a failed read here would abandon a half-sent broadcast
-      // with nothing scheduled, nothing failed and nobody told.
-      state: async (id) => {
-        const row = must(
-          "broadcast_send: cannot read whether the broadcast is still wanted",
-          await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle(),
-        );
-        return row?.state ?? null;
-      },
-      scheduleNext: async (id, dueAt) => {
-        await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id });
-      },
-      // This tally is written to the permanent record and read out to the owner,
-      // so it is counted rather than tallied from a page of rows.
-      tally: async (id) => {
-        const [all, sent] = await Promise.all([
-          countRecipients(db, job.tenant_id, id),
-          countRecipients(db, job.tenant_id, id, "sent"),
-        ]);
-        return { sent, held: all - sent };
-      },
-      finish: async (id, tally) => {
-        must(
-          "broadcast_send: cannot close the broadcast",
-          await db
-            .from("broadcasts")
-            .update({ state: "sent", finished_at: new Date().toISOString() })
-            .eq("id", id)
-            .eq("tenant_id", job.tenant_id)
-            .eq("state", "sending"),
-        );
-        must(
-          "broadcast_send: cannot record the broadcast's tally",
-          await db.from("events").insert({
-            tenant_id: job.tenant_id,
-            kind: "broadcast.sent",
-            category: "message",
-            subject_type: "broadcast",
-            subject_id: id,
-            data: tally,
-          }),
-        );
-      },
-      alert: ctx.alert,
-      now: Date.now,
-      sleep: (ms) => new Promise((res) => setTimeout(res, ms)),
-    },
-    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline },
-  );
-}
 /** line_provision: core's provisionLine, over the saga the edge injects. */
 async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  await provisionLine({ ...(ctx.provisionLine ? { provision: ctx.provisionLine } : {}) }, { payload: job.payload });
+  await provisionLine(
+    {
+      ...(ctx.provisionLine ? { provision: ctx.provisionLine } : {}),
+      // The saga stops between two provider calls at the job's deadline, and the rest is one more job of this kind.
+      next: (payload) => ctx.schedule("line_provision", new Date(), payload as Json),
+      deadline: ctx.deadline,
+    },
+    { payload: job.payload },
+  );
 }
 /**
  * The provider's email, as the verb takes it: what it claims to be, its words
  * as plain text, and its thread ids read out of its headers. The parsing is
- * here, in the adapter, so the verb knows no provider (hygiene.test.mjs).
+ * here, in the adapter, so the verb knows no provider (hygiene.test.mjs). `authservId` is the name the provider's receiving
+ * side writes into the Authentication-Results header it adds (channels senderAuthenticated); null where none is configured,
+ * and then no sender is proved.
  */
-export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
+export function incomingEmailOf(e: ReceivedEmail, authservId: string | null): IncomingEmail {
   return {
     id: e.id,
     from: e.from,
@@ -437,6 +151,7 @@ export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
     receivedAt: e.createdAt,
     claim: classifyReceived(e),
     attachments: e.attachments,
+    senderAuthenticated: senderAuthenticated(e, authservId),
   };
 }
 
@@ -456,7 +171,7 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
       },
       fetch: async (receivedId) => {
         const e = await email.fetch(receivedId);
-        return e ? incomingEmailOf(e) : null;
+        return e ? incomingEmailOf(e, email.authservId ?? null) : null;
       },
       erasedBefore: email.erasedBefore,
       ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
@@ -464,13 +179,20 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
       escalate: (tenantId, conversationId, reason, details) =>
         upsertEscalation(db, tenantId, conversationId, reason, details),
       tell: email.tell,
+      // A reach-out's reply is read for what it means (Reach out Part 5): one reply_read per message, however often
+      // this intake runs (jobs_reply_read_once), as this job's own tenant.
+      reachOutReply: async (tenantId, messageId) =>
+        (await reachOutReplyOf(db, { tenantId, messageId, days: REACH_OUT_REPLY_DAYS })) !== null,
+      readReply: async (_tenantId, messageId) => {
+        await ctx.scheduleOnce("reply_read", new Date(), { message_id: messageId });
+      },
       markProcessed: (tenantId, messageId) => markProcessed(db, tenantId, messageId),
       received: (mailboxId, at) => stampMailboxReceived(db, mailboxId, at),
       now: Date.now,
     },
     { payload: job.payload },
   );
-  console.log(JSON.stringify({ level: "info", event: "email_ingested", tenant: job.tenant_id, job: job.id, outcome }));
+  logger().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome });
 }
 
 type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
@@ -526,19 +248,194 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const devices =
     must(
       "push_send: cannot read the phones",
-      await ctx.db.from("push_devices").select("token").in("user_id", readers),
+      await ctx.db.from("push_devices").select("token, user_id").in("user_id", readers),
     ) ?? [];
   if (!devices.length) return;
+  const badges = await badgesFor(ctx, job.tenant_id, [...new Set(devices.map((d) => d.user_id))]);
   const receipts = await ctx.push.send(
     pushFor(
       n,
-      devices.map((d) => d.token),
+      devices.map((d) => ({ token: d.token, badge: badges.get(d.user_id) ?? 0 })),
     ),
   );
+  // From here nothing throws: the alert has left, and a throw would have the ledger send it to every phone again.
   const gone = receipts.filter((r) => r.status === "error" && r.error === "DeviceNotRegistered").map((r) => r.to);
   if (gone.length) {
-    must("push_send: cannot forget a phone that is gone", await ctx.db.from("push_devices").delete().in("token", gone));
+    try {
+      await ctx.db.from("push_devices").delete().in("token", gone);
+    } catch {
+      // A dead phone not forgotten now is forgotten a send later, by its receipt or its next ticket.
+    }
   }
+  // A ticket says the service took the message; whether the phone did arrives in its receipt, a quarter of an hour
+  // on (00189). One job carries every ticket of this send.
+  const tickets: PushTicket[] = receipts.flatMap((r) => (r.status === "ok" && r.id ? [{ id: r.id, to: r.to }] : []));
+  if (tickets.length) {
+    try {
+      await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
+        tickets: tickets.map((t) => ({ id: t.id, to: t.to })),
+      });
+    } catch {
+      // The alert has left; a receipts job that cannot be written (a ledger whose CHECK predates 00189, in the
+      // window between the edge's deploy and the migration) is a dead phone forgotten a send later, not a reason
+      // to throw and have the ledger send the alert again.
+    }
+  }
+}
+
+/** PostgREST's answer to one read is a thousand rows at most; a bigger set is read a page at a time. */
+const READ_PAGE = 1000;
+/** How many uuids one `in` list carries: measured, about two hundred is where the URL becomes too long. */
+const IN_BATCH = 100;
+
+/**
+ * The bell's number for each reader (contracts unreadFor): the workspace's kept rows of the bell's window that are
+ * theirs to read (contracts isForReader: the workspace's own, and a note left for them), each reader's seen moment and
+ * their own marks. Read once per send, for every reader at once.
+ */
+async function badgesFor(ctx: JobContext, tenantId: string, readers: readonly string[]): Promise<Map<string, number>> {
+  const since = new Date(Date.now() - BELL_WINDOW_DAYS * 86_400_000).toISOString();
+  // The window's rows, a page at a time: PostgREST answers at most a thousand rows to one read and says nothing
+  // about the rest, so a busy month's bell was counted short.
+  const rows: { id: string; created_at: string; recipient_user_id: string | null }[] = [];
+  for (let from = 0; ; from += READ_PAGE) {
+    const page =
+      must(
+        "push_send: cannot read the bell",
+        await ctx.db
+          .from("notifications")
+          .select("id, created_at, recipient_user_id")
+          .eq("tenant_id", tenantId)
+          .gte("created_at", since)
+          .order("created_at", { ascending: true })
+          .range(from, from + READ_PAGE - 1),
+      ) ?? [];
+    rows.push(...page);
+    if (page.length < READ_PAGE) break;
+  }
+  const seen =
+    must(
+      "push_send: cannot read when the bell was opened",
+      await ctx.db
+        .from("notification_reads")
+        .select("user_id, seen_at")
+        .eq("tenant_id", tenantId)
+        .in("user_id", readers),
+    ) ?? [];
+  // The marks, by the rows' ids in batches: an `in` list of uuids is a URL, and a URL of about two hundred of them
+  // is longer than PostgREST takes (414). Every mark of the window went in one list.
+  const marks: { notification_id: string; user_id: string; read_at: string | null; dismissed_at: string | null }[] = [];
+  for (let i = 0; i < rows.length; i += IN_BATCH) {
+    marks.push(
+      ...(must(
+        "push_send: cannot read the bell's marks",
+        await ctx.db
+          .from("notification_marks")
+          .select("notification_id, user_id, read_at, dismissed_at")
+          .in("user_id", readers)
+          .in(
+            "notification_id",
+            rows.slice(i, i + IN_BATCH).map((r) => r.id),
+          ),
+      ) ?? []),
+    );
+  }
+  const out = new Map<string, number>();
+  for (const u of readers) {
+    const mine = seen.find((s) => s.user_id === u);
+    // This read is the service role's, which the notes' row policy (00158) does not narrow as it narrows the page's:
+    // a note left for another member is not on this reader's bell, so it is not on their badge.
+    out.set(
+      u,
+      unreadFor(
+        rows.filter((r) => isForReader(r, u)),
+        mine?.seen_at ?? null,
+        marks.filter((m) => m.user_id === u),
+      ),
+    );
+  }
+  return out;
+}
+
+/**
+ * push_receipts: the receipts of one send, asked for by the tickets it kept (00189). payload: { tickets: [{id, to}] }.
+ * A phone the receipt says is gone is forgotten; any other error is the provider's to explain and this job's to
+ * leave alone: a receipt is read once, never a reason to send again. A transport failure throws, so the ledger asks
+ * again while the receipts still exist.
+ */
+async function pushReceipts(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.push) throw new Error("push_receipts: this runtime holds no push transport");
+  const raw = job.payload.tickets;
+  const tickets: PushTicket[] = Array.isArray(raw)
+    ? raw.flatMap((t) =>
+        t &&
+        typeof t === "object" &&
+        typeof (t as PushTicket).id === "string" &&
+        typeof (t as PushTicket).to === "string"
+          ? [{ id: (t as PushTicket).id, to: (t as PushTicket).to }]
+          : [],
+      )
+    : [];
+  if (!tickets.length) return;
+  const receipts = await ctx.push.receipts(tickets.map((t) => t.id));
+  const gone = tickets.filter((t) => receipts[t.id]?.error === "DeviceNotRegistered").map((t) => t.to);
+  if (gone.length) {
+    must(
+      "push_receipts: cannot forget a phone that is gone",
+      await ctx.db
+        .from("push_devices")
+        .delete()
+        .in("token", [...new Set(gone)]),
+    );
+  }
+}
+
+/** What an event_deliver job names, read from its payload as the relay wrote it (00334). */
+function deliveryNamed(payload: Record<string, unknown>): { eventId: string; subscriber: string; kind: string } | null {
+  const { event_id, subscriber, kind } = payload;
+  return typeof event_id === "string" && typeof subscriber === "string" && typeof kind === "string"
+    ? { eventId: event_id, subscriber, kind }
+    : null;
+}
+
+/** Whether a name is a subscriber this build knows (contracts EVENT_SUBSCRIBERS); one it does not is kept as an unknown kind. */
+function subscriberNamed(s: unknown): s is EventSubscriber {
+  return typeof s === "string" && EVENT_SUBSCRIBERS.some((known) => known === s);
+}
+
+/**
+ * One event's delivery to one subscriber (00334, decision 0032). The relay wrote the delivery row and this job; the
+ * subscriber runs over the event as the ledger holds it, and the row takes the verdict: done, paused when the
+ * subscription was paused as it ran (a re-drive brings it back), failed with why when the subscriber threw or the
+ * ledger no longer holds the event. A throw is thrown on, so the ledger tries again (RETRY_WAITS_MS) and the last try
+ * fails the job and tells the owner; every subscriber may run twice on one delivery and leaves the same rows.
+ */
+async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  const named = deliveryNamed(job.payload);
+  if (!named) throw new Error("event_deliver: the payload names no event, subscriber and kind");
+  const row = await deliveryOf(ctx.db, job.tenant_id, named.eventId, named.subscriber);
+  if (!row) throw new Error("event_deliver: the relay wrote no delivery for this job");
+  const settle = (state: "done" | "failed" | "paused", error: string | null) =>
+    settleDelivery(ctx.db, { tenantId: job.tenant_id, ...named, state, attempts: row.attempts + 1, error });
+  if (await subscriptionPaused(ctx.db, named.kind, named.subscriber)) {
+    await settle("paused", null);
+    return;
+  }
+  const event = await eventOfDelivery(ctx.db, job.tenant_id, named.eventId);
+  if (!event) {
+    await settle("failed", "the ledger no longer holds the event");
+    return;
+  }
+  // dispatchJob let the job through only for a subscriber this build knows.
+  if (!subscriberNamed(named.subscriber)) throw new Error(`event_deliver: no subscriber named ${named.subscriber}`);
+  const subscriber = SUBSCRIBERS[named.subscriber];
+  try {
+    await subscriber(event);
+  } catch (e) {
+    await settle("failed", e instanceof Error ? e.message : String(e));
+    throw e;
+  }
+  await settle("done", null);
 }
 
 /**
@@ -556,6 +453,9 @@ const HANDLERS: Record<JobKind, Handler> = {
   lead_collect: leadCollect,
   lead_check: leadCheck,
   push_send: pushSend,
+  push_receipts: pushReceipts,
+  reply_read: replyRead,
+  event_deliver: eventDeliver,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {
@@ -563,6 +463,11 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"do
   // and the tick fails the job loudly rather than guessing.
   const handler = (HANDLERS as Record<string, Handler | undefined>)[job.kind];
   if (!handler) return "unknown_kind";
-  await handler(ctx, job);
+  // A delivery to a subscriber this build does not know is a row a newer deploy wrote (00334): kept, as a kind is.
+  if (job.kind === "event_deliver" && !subscriberNamed(job.payload.subscriber)) return "unknown_kind";
+  // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,
+  // the send it queued and the send's own lines are one search in the log; a job the database scheduled (a clock)
+  // has none and runs as itself, named by its row.
+  await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () => handler(ctx, job));
   return "done";
 }

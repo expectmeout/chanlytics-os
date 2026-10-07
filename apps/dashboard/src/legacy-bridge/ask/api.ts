@@ -6,8 +6,16 @@
  * commit is marked `via: "ask"`, which the client sends as the x-via header
  * the ledger reads. Nothing here knows what the palette does with it.
  */
-import type { AskMessageVM, AskProposalOutcome, AskScope, AskSurface, AskThreadVM } from "@chanlytics/contracts";
-import { refusalOf } from "@chanlytics/contracts";
+import type {
+  AskMessageVM,
+  AskProposalOutcome,
+  AskScope,
+  AskSurface,
+  AskThreadVM,
+  PageContext,
+  VoiceEndReason,
+} from "@chanlytics/contracts";
+import { MIN_MS, refusalOf, type SpeechPurpose } from "@chanlytics/contracts";
 import { api } from "../api";
 import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
 
@@ -64,8 +72,129 @@ export async function readLines(body: ReadableStream<Uint8Array>, on: (line: str
 /** The stream lasts as long as the turn: the server's own ceiling ends it, not the client's write timeout. */
 const TURN_MS = 300_000;
 
+export type { VoiceEndReason };
+/** What the browser measured, from the tap: to the connection, and to the first audio it heard (null: none came). */
+/**
+ * What a page says of a session the page before it died under (voice.ts `diedWord`): how it came back and on what.
+ * Not one of the row's closed set: the end route keeps it on its log line alone.
+ */
+export type VoiceDiedWord = `died:${string}`;
+
+export interface VoiceEndTiming {
+  connectMs: number | null;
+  firstAudioMs: number | null;
+}
+
+/**
+ * The voice conversation's three calls (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.1), spread into
+ * the Ask calls: a conversation begins (the thread it runs on, the agent's token, the session the browser hands the
+ * agent; a refusal is thrown in the server's words, unwrap, for the Line to say), the page under the Line moves (the
+ * next spoken turn reads it), and the person ends it (the row is ended, so the brain door opens it no more, and keeps
+ * how it went: the reason and the two timings, 00300).
+ */
+function voiceCalls(client: Api) {
+  return {
+    /** A conversation begun; the agent's language is the agent's own, so none is sent (the route reads none as English). */
+    voiceStart: async (input: {
+      threadId: string | null;
+      scope: AskScope | null;
+      surface: AskSurface | null;
+      context: PageContext | null;
+    }): Promise<{ session: string; token: string; conversation_id: string | null; thread_id: string; title: string }> =>
+      unwrap(
+        await client("POST ask/voice", {
+          body: {
+            thread_id: input.threadId,
+            scope: input.scope,
+            surface: input.surface,
+            context: input.context,
+          },
+        }),
+      ),
+    voicePage: async (session: string, context: PageContext): Promise<void> => {
+      try {
+        await client.raw("POST ask/voice/page", { body: { session, context } });
+      } catch {
+        /* the next turn reads its page itself */
+      }
+    },
+    voiceEnd: async (
+      session: string,
+      reason: VoiceEndReason | VoiceDiedWord,
+      timing?: VoiceEndTiming,
+    ): Promise<void> => {
+      try {
+        await client.raw("POST ask/voice/end", {
+          body: {
+            session,
+            reason,
+            ...(timing ? { connect_ms: timing.connectMs, first_audio_ms: timing.firstAudioMs } : {}),
+          },
+        });
+      } catch {
+        /* the row expires on its own */
+      }
+    },
+  };
+}
+
+/**
+ * Words read aloud in Ask's one voice (the spec's §3.5 as amended 4 Oct 2026: the one-way speech): the route answers
+ * the audio itself, MP3, as the vendor makes it. The whole clip is read before it plays (a brief is 15 to 25 KB and
+ * arrives in about a second), so the player needs no media-source plumbing; a refusal is thrown in the server's
+ * words, for the button to say.
+ */
+function speechCalls(client: Api) {
+  return {
+    speech: async (text: string, purpose: SpeechPurpose): Promise<Blob> => {
+      const res = await client.raw("POST ask/speech", { body: { text, purpose }, timeoutMs: SPEECH_MS });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+        // A clip asked for and refused changed nothing: a read, for the refusal's words.
+        throw new Error(
+          refusalOf({ code: j?.error?.code, status: res.status, message: j?.error?.message, write: false }).message,
+        );
+      }
+      return res.blob();
+    },
+  };
+}
+
+/** The clip's whole wait: the route's own ceiling is a minute; a brief streams in well under ten seconds. */
+const SPEECH_MS = MIN_MS;
+
+/**
+ * How long a tab holds the model's cache as warm after it sent the model a turn's head, in a warm or in a question:
+ * the server's own four minutes (server/ask/warm.ts), inside the cache's five.
+ */
+const HEAD_WARM_MS = 4 * MIN_MS;
+
+/**
+ * The model's cache, written before the question (POST ask/warm/model; server/ask/warm.ts): asked for when a question
+ * is on its way (a hold on the mic, words on the Line that reach no page), so the question's first words come about
+ * two seconds sooner than a cold one's. Once in four minutes a tab, and not within four of a question sent (`sent`),
+ * which reads the same cache and renews it; sent raw, never waited on, and a warm that fails costs nothing but the warm.
+ */
+function modelWarm(client: Api) {
+  /** When this tab last sent the model a turn's head: a warm, or a question. */
+  let headAt = 0;
+  return {
+    sent: (): void => {
+      headAt = Date.now();
+    },
+    warmModel: (): void => {
+      if (Date.now() - headAt < HEAD_WARM_MS) return;
+      headAt = Date.now();
+      void client.raw("POST ask/warm/model", { body: {} }).catch(() => {
+        /* the question still goes, and writes the cache itself */
+      });
+    },
+  };
+}
+
 /** The Ask calls, on the client for their window: the tab's own, or a test's stand-in (`apiFor`). */
 export function askApi(client: Api = api()) {
+  const head = modelWarm(client);
   return {
     threads: async (): Promise<AskThreadVM[]> => {
       try {
@@ -106,14 +235,55 @@ export function askApi(client: Api = api()) {
       });
       return r.ok;
     },
+    /**
+     * The page, read before the question (POST ask/warm; the Phase 2 plan, D6): sent as the Line opens and as the page
+     * under it changes, so the question asked a moment later finds its page read. Sent raw, so the tab keeps its reads
+     * and runs no refresh; never waited on, and a warm that fails costs nothing but the warm.
+     */
+    warm: async (context: PageContext): Promise<void> => {
+      try {
+        await client.raw("POST ask/warm", { body: context });
+      } catch {
+        /* the question still goes, and reads its page itself */
+      }
+    },
+    warmModel: head.warmModel,
+    ...voiceCalls(client),
+    ...speechCalls(client),
     send: async (
-      input: { text: string; threadId: string | null; scope: AskScope | null; surface: AskSurface },
+      input: {
+        text: string;
+        threadId: string | null;
+        /**
+         * The turn's scope, which its thread then keeps: the Line's chip, or none (null, which clears the thread's).
+         * Omitted by a caller with no opinion (the Leads answer row), so the thread keeps its own.
+         */
+        scope?: AskScope | null;
+        surface: AskSurface;
+        /** The search whose question the text answers (the Leads answer row): the route reads it and tells the model. */
+        answering?: { searchId: string } | null;
+        /** How long the Line was open before this question, in ms (AskTurnShape.opened_ms); omitted when unknown. */
+        openedMs?: number | null;
+        /** The page the question is asked on (contracts PageContext; ask/context.ts); omitted when the page gave none. */
+        context?: PageContext | null;
+      },
       on: (ev: SendEvent) => void,
     ): Promise<void> => {
+      head.sent();
       let res: Response;
       try {
         res = await client.raw("POST ask", {
-          body: { text: input.text, thread_id: input.threadId, scope: input.scope, surface: input.surface },
+          body: {
+            text: input.text,
+            thread_id: input.threadId,
+            ...(input.scope !== undefined ? { scope: input.scope } : {}),
+            surface: input.surface,
+            ...(input.answering ? { answering: { search_id: input.answering.searchId } } : {}),
+            ...(typeof input.openedMs === "number" && input.openedMs >= 0
+              ? { opened_ms: Math.round(input.openedMs) }
+              : {}),
+            ...(input.context ? { context: input.context } : {}),
+          },
           timeoutMs: TURN_MS,
         });
       } catch (e) {

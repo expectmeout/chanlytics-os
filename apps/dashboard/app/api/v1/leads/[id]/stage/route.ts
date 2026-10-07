@@ -1,6 +1,6 @@
 import { LeadStageInputSchema } from "@chanlytics/contracts";
 import { write } from "@/server/route";
-import { leadScope, setStage } from "@/server/leads";
+import { leadScope, setStage } from "@/server/leads/leads";
 
 /**
  * POST /api/v1/leads/:id/stage — the one door for a lead's stage, a call's six

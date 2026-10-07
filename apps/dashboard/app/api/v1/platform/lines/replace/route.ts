@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { platformLineAct } from "@/server/platform";
+import { platformLineAct } from "@/server/platform/platform";
 
 /**
  * POST /api/v1/platform/lines/replace -- delete a refused campaign and file a new one.

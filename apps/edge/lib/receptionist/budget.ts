@@ -2,17 +2,36 @@
  * What the receptionist has cost, and how it has been doing, from the usage
  * events every reply already writes (usage.llm_tokens).
  *
- * Two readers of one stream. The budget check runs before a reply and asks
- * one question: has this workspace used its day's tokens? The summary runs
- * on the diagnostics endpoint and describes the last day: how many replies,
- * how sure, how fast, how many held or handed off. Neither writes anything.
+ * Two readers of one stream, and its one writer. The budget check runs before
+ * a reply (and before a reach-out reply's draft) and asks one question: has
+ * this workspace used its day's tokens? The summary runs on the diagnostics
+ * endpoint and describes the last day: how many replies, how sure, how fast,
+ * how many held or handed off. recordTokens is the one place a model call's
+ * usage is written, so the budget reads every token the receptionist spent.
+ *
+ * Cross-workspace: only brainSummary with no workspace reads every workspace, for the platform's /api/diag.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { emitEvent, type Database } from "../packages/db.js";
+import { DAY_MS } from "../packages/contracts.js";
 import { MAX_ROWS } from "../paged.js";
 import { logger, errField } from "../log.js";
+import { finiteOrZero } from "@chanlytics/contracts";
 
-const DAY_MS = 24 * 3600 * 1000;
+/**
+ * One model call's usage (usage.llm_tokens), on the conversation it answered: tokens in and out, and the quality
+ * signal beside them. The receptionist's answers (whatsapp/persist.ts) and a reach-out reply's draft
+ * (reach-out/reply-draft.ts) both write through here. A write that fails throws; each caller says what that costs.
+ */
+export async function recordTokens(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  conversationId: string,
+  usage: Record<string, unknown>,
+): Promise<void> {
+  await emitEvent(db, tenantId, "usage.llm_tokens", "conversation", conversationId, usage);
+}
+
 /** More rows than any workspace writes in a day; a bound, not a target. */
 const ROW_CAP = 20_000;
 /**
@@ -26,10 +45,6 @@ const SUMMARY_ROW_CAP = 5_000;
 interface UsageRow {
   created_at: string;
   data: Record<string, unknown> | null;
-}
-
-function num(v: unknown): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
 /**
@@ -87,7 +102,7 @@ async function* usagePages(
   }
   // Reached only by exhausting the bound. Silence here is the defect this file
   // was fixed for, one cap further out.
-  logger().error("usage_read_capped", { tenant: tenantId, cap });
+  logger().error("usage_read_capped", { tenant_id: tenantId, cap });
 }
 
 async function usageRows(
@@ -122,11 +137,13 @@ export async function tokensLast24h(
   tenantId: string,
   stopAt = Number.POSITIVE_INFINITY,
 ): Promise<number> {
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   try {
+    // Without a workspace the read would sum every workspace's day: a budget for none is an error, which counts zero.
+    if (!tenantId) throw new Error("tokensLast24h: a workspace is required");
     let sum = 0;
     for await (const page of usagePages(db, tenantId, new Date(Date.now() - DAY_MS).toISOString())) {
-      for (const r of page) sum += num(r.data?.input_tokens) + num(r.data?.output_tokens);
+      for (const r of page) sum += finiteOrZero(r.data?.input_tokens) + finiteOrZero(r.data?.output_tokens);
       if (sum >= stopAt) break;
     }
     return sum;
@@ -136,7 +153,7 @@ export async function tokensLast24h(
   }
 }
 
-export interface BrainSummary {
+interface BrainSummary {
   replies: number;
   with_record: number;
   avg_confidence: number | null;
@@ -161,14 +178,14 @@ export async function brainSummary(
   return {
     replies: rows.length,
     with_record: rows.filter((r) => typeof r.data?.intent === "string").length,
-    avg_confidence: avg(withConf.map((r) => num(r.data?.confidence))),
+    avg_confidence: avg(withConf.map((r) => finiteOrZero(r.data?.confidence))),
     avg_latency_ms: withMs.length
-      ? Math.round(withMs.reduce((a, r) => a + num(r.data?.latency_ms), 0) / withMs.length)
+      ? Math.round(withMs.reduce((a, r) => a + finiteOrZero(r.data?.latency_ms), 0) / withMs.length)
       : null,
     held_low_confidence: rows.filter((r) => r.data?.held === "low_confidence").length,
     held_veto: rows.filter((r) => r.data?.held === "veto_window").length,
     escalated: rows.filter((r) => r.data?.escalate === true).length,
-    tokens_in: rows.reduce((s, r) => s + num(r.data?.input_tokens), 0),
-    tokens_out: rows.reduce((s, r) => s + num(r.data?.output_tokens), 0),
+    tokens_in: rows.reduce((s, r) => s + finiteOrZero(r.data?.input_tokens), 0),
+    tokens_out: rows.reduce((s, r) => s + finiteOrZero(r.data?.output_tokens), 0),
   };
 }

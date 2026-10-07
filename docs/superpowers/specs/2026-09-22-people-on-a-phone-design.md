@@ -60,7 +60,7 @@ Everything below is at 900px and under (`PL_PHONE_QUERY`, the band People's card
 [ 🔍  rosa___________________________  ✕ ]  Cancel                 searching (either scope)
 ```
 
-- One hookless component in `clients-a.jsx`, drawn by People's page and by `LeadsPhoneBar` (leads-scope.jsx), which becomes a thin wrapper adding Find.
+- One hookless component in `people.jsx`, drawn by People's page and by `LeadsPhoneBar` (leads-scope.jsx), which becomes a thin wrapper adding Find.
 - The list button names what is shown: "Everyone", a smart list's label, or a kept list's name (People); the search or list with its count (Leads, as now). It opens the Lists sheet. Its words ellipsize inside a span, so the chevron stays.
 - Search is a 44px button. Pressed, the bar becomes the field: full width, 16px text (no zoom), `type="search"`, focus taken; ✕ clears the words and keeps the field; Cancel clears them and gives the bar back. Words in the box keep the field open (a Leads view comes back with its own), without taking focus.
 - People's last control is a more-menu (`MoreMenu escape`): Add a person; Sort (Needs you first, Latest contact first, Name A to Z, Name Z to A, and Soonest visit first with a calendar), the one in use ticked; Export everyone (CSV); and with a list open, that list's own acts: Rename this list, Delete this list…, or "Save these N as a list" for a smart list, a state or a search.
@@ -111,7 +111,7 @@ One hookless frame, `PhoneSheet`: a sheet from the bottom with a handle, a title
 - Text fields in People on touch at 16px: notes, email, a consent note, New list, the typed name in Delete this person.
 - The person's page: the timeline's calendar rows stop repeating the person's own name ("Booked · Consultation", not "… · Zoe Martin"); "Add to…" says "Add to a list"; Right now's two actions side by side.
 - The route skeleton on a phone draws no 220px rail (components.css:1221 beats 1235).
-- "New list" from the shell opens the sheet at 900px and under, where the rail is hidden (it asked 720px, clients-a.jsx:1665): moved into PR 1, one line.
+- "New list" from the shell opens the sheet at 900px and under, where the rail is hidden (it asked 720px, people.jsx:1665): moved into PR 1, one line.
 
 ## 5. What does not change
 
@@ -128,7 +128,7 @@ One hookless frame, `PhoneSheet`: a sheet from the bottom with a handle, a title
 | 2 | Selecting on a phone, finished | 4.5's one-row bar, its sheet and forms, More › Select people, Leads' bulk bar |
 | 3 | The rest of People on a phone | 4.6's Lists sheet polish, 4.7 |
 
-`?v=` keys taken in `Chanlytics.html` (coordinated with the loading-standard session, which holds People's family PR until these land): clients-a.jsx 36+, people-table.jsx 6+, leads.css 29+, components.css 68+, and clients.css, mobile.css, leads-scope.jsx, data-bits.jsx as needed.
+`?v=` keys taken in `Chanlytics.html` (coordinated with the loading-standard session, which holds People's family PR until these land): people.jsx 36+, people-table.jsx 6+, leads.css 29+, components.css 68+, and clients.css, mobile.css, leads-scope.jsx, data-bits.jsx as needed.
 
 ## 7. Proof
 

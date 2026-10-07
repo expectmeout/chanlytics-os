@@ -16,23 +16,29 @@ receptionist is told never to confirm a slot itself: there is no appointments
 table here, and nothing in the product can create, move or cancel one
 (`docs/decisions/0002-appointments-record.md` proposes the record). It does
 not decide money: the money class of the Autonomy matrix is locked to `never`
-by a database trigger, and the prompt says so. It does not quote a price in a
-reply: a deterministic check after generation replaces any reply carrying one
-and hands the thread to a person, whatever the prompt said.
+by a database trigger, the prompt says so, and a deterministic check after
+generation holds any reply that names a refund, a discount, a coupon, a deposit
+or a payment term (`namesMoney`, English and Spanish) whatever intent the model
+gave it. It does not quote a price in a reply: the same kind of check
+(`violatesNoPrices`: every currency, spelled-out amounts, cuts) replaces any
+reply carrying one and hands the thread to a person, whatever the prompt said.
+Every model call, whichever the purpose, goes through one port and one registry
+(`packages/contracts/src/ai/models.ts`) and is kept, in dollars, in `ai_usage`.
 
 **This is live.** Real businesses are in production with real customers on real
 numbers. Treat every change to `apps/edge` and `packages/channels` as something
 a member of the public will experience. The first workspace was a hair salon,
 and the code still uses it as its worked example in comments; the product is
-not for salons, and `tooling/scripts/tests/trade-neutral.test.mjs` fails a
+not for salons, and `tooling/scripts/tests/repo/trade-neutral.test.mjs` fails a
 build that puts one trade's words in front of a customer of another.
 
 **Read next.** `CLAUDE.md` for the rules and the canonical example of each
-thing, `docs/glossary.md` for the words (and the one rule about _tenant_
-versus _workspace_), `docs/architecture.md` for how it is put together,
-`docs/runbook.md` to run, deploy and roll back, `docs/system-prd.md` for the
-as-built reference sheet by sheet, `docs/decisions/` for what is decided and
-not yet built, `docs/takeover.md` for the codebase quality checklist, scored.
+thing, `docs/glossary.md` for the words (and its two rules, _tenant_ versus
+_workspace_ and _contact_ versus _person_), `docs/naming.md` for how a name is
+built, `docs/architecture.md` for how it is put together, `docs/runbook.md` to
+run, deploy and roll back, `docs/system-prd.md` for the as-built reference
+sheet by sheet, `docs/decisions/` for what is decided and not yet built,
+`docs/takeover.md` for the codebase quality checklist, scored.
 
 ---
 
@@ -45,8 +51,10 @@ not yet built, `docs/takeover.md` for the codebase quality checklist, scored.
 | `packages/*`          | `contracts` (types, zod schemas, enums, view models, the prompt composer), `core` (the use cases as verbs over ports, and the one send door), `db` (Supabase repositories and generated types), `channels` (Meta, Retell, Twilio, Resend, Google, Apify adapters), `jobs` (the ledger, the tick, the handlers). | bundled into both apps                |
 | `supabase/migrations` | The schema. Postgres, RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials.                                                                                                                                                                                            | Supabase project                      |
 
-Counts change weekly, so this file carries none. `find apps/edge/api -name
-'*.ts' | wc -l` and `ls supabase/migrations | wc -l` answer the two most-asked.
+Counts change weekly, so this file carries none but history's, each with its
+date (`tooling/scripts/tests/docs/counts-are-dated.test.mjs` holds that).
+`find apps/edge/api -name '*.ts' | wc -l` and `ls supabase/migrations | wc -l`
+answer the two most-asked; `docs/debt.md` has the rest, regenerated.
 
 The two apps deploy **independently**. A change that requires both to agree
 must be shipped so that either order works — a dashboard-first deploy writing a
@@ -86,19 +94,22 @@ you change a package — CI has a drift guard that will fail otherwise. Never ad
 guard will fail on someone else's machine.
 
 **`apps/dashboard/src/legacy` is the operator UI, and it began as a design
-mockup.** A hash-routed single-page shell of hand-written JSX, imported in a
-fixed order by `src/legacy-bridge/manifest.ts`, talking through `window`
-globals. Surfaces were made real one at a time by _branching inside the
+mockup.** A single-page shell of hand-written JSX, routed by the address after
+the workspace's slug (`/w/acme/inbox`), imported in a fixed order by
+`src/legacy-bridge/manifest.ts`, talking through `window` globals. Surfaces were made real one at a time by _branching inside the
 existing components_ (`XReal`/`XSeed`), never by redesigning them; the seam
 that feeds a real surface from `/api/v1` is `src/legacy-bridge`, and
 `surface-registry.ts` there is the table that says which routes are real. The
 mockup's unbuilt surfaces (agent fleet, store, studio, tasks, content, the
 pipeline board, the shared report viewer) stay in
-the tree and hidden from every real workspace, by decision. The mockup's own
+the tree and hidden from every real workspace, by decision; their files, the
+seeded twin of each real page and the seeds only they read live under
+`src/legacy/demo/`, listed by `src/legacy-bridge/manifest-demo.ts`, which the
+app loads only in a declared demo session. The mockup's own
 prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
-**`dynamic(ssr:false)` on the legacy app is required.** `inbox-data.jsx` does
-unguarded module-scope `window` access and throws during prerender.
+**`dynamic(ssr:false)` on the legacy app is required.** `data/people-data.jsx` and the seed publishers do
+unguarded module-scope `window` access and throw during prerender.
 
 **Nothing in the UI may state a fact the database cannot support.** Unbacked
 mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement
@@ -116,8 +127,9 @@ a customer is new. The edge asks only for `SUPABASE_URL` and
 
 **Row Level Security is the floor, not the door.** RLS stops cross-tenant
 access. _Which member may do a thing_ is decided in the route with
-`requireRole` / `requireOperator`. Both are needed: the job that delivers a
-message runs as service role, so RLS is not even in that path.
+`requireRole`, which `route()` calls in the workspace of the row a route acts
+on. Both are needed: the job that delivers a message runs as service role, so
+RLS is not even in that path.
 
 **A forbidden `UPDATE` does not raise.** Postgres RLS makes it match zero rows
 and return success — only `INSERT` raises. Any permission-sensitive update must
@@ -125,18 +137,23 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
 
 ## Conventions
 
-- **Names.** Storage says _tenant_; everything a person or the API sees says
-  _workspace_; never both in one layer. A new table carries `tenant_id`. The
-  product's nouns are People, Lists, Playbooks, Templates and Settings, and a
-  new route or API path uses them (`docs/glossary.md` lists the five old names
-  still in use). The thing that answers is the receptionist, never the bot or
-  the agent.
+- **Names.** `docs/naming.md` is the rule for every name, and `docs/glossary.md`
+  has the words. Storage says _tenant_; everything a person or the API sees says
+  _workspace_; never both in one layer. A new table carries `tenant_id`. A new
+  name says _person_, and _contact_ stays only in storage's existing names and
+  foreign keys. The product's nouns are People, Lists, Playbooks, Templates and
+  Settings, and a new route or API path uses them (`docs/glossary.md` lists the
+  old names still in use). The wire is snake_case. The thing that answers is the
+  receptionist, never the bot or the agent.
 - **No customer in the code.** A real business's name, number, link, address or
   prompt is configuration, read from the database or the environment, never a
   literal in the tree. Migrations that seeded the first workspace are history
   and stay as they are; nothing new follows them.
-- **Commits.** An imperative subject under 72 characters that names the change;
-  the reasoning goes in the body, not the subject.
+- **Pull request titles.** A pull request's title is the squash commit's
+  subject: one sentence saying what is now true, at most 100 characters, not
+  ending in a period. What moved goes in the body, with the proof and what to
+  set or apply. CI checks the title (`tooling/scripts/checks/pr-title.mjs`);
+  pull requests opened before 29 Sep 2026 are exempt.
 - **Migrations.** Named for the schema change (`00151_jobs_drop_blob_thread_erase.sql`),
   re-runnable statements, a header of a few lines saying what changed. An applied
   migration is never edited or renamed. The lesson behind a change goes in the
@@ -167,13 +184,22 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
 corepack pnpm test                    # unit + integration
 ```
 
+The suite lives under `tooling/scripts/tests/<domain>/`, each file placed by
+what it proves, on the names `apps/dashboard/src/server`, `packages/contracts`
+and `apps/edge/lib` use, plus `repo/` for the repository-wide invariants and
+ratchets, `routes/` for the app plane's floor, `shell/` for the shell and its
+bridge, `cron/` and `edge/` for the sweeps and the edge's own doors, and
+`database/` for what is proved on the catalog itself. The shared worlds and
+helpers (`_fake-db.mjs`, `_source.mjs`, …) stay at the root; the runner globs
+every depth.
+
 Integration tests need `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and
 **skip** without them, which is what happens in CI — CI holds no live secrets by
 design. Run them locally with credentials before shipping anything that touches
 the database. They create throwaway rows against a smoke tenant and clean up
 after themselves.
 
-`tooling/scripts/golden-edge.mjs` is the frozen-contract check for the edge's
+`tooling/scripts/ops/golden-edge.mjs` is the frozen-contract check for the edge's
 HTTP surface. It needs `BASE_URL` plus the Meta and Retell secrets.
 
 ### End-to-end, in a real browser
@@ -183,8 +209,8 @@ corepack pnpm e2e:install             # once, fetches Chromium
 corepack pnpm e2e                     # runs against production by default
 ```
 
-Twenty-two of the 141 need no credentials and pin the auth gate. The rest sign
-in, and need four variables:
+A few need no credentials and pin the auth gate; `pnpm e2e` without the
+variables runs those alone. The rest sign in, and need four variables:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL       NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -195,12 +221,12 @@ Without them those specs **skip**, with the reason printed. `E2E_BASE_URL`
 points the run somewhere other than production.
 
 A skip is not a pass, and an exit code cannot tell them apart — which is how
-the nightly reported success four mornings running while executing 24 of 128
-specs. So a run that is MEANT to be signed in says so with
+the nightly reported success four mornings running in September 2026 while
+executing 24 of its 128 specs (#249, 8 Sep). So a run that is MEANT to be signed in says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and `e2e/coverage.spec.ts` then fails instead
 of skipping. The node suite carries the same guard in
-`tooling/scripts/tests/coverage-guard.test.mjs` for its 112 integration tests,
-which live in 26 files and skip as a block without credentials.
+`tooling/scripts/tests/e2e/coverage-guard.test.mjs` for its integration suites,
+which skip as a block without credentials.
 The nightly sets the flag; `ci.yml`, which holds no live service secrets by
 policy, does not.
 
@@ -212,7 +238,7 @@ allows 30 token verifications an hour, and a session per test spent a third of
 that budget in one go.
 
 The signed-in specs run in the suite's own workspace, never a customer's.
-`tooling/scripts/e2e-workspace.mjs --apply` makes it, or puts it back, before
+`tooling/scripts/ops/e2e-workspace.mjs --apply` makes it, or puts it back, before
 each nightly run: a test owner and a teammate at example.com, two fictional
 people, one conversation, one call, and a WhatsApp channel with no credentials.
 Every row is one the production sweeps leave alone, and the script refuses an

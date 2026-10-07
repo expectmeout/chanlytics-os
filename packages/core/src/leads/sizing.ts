@@ -1,15 +1,22 @@
 /**
- * How much a round asks the provider for, and what each run may charge (PRD
- * §0.5 "size from yield", S6, §13.3). contracts' placesToAsk sizes the ask
- * and estimateRoundUsd prices it with room; this turns them into one cap per
- * run: the term's estimate, scaled down when the sum would pass what the
- * round still has reserved, never under the actor's floor.
+ * How much a round asks the provider for, and what each run may charge (PRD §0.5 "size from yield", S6, §13.3): the
+ * arithmetic the runner (runner/) turns into runs, over contracts' placesToAsk (the places to ask each term for) and
+ * estimateRoundUsd (their price, with room).
+ *
+ *   - probeAsk / mainAsk: the terms and places per term for the probe (LEAD_PROBE_PLACES spread across every term, E10)
+ *     and for the main phase (what remains, over the probe's yield, without the term the question dropped).
+ *   - yieldOf / probeYield / hasContact: the yield that sizes the main phase: the share of the probe's places that are not
+ *     left out and hold a way to reach them (a phone that dials, or a candidate email: decision 0010), never the Qualified
+ *     share, and never under 5%; a probe that judged nothing counts as 20%.
+ *   - runCaps: one dollar cap per run: the estimate for its places, every cap scaled down when the sum would pass what
+ *     the round still has reserved, none under the actor's floor (MAPS_CAP_FLOOR_USD), and none at all when less than
+ *     that floor is left: the round then starts nothing.
  */
 import {
   LEAD_PROBE_PLACES,
   estimateRoundUsd,
   placesToAsk,
-  type LeadContactStandard,
+  leadPhoneState,
   type LeadMemberClass,
   type LeadSearchPlan,
 } from "@chanlytics/contracts";
@@ -39,26 +46,23 @@ export function yieldOf(judged: number, usable: number): number {
   return Math.max(0.05, usable / judged);
 }
 
-/** What the contact standard needs on a place: a phone, or a candidate email the cleaner kept. */
-export function hasContact(
-  contact: LeadContactStandard,
-  place: { phone: string | null; email: string | null },
-): boolean {
-  return contact === "phone" ? place.phone !== null : place.email !== null;
+/**
+ * A place a lead could come from (decision 0010): a phone that dials, or a candidate email the cleaner kept -- either,
+ * whichever the search prefers, since either one checked makes the lead count.
+ */
+export function hasContact(place: { phone: string | null; email: string | null }): boolean {
+  return leadPhoneState(place.phone) === "ok" || place.email !== null;
 }
 
 /**
  * The probe's yield, the one number that sizes the main round (S6, A1's
- * review): the share of the probe's places that are NOT left out and hold
- * what the contact standard needs. Never the Qualified share -- under an
- * email standard that is zero until the mailbox checks land, and a round
- * sized from zero asks the provider for everything it is allowed to.
+ * review): the share of the probe's places that are NOT left out and hold a
+ * way to reach them. Never the Qualified share -- a place waiting on its
+ * email is not Qualified until the mailbox checks land, and a round sized
+ * from zero asks the provider for everything it is allowed to.
  */
-export function probeYield(
-  contact: LeadContactStandard,
-  members: { class: LeadMemberClass; phone: string | null; email: string | null }[],
-): number {
-  return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(contact, m)).length);
+export function probeYield(members: { class: LeadMemberClass; phone: string | null; email: string | null }[]): number {
+  return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(m)).length);
 }
 
 /**

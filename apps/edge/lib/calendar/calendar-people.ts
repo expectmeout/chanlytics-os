@@ -11,18 +11,25 @@
  * one, consent stays 'unknown' (a booking is not a yes to offers), and each
  * person created here gets a `contact.added` event that says where they
  * came from, so the profile can say "Added from your calendar".
+ *
+ * Two more rules. A person who asked to be erased is not brought back by their own appointment: the tombstone (00124)
+ * names the number, and the appointment is counted as erased and left alone. An address fills only an empty one, as a
+ * name does, and an address another person here already holds stays theirs: the number still makes a new person,
+ * without it. Someone made between the read and the write is the same person, not an error.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { emitEvent, type Database } from "../packages/db.js";
 import type { CalendarPerson } from "../packages/contracts.js";
 import { erasedTombstones } from "../erased.js";
 
-export interface AddedFromCalendar {
+interface AddedFromCalendar {
   seen: number;
   added: number;
   named: number;
   /** Appointments whose person asked to be erased: left erased, never made again from the calendar. */
   erased: number;
+  /** People already here with no address whose appointment carried one: filled, never overwritten. */
+  emailed: number;
 }
 
 export async function addPeopleFromCalendar(
@@ -30,7 +37,7 @@ export async function addPeopleFromCalendar(
   tenantId: string,
   rows: CalendarPerson[],
 ): Promise<AddedFromCalendar> {
-  const out: AddedFromCalendar = { seen: rows.length, added: 0, named: 0, erased: 0 };
+  const out: AddedFromCalendar = { seen: rows.length, added: 0, named: 0, erased: 0, emailed: 0 };
   if (!rows.length) return out;
   const phones = rows.map((r) => r.phone);
   // A person who asked to be erased is not brought back by their own
@@ -39,7 +46,7 @@ export async function addPeopleFromCalendar(
   const gone = await erasedTombstones(db, tenantId, phones);
   const { data: existing, error } = await db
     .from("contacts")
-    .select("id, phone_e164, display_name")
+    .select("id, phone_e164, display_name, email")
     .eq("tenant_id", tenantId)
     .in("phone_e164", phones)
     .is("erased_at", null)
@@ -60,29 +67,49 @@ export async function addPeopleFromCalendar(
           .from("contacts")
           .update({ display_name: r.name })
           .eq("id", have.id)
+          .eq("tenant_id", tenantId)
           .is("display_name", null);
         if (!uErr) out.named += 1;
       }
+      // An address we did not have, from the appointment that named them by number; one we have is never
+      // overwritten, and one another person here holds stays theirs (23505, contacts_tenant_email_uq). A direct
+      // write, so no contact.email_set event: the no-session door (00171) would name the source customer_message,
+      // which this is not, and a source of the door's own is a door change -- accepted for Part 0, as the email
+      // intake's write is.
+      if (!have.email && r.email) {
+        const { error: eErr } = await db
+          .from("contacts")
+          .update({ email: r.email })
+          .eq("id", have.id)
+          .eq("tenant_id", tenantId)
+          .is("email", null);
+        if (!eErr) out.emailed += 1;
+        else if (eErr.code !== "23505") throw new Error(`calendar_people_email: ${eErr.message}`);
+      }
       continue;
     }
-    const { data: created, error: iErr } = await db
-      .from("contacts")
-      .insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name })
-      .select("id")
-      .single();
+    const make = (email: string | null) =>
+      db
+        .from("contacts")
+        .insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name, email })
+        .select("id")
+        .single();
+    let made = await make(r.email);
+    // A 23505 with an address is the address being another person's here: the number still names somebody new,
+    // who is made without it. A 23505 again is the number's own.
+    if (made.error?.code === "23505" && r.email) made = await make(null);
+    const { data: created, error: iErr } = made;
     if (iErr) {
       // 23505: someone else created them between the read and now. Theirs is the one.
       if (iErr.code !== "23505") throw new Error(`calendar_people_insert: ${iErr.message}`);
       continue;
     }
     out.added += 1;
-    await db.from("events").insert({
-      tenant_id: tenantId,
-      kind: "contact.added",
-      category: "contact",
-      subject_type: "contact",
-      subject_id: created.id,
-      data: { source: "calendar", title: r.title, uid: r.uid, start: new Date(r.start).toISOString() },
+    await emitEvent(db, tenantId, "contact.added", "contact", created.id, {
+      source: "calendar",
+      title: r.title,
+      uid: r.uid,
+      start: new Date(r.start).toISOString(),
     });
   }
   return out;

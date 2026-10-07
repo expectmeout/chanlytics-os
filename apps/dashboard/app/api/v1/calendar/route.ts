@@ -1,6 +1,11 @@
 import { z } from "zod";
+import { ROLE_PERMS } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { calendarWeek } from "@/server/calendar";
+import { addPeopleSeen } from "@/server/calendar/people-seen";
+import { weekFrom } from "@/server/calendar/calendar-week";
+import { load, readerContext } from "@/server/readers";
+import { sources } from "@/server/readers/calendar";
+import { log } from "@/server/log";
 
 const Query = z.object({
   /** YYYY-MM-DD; the Monday of today when absent. */
@@ -26,10 +31,29 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     const from = input.from ?? null;
     const days = Number(input.days ?? 7);
-    // An owner or operator opening the board puts the people its appointments
-    // name in People; a viewer's read changes nothing.
-    const canAct = member.role === "owner" || member.role === "operator";
+    // Whoever acts in the workspace (owner, operator, partner) opening the board puts the people its appointments
+    // name in People; a viewer's read changes nothing. The one table, as is_acting_member in SQL.
+    const canAct = !!ROLE_PERMS[member.role]?.approve;
     const fresh = input.fresh === "1";
-    return { calendar: await calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct, fresh }) };
+    // The calendar's one read (readers/calendar.ts), then the write a reader never makes (D7): the people the feed
+    // names put in People before the board is matched, as calendarWeek does for its callers. One clock, the read's,
+    // for the span, the people and the windows.
+    const rc = readerContext(ctx, member);
+    const s = (await load(rc, sources, { from, days, fresh })).data;
+    if (s.week) return { calendar: s.week };
+    const people = [...s.people];
+    if (canAct)
+      people.push(
+        ...(await addPeopleSeen(ctx, member.tenantId, s.parsed.items, s.serviceNames, people, rc.now).catch(
+          (e: unknown) => {
+            log.error("calendar_people_seen_failed", {
+              tenant_id: member.tenantId,
+              error: e instanceof Error ? e.message : String(e),
+            });
+            return [];
+          },
+        )),
+      );
+    return { calendar: weekFrom(s, people, rc.now) };
   },
 });

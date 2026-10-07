@@ -16,9 +16,9 @@
    thing on Today that cannot wait. Nothing stands here while every line is up; the standing line and its hairline
    went (23 Sep). Its dot is red with a ring, never the coral live-dot, which is the agent's live state
    (components.css); the ring pulses only where motion is welcome. */
-.today-alert { display: flex; align-items: center; gap: 10px; padding: 2px 0 4px; font-size: 12.5px; font-weight: 500; color: var(--danger); }
-.today-alert-dot { position: relative; width: 7px; height: 7px; border-radius: 999px; background: var(--danger); flex: none; }
-.today-alert-dot::before { content: ""; position: absolute; inset: -3px; border-radius: 999px; border: 1.5px solid var(--danger); opacity: 0.45; }
+.today-alert { display: flex; align-items: center; gap: 10px; padding: 2px 0 4px; font-size: var(--text-sm); font-weight: 500; color: var(--danger); }
+.today-alert-dot { position: relative; width: 7px; height: 7px; border-radius: var(--radius-full); background: var(--danger); flex: none; }
+.today-alert-dot::before { content: ""; position: absolute; inset: -3px; border-radius: var(--radius-full); border: 1.5px solid var(--danger); opacity: 0.45; }
 @media (prefers-reduced-motion: no-preference) {
   .today-alert-dot::before { animation: today-ring 1.6s var(--ease-out) infinite; }
 }
@@ -69,7 +69,7 @@
   border-bottom: 1px solid var(--line);
 }
 .rail-head-label {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -119,7 +119,7 @@
 .tick:last-child .tick-rail::before { bottom: 50%; }
 .tick-dot {
   width: 4px; height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--ink-faint);
   position: relative; z-index: 1;
 }
@@ -154,7 +154,7 @@
   gap: 4px;
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 500;
@@ -165,7 +165,7 @@
   color: var(--ok);
   background: var(--ok-soft);
   padding: 1px 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   flex-shrink: 0;
 }
 
@@ -182,7 +182,7 @@
 .sch.done { opacity: 0.55; }
 .sch.live { background: oklch(from var(--accent) l c h / 0.04); }
 .sch-time {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   text-align: right;
 }
@@ -214,7 +214,7 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink);
   flex-wrap: wrap;
 }
@@ -233,11 +233,11 @@
 }
 .sch-risk-dot {
   width: 5px; height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--accent);
 }
 .sch-what {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 
@@ -258,7 +258,7 @@
 }
 .rail-fcast-stat:last-child { border-right: none; }
 .rail-fcast-num {
-  font-size: 18px;
+  font-size: var(--text-xl);
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -295,7 +295,7 @@
   color: var(--accent);
   background: var(--accent-soft);
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -312,14 +312,14 @@
   gap: 16px;
 }
 .fleet-title {
-  font-size: 18px;
+  font-size: var(--text-xl);
   font-weight: 500;
   letter-spacing: -0.015em;
   color: var(--ink);
   margin: 0;
 }
 .fleet-sub {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
   margin: 4px 0 0;
 }
@@ -331,7 +331,7 @@
   align-items: center;
   background: var(--bg-sunken);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 3px;
   gap: 0;
 }
@@ -340,7 +340,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-size: 11.5px;
   font-weight: 500;
   color: var(--ink-muted);
@@ -381,7 +381,7 @@
   line-height: 1;
 }
 .fleet-more-label {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 .fleet-more-meta {
@@ -414,7 +414,7 @@
   width: 100%;
   padding: 8px 14px;
   margin: 4px 0 6px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   background: transparent;
   border-top: 1px solid var(--line);
@@ -453,7 +453,7 @@
 }
 .fcard-avatar {
   width: 32px; height: 32px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--ink-muted);
   color: var(--bg);
   display: grid; place-items: center;
@@ -468,14 +468,14 @@
 .fcard-pulse {
   position: absolute;
   inset: -4px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   border: 1.5px solid var(--accent);
   opacity: 0;
   animation: ac-pulse 2.4s infinite;
 }
 .fcard-head-meta { flex: 1; min-width: 0; }
 .fcard-name {
-  font-size: 13.5px;
+  font-size: var(--text-base);
   font-weight: 500;
   color: var(--ink);
   letter-spacing: -0.005em;
@@ -484,13 +484,13 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   margin-top: 2px;
 }
 .fcard-status-dot {
   width: 5px; height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--ink-faint);
 }
 .fcard-status-dot.active { background: var(--accent); }
@@ -501,7 +501,7 @@
   color: var(--accent);
   background: var(--accent-soft);
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
 }
 
 /* Activity */
@@ -579,7 +579,7 @@
   color: var(--ink-dim);
 }
 .fcard-auton-level {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 500;
   color: var(--ink);
 }
@@ -648,7 +648,7 @@
   color: var(--ink);
 }
 .fleet-add-meta {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 
@@ -723,7 +723,7 @@
   gap: 10px;
   width: 100%;
   padding: 10px 18px;
-  font-size: 13.5px;
+  font-size: var(--text-base);
   color: var(--ink);
   text-align: left;
   transition: background 100ms;
@@ -738,7 +738,7 @@
   gap: 16px;
   padding: 10px 18px;
   background: var(--bg-sunken);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 
@@ -756,7 +756,7 @@
   padding: 8px 8px 8px 14px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   box-shadow: 0 6px 24px -8px oklch(from var(--ink) l c h / 0.25);
   font-size: 12px;
   z-index: 50;
@@ -784,7 +784,7 @@
   color: var(--accent);
   background: var(--accent-soft);
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-weight: 500;
 }
 
@@ -799,7 +799,7 @@
 .ask-msg.user { justify-content: flex-end; }
 .ask-msg.user .ask-msg-text {
   background: var(--ink-muted); color: var(--bg);
-  padding: 8px 13px; border-radius: 13px; border-bottom-right-radius: 4px;
+  padding: 8px 13px; border-radius: 13px; border-bottom-right-radius: var(--radius-xs);
   max-width: 78%; margin: 0;
 }
 .ask-msg-avatar {
@@ -814,8 +814,8 @@
 .ask-msg-links { display: flex; flex-wrap: wrap; gap: 5px; }
 .ask-link-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 9px; border-radius: 999px;
-  font-size: 11px; font-weight: 500;
+  padding: 3px 9px; border-radius: var(--radius-full);
+  font-size: var(--text-xs); font-weight: 500;
   color: var(--ink-muted); background: var(--bg-sunken);
   border: 1px solid var(--line);
   transition: all 120ms;
@@ -831,7 +831,7 @@
 .cmd-back:hover{background:var(--bg-hover);color:var(--ink)}
 .cmd-input{flex:1;min-width:0;background:transparent;border:none;outline:none;font-size:15px;color:var(--ink);font-family:inherit}
 .cmd-input::placeholder{color:var(--ink-faint)}
-.cmd-ctx{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-dim);background:var(--bg-sunken);border:1px solid var(--line);border-radius:var(--radius-full);padding:3px 8px;white-space:nowrap;flex:none}
+.cmd-ctx{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-xs);color:var(--ink-dim);background:var(--bg-sunken);border:1px solid var(--line);border-radius:var(--radius-full);padding:3px 8px;white-space:nowrap;flex:none}
 .cmd-ctx button{display:inline-flex;color:var(--ink-faint);cursor:pointer}
 .cmd-ctx button:hover{color:var(--ink)}
 .cmd-body{flex:1;min-height:0;overflow-y:auto;padding-bottom:6px;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
@@ -848,7 +848,7 @@
 .cmd-row.done{opacity:.5}
 .cmd-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .cmd-row-label{font-size:13px;color:var(--ink);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cmd-row-sub{font-size:11px;color:var(--ink-dim);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmd-row-sub{font-size:var(--text-xs);color:var(--ink-dim);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cmd-row-kind{font-size:9px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);flex:none}
 .cmd-row-badge{font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent);background:var(--accent-soft);border-radius:var(--radius-full);padding:1px 7px;flex:none}
 .cmd-row-del{opacity:0;pointer-events:none;color:var(--ink-faint);display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;flex:none;transform:scale(.85);transition:opacity 120ms var(--ease-out),transform 120ms var(--ease-out),background 120ms,color 120ms}
@@ -856,9 +856,9 @@
 .cmd-row-del:hover{color:var(--danger);background:var(--danger-soft)}
 .cmd-row-arrow{color:var(--ink-faint);flex:none;opacity:0}
 .cmd-row.sel .cmd-row-arrow,.cmd-row:hover .cmd-row-arrow{opacity:.75}
-.cmd-foot{display:flex;align-items:center;gap:14px;padding:9px 16px;background:var(--bg-sunken);border-top:1px solid var(--line);font-size:11px;color:var(--ink-dim);flex:none}
+.cmd-foot{display:flex;align-items:center;gap:14px;padding:9px 16px;background:var(--bg-sunken);border-top:1px solid var(--line);font-size:var(--text-xs);color:var(--ink-dim);flex:none}
 .cmd-foot-note{margin-left:auto;color:var(--ink-faint)}
-.cmd-empty{padding:30px 16px;text-align:center;font-size:12.5px;color:var(--ink-faint);line-height:1.6}
+.cmd-empty{padding:30px 16px;text-align:center;font-size:var(--text-sm);color:var(--ink-faint);line-height:1.6}
 .cmd-modal .ask-msgs{padding:16px}
 @media (max-width:720px){.ask-modal.cmd-modal{max-width:100%;width:100%;height:min(560px,82vh)}}
 
@@ -903,14 +903,14 @@
 /* Ask palette upgrades */
 .ask-group-label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);margin:10px 2px 4px}
 .ask-suggestion .ask-suggestion-text{flex:1;text-align:left}
-.ask-scope-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-dim);background:var(--bg-sunken);border:1px solid var(--line);border-radius:var(--radius-full);padding:3px 6px 3px 9px;align-self:center;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.ask-scope-chip{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-xs);color:var(--ink-dim);background:var(--bg-sunken);border:1px solid var(--line);border-radius:var(--radius-full);padding:3px 6px 3px 9px;align-self:center;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
 .ask-scope-chip button{display:inline-flex;color:var(--ink-faint);cursor:pointer}
 .ask-scope-chip button:hover{color:var(--ink)}
 
 /* Today deep-dive fixes */
 .rail-veto{display:flex;align-items:center;gap:8px;padding:7px 8px 7px 12px;margin-bottom:10px;font-size:12px;color:var(--ink-muted);background:color-mix(in oklab,var(--warn) 7%,transparent);border:1px solid color-mix(in oklab,var(--warn) 28%,transparent);border-radius:var(--radius-sm)}
 .rail-veto-text{flex:1;min-width:0}.rail-veto-text b{color:var(--ink);font-weight:var(--weight-medium)}
-.fcard-trust-line{font-size:11px;color:var(--ink-dim);margin-top:4px}
+.fcard-trust-line{font-size:var(--text-xs);color:var(--ink-dim);margin-top:4px}
 .fcard-trust-next{color:var(--accent)}
 .fcard-auton-level.trust-ok{color:var(--ok)}
 .fcard-auton-level.trust-watch{color:var(--warn)}
@@ -918,11 +918,11 @@
 
 /* Brief beats — sentences with inline decisions (#14) */
 .brief-beats { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
-.brief-beat { display: flex; align-items: baseline; gap: 9px; font-size: 13.5px; color: var(--ink-muted); line-height: 1.5; flex-wrap: wrap; }
+.brief-beat { display: flex; align-items: baseline; gap: 9px; font-size: var(--text-base); color: var(--ink-muted); line-height: 1.5; flex-wrap: wrap; }
 .brief-beat-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--ink-faint); flex: none; align-self: center; }
 .brief-beat-text { flex: 1; min-width: 0; }
 .brief-beat-text b { color: var(--ink); font-weight: 500; }
-.brief-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; transition: all 110ms; white-space: nowrap; }
+.brief-chip { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); font-weight: 500; color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 2px 10px; transition: all 110ms; white-space: nowrap; }
 .brief-chip:hover { color: var(--ink); border-color: var(--line-strong); }
 .brief-chip.primary { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
 .brief-chip.primary:hover { background: var(--accent); color: var(--accent-fg); }
@@ -931,9 +931,9 @@
 .trust-review { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
 .tr-head { display: flex; align-items: center; gap: 9px; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
 .tr-title { font-size: 13px; font-weight: 500; color: var(--ink); }
-.tr-meta { font-size: 11px; color: var(--ink-faint); flex: 1; }
+.tr-meta { font-size: var(--text-xs); color: var(--ink-faint); flex: 1; }
 .tr-rows { display: flex; flex-direction: column; }
-.tr-row { display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.tr-row { display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
 .tr-row:last-child { border-bottom: none; }
 .tr-verb { flex: none; width: 64px; font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .tr-verb.ok { color: var(--ok); } .tr-verb.accent { color: var(--accent); } .tr-verb.warn { color: var(--warn); }
@@ -943,10 +943,10 @@
 .sd-sim-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .sd-sim-rows { display: flex; flex-direction: column; gap: 8px; }
 .sd-sim-row { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); animation: rise-in 0.25s var(--ease-out); }
-.sd-sim-q { font-size: 11px; color: var(--ink-dim); }
+.sd-sim-q { font-size: var(--text-xs); color: var(--ink-dim); }
 .sd-sim-q b { color: var(--ink-muted); font-weight: 500; }
 .sd-sim-a { font-size: 12px; color: var(--ink); font-style: italic; line-height: 1.5; }
-.sd-sim-verdict { align-self: flex-start; font-size: 9.5px; font-weight: 600; letter-spacing: 0.03em; border-radius: 999px; padding: 1px 8px; margin-top: 2px; }
+.sd-sim-verdict { align-self: flex-start; font-size: 9.5px; font-weight: 600; letter-spacing: 0.03em; border-radius: var(--radius-full); padding: 1px 8px; margin-top: 2px; }
 .sd-sim-verdict.ok { color: var(--ok); background: var(--ok-soft); }
 .sd-sim-verdict.warn { color: var(--warn); background: color-mix(in oklab, var(--warn) 12%, transparent); }
 .sd-sim-verdict.danger { color: var(--danger); background: var(--danger-soft); }
@@ -957,14 +957,14 @@
 .tq-head { display: flex; align-items: baseline; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
 .tq-title { font-size: 13px; font-weight: 500; color: var(--ink); }
 /* The count is the away card's head (the bell's own number); the queue's head has no number over rows that say it. */
-.tq-count { font-size: 16px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.tq-count { font-size: var(--text-lg); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .tq-count.calm { color: var(--ink-muted); }
 .tq-sub { flex: 1; min-width: 0; font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tq-list { display: flex; flex-direction: column; }
 .tq-list .cl-attn-row:first-child { border-top: none; }
-.tq-empty { display: flex; align-items: center; gap: 8px; padding: 22px 16px; color: var(--ink-muted); font-size: 12.5px; }
+.tq-empty { display: flex; align-items: center; gap: 8px; padding: 22px 16px; color: var(--ink-muted); font-size: var(--text-sm); }
 .tq-foot { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-top: 1px solid var(--line); background: var(--bg-sunken); font-size: 11.5px; color: var(--ink-dim); }
-.tq-live { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--accent-soft); font-size: 12.5px; color: var(--ink); }
+.tq-live { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--accent-soft); font-size: var(--text-sm); color: var(--ink); }
 .tq-live .live-dot { width: 7px; height: 7px; }
 .tq-live-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tq-live-last { color: var(--ink-muted); }
@@ -996,12 +996,12 @@
 /* The steps due at the head of the day (0007, amended), a frame of their own: who, what, and when it was due, each
    row a press to their page, the day in the warn ink; the rest a line to People's Steps due. */
 .td-steps-list { list-style: none; margin: -4px 0; padding: 0; display: flex; flex-direction: column; }
-.td-step { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 4px 0; border: 0; background: none; font: inherit; font-size: 12.5px; text-align: left; color: var(--ink); cursor: pointer; }
+.td-step { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 4px 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); text-align: left; color: var(--ink); cursor: pointer; }
 .td-step:hover .td-step-who { text-decoration: underline; text-underline-offset: 2px; }
-.td-step:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+.td-step:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 .td-step-who { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .td-step-words { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
-.td-step-for { flex: none; font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
+.td-step-for { flex: none; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
 .td-step-when { flex: none; font-size: 11.5px; color: var(--warn-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .td-day-foot { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 10px 16px; border: none; border-top: 1px solid var(--line); background: var(--bg-sunken); color: var(--ink-muted); font-size: 11.5px; cursor: pointer; }
 .td-day-foot span { flex: 1; min-width: 0; }
@@ -1022,19 +1022,19 @@
 button.tc-fig-btn { cursor: pointer; transition: background 110ms; }
 button.tc-fig-btn:hover, .tc-fig.open > button.tc-fig-btn { background: var(--bg-sunken); }
 button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.tc-fig-n { font-size: 22px; font-weight: 500; letter-spacing: -0.025em; line-height: 1.1; color: var(--ink); }
-.tc-fig-w { font-size: 12.5px; line-height: 1.3; color: var(--ink-muted); }
+.tc-fig-n { font-size: var(--text-2xl); font-weight: 500; letter-spacing: -0.025em; line-height: 1.1; color: var(--ink); }
+.tc-fig-w { font-size: var(--text-sm); line-height: 1.3; color: var(--ink-muted); }
 .tc-fig-m { font-size: 12px; line-height: 1.35; color: var(--ink-dim); overflow-wrap: anywhere; }
 /* The receipt: a popover under its figure on a desktop, placed by the figure's index (--i, set by the page over four
    equal columns); a panel under the row on a phone (the media rule below). One sentence, one door. The last figure's
    opens to the left so it stays inside the page. */
 .tc-receipt { position: absolute; z-index: 5; top: calc(100% - 2px); left: calc(18px + var(--i, 0) * 25%); width: 312px; max-width: calc(100vw - 2 * var(--gutter-page)); padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--bg-raised); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; gap: 8px; }
 .tc-receipt[data-last="true"] { left: auto; right: 18px; }
-.tc-receipt-t { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink); }
+.tc-receipt-t { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink); }
 .tc-receipt-door { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding: 0; border: none; background: transparent; font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer; }
 .tc-receipt-door:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 /* Every control here takes the house focus ring (spec 8). */
-.tc-receipt-door:focus-visible, .td-day-more:focus-visible, .ta-main:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+.tc-receipt-door:focus-visible, .td-day-more:focus-visible, .ta-main:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 .tc-beats { padding: 10px 18px 14px; margin-top: 0; }
 .tc-beats:empty { display: none; }
 .tc-foot { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--bg-sunken); border-radius: 0 0 var(--radius-lg) var(--radius-lg); font-size: 12px; color: var(--ink-muted); }
@@ -1075,18 +1075,18 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tl-row:first-child { border-top: none; }
 .tl-row > .tl-tag { grid-area: tag; margin-top: 1px; }
 .tl-row > .tl-text, .tl-row > .tl-text-door { grid-area: text; min-width: 0; }
-.tl-text { font-size: 13.5px; line-height: 1.45; color: var(--ink); font-weight: 500; max-width: 78ch; }
+.tl-text { font-size: var(--text-base); line-height: 1.45; color: var(--ink); font-weight: 500; max-width: 78ch; }
 .tl-foot { grid-area: foot; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 6px; min-width: 0; }
 .tl-math { flex: 1 1 16rem; min-width: 0; font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
 .tl-foot:has(> .tl-people) > .tl-math { flex-basis: 100%; }
 .tl-people { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
-.tl-people-lead { font-size: 11px; color: var(--ink-dim); }
+.tl-people-lead { font-size: var(--text-xs); color: var(--ink-dim); }
 /* The doors are words, at the foot's right: Ask why quiet, the row's own door in ink with its arrow. */
 .tl-acts { display: flex; align-items: center; gap: 16px; margin-left: auto; }
 .tl-act { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; line-height: 20px; color: var(--ink-muted); white-space: nowrap; cursor: pointer; }
 .tl-act:hover { color: var(--ink); }
 .tl-act-go { color: var(--ink); }
-.tl-act:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }
+.tl-act:focus-visible { outline: none; border-radius: var(--radius-xs); box-shadow: var(--focus-ring); }
 /* A thumb's target without a taller foot: the words keep their line, the press reaches past them. */
 @media (pointer: coarse) {
   html.legacy-on .tl-act { position: relative; min-height: 0; }
@@ -1101,9 +1101,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .ta-row:hover { background: var(--bg-hover); }
 .ta-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 0; border: none; background: transparent; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .ta-line1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.ta-title { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--ink); line-height: 1.35; overflow-wrap: anywhere; }
+.ta-title { flex: 1; min-width: 0; font-size: var(--text-sm); font-weight: 500; color: var(--ink); line-height: 1.35; overflow-wrap: anywhere; }
 .ta-main:hover .ta-title { text-decoration: underline; text-underline-offset: 2px; }
-.ta-time { flex: none; font-size: 11px; color: var(--ink-dim); } /* a time is content, not a placeholder: --ink-faint is 2.43:1 */
+.ta-time { flex: none; font-size: var(--text-xs); color: var(--ink-dim); } /* a time is content, not a placeholder: --ink-faint is 2.43:1 */
 .ta-msg { font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ta-msg:empty { display: none; }
 .ta-row.warn .ta-title { color: var(--warn-ink); }
@@ -1164,23 +1164,24 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    words carry it, and the row gains the whole column. */
 :where(.dash-a-v2) .tq .cl-attn-avatar { display: none; }
 :where(.dash-a-v2) .tq .cl-attn-body { gap: 6px; }
-:where(.dash-a-v2) .tq .cl-attn-name { font-size: 13.5px; }
-:where(.dash-a-v2) .tq .cl-attn-meta { font-size: 12.5px; }
-:where(.dash-a-v2) .tq .cl-attn-sentence { font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+:where(.dash-a-v2) .tq .cl-attn-name { font-size: var(--text-base); }
+:where(.dash-a-v2) .tq .cl-attn-meta { font-size: var(--text-sm); }
+:where(.dash-a-v2) .tq .cl-attn-sentence { font-size: var(--text-base); line-height: 1.5; color: var(--ink); }
 /* What is left over may take a second line here; pinned right it could not. */
-:where(.dash-a-v2) .tq .cl-attn-status { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; }
+:where(.dash-a-v2) .tq .cl-attn-status { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; }
 :where(.dash-a-v2) .tq .cl-attn-acts { justify-self: start; display: inline-flex; gap: 8px; padding-top: 2px; }
-:where(.dash-a-v2) .tq .cl-attn-cta { font-size: 12.5px; padding: 8px 12px; border-radius: 8px; }
-/* Today's card of what is left to set up (dashboard-a-brief.jsx TodaySetup, canvas R10), in the queue's card and its
-   column: the title with the count beside it and Hide at the right, then compact rows (setup.jsx SetupCardRow): the
+:where(.dash-a-v2) .tq .cl-attn-cta { font-size: var(--text-sm); padding: 8px 12px; border-radius: var(--radius-md); }
+/* Today's card of what is left to set up (surfaces/today/pages/setup-card.tsx TodaySetup, canvas R10), in the queue's
+   card and its column: the title with the count beside it and Hide at the right, then compact rows
+   (surfaces/setup/rows/card-row.tsx SetupCardRow): the
    state's dot, the name over its sentence, the acts at the right -- the next one coral, the others outlined, Skip a
    quiet link. Setup's panels open under their row. Setup's own list rules (settings.css .setup-rows, loaded after
    these) keep a column at the prose measure; the card is as wide as the queue. */
 .today-setup { display: grid; gap: 8px; padding: 14px 18px 4px; }
 .today-setup .setup-rows { padding: 0; max-width: none; }
 .setup-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.setup-card-title { display: inline-flex; align-items: baseline; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--ink); }
-.setup-card-left { font-size: 12.5px; font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.setup-card-title { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--text-base); font-weight: 500; color: var(--ink); }
+.setup-card-left { font-size: var(--text-sm); font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .setup-card-row {
   display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 12px;
   padding: 11px 0; border-top: 1px solid var(--line);
@@ -1191,8 +1192,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .setup-card-dot[data-tone="ok"] { background: var(--ok); }
 .setup-card-dot[data-tone="danger"] { background: var(--danger); }
 .setup-card-body { display: grid; gap: 1px; min-width: 0; }
-.setup-card-name { font-size: 13.5px; font-weight: 500; color: var(--ink); }
-.setup-card-said { font-size: 12.5px; line-height: 1.45; color: var(--ink-dim); text-wrap: pretty; }
+.setup-card-name { font-size: var(--text-base); font-weight: 500; color: var(--ink); }
+.setup-card-said { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-dim); text-wrap: pretty; }
 /* The count beside the first row's words is the phone's; a wider screen says it in the head. */
 .setup-card-aside { display: none; }
 /* A button with a phone's shorter word says the whole one here. */
@@ -1200,13 +1201,13 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .setup-card-acts { display: flex; align-items: center; gap: 10px; }
 .setup-card-btn {
   padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised);
-  font: inherit; font-size: 12.5px; font-weight: 500; color: var(--ink); white-space: nowrap; cursor: pointer;
+  font: inherit; font-size: var(--text-sm); font-weight: 500; color: var(--ink); white-space: nowrap; cursor: pointer;
 }
 .setup-card-btn:hover { background: var(--bg-hover); }
 .setup-card-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 .setup-card-btn.primary:hover { background: var(--accent); filter: brightness(1.06); }
 .setup-card-skip {
-  padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink-dim); white-space: nowrap;
+  padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); white-space: nowrap;
   text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer;
 }
 .setup-card-skip:hover { color: var(--ink); }
@@ -1224,8 +1225,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   background: transparent;
   border-bottom: none;
 }
-.tq-title, .td-day-title { grid-column: 1; font-size: 13.5px; }
-.tq-sub, .td-day-sub { grid-column: 1; order: 0; flex-basis: auto; font-size: 12.5px; white-space: normal; overflow: visible; text-overflow: clip; }
+.tq-title, .td-day-title { grid-column: 1; font-size: var(--text-base); }
+.tq-sub, .td-day-sub { grid-column: 1; order: 0; flex-basis: auto; font-size: var(--text-sm); white-space: normal; overflow: visible; text-overflow: clip; }
 .tq-head > button, .td-day-head > button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
 .tq-live { padding: 10px 18px; }
 .tq-foot, .tq-failed, .tq-empty { padding-left: 18px; padding-right: 18px; }
@@ -1234,10 +1235,10 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    the card's gutter. */
 .today-queue .tq-head { grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; padding: 12px 18px 6px; }
 .today-queue .tq-title, .today-queue .tq-sub { grid-column: auto; }
-.today-queue .tq-sub { font-size: 12.5px; }
+.today-queue .tq-sub { font-size: var(--text-sm); }
 .today-queue .tq-head > .tq-open { grid-column: 3; grid-row: 1; align-self: baseline; }
 .tq-open {
-  padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink-dim); white-space: nowrap;
+  padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); white-space: nowrap;
   text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer;
 }
 .tq-open:hover { color: var(--ink); }
@@ -1276,20 +1277,20 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    and wears the page's own sign that a word has more behind it, a dotted rule
    under the words. */
 .tl-math { font-family: inherit; font-size: 11.5px; letter-spacing: 0; }
-.tl-text-door { display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 4px; background: none; font-family: inherit; line-height: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted var(--line-strong); text-underline-offset: 3px; }
+.tl-text-door { display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: var(--radius-xs); background: none; font-family: inherit; line-height: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted var(--line-strong); text-underline-offset: 3px; }
 .tl-text-door:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* The doors on the day's lines are links; the period's one door is the button. */
-.tc-beats .brief-chip { background: transparent; border-color: transparent; padding: 4px 6px; font-size: 12.5px; color: var(--ink-muted); border-radius: 8px; }
+.tc-beats .brief-chip { background: transparent; border-color: transparent; padding: 4px 6px; font-size: var(--text-sm); color: var(--ink-muted); border-radius: var(--radius-md); }
 .tc-beats .brief-chip:hover { background: var(--bg-hover); border-color: transparent; color: var(--ink); }
 .tc-foot { background: transparent; }
-.tc-foot .btn { border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-muted); padding: 8px 12px; border-radius: 8px; font-size: 12.5px; }
+.tc-foot .btn { border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-muted); padding: 8px 12px; border-radius: var(--radius-md); font-size: var(--text-sm); }
 .tc-foot .btn:hover { color: var(--ink); border-color: var(--line-strong); background: var(--bg-raised); }
 
 /* The two cards under the day's card go flat like the ones above them, and a
    bell with nothing in it draws no zero. */
 .tsec-head { background: transparent; border-bottom: none; padding: 14px 18px 8px; }
-.tsec-title { font-size: 13.5px; }
+.tsec-title { font-size: var(--text-base); }
 .tq-count.calm { display: none; }
 
 /* The day's rows read across: the time, who, and what on the right. The rail
@@ -1299,18 +1300,19 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .td-item-rail, .td-item-glyph { display: none; }
 .td-item-body { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 4px 10px; flex-wrap: wrap; }
 .td-item-title { flex: 1 1 auto; display: block; font-size: 13px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.td-item-sub { display: block; font-size: 12.5px; white-space: nowrap; }
-.td-item-flag { font-size: 12.5px; }
+.td-item-sub { display: block; font-size: var(--text-sm); white-space: nowrap; }
+.td-item-flag { font-size: var(--text-sm); }
 .td-item-flag::before { display: none; }
 .td-item.now .td-item-time { font-weight: 500; }
 
 /* The page's top gutter is the gap between its bands, 12px: the queue's card sits
    under the bar as it sits under any card above it, and a line that is down
    (TodayAlert, 2px of its own) lands its words 14px down, where the Inbox's first
-   words land (13px: .stabs sits flush under the bar with 6px of its own and the
-   tab's 7px). The standing line used to own this room; at 0 without it, the card's
-   edge sat on the bar's rule (23 Sep). 28px would land them lower than every other
-   page. The sides keep the gutter; a phone keeps its own 16px (mobile.css). */
+   words land (13.5px: .stabs sits flush under the bar with 6px of its own, and
+   its tab sets its words in the middle of 34px). The standing line used to own
+   this room; at 0 without it, the card's edge sat on the bar's rule (23 Sep). 28px
+   would land them lower than every other page. The sides keep the gutter; a phone
+   keeps its own 16px (mobile.css). */
 .dash-a-v2 { padding-top: 12px; }
 
 /* A run is not a customer's words: it reads in one glance, verbs on the right,
@@ -1319,7 +1321,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    a person does. */
 :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"], :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] { padding: 10px 18px; }
 :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-body, :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-body { gap: 2px; }
-:where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-sentence, :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-sentence { font-size: 12.5px; color: var(--ink-muted); }
+:where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-sentence, :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-sentence { font-size: var(--text-sm); color: var(--ink-muted); }
 @media (min-width: 700px) {
   :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"], :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-acts, :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-acts { grid-column: 2; grid-row: 1; padding-top: 0; }
@@ -1329,3 +1331,618 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    primary: the canvas reads "Open and reply · Snooze" on each. The verb is the
    button AttnRow marks attention-cta; the second word follows it. */
 :where(.dash-a-v2) .tq .cl-attn-cta[data-testid="attention-cta"] { order: -1; }
+
+/* ====================================================================
+   Glass: Today (the plan's step 5.4, canvas E3, "Clear")
+   Every card is a clear pane on the page's light under the page's head (kit/head, drawn by the route in Glass alone); its
+   rows sit on the pane, its verbs are the glass layer's capsules, and coral is the one act. Each rule names the look inside
+   :where() so it weighs what it restyles; none matches in Classic.
+   ==================================================================== */
+
+/* The page starts under the frame's head (kit/head/frame-head.tsx), at the page's gutter. */
+.main-scroll > .dash-a-v2 {
+  --pg-gutter: var(--gutter-page);
+  padding-top: 0;
+  gap: 14px;
+}
+
+/* The cards: the setup card and the queue, the day, the day's card, Worth a look and While you were away are clear panes
+   with the look's rim and depth, and the head and foot bars lose their sunken fills. The day's card is reached by its
+   testid: in the bento it sits in the bottom row, not under the page, and the ratchet counts its class. */
+.dash-a-v2 :is(.tq, .td-day, .tsec, [data-testid="today-card"]),
+.dash-a-v2 > section {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+.dash-a-v2 :is(.tq, .td-day, .tsec, [data-testid="today-card"])::after,
+.dash-a-v2 > section::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.dash-a-v2 :is(.tq-head, .td-day-head, .tsec-head) {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+.dash-a-v2 :is(.tq-foot, .td-day-foot, .tc-foot, .tsec-note) {
+  background: transparent;
+  border-top-color: var(--line);
+}
+/* E3 keeps 18px inside each pane and insets the hairlines by it: the pane carries the gutter, and its head, its rows
+   and its foot run edge to edge within it (the rules below that set a padding set 0 at the sides too). */
+.dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 18px; }
+.dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) :is(.tq-head, .tsec-head, .tc-head, .tq-foot, .tq-failed, .tsec-note, .tl-failed, .tl-row) {
+  padding-left: 0;
+  padding-right: 0;
+}
+/* The empty states too: the queue's line is what stands in its list that is not a row, the bell's the pane's second
+   child where its list is not (the ratchet counts their names). */
+.dash-a-v2 .today-queue .tq-list > :not([role="button"]),
+.dash-a-v2 .ta > :nth-child(2):not(.ta-list) {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* A row you point at is lit. */
+.dash-a-v2 .tq .cl-attn-row:hover,
+.dash-a-v2 .tq .cl-attn-row:focus-visible {
+  background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
+}
+
+/* The verbs: a row's one act is the primary role's coral capsule, its other the control layer's inset capsule. The setup
+   card's acts are the same two. */
+.dash-a-v2 .tq .cl-attn-acts > button,
+.dash-a-v2 .today-setup .tq-list button:not([class*="skip"]) {
+  height: 34px;
+  border-radius: var(--radius-full);
+  padding: 0 15px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+.dash-a-v2 .tq .cl-attn-acts > button.primary,
+.dash-a-v2 .today-setup .tq-list button.primary {
+  background: var(--primary-fill);
+  border: 0;
+  color: var(--primary-ink);
+  font-weight: var(--weight-semibold);
+  box-shadow: var(--primary-depth);
+}
+.dash-a-v2 .tq .cl-attn-acts > button.primary:hover,
+.dash-a-v2 .today-setup .tq-list button.primary:hover {
+  background: var(--primary-hover);
+  filter: none;
+}
+.dash-a-v2 .tq .cl-attn-acts > button:not(.primary),
+.dash-a-v2 .today-setup .tq-list button:not(.primary, [class*="skip"]) {
+  background: var(--surface-inset-fill);
+  border-color: var(--surface-inset-edge);
+  color: var(--ink);
+  box-shadow: var(--surface-inset-depth);
+}
+
+/* ---- The bento (canvas E3): the strip across, the queue's column beside the brief and the bell, the day's card beside
+   Worth a look, the pinned lists across; 14px between everything, as the canvas; under 1180px one column in that order
+   (today-page.tsx GlassPage). The rows stretch: the queue is as tall as the two panes beside it, its foot at its bottom. */
+.main-scroll > .dash-a-v2-glass {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+.dash-a-v2-glass > :is(.today-alert, .today-strip, .dash-a-v2-bottom, .tsec.tp) { grid-column: 1 / -1; }
+.dash-a-v2-glass > .dash-a-v2-work { grid-column: span 8; gap: 14px; }
+.dash-a-v2-glass > .dash-a-v2-work > .today-queue { flex: 1 1 auto; display: flex; flex-direction: column; }
+.dash-a-v2-glass .today-queue > .tq-foot { margin-top: auto; }
+.dash-a-v2-glass > .dash-a-v2-side { grid-column: span 4; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* The side's last pane reaches the queue's bottom edge (E3's right column fills its row): with one row in the bell the
+   column stopped 160px short and the page showed through. */
+.dash-a-v2-glass > .dash-a-v2-side > :last-child { flex: 1 1 auto; }
+/* The bottom row: the day's card beside Worth a look, halves; one alone takes the row. */
+.dash-a-v2-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.dash-a-v2-bottom > :only-child { grid-column: 1 / -1; }
+@media (max-width: 1180px) {
+  .dash-a-v2-glass > :is(.dash-a-v2-work, .dash-a-v2-side) { grid-column: 1 / -1; }
+  .dash-a-v2-bottom { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The strip: one capsule of cells, a hairline between them -- the call with its clock and its door, the next appointment
+   under its eyebrow, and the next opening as the one green capsule at the right (the canvas's "Open until"). It is as
+   wide as what it says, at the page's left, 56px tall, as the canvas draws it. */
+.today-strip {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-self: start;
+  max-width: 100%;
+  min-height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+  overflow: hidden;
+}
+/* The strip is the control layer's glass (E3: the same glass as the sidebar and Ask), and blurs what passes behind it
+   on a desk. */
+@media (min-width: 901px) {
+  .today-strip { backdrop-filter: var(--surface-control-blur); }
+}
+.today-strip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.ts-cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0 18px;
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+.ts-cell + .ts-cell { border-left: 1px solid var(--line); }
+.ts-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-words b { font-weight: var(--weight-semibold); }
+.ts-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+/* The call's clock is the canvas's: mono, in the accent's words. */
+.ts-clock { font-family: var(--font-mono); font-size: var(--text-sm); letter-spacing: 0; color: var(--accent-ink); }
+/* The appointment's start in the semibold, the rest of its words in the muted ink (E3). */
+.ts-rest { color: var(--ink-muted); }
+.ts-more { font-size: var(--text-sm); color: var(--ink-dim); }
+.ts-open { padding-right: 20px; }
+.ts-capsule {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.ts-capsule.ts-closed { background: var(--surface-inset-fill); color: var(--ink-muted); }
+/* The call rides in the strip, not above the queue's rows. */
+.dash-a-v2 .tq-live { display: none; }
+/* The call on the line as E3 draws it: the coral dot with its ring, "On the line", the clock in the accent's words,
+   eight bars that move while the call lasts, and Listen in as an inset capsule (the kit's button under the strip's own
+   class). The ring and the bars hold still where motion is not welcome. */
+.ts-live-dot {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+}
+.ts-live-dot::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--radius-circle);
+  background: var(--accent-soft);
+}
+.ts-live > .ts-words { font-weight: var(--weight-semibold); }
+.ts-wave { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
+.ts-wave > i {
+  display: block;
+  width: 2px;
+  height: 14px;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+  transform-origin: center;
+  transform: scaleY(0.55);
+}
+.dash-a-v2 .ts-live > .ts-listen {
+  height: 30px;
+  margin-left: 4px;
+  padding: 0 12px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ts-live-dot::before { animation: today-ring 1.8s var(--ease-out) infinite; }
+  .ts-wave > i { animation: today-wave 0.9s var(--ease-in-out) infinite; }
+  .ts-wave > i:nth-child(3n + 2) { animation-duration: 1.12s; }
+  .ts-wave > i:nth-child(3n) { animation-duration: 1.34s; }
+  .ts-wave > i:nth-child(2) { animation-delay: 0.13s; }
+  .ts-wave > i:nth-child(3) { animation-delay: 0.26s; }
+  .ts-wave > i:nth-child(4) { animation-delay: 0.39s; }
+  .ts-wave > i:nth-child(5) { animation-delay: 0.52s; }
+  .ts-wave > i:nth-child(6) { animation-delay: 0.65s; }
+  .ts-wave > i:nth-child(7) { animation-delay: 0.78s; }
+  .ts-wave > i:nth-child(8) { animation-delay: 0.91s; }
+}
+@keyframes today-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+/* The panes' titles at the canvas's size, and the queue's head: the count as the filled disc before the name, the
+   sentence beside it, the door to the Inbox in ink with its arrow. */
+.dash-a-v2 :is(.tq-title, .td-day-title, .tsec-title, .tc-title) {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+/* Reviewed against E3 on production, 2 October 2026: the head 18px from the pane's top as every pane's first row is,
+   the foot 18px from its bottom, the face's initials at the base step, 5px between a row's lines, the sentence's leading
+   the canvas's 1.42. */
+.dash-a-v2 .today-queue .tq-head {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  padding: 18px 0 10px;
+}
+.tq-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: var(--radius-lg);
+  background: var(--count-fill);
+  color: var(--count-ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+}
+.dash-a-v2 .today-queue .tq-head > .tq-open {
+  grid-column: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.dash-a-v2 .today-queue .tq-head > .tq-open:hover { color: var(--ink); }
+
+/* The queue's rows as the canvas draws them: the face in a disc, who and when over the words over the state, the
+   verbs at the right in the row's middle. */
+.dash-a-v2 .today-queue .cl-attn-row {
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 5px 14px;
+  align-items: center;
+  padding: 19px 0;
+}
+.dash-a-v2 .today-queue .cl-attn-row > :first-child {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: var(--face-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.dash-a-v2 .tq .cl-attn-acts { grid-column: 3; grid-row: 1; justify-self: end; gap: 7px; padding-top: 0; }
+.dash-a-v2 .tq .cl-attn-name { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.dash-a-v2 .tq .cl-attn-meta { font-size: var(--text-sm); }
+.dash-a-v2 .tq .cl-attn-body { gap: 5px; }
+.dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-md); line-height: 1.42; }
+.dash-a-v2 .tq .cl-attn-status { font-size: var(--text-sm); font-weight: var(--weight-medium); }
+/* The foot (E3): what the card could not hold in the dim ink, and See all as an inset capsule at the right; it stands
+   whatever was cut (queue.tsx says so when nothing was) and sits at the pane's bottom. */
+.dash-a-v2 .tq-foot { padding: 12px 0 18px; font-size: var(--text-sm); color: var(--ink-dim); }
+.dash-a-v2 .tq-foot > button {
+  height: 30px;
+  padding: 0 13px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.dash-a-v2 .tq-foot > button:hover { color: var(--ink); border-color: var(--line-strong); }
+
+/* The brief (canvas E3): the three before its name, the hour it was written under the name in mono, the line in the
+   muted ink with names in the page's, the lines that are not numbers under it as prose (no marks), the doors as words,
+   and the one door to Ask at the foot. */
+.tb .tsec-head { align-items: center; gap: 12px; padding: 18px 0 0; }
+.tb-three { display: inline-flex; flex: none; width: 40px; height: 40px; color: var(--accent); }
+.tb-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dash-a-v2 .tb .tsec-title { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.tb-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.tb-body { display: flex; flex-direction: column; gap: 10px; padding: 14px 0 0; }
+.tb-line { margin: 0; font-size: var(--text-md); line-height: 1.5; color: var(--ink-muted); text-wrap: pretty; }
+.tb-line b { color: var(--ink); font-weight: var(--weight-semibold); }
+.tb-body .tc-beats { padding: 0; margin: 0; gap: 8px; }
+.tb-body .brief-beat { font-size: var(--text-base); line-height: 1.5; color: var(--ink-muted); }
+.tb-body .brief-beat-glyph { display: none; }
+/* The brief's acts (E3): Listen as an inset capsule with the play glyph and the length in mono beside it, Ask a follow-up
+   as words alone; 16px under the line, 8px apart. */
+.tb-foot { display: flex; align-items: center; gap: 8px; padding: 16px 0 18px; }
+.dash-a-v2 .tb .tb-listen-head { display: none; }
+.dash-a-v2 .tb .tb-listen {
+  height: 34px;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+.dash-a-v2 .tb .tb-listen > svg { fill: currentColor; }
+.tb-listen-len { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; color: var(--ink-dim); }
+/* Why the voice could not be had, said once beside Listen in the server's words; nothing else speaks. */
+.tb-why { font-size: var(--text-xs); color: var(--ink-dim); min-width: 0; }
+.dash-a-v2 .tb-foot > .tb-follow {
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-muted);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+.dash-a-v2 .tb-foot > .tb-follow:hover { color: var(--ink); background: var(--surface-inset-fill); }
+
+/* The day's card: the figures in columns with a hairline between them, the numbers at the canvas's size and weight, the
+   word under each in the semibold. */
+.dash-a-v2 .tc-head { flex-wrap: nowrap; align-items: center; gap: 10px; padding: 18px 0 10px; }
+/* The card's name never breaks (it stood on two lines beside the quiet day's line); the line gives way instead. */
+.dash-a-v2 .tc-title { flex: none; white-space: nowrap; }
+.dash-a-v2 .tc-line { flex: 1 1 auto; min-width: 0; }
+/* The door to Reports stands in the head as words with its arrow (card.tsx draws it there in Glass), not in the foot. */
+.dash-a-v2 .tc-head > button {
+  height: auto;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink-muted);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+.dash-a-v2 .tc-head > button:hover { color: var(--ink); }
+.dash-a-v2 .tc-figs { gap: 0; padding: 12px 0 10px; }
+.dash-a-v2 .tc-fig { padding: 4px 16px 4px 0; }
+.dash-a-v2 .tc-fig + .tc-fig { border-left: 1px solid var(--line); padding-left: 16px; }
+.dash-a-v2 .tc-fig-n { font-size: var(--text-figure); font-weight: var(--weight-medium); letter-spacing: -0.035em; line-height: 1; }
+.dash-a-v2 .tc-fig-w { margin-top: 6px; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
+.dash-a-v2 .tc-fig-m { font-size: var(--text-sm); }
+/* The period's line at the foot: a hairline over it, the dim ink, no band and no button (the door is in the head). */
+.dash-a-v2 .tc-foot { margin-top: 14px; padding: 12px 0 18px; border-radius: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+
+/* The bell's pane (canvas E3): its count the filled disc after its name; each row the kind's glyph in a rounded inset
+   (a warning's in amber), the words beside it in the page's ink whatever the tone, the hour in mono at the right, and
+   rows told apart by hairlines alone. */
+.dash-a-v2 .ta .tsec-head { align-items: center; gap: 10px; padding: 18px 0 10px; }
+/* Mark all read is words alone at the right (E3), not a capsule. */
+.dash-a-v2 .ta .tsec-head > button {
+  height: auto;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink-muted);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+.dash-a-v2 .ta .tsec-head > button:hover { color: var(--ink); }
+.dash-a-v2 .ta .tq-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--radius-full);
+  background: var(--count-fill);
+  color: var(--count-ink);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+}
+.dash-a-v2 .ta .tq-count.calm {
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink-dim);
+}
+/* A row (E3): the glyph, then the words with the hour at the row's right edge; no dismiss of its own (away.tsx draws
+   none in Glass: a group is read when it is opened, and Mark all read clears the rest), no wash under a pointer. */
+.dash-a-v2 .ta-row { grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 12px 0; background: transparent; }
+.dash-a-v2 .ta-row:hover { background: transparent; }
+/* A hairline over every row, the first under the head (E3), and the pane's 18px under the last row where no foot follows. */
+.dash-a-v2 .ta-row:first-child { border-top: 1px solid var(--line); }
+.dash-a-v2 .ta > .ta-list:last-child { padding-bottom: 18px; }
+.dash-a-v2 .ta-line1 { justify-content: space-between; gap: 12px; }
+.dash-a-v2 .ta-row > .tbn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink-muted);
+}
+.dash-a-v2 .ta-row.warn > :first-child {
+  background: var(--warn-soft);
+  box-shadow: none;
+  color: var(--warn-ink);
+}
+.dash-a-v2 .ta-row .ta-title { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
+.dash-a-v2 .ta-time { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; }
+.dash-a-v2 .ta-msg { font-size: var(--text-sm); }
+
+/* Worth a look (canvas E3): each row its sentence a size up, the tone's word as a neutral inset capsule at the right
+   (never the warning's colour: amber is the bell's one warning), the arithmetic and who it names under it, and the
+   doors as words, the row's own in ink with its arrow. The capsule is the row's first child, the kit's pill, which the
+   look otherwise draws as a dot and a word; the ratchet counts the pill's name. */
+.dash-a-v2 .tl .tsec-head { padding: 18px 0 4px; }
+.dash-a-v2 .tl-row { gap: 8px 12px; padding: 14px 0; }
+.dash-a-v2 .tl-text { font-size: var(--text-md); line-height: 1.4; font-weight: var(--weight-medium); }
+.dash-a-v2 .tl-row > :first-child {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  margin-top: 0;
+  padding: 0 10px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+.dash-a-v2 .tl-row > :first-child::before { display: none; }
+.dash-a-v2 .tl-foot { margin-top: 0; gap: 8px 14px; }
+.dash-a-v2 .tl-math { font-size: var(--text-sm); color: var(--ink-dim); }
+.dash-a-v2 .tl-people-lead { font-size: var(--text-sm); }
+.dash-a-v2 .tl-acts { gap: 14px; }
+.dash-a-v2 .tl-act { font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.dash-a-v2 .tsec-note { padding: 10px 0 14px; font-size: var(--text-sm); }
+
+/* What is left to set up, compact (Ruben, 1 Oct 2026: kept, drawn cleanly): one eyebrow line in mono with the count,
+   Hide at its right, then each row as the state's dot, the name over one line of its words, and its act at the right.
+   The card's own parts are reached by their place and their testids, since the ratchet counts the card's names; a
+   phone keeps mobile.css's one-row card, where the count rides beside the words. */
+@media (min-width: 721px) {
+  .dash-a-v2 .today-setup { gap: 4px; padding: 12px 18px; }
+  .dash-a-v2 .today-setup > :first-child { align-items: center; }
+  .dash-a-v2 .today-setup > :first-child > :first-child {
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .dash-a-v2 .today-setup > :first-child > :first-child::after { content: "·"; }
+  .dash-a-v2 .today-setup [data-testid="today-setup-left"] { order: 1; font: inherit; color: inherit; }
+  .dash-a-v2 .today-setup [data-testid="today-setup-hide"] { font-size: var(--text-sm); }
+  .dash-a-v2 .today-setup .tq-list > * { grid-template-columns: 8px minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-top: 0; }
+  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :first-child { font-size: var(--text-base); font-weight: var(--weight-semibold); }
+  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :last-child { display: block; font-size: var(--text-sm); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :last-child > :last-child { display: none; }
+}
+
+/* A phone: the strip's cells are capsules in a row that scrolls, the rest one column. */
+@media (max-width: 720px) {
+  .today-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-self: stretch;
+    gap: 8px;
+    max-width: none;
+    min-height: 0;
+    margin: 0 calc(-1 * var(--gutter-page));
+    padding: 2px var(--gutter-page) 4px;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .today-strip::after { display: none; }
+  /* Each cell a 40px capsule of the control layer's glass (E3's phone board), gap 8; the appointment's cell says "Next"
+     or "Now" in its bold words, the eyebrow being a desk's; Listen in is a desk's too, the Inbox's Live view a phone's. */
+  .ts-cell {
+    flex: none;
+    max-width: 82vw;
+    height: 40px;
+    min-height: 0;
+    padding: 0 14px;
+    gap: 8px;
+    border-radius: var(--radius-full);
+    background: var(--surface-control-fill);
+    box-shadow: var(--surface-control-depth);
+  }
+  .ts-cell + .ts-cell { border-left: 0; }
+  .ts-eyebrow { display: none; }
+  .ts-next .ts-words::before { content: attr(data-phase) " "; font-weight: var(--weight-semibold); }
+  .dash-a-v2 .ts-live > .ts-listen { display: none; }
+  .ts-open { padding-right: 14px; }
+  .ts-capsule { padding: 0; background: transparent; }
+  /* The queue's head is the count, the name and the door: the sentence under them is a desk's. */
+  .dash-a-v2 .today-queue .tq-head { padding: 16px 0 10px; }
+  /* The dash keeps the boards' 12px from the screen's edges (E3's phone board: the strip and the panes at 12, the head
+     at 16); the page's other phone capsules stand at 12 too. */
+  .main-scroll > .dash-a-v2 { --gutter-page: 12px; }
+  /* A phone's queue ends with its last row (E3's phone board): what the card could not hold is the Inbox tab's. */
+  .dash-a-v2 .tq-foot { display: none; }
+  /* The brief's foot on a phone holds the follow-up alone (Listen stands in its head), its words on the line's left edge
+     and the touch floor's height split evenly between the line above and the pane's edge below; without it the last
+     line sat on the pane's edge. */
+  .dash-a-v2 .tb-foot { padding: 6px 0 8px; }
+  .dash-a-v2 .tb-foot > .tb-follow { margin-left: -10px; }
+  /* The brief draws its lines without the mark (above), so a door under the words lines up with the words themselves,
+     not with the day card's 34px past a mark (mobile.css); the door's own padding is 6px. */
+  .dash-a-v2 .tb-body .brief-beat-text { flex-basis: 100%; }
+  .dash-a-v2 .tb-body { --beat-door-indent: -6px; }
+  /* The day's card: its name on its own row with the door to Reports at the right, what the day says under them. */
+  .dash-a-v2 .tc-head { flex-wrap: wrap; }
+  .dash-a-v2 .tc-line { flex: 1 1 100%; order: 2; }
+  .dash-a-v2 .tc-head > :last-child { margin-left: auto; }
+  /* Mark all read is words at the head's height, not a thumb's 44px that pushed the name down. */
+  .dash-a-v2 .ta .tsec-head > :last-child { height: 32px; min-height: 32px; }
+  .dash-a-v2 .today-queue .tq-head > .tq-sub { display: none; }
+  /* A phone's row (the canvas's phone board): the face, the name over the words wrapping over the state in one line,
+     and the one verb at the right in the row's middle; the channel and the wait are a desk's. */
+  .dash-a-v2 .today-queue .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 3px 12px; padding: 12px 0; }
+  .dash-a-v2 .today-queue .cl-attn-row > :first-child { width: 36px; height: 36px; font-size: var(--text-sm); }
+  .dash-a-v2 .tq .cl-attn-meta { display: none; }
+  .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-base); line-height: 1.4; color: var(--ink-muted); white-space: normal; }
+  .dash-a-v2 .tq .cl-attn-acts > button { height: 36px; padding: 0 13px; font-size: var(--text-sm); }
+  /* The panes keep 16px inside on a phone (E3's phone board). */
+  .dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 16px; }
+  /* The brief's Listen stands at the right of its head on a phone (E3's phone board), not among the acts under the line. */
+  .dash-a-v2 .tb .tb-listen-head { display: inline-flex; margin-left: auto; }
+  .dash-a-v2 .tb-foot > .tb-listen { display: none; }
+  .dash-a-v2 .tb .tsec-head { padding-top: 16px; }
+}

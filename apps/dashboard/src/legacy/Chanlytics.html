@@ -7,29 +7,31 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Mona+Sans:wght@200..900&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles/tokens.css?v=13" />
-  <link rel="stylesheet" href="styles/components.css?v=84" />
-  <link rel="stylesheet" href="styles/dashboard.css?v=6" />
-  <link rel="stylesheet" href="styles/dashboard-a-v2.css?v=48" />
-  <link rel="stylesheet" href="styles/inbox.css?v=28" />
-  <link rel="stylesheet" href="styles/clients.css?v=48" />
-  <link rel="stylesheet" href="styles/people.css?v=14" />
-  <link rel="stylesheet" href="styles/leads.css?v=38" />
-  <link rel="stylesheet" href="styles/store.css?v=16" />
-  <link rel="stylesheet" href="styles/fleet.css?v=6" />
-  <link rel="stylesheet" href="styles/pipeline.css?v=3" />
-  <link rel="stylesheet" href="styles/conversations.css?v=8" />
-  <link rel="stylesheet" href="styles/live.css?v=6" />
-  <link rel="stylesheet" href="styles/calendar.css?v=16" />
-  <link rel="stylesheet" href="styles/charts.css?v=3" />
-  <link rel="stylesheet" href="styles/record.css?v=23" />
-  <link rel="stylesheet" href="styles/reports.css?v=9" />
-  <link rel="stylesheet" href="styles/settings.css?v=86" />
-  <link rel="stylesheet" href="styles/first-run.css?v=3" />
-  <link rel="stylesheet" href="styles/mobile.css?v=41" />
-  <link rel="stylesheet" href="styles/ask.css?v=10" />
+  <link rel="stylesheet" href="styles/tokens.css?v=21" />
+  <link rel="stylesheet" href="surfaces/kit/kit.css?v=15" />
+  <link rel="stylesheet" href="styles/components.css?v=108" />
+  <link rel="stylesheet" href="surfaces/campaigns/campaigns.css?v=2" />
+  <link rel="stylesheet" href="styles/dashboard.css?v=7" />
+  <link rel="stylesheet" href="styles/dashboard-a-v2.css?v=51" />
+  <link rel="stylesheet" href="styles/inbox.css?v=32" />
+  <link rel="stylesheet" href="styles/clients.css?v=61" />
+  <link rel="stylesheet" href="styles/people.css?v=15" />
+  <link rel="stylesheet" href="styles/leads.css?v=43" />
+  <link rel="stylesheet" href="styles/store.css?v=17" />
+  <link rel="stylesheet" href="styles/fleet.css?v=7" />
+  <link rel="stylesheet" href="styles/pipeline.css?v=4" />
+  <link rel="stylesheet" href="styles/conversations.css?v=9" />
+  <link rel="stylesheet" href="styles/live.css?v=7" />
+  <link rel="stylesheet" href="styles/calendar.css?v=19" />
+  <link rel="stylesheet" href="styles/charts.css?v=4" />
+  <link rel="stylesheet" href="styles/record.css?v=26" />
+  <link rel="stylesheet" href="styles/reports.css?v=11" />
+  <link rel="stylesheet" href="styles/settings.css?v=97" />
+  <link rel="stylesheet" href="styles/first-run.css?v=10" />
+  <link rel="stylesheet" href="styles/mobile.css?v=58" />
+  <link rel="stylesheet" href="styles/ask.css?v=26" />
 
   <style>
     html, body { height: 100%; overflow: hidden; }
@@ -44,145 +46,75 @@
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
   <!-- Bridge stand-ins (harness only — the bundle publishes these for real) -->
-  <script type="text/babel" src="data/bridge-stubs.jsx?v=5"></script>
-  <!-- The demo's Reports: legacy-bridge/reports-sample.ts through contracts, built by tooling/scripts/serve-legacy.mjs -->
-  <script src="data/reports-sample.js?v=1"></script>
-  <!-- The demo's Today: legacy-bridge/today-sample.ts through contracts, built by the same server; it installs its surfaces where the app's globals are absent -->
-  <script src="data/today-sample.js?v=2"></script>
+  <script type="text/babel" src="data/bridge-stubs.jsx?v=7"></script>
+  <!-- The kit's components the pages below still draw by name (Icon, EmptyState, FailedRead, SegmentBar, StatePill, PolicyChip, MoreMenu, Confirm, FieldError and the record kit: RecordRow, RecordField, RecordFold, RecordSheet ...): surfaces/kit/kit-globals.ts, built by tooling/scripts/serve-legacy.mjs, the object the app publishes from seed-globals -->
+  <script src="data/kit-globals.js?v=3"></script>
+  <!-- The Inbox's and Conversations' names the pages below still read (INBOX_DATA, CONVERSATIONS_DATA, IX_STORE, ixWaitsOnYou, CV_ROUTE, CV_IN_CHANNEL): surfaces/inbox/legacy-globals.ts, built by the same server, the object the app publishes from seed-globals; the two pages themselves are App Router pages only the app draws -->
+  <script src="data/inbox-globals.js?v=1"></script>
+  <!-- People's parts the shell still draws by name (the strip's scopes, the deal and step sheets, the demo's Lists marks): surfaces/people/people-globals.ts, built by the same server, the object the app publishes from seed-globals -->
+  <script src="data/people-globals.js?v=1"></script>
+  <!-- Leads' plan card, which Ask's palette draws for a lead_search card (TSX since decision 0015: surfaces/leads/globals.ts), until Ask moves -->
+  <script src="data/leads-globals.js?v=2"></script>
   <!-- The Business tab's helpers: legacy-bridge/business-tab.ts through contracts, built by the same server, the object the app publishes as __businessTab -->
-  <script src="data/business-tab.js?v=26"></script>
+  <script src="data/business-tab.js?v=27"></script>
   <!-- The three: legacy-bridge/mascot built by the same server, the object the app publishes as __mascot, so the mockup's Ask has its face -->
-  <script src="data/mascot.js?v=6"></script>
+  <script src="data/mascot.js?v=7"></script>
 
   <!-- Foundations -->
-  <script type="text/babel" src="components/icons.jsx?v=7"></script>
-  <script type="text/babel" src="components/surface-tabs.jsx?v=8"></script>
-  <script type="text/babel" src="components/sidebar.jsx?v=26"></script>
-  <script type="text/babel" src="components/shortcuts.jsx?v=2"></script>
-  <script type="text/babel" src="components/ask-face.jsx?v=4"></script>
-  <script type="text/babel" src="components/topbar.jsx?v=28"></script>
-  <script type="text/babel" src="components/data-bits.jsx?v=31"></script>
-  <script type="text/babel" src="components/day-agenda.jsx?v=2"></script>
-  <script type="text/babel" src="components/record-row.jsx?v=12"></script>
-  <script type="text/babel" src="components/record-field.jsx?v=9"></script>
-  <script type="text/babel" src="components/record-fold.jsx?v=22"></script>
-  <script type="text/babel" src="components/record-sheet.jsx?v=8"></script>
-  <script type="text/babel" src="components/deal-sheet.jsx?v=2"></script>
-  <script type="text/babel" src="components/step-sheet.jsx?v=1"></script>
-  <script type="text/babel" src="components/message-preview.jsx?v=2"></script>
-  <script type="text/babel" src="components/template-chips.jsx?v=3"></script>
-  <script type="text/babel" src="components/campaign-bits.jsx?v=11"></script>
-  <script type="text/babel" src="components/chart-core.jsx?v=3"></script>
-  <script type="text/babel" src="components/chart-bar.jsx?v=2"></script>
-  <script type="text/babel" src="components/chart-line.jsx?v=2"></script>
-  <script type="text/babel" src="components/chart-pie.jsx?v=2"></script>
-  <script type="text/babel" src="components/chart-radar.jsx?v=1"></script>
-  <script type="text/babel" src="components/chart-radial.jsx?v=1"></script>
-  <script type="text/babel" src="components/chart-heat.jsx?v=1"></script>
+  <script type="text/babel" src="components/surface-tabs.jsx?v=14"></script>
+  <script type="text/babel" src="components/sidebar.jsx?v=32"></script>
+  <script type="text/babel" src="components/shortcuts.jsx?v=3"></script>
+  <script type="text/babel" src="components/ask-face.jsx?v=9"></script>
+  <script type="text/babel" src="components/topbar.jsx?v=34"></script>
+  <script type="text/babel" src="components/data-bits.jsx?v=45"></script>
 
   <!-- Data -->
-  <script type="text/babel" src="data/constants.jsx?v=5"></script>
-  <script type="text/babel" src="data/dashboard-data.jsx?v=21"></script>
-  <script type="text/babel" src="data/inbox-data.jsx?v=20"></script>
+  <script type="text/babel" src="data/constants.jsx?v=6"></script>
   <script type="text/babel" src="data/clients-data.jsx?v=11"></script>
-  <script type="text/babel" src="data/store-data.jsx?v=12"></script>
-  <script type="text/babel" src="data/fleet-data.jsx?v=9"></script>
-  <script type="text/babel" src="data/pipeline-data.jsx?v=5"></script>
-  <script type="text/babel" src="data/conversations-data.jsx?v=4"></script>
-  <script type="text/babel" src="data/live-data.jsx?v=3"></script>
-  <script type="text/babel" src="data/calendar-data.jsx?v=6"></script>
-  <script type="text/babel" src="data/reports-data.jsx?v=5"></script>
-  <script type="text/babel" src="data/tasks-data.jsx?v=8"></script>
   <script type="text/babel" src="data/people-data.jsx?v=14"></script>
 
-  <!-- Today (Operator's brief — Agent Command primary) -->
-  <script type="text/babel" src="pages/attention-bits.jsx?v=3"></script>
-  <script type="text/babel" src="pages/dashboard-a-brief.jsx?v=24"></script>
-  <script type="text/babel" src="pages/dashboard-a-command.jsx?v=34"></script>
-  <script type="text/babel" src="pages/dashboard-a-day.jsx?v=4"></script>
-  <script type="text/babel" src="pages/dashboard-a-week.jsx?v=13"></script>
-  <script type="text/babel" src="pages/dashboard-a-live.jsx?v=11"></script>
-  <script type="text/babel" src="pages/dashboard-a-fleet.jsx?v=18"></script>
-  <script type="text/babel" src="pages/dashboard-a-ask.jsx?v=33"></script>
-  <script type="text/babel" src="pages/ask-text.jsx?v=7"></script>
-  <script type="text/babel" src="pages/ask-hooks.jsx?v=5"></script>
-  <script type="text/babel" src="pages/ask-turn.jsx?v=6"></script>
-  <script type="text/babel" src="pages/ask-home.jsx?v=4"></script>
-  <script type="text/babel" src="pages/ask-real.jsx?v=11"></script>
-  <script type="text/babel" src="pages/dashboard-a.jsx?v=18"></script>
-
-  <!-- Inbox -->
-  <script type="text/babel" src="pages/inbox-list.jsx?v=15"></script>
-  <script type="text/babel" src="pages/inbox-thread.jsx?v=44"></script>
-  <script type="text/babel" src="pages/thread-pane.jsx?v=3"></script>
-  <script type="text/babel" src="pages/inbox-rail.jsx?v=11"></script>
-  <script type="text/babel" src="pages/inbox.jsx?v=27"></script>
+  <!-- Ask: the palette the seed draws (Today's own page is TSX, an App Router page the mockup does not draw) -->
+  <script type="text/babel" src="pages/dashboard-a-ask.jsx?v=36"></script>
+  <script type="text/babel" src="pages/ask-text.jsx?v=15"></script>
+  <script type="text/babel" src="pages/ask-hooks.jsx?v=14"></script>
+  <script type="text/babel" src="pages/ask-turn.jsx?v=15"></script>
+  <script type="text/babel" src="pages/ask-home.jsx?v=6"></script>
+  <script type="text/babel" src="pages/ask-real.jsx?v=36"></script>
 
   <!-- People (Triage-first portfolio) -->
-  <script type="text/babel" src="pages/clients-bits.jsx?v=1"></script>
-  <script type="text/babel" src="pages/people-table.jsx?v=10"></script>
-  <script type="text/babel" src="pages/pipeline-row.jsx?v=1"></script>
-  <script type="text/babel" src="pages/pipeline-peek.jsx?v=3"></script>
-  <script type="text/babel" src="pages/pipeline-board.jsx?v=3"></script>
-  <script type="text/babel" src="pages/pipeline-new.jsx?v=1"></script>
-  <script type="text/babel" src="pages/pipeline-scope.jsx?v=10"></script>
-  <script type="text/babel" src="pages/clients-a.jsx?v=67"></script>
-  <script type="text/babel" src="pages/person-deal.jsx?v=5"></script>
-  <script type="text/babel" src="pages/client-profile.jsx?v=47"></script>
-  <script type="text/babel" src="pages/leads-scope.jsx?v=41"></script>
-  <script type="text/babel" src="pages/leads-finder.jsx?v=5"></script>
-  <script type="text/babel" src="pages/leads-peek.jsx?v=19"></script>
-  <script type="text/babel" src="pages/segments.jsx?v=18"></script>
+  <script type="text/babel" src="pages/clients-bits.jsx?v=2"></script>
 
-  <!-- Agents, Campaigns, Settings -->
-  <script type="text/babel" src="pages/agent-store.jsx?v=20"></script>
-  <script type="text/babel" src="pages/agent-fleet.jsx?v=23"></script>
-  <script type="text/babel" src="pages/agent-studio.jsx?v=18"></script>
-  <script type="text/babel" src="pages/outbound.jsx?v=18"></script>
-  <script type="text/babel" src="pages/outbound-real.jsx?v=22"></script>
-  <script type="text/babel" src="pages/content-cal.jsx?v=8"></script>
-  <script type="text/babel" src="pages/templates-real.jsx?v=5"></script>
-  <script type="text/babel" src="pages/messages.jsx?v=18"></script>
-  <script type="text/babel" src="pages/broadcasts.jsx?v=22"></script>
-  <script type="text/babel" src="pages/broadcasts-real.jsx?v=24"></script>
-  <script type="text/babel" src="pages/pipeline.jsx?v=11"></script>
-  <script type="text/babel" src="pages/conversations.jsx?v=20"></script>
-  <script type="text/babel" src="pages/live-monitor.jsx?v=10"></script>
-  <script type="text/babel" src="pages/live-monitor-real.jsx?v=7"></script>
-  <script type="text/babel" src="pages/calendar.jsx?v=19"></script>
-  <script type="text/babel" src="pages/calendar-real.jsx?v=14"></script>
-  <script type="text/babel" src="pages/reports-sections.jsx?v=7"></script>
-  <script type="text/babel" src="pages/reports.jsx?v=20"></script>
-  <script type="text/babel" src="pages/tasks.jsx?v=21"></script>
-  <script type="text/babel" src="pages/setup.jsx?v=9"></script>
-  <script type="text/babel" src="pages/first-run.jsx?v=4"></script>
-  <script type="text/babel" src="pages/business-tab-save.jsx?v=19"></script>
-  <script type="text/babel" src="pages/business-tab-folds.jsx?v=21"></script>
-  <script type="text/babel" src="pages/business-tab-gestures.jsx?v=19"></script>
-  <script type="text/babel" src="pages/business-tab-who.jsx?v=11"></script>
-  <script type="text/babel" src="pages/business-tab-open.jsx?v=22"></script>
-  <script type="text/babel" src="pages/business-tab-offer.jsx?v=16"></script>
-  <script type="text/babel" src="pages/business-tab-answers.jsx?v=20"></script>
-  <script type="text/babel" src="pages/business-can.jsx?v=5"></script>
-  <script type="text/babel" src="pages/business-tab-services.jsx?v=7"></script>
-  <script type="text/babel" src="pages/business-tab-prompt.jsx?v=7"></script>
-  <script type="text/babel" src="pages/business-tab-create.jsx?v=6"></script>
-  <script type="text/babel" src="pages/business-tab.jsx?v=41"></script>
-  <script type="text/babel" src="pages/settings.jsx?v=61"></script>
-  <script type="text/babel" src="pages/billing-real.jsx?v=7"></script>
-  <script type="text/babel" src="pages/integrations-real.jsx?v=7"></script>
-  <script type="text/babel" src="pages/business-record.jsx?v=3"></script>
-  <script type="text/babel" src="pages/platform.jsx?v=4"></script>
+  <!-- Campaigns, Settings -->
+
 
   <!-- Shell -->
-  <script type="text/babel" src="pages/activity.jsx?v=8"></script>
-  <script type="text/babel" src="pages/app-shell.jsx?v=64"></script>
+  <script type="text/babel" src="pages/app-routes.jsx?v=7"></script>
+  <script type="text/babel" src="pages/app-shell.jsx?v=78"></script>
+
+  <!-- The mockup's own files (legacy/demo/, legacy-bridge/manifest-demo.ts): after every file above, as the app loads
+       them in a session that declared itself a demo. A real workspace never loads them. -->
+  <script type="text/babel" src="demo/data/dashboard-data.jsx?v=21"></script>
+  <script type="text/babel" src="demo/data/store-data.jsx?v=12"></script>
+  <script type="text/babel" src="demo/data/fleet-data.jsx?v=9"></script>
+  <script type="text/babel" src="demo/data/pipeline-data.jsx?v=5"></script>
+  <script type="text/babel" src="demo/data/calendar-data.jsx?v=6"></script>
+  <script type="text/babel" src="demo/data/reports-data.jsx?v=5"></script>
+  <script type="text/babel" src="demo/data/tasks-data.jsx?v=8"></script>
+  <script type="text/babel" src="demo/pages/segments.jsx?v=18"></script>
+  <script type="text/babel" src="demo/pages/agent-store.jsx?v=20"></script>
+  <script type="text/babel" src="demo/pages/agent-fleet.jsx?v=23"></script>
+  <script type="text/babel" src="demo/pages/agent-studio.jsx?v=18"></script>
+  <script type="text/babel" src="demo/pages/content-cal.jsx?v=8"></script>
+  <script type="text/babel" src="demo/pages/pipeline.jsx?v=12"></script>
+
+  <script type="text/babel" src="demo/pages/tasks.jsx?v=22"></script>
 
   <script type="text/babel" data-presets="env,react">
     const { useEffect, useCallback } = React;
 
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
       "theme": "dark",
+      "look": "glass",
       "inboxDensity": "compact",
       "showInboxAgentRail": false
     }/*EDITMODE-END*/;
@@ -191,10 +123,13 @@
     // (#89) and its <script> tag outlived it, so this harness has been throwing
     // "useTweaks is not defined" on boot ever since. The two knobs it carried
     // that the shell still reads are defaults here; theme is a real control
-    // because a design pass needs to see both.
+    // because a design pass needs to see both. The look is stamped beside it,
+    // as the app stamps it, so a [data-look] rule draws here as it does there.
     function App() {
       const [theme, setTheme] = React.useState(TWEAK_DEFAULTS.theme);
+      const [look, setLook] = React.useState(TWEAK_DEFAULTS.look);
       useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, [theme]);
+      useEffect(() => { document.documentElement.setAttribute("data-look", look); }, [look]);
       useEffect(() => {
         const onKey = (e) => {
           if (e.key !== "t" || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -209,6 +144,8 @@
         <ChanlyticsApp
           theme={theme}
           onTheme={setTheme}
+          look={look}
+          onLook={setLook}
           inboxDensity={TWEAK_DEFAULTS.inboxDensity}
           showInboxAgentRail={TWEAK_DEFAULTS.showInboxAgentRail}
         />

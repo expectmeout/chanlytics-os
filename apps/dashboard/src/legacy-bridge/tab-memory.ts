@@ -16,6 +16,7 @@
  * - A storage that refuses (a private window) costs the memory, never the page.
  */
 import { pathWorkspace } from "./workspace";
+import { HOUR_MS } from "@chanlytics/contracts";
 
 const PLACE_SLOT = "chanlytics.place.v1";
 const DRAFT_SLOT = "chanlytics.drafts.v1";
@@ -28,7 +29,7 @@ export const TAB_SLOTS: readonly string[] = [
 ];
 const PLACES_PER_PAGE = 12;
 const DRAFTS_KEPT = 40;
-const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+const DRAFT_TTL_MS = 24 * HOUR_MS;
 
 type Place = Record<string, unknown>;
 export interface TabMemory {
@@ -111,10 +112,7 @@ export function tabMemoryFor(win: WindowLike, opts: { now?: () => number } = {})
 }
 
 /** The pages' one store, on the window they read it from. */
-export function installTabMemory(
-  win: WindowLike = window as unknown as WindowLike,
-  opts: { now?: () => number } = {},
-): void {
+export function installTabMemory(win: WindowLike = window, opts: { now?: () => number } = {}): void {
   win.__tabMemory = tabMemoryFor(win, opts);
 }
 

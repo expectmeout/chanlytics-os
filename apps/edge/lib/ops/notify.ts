@@ -23,18 +23,20 @@
  * needs configuring without the customer's words travelling to a stranger.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { forgetNotification, type Database } from "../packages/db.js";
 import type { NotificationsConfig } from "../packages/contracts.js";
-import { SERVER_NOTIFICATION_KINDS, isPushKind } from "../packages/contracts.js";
+import { SERVER_NOTIFICATION_KINDS, emailsNotificationKind, isPushKind } from "../packages/contracts.js";
 import { scheduleJob } from "../packages/jobs.js";
 import { pg } from "../pg.js";
 import { env } from "../env.js";
 import { logger, errField } from "../log.js";
+import { providerFetch } from "../packages/channels.js";
 
 type Db = SupabaseClient<Database>;
 
 const RESEND = "https://api.resend.com/emails";
-const TIMEOUT_MS = 10_000;
+/** The longest one mail waits for the provider: a page, an owner's notice. A sweep's budget counts it. */
+export const NOTIFY_TIMEOUT_MS = 10_000;
 
 export interface NotifyTarget {
   /** The tenant this message is ABOUT. */
@@ -60,6 +62,9 @@ export interface NotifyMessage {
   /** What the PLATFORM operator may safely be told about a tenant we cannot
    *  address. Must contain no customer content. Omit to send nothing at all. */
   redactedBody?: string;
+  /** False keeps the row and sends the mail but tells no phone: for news about the phones themselves, whose push
+   *  would be the thing that failed (job-alert.ts). Unsaid, a kept row of a PUSH_KINDS kind is pushed. */
+  push?: boolean;
 }
 
 export function platformFrom(): string | null {
@@ -93,25 +98,25 @@ export async function post(from: string, to: string[], subject: string, text: st
     L.error("notify_skipped_no_api_key", { subject: redactNumbers(subject) });
     return false;
   }
-  try {
-    const r = await fetch(RESEND, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject, text }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!r.ok) {
-      // Loud, with the status: this is the alarm channel failing, and the only
-      // place it can be noticed is the log.
-      const detail = await r.text().catch(() => "");
-      L.error("notify_rejected", { status: r.status, subject: redactNumbers(subject), detail: detail.slice(0, 200) });
-      return false;
-    }
-    return true;
-  } catch (e) {
-    L.error("notify_failed", { subject: redactNumbers(subject), error: errField(e) });
+  const r = await providerFetch("resend", RESEND, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to, subject, text }),
+    timeoutMs: NOTIFY_TIMEOUT_MS,
+    // The alarm is always tried: an outage the breaker learned is exactly when it must go.
+    breaker: "count",
+  });
+  if (r.status === 0) {
+    L.error("notify_failed", { subject: redactNumbers(subject), error: r.error ?? "no answer" });
     return false;
   }
+  if (r.outcome !== "ok") {
+    // Loud, with the status: this is the alarm channel failing, and the only
+    // place it can be noticed is the log.
+    L.error("notify_rejected", { status: r.status, subject: redactNumbers(subject), detail: r.text.slice(0, 200) });
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -119,7 +124,7 @@ export async function post(from: string, to: string[], subject: string, text: st
  * the sending, because this is the decision that leaks customer data if it is
  * wrong — and a decision buried inside a fetch cannot be tested.
  */
-export type Addressing =
+type Addressing =
   /** A mailbox this tenant configured. Full detail. */
   | { kind: "tenant"; to: string[]; from: string }
   /** The env pair, which IS this tenant's own owner. Full detail. */
@@ -195,7 +200,7 @@ export async function recordNotification(
   if (!tenantId) return null;
   if (!db) return null;
   const kind = n.kind && KEPT_KINDS.has(n.kind) ? n.kind : "alert";
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await db
       .from("notifications")
@@ -237,7 +242,7 @@ async function schedulePush(tenantId: string, kept: { id: string; kind: string }
       payload: { notification_id: kept.id },
     });
   } catch (e) {
-    logger({ tenant: tenantId }).error("push_schedule_failed", { kind: kept.kind, error: errField(e) });
+    logger({ tenant_id: tenantId }).error("push_schedule_failed", { kind: kept.kind, error: errField(e) });
   }
 }
 
@@ -249,8 +254,39 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
     { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about },
     db,
   );
-  if (kept && target.tenantId) await schedulePush(target.tenantId, kept, db);
+  if (kept && target.tenantId && msg.push !== false) await schedulePush(target.tenantId, kept, db);
+  // Mailed only if contracts keeps the kind for email (emailsNotificationKind: the list Settings › Notifications draws,
+  // so what the pane says is emailed is what is). A kind kept for the bell is a row and no more, and the row is the notice.
+  if (!emailsNotificationKind(msg.kind)) return kept !== null;
   return mail(target, msg, ports);
+}
+
+/**
+ * notify, for news its owner must hear exactly once (a reach-out run's first hold, R20): the row first, and no mail
+ * without it; then the mail, and on a mail that failed the row goes again, so the caller asks once more and the bell
+ * does not keep a twin. A workspace the mail cannot address (no recipients: reachesTenant) has its bell row, which is
+ * the notice then. True only when the owner was told.
+ */
+export async function notifyOnce(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts = {}): Promise<boolean> {
+  const db = ports.db === undefined ? pg() : ports.db;
+  const kept = await recordNotification(
+    target.tenantId,
+    { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about },
+    db,
+  );
+  if (!kept || !target.tenantId || !db) return false;
+  const told = !reachesTenant(target) || !emailsNotificationKind(msg.kind) || (await mail(target, msg, ports));
+  if (!told) {
+    await forgetNotification(db, { tenantId: target.tenantId, id: kept.id }).catch((e) =>
+      logger({ tenant_id: target.tenantId }).error("notification_record_failed", {
+        kind: kept.kind,
+        error: errField(e),
+      }),
+    );
+    return false;
+  }
+  if (msg.push !== false) await schedulePush(target.tenantId, kept, db);
+  return true;
 }
 
 /**
@@ -263,7 +299,7 @@ export async function mail(
   msg: Pick<NotifyMessage, "subject" | "body" | "redactedBody">,
   ports: Pick<NotifyPorts, "send"> = {},
 ): Promise<boolean> {
-  const L = logger({ tenant: target.tenantId });
+  const L = logger({ tenant_id: target.tenantId });
   const send = ports.send ?? post;
   const addressing = chooseAddressing(target, { to: platformTo(), from: platformFrom() });
 

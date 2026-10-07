@@ -8,7 +8,7 @@
  * and the real modules behind ./ports.ts.
  *
  * The signature is unchanged, deliberately. Both doors (api/whatsapp.ts,
- * api/inbound-sms.ts) call it exactly as they did, tooling/scripts/golden-edge.mjs
+ * api/inbound-sms.ts) call it exactly as they did, tooling/scripts/ops/golden-edge.mjs
  * sees the same surface, and the tests that inject a world through
  * setInboundPorts hand in the same object they always have.
  */

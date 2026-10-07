@@ -1,0 +1,980 @@
+/**
+ * One receptionist, one memory.
+ *
+ * The WhatsApp bot and the voice agent are meant to be the same receptionist —
+ * a customer who phoned yesterday and texts today should not have to start
+ * again. They were not. The bot read the conversation from Postgres while the
+ * voice agent read a six-turn slice out of the BLOB mirror, a store we are
+ * actively retiring. Same person, two accounts of them, one of them stale.
+ *
+ * These pin the unification: one reader, one set of rules for what counts as a
+ * turn, and one description of who the person is.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readCode } from "../../_source.mjs";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { assembleHistory, describeLead, readDealForPhone, readLeadContext, searchMessages } from "@chanlytics/db";
+import { fakeDb } from "../../_fake-db.mjs";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(here, "../../../../..");
+const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
+
+const row = (over = {}) => ({
+  body: "hello",
+  sender: "customer",
+  direction: "inbound",
+  status: "received",
+  created_at: "2026-08-29T10:00:00.000Z",
+  channel_ts: null,
+  meta: null,
+  ...over,
+});
+
+/* ------------------------ what counts as a turn --------------------------- */
+
+test("an outbound message that never LEFT is not something we said", () => {
+  // A canceled or failed send was never seen by the customer. Feeding it to the
+  // model as history makes it apologise for, or build on, words nobody read.
+  for (const status of ["queued", "canceled", "failed"]) {
+    assert.equal(assembleHistory([row({ direction: "outbound", sender: "ai", status })], 10).length, 0, status);
+  }
+  assert.equal(assembleHistory([row({ direction: "outbound", sender: "ai", status: "sent" })], 10).length, 1);
+});
+
+test("a blank body carries nothing to reason over", () => {
+  assert.equal(assembleHistory([row({ body: "" }), row({ body: "   " }), row({ body: null })], 10).length, 0);
+});
+
+test("calls and messages interleave by when they HAPPENED", () => {
+  // A call yesterday must sit before a message this morning, whatever order the
+  // rows were written in — the backfill wrote calls hours after they occurred.
+  const turns = assembleHistory(
+    [
+      row({ body: "texted this morning", created_at: "2026-08-29T09:00:00.000Z" }),
+      row({
+        body: "called yesterday",
+        type: "call_summary",
+        sender: "system",
+        created_at: "2026-08-29T14:00:00.000Z",
+        channel_ts: "2026-08-28T17:00:00.000Z",
+      }),
+    ],
+    10,
+  );
+  assert.deepEqual(
+    turns.map((t) => t.content),
+    ["called yesterday", "texted this morning"],
+  );
+});
+
+test("a call the customer made is the customer's history, not ours", () => {
+  // sender 'system' on a call note maps to assistant — it is the receptionist's
+  // record of the call, and the model should read it as its own note.
+  const t = assembleHistory([row({ body: "Inbound call · 2 min", sender: "system" })], 10);
+  assert.equal(t[0].role, "assistant");
+});
+
+test("the backfilled copy of a call loses to the native row", () => {
+  // Both in would show the model each call twice, in two formats, and it would
+  // reasonably conclude they phoned twice as often as they did.
+  const turns = assembleHistory(
+    [
+      row({
+        body: "[voice call note 2026-08-26T20:59] Caller phoned",
+        sender: "ai",
+        direction: "outbound",
+        status: "sent",
+        meta: { backfill: true },
+      }),
+      row({ body: "Inbound call · 1 min", sender: "system" }),
+    ],
+    10,
+  );
+  assert.equal(turns.length, 1);
+  assert.match(turns[0].content, /Inbound call/);
+});
+
+test("the limit keeps the MOST RECENT turns", () => {
+  const rows = Array.from({ length: 20 }, (_, i) =>
+    row({ body: `m${i}`, created_at: `2026-08-29T10:${String(i).padStart(2, "0")}:00.000Z` }),
+  );
+  const turns = assembleHistory(rows, 5);
+  assert.deepEqual(
+    turns.map((t) => t.content),
+    ["m15", "m16", "m17", "m18", "m19"],
+  );
+});
+
+/* --------------------------- who the person is ---------------------------- */
+
+const NOW = new Date("2026-08-29T12:00:00.000Z");
+
+test("an unknown number is described as new, not as an anonymous blank", () => {
+  // "New contact" is itself useful and honest for an agent to be told.
+  assert.match(describeLead({ contactId: null, history: [] }, NOW), /New contact/);
+});
+
+test("a returning contact is named and dated", () => {
+  const d = describeLead(
+    {
+      contactId: "c1",
+      name: "Ana",
+      returning: true,
+      lastSeenAt: "2026-08-27T12:00:00.000Z",
+      history: [{ role: "user", content: "hi" }],
+      optedOut: false,
+    },
+    NOW,
+  );
+  assert.match(d, /Ana/);
+  assert.match(d, /Returning/);
+  assert.match(d, /2 days ago/);
+});
+
+test("a contact with no name is not given an invented one", () => {
+  const d = describeLead(
+    { contactId: "c1", name: null, returning: false, lastSeenAt: null, history: [], optedOut: false },
+    NOW,
+  );
+  assert.match(d, /No name on record/);
+  assert.match(d, /First time/);
+});
+
+test("an opted-out contact is flagged to both agents", () => {
+  const d = describeLead(
+    {
+      contactId: "c1",
+      name: "Ana",
+      returning: true,
+      lastSeenAt: null,
+      history: [{ role: "user", content: "stop" }],
+      optedOut: true,
+    },
+    NOW,
+  );
+  assert.match(d, /asked not to receive messages/);
+});
+
+test("the description says whether an email address is on file, so the receptionist never asks for one it has", () => {
+  const base = {
+    contactId: "k1",
+    conversationId: "c1",
+    name: "Ana",
+    returning: false,
+    lastSeenAt: null,
+    history: [],
+    optedOut: false,
+  };
+  assert.match(describeLead({ ...base, hasEmail: true }), /Their email address is on file\./);
+  assert.match(describeLead({ ...base, hasEmail: false }), /No email address on file\./);
+  assert.doesNotMatch(describeLead(base), /email address/, "a reader that never learned it says nothing");
+});
+
+/* ------------------------------ the wiring -------------------------------- */
+
+const voice = read("apps/edge/lib/voice/call-start.ts");
+const wa = read("packages/core/src/inbound/model-turn.ts");
+// describeLead is a VALUE from the db package, which a core verb may not
+// import, so the receptionist reaches the one description through a port. The
+// edge is where the two are joined.
+const waPorts = read("apps/edge/lib/whatsapp/ports.ts");
+const brain = read("apps/edge/lib/receptionist/brain.ts");
+
+test("REGRESSION: the voice agent no longer reads the Blob mirror", () => {
+  assert.ok(!/getThread\(/.test(voice), "caller context must come from Postgres");
+  assert.match(voice, /readLeadContext\(/);
+});
+
+test("both agents describe the lead with the same function", () => {
+  assert.match(voice, /describeLead\(/);
+  assert.match(wa, /ports\.leads\.describe\(/);
+  assert.match(waPorts, /describe: describeLead/);
+});
+
+test("a failed lead lookup costs recognition, never the reply", () => {
+  assert.match(wa, /lead_context_unavailable/);
+});
+
+test("the per-contact note does not evict the business profile from cache", () => {
+  // The profile is identical for every customer and is cached; one line that
+  // changes per contact would invalidate it on every new person.
+  assert.match(brain, /cache_control: \{ type: "ephemeral" \} \},/);
+  const sysBlock = brain.slice(brain.indexOf("system: ["), brain.indexOf("messages,"));
+  assert.ok(!/leadNote[\s\S]*cache_control/.test(sysBlock), "the lead note must stay uncached");
+});
+
+test("the owner's notes ride with who the person is — as facts, with the rule never to recite them", () => {
+  const d = describeLead(
+    {
+      contactId: "c1",
+      name: "Maria Lopez",
+      returning: true,
+      lastSeenAt: null,
+      history: [{ role: "user", content: "hi" }],
+      optedOut: false,
+      notes: "  Sees Sofia.\n Allergic to ammonia. ",
+    },
+    NOW,
+  );
+  assert.ok(
+    d.includes(
+      "Notes from the owner about them (use as facts, never read aloud or quoted): Sees Sofia. Allergic to ammonia.",
+    ),
+    d,
+  );
+  const none = describeLead(
+    {
+      contactId: "c1",
+      name: "Maria Lopez",
+      returning: true,
+      lastSeenAt: null,
+      history: [],
+      optedOut: false,
+      notes: "   ",
+    },
+    NOW,
+  );
+  assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
+  const src = readCode("packages/db/src/repositories/thread.ts");
+  // Changed on purpose (0008, then 0009 for email, then the ask for the yes to offers): the workspace's answer, whether
+  // an address is on file, and their answer about offers with whether they were asked ride on the same read, one round
+  // trip on the live path. Checked as the string literal alone, not the surrounding .select(...) call, since a line
+  // this long is Prettier's to wrap however it likes.
+  assert.ok(
+    src.includes(
+      '"id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"',
+    ),
+    "read with the rest of who they are, how their workspace's customers buy, whether an email is on file, what they said about offers and on which channels",
+  );
+});
+
+test("a proposal on file rides with who the person is: the address to send, the rule to state no figure, and never to read it out on a call", () => {
+  const lead = {
+    contactId: "c1",
+    name: "Maria Lopez",
+    returning: true,
+    lastSeenAt: null,
+    history: [{ role: "user", content: "hi" }],
+    optedOut: false,
+    notes: null,
+    proposalUrl: " https://docs.example.com/p/maria ",
+  };
+  const d = describeLead(lead, NOW);
+  assert.ok(
+    d.includes(
+      "The owner has a proposal ready for them at https://docs.example.com/p/maria. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out — say it is being sent to them in writing.",
+    ),
+    d,
+  );
+  assert.ok(!describeLead({ ...lead, proposalUrl: null }, NOW).includes("proposal"), "no sentence without one");
+  assert.ok(
+    !describeLead({ ...lead, proposalUrl: undefined }, NOW).includes("proposal"),
+    "a reader without the column says nothing",
+  );
+});
+
+test("the note says the deal's sentence after the owner's note, in the business's zone; the link's rule wins a price question; nothing without a deal", () => {
+  const base = {
+    contactId: "c1",
+    conversationId: null,
+    name: "Maria",
+    returning: true,
+    lastSeenAt: null,
+    history: [],
+    optedOut: false,
+    notes: "Prefers mornings",
+  };
+  const NOW = new Date("2026-09-23T16:00:00Z");
+  assert.doesNotMatch(describeLead(base, NOW), /client|proposal/i);
+  const won = describeLead(
+    {
+      ...base,
+      deal: {
+        stage: "won",
+        service: "Ad management",
+        proposed_at: "2026-09-01T12:00:00Z",
+        decided_at: "2026-09-20T12:00:00Z",
+        ended_at: null,
+      },
+    },
+    NOW,
+    "America/New_York",
+  );
+  assert.match(won, /Prefers mornings.*They are a client \(Ad management\), since Sep 20\./s);
+  assert.doesNotMatch(won, /2,500|\$/);
+  const proposedWithLink = describeLead(
+    {
+      ...base,
+      proposalUrl: "https://docs.example.com/p/1",
+      deal: { stage: "proposed", service: null, proposed_at: "2026-09-12T12:00:00Z", decided_at: null, ended_at: null },
+    },
+    NOW,
+    "America/New_York",
+  );
+  assert.match(proposedWithLink, /A proposal went out to them on Sep 12/);
+  assert.match(proposedWithLink, /send them the proposal link/);
+  assert.doesNotMatch(proposedWithLink, /will follow up/);
+  assert.ok(
+    proposedWithLink.indexOf("A proposal went out") < proposedWithLink.indexOf("The owner has a proposal ready"),
+    "the deal's sentence comes before the link's, which answers the price question last",
+  );
+});
+
+test("readLeadContext carries the CURRENT deal, which may be the oldest row, and never an amount", async () => {
+  // A running engagement outlives any number of newer proposals for other services (already_open is per service):
+  // a cap on the read would hide it behind them. The rows are read whole and the door's rule picks the current one.
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550123";
+  const PHONE_NO_EMAIL = "+13055550199";
+  // The workspace says some customers get a proposal first (0008): the deal is said. The embed rides on the contact read.
+  const c = {
+    id: "contact-1",
+    tenant_id: T,
+    phone_e164: PHONE,
+    display_name: "Maria",
+    wa_profile_name: null,
+    email: "maria@example.com",
+    tenants: { sells_by: "proposal" },
+  };
+  // No email on file, and deals off so this second read does not disturb the deals assertions below.
+  const cNoEmail = {
+    id: "contact-1b",
+    tenant_id: T,
+    phone_e164: PHONE_NO_EMAIL,
+    display_name: "Lee",
+    wa_profile_name: null,
+    tenants: { sells_by: "booking" },
+  };
+  const dealRow = (over) => ({
+    tenant_id: T,
+    contact_id: c.id,
+    service: null,
+    stage: "proposed",
+    proposed_at: "2026-09-01T12:00:00Z",
+    decided_at: null,
+    ended_at: null,
+    amount_cents: 250000,
+    per: "month",
+    ...over,
+  });
+  const wonRow = dealRow({
+    id: "deal-won",
+    stage: "won",
+    service: "Ad management",
+    decided_at: "2026-09-05T12:00:00Z",
+    created_at: "2026-09-01T12:00:00Z",
+  });
+  const newerLostRow = dealRow({
+    id: "deal-lost",
+    stage: "lost",
+    service: "Web design",
+    proposed_at: "2026-09-10T12:00:00Z",
+    decided_at: "2026-09-15T12:00:00Z",
+    created_at: "2026-09-10T12:00:00Z",
+  });
+  const db = fakeDb({ contacts: [c, cNoEmail], conversations: [], messages: [], deals: [wonRow, newerLostRow] });
+  const ctx = await readLeadContext(db, T, PHONE);
+  assert.equal(ctx.contactId, c.id);
+  assert.equal(ctx.deal?.stage, "won", "the current one, not the newest");
+  assert.equal(ctx.deal?.service, "Ad management");
+  assert.ok(!("amount_cents" in ctx.deal), "never an amount at the read");
+  assert.ok(!("per" in ctx.deal));
+  const dealsRead = db.seen.filter((q) => q.table === "deals");
+  assert.equal(dealsRead.length, 1);
+  assert.equal(dealsRead[0].limit, null, "the whole list: the current deal may be the oldest");
+  assert.match(
+    describeLead(ctx, new Date("2026-09-23T16:00:00Z"), "America/New_York"),
+    /They are a client \(Ad management\), since Sep 5\./,
+  );
+  // The booking rule (ask_email) asks for an email only where none is on file: the contact read must name the
+  // column, and the assembled context must carry the answer both ways.
+  assert.ok(
+    db.seen.some((s) => s.table === "contacts" && String(s.columns ?? "").includes("email")),
+    "the contact read names email, so the receptionist can say whether one is on file",
+  );
+  assert.equal(ctx.hasEmail, true, "a contact row with an email");
+  const ctxNoEmail = await readLeadContext(db, T, PHONE_NO_EMAIL);
+  assert.equal(ctxNoEmail.hasEmail, false, "a contact row without an email");
+});
+
+test("a person with open deals for three services (0029): the receptionist hears each, and every proposal out with its own link, named by its service; the phone hears a client of any service as a client", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000002";
+  const PHONE = "+13055550124";
+  const c = {
+    id: "contact-2",
+    tenant_id: T,
+    phone_e164: PHONE,
+    display_name: "Ana",
+    wa_profile_name: null,
+    email: null,
+    tenants: { sells_by: "proposal" },
+  };
+  const deal = (over) => ({
+    tenant_id: T,
+    contact_id: c.id,
+    service: null,
+    stage: "proposed",
+    proposed_at: "2026-09-01T12:00:00Z",
+    decided_at: null,
+    ended_at: null,
+    amount_cents: null,
+    per: null,
+    proposal_url: null,
+    ...over,
+  });
+  // A client of SEO since September 5, then proposals for ads (the 12th) and a website (the 18th): open, all three.
+  const db = fakeDb({
+    contacts: [c],
+    conversations: [],
+    messages: [],
+    deals: [
+      deal({
+        id: "d-seo",
+        stage: "won",
+        service: "SEO",
+        decided_at: "2026-09-05T12:00:00Z",
+        created_at: "2026-09-01T12:00:00Z",
+      }),
+      deal({
+        id: "d-ads",
+        service: "Ads",
+        proposed_at: "2026-09-12T12:00:00Z",
+        proposal_url: "https://docs.example.com/p/ads",
+        created_at: "2026-09-12T12:00:00Z",
+      }),
+      deal({
+        id: "d-web",
+        service: "Website",
+        proposed_at: "2026-09-18T12:00:00Z",
+        proposal_url: "https://docs.example.com/p/web",
+        created_at: "2026-09-18T12:00:00Z",
+      }),
+    ],
+  });
+  const ctx = await readLeadContext(db, T, PHONE);
+  // The current deal is open first, then the newest: the website's proposal. The rest ride beside it, newest first.
+  assert.equal(ctx.deal?.service, "Website");
+  assert.deepEqual(
+    ctx.otherDeals.map((d) => [d.stage, d.service, d.proposal_url]),
+    [
+      ["proposed", "Ads", "https://docs.example.com/p/ads"],
+      ["won", "SEO", null],
+    ],
+  );
+  assert.ok(
+    ctx.otherDeals.every((d) => !("amount_cents" in d)),
+    "never an amount at the read",
+  );
+  const said = describeLead(ctx, new Date("2026-09-23T16:00:00Z"), "America/New_York");
+  assert.match(said, /A proposal \(Website\) went out to them on Sep 18/);
+  assert.match(said, /A proposal \(Ads\) went out to them on Sep 12/);
+  assert.match(said, /They are a client \(SEO\), since Sep 5\./);
+  assert.ok(
+    said.includes(
+      "The owner has proposals ready for them: Website at https://docs.example.com/p/web; Ads at https://docs.example.com/p/ads. If they ask about one of these, its price or a quote for it, send the link for the one they mean (ask which, if it is not clear) and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out — say it is being sent to them in writing.",
+    ),
+    said,
+  );
+  assert.doesNotMatch(
+    said,
+    /The owner has a proposal ready/,
+    "one sentence for the links, never one that says 'that link'",
+  );
+  // The phone: a client of any service is a client, though their newest open deal is a proposal for another.
+  assert.equal((await readDealForPhone(db, T, PHONE))?.stage, "won");
+  // REGRESSION: the phone heard the newest open deal, a proposal, and offered a client a consultation.
+  const proposalOnly = fakeDb({
+    contacts: [c],
+    deals: [deal({ id: "d-only", service: "Ads", created_at: "2026-09-12T12:00:00Z" })],
+  });
+  assert.equal((await readDealForPhone(proposalOnly, T, PHONE))?.stage, "proposed", "no client: the current deal");
+});
+
+test("with several deals open, each link answers for its own proposal alone (0029's review): a proposal with no link keeps its own words, and a client's engagement keeps its own", () => {
+  const base = {
+    contactId: "c3",
+    conversationId: null,
+    name: "Ana",
+    returning: true,
+    lastSeenAt: null,
+    history: [],
+    optedOut: false,
+    notes: null,
+  };
+  const NOW = new Date("2026-09-23T16:00:00Z");
+  const TZ = "America/New_York";
+  const proposed = (service, on, url = null) => ({
+    stage: "proposed",
+    service,
+    proposed_at: on,
+    decided_at: null,
+    ended_at: null,
+    proposal_url: url,
+  });
+  // A website's proposal with no link beside an ads proposal with one: the link answers for the ads alone.
+  const noLink = describeLead(
+    {
+      ...base,
+      deal: proposed("Website", "2026-09-18T12:00:00Z"),
+      proposalUrl: null,
+      otherDeals: [proposed("Ads", "2026-09-12T12:00:00Z", "https://docs.example.com/p/ads")],
+    },
+    NOW,
+    TZ,
+  );
+  assert.match(
+    noLink,
+    /A proposal \(Website\) went out to them on Sep 18[^.]*\. If they ask about it, say the person who sent it will follow up/,
+  );
+  assert.ok(
+    noLink.includes(
+      "The owner has a proposal for Ads ready for them at https://docs.example.com/p/ads. If they ask about that proposal, its price or a quote for it, send that link and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out — say it is being sent to them in writing.",
+    ),
+    noLink,
+  );
+  assert.doesNotMatch(
+    noLink,
+    /If they ask about price, a quote or the proposal, send that link/,
+    "never for any price",
+  );
+  // A client of SEO with a proposal out for ads: what the engagement costs goes to a person, the ads quote is its link.
+  const client = describeLead(
+    {
+      ...base,
+      deal: proposed("Ads", "2026-09-12T12:00:00Z"),
+      proposalUrl: "https://docs.example.com/p/ads",
+      otherDeals: [
+        {
+          stage: "won",
+          service: "SEO",
+          proposed_at: "2026-08-01T12:00:00Z",
+          decided_at: "2026-09-05T12:00:00Z",
+          ended_at: null,
+          proposal_url: null,
+        },
+      ],
+    },
+    NOW,
+    TZ,
+  );
+  assert.match(
+    client,
+    /They are a client \(SEO\), since Sep 5\. [^.]*\. Anything about their engagement or what it costs goes to a person/,
+  );
+  assert.match(
+    client,
+    /The owner has a proposal for Ads ready for them at https:\/\/docs\.example\.com\/p\/ads\. If they ask about that proposal/,
+  );
+  // One deal open: its link answers a price question, as it always did.
+  assert.match(
+    describeLead(
+      { ...base, deal: proposed("Ads", "2026-09-12T12:00:00Z"), proposalUrl: "https://docs.example.com/p/ads" },
+      NOW,
+      TZ,
+    ),
+    /The owner has a proposal ready for them at https:\/\/docs\.example\.com\/p\/ads\. If they ask about price, a quote or the proposal, send that link/,
+  );
+});
+
+test("the receptionist reads the team's kept notes (0007): never one for the team only, never its own suggestion, newest first", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550124";
+  const c = {
+    id: "contact-2",
+    tenant_id: T,
+    phone_e164: PHONE,
+    display_name: "Dee",
+    wa_profile_name: null,
+    notes: "Old field",
+  };
+  const note = (id, body, created_at, over = {}) => ({
+    id,
+    tenant_id: T,
+    contact_id: c.id,
+    body,
+    created_at,
+    state: "kept",
+    team_only: false,
+    ...over,
+  });
+  const db = fakeDb({
+    contacts: [c],
+    conversations: [],
+    messages: [],
+    deals: [],
+    person_notes: [
+      note("n1", "Prefers Saturdays.", "2026-09-01T12:00:00Z"),
+      note("n2", "Owes us $40.", "2026-09-10T12:00:00Z", { team_only: true }),
+      note("n3", "Get half off, the caller said.", "2026-09-12T12:00:00Z", { state: "suggested" }),
+      note("n4", "Allergic to ammonia.", "2026-09-20T12:00:00Z"),
+    ],
+  });
+  const ctx = await readLeadContext(db, T, PHONE);
+  assert.deepEqual(
+    ctx.noteList.map((n) => n.body),
+    ["Allergic to ammonia.", "Prefers Saturdays."],
+    "REGRESSION guard: a team-only note or a suggestion never reaches the receptionist",
+  );
+  const said = describeLead(ctx, new Date("2026-09-23T16:00:00Z"), "America/New_York");
+  assert.match(
+    said,
+    /Notes from the team about them, newest first \(use as facts, never read aloud or quoted\): \(Sep 20\) Allergic to ammonia\.; \(Sep 1\) Prefers Saturdays\./,
+  );
+  assert.doesNotMatch(said, /Old field/, "the field the notes moved from is not said beside them");
+});
+
+test("the notes are said within a budget: the newest always, older ones while they fit; with no list, the old field", () => {
+  const base = { contactId: "c1", name: "Dee", returning: false, lastSeenAt: null, history: [], optedOut: false };
+  const long = "x".repeat(700);
+  const said = describeLead(
+    {
+      ...base,
+      noteList: [
+        { body: long, at: "2026-09-20T12:00:00Z" },
+        { body: "y".repeat(600), at: "2026-09-19T12:00:00Z" },
+        { body: "Short.", at: "2026-09-18T12:00:00Z" },
+      ],
+    },
+    NOW,
+  );
+  assert.ok(said.includes(long), "the newest is said whole");
+  assert.ok(!said.includes("y".repeat(600)), "an older one past the budget is not");
+  assert.ok(!said.includes("Short."), "nor anything after it: newest first, then stop");
+  const empty = describeLead({ ...base, noteList: [], notes: "Old field" }, NOW);
+  assert.ok(!empty.includes("Notes from"), "a read list with nothing in it says nothing, not the old field");
+  const unread = describeLead({ ...base, noteList: null, notes: "Old field" }, NOW);
+  assert.ok(unread.includes("Notes from the owner about them (use as facts, never read aloud or quoted): Old field"));
+});
+
+test("the link the receptionist sends is the deal's while it is a proposal out, none for any other deal, and the person's own only with no deal (0008)", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550124";
+  const own = "https://docs.example.com/p/own";
+  const onDeal = "https://docs.example.com/p/deal";
+  const lead = async (deals, personLink = own) => {
+    const c = {
+      id: "contact-2",
+      tenant_id: T,
+      phone_e164: PHONE,
+      display_name: "Ana",
+      proposal_url: personLink,
+      tenants: { sells_by: "proposal" },
+    };
+    const rows = deals.map((d, i) => ({
+      id: `deal-${i}`,
+      tenant_id: T,
+      contact_id: c.id,
+      service: null,
+      proposed_at: "2026-09-10T12:00:00Z",
+      decided_at: d.stage === "proposed" ? null : "2026-09-12T12:00:00Z",
+      ended_at: null,
+      created_at: `2026-09-1${i}T12:00:00Z`,
+      proposal_url: null,
+      ...d,
+    }));
+    const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: rows });
+    return readLeadContext(db, T, PHONE);
+  };
+  assert.equal(
+    (await lead([{ stage: "proposed", proposal_url: onDeal }])).proposalUrl,
+    onDeal,
+    "the deal's, over the person's",
+  );
+  assert.equal((await lead([{ stage: "proposed" }])).proposalUrl, null, "a proposal recorded without a link has none");
+  assert.equal(
+    (await lead([{ stage: "won", proposal_url: onDeal }])).proposalUrl,
+    null,
+    "a client is sent no proposal",
+  );
+  // Changed on purpose in review: a pass or an end is a deal, and the person's link no longer stands in for it.
+  assert.equal((await lead([{ stage: "lost", proposal_url: onDeal }])).proposalUrl, null, "they passed: none");
+  assert.equal((await lead([{ stage: "ended" }])).proposalUrl, null, "it ended: none");
+  assert.equal((await lead([])).proposalUrl, own, "no deal at all: the person's own, read until it retires");
+  assert.equal((await lead([], null)).proposalUrl, null);
+  // And the sentences follow the link that counts: a client hears no proposal link.
+  const client = await lead([{ stage: "won", service: "Ad management", proposal_url: onDeal }]);
+  assert.doesNotMatch(describeLead(client, new Date("2026-09-23T16:00:00Z")), /docs\.example\.com/);
+  const waiting = await lead([{ stage: "proposed", proposal_url: onDeal }]);
+  assert.match(describeLead(waiting, new Date("2026-09-23T16:00:00Z")), /send them the proposal link/);
+  assert.match(
+    describeLead(waiting, new Date("2026-09-23T16:00:00Z")),
+    /proposal ready for them at https:\/\/docs\.example\.com\/p\/deal\./,
+  );
+});
+
+test("where deals are off the receptionist hears no deal and no proposal link, and the deals are not read (0008)", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550125";
+  const link = "https://docs.example.com/p/own";
+  const deal = {
+    id: "deal-9",
+    tenant_id: T,
+    contact_id: "contact-3",
+    service: "Ad management",
+    stage: "proposed",
+    proposed_at: "2026-09-10T12:00:00Z",
+    decided_at: null,
+    ended_at: null,
+    created_at: "2026-09-10T12:00:00Z",
+    proposal_url: link,
+  };
+  const read = async (tenants) => {
+    const c = { id: "contact-3", tenant_id: T, phone_e164: PHONE, display_name: "Ana", proposal_url: link, tenants };
+    const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [deal] });
+    return { ctx: await readLeadContext(db, T, PHONE), db };
+  };
+  for (const tenants of [{ sells_by: "booking" }, { sells_by: null }, undefined]) {
+    const { ctx, db } = await read(tenants);
+    assert.equal(ctx.contactId, "contact-3", "who they are is read as ever");
+    assert.equal(ctx.name, "Ana");
+    assert.equal(ctx.deal, null, `${JSON.stringify(tenants)}: no deal`);
+    assert.equal(ctx.proposalUrl, null, `${JSON.stringify(tenants)}: no link`);
+    assert.equal(db.seen.filter((q) => q.table === "deals").length, 0, "the deals are not read at all");
+    assert.equal(db.seen.filter((q) => q.table === "contacts").length, 1, "one read of who they are");
+    assert.doesNotMatch(describeLead(ctx, new Date("2026-09-23T16:00:00Z")), /proposal/i);
+  }
+  const on = await read({ sells_by: "proposal" });
+  assert.equal(on.ctx.deal?.stage, "proposed");
+  assert.equal(on.ctx.proposalUrl, link);
+});
+
+test("a database 00160 has not reached: who they are is read again without the workspace's answer, and deals are off", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550126";
+  const c = { id: "contact-4", tenant_id: T, phone_e164: PHONE, display_name: "Lu", proposal_url: null };
+  const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [] });
+  const from = db.from;
+  // PostgREST's answer for an embedded column the database does not have.
+  db.from = (table) => {
+    const q = from(table);
+    if (table !== "contacts") return q;
+    return new Proxy(q, {
+      get(target, key) {
+        if (key !== "select") return target[key];
+        return (cols, o) =>
+          /\bsells_by\b/.test(String(cols))
+            ? {
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: async () => ({
+                      data: null,
+                      error: { message: "column tenants_1.sells_by does not exist", code: "42703" },
+                    }),
+                  }),
+                }),
+              }
+            : target.select(cols, o);
+      },
+    });
+  };
+  const ctx = await readLeadContext(db, T, PHONE);
+  assert.equal(ctx.contactId, "contact-4", "REGRESSION guard: the reply never loses who they are to the new column");
+  assert.equal(ctx.name, "Lu");
+  assert.equal(ctx.deal, null);
+  assert.equal(ctx.proposalUrl, null);
+});
+
+test("readLeadContext carries what they said about offers and when they were asked, and says never-asked only where the column was read as null", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const row = (id, phone, over) => ({
+    id,
+    tenant_id: T,
+    phone_e164: phone,
+    display_name: "Lu",
+    marketing_consent: "unknown",
+    marketing_channels: null,
+    offers_asked_at: null,
+    tenants: { sells_by: "booking" },
+    ...over,
+  });
+  const asked = "2026-09-28T18:30:00.000Z";
+  const db = fakeDb({
+    contacts: [
+      row("k-never", "+13055550130"),
+      row("k-asked", "+13055550131", { offers_asked_at: asked }),
+      row("k-yes", "+13055550132", { marketing_consent: "opted_in", offers_asked_at: asked }),
+      row("k-text", "+13055550134", { marketing_consent: "opted_in", marketing_channels: ["sms"] }),
+    ],
+    conversations: [],
+    messages: [],
+    deals: [],
+  });
+  const never = await readLeadContext(db, T, "+13055550130");
+  assert.deepEqual([never.marketingConsent, never.offersAskedAt], ["unknown", null]);
+  const was = await readLeadContext(db, T, "+13055550131");
+  assert.deepEqual([was.marketingConsent, was.offersAskedAt], ["unknown", asked]);
+  const yes = await readLeadContext(db, T, "+13055550132");
+  assert.deepEqual([yes.marketingConsent, yes.offersAskedAt], ["opted_in", asked]);
+  // The channels a yes covers ride with it: a yes kept for text alone is read as it is, and judged by yesCovers.
+  assert.equal(never.marketingChannels, null, "none kept: a yes recorded before the channels were");
+  const text = await readLeadContext(db, T, "+13055550134");
+  assert.deepEqual([text.marketingConsent, text.marketingChannels], ["opted_in", ["sms"]]);
+  const named = (col) => db.seen.some((s) => s.table === "contacts" && String(s.columns ?? "").includes(col));
+  assert.ok(
+    named("offers_asked_at"),
+    "the contact read names the column, so the receptionist can say whether they were asked",
+  );
+  assert.ok(
+    named("marketing_channels"),
+    "and the channels their yes covers, so a yes for text alone is not taken for one here",
+  );
+});
+
+for (const missing of ["offers_asked_at", "marketing_channels"])
+  test(`a database the offers migration has not reached (${missing} does not exist): who they are is read again without those columns, and the receptionist is told nothing that lets it ask`, async () => {
+    // The edge may deploy before its migration: a missing column costs the answer to that one question, never the
+    // recognition of the person (the same guard as the workspace's answer above).
+    const T = "aaaaaaaa-0000-4000-8000-000000000001";
+    const PHONE = "+13055550133";
+    const c = {
+      id: "contact-5",
+      tenant_id: T,
+      phone_e164: PHONE,
+      display_name: "Mo",
+      marketing_consent: "unknown",
+      tenants: { sells_by: "booking" },
+    };
+    const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [] });
+    const from = db.from;
+    const reads = [];
+    db.from = (table) => {
+      const q = from(table);
+      if (table !== "contacts") return q;
+      return new Proxy(q, {
+        get(target, key) {
+          if (key !== "select") return target[key];
+          return (cols, o) => {
+            reads.push(String(cols));
+            // PostgREST's answer for a column the database does not have.
+            return /\b(offers_asked_at|marketing_channels)\b/.test(String(cols))
+              ? {
+                  eq: () => ({
+                    eq: () => ({
+                      maybeSingle: async () => ({
+                        data: null,
+                        error: { message: `column contacts.${missing} does not exist`, code: "42703" },
+                      }),
+                    }),
+                  }),
+                }
+              : target.select(cols, o);
+          };
+        },
+      });
+    };
+    const ctx = await readLeadContext(db, T, PHONE);
+    assert.equal(ctx.contactId, "contact-5", "REGRESSION guard: the reply never loses who they are to the new column");
+    assert.equal(ctx.name, "Mo");
+    assert.equal(ctx.marketingConsent, "unknown", "their answer about offers was still read");
+    assert.equal(ctx.offersAskedAt, undefined, "not null, which would say never asked: the column could not be read");
+    assert.equal(reads.length, 2, "read again, once");
+    assert.ok(
+      !/offers_asked_at|marketing_channels/.test(reads[1]) && /tenants\(sells_by\)/.test(reads[1]),
+      "without only the columns the migration adds",
+    );
+    assert.equal(
+      ctx.marketingChannels,
+      undefined,
+      "unread, which yesCovers reads as WhatsApp alone, as before the channels",
+    );
+    const note = describeLead(ctx, NOW, "UTC", "whatsapp");
+    assert.ok(!/offers/.test(note), `nothing about offers is said, so nothing lets the receptionist ask: ${note}`);
+  });
+
+/* ------------------------ the words a thread or a call said --------------- */
+
+test("searchMessages hands the database the words, the day bound and the cap, and reads its hits back as messages and calls", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const since = new Date("2026-08-28T00:00:00.000Z");
+  const answered = [
+    {
+      kind: "message",
+      id: "m-1",
+      conversation_id: "cv-1",
+      contact_id: "k-1",
+      channel: "whatsapp",
+      direction: "outbound",
+      at: "2026-09-26T10:00:00+00:00",
+      snippet: "the parking is behind the building",
+    },
+    {
+      kind: "call",
+      id: "call-1",
+      conversation_id: null,
+      contact_id: null,
+      channel: null,
+      direction: "inbound",
+      at: "2026-09-25T09:00:00+00:00",
+      snippet: "Is there parking on the street",
+    },
+  ];
+  const db = fakeDb({}, {}, { search_messages: () => answered });
+  const hits = await searchMessages(db, T, "parking", since, 20);
+  assert.deepEqual(db.seen, [
+    {
+      rpc: "search_messages",
+      args: { p_tenant: T, p_words: "parking", p_since: "2026-08-28T00:00:00.000Z", p_limit: 20 },
+    },
+  ]);
+  assert.deepEqual(hits, [
+    {
+      kind: "message",
+      id: "m-1",
+      conversationId: "cv-1",
+      contactId: "k-1",
+      channel: "whatsapp",
+      direction: "outbound",
+      at: "2026-09-26T10:00:00+00:00",
+      snippet: "the parking is behind the building",
+    },
+    {
+      kind: "call",
+      id: "call-1",
+      conversationId: null,
+      contactId: null,
+      channel: null,
+      direction: "inbound",
+      at: "2026-09-25T09:00:00+00:00",
+      snippet: "Is there parking on the street",
+    },
+  ]);
+  assert.deepEqual(await searchMessages(fakeDb({}, {}, { search_messages: () => [] }), T, "", since, 20), []);
+});
+
+test("a search the database could not answer throws: it is never 'nobody said it'", async () => {
+  const db = fakeDb(
+    {},
+    {},
+    {
+      search_messages: () => {
+        throw Object.assign(new Error("permission denied for function search_messages"), { code: "42501" });
+      },
+    },
+  );
+  await assert.rejects(
+    searchMessages(db, "aaaaaaaa-0000-4000-8000-000000000001", "parking", new Date(), 20),
+    /searchMessages: permission denied for function search_messages/,
+  );
+});
+
+test("a hit of a kind searchMessages does not know throws: it is never labelled a message", async () => {
+  const note = {
+    kind: "note",
+    id: "n-1",
+    conversation_id: "cv-1",
+    contact_id: "k-1",
+    channel: null,
+    direction: "outbound",
+    at: "2026-09-26T10:00:00+00:00",
+    snippet: "parking",
+  };
+  const db = fakeDb({}, {}, { search_messages: () => [note] });
+  await assert.rejects(
+    searchMessages(db, "aaaaaaaa-0000-4000-8000-000000000001", "parking", new Date(), 20),
+    /^Error: searchMessages: unknown kind note$/,
+  );
+});

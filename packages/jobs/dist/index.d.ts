@@ -1,8 +1,8 @@
 import { Database, Json } from '@chanlytics/db';
-import { JobKind, JobNews, PushMessage } from '@chanlytics/contracts';
+import { JobKind, JobNews, PushMessage, Unread } from '@chanlytics/contracts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ReceivedEmail } from '@chanlytics/channels';
-import { Wire, EmailIngestPorts, IncomingEmail } from '@chanlytics/core';
+import { Wire, EmailIngestPorts, ReplyNotice, ReplyReadPorts, IncomingEmail } from '@chanlytics/core';
 
 /**
  * The jobs ledger: the rules a row moves by, and the writes that move it.
@@ -18,6 +18,8 @@ import { Wire, EmailIngestPorts, IncomingEmail } from '@chanlytics/core';
  * Whether that later claim RUNS the job or GIVES UP on it is `verdictFor`, and
  * it is pure. `jobs_guard` (00098) refuses every other transition inside the
  * database, so no writer here has to remember the machine.
+ *
+ * Cross-workspace: the job runner claims the next due job of any workspace; the job then acts in its own.
  */
 
 type Db = SupabaseClient<Database>;
@@ -35,6 +37,14 @@ declare const LEASE_SECONDS = 90;
  */
 declare const CLAIM_FOR_MS = 20000;
 /**
+ * How many jobs one tick runs side by side (decision 0018, step 4). Each slot
+ * claims one job just before it runs it, as a lone runner does, so "claimed"
+ * still means "started"; a second slot opens only once a claim found work. The
+ * lease and the ceiling are each job's, not the tick's, so neither moves: every
+ * job is still claimed in the first CLAIM_FOR_MS and yields by its deadline.
+ */
+declare const CLAIM_SLOTS = 3;
+/**
  * When a handler that loops over outward work (a broadcast batch) stops
  * starting new sends and leaves the rest to a follow-up job. Fifteen seconds
  * before the ceiling: room for the send already in flight to come back.
@@ -49,7 +59,7 @@ declare const FUNCTION_CEILING_MS = 60000;
  * The deadline a LEAD job is handed, from the tick's start. A broadcast's
  * deadline stops fifteen seconds short of the ceiling so a send in flight can
  * come back; a lead job guards every call it makes with its own margin
- * (core runner.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
+ * (core runner/rules.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
  * ever in flight past its deadline and it needs no room after it. Its
  * deadline sits at the ceiling less the kill margin the runner already keeps.
  *
@@ -64,6 +74,12 @@ declare const FUNCTION_CEILING_MS = 60000;
  * inside it; tick-geometry.test.mjs holds the two to that.
  */
 declare const LEAD_YIELD_AT_MS: number;
+/**
+ * How late a reply's first claim may come before the platform is paged (decision 0018, the measure's alarm). A reply is
+ * due fifteen seconds after Send and the heartbeat asks every ten, and replies are claimed before any other work, so a
+ * minute past due is a queue, not a clock: every runner was busy with replies, or the heartbeat was not running.
+ */
+declare const REPLY_LATE_PAGE_MS = 60000;
 /** Claims allowed for internal work before it is failed and reported. */
 declare const MAX_ATTEMPTS = 3;
 /**
@@ -77,6 +93,12 @@ declare const MAX_ATTEMPTS = 3;
  * number of batches a long broadcast takes.
  */
 declare const MAX_RESUMES = 5;
+/**
+ * How many outbox events one tick relays before it claims (relay_events, 00334): bounded so a flood of events never
+ * holds the tick from the replies behind it; what is left is the next tick's, and the poll knocks while the outbox
+ * is not empty.
+ */
+declare const RELAY_LIMIT = 500;
 /** Kinds whose second run could reach a real person a second time. */
 declare const SPEAKS_TO_A_PERSON: ReadonlySet<string>;
 declare const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
@@ -88,6 +110,8 @@ interface LedgerRow {
     due_at: string;
     /** Counted by the claim: 1 on the first run; more means a lease ran out before a run reported back. */
     attempts: number;
+    /** The queue the claim took it from (jobs.lane, 00281): 0 a reply, 1 someone waiting, 2 bulk; null for a kind with none. */
+    lane?: number | null;
 }
 type Verdict = "run" | "give_up";
 /**
@@ -127,11 +151,15 @@ declare function verdictFor(job: {
  * person never does.
  */
 declare const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>>;
-/** How long a job that just threw waits before it is tried again; null when it is failed now. */
+/**
+ * How long a job that just threw waits before it is tried again; null when it is failed now. The wait is drawn a little
+ * longer at random (contracts jittered), so the jobs one outage failed together are not all claimed again in the same
+ * heartbeat; only ever longer, so every wait still outlasts the lease.
+ */
 declare function retryWait(job: {
     kind: string;
     attempts: number;
-}): number | null;
+}, random?: () => number): number | null;
 /** The next due job, claimed for this run; null when nothing is due. */
 declare function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow | null>;
 /**
@@ -148,20 +176,30 @@ declare function failJob(db: Db, job: {
     attempts: number;
 }, reason: string): Promise<boolean>;
 /**
- * Keep a job that threw, to be claimed again once `untilIso` passes
- * (retryWait): its lease is put off and why is kept on the row. The same
- * compare-and-swap as the exits, so false means this run no longer holds it.
+ * Keep a job, to be claimed again once `untilIso` passes: one that threw (retryWait), or one whose kind this runner
+ * does not know (UNKNOWN_KIND_WAIT_MS). Its lease is put off and why is kept on the row. The same compare-and-swap as
+ * the exits, so false means this run no longer holds it.
+ *
+ * `giveBackClaim` is for the second: nothing ran, so the claim is given back (attempts less one) and the next claim
+ * is still the job's first, which verdictFor judges as one when a runner that knows the kind takes it. A job that
+ * threw keeps its claim: it ran, and the next try is its second.
  */
 declare function deferJob(db: Db, job: {
     id: string;
     attempts: number;
-}, untilIso: string, reason: string): Promise<boolean>;
+}, untilIso: string, reason: string, giveBackClaim?: boolean): Promise<boolean>;
 
 /**
  * Scheduling is one insert. The heartbeat (api/jobs/tick.ts, over
  * claim_due_jobs) runs whatever is due, so there is no second system to tell,
  * no publish that can be lost after the row is written, and no orphan to clean
  * up. Service-role territory (§8): never called with a session client.
+ *
+ * A job scheduled while a request is being served carries that request's name
+ * in its payload (`request_id`), and the tick runs the job under it: a click's
+ * reply, the send it queued and the send's lines are one search in the log. A
+ * payload that names one already keeps it, so a job a job schedules (a
+ * broadcast's next batch) carries the request that started the chain.
  */
 
 interface ScheduleParams {
@@ -187,6 +225,34 @@ declare function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"scheduled"
  * message is not sent).
  */
 declare function cancelJobsFor(db: Db, tenantId: string, kind: JobKind, payloadKey: string, payloadValue: string): Promise<number>;
+/** What a requeue came to (requeueFailedJob). */
+type Requeued = {
+    outcome: "requeued";
+    kind: string;
+} | {
+    outcome: "not_found";
+} | {
+    outcome: "not_failed";
+    state: string;
+} | {
+    outcome: "speaks_to_a_person";
+    kind: string;
+} | {
+    outcome: "unknown_kind";
+    kind: string;
+} | {
+    outcome: "already_scheduled";
+};
+/**
+ * A failed job, run again: a fresh row of its kind and payload, due now, beside the failed one, which stays as the
+ * record of what went wrong (kept 90 days, 00215). `failed` is final (jobs_guard), so the row is never moved back.
+ * The back office's door, on the platform scope: `record` writes who asked, after the checks and before the row, and a
+ * record that throws leaves nothing done. A kind that speaks to a person is never requeued: its failure may be a send
+ * whose outcome nobody knows, and it goes again from its thread or its broadcast, where a person sees whether it left.
+ * A job already run again (a copy of its kind and payload made after it, not itself failed) answers
+ * `already_scheduled`, and so does a kind the ledger holds once per subject when the subject is on the ledger again.
+ */
+declare function requeueFailedJob(db: Db, tenantId: string, jobId: string, record: (kind: string) => Promise<void>): Promise<Requeued>;
 
 /**
  * Flagging a thread for a person, once per hold: the job handlers and the ledger's settle both do it, so it lives
@@ -216,20 +282,25 @@ type EscalationOutcome = "opened" | "changed" | "refreshed" | "failed";
 declare function upsertEscalation(db: SupabaseClient<Database>, tenantId: string, conversationId: string, reason: string, details: string): Promise<EscalationOutcome>;
 
 /**
- * Job handlers — dispatched by the edge's api/jobs/tick.ts once
- * claim_due_jobs() has made the job this run's (00098). The rules live in
- * packages/core/src/messages as verbs over ports; each handler here is the
- * adapter that builds the ports from the job's context (no env reads here).
+ * What every job handler is handed: the job as it was claimed, and the context its ports are built from. Moved whole
+ * from handlers.ts (Reach out Part 2.5), which re-exports its public names.
  */
 
 interface PushReceipt {
     to: string;
     status: "ok" | "error";
+    /** The ticket's id when the service took the message: what its receipt is asked for by (00189). */
+    id?: string;
     /** Expo's name for what went wrong; "DeviceNotRegistered" is a phone to forget. */
     error?: string;
 }
 interface PushPort {
     send(messages: PushMessage[]): Promise<PushReceipt[]>;
+    /** The receipts for these ticket ids; an id the service has no receipt for yet is absent. */
+    receipts(ids: readonly string[]): Promise<Record<string, {
+        status: "ok" | "error";
+        error?: string;
+    }>>;
 }
 interface JobContext {
     db: SupabaseClient<Database>;
@@ -256,11 +327,14 @@ interface JobContext {
      * one; a job of this kind in a runtime without it fails loudly rather than
      * guessing.
      */
-    provisionLine?: (lineId: string, by: "owner" | "support" | "sweep") => Promise<{
+    provisionLine?: (lineId: string, by: "owner" | "support" | "sweep", 
+    /** No provider call starts after this (the job's deadline); the saga stops between two and says `more`. */
+    deadline?: number) => Promise<{
         ok: boolean;
         step?: string;
         error?: string;
         did?: string;
+        more?: boolean;
     }>;
     /**
      * Email's intake, as the edge holds it. INJECTED like the one above: the
@@ -272,6 +346,36 @@ interface JobContext {
     email?: {
         /** The deployment's mail domain: what a mailbox's local part is an address on. */
         domain: string;
+        /**
+         * Where an OFFER by email leaves from (One message, every channel, step 4), bound by the edge only for a job that sends one
+         * (a broadcast's batch) and only while the deployment's campaigns domain is verified: that domain, and what seals the
+         * unsubscribe link every offer carries (the secret, and the origin its page answers on). Absent: this runtime sends no
+         * offer by email, and the door refuses one (core deliver `emailOffers`).
+         */
+        campaigns?: {
+            domain: string;
+            unsubscribeSecret: string;
+            unsubscribeOrigin: string;
+        } | null;
+        /**
+         * Why offers by email are closed on this runtime although the deployment names a campaigns domain: the provider says it
+         * is not verified for sending (bound with `campaigns` null, for a broadcast's batch only). The run stops with this said
+         * rather than hold each offer person as having no channel (core BroadcastBatchPorts.offersClosed). Absent: nothing of the
+         * kind to say, which is also what a deployment that names no campaigns domain reads as.
+         */
+        campaignsClosed?: string | null;
+        /**
+         * Why it is not known whether offers by email may leave: the deployment names a campaigns domain and the provider could
+         * not be asked about it (bound for a broadcast's batch only, the email wire itself bound as ever, so a visit's email
+         * goes). An offer's run waits and asks again (core BroadcastBatchPorts.offersUnread). Absent: nothing of the kind.
+         */
+        campaignsUnread?: string | null;
+        /**
+         * The name the provider's own receiving side writes into the Authentication-Results header of every email it hands over
+         * (RFC 8601's authserv-id: channels senderAuthenticated). A yes by email is believed only from a header that names it, so
+         * one a sender wrote into its own mail, which names anything else, proves nothing. Absent: no yes by email is recorded.
+         */
+        authservId?: string | null;
         /** One received email by the provider's id; null when the provider has none such. Throws when it cannot be asked. */
         fetch: (receivedId: string) => Promise<ReceivedEmail | null>;
         /** Was this email received before a person with this address asked to be forgotten (00125's digest)? */
@@ -299,10 +403,39 @@ interface JobContext {
      */
     push?: PushPort;
     /**
+     * The reading of a reach-out's reply (Reach out Part 5), as the edge holds it. INJECTED like email's intake: the
+     * model's key, the workspace's spend and the notification door live on the edge. Optional so a test context need
+     * not supply one; a reply_read job in a runtime without it fails loudly rather than guessing.
+     */
+    replies?: {
+        /**
+         * The reader's answer, unparsed; null when it answered nothing usable. Throws on a failed call. No call runs past
+         * `deadline`. `forWhom` is the usage ledger's row: the reply's workspace and message.
+         */
+        ask: (system: string, user: string, deadline: number, forWhom: {
+            tenantId: string;
+            subjectId: string;
+        }) => Promise<unknown>;
+        /** One read taken, or why not: no model, a workspace that may not spend, the day's reads spent. */
+        mayRead: (tenantId: string, at: Date) => Promise<Exclude<Unread, "model_failed"> | null>;
+        /** Tell the workspace once (notifyOnce): true only when the owner was told. */
+        tell: (tenantId: string, notice: ReplyNotice) => Promise<boolean>;
+        /**
+         * The receptionist's draft of an answer (decision 0017): its text, or the gate that stopped it or that it was not
+         * drafted. Throws when it failed; no call runs past `ask.deadline`.
+         */
+        draft: ReplyReadPorts["draft"];
+    };
+    /**
      * Schedule a job of this tenant — how a broadcast continues itself, one
      * batch after another, through the same door the dashboard uses.
      */
     schedule: (kind: JobKind, dueAt: Date, payload: Json) => Promise<void>;
+    /**
+     * Schedule a job of this tenant that the ledger holds at most one of per subject (scheduleJobOnce: a unique index on
+     * its payload, as reply_read's jobs_reply_read_once). A second one is answered already_scheduled, never thrown.
+     */
+    scheduleOnce: (kind: JobKind, dueAt: Date, payload: Json) => Promise<"scheduled" | "already_scheduled">;
     /**
      * Epoch ms. A handler that loops over outward work starts no new send after
      * this and leaves the rest to a follow-up job through `schedule`. The runner
@@ -321,28 +454,12 @@ interface ClaimedJob {
 /**
  * The provider's email, as the verb takes it: what it claims to be, its words
  * as plain text, and its thread ids read out of its headers. The parsing is
- * here, in the adapter, so the verb knows no provider (hygiene.test.mjs).
+ * here, in the adapter, so the verb knows no provider (hygiene.test.mjs). `authservId` is the name the provider's receiving
+ * side writes into the Authentication-Results header it adds (channels senderAuthenticated); null where none is configured,
+ * and then no sender is proved.
  */
-declare function incomingEmailOf(e: ReceivedEmail): IncomingEmail;
+declare function incomingEmailOf(e: ReceivedEmail, authservId: string | null): IncomingEmail;
 declare function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind">;
-
-/**
- * What a job leaves behind when it will not finish.
- *
- * The ledger row is only half the truth. A job that fails was in the middle of
- * something: an outbound_send that never ran left its message saying "Sending…"
- * for ever, and a broadcast whose run died sat in 'sending' with half its
- * recipients reached and nothing coming. Only the kind knows what it was in the
- * middle of, so settlement is per kind.
- *
- * `certain` says whether the work provably never happened: a job whose kind no
- * runner knows is certain; one that ran and threw, or ran and never came back,
- * is not. It changes the words recorded, never the conditions. Every write here
- * is conditional on the downstream row still claiming to be in flight, so a
- * handler that DID record its send before dying is left exactly as it left it
- * either way. That condition, not `certain`, is what makes this safe to run on
- * a job whose outcome is unknown.
- */
 
 interface TerminalJob {
     id: string;
@@ -403,13 +520,15 @@ declare function saySettled(results: Settled[]): string | null;
  * the database and each job's tenant credentials into ports and hands them
  * here; this file imports neither, so it is tested by running it.
  *
- * ONE JOB AT A TIME, claimed immediately before it runs. A batch claimed up
- * front and worked through in turn leaves every job behind the running one
- * 'fired' but not started, and when the function is killed those come back on
- * their next claim looking exactly like runs that died mid-send, so a reply
- * nobody ever tried to send would be failed as "outcome unknown". Claiming one
- * at a time keeps "claimed" meaning "started", which is the fact verdictFor
- * stands on.
+ * EACH JOB CLAIMED IMMEDIATELY BEFORE IT RUNS. A batch claimed up front and
+ * worked through in turn leaves every job behind the running one 'fired' but
+ * not started, and when the function is killed those come back on their next
+ * claim looking exactly like runs that died mid-send, so a reply nobody ever
+ * tried to send would be failed as "outcome unknown". Claiming one at a time
+ * keeps "claimed" meaning "started", which is the fact verdictFor stands on.
+ * A tick may run a few jobs side by side (`slots`, ledger CLAIM_SLOTS): each
+ * slot is a runner of its own that claims one job, runs it, and claims the
+ * next, so the rule holds slot by slot.
  */
 
 type TickFields = Record<string, string | number | boolean | null | undefined>;
@@ -427,11 +546,15 @@ interface TickPorts {
     fail(job: LedgerRow, reason: string): Promise<boolean>;
     /** Keep a job that threw, to be claimed again once `untilIso` passes (ledger deferJob). False when this run no longer holds it. */
     defer(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
+    /** Keep a job of a kind this runner does not know, its claim given back (ledger deferUnknownJob). False when this run no longer holds it. */
+    deferUnknown(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
     /** Never throws: a write that failed comes back as a row with its error. */
     settle(job: LedgerRow, certain: boolean): Promise<Settled[]>;
     alert(job: LedgerRow, news: JobNews): Promise<void>;
     log: TickLog;
     now(): number;
+    /** The draw a retry's wait is lengthened by (contracts jittered); Math.random when absent. */
+    random?: () => number;
 }
 interface TickOptions {
     /** Claim new work only this long after the tick starts. */
@@ -441,6 +564,8 @@ interface TickOptions {
     /** A kind's own yield, when it differs (a lead job's, ledger.ts LEAD_YIELD_AT_MS); `yieldAtMs` otherwise. */
     yieldAtFor?: (kind: string) => number | undefined;
     leaseSeconds: number;
+    /** How many jobs run side by side, each claimed just before it runs (ledger CLAIM_SLOTS); one when absent. */
+    slots?: number;
 }
 interface TickCounts {
     claimed: number;
@@ -449,7 +574,20 @@ interface TickCounts {
     gaveUp: number;
     /** Threw, and kept to be tried again later (ledger RETRY_WAITS_MS). */
     deferred: number;
+    /**
+     * How late each kind's first claim came, at worst, in milliseconds past its row's due time (decision 0018, step 1).
+     * A later claim of the same row is a retry or a lease that ran out, not a wait in the queue, so it is not counted.
+     */
+    lateMs: Record<string, number>;
+    /**
+     * The worst of those among the reply lane's (jobs.lane 0, read from the claimed row): a member's reply, an email
+     * arriving, a phone told. `outbound_send` is both a reply and a cold email, so its kind's number cannot say; this
+     * one can, and it is the one the route pages on (REPLY_LATE_PAGE_MS).
+     */
+    replyLateMs: number;
 }
+/** The heartbeat's line is flat, so each kind's worst wait is a field of its own: `late_ms_<kind>`. */
+declare function lateFields(lateMs: Record<string, number>): Record<string, number>;
 declare function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts>;
 
-export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, type PushPort, type PushReceipt, RETRY_WAITS_MS, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };
+export { CLAIM_FOR_MS, CLAIM_SLOTS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, type PushPort, type PushReceipt, RELAY_LIMIT, REPLY_LATE_PAGE_MS, RETRY_WAITS_MS, RUN_INTERRUPTED, type Requeued, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, lateFields, requeueFailedJob, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };

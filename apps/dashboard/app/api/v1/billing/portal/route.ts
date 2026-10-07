@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { BILLING_SAID, edgeBilling } from "@/server/billing";
+import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
 
 /**
  * POST /api/v1/billing/portal — the way to Stripe's customer portal: the
@@ -9,10 +9,11 @@ import { BILLING_SAID, edgeBilling } from "@/server/billing";
  */
 export const POST = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "billing",
-  handle: async ({ member }) => {
-    const a = await edgeBilling({ op: "portal", tenant_id: member.tenantId }, 20_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeBilling({ op: "portal", tenant_id: member.tenantId, user_id: ctx.userId }, 20_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true || typeof b.url !== "string") {
       const reason = typeof b.error === "string" ? b.error : "failed";

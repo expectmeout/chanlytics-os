@@ -3,7 +3,14 @@
  * canonical events and performs sends. No persistence, no decisions — the edge
  * wires this to the repositories. Config is passed in; env is never read here.
  */
-import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, OPT_OUT_PATTERN } from "@chanlytics/contracts";
+import {
+  CONVERSATION_OPT_IN_PATTERN,
+  MARKETING_OPT_IN_PATTERN,
+  OPT_OUT_PATTERN,
+  REFERRAL_ID_MAX,
+} from "@chanlytics/contracts";
+import { answerObject, providerFetch, type SendOutcome } from "./provider-fetch";
+import { errField, logger } from "./log/logger";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
@@ -41,13 +48,19 @@ export interface WaRawMessage {
   contacts?: Array<{ name?: { formatted_name?: string }; phones?: Array<{ phone?: string }> }>;
   /** Platform housekeeping (a customer changed their number). Not from a person. */
   system?: { body?: string; type?: string };
+  /**
+   * Present when the person came in through a click-to-WhatsApp ad or post: Meta names it (`source_id`) and says what
+   * it was (`source_type`). The rest of it (headline, link, click id) is never kept. This is the shape Meta documents,
+   * not one a message is trusted to have: `adReferralOf` reads it without assuming any of it.
+   */
+  referral?: { source_id?: string; source_type?: string };
 }
 
 export interface WaChangeValue {
   metadata?: { phone_number_id?: string; display_phone_number?: string };
   contacts?: Array<{ wa_id?: string; profile?: { name?: string } }>;
   messages?: WaRawMessage[];
-  statuses?: Array<{ id?: string; status?: string; recipient_id?: string; errors?: unknown }>;
+  statuses?: Array<{ id?: string; status?: string; recipient_id?: string; errors?: unknown; pricing?: unknown }>;
   message_echoes?: Array<{ to?: string; id?: string; text?: { body?: string } }>;
 }
 
@@ -91,6 +104,41 @@ export interface NormalizedInbound {
   optIn: boolean;
   /** The words were the OFFERS ones specifically -- express written consent to be marketed to, which is a separate answer. */
   optInMarketing: boolean;
+  /** The ad or post this person clicked to write, when Meta says: its id and kind (K3). Null for a message with none. */
+  referral: { sourceId: string; sourceType: string | null } | null;
+}
+
+/**
+ * What a referral's id may not hold: a control character (a NUL among them) or a lone surrogate. Postgres refuses both
+ * inside the `p_meta` the id travels in (jsonb has no \u0000, and no lone surrogate is valid JSON), which would fail
+ * `ingest_inbound`, make `pgIngest` throw IngestFailed and the door answer 503, and Meta would redeliver the same payload
+ * for ever: the customer's message would never land. A whitespace control at either end is padding, trimmed before this
+ * is asked; one inside the id is refused.
+ */
+const UNSTORABLE_IN_ID = /[\p{Cc}\p{Cs}]/u;
+
+/**
+ * What a referral's kind may be: Meta's own are the words `ad` and `post`, so a word of letters, digits, `_` and `-`, at
+ * most 32 long. Anything else (a control character, a lone surrogate, a sentence, megabytes) is not a kind Meta sent and
+ * is kept as none; the kind has no column to agree with, so the 32 is said here and nowhere else.
+ */
+const REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
+
+/**
+ * The ad or post a message came from (K3), read defensively. A click-to-WhatsApp referral's shape is Meta's to change
+ * and unverified here, so nothing is assumed of `r`: it may be absent, not an object, or hold an id that is not a string.
+ * Only the id and the kind are kept, and only when what they hold can always be written. The id is trimmed (padding is
+ * not part of an id, and the trigger trims the same), then it is none when blank, longer than `REFERRAL_ID_MAX` (the one
+ * length the column keeps, contracts first-touch.ts; never cut, a cut id would name another ad) or holding what
+ * `UNSTORABLE_IN_ID` names: the stamp the database would refuse for it is the person's wire instead. The kind that is
+ * not a plain word is null, and the id stands. Never throws, so a referral can cost a message nothing.
+ */
+function adReferralOf(r: unknown): NormalizedInbound["referral"] {
+  if (typeof r !== "object" || r === null) return null;
+  const id = "source_id" in r && typeof r.source_id === "string" ? r.source_id.trim() : "";
+  if (id.length < 1 || id.length > REFERRAL_ID_MAX || UNSTORABLE_IN_ID.test(id)) return null;
+  const kind = "source_type" in r && typeof r.source_type === "string" ? r.source_type.trim() : "";
+  return { sourceId: id, sourceType: REFERRAL_KIND.test(kind) ? kind : null };
 }
 
 /**
@@ -119,6 +167,20 @@ function chosenReply(m: WaRawMessage): { label: string; id: string } | null {
     return label || id ? { label, id } : null;
   }
   return null;
+}
+
+/** The attachment a message carries, as a reference to fetch later: nothing is downloaded here. Null without an id. */
+function mediaRefOf(
+  src: { id?: string; mime_type?: string; caption?: string; filename?: string } | null,
+): WaMediaRef | null {
+  if (!src?.id) return null;
+  return {
+    provider_media_id: src.id,
+    mime_type: src.mime_type ?? null,
+    caption: src.caption ?? null,
+    filename: src.filename ?? null,
+    fetch_state: "pending",
+  };
 }
 
 export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): NormalizedInbound {
@@ -197,18 +259,7 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
     rawType: m.type,
     body,
     channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : null,
-    media: mediaSrc?.id
-      ? (() => {
-          const loose = mediaSrc as { mime_type?: string; caption?: string; filename?: string };
-          return {
-            provider_media_id: mediaSrc.id!,
-            mime_type: loose.mime_type ?? null,
-            caption: loose.caption ?? null,
-            filename: loose.filename ?? null,
-            fetch_state: "pending" as const,
-          };
-        })()
-      : null,
+    media: mediaRefOf(mediaSrc),
     optOut: isText && matches(OPT_OUT_PATTERN),
     // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
     // appointment question; YES OFFERS answers the offers question and nothing
@@ -219,7 +270,57 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
     // is START, as the carriers' own reply to a STOP says.
     optIn: isText && matches(CONVERSATION_OPT_IN_PATTERN),
     optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN),
+    referral: adReferralOf(m.referral),
   };
+}
+
+/**
+ * What Meta says a message was billed as, on a `sent`, `delivered` or `read` receipt (K8): whether it is billable, the
+ * model that priced it and its category and type. Meta sends no amount and no currency, so none is kept: the operator
+ * prices a category by the recipient's country with Meta's rate card. A type alias, so it is a Json without a cast.
+ */
+export type WaPricing = { billable?: boolean; pricing_model?: string; category?: string; type?: string };
+
+/**
+ * A word of Meta's pricing (`PMP`, `utility`, `authentication-international`, `free_customer_service`): letters, digits, `_`
+ * and `-`, at most 40. Anything else (a sentence, a control character, a megabyte) is not one. The same word the
+ * database's message_keep_cost (00319) accepts, so what this keeps is what it stores: tied to it by
+ * tooling/scripts/tests/messages/a-message-keeps-what-it-cost-to-send.db.test.mjs, which runs one table of pricings
+ * through both, so an edit to either alone is a red test (database files run in CI when database paths change: run it).
+ */
+const PRICING_WORD = /^[A-Za-z0-9_-]{1,40}$/;
+
+/**
+ * Meta's `pricing` as kept, read without trusting any of it: each key stands or falls on its own, and nothing but the four
+ * is kept. The category is the key the operator prices by, and the cost door refuses an answer without one, so a pricing
+ * without a valid category is none (null), and the caller says it was dropped. Never throws.
+ */
+export function waPricingOf(raw: unknown): WaPricing | null {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const out: WaPricing = {};
+  if (typeof r.billable === "boolean") out.billable = r.billable;
+  for (const key of ["pricing_model", "category", "type"] as const) {
+    const word = r[key];
+    if (typeof word === "string" && PRICING_WORD.test(word)) out[key] = word;
+  }
+  return out.category ? out : null;
+}
+
+/**
+ * Meta's code for a message it did not deliver because the person chose, in WhatsApp, to stop marketing messages from
+ * this business (Cloud API error 131050, "This recipient has chosen to stop receiving marketing messages on WhatsApp
+ * from your business"). It comes in a failed receipt's `errors`. Not 131049 (Meta's own per-person limit on marketing
+ * templates) and not 131047 (the reply window): neither is the person's answer.
+ */
+const WA_STOPPED_MARKETING = 131050;
+
+/** Whether a receipt's `errors` say the person stopped marketing messages from this business. Never throws. */
+export function waStoppedMarketing(errors: unknown): boolean {
+  if (!Array.isArray(errors)) return false;
+  return errors.some(
+    (e) => e !== null && typeof e === "object" && Number((e as { code?: unknown }).code) === WA_STOPPED_MARKETING,
+  );
 }
 
 /* -------------------------------- sends -------------------------------- */
@@ -229,7 +330,28 @@ export interface SendResult {
   wamid: string | null;
   status: number;
   errorBody?: string;
+  /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
+  code?: number | null;
+  /**
+   * A person's email reply only (core emailSender): whether it left by the own domain it was frozen with, or as the
+   * mailbox's request, and why not by its own when it could not.
+   */
+  leftAs?: "own" | "mailbox";
+  leftAsWhy?: EmailLeftAsWhy;
+  /**
+   * What the send came to (provider-fetch SendOutcome): `retryable` left nothing and may be tried again later;
+   * `unknown` may have been taken, and is never sent again blind. Absent from a wire's own refusal (no credentials, a
+   * request it will not send), which asked no provider.
+   */
+  outcome?: SendOutcome;
 }
+
+/**
+ * Why a person's reply frozen with an own domain left as the mailbox's request instead (N5, G15). `domain_held`: the
+ * domain it was frozen with was held between the freeze and the send.
+ */
+export type EmailLeftAsWhy =
+  "no_own_route" | "domain_has_no_route" | "domain_held" | "twin_names_another_recipient" | "route_refuses_twin";
 
 /**
  * Every Graph send goes through here. Two reasons:
@@ -242,28 +364,57 @@ export interface SendResult {
  * 2. It was unbounded. One hung connection to Graph could consume the whole
  *    60s invocation and take the rest of the batch with it.
  *
- * status 0 means "never reached Meta", which is distinct from any HTTP status.
+ * status 0 means "never reached Meta", which is distinct from any HTTP status. Both are providerFetch's now, which
+ * also says what the send came to: Graph's "not now" (graphThrottled) left nothing, so it is `retryable` whatever
+ * its HTTP status.
  */
 const SEND_TIMEOUT_MS = 15_000;
 
 async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
-  try {
-    const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-    });
-    const out = (await r.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
-    return {
-      ok: r.ok,
-      wamid: out.messages?.[0]?.id ?? null,
-      status: r.status,
-      errorBody: r.ok ? undefined : JSON.stringify(out).slice(0, 200),
-    };
-  } catch (e) {
-    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
-  }
+  const a = await providerFetch("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    timeoutMs: SEND_TIMEOUT_MS,
+    // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
+    breaker: "count",
+  });
+  if (a.status === 0)
+    return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
+  const out = (answerObject(a) ?? {}) as { messages?: Array<{ id?: string }>; error?: { code?: unknown } };
+  const ok = a.outcome === "ok";
+  const sent: SendResult = {
+    ok,
+    wamid: out.messages?.[0]?.id ?? null,
+    status: a.status,
+    errorBody: ok ? undefined : JSON.stringify(out).slice(0, 200),
+    // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
+    code: !ok && typeof out.error?.code === "number" ? out.error.code : null,
+  };
+  return { ...sent, outcome: graphThrottled(sent) ? "retryable" : a.outcome };
+}
+
+/**
+ * Meta's "not now": the codes Graph answers when this number, this app or this
+ * business account has sent faster than it may. The message was not taken, so
+ * it may be tried again later, and nobody after it will get through sooner.
+ *
+ *   4        the app's calls ran over its rate limit
+ *   80007    the business account's rate limit
+ *   130429   the number's message throughput
+ *   131048   too many of the number's messages were blocked or reported, so
+ *            Meta is limiting how many it may send
+ *   131056   too many messages to the same person in a short while
+ *
+ * Distinct from a failure whose outcome is unknown: a timeout (status 0) or a
+ * 5xx may have been taken all the same, and is never read as a throttle.
+ */
+const GRAPH_THROTTLE_CODES: readonly number[] = [4, 80007, 130429, 131048, 131056];
+
+/** Whether Graph refused a send as too many, too fast: HTTP 429, or one of GRAPH_THROTTLE_CODES. */
+export function graphThrottled(r: { ok: boolean; status: number; code?: number | null }): boolean {
+  if (r.ok) return false;
+  return r.status === 429 || (typeof r.code === "number" && GRAPH_THROTTLE_CODES.includes(r.code));
 }
 
 export async function sendText(cfg: WaConfig, to: string, body: string): Promise<SendResult> {
@@ -315,12 +466,17 @@ export async function fetchMediaBytes(
   providerMediaId: string,
 ): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
   try {
-    const metaRes = await fetch(`${GRAPH}/${providerMediaId}`, {
+    // The media's address is Graph's JSON, asked through providerFetch; its bytes are a download, fetched below.
+    const metaRes = await providerFetch("meta", `${GRAPH}/${providerMediaId}`, {
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
-      signal: AbortSignal.timeout(MEDIA_META_TIMEOUT_MS),
+      timeoutMs: MEDIA_META_TIMEOUT_MS,
+      idempotent: true,
+      tries: 2,
     });
-    if (!metaRes.ok) return null;
-    const meta = (await metaRes.json().catch(() => ({}))) as { url?: string; mime_type?: string };
+    // No answer at all is said as the thrown fetch was; Graph's own no is a null, as it was.
+    if (metaRes.status === 0) logger().error("media_fetch_failed", { media_id: providerMediaId, error: metaRes.error });
+    if (metaRes.outcome !== "ok") return null;
+    const meta = (answerObject(metaRes) ?? {}) as { url?: string; mime_type?: string };
     if (!meta.url) return null;
 
     const binRes = await fetch(meta.url, {
@@ -331,19 +487,19 @@ export async function fetchMediaBytes(
 
     const declared = Number(binRes.headers.get("content-length") ?? "0");
     if (declared > MEDIA_MAX_BYTES) {
-      console.error("media_too_large", providerMediaId, declared);
+      logger().error("media_too_large", { media_id: providerMediaId, bytes: declared });
       return null;
     }
     const bytes = await binRes.arrayBuffer();
     if (bytes.byteLength > MEDIA_MAX_BYTES) {
-      console.error("media_too_large_after_read", providerMediaId, bytes.byteLength);
+      logger().error("media_too_large_after_read", { media_id: providerMediaId, bytes: bytes.byteLength });
       return null;
     }
     return { bytes, mime: meta.mime_type ?? binRes.headers.get("content-type") };
   } catch (e) {
     // A timeout or network fault must return, not throw: the caller stores a
     // 'failed' fetch_state and the conversation still reaches a human.
-    console.error("media_fetch_failed", providerMediaId, e instanceof Error ? `${e.name}: ${e.message}` : e);
+    logger().error("media_fetch_failed", { media_id: providerMediaId, error: errField(e) });
     return null;
   }
 }

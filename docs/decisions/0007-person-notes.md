@@ -1,9 +1,12 @@
 # 0007 · A note is a record
 
-**Status:** decided; phase 1 built (00157), phase 2 built (00159), phase 3 built (00158); amended 24 September, a
-note may have a day (00166), built on the person's page. Written against commit `18c79973`
-(PR #918, 23 September 2026). Where this note and the code disagree, the code
-wins.
+**Status:** built: phase 1 (00157, #919), phase 2 (00159, #926) and phase 3 (00158, #924); amended 24 September, a
+note may have a day (00166), built on the person's page (#969) and everywhere else the amendment names (#970). Written
+against commit `18c79973` (PR #918, 23 September 2026). The status was verified at `519724e9c` (27 September 2026):
+the log and its doors (`person_notes`, `apps/dashboard/app/api/v1/contacts/[id]/notes/`), the receptionist reading it
+(`packages/db/src/repositories/thread.ts`) and suggesting one (`apps/edge/lib/notes/suggest.ts`), the bell's
+`note_for_you` (00158), and a step as a note with a day (`packages/contracts/src/notes/steps.ts`,
+`apps/dashboard/src/legacy/components/step-sheet.jsx`). Where this note and the code disagree, the code wins.
 
 ## Context
 

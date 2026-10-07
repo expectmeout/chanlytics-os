@@ -27,18 +27,49 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  sendText,
-  sendTemplate,
-  sendEmail,
-  requestLeavesAs,
+  smsRefusalOf,
+  addressOf,
+  logger,
+  errField,
   type SendResult,
-  type WaConfig,
   type EmailRequest,
-  type EmailSendsAs,
-  type ResendConfig,
+  type ResendLimit,
 } from "@chanlytics/channels";
-import { mayMessageFor, purposeOfTemplate, type SendPurpose, type EventKind } from "@chanlytics/contracts";
-import { emitEvent, recordOutbound, type Database, type Json } from "@chanlytics/db";
+import {
+  CARRIER_CONSENT_SOURCE,
+  domainDailyCap,
+  isAutomatedSend,
+  isEmailStopped,
+  isOfferByEmail,
+  mayMessageFor,
+  outreachRefusalOf,
+  passesHandoverPause,
+  purposeOfTemplate,
+  type DeliveryRefusal,
+  type MessageAbout,
+  type SendPurpose,
+} from "@chanlytics/contracts";
+import {
+  emailOffersPause,
+  emitEvent,
+  outreachFactsOf,
+  stampEmailLeftAs,
+  recordCarrierOptOut,
+  recordOutbound,
+  textLineFacts,
+  wireRowOf,
+  type Database,
+  type EventData,
+  type Json,
+} from "@chanlytics/db";
+import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
+import { textRefusal } from "./deliver-text";
+import { namedFailure, putOnWire, type WireUnavailable } from "./wire-senders";
+
+export type { DeliveryRefusal };
+
+/** The send door's own lines: what it could not write after a send, by name, in the request (or job) it ran for. */
+const deliverLog = logger();
 
 export type Db = SupabaseClient<Database>;
 type MessagePatch = Database["public"]["Tables"]["messages"]["Update"];
@@ -72,9 +103,23 @@ export interface WirePayload {
   template?: TemplateSend;
   /**
    * The request an email leaves as, built and frozen when the message was
-   * queued (channels email.ts). Present on the email wire and nowhere else.
+   * queued (channels email/request.ts). Present on the email wire and nowhere else.
    */
   email?: EmailRequest;
+  /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
+  purpose?: SendPurpose;
+  /** A person's reply (the door's kindOf), the one other send that may leave by an own domain: by its twin below. */
+  reply?: boolean;
+  /**
+   * A person's reply to a reach-out, frozen a second time on the own domain the chain wrote from (G15): it leaves by
+   * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
+   */
+  ownEmail?: EmailRequest;
+  /**
+   * The most the wire may take to answer, in ms, from the moment the send is put on it (Delivery.sendBy, worked out at the
+   * wire). The email wire bounds its tries by it (channels sendEmail); absent, by its own deadline alone.
+   */
+  deadlineMs?: number;
 }
 
 /** How to put words on one channel's wire. Owns its own address format. */
@@ -85,40 +130,11 @@ export type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
  * channel at all. `null`: the channel exists but this workspace holds no
  * credentials or line for it -- refused here, never guessed from the
  * environment, which is how one business's message left on another's line.
+ * A WireUnavailable: the channel may well be this workspace's, but its
+ * credentials could not be read just now -- nothing is sent, nothing is
+ * failed, and the caller tries again later.
  */
-export type Wire = Partial<Record<Channel, Sender | null>>;
-
-/**
- * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
- * so the "+" is stripped here rather than by a caller who should not know.
- */
-export function whatsappSender(cfg: WaConfig | null): Sender | null {
-  if (!cfg) return null;
-  return (to, p) => {
-    const digits = to.replace(/^\+/, "");
-    return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
-  };
-}
-
-/**
- * Email's wire, bound to ONE workspace's mailbox. It sends the frozen request
- * and nothing it assembled itself: a delivery without one, one addressed to
- * somebody other than `to`, or one that would leave as another workspace, is a
- * failure the caller hears about, never a send. The provider key is the
- * deployment's; `as` is what makes the wire this workspace's, and a workspace
- * with no mailbox has no email line (null, like a number with no credentials).
- */
-export function emailSender(cfg: ResendConfig | null, as: EmailSendsAs | null): Sender | null {
-  if (!cfg || !as) return null;
-  const refuse = (errorBody: string): Promise<SendResult> =>
-    Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
-  return (to, p) => {
-    if (!p.email) return refuse("no_frozen_request");
-    if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
-    if (!requestLeavesAs(p.email, as)) return refuse("request_leaves_as_another_sender");
-    return sendEmail(cfg, p.email);
-  };
-}
+export type Wire = Partial<Record<Channel, Sender | null | WireUnavailable>>;
 
 export interface Delivery {
   tenantId: string;
@@ -131,10 +147,32 @@ export interface Delivery {
   purpose: SendPurpose;
   /** True when this send starts a conversation rather than answering one. */
   proactive: boolean;
+  /**
+   * What the message is about (contracts MessageAbout, decision D1): theirs (a visit they booked, their proposal, the
+   * call they are on, a thread they wrote in) or ours (a broadcast, a moment's news). By email, ours asks for a yes
+   * covering email or a relationship on record; theirs asks no yes. Required: a sender says which.
+   */
+  about: MessageAbout;
+  /**
+   * The playbook moment a broadcast's run was made for (contracts audienceTrigger), null for any other send: only the
+   * day-before reminder passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4). Required, as
+   * `about` is: a sender says which, so a new one cannot forget the moment and have its reminder held.
+   */
+  trigger: string | null;
   body: string;
   template?: TemplateSend;
   /** The frozen request, on the email wire (WirePayload.email). */
   email?: EmailRequest;
+  /**
+   * A person's reply to a reach-out, frozen again on the own domain the chain wrote from (WirePayload.ownEmail): it
+   * may leave by that domain only as a reply (kindOf), and under the same row's id as `email`.
+   */
+  ownEmail?: EmailRequest;
+  /**
+   * The lead a cold email was written for (a reach-out's always names one): outreach's facts are that lead's, so a
+   * business closed or archived is refused even when its person has another lead still being written to.
+   */
+  leadId?: string | null;
   /**
    * An outbox row already written as `queued` (the honest undo): finalized
    * in place rather than inserted, and only while it is still queued, so a
@@ -145,28 +183,30 @@ export interface Delivery {
   kind?: SendKind;
   /** Recorded on a row this call writes. */
   meta?: Record<string, Json>;
+  /**
+   * A caller that will try again (sendQueued): a send the provider provably did not take (outcome `retryable`) throws
+   * NotTakenError before anything is written, and the row stays queued. Without it, it fails as any refusal does.
+   */
+  holdIfNotTaken?: boolean;
+  /**
+   * Epoch ms: the latest moment the provider's answer may still be waited for. A caller that runs inside a function with
+   * a ceiling (a broadcast's batch: jobs sendByAt) says when the send must be over by, so one started late is bounded by
+   * what is left rather than by the wire's own deadline, which is longer than the time a late start has. An email that
+   * runs out of it settles as `failed` with an unknown outcome (the provider may have taken it), as any timeout does.
+   */
+  sendBy?: number;
 }
 
 /** The policy a send goes under: as declared, or as the door always derived it from who wrote the words. */
 function kindOf(d: Delivery): SendKind {
+  // A cold email is a broadcast whoever wrote its words and whatever its caller names it: the workspace's pause, the
+  // thread's and a live hold all stop it. Read from `sender`, a row a person had edited would pass as their reply; read
+  // from a caller's `kind`, "reply" or "system" would skip the pauses (Part 2.6).
+  if (d.purpose === "outreach") return "broadcast";
   if (d.kind) return d.kind;
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }
-
-/** Why the door stayed shut. Each is a fact about the person, the thread or the workspace, never about us. */
-export type DeliveryRefusal =
-  | "opted_out"
-  | "not_opted_in"
-  | "no_marketing_consent"
-  | "erased"
-  | "paused"
-  | "human_has_it"
-  | "superseded_by_human"
-  | "sms_carries_no_promotions"
-  | "email_marketing_disabled"
-  | "email_suppressed"
-  | "recipient_changed";
 
 export type Delivered =
   | { outcome: "sent"; messageId: string | null; externalId: string | null }
@@ -178,11 +218,22 @@ export type Delivered =
       status: number;
       errorBody: string | null;
       messageId: string | null;
+      /** A mail provider's refusal for a limit of its own (channels resendLimitOf), named at the wire; email only. */
+      limit?: ResendLimit;
+      /**
+       * WhatsApp said "not now" before it took the message (channels graphThrottled), named at the wire. Nothing left,
+       * so the caller may try this person again later; a failure without it may have been taken all the same.
+       */
+      throttled?: true;
+      /** The provider may have taken it all the same (provider-fetch outcome unknown): nobody sends it again blind. */
+      mayHaveGone?: true;
     };
 
 export interface DeliverPorts {
   db: Db;
   wire: Wire;
+  /** Whether this deployment can send an OFFER by email now (its campaigns domain is verified: the edge says it). Absent: no. */
+  emailOffers?: boolean;
   /** Epoch ms; injected so the pause is testable. */
   now?: () => number;
 }
@@ -199,10 +250,21 @@ interface WireFacts {
    * keeps the thread in somebody's queue.
    */
   control: { kind: string; until: string } | null;
+  /** The person this thread is with, as the thread says: what outreach asks the leads about. */
+  contactId: string | null;
   contact: {
     consent: string | null;
     dnc: boolean | null;
     marketing_consent: string | null;
+    /**
+     * The channels each yes covers (consent-channels.ts; the database keeps them by each consent event). Null, or absent
+     * from the answer of a database 00297 has not reached (wireRowOf): WhatsApp alone.
+     */
+    consent_channels?: string[] | null;
+    marketing_channels?: string[] | null;
+    /** Email's own answer (00174): opted_out once they pressed Unsubscribe. */
+    email_marketing: string | null;
+    has_relationship?: boolean | null; // wrote, called or has a deal (00299): the way into an offer by email; absent: none
     erased_at: string | null;
     erasing_since: string | null;
     /** The address on file now, and whether it has stopped being sent to (00125, 00126). */
@@ -210,6 +272,9 @@ interface WireFacts {
     email_suppressed_at: string | null;
   };
   tenantStatus: string | null;
+  /** The texting line a text leaves on (db textLineFacts); read for a text alone, null for every other send. */
+  smsLine: Awaited<ReturnType<typeof textLineFacts>>;
+  offers: OfferFacts; // what an offer by email asks of the deployment and the workspace (deliver-email.ts)
 }
 
 /**
@@ -218,68 +283,185 @@ interface WireFacts {
  * "we could not check" is not "yes" -- the outbox retries, the broadcast
  * leaves the person queued, and the voice agent says it could not send.
  */
-async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
-  const { data, error } = await db
-    .from("conversations")
-    .select(
-      "paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)",
-    )
-    .eq("id", d.conversationId)
-    .eq("tenant_id", d.tenantId)
-    .maybeSingle();
+async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promise<WireFacts> {
+  // Read again without the channel arrays on a database 00297 has not reached (wireRowOf): a yes then covers WhatsApp alone.
+  // The sends that may rest on a relationship with the business: an offer by email, which is also the business's news (D1, D2).
+  const { data, error } = await wireRowOf(db, {
+    tenantId: d.tenantId,
+    conversationId: d.conversationId,
+    relationship: isOfferByEmail(d),
+  });
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data as unknown as {
     paused_until: string | null;
     control_kind?: string | null;
     control_until?: string | null;
+    contact_id?: string | null;
     contacts: WireFacts["contact"] | null;
     tenants: { status: string | null } | null;
   };
   return {
     pausedUntil: row.paused_until ?? null,
     control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
+    contactId: row.contact_id ?? null,
     contact: row.contacts ?? {
       consent: null,
       dnc: null,
       marketing_consent: null,
+      consent_channels: null,
+      marketing_channels: null,
+      email_marketing: null,
       erased_at: null,
       erasing_since: null,
       email: null,
       email_suppressed_at: null,
     },
     tenantStatus: row.tenants?.status ?? null,
+    smsLine: d.channel === "sms" ? await textLineFacts(db, d.tenantId) : null,
+    offers: await offerFacts(d, emailOffers, () => emailOffersPause(db, d.tenantId)),
+  };
+}
+
+/** What a cold email's own rules ask, read only for one (Reach out). */
+interface OutreachFacts {
+  /** The stage of the lead that points at this person, the one still being written to first; null when none does. */
+  leadStage: string | null;
+  /** The address is on the workspace's never-again list: unsubscribed, complained, or erased. */
+  suppressed: boolean;
+  /**
+   * The person wrote to the business in words of their own, on any channel or from another address in answer to an
+   * email sent to them, or phoned it: a conversation now, never cold again (00181).
+   */
+  wroteBack: boolean;
+  /** An automatic out-of-office whose day is still ahead (00226): the chain waits for it. */
+  away: boolean;
+  /** Its owner stopped writing to this lead (00241): the email is skipped. */
+  stopped: boolean;
+  /** The request carries RFC 8058's one-click unsubscribe, both headers. */
+  unsubscribable: boolean;
+  /**
+   * The state of the workspace's own domain the request's From is, as Connections set it up (its host and its
+   * from_local); null when the From is no such address.
+   */
+  domainState: string | null;
+  /** When that domain was last clean: a domain never clean has no day's share at all. */
+  cleanSince: string | null;
+  /** The days that domain has sent on since it was clean (D15): its day's share is domainDailyCap of them. */
+  sentDays: number;
+  /** What left from that domain in the last day. */
+  sentSince: number;
+}
+
+/** The window a domain's day's share is counted over: a rolling day, so there is no midnight to argue about. */
+const SHARE_WINDOW_MS = 24 * 3_600_000;
+
+/**
+ * The facts outreach adds, in one question to the database (00177 outreach_facts), and only for an outreach email: a
+ * conversational send never pays for it. A read that fails throws, as wireFacts does: "we could not check" is not
+ * "yes".
+ */
+async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): Promise<OutreachFacts> {
+  const headers = d.email?.headers ?? {};
+  const unsubscribable =
+    !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
+  const from = addressOf(d.email?.from)?.address ?? null;
+  const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
+  if (!f.contactId)
+    return {
+      leadStage: null,
+      suppressed: false,
+      wroteBack: false,
+      away: false,
+      stopped: false,
+      unsubscribable,
+      domainState: null,
+      cleanSince: null,
+      sentDays: 0,
+      sentSince: 0,
+    };
+  let facts;
+  try {
+    facts = await outreachFactsOf(db, {
+      tenantId: d.tenantId,
+      contactId: f.contactId,
+      to: d.to,
+      // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
+      host: host ?? "",
+      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
+      leadId: d.leadId ?? null,
+    });
+  } catch (e) {
+    throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`, {
+      cause: e,
+    });
+  }
+  // The whole address, as the wire will hold it (emailSender): another name on an own domain is not the address the
+  // workspace set up, and would only fail at the wire rather than be refused here with its reason.
+  const own = host && facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
+  return {
+    leadStage: facts.lead_stage,
+    suppressed: facts.suppressed,
+    wroteBack: facts.wrote_back,
+    away: facts.away,
+    stopped: facts.stopped,
+    unsubscribable,
+    domainState: own?.state ?? null,
+    cleanSince: own?.clean_since ?? null,
+    sentDays: own?.sent_days ?? 0,
+    sentSince: facts.sent_since,
   };
 }
 
 /** Why the door is shut for this send, or null when it may go. */
-function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal | null {
+function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts | null): DeliveryRefusal | null {
   // A person who asked to be forgotten is never messaged, whatever the row
   // that survived says -- from the moment they asked (erasing_since, written
   // before anything is destroyed), not only once the erasure finished.
   if (f.contact.erased_at || f.contact.erasing_since) return "erased";
-  // The texting line is registered with the carriers for replies and
-  // appointment messages, and nothing else: an informational campaign, filed
-  // that way after the fourth refusal (30896). A promotion by text would go out
-  // under a consent the carriers were never told about, whatever the person
-  // said to us -- so it does not, whoever asks. Offers and news go by WhatsApp.
-  if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
+  // A cold message goes by email and nothing else: a phone's lines are registered, and consented, for people who
+  // wrote to the business, never for businesses it found.
+  if (d.purpose === "outreach" && d.channel !== "email") return "outreach_is_email_only";
+  // What a text carries and leaves on: no promotion, and only a line the carriers approved (deliver-text.ts).
+  const text = d.channel === "sms" ? textRefusal(d.purpose, f.smsLine) : null;
+  if (text) return text;
   if (d.channel === "email") {
-    // Email carries replies and nothing promotional until a release of its own
-    // brings the unsubscribe a promotion owes (the plan's §11): refused here,
-    // at the door, rather than hidden in a menu.
-    if (d.purpose === "marketing") return "email_marketing_disabled";
+    // An offer by email goes only where the deployment, the workspace and the email allow it (deliver-email.ts).
+    const offer = offerRefusal(d, f.offers);
+    if (offer) return offer;
     // A permanent bounce, a complaint or the provider's own list: a fact about
     // the address, kept apart from any one message's delivery (00126).
-    if (f.contact.email_suppressed_at) return "email_suppressed";
+    if (isEmailStopped(f.contact)) return "email_suppressed";
     // The request was frozen for one address. If the person's address on file
     // is no longer that one -- corrected, removed -- these words were approved
     // for somewhere they should no longer go: canceled, and written again.
     if (f.contact.email !== d.to) return "recipient_changed";
   }
   // Consent outranks everything, asked with this message's own purpose.
-  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
+  // A yes covers the channels it was given for: asked on the channel this message goes out on (consent-channels.ts).
+  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive, channel: d.channel, about: d.about });
   if (!may.ok) return may.reason;
+  // Outreach's own rules, after the person's no and before any pause: only to a business the finder found, only with
+  // the one-click unsubscribe the large mailbox providers require, only from a domain the workspace owns and has
+  // verified, never from the hosted address every workspace's replies share.
+  if (d.purpose === "outreach") {
+    if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
+    // The lead's own facts, in the one mapping the reach-out clock also asks before it claims a send.
+    const lead = outreachRefusalOf({
+      leadStage: o.leadStage,
+      suppressed: o.suppressed,
+      wroteBack: o.wroteBack,
+      away: o.away,
+      stopped: o.stopped,
+    });
+    if (lead) return lead;
+    if (!o.unsubscribable) return "outreach_without_unsubscribe";
+    if (!o.domainState) return "outreach_needs_own_domain";
+    if (o.domainState !== "verified") return "sending_domain_not_ready";
+    // The day's share is the ramp's (contracts domainDailyCap). The batch writer claims within it (Part 3); this is
+    // the backstop, so a run that miscounts cannot spend a domain's reputation past its share.
+    if (o.sentSince >= (o.cleanSince ? domainDailyCap(o.sentDays) : 0)) return "sending_domain_at_cap";
+  }
   const kind = kindOf(d);
   // A person's own reply goes out even when the machine is told to stop: the
   // pause exists for them, and a paused workspace may still answer by hand.
@@ -287,17 +469,18 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // and it respects the pause like the machine it is.
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  // Is somebody speaking on this thread right now (00132)? A person who took it
-  // over, or a call in progress. It is asked as a LIVE fact with an expiry,
-  // never as "does a column name somebody": the assignee it used to read is
-  // never cleared, so a thread taken over one Tuesday refused every draft
-  // after it for the life of the workspace.
+  return heldByThread(d, f, nowMs, kind);
+}
+
+/** Whether somebody holds the thread, or its pause stands, for this send (what a draft, a system message and a broadcast each meet). */
+function heldByThread(d: Delivery, f: WireFacts, nowMs: number, kind: SendKind): DeliveryRefusal | null {
+  // Is somebody speaking on this thread right now (00132)? A person who took it over, or a call in progress. It is asked
+  // as a LIVE fact with an expiry, never as "does a column name somebody": the assignee it used to read is never cleared,
+  // so a thread taken over one Tuesday refused every draft after it for the life of the workspace.
   const held = !!f.control && nowMs < new Date(f.control.until).getTime();
-  // A thread somebody holds does not take the receptionist's draft. Taking
-  // over withdraws the drafts written before it; this is the same promise
-  // kept at the wire, for the withdrawal that failed or the draft written in
-  // the same second. Only the draft: an answer meets the hold below, a
-  // system message is owed whoever holds the thread.
+  // A thread somebody holds does not take the receptionist's draft. Taking over withdraws the drafts written before it;
+  // this is the same promise kept at the wire, for the withdrawal that failed or the draft written in the same second.
+  // Only the draft: an answer meets the hold below, a system message is owed whoever holds the thread.
   if (kind === "draft" && held) return "human_has_it";
   // The thread's pause holds the receptionist answering now, and a broadcast.
   // It does not hold a queued draft, written before the pause it now meets --
@@ -309,12 +492,14 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // system message: an opt-in confirmation is owed the moment the yes was
   // given, whoever holds the thread.
   //
-  // A live hold stops them too, and that is what keeps two of our own agents
-  // off one person: while a call is in progress the thread is held, so the
-  // text receptionist stores what the customer writes and answers none of it,
-  // rather than talking over the call the same customer is on.
-  if (kind !== "draft" && kind !== "system" && (held || (f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime())))
-    return "human_has_it";
+  // A live hold stops them too, and that is what keeps two of our own agents off one person: while a call is in progress
+  // the thread is held, so the text receptionist stores what the customer writes and answers none of it, rather than
+  // talking over the call the same customer is on.
+  //
+  // The day-before reminder alone passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4): it is
+  // about their own booking. The live hold above still holds it, and the batch waits for that rather than skipping.
+  const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
+  if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
   return null;
 }
 
@@ -346,19 +531,25 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
     .order("created_at", { ascending: true })
     .limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  const spoke = (newer ?? []).find((m) => (m.meta as { source?: unknown } | null)?.source !== "broadcast");
+  // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
+  // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
+  // Which sends those are is said once (contracts isAutomatedSend, with its SQL twin).
+  const spoke = (newer ?? []).find((m) => !isAutomatedSend(m.meta));
   return spoke ? spoke.id : null;
 }
 
+/** The message kinds the send door writes. */
+type MessageKind = "message.send_blocked" | "message.send_raced_cancel" | "message.sent" | "message.send_failed";
+
 /** The same writer every other event goes through: a failed insert is logged there, never dropped. */
-function event(
+function event<K extends MessageKind>(
   db: Db,
   d: Delivery,
-  kind: EventKind,
+  kind: K,
   messageId: string | null,
-  data: Record<string, Json>,
+  data: EventData[K],
 ): Promise<void> {
-  return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
+  return emitEvent(db, d.tenantId, kind, "message", messageId, data);
 }
 
 /** The thread stamped with the send, as recordOutbound stamps it on the row it writes. */
@@ -369,10 +560,11 @@ async function stampThread(db: Db, d: Delivery, nowMs: number): Promise<void> {
     .eq("id", d.conversationId)
     .eq("tenant_id", d.tenantId);
   if (error)
-    console.error(
-      "deliver_stamp_failed",
-      JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message }),
-    );
+    deliverLog.error("deliver_stamp_failed", {
+      tenant_id: d.tenantId,
+      conversation_id: d.conversationId,
+      error: error.message,
+    });
 }
 
 /**
@@ -381,6 +573,24 @@ async function stampThread(db: Db, d: Delivery, nowMs: number): Promise<void> {
  * "the row could not be changed" are different facts, and reading the second
  * as the first left a sent message queued for ever under a false race event.
  */
+/**
+ * How a person's reply left (G15, N5), on its row: the words already left, so a write that fails is logged, never
+ * thrown, the way a failed finalize is.
+ */
+async function leftAs(db: Db, d: Delivery, sent: SendResult): Promise<void> {
+  if (!sent.leftAs) return;
+  const why = sent.leftAsWhy ?? null;
+  await stampEmailLeftAs(db, { tenantId: d.tenantId, messageId: d.messageId!, leftAs: sent.leftAs, why }).catch(
+    (e: unknown) => {
+      deliverLog.error("deliver_left_as_failed", {
+        tenant_id: d.tenantId,
+        message_id: d.messageId,
+        error: errField(e),
+      });
+    },
+  );
+}
+
 async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise<boolean> {
   const { data, error } = await db
     .from("messages")
@@ -393,37 +603,65 @@ async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise
 }
 
 export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
+  assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
-  const facts = await wireFacts(ports.db, d);
+  const facts = await wireFacts(ports, d);
+  const outreach =
+    d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
 
-  const refusal = refusalFor(d, facts, nowMs);
+  const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
-  if (reason) {
-    // A queued row is canceled with its reason, so the thread shows why the
-    // words never left; a send with no row yet leaves none, and the caller
-    // records the refusal where it lives (a recipient's row, a spoken reply).
+  // A queued row is canceled with its reason, so the thread shows why the
+  // words never left; a send with no row yet leaves none, and the caller
+  // records the refusal where it lives (a recipient's row, a spoken reply).
+  // The event says the person's consent as the door read it -- or, for a
+  // refusal that changed it (the carrier's, below), as it is now.
+  const refuse = async (
+    why: DeliveryRefusal,
+    now: Partial<WireFacts["contact"]> = {},
+    said: Record<string, Json> = {},
+  ): Promise<Delivered> => {
     if (d.messageId) {
-      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason } });
+      const contact = { ...facts.contact, ...now };
+      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason: why } });
       await event(ports.db, d, "message.send_blocked", d.messageId, {
-        reason,
+        reason: why,
         purpose: d.purpose,
-        consent: facts.contact.consent,
-        dnc: facts.contact.dnc,
-        marketing_consent: facts.contact.marketing_consent,
+        consent: contact.consent,
+        dnc: contact.dnc,
+        marketing_consent: contact.marketing_consent,
+        ...(d.purpose === "outreach" || d.purpose === "marketing" ? { email_marketing: contact.email_marketing } : {}),
         ...(overtakenBy ? { after: overtakenBy } : {}),
+        ...said,
       });
     }
-    return { outcome: "refused", reason, messageId: d.messageId ?? null };
-  }
+    return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
+  };
+  if (reason) return refuse(reason);
 
-  const send = ports.wire[d.channel];
-  const sent: SendResult & { reason?: "no_sender_for_channel" | "no_credentials" } =
-    send === undefined
-      ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" }
-      : send === null
-        ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }
-        : await send(d.to, { body: d.body, template: d.template, ...(d.email ? { email: d.email } : {}) });
+  const sent = await putOnWire(ports.wire, d, kindOf(d) === "reply", ports.now);
+
+  // The carrier's own no, on the person's behalf (channels smsRefusalOf:
+  // Twilio 21610, the recipient replied STOP to this number before we heard --
+  // the STOP went to the carrier, or came before the line's webhook pointed
+  // here). The number is unreachable whatever our row says, so the row is
+  // brought to agree with the carrier, the way ingest records a STOP it did
+  // hear, and the send is the refusal a recorded no is: the row canceled with
+  // its reason, nothing escalated, and the next send to this person refused by
+  // the predicate before the provider is asked. It used to be a failure like
+  // any other: the owner told a delivery failed, nothing recorded, and every
+  // later send to that person failing and telling them again.
+  if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
+    if (facts.contactId)
+      await recordCarrierOptOut(ports.db, {
+        tenantId: d.tenantId,
+        contactId: facts.contactId,
+        channel: d.channel,
+        previous: facts.contact.consent,
+      });
+    return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
+  }
 
   if (sent.ok) {
     if (d.messageId) {
@@ -435,23 +673,23 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
         status: "sent",
         ...(sent.wamid ? { external_id: sent.wamid } : {}),
       }).catch((e: unknown) => {
-        console.error(
-          "deliver_finalize_failed",
-          JSON.stringify({
-            tenant: d.tenantId,
-            message: d.messageId,
-            wamid: sent.wamid,
-            error: e instanceof Error ? e.message : String(e),
-          }),
-        );
+        deliverLog.error("deliver_finalize_failed", {
+          tenant_id: d.tenantId,
+          message_id: d.messageId,
+          wamid: sent.wamid,
+          error: errField(e),
+        });
         return null;
       });
       await Promise.all([
         marked === false
           ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid })
           : Promise.resolve(),
-        stampThread(ports.db, d, nowMs),
+        // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
+        // sends would push every customer off it. The thread rises when the business writes back.
+        d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
         event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
+        leftAs(ports.db, d, sent),
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }
@@ -471,21 +709,24 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
       status: "sent",
       meta: d.meta ?? {},
     }).catch((e: unknown) => {
-      console.error(
-        "deliver_record_failed",
-        JSON.stringify({
-          tenant: d.tenantId,
-          conversation: d.conversationId,
-          wamid: sent.wamid,
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      );
+      deliverLog.error("deliver_record_failed", {
+        tenant_id: d.tenantId,
+        conversation_id: d.conversationId,
+        wamid: sent.wamid,
+        error: errField(e),
+      });
       return null;
     });
     return { outcome: "sent", messageId, externalId: sent.wamid };
   }
 
-  const failure = { http_status: sent.status, body: sent.errorBody ?? null };
+  // A send that timed out or dropped after it left may have been taken all the same, on any wire (provider-fetch): its
+  // outcome is unknown: nobody sends it again blind, and an email's receipt may still settle it (00177's guard).
+  const failure = {
+    http_status: sent.status,
+    body: sent.errorBody ?? null,
+    ...(sent.outcome === "unknown" ? { outcome: "unknown" } : {}),
+  };
   let messageId: string | null = d.messageId ?? null;
   if (d.messageId) {
     await finalizeQueued(ports.db, d, { status: "failed", error: failure });
@@ -512,6 +753,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
+    ...namedFailure(d.channel, sent),
   };
 }
 
@@ -550,10 +792,7 @@ export async function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<D
     return await deliver(ports, d);
   } catch (e) {
     const errorBody = e instanceof Error ? e.message : String(e);
-    console.error(
-      "deliver_threw",
-      JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: errorBody }),
-    );
+    deliverLog.error("deliver_threw", { tenant_id: d.tenantId, conversation_id: d.conversationId, error: errorBody });
     return { outcome: "failed", reason: "wire_unreadable", status: 0, errorBody, messageId: d.messageId ?? null };
   }
 }

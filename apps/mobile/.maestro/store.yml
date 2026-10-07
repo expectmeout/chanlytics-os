@@ -1,0 +1,48 @@
+# The store listing's Android screenshots (docs/store/screenshots.md), in its order and by its numbers: Today, a
+# conversation with the receptionist's answer, the Calendar, one person's page. The sign-in screen (6) is
+# sign-in-screen.yml's; 3, a push beside the widget, is the iPhone's. walk.mjs --store runs it signed in, on a display
+# of 1080 x 1920. It opens Robin Example, the conversation and the person tooling/scripts/e2e-workspace.mjs seeds in
+# every workspace it makes, the reviewer's included; a row is one node, its name among its words.
+appId: com.chanlytics.app
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: tab.yml
+    env:
+      TAB: Today
+- extendedWaitUntil:
+    visible:
+      id: today-card-title
+    timeout: 60000
+- takeScreenshot: 1-today
+- runFlow:
+    file: tab.yml
+    env:
+      TAB: Inbox
+- extendedWaitUntil:
+    visible: .*Robin Example.*
+    timeout: 30000
+- tapOn: .*Robin Example.*
+- waitForAnimationToEnd:
+    timeout: 10000
+- takeScreenshot: 2-inbox-thread
+- runFlow:
+    file: tab.yml
+    env:
+      TAB: Calendar
+- extendedWaitUntil:
+    visible: Agenda
+    timeout: 30000
+- takeScreenshot: 4-calendar
+- runFlow:
+    file: tab.yml
+    env:
+      TAB: People
+- extendedWaitUntil:
+    visible: .*Robin Example.*
+    timeout: 30000
+- tapOn: .*Robin Example.*
+- waitForAnimationToEnd:
+    timeout: 10000
+- takeScreenshot: 5-person

@@ -19,8 +19,9 @@ import {
   type RetellConfig,
   type ProvisionSecrets,
 } from "../packages/channels.js";
+import { edgeFnUrl } from "../dashboard-origin.js";
 
-export interface VoiceAgent {
+interface VoiceAgent {
   llmId: string;
   llmVersion: number | null;
   agentId: string;
@@ -32,7 +33,7 @@ export interface VoiceAgent {
   publish: Record<string, unknown>;
 }
 
-export type VoiceAgentResult =
+type VoiceAgentResult =
   | { ok: true; agent: VoiceAgent }
   | {
       ok: false;
@@ -57,9 +58,11 @@ export async function createVoiceAgent(
   let llmId = o.llmId ?? null;
   let llmVersion: number | null = null;
   let agentId: string;
-  let agentVersion: number | null = null;
-  let published = false;
+  let agentVersion: number | null;
+  let published: boolean;
   const created = { llm: false, agent: false };
+  // Where its tools post: this edge's own address, never one a package defaults to.
+  const fnUrl = edgeFnUrl();
 
   if (o.agentId) {
     const a = await getAgentRaw(cfg, o.agentId);
@@ -99,14 +102,17 @@ export async function createVoiceAgent(
         };
       llmVersion = l.version;
     } else {
-      const w = await createRetellLlm(cfg, voiceLlmCreateBody(secrets));
+      const w = await createRetellLlm(cfg, voiceLlmCreateBody(secrets, fnUrl));
       if (!w.ok || typeof w.body?.llm_id !== "string")
         return { ok: false, step: "llm", status: w.status, detail: w.body, partial: { llmId: null, llmVersion: null } };
       llmId = w.body.llm_id;
       llmVersion = typeof w.body.version === "number" ? w.body.version : null;
       created.llm = true;
     }
-    const w = await createAgent(cfg, voiceAgentCreateBody({ llmId, llmVersion, agentName: o.agentName }, secrets));
+    const w = await createAgent(
+      cfg,
+      voiceAgentCreateBody({ llmId, llmVersion, agentName: o.agentName }, secrets, fnUrl),
+    );
     if (!w.ok || typeof w.body?.agent_id !== "string")
       return { ok: false, step: "agent", status: w.status, detail: w.body, partial: { llmId, llmVersion } };
     agentId = w.body.agent_id;

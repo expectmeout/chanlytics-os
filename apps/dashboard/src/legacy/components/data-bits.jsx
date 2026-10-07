@@ -55,126 +55,7 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
   </div>
 );
 
-// ---- MoreMenu — shared 3-dot popover -----------------------------------
-// items: [{ label, icon, onClick, danger, meta, gate } | { divider:true } | { header:"…" }]
-// Renders its own trigger button; closes on backdrop, Escape, or item click.
-// `gated` (a sentence) keeps the whole menu shut and says why; an item's `gate`
-// is window.gate(...)'s props, spread after its click, so a refused item stays in
-// the menu, says why when pressed, and leaves the menu open.
-// `escape` is for a menu opened inside a pane that scrolls (the People rail): see moreFit.
-// An item with `checked` (true or false) is one of a set: a menuitemradio, ticked when true.
-
-/**
- * Where a menu that escapes its pane hangs (MoreMenu `escape`). A pane that scrolls cuts off whatever crosses its
- * edge, so a menu in the People rail had to fit beside its trigger: 196px, where every other menu is 232 to 292, and
- * its words broke onto three to six lines. An escaped menu is placed against the window instead: under its trigger, on
- * the side `align` names, above the trigger when the window has more room there, and held inside the window. Where
- * neither side has room for all of it, it takes the room there is and scrolls (the room is its max-height). Until
- * placed it is drawn but not shown (.placed), so it never flashes at the window's corner.
- */
-const MORE_EDGE = 8; // kept clear of the window's edges
-const MORE_GAP = 8; // between trigger and menu, as .more-menu's own top: calc(100% + 8px)
-const moreFit = (wrap) => {
-  if (!wrap || typeof wrap.querySelector !== "function") return;
-  const btn = wrap.querySelector(":scope > button");
-  const menu = wrap.querySelector(":scope > .more-menu");
-  if (!btn || !menu || typeof btn.getBoundingClientRect !== "function" || typeof menu.getBoundingClientRect !== "function") return;
-  const t = btn.getBoundingClientRect();
-  const m = menu.getBoundingClientRect();
-  const vw = window.innerWidth || 0;
-  const vh = window.innerHeight || 0;
-  const from = menu.classList.contains("align-left") ? t.left : t.right - m.width;
-  const left = Math.max(MORE_EDGE, Math.min(from, vw - MORE_EDGE - m.width));
-  const below = vh - MORE_EDGE - (t.bottom + MORE_GAP);
-  const above = t.top - MORE_GAP - MORE_EDGE;
-  const up = below < m.height && above > below;
-  const room = Math.max(96, up ? above : below);
-  const height = Math.min(m.height, room);
-  if (room < m.height) menu.style.maxHeight = `${Math.floor(room)}px`;
-  const top = up ? Math.max(MORE_EDGE, t.top - MORE_GAP - height) : t.bottom + MORE_GAP;
-  const put = (x, y) => { menu.style.left = `${Math.round(x)}px`; menu.style.top = `${Math.round(y)}px`; };
-  put(left, top);
-  // A transformed or filtered ancestor makes itself a fixed box's containing block and moves the menu with it; that
-  // offset is taken back, so the menu lands where it was meant to whatever the page around it does.
-  const got = menu.getBoundingClientRect();
-  if (Math.round(got.left) !== Math.round(left) || Math.round(got.top) !== Math.round(top)) put(2 * left - got.left, 2 * top - got.top);
-  menu.classList.toggle("up", up);
-  menu.classList.add("placed");
-};
-
-// `icon` is the trigger's glyph where the menu is not a "more": Leads' Call opens the ways of calling, and a ⋯
-// there would hide what the button is for.
-const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnClass = "btn btn-ghost btn-icon btn-sm", label = null, icon = "more", gated = null, escape = false, testid = null }) => {
-  const [open, setOpen] = React.useState(false);
-  const wrapRef = React.useRef(null);
-
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    if (!escape) return () => window.removeEventListener("keydown", onKey);
-    // Placed against the window, an escaped menu would stay put while the page under it moved, so a scroll anywhere
-    // but inside the menu itself, or a resize, closes it rather than leave it beside the wrong row. Only a node can be
-    // inside it: a resize's target is the window, which contains() refuses with a throw.
-    const wrap = wrapRef.current;
-    moreFit(wrap);
-    const menu = wrap && typeof wrap.querySelector === "function" ? wrap.querySelector(":scope > .more-menu") : null;
-    const inside = (t) => !!(menu && t && typeof t.nodeType === "number" && typeof menu.contains === "function" && menu.contains(t));
-    const onMove = (e) => { if (!inside(e && e.target)) setOpen(false); };
-    window.addEventListener("scroll", onMove, true);
-    window.addEventListener("resize", onMove);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onMove, true);
-      window.removeEventListener("resize", onMove);
-    };
-  }, [open, escape]);
-
-  const run = (it) => {
-    // Synchronous: fire the action, then close. Deferring the action behind a
-    // timeout let a re-render/close race swallow clicks on lower items.
-    if (it.onClick) it.onClick();
-    setOpen(false);
-  };
-
-  return (
-    <div className="more-wrap" ref={wrapRef}>
-      <button
-        className={btnClass}
-        title={title}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        data-testid={testid || undefined}
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        {...(gated ? gatedProps(gated) : {})}
-      >
-        {label ? <>{label} <Icon name="chevron-down" size={10} /></> : <Icon name={icon} size={size} />}
-      </button>
-      {open && (
-        <>
-          <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
-          <div className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}`} role="menu" onClick={(e) => e.stopPropagation()}>
-            {items.map((it, i) => {
-              if (it.divider) return <div key={i} className="more-divider" />;
-              if (it.header) return <div key={i} className="more-header">{it.header}</div>;
-              // One of a set (a sort, say): a radio item with the tick drawn on every one, hidden where it is not the
-              // one chosen (components.css), so the words stand in one column either way.
-              const radio = typeof it.checked === "boolean";
-              return (
-                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role={radio ? "menuitemradio" : "menuitem"} aria-checked={radio ? it.checked : undefined} title={it.title || undefined} onClick={() => run(it)} {...(it.gate || {})}>
-                  {radio ? <Icon name="check" size={13} /> : it.icon && <Icon name={it.icon} size={13} />}
-                  <span className="more-item-label">{it.label}</span>
-                  {it.meta && <span className="more-item-meta">{it.meta}</span>}
-                  {it.hint && <span className="more-item-hint">{it.hint}</span>}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
+// MoreMenu and its placement, `moreFit`, are the kit's now (surfaces/kit/more-menu); seed-globals publishes MoreMenu.
 
 // ---- Shared toast — usePPToast --------------------------------------------
 // The ONE toast implementation (CLAUDE.md · UI patterns). Portals to <body> so
@@ -251,7 +132,7 @@ const usePPToast = () => {
     // stopPropagation: portal events bubble through the REACT tree, so a toast
     // rendered inside an overlay (Ask modal, dialogs) would otherwise trigger
     // the overlay's close-on-click and kill the undo.
-    <div className="pp-toast-stack" onClick={(e) => e.stopPropagation()}>
+    <div className="pp-toast-stack" role="presentation" onClick={(e) => e.stopPropagation()}>
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -280,7 +161,7 @@ const usePPToast = () => {
 };
 usePPToast._seq = 0;
 
-Object.assign(window, { Sparkline, KPI, StatStrip, StatCell, MoreMenu, moreFit, usePPToast });
+Object.assign(window, { Sparkline, KPI, StatStrip, StatCell, usePPToast });
 
 // Shared hotkey hook (CLAUDE.md): suppress-while-typing is handled here.
 // matcher(e, typing) -> true means preventDefault + handler(e).
@@ -302,7 +183,7 @@ window.useHotkey = useHotkey;
 // trapTab(e, box) from the dialog's keydown when e.key is "Tab". It counts only what Tab actually stops at
 // (tabStops(box)), not a control taken out of the tab order (tabindex -1: a radiogroup's unchosen options) nor one
 // with no box on screen (a closed fold's head and fields, hidden). Counting either, the wrap waited on a control Tab
-// never reached, and focus walked out of an aria-modal dialog. calendar-real.jsx's crTrapTab still counts both.
+// never reached, and focus walked out of an aria-modal dialog.
 const TAB_STOP_KINDS = 'button, a[href], input, select, textarea, [tabindex]';
 const tabStopsIn = (box) =>
   Array.from(box.querySelectorAll(TAB_STOP_KINDS)).filter((el) => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length > 0);
@@ -316,11 +197,55 @@ const trapTab = (e, box) => {
   if (e.shiftKey && (at === first || at === box)) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
 };
-Object.assign(window, { trapTab, tabStops: tabStopsIn });
+Object.assign(window, { trapTab, tabStops: tabStopsIn, propsWithout: (props, keys) => Object.fromEntries(Object.entries(props).filter(([k]) => !keys.includes(k))) });
+
+// ---- A dialog holds focus while it is open ----
+// trapFocus(box): focus goes into the dialog (the box itself, so a phone's keyboard stays down), Tab stays inside it
+// (trapTab), and release() puts focus back on the control that opened it, as the record kit's sheet does. Escape is the
+// page's own. dialogRef(key) is the ref that does it for an element's life, one per key as `leaving` is, carrying
+// `leaving`'s way out too. The modals outside the record kit take one of these.
+// What had focus outside every modal: a sheet that autofocuses a field has taken focus by the time it is held.
+let focusedOutside = null;
+document.addEventListener("focusin", (e) => { if (!(e.target && e.target.closest && e.target.closest('[aria-modal="true"]'))) focusedOutside = e.target; });
+const trapFocus = (box) => {
+  if (!box || !box.addEventListener) return () => {};
+  const at = document.activeElement;
+  const from = at && box.contains(at) && focusedOutside ? focusedOutside : at;
+  if (!box.contains(at)) {
+    if (box.getAttribute("tabindex") === null) box.setAttribute("tabindex", "-1");
+    box.focus({ preventScroll: true });
+  }
+  const onKey = (e) => { if (e.key === "Tab") trapTab(e, box); };
+  box.addEventListener("keydown", onKey);
+  return () => {
+    box.removeEventListener("keydown", onKey);
+    if (from && from !== document.body && from.isConnected !== false && from.focus) from.focus({ preventScroll: true });
+  };
+};
+const dialogRefs = new Map();
+const dialogRef = (key) => {
+  const had = dialogRefs.get(key);
+  if (had) return had;
+  const leave = window.leaving ? window.leaving(key) : null;
+  let release = null;
+  const ref = (el) => {
+    if (release) { release(); release = null; }
+    if (el) release = trapFocus(el);
+    if (leave) leave(el);
+  };
+  dialogRefs.set(key, ref);
+  return ref;
+};
+
+// A span or div drawn as a control is a button to a keyboard with role="button", a tab stop and keyPress(fn) as its onKeyDown:
+// Enter and Space, pressed on the element itself and never typed in a field inside it. A real button is better where one fits.
+const keyPress = (fn) => (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); fn(e); }
+};
 
 // ---- A thumb's gestures ------------------------------------------------------------------------
 // One reader of a touch, for what a thumb walks or lets go of: a lead's peek walks its pile across; a sheet on a phone,
-// the peek and an open thread are let go of. touchSwipe({ onLeft, onRight, onDown, onBack, min, when, onGrab }) gives the
+// the peek and an open thread are let go of. touchSwipe({ onLeft, onRight, onDown, onBack, onAway, min, when, onGrab }) gives the
 // handlers for the element the gesture is on. Nothing is kept between draws: a touch's state is held against the
 // element the browser hands back.
 //
@@ -329,9 +254,22 @@ Object.assign(window, { trapTab, tabStops: tabStopsIn });
 // pull), and where `when` says (a phone's width), the element moves with the finger and the wash behind it (its
 // previous sibling, when that is a backdrop) fades as it goes. `onBack` is the same, across to the right: an open
 // thread on a phone goes back to its list, and `onGrab(el, on)` lets the page show what is under it while it moves.
+// `onAway` is the same across to the left, with its wash fading as a sheet's does: the phone's drawer slides back where
+// it came from. Nothing opens one by a swipe (from the screen's edge that is the phone's own back). A drawer is slid
+// shut by its own rules rather than taken away, so after the close its inline styles go and those rules take it on.
 // Let go past a third of the element (160px at most) or with a flick, it leaves the way it was pulled and then the
 // close is called; short of that, or when the page kept it open (it asks first about what was typed), it settles back.
 // Under reduced motion it still follows the finger, which is the person's own motion, and the rest happens at once.
+//
+// `pages(el, from)` is the third that follows: a page under a strip, walked across (surface-tabs.jsx stripPager). It is
+// asked once, as a touch is taken across (never from 24px of either edge, which is the phone's own back), with where
+// the touch began: `{ prev, next, moving, follow(progress, step, how), go(step) }`, or null for no page. The page moves
+// with the finger both ways; toward a side with no page it gives a quarter of the drag, 48px at most. `moving` names
+// what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, `go(step)`
+// at once and it leaves that way while the next draws (it waited the leave out, 5 Oct 2026); otherwise it settles. `follow` hears every move ("move") and the end ("leave",
+// "settle"). The answer is kept with the touch, so a page drawn again mid-gesture loses nothing. `back` goes first.
+// A page that `stays` (the Calendar's days: the same element shows the next ones) comes back in after `go`, from the
+// side it is going to, 40px, as a new view slides in (components.css route-slide-*).
 //
 // A swipe across, with nothing following, is `onLeft`/`onRight`: `min` of travel (80px) along the axis it went
 // further on, so a scroll is never a move and a move never a scroll. A touch the browser reports only at its ends is
@@ -372,50 +310,109 @@ const SETTLE_MS = 240;
 // Long enough for React to have taken it away after the close: judged sooner, a sheet on its way out read as kept,
 // and settled back into view for a frame before it went.
 const KEPT_AFTER_MS = 60;
+// A page's switch is a navigation, which lands a task or two after the press, later than a sheet's close.
+const PAGE_KEPT_MS = 400;
+const EDGE = 24;
+const RESIST = 0.25;
+const RESIST_MAX = 48;
+const ARRIVE_PX = 40;
+const screenWide = (el) => (typeof window.innerWidth === "number" && window.innerWidth) || (el && el.offsetWidth) || 0;
+const pageStep = (dx) => (dx < 0 ? 1 : -1);
+const pageOpen = (p, step) => !!(p && (step > 0 ? p.next : p.prev));
 // Back where it was, on the settle's own curve; its inline styles go when it is there, so the page's own rules
 // (an entrance, a sheet's frame) own it again.
 const swipeSettle = (g) => {
   const { el, wash } = g;
+  const them = (g.moving || [el]).filter((m) => m && m.style);
   if (g.onGrab) g.onGrab(el, false);
   if (!el.style) return;
   const now = motionReduced();
-  el.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
-  el.style.transform = "translate3d(0, 0, 0)";
+  for (const m of them) {
+    m.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
+    m.style.transform = "translate3d(0, 0, 0)";
+  }
   if (wash && wash.style) {
     wash.style.transition = now ? "none" : `opacity ${SETTLE_MS}ms var(--ease-out)`;
     wash.style.opacity = "";
   }
   setTimeout(() => {
-    el.style.transition = "";
-    el.style.transform = "";
+    for (const m of them) {
+      m.style.transition = "";
+      m.style.transform = "";
+    }
     if (wash && wash.style) wash.style.transition = "";
   }, now ? 0 : SETTLE_MS + 20);
 };
-// Away the way it was pulled, then the close; still on screen after it (the page asked first), it settles back.
+// A page that stays turns in place: in from the side it is going to, on the settle's curve.
+const swipeArrive = (g) => {
+  const { el } = g;
+  const them = (g.moving || [el]).filter((m) => m && m.style);
+  if (g.onGrab) g.onGrab(el, false);
+  const now = motionReduced();
+  for (const m of them) {
+    m.style.transition = "none";
+    m.style.transform = now ? "" : `translate3d(${g.step * ARRIVE_PX}px, 0, 0)`;
+  }
+  if (now) return;
+  void el.offsetWidth;
+  for (const m of them) {
+    m.style.transition = `transform ${SETTLE_MS}ms var(--ease-out)`;
+    m.style.transform = "translate3d(0, 0, 0)";
+  }
+  setTimeout(() => {
+    for (const m of them) {
+      m.style.transition = "";
+      m.style.transform = "";
+    }
+  }, SETTLE_MS + 20);
+};
+// Away the way it was pulled, then the close (a page walked across closes as it starts); still on screen after it, it settles back.
 const swipeLeave = (g, close) => {
   const { el, wash, way } = g;
+  const them = (g.moving || [el]).filter((m) => m && m.style);
+  const early = way === "page" && !(g.pages && g.pages.stays);
+  if (early) close();
   const done = () => {
-    close();
+    if (!early) close();
+    if (way === "page" && g.pages && g.pages.stays) { swipeArrive(g); return; }
+    if (way === "away") {
+      setTimeout(() => {
+        if (g.onGrab) g.onGrab(el, false);
+        if (!el.style) return;
+        el.style.transition = "";
+        el.style.transform = "";
+        if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
+      }, KEPT_AFTER_MS);
+      return;
+    }
     setTimeout(() => {
+      // One still on the page while it plays its leaving (the kit's Sheet: Base UI lets it go after) stays where it went.
+      if (el.dataset && el.dataset.leaving === "true") return;
       const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
       if (shown) { swipeSettle(g); return; }
       if (g.onGrab) g.onGrab(el, false);
       if (!el.style) return;
-      el.style.transition = "";
-      el.style.transform = "";
+      for (const m of them) { m.style.transition = ""; m.style.transform = ""; }
       if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
-    }, KEPT_AFTER_MS);
+    }, way === "page" ? PAGE_KEPT_MS : KEPT_AFTER_MS);
   };
   if (!el.style || motionReduced()) { done(); return; }
-  el.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
-  el.style.transform = way === "down" ? "translate3d(0, 100%, 0)" : "translate3d(100%, 0, 0)";
+  const w = el.offsetWidth || 600;
+  for (const m of them) {
+    m.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
+    m.style.transform =
+      way === "down" ? "translate3d(0, 100%, 0)"
+      : way === "away" ? "translate3d(-100%, 0, 0)"
+      : way === "page" ? `translate3d(${-g.step * w}px, 0, 0)`
+      : "translate3d(100%, 0, 0)";
+  }
   if (wash && wash.style) {
     wash.style.transition = `opacity ${LEAVE_MS}ms var(--ease-in)`;
     wash.style.opacity = "0";
   }
   setTimeout(done, LEAVE_MS);
 };
-const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, min = 80, when = null, onGrab = null }) => ({
+const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, onAway = null, pages = null, min = 80, when = null, onGrab = null }) => ({
   onTouchStart: (e) => {
     const t = e && e.touches && e.touches[0];
     const el = e && e.currentTarget;
@@ -424,7 +421,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       touches.delete(el);
       return;
     }
-    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null });
+    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null, from: e.target, pages: null, moving: null, step: 0 });
   },
   onTouchMove: (e) => {
     const t = e && e.touches && e.touches[0];
@@ -437,10 +434,16 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       if (Math.max(Math.abs(dx), Math.abs(dy)) < GRAB_AT) return;
       const allowed = !when || when();
       if (Math.abs(dy) > Math.abs(dx)) g.way = dy > 0 && g.top && onDown && allowed ? "down" : "none";
-      else g.way = dx > 0 && onBack && allowed && g.x > 24 ? "back" : "none";
+      else if (dx > 0 && onBack && allowed && g.x > EDGE) g.way = "back";
+      else if (dx < 0 && onAway && allowed) g.way = "away";
+      else if (pages && allowed && g.x > EDGE && g.x < screenWide(el) - EDGE) {
+        g.pages = pages(el, g.from);
+        g.way = g.pages && (g.pages.prev || g.pages.next) ? "page" : "none";
+      } else g.way = "none";
       if (g.way === "none") return;
       g.wash = washBehind(el);
-      if (el.style) el.style.transition = "none";
+      g.moving = g.way === "page" && g.pages.moving ? g.pages.moving : null;
+      for (const m of g.moving || [el]) if (m && m.style) m.style.transition = "none";
       if (g.wash && g.wash.style) g.wash.style.transition = "none";
       if (onGrab) onGrab(el, true);
     }
@@ -451,6 +454,16 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       if (g.wash && g.wash.style) g.wash.style.opacity = String(Math.max(0, 1 - d / (el.offsetHeight || 600)));
     } else if (g.way === "back") {
       el.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
+    } else if (g.way === "away") {
+      const d = Math.min(0, dx);
+      el.style.transform = `translate3d(${d}px, 0, 0)`;
+      if (g.wash && g.wash.style) g.wash.style.opacity = String(Math.max(0, 1 + d / (el.offsetWidth || 600)));
+    } else if (g.way === "page") {
+      const step = pageStep(dx);
+      const open = pageOpen(g.pages, step);
+      const d = open ? dx : Math.sign(dx) * Math.min(RESIST_MAX, Math.abs(dx) * RESIST);
+      for (const m of g.moving || [el]) if (m && m.style) m.style.transform = `translate3d(${d}px, 0, 0)`;
+      if (g.pages.follow) g.pages.follow(open ? Math.min(1, Math.abs(dx) / (el.offsetWidth || 600)) : 0, step, "move");
     }
   },
   onTouchEnd: (e) => {
@@ -461,19 +474,42 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     touches.delete(el);
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
-    if (g.way === "down" || g.way === "back") {
-      const d = g.way === "down" ? dy : dx;
+    if (g.way === "down" || g.way === "back" || g.way === "away") {
+      const d = g.way === "down" ? dy : g.way === "away" ? -dx : dx;
       const size = (g.way === "down" ? el.offsetHeight : el.offsetWidth) || 600;
       const flick = d > 24 && d / Math.max(1, Date.now() - g.at) > 0.5;
-      if (d > Math.min(size / 3, 160) || flick) swipeLeave(g, g.way === "down" ? onDown : onBack);
+      if (d > Math.min(size / 3, 160) || flick) swipeLeave(g, g.way === "down" ? onDown : g.way === "away" ? onAway : onBack);
       else swipeSettle(g);
       return;
     }
-    // Nothing followed: read at its ends, along the axis it went further on, `min` of travel.
+    if (g.way === "page") {
+      const step = pageStep(dx);
+      const size = el.offsetWidth || 600;
+      const flick = Math.abs(dx) > 24 && Math.abs(dx) / Math.max(1, Date.now() - g.at) > 0.5;
+      if (pageOpen(g.pages, step) && (Math.abs(dx) > Math.min(size / 3, 160) || flick)) {
+        g.step = step;
+        if (g.pages.follow) g.pages.follow(1, step, "leave");
+        swipeLeave(g, () => g.pages.go(step));
+      } else {
+        if (g.pages.follow) g.pages.follow(0, step, "settle");
+        swipeSettle(g);
+      }
+      return;
+    }
+    // Nothing followed: read at its ends, along the axis it went further on, `min` of travel. A page is walked here too,
+    // for a touch the browser reported only at its ends.
     if (Math.abs(dx) >= Math.abs(dy)) {
       if (Math.abs(dx) < min) return;
-      const back = dx > 0 && onBack && (!when || when()) && g.x > 24;
-      const way = dx < 0 ? onLeft : back ? onBack : onRight;
+      const back = dx > 0 && onBack && (!when || when()) && g.x > EDGE;
+      if (!back && g.way === null && pages && (!when || when()) && g.x > EDGE && g.x < screenWide(el) - EDGE) {
+        const p = pages(el, g.from);
+        if (pageOpen(p, pageStep(dx))) {
+          p.go(pageStep(dx));
+          return;
+        }
+      }
+      const away = dx < 0 && onAway && (!when || when());
+      const way = away ? onAway : dx < 0 ? onLeft : back ? onBack : onRight;
       if (way) way();
       return;
     }
@@ -486,7 +522,8 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     const g = el && touches.get(el);
     if (!g) return;
     touches.delete(el);
-    if (g.way === "down" || g.way === "back") swipeSettle(g);
+    if (g.way === "page" && g.pages.follow) g.pages.follow(0, g.step || 1, "settle");
+    if (g.way === "down" || g.way === "back" || g.way === "away" || g.way === "page") swipeSettle(g);
   },
 });
 
@@ -560,6 +597,92 @@ const leaving = (key) => {
   return ref;
 };
 Object.assign(window, { touchSwipe, leaving, leaveOverlay });
+
+// ---- What the keyboard covers -----------------------------------------------------------------------------------
+// A phone's keyboard is laid over the page, on iOS and on Android alike: the layout keeps its height and only what the
+// browser shows gets shorter. A sheet fixed to the bottom kept its fields and its Save under the keys. The shell calls
+// this once; what the keyboard covers is --kb on the document, which every sheet stands on. It follows what the
+// browser shows, never the focus: a blur that dropped a sheet at once moved Save from under the finger between the
+// press and the click. A pinch zoom shrinks what is shown too, and is no keyboard.
+// iOS also moves what it shows down to keep a focused field in view, and says how far (--vv-top) either before it has
+// moved or long after: a screen that followed its word jumped one way or the other (Ruben's recording, 25 Sep). So the
+// document says a keyboard is EXPECTED (html.kb-expected) the moment a field that types is focused, with the height the
+// last keyboard had (--kb-last, kept on the device), and a screen that makes room for it at once gives the browser
+// nothing to move the view for; the word is kept for the keyboard that never comes (a hardware one: KEYBOARD_DUE_MS),
+// and ends as the keyboard is reported (html.kb-up). Ask's screen stands on all of these (ask.css, the Stage's 5.9).
+const KEYBOARD_MIN = 100;
+const KEYBOARD_DUE_MS = 600;
+const KEYBOARD_KEY = "chanlytics-os-keyboard";
+const typesIn = (el) =>
+  !!el &&
+  (el.tagName === "TEXTAREA" ||
+    el.isContentEditable === true ||
+    (el.tagName === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|color|image|hidden)$/.test(el.type || "")));
+const watchKeyboard = () => {
+  const vv = window.visualViewport;
+  const root = document.documentElement;
+  if (!vv || !vv.addEventListener || !root || !root.style) return () => {};
+  const cls = root.classList || null;
+  let said = null;
+  let up = false;
+  let due = 0;
+  let last = 0;
+  try {
+    last = Number(window.localStorage.getItem(KEYBOARD_KEY)) || 0;
+  } catch {
+    /* a device that keeps nothing: the first keyboard is met the old way */
+  }
+  root.style.setProperty("--kb-last", `${last}px`);
+  const expect = (on) => {
+    clearTimeout(due);
+    if (cls) cls.toggle("kb-expected", on);
+    if (on) due = setTimeout(() => expect(false), KEYBOARD_DUE_MS);
+  };
+  const set = () => {
+    const zoomed = (vv.scale || 1) > 1.01;
+    const keys = zoomed ? 0 : Math.max(0, Math.round(window.innerHeight - vv.height));
+    const top = zoomed ? 0 : Math.max(0, Math.round(vv.offsetTop));
+    const kb = Math.max(0, keys - top);
+    up = keys >= KEYBOARD_MIN;
+    const now = `${kb} ${top} ${up}`;
+    if (now === said) return;
+    said = now;
+    root.style.setProperty("--kb", `${kb}px`);
+    root.style.setProperty("--vv-top", `${top}px`);
+    if (cls) cls.toggle("kb-up", up);
+    if (!up) return;
+    expect(false);
+    if (keys === last) return;
+    last = keys;
+    root.style.setProperty("--kb-last", `${last}px`);
+    try {
+      window.localStorage.setItem(KEYBOARD_KEY, String(last));
+    } catch {
+      /* kept for this page only */
+    }
+  };
+  // Not where the phone app shrinks the page above the keys (contracts APP_KEYS_RESIZE_CLASS): room made would then go.
+  const focusIn = (e) => !up && typesIn(e.target) && !(cls && cls.contains("app-keys-resize")) && expect(true);
+  const focusOut = () => expect(false);
+  set();
+  vv.addEventListener("resize", set);
+  vv.addEventListener("scroll", set);
+  document.addEventListener("focusin", focusIn);
+  document.addEventListener("focusout", focusOut);
+  return () => {
+    vv.removeEventListener("resize", set);
+    vv.removeEventListener("scroll", set);
+    document.removeEventListener("focusin", focusIn);
+    document.removeEventListener("focusout", focusOut);
+    clearTimeout(due);
+    for (const p of ["--kb", "--vv-top", "--kb-last"]) root.style.removeProperty(p);
+    if (cls) {
+      cls.remove("kb-up");
+      cls.remove("kb-expected");
+    }
+  };
+};
+Object.assign(window, { watchKeyboard });
 
 // ---- A switch holds still ---------------------------------------------------------------------------------------
 // A tab, a filter or a fold changes what is drawn beside it, and on a phone the page moved under the thumb that pressed
@@ -640,7 +763,7 @@ const routeDoor = (to, go = null) => {
   const person = RD_PERSON.exec(to);
   const warm = person ? () => { if (window.__warmPerson) window.__warmPerson(person[1]); } : null;
   return {
-    href: `#/${to}`,
+    href: window.CHANLY && window.CHANLY.address ? window.CHANLY.address.href(to) : `#/${to}`,
     onClick: (e) => {
       if (e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
       if (e && e.preventDefault) e.preventDefault();
@@ -663,6 +786,9 @@ Object.assign(window, { holdStill, routeDoor });
 // where the permission's own words would mislead -- snoozing is an `approve` act.
 // Engine fns double-guard with canDo(action) so hotkeys and bulk paths respect roles.
 const canDo = (a) => !window.ST_STORE || window.ST_STORE.can(a);
+// Whether the member, as they are acting (View-as included), stands on this rung or above it: contracts' roleAtLeast,
+// through the role store the bridge completes (legacy-bridge/identity.ts). With nothing to say who is looking: no.
+const mayAtLeast = (rung) => !!(window.ST_STORE && window.ST_STORE.mayAtLeast && window.ST_STORE.mayAtLeast(rung));
 const gateTitle = (a, doing) => {
   const said = window.__roleGate ? window.__roleGate(window.ST_STORE ? window.ST_STORE.myRole() : "viewer", a, doing) : null;
   return said ? said.reason : "Your role can't do this.";
@@ -690,33 +816,9 @@ const gatedProps = (reason) => {
   };
 };
 const gate = (a, doing) => (canDo(a) ? {} : gatedProps(gateTitle(a, doing)));
-Object.assign(window, { canDo, gateTitle, gate, gatedProps });
+Object.assign(window, { canDo, mayAtLeast, gateTitle, gate, gatedProps });
 
-// ---- Attachments in a thread (real sessions) ---------------------------
-// The bytes live in a private bucket; the route answers with a five-minute
-// signed URL by redirect, so an <img>, <audio> or <video> can point straight
-// at it. Without the bridge there is no route, and a seeded thread never
-// carries `media`, so the standalone mockup renders nothing here.
-const TlMedia = ({ media }) => {
-  if (!media || !window.__href) return null;
-  if (!media.available) return <div className="tl-media tl-media-missing">Attachment couldn't be saved.</div>;
-  const src = window.__href("GET messages/[id]/media", { id: media.messageId });
-  if (media.kind === "image") {
-    return (
-      <a className="tl-media" href={src} target="_blank" rel="noopener noreferrer" title="Open the photo">
-        <img src={src} alt={media.caption || "Photo the customer sent"} loading="lazy" />
-      </a>
-    );
-  }
-  if (media.kind === "audio") return <audio className="tl-media tl-media-audio" controls preload="none" src={src} />;
-  if (media.kind === "video") return <video className="tl-media tl-media-video" controls preload="metadata" src={src} />;
-  return (
-    <a className="tl-media tl-media-file" href={src} download>
-      <Icon name="external" size={12} /> {media.filename || "Download attachment"}
-    </a>
-  );
-};
-window.TlMedia = TlMedia;
+// TlMedia is the kit's now (surfaces/kit/media), which seed-globals publishes under this name.
 
 // ---- Presence (Take transfers) — phone agents check this before warm-transferring ----
 window.PR_STORE = window.PR_STORE || {
@@ -762,203 +864,9 @@ window.POLICY = window.POLICY || {
   set(id, m) { const r = this.row(id); if (!r || r.locked) return; window.ST_STORE.set("policy." + id, m); window.dispatchEvent(new CustomEvent("policy:changed", { detail: { id, mode: m } })); },
 };
 
-// ---- PolicyChip — the ONE policy-class chip. Self-subscribes to policy:changed. ----
-const PolicyChip = ({ cls, className = "" }) => {
-  const [, pcTick] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    window.addEventListener("policy:changed", pcTick);
-    return () => window.removeEventListener("policy:changed", pcTick);
-  }, []);
-  const r = cls && window.POLICY.row(cls);
-  if (!r) return null;
-  // What the mode DOES, not how it is filed: "Replies · holds it", never
-  // "Replies · Veto". One word map, the matrix's (window.POLICY.WORDS).
-  const polWords = (m) => ((window.POLICY.WORDS || {})[m] || {}).chip || m;
-  // TRUST is the mockup's seeded table ("128 auto-sent · 9% edited"). A real
-  // workspace has its policies loaded (__POLICIES is set, or null when the read
-  // failed) and no such figures, so its chip names the policy instead.
-  return (
-    <button className={`chip pol-chip ${className}`} data-tip={(() => { const t = window.__POLICIES === undefined && window.TRUST && window.TRUST.cls(r.id); return t ? `${r.chip} · ${polWords(window.POLICY.modeOf(r.id))} — ${t.sent.toLocaleString()} auto-sent · ${window.TRUST.rate(t)}% edited (30d)` : "Workspace policy — Settings · Autonomy"; })()} onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(window.CHANLY.R.admin("autonomy")); }}>
-      {r.locked ? <>Owner-only · {r.chip}</> : <>{r.chip} · {polWords(window.POLICY.modeOf(r.id))}</>}
-    </button>
-  );
-};
-// ---- StatePill — the one pill for a state ---------------------------------
-// The tone comes from contracts (tone.ts, through the chrome bridge), the
-// words from the label maps contracts keeps unless the page has better ones,
-// and a live dot rides the accent, which means "right now" and nothing else.
-// Ten components drew this before, each with its own colours: "Needs you" was
-// the accent in the Inbox, amber in Conversations and the accent on a
-// playbook. Without the bridge (the standalone mockup) it is a plain pill.
-// Usage: <StatePill kind="thread" value={t.state} /> · label= overrides the words.
-const StatePill = ({ kind, value, label = null, className = "", title = null, tip = null, testid = null }) => {
-  const said = window.__chrome && window.__chrome.state ? window.__chrome.state(kind, value) : { tone: "plain", label: String(value ?? "") };
-  const tone = said.tone;
-  return (
-    <span
-      className={`pill${tone === "plain" ? "" : ` pill-${tone}`}${className ? ` ${className}` : ""}`}
-      data-state={value}
-      data-tone={tone}
-      title={title || undefined}
-      data-tip={tip || undefined}
-      data-testid={testid || undefined}
-    >
-      {tone === "accent" && <span className="live-dot" style={{ width: 5, height: 5 }} />}
-      {label ?? said.label}
-    </span>
-  );
-};
-// ---- Confirm — the one way an act is confirmed -----------------------------
-// Armed inline, where the control that armed it was: the question names the
-// thing, the detail says what happens, the Yes names the verb and is a real
-// button (red when the act destroys or cannot be undone), the No is quiet.
-// Five idioms did this before -- a hand-rolled Yes/No sentence in four
-// wordings, a button that changed its own label on the first click, a typed
-// name, commit-then-Undo, and nothing at all on the most destructive act on
-// Settings (the audit's D13). One shape now; pure, so any harness can draw it.
-//
-//   <Confirm question="Disconnect Google?" detail="The public listing stays; replies and the history do not."
-//            yes="Yes, disconnect" danger busy={busy} onYes={...} onNo={...} testid="google-disconnect" />
-//
-// `typed` with `value`/`onType` gates the Yes on a typed match -- for erasure
-// only; `ready` overrides the match when the page knows better (a phone
-// number for a name). `block` draws a panel under the row instead of a line
-// beside it. The Yes takes focus as the question appears; Escape is No.
-// Testids from `testid`: `${testid}-confirm` on the group, -yes, -no, -typed.
-const Confirm = ({ question, detail = null, yes = "Yes", no = "No", onYes, onNo, busy = false, busyLabel = "Working…", danger = false, typed = null, value = "", onType = null, ready = null, error = null, block = false, className = "", testid = null }) => {
-  const ok = ready != null ? !!ready : typed == null || String(value).trim() === String(typed);
-  const id = (part) => (testid ? `${testid}-${part}` : undefined);
-  const onKey = (e) => { if (e.key === "Escape" && !busy && onNo) { e.stopPropagation(); onNo(); } };
-  return (
-    <span
-      className={`confirm${block ? " confirm-block" : ""}${danger ? " confirm-danger" : ""}${className ? ` ${className}` : ""}`}
-      role="group"
-      aria-label={typeof question === "string" ? question : undefined}
-      data-testid={id("confirm")}
-      onKeyDown={onKey}
-    >
-      <span className="confirm-words">
-        <span className="confirm-q">{question}</span>
-        {detail && <span className="confirm-detail">{detail}</span>}
-      </span>
-      {typed != null && (
-        <input
-          className="confirm-typed"
-          value={value}
-          onChange={(e) => onType && onType(e.target.value)}
-          placeholder={String(typed)}
-          aria-label={`Type ${typed} to confirm`}
-          autoFocus
-          disabled={busy}
-          data-testid={id("typed")}
-        />
-      )}
-      {error && <span className="confirm-error" role="alert">{error}</span>}
-      <span className="confirm-acts">
-        <button type="button" className={`btn btn-sm${danger ? " btn-danger" : ""}`} disabled={busy || !ok} onClick={onYes} autoFocus={typed == null} data-testid={id("yes")}>
-          {busy ? busyLabel : yes}
-        </button>
-        <button type="button" className="cl-bucket-link" disabled={busy} onClick={onNo} data-testid={id("no")}>{no}</button>
-      </span>
-    </span>
-  );
-};
-// ---- EmptyState — the one way "nothing here" is said ------------------------
-// Thirteen classes said it before, each with its own glyph, size and colour,
-// and one of them offered a next step. One shape: a glyph, a title, a line
-// of body, and the next thing to do -- given whenever the reader can do
-// something about it. `kind`: "page" centres it in a whole pane, "card" sits
-// in a card or a rail, "line" is one sentence in a table or a list (with
-// className="empty-center" to centre it in a table cell).
-//   <EmptyState kind="page" glyph="inbox" title="Inbox zero" body="…"
-//               action={{ label: "See what it handled", to: "conversations" }} />
-// `action.to` navigates (window.CHANLY.nav), `action.onClick` runs, and
-// `action.gate` carries the honesty gate's props; `also` is a quieter second;
-// `tone="ok"` is the green check of a day with nothing left to do.
-const EmptyState = ({ kind = "card", glyph = null, title = null, body = null, action = null, also = null, tone = null, className = "", testid = null, children = null }) => {
-  const go = (a) => () => { if (a.onClick) a.onClick(); else if (a.to && window.CHANLY) window.CHANLY.nav(a.to); };
-  const size = kind === "page" ? 24 : kind === "card" ? 16 : 13;
-  const act = (a, primary) => (
-    <button
-      type="button"
-      className={kind === "line" ? "cl-bucket-link" : primary ? (kind === "page" ? "btn btn-primary btn-sm" : "btn btn-sm") : "btn btn-ghost btn-sm"}
-      onClick={go(a)}
-      data-testid={a.testid || undefined}
-      // An act that opens a record fold carries the fold's id, where the fold gives focus back as it closes
-      // (record-fold.jsx data-rec-act): the Business tab's "Set up the receptionist".
-      data-rec-act={a.recAct || undefined}
-      {...(a.gate || {})}
-    >
-      {a.label}{kind === "line" && <Icon name="arrow-right" size={10} />}
-    </button>
-  );
-  return (
-    <div className={`empty empty-${kind}${tone ? ` empty-${tone}` : ""}${className ? ` ${className}` : ""}`} data-testid={testid || undefined}>
-      {glyph && <div className="empty-glyph"><Icon name={glyph} size={size} /></div>}
-      <div className="empty-words">
-        {title && <div className="empty-title">{title}</div>}
-        {body && <div className="empty-body">{body}</div>}
-        {children}
-      </div>
-      {(action || also) && (
-        <div className="empty-acts">
-          {action && act(action, true)}
-          {also && act(also, false)}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---- FailedRead — the one way "couldn't read" is said ------------------------
-// Never as "nothing there". A read that failed is its own state -- the
-// audit's D9: Reports went blank when one of its two reads failed; Today,
-// Conversations, Broadcasts and Playbooks kept silent; Team reloaded the
-// whole page. The same three kinds as EmptyState, the alert glyph, a Retry
-// that re-reads the surface, and the sentence that the rest is current.
-//   <FailedRead kind="card" what="your team" surface="settings" />
-//   <FailedRead kind="line" what="the calls" onRetry={fn} busy={busy} />
-// `surface` retries through window.__refreshSurface(key); `onRetry` runs
-// instead; neither, and there is nothing to press (a state support repairs).
-const FailedRead = ({ kind = "card", what = "this", why = null, title = null, body = null, surface = null, onRetry = null, busy = false, also = null, className = "", testid = null, retryTestid = null, children = null }) => {
-  const retry = onRetry || (surface && window.__refreshSurface ? () => window.__refreshSurface(surface) : null);
-  const reason = why ? `${String(why).replace(/\.?\s*$/, "")}. ` : "";
-  return (
-    <div className={`empty empty-${kind} empty-failed${className ? ` ${className}` : ""}`} role="status" data-testid={testid || undefined}>
-      <div className="empty-glyph"><Icon name="alert" size={kind === "page" ? 24 : kind === "card" ? 16 : 13} /></div>
-      <div className="empty-words">
-        <div className="empty-title">{title || `Couldn't read ${what}`}</div>
-        <div className="empty-body">{body ? <>{reason}{body}</> : <>{reason}Everything else here is current, and the receptionist keeps working.</>}</div>
-        {children}
-      </div>
-      {(retry || also) && (
-        <div className="empty-acts">
-          {retry && (
-            <button type="button" className={kind === "line" ? "cl-bucket-link" : kind === "page" ? "btn btn-primary btn-sm" : "btn btn-sm"} disabled={busy} onClick={retry} data-testid={retryTestid || (testid ? `${testid}-retry` : undefined)}>
-              <Icon name="refresh" size={11} /> {busy ? "Retrying…" : "Retry"}
-            </button>
-          )}
-          {also && <button type="button" className={kind === "line" ? "cl-bucket-link" : "btn btn-ghost btn-sm"} onClick={also.onClick} data-testid={also.testid || undefined}>{also.label}</button>}
-        </div>
-      )}
-    </div>
-  );
-};
-// ---- FieldError — the one way a field says what is wrong with it -------------
-// Six forms coloured their own hint red inline, one had a class of its own, and
-// none was announced. One sentence under the box it belongs to, read out as it
-// appears, with the id the box names:
-//   <input aria-invalid={error ? true : undefined} aria-describedby={error ? "list-name-error" : undefined} />
-//   <FieldError id="list-name-error" message={error} />
-const FieldError = ({ id = null, message = null, testid = null }) => {
-  if (!message) return null;
-  return (
-    <span className="field-error" id={id || undefined} role="alert" data-testid={testid || undefined}>
-      <Icon name="alert" size={11} />
-      <span className="field-error-words">{message}</span>
-    </span>
-  );
-};
+// PolicyChip, StatePill, MoreMenu and Confirm are the kit's now (surfaces/kit/policy-chip, pill, more-menu and confirm), and FieldError too
+// (surfaces/kit/field-error): seed-globals publishes them under these names.
+// EmptyState and FailedRead are the kit's now (surfaces/kit/empty), which seed-globals publishes under these names.
 
 // ---- refusalToast — a refusal, as a toast ------------------------------------
 // The client names every refusal (contracts refusalOf): a title for the kind of
@@ -971,7 +879,7 @@ const refusalToast = (r, what = null) => {
   const why = (r && r.message) || "That didn't go through.";
   return { tone: "danger", msg: lead ? <><b>{lead}</b> — {why}</> : <>{why}</> };
 };
-Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead, FieldError, refusalToast });
+Object.assign(window, { refusalToast, trapFocus, dialogRef, keyPress });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {
