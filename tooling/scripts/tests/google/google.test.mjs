@@ -901,11 +901,15 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   assert.ok(link.includes('op: "link", tenant_id: member.tenantId, user_id: ctx.userId, place_id: placeId'));
   const refresh = readCode("apps/dashboard/app/api/v1/google/refresh/route.ts");
   assert.ok(refresh.includes('role: "operator",') && refresh.includes('rate: "google_refresh",'));
+  // The route answers the one Google DTO, googleDtoFor, which the Reviews report's reader holds too; google-routes.test.mjs
+  // runs GET google over a database in memory.
   const get = readCode(
     "apps/dashboard/app/api/v1/google/route.ts",
     "apps/dashboard/src/server/connections/google-actions.ts",
+    "apps/dashboard/src/server/connections/google.ts",
   );
-  assert.ok(/googleFor\(ctx\.supabase, member\.tenantId\),\s*googleReadiness\(\)/.test(get));
+  assert.ok(get.includes("googleDtoFor(ctx.supabase, member.tenantId)"));
+  assert.ok(/googleFor\(db, tenantId\),\s*googleReadiness\(\),\s*listPolicies\(db, tenantId\)/.test(get));
   const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(
     server.includes('callEdge("/api/admin/google"') && server.includes("now - googleReadyCache.at < READY_TTL_MS"),

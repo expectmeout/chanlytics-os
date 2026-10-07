@@ -30,6 +30,7 @@ const refresh = await import(at("apps/dashboard/app/api/v1/google/refresh/route.
 const draft = await import(at("apps/dashboard/app/api/v1/google/reviews/[id]/draft/route.ts"));
 const reply = await import(at("apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts"));
 const search = await import(at("apps/dashboard/app/api/v1/google/search/route.ts"));
+const read = await import(at("apps/dashboard/app/api/v1/google/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -286,5 +287,101 @@ test("a search is the owner's: with no words of its own it uses the facts on rec
     "internal",
     502,
     "Google could not be searched just now",
+  );
+});
+
+test("GET google answers the Google DTO whole, from one read of each: what the deployment can do (nothing here: no edge), the listing, the account, the newest reviews, the days and the Autonomy row for reviews -- and with no listing the account and nothing else", async () => {
+  const listing = {
+    place_id: "place-1",
+    name: "Harbor Studio",
+    address: "1 Dock Street",
+    maps_uri: "https://maps.example.com/harbor",
+    business_status: "OPERATIONAL",
+    rating: 4.8,
+    review_count: 213,
+    linked_at: "2026-08-01T12:00:00Z",
+    checked_at: "2026-10-06T12:00:00Z",
+    check_error: null,
+  };
+  const account = {
+    google_email: "owner@example.com",
+    account_title: "Harbor Studio",
+    location_name: "locations/1",
+    location_title: "Harbor Studio",
+    connected_at: "2026-08-01T12:00:00Z",
+    last_synced_at: "2026-10-06T12:00:00Z",
+    sync_error: null,
+  };
+  const review = (id, published, over = {}) => ({
+    id,
+    review_id: `g-${id}`,
+    origin: "profile",
+    rating: 5,
+    author: "Ana P.",
+    author_uri: null,
+    author_photo_uri: null,
+    body: "Fast, careful, and on time.",
+    language_code: null,
+    published_at: published,
+    reply_text: null,
+    replied_at: null,
+    maps_uri: null,
+    first_seen_at: published,
+    ...over,
+  });
+  const day = (ago) => new Date(Date.now() - ago * 86_400_000).toISOString().slice(0, 10);
+  const reviews = [review("r2", "2026-10-05T09:00:00Z", { rating: 2 }), review("r1", "2026-10-03T14:00:00Z")];
+  const days = [
+    { day: day(2), rating: 4.7, review_count: 212 },
+    { day: day(1), rating: 4.8, review_count: 213 },
+  ];
+  const policy = (mode) => ({
+    id: "p1",
+    tenant_id: A,
+    class: "reviews",
+    mode,
+    subject_type: null,
+    subject_id: null,
+    limits: {},
+    updated_at: "2026-10-01T00:00:00Z",
+  });
+  const world = (mode) => ({
+    memberships: both("viewer", "viewer"),
+    policies: [policy(mode)],
+    google_listings: [{ tenant_id: A, ...listing }],
+    google_connections: [{ tenant_id: A, ...account }],
+    // Another workspace's review, the newest of all: never in Harbor's read.
+    google_reviews: [
+      ...reviews.map((r) => ({ tenant_id: A, ...r })),
+      { tenant_id: B, ...review("r3", "2026-10-06T09:00:00Z") },
+    ],
+    google_listing_days: days.map((d) => ({ tenant_id: A, ...d })),
+  });
+  const out = await read.GET.run(get(inA), ctxFor(world("auto")));
+  assert.deepEqual(Object.keys(out), ["google"]);
+  assert.deepEqual(Object.keys(out.google), ["ready", "listing", "connection", "reviews", "days", "reply_mode"]);
+  assert.deepEqual(out.google, {
+    ready: { places: false, profile: false, audience: null },
+    listing,
+    connection: account,
+    reviews,
+    days,
+    reply_mode: "auto",
+  });
+  assert.equal((await read.GET.run(get(inA), ctxFor(world("never")))).google.reply_mode, "never");
+  assert.equal((await read.GET.run(get(inA), ctxFor({ ...world("auto"), policies: [] }))).google.reply_mode, "ask");
+  // No listing: the account if there is one, and no review or day is read.
+  const bare = ctxFor({ ...world("ask"), google_listings: [] });
+  assert.deepEqual((await read.GET.run(get(inA), bare)).google, {
+    ready: { places: false, profile: false, audience: null },
+    listing: null,
+    connection: account,
+    reviews: [],
+    days: [],
+    reply_mode: "ask",
+  });
+  assert.deepEqual(
+    bare.supabase.seen.map((q) => q.table).filter((t) => t === "google_reviews" || t === "google_listing_days"),
+    [],
   );
 });

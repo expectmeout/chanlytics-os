@@ -1,5 +1,5 @@
 /**
- * The one query the three report routes take (readers/report.ts): `period` names the window, `days` is read until
+ * The one query the four report routes take (readers/report.ts): `period` names the window, `days` is read until
  * its day (report-periods.test.mjs holds it), and Month is the days since the 1st in the workspace's own zone, read from the
  * membership's facts and only when Month is asked.
  */
@@ -14,7 +14,7 @@ const { readerContext } = await importSrc("apps/dashboard/src/server/readers/ind
 const { reportDaysFor } = await importSrc("apps/dashboard/src/server/readers/report.ts");
 const { fakeDb } = await import("../../_fake-db.mjs");
 const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/rate-limit.ts");
-const { REPORT_RANGES, REPORT_PERIOD_IDS } = await import("@chanlytics/contracts");
+const { REPORT_RANGES, REPORT_PERIOD_IDS, reviewsReadSince } = await import("@chanlytics/contracts");
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 /** A reader context for a workspace in `timezone` at `iso`; its supabase is never touched (the facts are seeded). */
@@ -76,6 +76,55 @@ test("a route sent period=month answers the days since the 1st in the workspace'
   for (const bad of ["14d", "7", "MONTH"])
     await assert.rejects(
       route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=${bad}&workspace=${W}`), ctx()),
+      (e) => e.status === 400,
+      `period=${bad} is no id of the table`,
+    );
+});
+
+test("the reviews' route takes the same query: Month is the days since the 1st in the workspace's zone, the one ledger read starts from the day that zone and those days say, and any other period is refused at the door", async () => {
+  setRateStore(memoryStore());
+  const route = await importSrc("apps/dashboard/app/api/v1/reports/reviews/route.ts");
+  const ctx = () => ({
+    supabase: fakeDb({
+      memberships: [
+        {
+          user_id: "u1",
+          tenant_id: W,
+          role: "viewer",
+          tenants: { slug: "harbor", name: "Harbor Studio", timezone: "America/New_York" },
+          created_at: "2026-01-01",
+        },
+      ],
+      policies: [],
+      google_listings: [{ tenant_id: W, place_id: "place-1", name: "Harbor Studio", rating: 4.8, review_count: 213 }],
+      google_connections: [],
+      google_reviews: [],
+      google_listing_days: [],
+      events: [],
+    }),
+    userId: "u1",
+    email: "ada@example.com",
+    params: {},
+  });
+  const c = ctx();
+  const out = await route.GET.run(
+    new Request(`http://localhost/api/v1/reports/reviews?period=month&workspace=${W}`),
+    c,
+  );
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  assert.deepEqual([out.timezone, out.today, out.days], ["America/New_York", today, Number(today.slice(8, 10))]);
+  assert.notEqual(out.ledger, null, "a listing is linked: the ledger is read");
+  assert.deepEqual(
+    c.supabase.seen
+      .filter((q) => q.table === "google_reviews" && q.op === "select")
+      .flatMap((q) => q.filters)
+      .filter(([op, col]) => op === "gte" && col === "published_at"),
+    [["gte", "published_at", reviewsReadSince(out.today, out.days)]],
+    "from the day before the period before the month begins",
+  );
+  for (const bad of ["14d", "7", "MONTH"])
+    await assert.rejects(
+      route.GET.run(new Request(`http://localhost/api/v1/reports/reviews?period=${bad}&workspace=${W}`), ctx()),
       (e) => e.status === 400,
       `period=${bad} is no id of the table`,
     );

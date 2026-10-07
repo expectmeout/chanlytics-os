@@ -30692,6 +30692,7 @@ var ROUTE_KEYS = [
   "GET reports/campaigns",
   "GET reports/headline",
   "GET reports/reach-outs",
+  "GET reports/reviews",
   "GET segments",
   "GET settings",
   "GET setup",

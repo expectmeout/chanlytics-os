@@ -17,10 +17,12 @@ import {
   newReceptionistDefaults,
   personName,
   reportFacts,
+  reviewsReadSince,
   toCallVM,
   toPersonVM,
   toReportVM,
 } from "@chanlytics/contracts";
+import { reviewsLedger } from "@chanlytics/db";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
@@ -51,12 +53,14 @@ const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/cal
 const { person: onePerson } = await import(at("apps/dashboard/src/server/readers/person.ts"));
 const threadRoute = await import(at("apps/dashboard/app/api/v1/conversations/[id]/route.ts"));
 const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
-const { report: reportReader } = await import(at("apps/dashboard/src/server/readers/report.ts"));
+const { report: reportReader, reviewsReport } = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 const { campaignReport } = await import(at("apps/dashboard/src/server/readers/campaign-report.ts"));
 const reportsRoute = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaignsRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
+const reviewsRoute = await import(at("apps/dashboard/app/api/v1/reports/reviews/route.ts"));
+const googleRoute = await import(at("apps/dashboard/app/api/v1/google/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/calendar-week.ts"));
 const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
@@ -1849,6 +1853,201 @@ test("the campaigns' report, for Ask and for the page: GET reports/campaigns ans
   }
   await assert.rejects(kernel.load(turnIn(worldCtx(w), B), campaignReport, { days: 30 }), noReport);
   await assert.rejects(campaignsRoute.GET.run(req(`?workspace=${B}`), worldCtx(w)), noReport);
+});
+
+/**
+ * The reviews' report's world: Harbor Studio on Google, in Auckland (thirteen hours ahead of UTC in October, so its day
+ * and UTC's can differ), its Business Profile synced. `a` is a profile review with a reply the receptionist wrote, `b` one
+ * that waits, `c` one of the five the public listing shows.
+ */
+const REVIEW_A = "ffffffff-ffff-4fff-8fff-ffffffffff01";
+const REVIEW_B = "ffffffff-ffff-4fff-8fff-ffffffffff02";
+const REVIEW_C = "ffffffff-ffff-4fff-8fff-ffffffffff03";
+const googleRow = (id, published, over = {}) => ({
+  id,
+  tenant_id: A,
+  review_id: `g-${id.slice(-2)}`,
+  origin: "profile",
+  rating: 5,
+  author: "Ana P.",
+  author_uri: null,
+  author_photo_uri: null,
+  body: "Fast, careful, and on time.",
+  language_code: null,
+  published_at: published,
+  reply_text: null,
+  replied_at: null,
+  maps_uri: null,
+  first_seen_at: published,
+  last_seen_at: published,
+  ...over,
+});
+const reviewsWorld = ({ listing = true } = {}) => ({
+  tables: {
+    memberships: reportMembers(),
+    tenants: [{ id: A, slug: "harbor", name: "Harbor Studio", timezone: "Pacific/Auckland" }],
+    tenant_config: [],
+    policies: [
+      {
+        id: "p-reviews",
+        tenant_id: A,
+        class: "reviews",
+        mode: "auto",
+        subject_type: null,
+        subject_id: null,
+        limits: {},
+        updated_at: "2026-10-01T00:00:00Z",
+      },
+    ],
+    google_listings: listing
+      ? [
+          {
+            tenant_id: A,
+            place_id: "place-1",
+            name: "Harbor Studio",
+            address: "1 Dock Street",
+            maps_uri: "https://maps.example.com/harbor",
+            business_status: "OPERATIONAL",
+            rating: 4.8,
+            review_count: 213,
+            linked_at: "2026-08-01T12:00:00Z",
+            checked_at: "2026-10-06T12:00:00Z",
+            check_error: null,
+          },
+        ]
+      : [],
+    google_connections: listing
+      ? [
+          {
+            tenant_id: A,
+            google_email: "owner@example.com",
+            account_title: "Harbor Studio",
+            location_name: "locations/1",
+            location_title: "Harbor Studio",
+            connected_at: "2026-08-01T12:00:00Z",
+            last_synced_at: "2026-10-06T12:00:00Z",
+            sync_error: null,
+          },
+        ]
+      : [],
+    google_reviews: [
+      googleRow(REVIEW_A, "2026-10-03T14:00:00Z", {
+        reply_text: "Thank you, Ana!",
+        replied_at: "2026-10-03T20:00:00Z",
+      }),
+      googleRow(REVIEW_B, "2026-10-05T09:00:00Z", { rating: 2 }),
+      googleRow(REVIEW_C, "2026-10-04T09:00:00Z", { origin: "places" }),
+    ],
+    // The day before the machine's own, so the 92 days the Google read keeps always hold it.
+    google_listing_days: [
+      {
+        tenant_id: A,
+        day: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
+        rating: 4.8,
+        review_count: 213,
+      },
+    ],
+    events: [
+      {
+        id: "e-reply-a",
+        tenant_id: A,
+        kind: "google.replied",
+        category: "google",
+        subject_type: "review",
+        subject_id: REVIEW_A,
+        data: { review_id: "g-01", by: "receptionist" },
+        created_at: "2026-10-03T20:00:00Z",
+      },
+    ],
+  },
+  rpcs: {},
+});
+
+test("the reviews' report, for Ask and for the page: GET reports/reviews answers its reader's payload, key for key and byte for byte, for each preset -- Google as GET google answers it and the ledger beside it, the Reviews address of the Reports page the row a citation names", async () => {
+  const w = reviewsWorld();
+  const google = (await googleRoute.GET.run(req(`?workspace=${A}`), worldCtx(w))).google;
+  for (const [period, days] of [
+    ["7d", 7],
+    ["30d", 30],
+    ["90d", 90],
+  ]) {
+    const page = await reviewsRoute.GET.run(req(`?period=${period}&workspace=${A}`), worldCtx(w));
+    const r = await kernel.load(turnIn(worldCtx(w)), reviewsReport, { days });
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "the route's payload, byte for byte");
+    assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "google", "ledger"]);
+    assert.deepEqual([page.timezone, page.days], ["Pacific/Auckland", days]);
+    assert.equal(JSON.stringify(page.google), JSON.stringify(google), "the one Google DTO: GET google's bytes");
+    assert.deepEqual(r.rows, [
+      { kind: "page", id: "reports", route: "reports/reviews", label: `Reviews, ${days} days` },
+    ]);
+  }
+  const month = await reviewsRoute.GET.run(req(`?period=month&workspace=${A}`), worldCtx(w));
+  assert.ok(month.days >= 1 && month.days <= 31, "Month is the days since the 1st in the workspace's own zone");
+  await assert.rejects(
+    reviewsRoute.GET.run(req(`?period=14d&workspace=${A}`), worldCtx(w)),
+    (e) => e.status === 400,
+    "a period that is none of the four is refused at the door",
+  );
+});
+
+test("the reviews' ledger is read once, as the workspace's day in its zone says: the turn's clock, never the machine's, names the day the read starts from, and only the profile's reviews, the replies and what waits are read", async () => {
+  const w = reviewsWorld();
+  const ctx = worldCtx(w);
+  // 14:00 UTC on 6 October is 03:00 on the 7th in Auckland.
+  const clock = new Date("2026-10-06T14:00:00Z");
+  const r = await kernel.load(kernel.readerContext(ctx, { tenantId: A, role: "viewer" }, clock), reviewsReport, {
+    days: 30,
+  });
+  assert.deepEqual([r.data.timezone, r.data.today, r.data.days], ["Pacific/Auckland", "2026-10-07", 30]);
+  const since = reviewsReadSince("2026-10-07", 30);
+  assert.deepEqual(
+    selects(ctx, "google_reviews")
+      .flatMap((q) => q.filters)
+      .filter(([op, col]) => op === "gte" && col === "published_at"),
+    [["gte", "published_at", since]],
+    "one read of the period's reviews, from the day before the period before begins",
+  );
+  assert.deepEqual(r.data.ledger, await reviewsLedger(fakeDb(w.tables), A, since), "reviewsLedger's own answer");
+  assert.deepEqual(
+    r.data.ledger.written.map((x) => x.id),
+    [REVIEW_A, REVIEW_B],
+    "the profile's, not the public five",
+  );
+  assert.deepEqual(
+    r.data.ledger.waiting.map((x) => x.id),
+    [REVIEW_B],
+  );
+  assert.deepEqual(r.data.ledger.replies, [{ review_id: REVIEW_A, by: "receptionist", at: "2026-10-03T20:00:00Z" }]);
+  assert.deepEqual(r.data.ledger.on_record, { profile: 2, places: 1, oldest_at: "2026-10-03T14:00:00Z" });
+  assert.deepEqual(
+    [r.data.google.listing.name, r.data.google.reply_mode, r.data.google.reviews.length],
+    ["Harbor Studio", "auto", 3],
+    "Google as GET google reads it: the Autonomy row for reviews rides along",
+  );
+  assert.deepEqual(
+    asked(ctx).filter((q) => q === "tenants.select"),
+    ["tenants.select"],
+    "the zone is read once, with Google beside it",
+  );
+});
+
+test("the reviews' report of a workspace with no listing answers `ledger: null` and reads no review; a ledger that cannot be read is the route's failure, never a null -- no listing and could not read are not one answer", async () => {
+  const none = reviewsWorld({ listing: false });
+  const ctx = worldCtx(none);
+  const r = await kernel.load(turnIn(ctx), reviewsReport, { days: 30 });
+  assert.equal(r.data.ledger, null);
+  assert.deepEqual([r.data.google.listing, r.data.google.reviews, r.data.google.days], [null, [], []]);
+  assert.deepEqual(
+    asked(ctx).filter((q) => q.startsWith("google_reviews") || q.startsWith("events")),
+    [],
+    "no listing, no review and no event read",
+  );
+  assert.deepEqual(await reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(none)), r.data);
+
+  const down = { "events.select": { message: "connection refused" } };
+  const failed = /reviewsLedger replies: connection refused/;
+  await assert.rejects(kernel.load(turnIn(worldCtx(reviewsWorld(), down)), reviewsReport, { days: 30 }), failed);
+  await assert.rejects(reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(reviewsWorld(), down)), failed);
 });
 
 /* ----------------------------------------------------------------------- the calendar (PR 1.5) */

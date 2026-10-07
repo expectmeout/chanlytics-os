@@ -6,11 +6,13 @@ import {
   fixedDaysOf,
   headlineOf,
   isReportDto,
+  lensRoute,
   monthDaysAt,
   parseTenantConfigResult,
   plural,
   REPORT_PERIOD_IDS,
   reportPeriodOf,
+  reviewsReadSince,
   zoneDayKey,
   type BookingReportDto,
   type DealReportDto,
@@ -19,8 +21,10 @@ import {
   type ReportHeadlineDto,
   type ReportPeriodId,
   type ReportProfile,
+  type ReviewsReportDto,
 } from "@chanlytics/contracts";
-import { reportSeries } from "@chanlytics/db";
+import { reportSeries, reviewsLedger } from "@chanlytics/db";
+import { googleDtoFor } from "../connections/google";
 import { everyone } from "../people/people";
 import { bookingReport } from "../calendar/people-visits";
 import { dealReport } from "../people/deals";
@@ -133,8 +137,8 @@ export const reportHeadline: Reader<{ period: ReportPeriodId }, { headline: Repo
 };
 
 /**
- * The one query the three report routes take (GET reports, reports/campaigns and reports/reach-outs): the window they
- * read, said once, so the three never disagree about it.
+ * The one query the four report routes take (GET reports, reports/campaigns, reports/reach-outs and reports/reviews): the
+ * window they read, said once, so the four never disagree about it.
  */
 export const ReportQuery = z.object({
   /** `7d`, `30d`, `90d` or `month`; thirty days when none is named. */
@@ -162,3 +166,28 @@ export async function reportDaysFor(rc: ReaderContext, input: z.infer<typeof Rep
   const zone = (await load(rc, facts.facts, undefined)).data.timezone;
   return monthDaysAt(zoneDayKey(rc.now.getTime(), zone));
 }
+
+/**
+ * GET reports/reviews, as the route answers it: what customers say in public over `days`, drawn from what is stored.
+ * Google as `GET google` answers it (googleDtoFor: the listing, the newest reviews, the daily readings), and beside it,
+ * only where a listing is linked, the ledger of the reviews on record (reviewsLedger: one bounded read from the day before
+ * the period before begins, contracts reviewsReadSince, said in the workspace's zone and the turn's day), which the report's
+ * fold counts. The zone and Google are independent, so they are read together. Null is a workspace with no listing; a ledger
+ * that cannot be read is the route's failure, never null, so "no listing" and "could not read" are not the same answer. The
+ * Reports page, at its Reviews address, is the row a citation names.
+ */
+export const reviewsReport: Reader<{ days: number }, ReviewsReportDto> = {
+  name: "reviewsReport",
+  async read(rc, { days }) {
+    const db = rc.ctx.supabase;
+    const [zone, google] = await Promise.all([load(rc, facts.facts, undefined), googleDtoFor(db, rc.tenantId)]);
+    const timezone = zone.data.timezone;
+    const today = zoneDayKey(rc.now.getTime(), timezone);
+    const ledger = google.listing ? await reviewsLedger(db, rc.tenantId, reviewsReadSince(today, days)) : null;
+    return {
+      data: { timezone, today, days, google, ledger },
+      rows: [{ kind: "page", id: "reports", route: lensRoute("reviews"), label: `Reviews, ${plural(days, "day")}` }],
+      stamp: stamp(),
+    };
+  },
+};

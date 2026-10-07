@@ -7,12 +7,14 @@
  * Google is its own: the key that signs the OAuth state.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import { listPolicies, type Database } from "@chanlytics/db";
 import {
   listingFactsOf,
+  reviewReplyModeOf,
   type GoogleAudience,
   type GoogleConnectionDto,
   type GoogleDayDto,
+  type GoogleDto,
   type GoogleListingDto,
   type GoogleListingFacts,
   type GoogleReviewDto,
@@ -76,7 +78,7 @@ export async function connectionFor(
   return data;
 }
 
-export async function googleFor(
+async function googleFor(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<{
@@ -172,6 +174,25 @@ export async function googleReadiness(now = Date.now()): Promise<GoogleReadiness
       : NOT_READY;
   googleReadyCache = { at: now, value };
   return value;
+}
+
+/**
+ * Google as the dashboard holds it, whole: the listing, the connection, the newest reviews and the daily readings
+ * (googleFor), what this deployment can do with Google (googleReadiness) and what the receptionist does under a new
+ * review (the Autonomy row), read together. `GET google` answers it, and so does the Reviews report beside its ledger,
+ * so the rating and the reviews the page draws are one read's.
+ */
+export async function googleDtoFor(db: SupabaseClient<Database>, tenantId: string): Promise<GoogleDto> {
+  const [data, ready, policies] = await Promise.all([
+    googleFor(db, tenantId),
+    googleReadiness(),
+    listPolicies(db, tenantId),
+  ]);
+  return {
+    ready: { places: ready.places, profile: ready.profile, audience: ready.audience },
+    ...data,
+    reply_mode: reviewReplyModeOf(policies),
+  };
 }
 
 let fallbackSaid = false;

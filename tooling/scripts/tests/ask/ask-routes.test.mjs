@@ -31,6 +31,7 @@ const thread = await import(at("apps/dashboard/app/api/v1/ask/threads/[id]/route
 const metrics = await import(at("apps/dashboard/app/api/v1/metrics/route.ts"));
 const reports = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaigns = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
+const reviews = await import(at("apps/dashboard/app/api/v1/reports/reviews/route.ts"));
 const { readerCache, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const warm = await import(at("apps/dashboard/app/api/v1/ask/warm/route.ts"));
 const { buildContext, clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
@@ -105,7 +106,7 @@ const turn = (id, thread_id, tenant_id, role, content) => ({
   created_at: "2026-09-10T00:00:01Z",
 });
 
-test("the ten declare their policy: a question every member's and counted, the warm every member's and counted with the aggregates, the aggregates counted with their query declared, a person's own threads and cards on the account", () => {
+test("the eleven declare their policy: a question every member's and counted, the warm every member's and counted with the aggregates, the aggregates counted with their query declared, a person's own threads and cards on the account", () => {
   const open = { kind: "read", scope: "workspace", role: null, rate: null, spend: false };
   const own = { scope: "account", role: null, rate: null, spend: false };
   assert.deepEqual(ask.POST.policy, { kind: "write", scope: "workspace", role: "viewer", rate: "ask", spend: false });
@@ -124,6 +125,7 @@ test("the ten declare their policy: a question every member's and counted, the w
   assert.deepEqual(metrics.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(reports.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(campaigns.GET.policy, { ...open, rate: "aggregate" });
+  assert.deepEqual(reviews.GET.policy, { ...open, rate: "aggregate" });
 });
 
 test("a question: the workspace must be named, something must be asked and not too much, a thread must exist and be this workspace's — and nothing is saved for a refusal", async () => {
@@ -533,7 +535,7 @@ test("the metrics behind Today: the workspace the tab named, the days clamped to
   );
 });
 
-test("the reports: the three presets and no other, the series from the function under the caller's RLS, the booking line never fatal; the campaigns' twin the same", async () => {
+test("the reports: the three presets and no other, the series from the function under the caller's RLS, the booking line never fatal; the campaigns' and the reviews' twins the same", async () => {
   const rpcs = {
     report_series: (a) => ({ days: a.p_days, tenant: a.p_tenant_id }),
     campaign_series: (a) => (a.p_tenant_id === A ? { days: a.p_days } : { error: "no" }),
@@ -566,6 +568,18 @@ test("the reports: the three presets and no other, the series from the function 
     404,
     "No workspace found for this report.",
   );
+  // The reviews' twin: the same four periods, Google's read and, where a listing is linked, the ledger beside it. No
+  // listing links here, so the ledger is none; no function answers it, so there is no 404 to give.
+  const unlinked = { ...tables, google_listings: [], google_connections: [] };
+  await refused(
+    reviews.GET.run(get(`?period=14d&workspace=${A}&workspace=${A}`), ctxFor(unlinked, {}, rpcs)),
+    "validation",
+    400,
+  );
+  const none = await reviews.GET.run(get(`?period=90d&workspace=${A}&workspace=${A}`), ctxFor(unlinked, {}, rpcs));
+  assert.deepEqual(Object.keys(none), ["timezone", "today", "days", "google", "ledger"]);
+  assert.deepEqual([none.days, none.ledger, none.google.listing], [90, null, null]);
+  assert.equal((await reviews.GET.run(get(inA), ctxFor(unlinked, {}, rpcs))).days, 30, "thirty by default");
 });
 
 test("the reports' Deals section rides on how the workspace's customers buy (0008): drawn where it says proposal, and not even read where it books or was never asked", async () => {

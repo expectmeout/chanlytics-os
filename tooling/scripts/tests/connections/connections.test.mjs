@@ -507,9 +507,11 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
       server,
     ),
   );
+  // The DTO's `ready` is made in googleDtoFor, which GET google's handle (google-actions.ts) calls.
   const route = readCode(
     "apps/dashboard/app/api/v1/google/route.ts",
     "apps/dashboard/src/server/connections/google-actions.ts",
+    "apps/dashboard/src/server/connections/google.ts",
   );
   assert.ok(route.includes("ready: { places: ready.places, profile: ready.profile, audience: ready.audience }"));
   const env = readRaw("apps/edge/.env.example");

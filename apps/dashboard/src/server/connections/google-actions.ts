@@ -6,17 +6,15 @@
  * the OAuth state. Each route declares who may and how often.
  */
 import {
-  reviewReplyModeOf,
   ROLE_PERMS,
   AppError,
   businessNameOf,
   parseTenantConfigResult,
   placesQueryOf,
-  type GoogleDto,
   type GoogleCandidateDto,
 } from "@chanlytics/contracts";
-import { listPolicies, getTenantConfig } from "@chanlytics/db";
-import { googleFor, googleReadiness, afterGoogle, edgeGoogle, stateSecret } from "@/server/connections/google";
+import { getTenantConfig } from "@chanlytics/db";
+import { googleDtoFor, googleReadiness, afterGoogle, edgeGoogle, stateSecret } from "@/server/connections/google";
 import { memberContext, type RouteContext } from "@/server/with-route";
 import { verifyState, authorizeUrl, newNonce, signState, STATE_TTL_MS, cleanReply } from "@chanlytics/channels";
 import { log } from "@/server/log";
@@ -26,17 +24,7 @@ import { tenantFacts } from "@/server/tenant";
 import type { Member, Params } from "@/server/route";
 
 export async function readGoogle(ctx: RouteContext, member: Member) {
-  const [data, ready, policies] = await Promise.all([
-    googleFor(ctx.supabase, member.tenantId),
-    googleReadiness(),
-    listPolicies(ctx.supabase, member.tenantId),
-  ]);
-  const google: GoogleDto = {
-    ready: { places: ready.places, profile: ready.profile, audience: ready.audience },
-    ...data,
-    reply_mode: reviewReplyModeOf(policies),
-  };
-  return { google };
+  return { google: await googleDtoFor(ctx.supabase, member.tenantId) };
 }
 
 export async function googleCallback(ctx: RouteContext, req: Request) {
