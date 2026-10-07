@@ -337,7 +337,9 @@ test("the broadcast composer's picker lists what the spec expects of the rows, a
       assert.equal(picker.props.note ?? null, why, `${name}: why the rest is not there, under the list`);
       assert.equal(byTestId(tree, "bc-blocked"), null, `${name}: never both`);
     }
-    // The number a send goes out on is drawn where it goes by WhatsApp, and nowhere else: the spec reads the tick.
+    // The number a send goes out on is drawn where it goes by WhatsApp, and where the number holds a ticked WhatsApp off
+    // (broadcasts-honest.test.mjs): the spec reads the tick, and the line's words where it stands with the tick off. No
+    // number here holds WhatsApp off, so the line follows the tick exactly.
     const byWhatsApp = byTestId(tree, "bc-via-whatsapp").props["data-on"] === "true";
     assert.equal(!!byTestId(tree, "bc-number"), byWhatsApp, `${name}: the number line follows WhatsApp's tick`);
     assert.equal(
