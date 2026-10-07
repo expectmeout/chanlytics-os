@@ -1940,7 +1940,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .dash-a-v2 .today-queue .tq-head > .tq-sub { display: none; }
   /* A phone's row (the canvas's phone board): the face beside the name, over the words wrapping over the state, and
      the one verb under them at their left edge; the channel and the wait are a desk's. Beside the words, a verb of
-     175px left them a column of 150, and a reason and its times ran to five lines. */
+     117px left them a column of 149, and a reason and its times ran to four lines. */
   .dash-a-v2 .today-queue .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 3px 12px; padding: 12px 0; }
   .dash-a-v2 .today-queue .cl-attn-row > :first-child { width: 36px; height: 36px; font-size: var(--text-sm); }
   .dash-a-v2 .tq .cl-attn-meta { display: none; }
