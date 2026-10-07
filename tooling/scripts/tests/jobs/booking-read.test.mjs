@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import { dispatchJob } from "../../../../packages/jobs/src/handlers.ts";
 import { MAX_ATTEMPTS, RETRY_WAITS_MS } from "../../../../packages/jobs/src/ledger.ts";
 
@@ -161,8 +162,16 @@ test("the intake reads the tool the workspace named off its stored config: a pro
     // The receiving side's own verdict, as the provider hands it over: a forward, and the tool's signature holds.
     authentication: { spf: "fail", dkim: "pass", dmarc: "pass" },
   };
+  // The intake's own line of the last run (email_ingested), or null when the run ended before it was written.
+  let said = null;
   const intake = async (config, email = received) => {
     const scheduled = [];
+    said = null;
+    const log = console.log;
+    console.log = (...args) => {
+      const line = logLineOf(args);
+      if (line?.event === "email_ingested") said = fieldsOf(line);
+    };
     const tables = {
       tenants: [{ id: T, timezone: "America/New_York" }],
       mailboxes: [{ id: MAILBOX, tenant_id: T, local_part: "salon" }],
@@ -190,12 +199,24 @@ test("the intake reads the tool the workspace named off its stored config: a pro
       tenant_id: T,
       kind: "email_ingest",
       payload: { mailbox_id: MAILBOX, received_id: "rcv_1" },
-    }).catch(() => undefined);
+    })
+      .catch(() => undefined)
+      .finally(() => {
+        console.log = log;
+      });
     return scheduled.filter(([kind]) => kind === "booking_read");
   };
   assert.deepEqual(await intake({ bookings: { tool: "booksy" } }), [
     ["booking_read", { received_id: "rcv_1", mailbox_id: MAILBOX, tool: "booksy" }],
   ]);
+  // What the provider said of the sender is on the intake's own line, in its words: it is how a deployment sees that a
+  // verdict is handed over at all, and nothing of the email or its sender is in it.
+  assert.deepEqual(said, {
+    tenant_id: T,
+    job: "j2",
+    outcome: "kept_as_booking",
+    sender_checks: { spf: "fail", dkim: "pass", dmarc: "pass" },
+  });
   assert.deepEqual(await intake({ bookings: { tool: "calendly" } }), [], "another tool named");
   assert.deepEqual(await intake({ calendar: { ical_url: "https://calendar.example.com/a.ics" } }), [], "none named");
   assert.deepEqual(await intake(undefined), [], "no config at all");
