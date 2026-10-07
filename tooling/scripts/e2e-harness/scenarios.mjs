@@ -21,6 +21,10 @@
  *              cap, services, and one language short of the cap so a single Add fills it (the Business tab's folds,
  *              which were drawn here, are the app's own now). A FICTIONAL business: this
  *              file is committed, and no real business's name, address, number or link belongs in the tree.
+ *   email-only -- the seeded workspace with no WhatsApp number: a mailbox to send from and two messages with no WhatsApp
+ *              version (a starter written as an email and a text, and an offer written as an email), and a saved list of
+ *              three people who wrote by email. For the Library and the composers a workspace with no number draws, which
+ *              the nightly's line hides. DERIVED from the nightly's record and from the starter registry, as they are.
  *   kit      -- no workspace of its own: the nightly's record, whose page is the kit's gallery
  *              (e2e-harness/kit-gallery.mjs) instead of the mockup, for e2e/kit/kit.spec.ts and for a person reviewing
  *              the kit. Never served in production (decision 7).
@@ -30,12 +34,18 @@
 import {
   MAX_CLOSURES,
   PROFILE_LIMITS,
+  channelsReady,
   dealsAreOn,
   feedSourceLabel,
   zoneDayKey,
   isConsultationTitle,
   newReceptionistDefaults,
   proposalMessage,
+  starterByName,
+  starterEmailText,
+  starterSmsText,
+  starterText,
+  versionComponents,
 } from "@chanlytics/contracts";
 import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../ops/e2e-workspace.mjs";
 
@@ -44,10 +54,33 @@ export const WORKSPACE = { id: "t-e2e", slug: SLUG, name: NAME };
 /** Who the harness signs in as: the server's session, the runner's address and the fixture's __ME are this one. */
 export const OWNER = { id: "u-e2e-owner", name: "E2E Owner", email: "e2e-owner@example.com" };
 
-export const SCENARIOS = ["nightly", "salon", "pipeline", "kit"];
+export const SCENARIOS = ["nightly", "salon", "pipeline", "email-only", "kit"];
+
+/** A postal address from the block kept for fiction: what a fictional business's profile holds, and an offer's foot names. */
+const EXAMPLE_ADDRESS = "1200 Example Avenue, Brooklyn, NY 11208";
 
 /** What the platform knows about a channel, as tenant_channels rows reach `resolveFacts` (contracts KnownFacts). */
 const asKnownChannel = ({ kind, number_e164, status }) => ({ kind, number_e164, status });
+
+/**
+ * A template row as the table holds it, every column GET templates reads (readers/templates.ts COLUMNS): what a row leaves
+ * alone is null, and its words are its one BODY unless it says otherwise. `templates-read.mjs` answers them as the route does.
+ */
+const templateRow = (o) => ({
+  language: "en_US",
+  category: null,
+  quality: null,
+  rejected_reason: null,
+  synced_at: null,
+  source: "chanlytics",
+  hidden_at: null,
+  title: null,
+  components: [{ type: "BODY", text: o.body_preview }],
+  ...o,
+});
+
+/** A slot of a starter as a row carries it as a value: numbered from 1, with the label and the example a person sees. */
+const valuesOf = (text) => text.slots.map((s, i) => ({ position: i + 1, label: s.label, example: s.example }));
 
 /**
  * The workspace's approved WhatsApp messages, as the template library hands them over.
@@ -56,14 +89,19 @@ const asKnownChannel = ({ kind, number_e164, status }) => ({ kind, number_e164, 
  * receptionist can do: a call sends the booking link as a template and can send none without one (contracts
  * `bookingTemplate`, and the openings row's ", then the link" clause). The fixture published one for every record,
  * so the seeded workspace -- whose seed writes no template row at all -- was shown a message it does not have.
+ * It is the registry's own starter, in its words and values, filed the way the starter set files a WhatsApp version.
  */
-const BOOKING_LINK_TEMPLATE = {
-  name: "booking_link",
-  language: "en_US",
-  meta_status: "approved",
+const BOOKING_LINK_STARTER = starterByName("booking_link");
+const BOOKING_LINK_WORDS = starterText(BOOKING_LINK_STARTER, "en_US");
+const BOOKING_LINK_TEMPLATE = templateRow({
+  id: "7e3a0000-0000-4000-8000-0000000000b1",
   channel: "whatsapp",
-  variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
-};
+  name: BOOKING_LINK_STARTER.name,
+  meta_status: "approved",
+  category: BOOKING_LINK_STARTER.category,
+  variables: valuesOf(BOOKING_LINK_WORDS),
+  body_preview: BOOKING_LINK_WORDS.body,
+});
 
 /** A closure `n` days out, one day long. */
 const closureAt = (nowMs, days, note) => ({
@@ -115,7 +153,7 @@ function salon(name, nowMs) {
         booking_link: "https://example.com/book/northside",
         ...newReceptionistDefaults(BUSINESS),
         profile: {
-          address: "1200 Example Avenue, Brooklyn, NY 11208",
+          address: EXAMPLE_ADDRESS,
           website: "https://example.com/northside",
           tone: "Warm and unhurried.",
           languages: languagesToOneShortOfTheCap(),
@@ -179,12 +217,12 @@ const iso = (ms) => new Date(ms).toISOString();
 /** An id in the app's own shape, numbered: a person's route is a UUID (surface-registry.ts personRouteId), as every row's is. */
 const uuidOf = (head, n) => `${head}-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
-/** A message as the person read hands one over (contracts MessageDto): words on WhatsApp. */
-const messageOf = (id, direction, body, at) => ({
+/** A message as the person read hands one over (contracts MessageDto): words on WhatsApp, or on the channel `via` names. */
+const messageOf = (id, direction, body, at, via = "whatsapp") => ({
   id,
   direction,
   sender: direction === "inbound" ? "customer" : "human",
-  channel: "whatsapp",
+  channel: via,
   type: "text",
   body,
   media: null,
@@ -198,9 +236,10 @@ const messageOf = (id, direction, body, at) => ({
  * A person's thread as the person read hands it over (contracts ConversationDto): how they first wrote, the proposal
  * sent to them where their deal has a link (in contracts proposalMessage's words, which the one-step send puts in the
  * composer), and the last thing they said. Their row's message columns are read off it, so the list and the page agree.
+ * `via` is the channel they wrote on: WhatsApp's window is open only where they wrote there.
  */
-function threadOf(who, firstMs, heardMs, said, deal) {
-  const m = (k, direction, body, at) => messageOf(uuidOf("3e550000", who.n * 10 + k), direction, body, at);
+function threadOf(who, firstMs, heardMs, said, deal, via = "whatsapp") {
+  const m = (k, direction, body, at) => messageOf(uuidOf("3e550000", who.n * 10 + k), direction, body, at, via);
   const messages = [
     m(1, "inbound", "Hi! Are you taking on new projects this season?", iso(firstMs)),
     ...(deal?.proposal_url ? [m(2, "outbound", proposalMessage(deal.proposal_url), deal.proposed_at)] : []),
@@ -212,7 +251,7 @@ function threadOf(who, firstMs, heardMs, said, deal) {
     paused_until: null,
     snooze_until: null,
     assignee_user_id: null,
-    last_wa_inbound_at: iso(heardMs),
+    last_wa_inbound_at: via === "whatsapp" ? iso(heardMs) : null,
     last_message_at: messages.at(-1).created_at,
     contact: {
       id: who.id,
@@ -271,9 +310,9 @@ const dealColumns = (d) => Object.fromEntries(DEAL_COLUMNS.map((k) => [`deal_${k
 
 /**
  * One row as GET contacts hands it over: people_list's columns in its order, every one on every row, then the reply
- * mode listPeople adds and the visits withVisits lays on it. The message columns are the thread's.
+ * mode listPeople adds and the visits withVisits lays on it. The message columns are the thread's, on the channel `via`.
  */
-function personRow(who, thread, deal, visits, step = null) {
+function personRow(who, thread, deal, visits, step = null, via = "whatsapp") {
   const first = thread.messages[0];
   const last = thread.messages.at(-1);
   const said = thread.messages.filter((x) => x.direction === "inbound").at(-1);
@@ -290,7 +329,7 @@ function personRow(who, thread, deal, visits, step = null) {
     marketing_consent: null,
     marketing_consent_source: null,
     marketing_consent_updated_at: null,
-    channels: ["whatsapp"],
+    channels: [via],
     conversation_count: 1,
     escalation_count: 0,
     needs_human: false,
@@ -316,9 +355,9 @@ function personRow(who, thread, deal, visits, step = null) {
     earliest_row_at: first.created_at,
     has_backfill: false,
     has_chat: true,
-    message_channels: ["whatsapp"],
+    message_channels: [via],
     queued_reply_at: null,
-    came_from: "whatsapp",
+    came_from: via,
     ...dealColumns(deal),
     // Their next step (00166): the earliest open note with a day, every column null for someone with none.
     step_id: step?.id ?? null,
@@ -477,6 +516,106 @@ function pipeline(name, nowMs) {
   };
 }
 
+/**
+ * The messages of a workspace with no WhatsApp number, as the library files a message with no WhatsApp version
+ * (00296 save_template_version, 00343 create_message_version): a starter written as an email and a text, and an offer
+ * written as an email alone, since a text never carries one.
+ *
+ * The starter is the registry's "How did it go", whose category is utility, so a text may carry it, and whose slots are
+ * the ones a broadcast and a playbook can fill: its name, category, values and words are the registry's, so a change to
+ * the set changes this record. The offer is a custom message, which is always an offer (design Section 0, Q1), with a title
+ * of its own and one value.
+ */
+function emailOnlyTemplates() {
+  const starter = starterByName("after_visit_check");
+  const email = starter && starterEmailText(starter, "en_US");
+  const text = starter && starterSmsText(starter, "en_US");
+  if (!starter || !email || !text) throw new Error("the starter set has no after_visit_check with an email and a text");
+  const values = valuesOf(starterText(starter, "en_US"));
+  const filed = (n, channel, name, words, filing) =>
+    templateRow({
+      id: uuidOf("7e3a0000", n),
+      channel,
+      name,
+      meta_status: "approved",
+      body_preview: words.body,
+      components: versionComponents(channel, words),
+      ...filing,
+    });
+  const offer = {
+    subject: "Spring is here",
+    body: "Hi {{1}}, we are open late on Thursdays this spring. Reply to this email to book.",
+  };
+  return [
+    filed(1, "email", starter.name, email, { category: starter.category, variables: values }),
+    filed(
+      2,
+      "sms",
+      starter.name,
+      { subject: null, body: text.body },
+      { category: starter.category, variables: values },
+    ),
+    filed(3, "email", "spring_offer", offer, {
+      category: "marketing",
+      variables: [{ position: 1, label: "First name", example: "Dani" }],
+      title: "Spring offer",
+    }),
+  ];
+}
+
+/**
+ * The seeded workspace with no WhatsApp number. Its config, its clock and its name are the nightly's, which is derived from
+ * the seed; what it lacks is the line the seed provisions, and what it has is a mailbox the campaigns can send from and the
+ * postal address every offer's foot names (so its news by email can go: contracts channelsReady, with no WhatsApp number and
+ * no text line), two messages with no WhatsApp version, and three people who wrote by email, each with an address and no
+ * phone, on a saved list.
+ *
+ * That is what lets the Library, the broadcast composer and the playbook composer be read on a workspace whose messages
+ * need no WhatsApp row. The people are in people_list's row shape, so People over this record reads as it does over the
+ * pipeline's; a person's own page is not served, so no `details`.
+ */
+function emailOnly(name, nowMs) {
+  const base = nightly(name);
+  const cast = [
+    { n: 1, name: "Nora Quill" },
+    { n: 2, name: "Teo Marsh" },
+    { n: 3, name: "Ines Vale" },
+  ];
+  const people = cast.map((c) => {
+    const who = {
+      n: c.n,
+      id: uuidOf("5c0e0000", c.n),
+      name: c.name,
+      phone: null,
+      email: `${c.name.split(" ")[0].toLowerCase()}@example.com`,
+    };
+    const thread = threadOf(who, nowMs - 60 * DAY_MS, nowMs - 3 * DAY_MS, "Sounds good, talk soon", undefined, "email");
+    return personRow(who, thread, null, null, null, "email");
+  });
+  return {
+    ...base,
+    config: { ...base.config, brain: { ...base.config.brain, profile: { address: EXAMPLE_ADDRESS } } },
+    // No WhatsApp line: the seed's is the only channel the nightly has.
+    known: { ...base.known, channels: [] },
+    templates: emailOnlyTemplates(),
+    ready: channelsReady({
+      whatsapp: null,
+      textLine: null,
+      email: { mailbox: true, domain: true, offers: { campaigns: true, address: true, paused: null } },
+    }),
+    people,
+    lists: [
+      {
+        id: uuidOf("11570000", 1),
+        name: "Spring regulars",
+        ids: people.map((p) => p.id),
+        rule: null,
+        archived_at: null,
+      },
+    ],
+  };
+}
+
 /** One scenario, built now. Plain data, so the server can hand the page the very object it answers reads from. */
 export function scenario(name, nowMs = Date.now()) {
   const record =
@@ -486,9 +625,11 @@ export function scenario(name, nowMs = Date.now()) {
         ? salon(name, nowMs)
         : name === "pipeline"
           ? pipeline(name, nowMs)
-          : name === "kit"
-            ? { ...nightly(name), gallery: true }
-            : null;
+          : name === "email-only"
+            ? emailOnly(name, nowMs)
+            : name === "kit"
+              ? { ...nightly(name), gallery: true }
+              : null;
   if (!record) throw new Error(`no scenario "${name}": ${SCENARIOS.join(", ")}`);
   return { ...record, notifications: bellNotes(nowMs) };
 }

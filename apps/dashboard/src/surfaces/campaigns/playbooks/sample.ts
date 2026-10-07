@@ -13,6 +13,7 @@ import {
   momentOffered,
   nextRunLabel,
   numberHealth,
+  purposeOfTemplate,
   scheduleLine,
   starterByKey,
   starterText,
@@ -45,6 +46,7 @@ function approved(key: string, syncedAt: string): PlaybookTemplate {
     synced_at: syncedAt,
     source: "starter",
     title: null,
+    purpose: purposeOfTemplate(s.category),
     // The demo's starters are WhatsApp's alone: no email or text version is on file to send by.
     channels: ["whatsapp"],
   };

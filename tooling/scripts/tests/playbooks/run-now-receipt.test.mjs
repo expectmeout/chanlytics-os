@@ -11,7 +11,11 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { REACH_OUT_IS_NOT_A_MOMENT, CAMPAIGNS_PAUSED_WORDS } from "@chanlytics/contracts";
+import {
+  REACH_OUT_IS_NOT_A_MOMENT,
+  CAMPAIGNS_PAUSED_WORDS,
+  RUN_NOW_WITHOUT_VERSION_WORDS,
+} from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -149,4 +153,20 @@ test("Run now is a moment's: a reach-out step is refused in words before the edg
     (e) => e.status === 409 && e.message === REACH_OUT_IS_NOT_A_MOMENT,
   );
   assert.equal(edge.calls.length, before, "the edge was never asked");
+});
+
+test("a run that goes by WhatsApp alone, whose message holds no WhatsApp version to send, is refused in contracts' sentence, which names the message and what else carries it, never a template", async () => {
+  edge.answer = { ok: true, outcome: "off", mode: "auto", skipped: "template_not_approved" };
+  await assert.rejects(
+    press(),
+    (e) =>
+      e.code === "conflict" &&
+      e.status === 409 &&
+      e.message === RUN_NOW_WITHOUT_VERSION_WORDS &&
+      /Pick another message, or give this one an email or a text version/.test(e.message) &&
+      !/template/i.test(e.message),
+  );
+  // The stop stays the closed set's name; the other stops say their own words.
+  edge.answer = { ok: true, outcome: "off", mode: "auto", skipped: "number_flagged" };
+  await assert.rejects(press(), (e) => e.status === 409 && /flagged this number's quality/.test(e.message));
 });

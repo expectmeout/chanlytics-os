@@ -10,7 +10,9 @@
  */
 import type { Dispatch, SetStateAction } from "react";
 import {
+  MESSAGE_GONE_WORDS,
   PREVIEW_WORDS,
+  STARTER_LINE_WORDS,
   allowanceBeforeSend,
   messageAboutOfTrigger,
   noMessageWords,
@@ -23,7 +25,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Picker } from "../../kit/picker/picker";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
-import { CM_VIA_WORDS, cmTick } from "../parts/channels";
+import { CM_VIA_WORDS, cmStandInOf, cmTick } from "../parts/channels";
 import { MessagePreview, PreviewStepper } from "../parts/message-preview";
 import { CmLangGlyph } from "../parts/picker";
 import { cmChevron, cmGroups, cmNumbers, cmSearch } from "../parts/picks";
@@ -242,7 +244,7 @@ function messageHead(x: SectionCtx) {
   );
 }
 
-/** The moment's own message, written and waiting to be added: in review at WhatsApp, or one press adds it. */
+/** The moment's own message, written and waiting to be added: its WhatsApp version in review, or one press adds it. */
 function starterLine(x: SectionCtx) {
   const { templatesRead, starter, starterGroup, starterAny, canEdit, adding, addStarter } = x;
   return (
@@ -254,17 +256,14 @@ function starterLine(x: SectionCtx) {
         <span>
           {starterAny ? (
             <>
-              <b>{starter.title}</b>, written for this moment,{" "}
-              {starterAny.meta_status === "pending"
-                ? "is in review at WhatsApp — it appears here once approved, usually within minutes."
-                : `is ${starterAny.meta_status} at WhatsApp — see Campaigns › Library.`}
+              <b>{starter.title}</b>, written for this moment, {STARTER_LINE_WORDS.standing(starterAny.meta_status)}
             </>
           ) : (
             <>
               <b>{starter.title}</b> is written for this moment.{" "}
               {canEdit ? (
                 <LinkButton disabled={adding} onClick={addStarter} data-testid="pb-add-starter">
-                  {adding ? "Adding…" : "Add it — WhatsApp reviews it, usually within minutes"}
+                  {adding ? "Adding…" : STARTER_LINE_WORDS.add}
                 </LinkButton>
               ) : null}
             </>
@@ -287,8 +286,7 @@ function messageEmpty(x: SectionCtx) {
         )}
         {lost && (
           <p className="pb-empty-line is-warn" data-testid="pb-template-lost">
-            Its message, {pbTitle(editingTemplateName)}, is not one it can send any more — WhatsApp no longer approves
-            it. Pick another to save a change.
+            {MESSAGE_GONE_WORDS.composer(pbTitle(editingTemplateName))}
           </p>
         )}
         {starterLine(x)}
@@ -379,6 +377,7 @@ export function messageSection(x: SectionCtx) {
           address: data.businessAddress,
           facts,
           labelled,
+          standIn: cmStandInOf(tpl),
           // An offer's email reads with the offer's foot: why they get it, and the way out (step 4). The moment says what
           // its message is about: the business's news is an offer by email too (decision D2), a visit's is not.
           ...cmOfferFoot(tpl.category, messageAboutOfTrigger(x.trig ? x.trig.id : null)),

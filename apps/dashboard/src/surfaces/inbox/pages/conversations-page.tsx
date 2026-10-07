@@ -14,7 +14,7 @@ import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
 import { useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
-import { CV_ICON, cvAddress, inChannel } from "../cv-rules";
+import { CV_ICON, cvAddress, cvCallsWords, cvFind, cvLeadOf, cvOnePerPerson, inChannel } from "../cv-rules";
 import { appNavigate, canNavigate, currentRoute, demoSession, liveCallEnded, navigate, tabMemory } from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
@@ -78,16 +78,17 @@ export const OutcomePill = ({
       />
     );
   if (outcome === "live") return <StatePill kind="call" value="live" />;
+  // Who has the person's thread is the Inbox's rule, said in the Inbox's words, and a call stands as its thread does
+  // (cv-rules.ts cvCallsStandAsTheirThread). "Needs you" here read "Receptionist replied" over an open escalation, and
+  // "Needs you" over a thread you had taken over (the 2 Oct 2026 audit); a call after it read "Hung up early".
+  if (standing === "needs_you") return <StatePill kind="thread" value="escalated" />;
+  if (standing === "yours" || standing === "theirs") return <StatePill kind="thread" value={standing} />;
+  if (standing === "snoozed") return <StatePill kind="thread" value="snoozed" />;
   if (outcome === "missed") return <StatePill kind="call" value="missed" />;
   // A call's own story beats "handled": the caller who asked for a call back, the one who hung up in seconds, the
   // one who reached the voicemail, and the dial the provider could not place (contracts toCallVM decides each).
   if (outcome === "callback" || outcome === "abandoned" || outcome === "voicemail" || outcome === "failed")
     return <StatePill kind="call" value={outcome} />;
-  // A chat row: who has it is the Inbox's rule, said in the Inbox's words. "Needs you" here read "Receptionist
-  // replied" over an open escalation, and "Needs you" over a thread you had taken over (the 2 Oct 2026 audit).
-  if (standing === "needs_you") return <StatePill kind="thread" value="escalated" />;
-  if (standing === "yours" || standing === "theirs") return <StatePill kind="thread" value={standing} />;
-  if (standing === "snoozed") return <StatePill kind="thread" value="snoozed" />;
   if (outcome === "booked") return <StatePill kind="thread" value="booked" />;
   if (outcome === "escalated") return <StatePill kind="thread" value="escalated" />;
   if (outcome === "handled")
@@ -118,36 +119,48 @@ const cvEnded = (c: ConversationRow | null | undefined): boolean =>
   !!(c && c.outcome === "live" && liveCallEnded(c.id));
 
 // ---------- List row ----------
+// A person's one row (cv-rules.ts cvOnePerPerson), in the shape of the Inbox's beside it (list-rows.tsx): the face
+// wearing the wire of the words shown as a badge, then who it is, how it stands and when on the first line, the words
+// on the second, and under them how many calls the row holds, where it holds more than its one. The row said the wire
+// three times (a glyph before the name, the receptionist's name in the foot -- a receptionist is its wire's, and the
+// thread's by-lines name who answered -- and the tab), the time in the foot, where the Inbox's row says it at the first
+// line's end, and a call's length in the foot under words that say it ("Inbound call · 1:35 — …"). The newest row says
+// the time, the words and the wire; the pill is its lead's (cvLeadOf), so a thread that needs you still says so under
+// the call that came after it.
 const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; onSelect: (id: string) => void }) => {
-  const dec = cvDecision(c);
-  const endedLive = cvEnded(c);
+  const lead = cvLeadOf(c);
+  const dec = cvDecision(lead);
+  const endedLive = cvEnded(lead);
+  const calls = cvCallsWords(c);
   return (
     <button
-      className={`cv-row ${active ? "active" : ""} ${c.live && !endedLive ? "is-live" : ""}`}
+      className={`cv-row ${active ? "active" : ""} ${c.live && !cvEnded(c) ? "is-live" : ""}`}
       onClick={() => onSelect(c.id)}
     >
-      <span className="cv-row-avatar">{c.initials.slice(0, 2)}</span>
+      <span className="cv-row-avatar">
+        {c.initials.slice(0, 2)}
+        <span className="cv-row-wire" role="img" aria-label={inboxData().CHANNEL_LABELS[c.channel] || c.channel}>
+          <Icon name={CV_ICON[c.channel]} size={9} />
+        </span>
+      </span>
       <span className="cv-row-body">
-        {/* People's row (tokens.css --row-*, conversations.css): who it is and how it stands on the first line, what
-          was said on the second, and the facts under them -- the agent, how long it ran, and when. The outcome
-          used to stand in the foot beside them, where its pill made the row a sixth taller than a person's. */}
         <span className="cv-row-line1">
-          <Icon name={CV_ICON[c.channel]} size={11} />
           <span className="cv-row-who">{c.who}</span>
           <OutcomePill
-            outcome={endedLive ? "handled" : c.outcome}
-            standing={c.standing ?? null}
+            outcome={endedLive ? "handled" : lead.outcome}
+            standing={lead.standing ?? null}
             decidedAction={dec ? dec.action : null}
-            channel={c.channel}
-            answeredBy={c.answeredBy}
+            channel={lead.channel}
+            answeredBy={lead.answeredBy}
           />
-        </span>
-        <span className="cv-row-snippet">{c.snippet}</span>
-        <span className="cv-row-foot">
-          <span className="cv-row-agent">{c.agent.name}</span>
-          {c.duration && <span className="cv-row-dur mono tabular">{c.duration}</span>}
           <span className="cv-row-at tabular">{c.at}</span>
         </span>
+        <span className="cv-row-snippet">{c.snippet}</span>
+        {calls && (
+          <span className="cv-row-foot">
+            <span className="cv-row-agent">{calls}</span>
+          </span>
+        )}
       </span>
     </button>
   );
@@ -315,12 +328,13 @@ function listPane(p: {
   setQuery: (v: string) => void;
   channel: string;
   counts: Record<string, number>;
-  selected: ConversationRow | undefined;
+  /** The person's row open, which the part open is one of. */
+  selectedRow: ConversationRow | undefined;
   openRow: (id: string) => void;
   /** The rows' ref: they swap in with a rise as the channel changes (kit/motion). */
   swap: ReturnType<typeof useSwapMotion<HTMLDivElement>>;
 }) {
-  const { data, rows, query, setQuery, channel, counts, selected, openRow, swap } = p;
+  const { data, rows, query, setQuery, channel, counts, selectedRow, openRow, swap } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;
   return (
     <aside className="cv-list">
@@ -359,18 +373,23 @@ function listPane(p: {
       </div>
       <div className="cv-rows" ref={swap}>
         {rows.map((c) => (
-          <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={openRow} />
+          <CvRow key={c.id} c={c} active={selectedRow?.id === c.id} onSelect={openRow} />
         ))}
         {rows.length === 0 &&
           (CONVERSATIONS.length === 0 ? (
-            // A workspace with none yet is not a filter with no match.
-            <EmptyState
-              kind="line"
-              className="empty-center"
-              title="No conversations yet."
-              body="They show up here as customers write and call."
-              testid="cv-none"
-            />
+            // A workspace with none yet is not a filter with no match. On a phone the list is the screen and no reading pane
+            // stands beside it, so it says what that pane says, as the Inbox says it has nothing: centred, with its glyph.
+            cvOnPhone() ? (
+              noneYet("cv-none")
+            ) : (
+              <EmptyState
+                kind="line"
+                className="empty-center"
+                title="No conversations yet."
+                body="They show up here as customers write and call."
+                testid="cv-none"
+              />
+            )
           ) : (
             <EmptyState
               kind="line"
@@ -417,6 +436,20 @@ function openedRow(p: { selected: ConversationRow; closeRow: () => void }) {
 }
 
 /** The reading pane: a link's notice, the row open, or what there is when nothing is. */
+/** A workspace with no conversation yet: the reading pane's page on a desk, and the list's on a phone. */
+function noneYet(testid: string) {
+  return (
+    <EmptyState
+      kind="page"
+      glyph="chat"
+      title="Nothing to read yet"
+      body="Every WhatsApp chat and phone call with a customer lands here, with what was said."
+      action={{ label: "Finish setting up", to: "start" }}
+      testid={testid}
+    />
+  );
+}
+
 function readingPane(p: {
   data: ConversationsSurface;
   requestedMissing: boolean;
@@ -445,18 +478,7 @@ function readingPane(p: {
     );
   }
   if (selected) return openedRow({ selected, closeRow });
-  if (CONVERSATIONS.length === 0) {
-    return (
-      <EmptyState
-        kind="page"
-        glyph="chat"
-        title="Nothing to read yet"
-        body="Every WhatsApp chat and phone call with a customer lands here, with what was said."
-        action={{ label: "Finish setting up", to: "start" }}
-        testid="cv-none-pane"
-      />
-    );
-  }
+  if (CONVERSATIONS.length === 0) return noneYet("cv-none-pane");
   return (
     <EmptyState
       kind="page"
@@ -517,6 +539,7 @@ export const ConversationsPage = ({
 
   // Kept on the rows themselves: each read publishes new ones. Kept on a counter only a decision moved, the list and the
   // tabs' counts were the first read's for as long as the page was open (5 Oct 2026), and so was a call open beside them.
+  // One row per person (cvOnePerPerson), folded from what the tab and the search kept.
   const visible = useMemo(() => {
     let list = CONVERSATIONS.filter((c) => inChannel(c, channel));
     if (query.trim()) {
@@ -530,14 +553,17 @@ export const ConversationsPage = ({
           (c.messages || []).some((m) => m.text.toLowerCase().includes(q)),
       );
     }
-    return list;
+    return cvOnePerPerson(list);
   }, [CONVERSATIONS, channel, query]);
 
   // The conversation asked for stays open while the box's words hide its row (the Inbox keeps a moved thread the same
   // way): the pane fell to the first match, another customer's thread with its reply box, the moment a search stopped
   // matching the one open. Nothing asked for, or a tab's new list: its first row.
+  // The id asked for may be any row a person's row stands for (a link to one call): it opens there, in its person's row.
   const asked = selectedId ? CONVERSATIONS.find((c) => c.id === selectedId && matchesChannel(c)) || null : null;
-  const selected = visible.find((c) => c.id === selectedId) || asked || visible[0];
+  const found = cvFind(visible, selectedId);
+  const selected = found ? found.part : asked || visible[0];
+  const selectedRow = found ? found.row : asked ? undefined : visible[0];
   // A deep link to a conversation that is not here must not open someone
   // else's transcript in silence: the first row still shows, with a notice.
   const requestedMissing = !!initialId && selectedId === initialId && visible.length > 0 && !asked;
@@ -553,13 +579,15 @@ export const ConversationsPage = ({
   // Counted from the tabs THIS workspace has, by the same rule that filters
   // them: a tab that is drawn always carries the number of rows it will show.
   const counts = useMemo(
-    () => Object.fromEntries(CV_CHANNELS.map((t) => [t.id, CONVERSATIONS.filter((c) => inChannel(c, t.id)).length])),
+    () =>
+      Object.fromEntries(
+        CV_CHANNELS.map((t) => [t.id, cvOnePerPerson(CONVERSATIONS.filter((c) => inChannel(c, t.id))).length]),
+      ),
     [CONVERSATIONS, CV_CHANNELS],
   );
-
   return (
     <div className="conversations" data-takeover={phoneOpen || undefined}>
-      {listPane({ data, rows: visible, query, setQuery, channel, counts, selected, openRow, swap })}
+      {listPane({ data, rows: visible, query, setQuery, channel, counts, selectedRow, openRow, swap })}
       {readingPane({ data, requestedMissing, selected, closeRow, query })}
     </div>
   );

@@ -570,13 +570,15 @@ const firstRunScreen = ({ theme, look, routePage, askOpen, setAskOpen }) => (
  * into them, surfaces/kit/head/frame-head.tsx): over the page where the page is a pane that scrolls inside itself, and
  * at the top of the page's own scroll where the page scrolls (Today), so the name and its sentence go up with the page
  * and only the top bar stays (Ruben, 1 Oct 2026: the greeting stood still over a page that moved). Classic draws the
- * row of views alone, over the page. Called twice, once for each place; one draws, the other draws nothing.
+ * row of views alone, over the page. Called twice, once for each place; one draws, the other draws nothing. The slot
+ * says whose views it holds where the page says its own (`data-strip`, the chrome's `views.name`), so the frame's
+ * stylesheet knows Reports' row at first paint, before the page under it has drawn (components.css, the phone block).
  */
 const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAction }) => {
   if (!glass) return where === "over" ? <SurfaceTabs page={page} param={param} views={views} onNavigate={navigate} /> : null;
   if ((where === "over") !== pane) return null;
   return (
-    <div className="pg-slot">
+    <div className="pg-slot" data-strip={views && views.tabs.length > 1 ? views.name : undefined}>
       <div className="pg-head-slot" id="pg-head" />
       <SurfaceTabs page={page} param={param} views={views} onNavigate={navigate} />
       <div className="pg-act-slot">

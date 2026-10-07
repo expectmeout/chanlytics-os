@@ -3,23 +3,28 @@ import type { z } from "zod";
 import {
   AppError,
   PROPOSAL_SPECS,
+  channelChoices,
   channelsReady,
   emptyReadSet,
+  messageWhyNot,
   noteRows,
+  readyForMessage,
   type AskCitationKind,
   type AskProposal,
   type AskReadSet,
   type CampaignHow,
+  type CampaignMessage,
   type MessageAbout,
   type ConsentChannel,
   type MembershipRole,
   type NumberHealth,
   type ProposalKindAboveOperator,
 } from "@chanlytics/contracts";
-import { parseChannels } from "@chanlytics/core";
+import { parseChannels, readCampaignMessage, type TemplateValuesPorts } from "@chanlytics/core";
 import type { RouteContext } from "../../with-route";
 import { readerContext, type ReaderContext } from "../../readers";
 import { whatsappHealthOf } from "../../campaigns/channels-ready";
+import { createBroadcastPorts, templateValuePorts } from "../../ports/campaign-ports";
 import { log } from "@/server/log";
 
 /**
@@ -247,6 +252,67 @@ export async function whatsappHow(t: ToolContext, about: MessageAbout): Promise<
     return undefined;
   });
   return whatsappHowOf(health, about);
+}
+
+/** The rows of a message, whatever their channel: what the route reads a message from (core TemplateValuesPorts.message). */
+type MessageRows = Awaited<ReturnType<TemplateValuesPorts["message"]>>;
+
+/**
+ * A message a proposal names, with the rows it was read from. The rows carry what a card says of it: each version's words,
+ * and the slots' labels and examples (`variables`: the anchor's, which is the WhatsApp row's where there is one).
+ */
+export interface AskedMessage {
+  message: CampaignMessage;
+  rows: MessageRows;
+  variables: unknown;
+}
+
+/**
+ * The message a version's id names, read as the routes read it (core readCampaignMessage): any version's id, a message
+ * needs no WhatsApp row. What the verb refuses is the tool's refusal in the verb's own sentence, so the model reads what the
+ * route would answer.
+ */
+export async function askedMessage(t: ToolContext, id: string): Promise<AskedMessage | { refusal: string }> {
+  const ports = templateValuePorts(t.ctx, t.tenantId);
+  let rows: MessageRows = [];
+  try {
+    const message = await readCampaignMessage(
+      {
+        message: async (of) => {
+          rows = await ports.message(of);
+          return rows;
+        },
+      },
+      id,
+    );
+    return { message, rows, variables: rows.find((r) => r.id === message.anchor.id)?.variables ?? null };
+  } catch (e) {
+    if (e instanceof AppError) return { refusal: e.message };
+    throw e;
+  }
+}
+
+/**
+ * Why a proposal that names no channel is refused when its message has no WhatsApp version to go by: it goes by WhatsApp
+ * alone, as a campaign always did, so nothing made before changes. Said in the words contracts has for the version it lacks
+ * (messageWhyNot), and with what the message can go by -- the channels it holds that the workspace is ready on and its purpose
+ * carries (contracts readyForMessage over the channels the routes read) -- for the model to name. Null where WhatsApp holds it,
+ * and the workspace's own reason for WhatsApp stays the proposal's to give.
+ */
+export async function whatsappAloneRefusal(
+  t: ToolContext,
+  message: CampaignMessage,
+  about: MessageAbout,
+): Promise<string | null> {
+  const why = messageWhyNot(message, "whatsapp");
+  if (why === null) return null;
+  const { ready } = await createBroadcastPorts(t.ctx, t.tenantId, { fresh: false }).channels();
+  const goes = channelChoices(readyForMessage(ready, message), message.purpose, about)
+    .filter((c) => c.ok)
+    .map((c) => c.channel);
+  return goes.length > 0
+    ? `${why} Say so, and name channels among ${goes.join(", ")}`
+    : `${why} It can go by no other channel yet: say so`;
 }
 
 /**

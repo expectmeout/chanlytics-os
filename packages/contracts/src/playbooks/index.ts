@@ -1,4 +1,4 @@
-/** Playbooks: a standing rule that sends one approved template to newly eligible people who said yes. */
+/** Playbooks: a standing rule that sends one message, on the channels it holds, to newly eligible people who said yes. */
 export {
   playbookListRef,
   proposalFactsFor,

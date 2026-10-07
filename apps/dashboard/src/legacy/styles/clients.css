@@ -2082,6 +2082,8 @@
 .pl-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 14px 28px 0; font-size: var(--text-sm); color: var(--ink-dim); }
 .pl-standing-total { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
 .pl-standing-part { display: inline-flex; align-items: center; gap: 6px; }
+/* A fact (a part and the parts that go on with it, contracts' `joins`) keeps together: the line wraps between facts. */
+.pl-standing-fact { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 6px; }
 .pl-standing-dot { color: var(--ink-faint); }
 /* Both sides, for the reason .cm-standing-tap gives: -6px on the left alone left
    12px of ink between "need a person" and the dot after it, against 6 before. */
@@ -2571,6 +2573,9 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
   .pipe-peek-bar { display: flex; gap: 10px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--bg); }
   .pipe-peek-bar > .btn { flex: 1; min-height: 44px; justify-content: center; }
 }
+/* With the deal's next act pinned under the peek (peek.tsx PipelinePeekBar), the deal card's own copy of it leaves the body:
+   a phone said "Start a proposal" twice on one screen (7 Oct 2026). Reached by its test ids: its class is the kit's. */
+.pk-body[data-act-pinned] :is([data-testid="person-deal-next"], [data-testid="person-deal-start"]) { display: none; }
 
 /* ====================================================================
    Glass: People (the plan's step 5.4, canvases P1 and P2)
@@ -2993,10 +2998,11 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
   .main-scroll:has(> .clients) > header .pg-sentence {
     display: none;
   }
-  /* The list picked stands 4px under the strip, as the Inbox's buckets and Conversations' channels do (inbox.css,
-     conversations.css): the strip is the frame's, in its slot, for People as for them. */
+  /* The list picked stands 5px under the strip, as the Inbox's buckets and Conversations' channels stand 4px under theirs
+     (inbox.css, conversations.css): the strip is the frame's, in its slot, for People as for them. The room is the bar's
+     own now (below), so its targets can reach it: .cl-main clips what stands over its top edge. */
   .main:has(> .main-scroll > .clients) .pg-slot {
-    padding-bottom: 4px;
+    padding-bottom: 0;
   }
   /* The page's light shows through, as it does behind the Inbox and as it does behind People on a desk: the page stood on
      the flat ground (--bg) and hid the pools. */
@@ -3007,12 +3013,21 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
      quiet words at the strip's sides, as the Inbox's buckets stand, with its count beside the name and the page's menu a
      bare glyph at the right; then the search as the Inbox's capsule, 38px on an inset's fill, at 12; the standing line
      and the rows under them. Nothing is a capsule of its own but the strip and the search. */
+  /* The bar is a thumb's 44px tall and its words and glyphs keep their 34: the list picked and the page's menu are
+     pressed over the whole of it. The list picked was a 34px target, and the menu's 44 reached over the bar's top, where
+     .cl-main clipped it (7 Oct 2026); the 10px are taken from the 4 over the bar and the 6 under it. */
   .pp-bar {
     gap: 8px;
-    min-height: 34px;
+    min-height: 44px;
     padding: 0 16px;
   }
+  .pp-bar .pp-bar-pick::after {
+    content: "";
+    position: absolute;
+    inset: -5px 0;
+  }
   .pp-bar .pp-bar-pick {
+    position: relative;
     height: 34px;
     min-height: 0;
     gap: 6px;
@@ -3053,7 +3068,7 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
   }
   .pp-lookup {
     gap: 8px;
-    padding: 6px 12px 10px;
+    padding: 0 12px 10px;
   }
   /* The resting capsule is a button, so the touch floor (legacy.css, html.legacy-on button) is named over: two classes
      outweigh it. */
@@ -3092,7 +3107,7 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     border-radius: var(--surface-row-radius);
   }
   .pl-table tbody > tr[id]:hover {
-    background: color-mix(in oklab, var(--selected-fill) 55%, transparent);
+    background: var(--hover-fill);
   }
   /* Under the search the line is a caption: what the rows are, said once, small and dim, so the first person stays on
      the first screen under the Inbox's tiers. */
@@ -3100,6 +3115,15 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     padding: 0 16px 6px;
     font-size: var(--text-sm);
     color: var(--ink-dim);
+  }
+  /* The Pipeline's line, a fact to a line: wrapped, it set a dot at the start of its second ("· 1 waiting over a week";
+     7 Oct 2026). People's and Leads' lines are parts alone, and wrap as they did. */
+  .pl-standing:has(> .pl-standing-fact) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .pl-standing-fact > .pl-standing-part:first-child > .pl-standing-dot {
+    display: none;
   }
   .pl-standing-needs {
     font-weight: var(--weight-medium);

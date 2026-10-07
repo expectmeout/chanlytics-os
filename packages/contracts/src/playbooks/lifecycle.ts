@@ -328,7 +328,7 @@ function lifecycleHeadOf(input: LifecycleInput, stages: readonly LifecycleStage[
   return {
     title: LIFECYCLE_WORDS.title,
     sentence: parts,
-    library: { label: LIFECYCLE_WORDS.library, count: libraryCount(input.library, emailRowsOf(input.reachOuts)) },
+    library: { label: LIFECYCLE_WORDS.library, count: libraryCount(input.messages, emailRowsOf(input.reachOuts)) },
     newMessage: LIFECYCLE_WORDS.newMessage,
     // The email channel's own read carries whether its offers are paused: said under the sentence while they are.
     pausedLine: offersPausedLine(input.broadcasts?.ready?.email.offers),

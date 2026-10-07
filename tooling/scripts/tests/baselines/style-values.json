@@ -29,7 +29,7 @@
   },
   "apps/dashboard/src/legacy/styles/charts.css": {
     "font": 11,
-    "radius": 6,
+    "radius": 4,
     "shadow": 0,
     "colour": 30,
     "blur": 0
@@ -49,9 +49,9 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/conversations.css": {
-    "font": 7,
+    "font": 6,
     "radius": 3,
-    "shadow": 2,
+    "shadow": 0,
     "colour": 0,
     "blur": 0
   },

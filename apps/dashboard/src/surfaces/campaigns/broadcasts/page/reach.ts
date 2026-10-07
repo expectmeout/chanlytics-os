@@ -8,18 +8,20 @@ import {
   DEFAULT_CAMPAIGN_CHANNELS,
   emptyAudienceRefusal,
   overLimitRefusal,
+  readyForMessage,
 } from "@chanlytics/contracts";
 import type { AskedPurpose, AudiencePreview, ConsentChannel, ParamSourceKind } from "@chanlytics/contracts";
 import { sameChannels } from "@/lib/campaign-channels";
 import { pageClock } from "@/legacy-bridge/zone";
 import {
+  CM_NO_MESSAGE_YET,
   CM_VIA_WORDS,
   cmChannelsOn,
   cmHeldLines,
   cmReachBy,
-  cmReadyForMessage,
   cmReadyOf,
   cmSplitWords,
+  cmStandInOf,
   cmViaTicks,
 } from "../../parts/channels";
 import { cmChannelOfPerson, cmOfferFoot, cmPreviewBy } from "../../parts/preview-by";
@@ -89,7 +91,7 @@ export function bcReachOf({
   const purpose = (tpl && tpl.purpose) || "marketing";
   const number = data.number || null;
   // The channels it goes by: the ones ticked that the workspace can send on and the message has a version for.
-  const channelReady = cmReadyForMessage(cmReadyOf(data.ready), (tpl && tpl.channels) || DEFAULT_CAMPAIGN_CHANNELS);
+  const channelReady = readyForMessage(cmReadyOf(data.ready), tpl?.message ?? CM_NO_MESSAGE_YET);
   // A broadcast is the business's news, whatever its template's category: by email it waits for the workspace's offers as an
   // offer does (contracts isOfferByEmail, decision D2), so a channel is open to it by what an offer's is.
   const on = cmChannelsOn(channels, channelReady, purpose, "ours");
@@ -335,17 +337,20 @@ export function bcPreviewOf({
   // A surface cached before the ceiling was published carries none; the route's is thirty days.
   const maxDays = data.scheduleMaxDays || 30;
   const whenNote = bcWhenNote(whenAt, maxDays);
-  // With nobody to walk through (a surface cached before the people were kept), the preview is WhatsApp's, as it was.
+  // With nobody to walk through (a surface cached before the people were kept), the preview is the message's own words,
+  // WhatsApp's where it has a version there, as it was; a person held back is those words too, marked Not sent.
+  const standIn = tpl ? cmStandInOf(tpl) : "whatsapp";
   const preview = tpl
     ? cmPreviewBy(
         { body: tpl.body_preview, header: tpl.header, footer: bcFooter(tpl), buttons: tpl.buttons ?? null },
-        person ? channel : "whatsapp",
+        person ? channel : standIn,
         {
           versions: tpl.versions,
           language: tpl.language,
           business: data.businessName,
           address: data.businessAddress,
           labelled: reachBy !== null,
+          standIn,
           // An offer's email reads with the offer's foot: why they get it, and the way out (step 4). A broadcast is the
           // business's news, which is an offer by email whatever its template's category (decision D2).
           ...cmOfferFoot(tpl.category, "ours"),

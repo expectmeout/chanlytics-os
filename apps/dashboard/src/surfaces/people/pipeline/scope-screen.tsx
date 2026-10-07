@@ -23,39 +23,57 @@ import { PIPE_BULK_ACTS, PIPE_LAYOUTS, pipeComposeIn, pipeThreadRoute } from "./
 import { EMPTY_ADD } from "./scope-state";
 import type { PipelineState } from "./scope-hook";
 
-/** The line over the table, People's standing line in its parts: only the parts that have something, and those that count what waits on the owner press to their view. */
+type LinePart = PipelineState["line"][number];
+
+/**
+ * The line over the table, People's standing line in its parts: only the parts that have something, and those that count
+ * what waits on the owner press to their view. Each fact is one span, a part and those that go on with it (contracts'
+ * `joins`: a total's worth beside its count), so a phone sets each fact on a line of its own and a dot never starts one.
+ */
 function standingLine(s: PipelineState) {
   const { line, r, pickView } = s;
   const { view } = r;
+  const said = (part: LinePart, i: number) => {
+    const pv = part.view;
+    return pv ? (
+      <button
+        type="button"
+        className={`pl-standing-needs${view === part.view ? " on" : ""}`}
+        aria-pressed={view === part.view}
+        onClick={() => pickView(pv)}
+        data-testid={`pipeline-line-${part.view}`}
+      >
+        {part.words}
+      </button>
+    ) : (
+      <span className={i === 0 ? "pl-standing-total" : "pl-standing-reached"}>{part.words}</span>
+    );
+  };
+  const facts: { key: number; parts: { part: LinePart; i: number }[] }[] = [];
+  line.forEach((part, i) => {
+    const last = facts.at(-1);
+    if (part.joins && last) last.parts.push({ part, i });
+    else facts.push({ key: i, parts: [{ part, i }] });
+  });
   return (
     line.length > 0 && (
       <div className="pl-standing" data-testid="pipeline-summary">
-        {line.map((part, i) => {
-          const pv = part.view;
-          const said = pv ? (
-            <button
-              type="button"
-              className={`pl-standing-needs${view === part.view ? " on" : ""}`}
-              aria-pressed={view === part.view}
-              onClick={() => pickView(pv)}
-              data-testid={`pipeline-line-${part.view}`}
-            >
-              {part.words}
-            </button>
-          ) : (
-            <span className={i === 0 ? "pl-standing-total" : "pl-standing-reached"}>{part.words}</span>
-          );
-          return i === 0 ? (
-            <Fragment key={i}>{said}</Fragment>
-          ) : (
-            <span key={i} className="pl-standing-part">
-              <span className="pl-standing-dot" aria-hidden="true">
-                ·
-              </span>
-              {said}
-            </span>
-          );
-        })}
+        {facts.map((fact) => (
+          <span key={fact.key} className="pl-standing-fact">
+            {fact.parts.map(({ part, i }) =>
+              i === 0 ? (
+                <Fragment key={i}>{said(part, i)}</Fragment>
+              ) : (
+                <span key={i} className="pl-standing-part">
+                  <span className="pl-standing-dot" aria-hidden="true">
+                    ·
+                  </span>
+                  {said(part, i)}
+                </span>
+              ),
+            )}
+          </span>
+        ))}
       </div>
     )
   );

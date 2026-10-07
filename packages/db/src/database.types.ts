@@ -863,6 +863,7 @@ export type Database = {
       }
       contact_identities: {
         Row: {
+          assurance: string
           channel: string
           contact_id: string
           created_at: string
@@ -872,6 +873,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          assurance?: string
           channel: string
           contact_id: string
           created_at?: string
@@ -881,6 +883,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          assurance?: string
           channel?: string
           contact_id?: string
           created_at?: string
@@ -5900,6 +5903,21 @@ export type Database = {
         Args: { p_from_name: string; p_local_part: string; p_tenant_id: string }
         Returns: Json
       }
+      create_message_version: {
+        Args: {
+          p_body: string
+          p_category: string
+          p_channel: string
+          p_language: string
+          p_name: string
+          p_subject: string
+          p_tenant_id: string
+          p_title: string
+          p_user: string
+          p_variables: Json
+        }
+        Returns: Json
+      }
       create_person: {
         Args: {
           p_display_name: string
@@ -7657,6 +7675,20 @@ export type Database = {
       request_sweep: {
         Args: { p_path: string; p_sweep: string; p_timeout_ms?: number }
         Returns: number
+      }
+      resolve_person: {
+        Args: {
+          p_assurance: string
+          p_channel: string
+          p_detail?: Json
+          p_email: string
+          p_external: string
+          p_name: string
+          p_phone: string
+          p_source: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       resume_email_offers: { Args: { p_tenant_id: string }; Returns: boolean }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }

@@ -127,6 +127,21 @@ select 'session_email_lookup',
        case when has_function_privilege('authenticated', 'public.lookup_user_for_invite(uuid, text)', 'EXECUTE')
             then array['lookup_user_for_invite(uuid,text)'] else '{}'::text[] end
 union all
+select 'session_calls_service_door', coalesce(array_agg(x order by x), '{}') from (
+  select p.oid::regprocedure::text as x
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname in ('assemble_broadcast', 'create_message_version')
+     and (has_function_privilege('authenticated', p.oid, 'EXECUTE') or has_function_privilege('public', p.oid, 'EXECUTE'))
+) s
+union all
+select 'service_door_missing', coalesce(array_agg(x order by x), '{}') from (
+  select d.proname::text as x
+    from (values ('assemble_broadcast'), ('create_message_version')) as d(proname)
+   where not exists (
+     select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = d.proname and has_function_privilege('service_role', p.oid, 'EXECUTE'))
+) s
+union all
 select 'anon_holds_relation', coalesce(array_agg(x order by x), '{}') from (
   select c.relname::text as x
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -363,6 +378,22 @@ test("a session cannot ask whether an address has an account", { skip }, () => {
   // with the service role, after its owner check and rate bucket (00121).
   assert.deepEqual(rules.session_email_lookup, [], "lookup_user_for_invite is the service role's");
 });
+
+test(
+  "a door the service role calls after the route's role check is no session's: nobody but the service role executes it",
+  { skip },
+  () => {
+    // assemble_broadcast puts a send job on the ledger and create_message_version files a message's category: a session that
+    // could call either would walk around the checks the route makes first (00282, 00343). The names are listed here, so a
+    // door added to them is held to the same rule, and one dropped from the database fails the second assertion.
+    assert.deepEqual(
+      rules.session_calls_service_door,
+      [],
+      "revoke all on function <door> from public, anon, authenticated, then grant execute to service_role alone",
+    );
+    assert.deepEqual(rules.service_door_missing, [], "the service role executes each of these doors");
+  },
+);
 
 test("ensure_events_partition takes a stray session grant back from the month it makes", { skip }, () => {
   // Run, not read: make sure this month exists, hand authenticated a grant on

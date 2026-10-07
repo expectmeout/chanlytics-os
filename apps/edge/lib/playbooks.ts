@@ -15,7 +15,7 @@ import {
   holdRecipients,
   listPolicies,
   mailboxOfTenant,
-  ownVersionsFiled,
+  messageVersionRowsOf,
   savedListsFor,
   textLineFacts,
   touchIndex,
@@ -321,24 +321,10 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
   const { db, tenantId } = ctx;
   return runOverPorts(
     {
-      // A read that fails throws: a template that could not be read is not
-      // one Meta withdrew, and the run says it failed rather than skipping the day.
-      template: async (name, language) => {
-        const { data, error } = await db
-          .from("templates")
-          .select("meta_status, category")
-          .eq("tenant_id", tenantId)
-          .eq("channel", "whatsapp")
-          .eq("name", name)
-          .eq("language", language)
-          .maybeSingle();
-        if (error) throw new Error(`cannot read template ${name}: ${error.message}`);
-        return data ?? null;
-      },
-      // The channels, of email and text, that hold a version of the message in its language (a templates row of its
-      // name and language there): a read that fails throws, and the run says it failed.
-      versions: async (name, language) =>
-        (await ownVersionsFiled(db, tenantId, [name])).filter((v) => v.language === language).map((v) => v.channel),
+      // The message is its rows of that name and language on every channel: WhatsApp's as Meta has it, an email's and a
+      // text's beside it. A read that fails throws: a message that could not be read is not one Meta withdrew, and the run
+      // says it failed rather than skipping the day.
+      message: (name, language) => messageVersionRowsOf(db, tenantId, { name, language }),
       alreadyRan: async (playbookId, runFor) => {
         const { data } = await db
           .from("broadcasts")

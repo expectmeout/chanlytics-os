@@ -1,12 +1,12 @@
 {
-  "js": 736106,
+  "js": 738901,
   "css": 147504,
   "page": {
-    "broadcasts": 147152,
+    "broadcasts": 166790,
     "calendar": 108358,
-    "campaigns": 195743,
+    "campaigns": 200132,
     "conversations": 103001,
-    "inbox": 114476,
+    "inbox": 115733,
     "lists": 615,
     "live": 13483,
     "people": 236573,
@@ -14,7 +14,7 @@
     "reports": 78904,
     "settings": 59519,
     "start": 28782,
-    "templates": 152130,
+    "templates": 155482,
     "today": 207
   },
   "ceiling": {

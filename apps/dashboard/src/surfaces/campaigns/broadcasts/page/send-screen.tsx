@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import {
   CAMPAIGN_ROOMS,
   NO_TEMPLATE_WORDS,
+  STARTER_LINE_WORDS,
   allowanceBeforeSend,
   heldBackWords,
   monthSentAt,
@@ -256,13 +257,13 @@ function bcMessagePicks(v: BcV) {
   );
 }
 
-// Why there is no message to pick: in review at WhatsApp, or none yet -- with the starter set, which one press adds.
+// Why there is no message to pick: the starters' WhatsApp versions in review, or none yet (the starter set is one press).
 function bcNoMessage({ starterPending, addingStarters, addStarters }: BcV) {
   return (
     <>
       <span className="bc-excl-hint" data-testid="bc-no-template">
         {starterPending > 0 ? (
-          `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
+          STARTER_LINE_WORDS.reviewing(starterPending)
         ) : (
           <>
             {NO_TEMPLATE_WORDS.lead}{" "}

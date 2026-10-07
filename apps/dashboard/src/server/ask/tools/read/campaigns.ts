@@ -13,11 +13,13 @@ import {
   listUnknownWords,
   listsFor,
   membersOf,
+  messageHolds,
   momentOffered,
   nextRunLabel,
   noteRows,
   numberHealth,
   numberHealthWithStanding,
+  type ChannelDto,
   playbookListRef,
   policyClassOffered,
   resolveList,
@@ -32,6 +34,7 @@ import {
   type AudienceKind,
   type BroadcastDto,
   type ListRef,
+  type CampaignMessage,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
@@ -54,6 +57,80 @@ import {
 } from "../context";
 
 /**
+ * The messages a broadcast may be made on, as the composers' read gave them (its `messages`: one a name and language, with
+ * or without a WhatsApp row, a version in review among their versions, and the ones the composers offer), in the library's
+ * order, each as the model reads it: the id a proposal takes (the id of the version whose words it lists, which names the
+ * message as any version's does, and which the read's rows cite), the channels it can be sent by now (contracts
+ * messageHolds), its values and its words, which are the WhatsApp version's where the composers' rows have it, else the
+ * email's, else the text's.
+ */
+function offeredMessages(messages: readonly CampaignMessage[], tpls: TemplatesRead["templates"]) {
+  const byId = new Map(tpls.map((r) => [r.id, r]));
+  // The row a message is listed by: the first of its versions the composers' rows hold (not one still in review).
+  const rowOf = (m: CampaignMessage) => {
+    for (const v of [m.versions.whatsapp, m.versions.email, m.versions.sms]) {
+      const row = v ? byId.get(v.id) : undefined;
+      if (row) return row;
+    }
+    return null;
+  };
+  return messages
+    .filter((m) => m.offered)
+    .flatMap((m) => {
+      const row = rowOf(m);
+      return row ? [{ m, row }] : [];
+    })
+    .sort((a, b) => compareTemplates(a.row, b.row))
+    .map(({ m, row }) => ({
+      template_id: row.id,
+      name: m.name,
+      language: m.language,
+      category: m.category,
+      channels: messageHolds(m),
+      values: Array.isArray(row.variables)
+        ? (row.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({
+            position: v.position,
+            label: v.label,
+            example: v.example ?? null,
+          }))
+        : [],
+      body: row.body_preview,
+    }));
+}
+
+/**
+ * The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active WhatsApp
+ * row, its health from the quality Meta assigned it with what Meta holds against the number (campaigns/channels-ready.ts
+ * reads the two as one judgement), and how a proposal that names no channel counts people (whatsappHowOf: by WhatsApp,
+ * the workspace ready on it or not; no number is none, and channels that could not be read count as the pages count
+ * them, WhatsApp able). `number` is what the listing says of it, null where the channels could not be read.
+ */
+function numberFactsOf(chans: ChannelDto[] | null) {
+  const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+  const health = {
+    ...numberHealthWithStanding(
+      numberHealth({
+        quality: wa?.quality ?? null,
+        event: wa?.quality_event ?? null,
+        limit: wa?.messaging_limit ?? null,
+      }),
+      wa?.standing ?? null,
+    ),
+    number: wa?.number_e164 ?? null,
+  };
+  const how = whatsappHowOf(chans === null ? undefined : wa ? health : null, "ours");
+  const number = chans
+    ? {
+        present: !!wa,
+        health: health.label,
+        can_send: health.canSend,
+        limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay,
+      }
+    : null;
+  return { how, number };
+}
+
+/**
  * The audiences a broadcast may go to, counted by the same contracts
  * predicate the route enrols with and the page shows — so the number the
  * assistant says is the number the card will carry.
@@ -72,6 +149,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "campaigns.audiences", "channels")),
   ]);
   const tpls = tplRead ? tplRead.data.templates : null;
+  const messages = tplRead ? tplRead.data.messages : null;
   const rows = pool.rows;
   // FOUR sizes for every audience: this listing is read BEFORE a template is
   // chosen, the two answers differ, and who gave an answer is not who can be sent
@@ -81,24 +159,8 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // who had ever texted START; and `said_yes_to_offers` was the REACH, so a list
   // whose one yes to offers had no number read as nobody's yes. The send screen's
   // own counts (audiencePreview): `sending` is the number on its chip.
-  // The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active
-  // WhatsApp row, and its health from the quality Meta assigned it.
-  const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
-  // With what Meta holds against the number and the number itself, as campaigns/channels-ready.ts reads them: one judgement.
-  const health = {
-    ...numberHealthWithStanding(
-      numberHealth({
-        quality: wa?.quality ?? null,
-        event: wa?.quality_event ?? null,
-        limit: wa?.messaging_limit ?? null,
-      }),
-      wa?.standing ?? null,
-    ),
-    number: wa?.number_e164 ?? null,
-  };
-  // Counted by WhatsApp, as a proposal names no other channel, the workspace ready on it or not (the composer counts by
-  // the same): no number is none, and channels that could not be read count as the pages count them, WhatsApp able.
-  const how = whatsappHowOf(chans === null ? undefined : wa ? health : null, "ours");
+  // The number it goes out on and how a proposal that names no channel counts (numberFactsOf, above).
+  const { how, number } = numberFactsOf(chans);
   const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
     const offers = audiencePreview(rows, kind, id, ids, "marketing", how);
     const messages = audiencePreview(rows, kind, id, ids, "conversational", how);
@@ -133,57 +195,38 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
         : { ...head, cannot_count: listUnknownWords(m.reason, pool.listCtx.calendar) };
     }),
   ];
-  // The templates the composer offers (ledger #14): WhatsApp's approved ones as the page hands them over, in the
-  // library's order, split as the Broadcasts composer splits them (broadcasts-real.jsx) -- the ones this product can
-  // put on the wire, and one sentence, the page's, for those it cannot. A card never checks this: a template offered
-  // here that the wire refuses became a card whose send failed for everyone on it. The rows carry `blocked`, the
-  // answer the reader worked out from Meta's array, which the split believes (contracts templateBlocked); its type
-  // names the array they no longer carry.
+  // The messages the composer offers (ledger #14), whatever channels they have versions on: each says the channels it can
+  // be sent by, and the ones with none this product can put on the wire are not listed. WhatsApp's approved versions are
+  // split as the Broadcasts composer splits them (broadcasts-real.jsx): one sentence, the page's, for the ones it cannot
+  // send whole. A card never checks this: a template offered here that the wire refuses became a card whose send failed
+  // for everyone on it. The rows carry `blocked`, the answer the reader worked out from Meta's array, which the split
+  // believes (contracts templateBlocked); its type names the array they no longer carry. The messages are the read's own,
+  // made of every row, so a WhatsApp version still in review is among a message's versions with its standing.
+  const offeredList = tpls && messages ? offeredMessages(messages, tpls) : null;
   const split = tpls
     ? sendableTemplates<TemplatesRead["templates"][number] & { components?: unknown }>(
         tpls.filter((x) => x.channel === "whatsapp" && x.meta_status === "approved").sort(compareTemplates),
       )
     : null;
-  // Every template it offers is a row an answer may cite, as the composers' read gave it.
-  const offeredIds = new Set(split?.sendable.map((x) => x.id));
+  // Every message it offers is a row an answer may cite, as the composers' read gave it: by the id it lists.
+  const offeredIds = new Set(offeredList?.map((x) => x.template_id));
   noteRows(
     t.read,
     (tplRead?.rows ?? []).filter((r) => offeredIds.has(r.id)),
   );
   // What could not be read, in words the model says: a null above is not none.
   const couldNotRead = [
-    ...(split ? [] : ["The messages could not be read just now: say so, and propose no broadcast until they can."]),
+    ...(tpls ? [] : ["The messages could not be read just now: say so, and propose no broadcast until they can."]),
     ...(chans ? [] : ["The WhatsApp number's state could not be read just now."]),
   ];
   return {
     route: "broadcasts",
     audiences,
-    templates:
-      split?.sendable.map((x) => ({
-        template_id: x.id,
-        name: x.name,
-        language: x.language,
-        category: x.category,
-        values: Array.isArray(x.variables)
-          ? (x.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({
-              position: v.position,
-              label: v.label,
-              example: v.example ?? null,
-            }))
-          : [],
-        body: x.body_preview,
-      })) ?? null,
+    templates: offeredList,
     cannot_send: split?.why ?? null,
-    number: chans
-      ? {
-          present: !!wa,
-          health: health.label,
-          can_send: health.canSend,
-          limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay,
-        }
-      : null,
+    number,
     ...(couldNotRead.length ? { could_not_read: couldNotRead } : {}),
-    note: `Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not.`,
+    note: `Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.`,
   };
 }
 
@@ -396,13 +439,13 @@ async function readBroadcast(t: ToolContext, input: { broadcast_id: string }): P
 export const campaignsTool = defineActions({
   name: "campaigns",
   description: "What goes out to the people who said yes, by action.",
-  tail: "Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+  tail: "Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the message first, then quote its can_be_sent count as who the broadcast reaches, never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
   actions: {
     audiences: readAction({
       input: z.object({}),
       examples: [{}],
       label: "Reading the lists and templates",
-      words: `Action audiences takes nothing more; read before any broadcast, it lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}.`,
+      words: `Action audiences takes nothing more; read before any broadcast, it lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, all by WhatsApp, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches on WhatsApp) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists, under templates, the messages a broadcast may be made on, each with its template_id (any of its versions' ids names the message), category, channels (true for each of whatsapp, email and sms it can be sent on now; a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached), values and body, why a WhatsApp version this product cannot send whole is left out (cannot_send), and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}.`,
       run: listAudiences,
     }),
     playbooks: readAction({
@@ -410,7 +453,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the playbooks",
       words:
-        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template.",
+        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
       run: listPlaybooksTool,
     }),
     broadcasts: readAction({

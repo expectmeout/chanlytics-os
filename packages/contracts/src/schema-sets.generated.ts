@@ -34,6 +34,7 @@ export const SCHEMA_SETS = {
   "calls.outcome": ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"],
   "calls.status": ["registered", "ongoing", "ended", "error", "not_connected"],
   "capability_activations.capability": ["voice", "whatsapp", "sms"],
+  "contact_identities.assurance": ["observed", "asserted", "found"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
   "contacts.acquired_via": ["whatsapp", "sms", "email", "call", "ad", "calendar", "import", "lead", "manual"],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],

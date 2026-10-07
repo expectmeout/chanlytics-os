@@ -7,7 +7,7 @@
     "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/db": "workspace:*",
-    "@supabase/supabase-js": "^2.116.0"
+    "@supabase/supabase-js": "^2.117.2"
   },
   "devDependencies": {
     "esbuild": "0.28.2",

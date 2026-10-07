@@ -61,6 +61,8 @@ export const EVENT_EVIDENCE_KINDS = [
   "ingest.unroutable",
   "usage.llm_tokens",
   "usage.ask_tokens",
+  // A door's own record of a match (resolve_person, 00342): the record is the person and their contact.added.
+  "person.resolved",
 ] as const;
 
 /** "the day" after for one day, "N days" after for more: the words follow the number. */

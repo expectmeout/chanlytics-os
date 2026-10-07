@@ -1,7 +1,7 @@
 /**
  * The server a signed-in spec is run against, with no deployment, no database and no Supabase.
  *
- *   node tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon|pipeline|kit]     (from the repo root)
+ *   node tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon|pipeline|email-only|kit]     (from the repo root)
  *
  * Three things, and nothing else:
  *   - the two Supabase auth calls e2e/session.ts makes, answered so `signIn()` mints a harmless local cookie;
@@ -26,6 +26,7 @@ import { buildFixture } from "./fixture.mjs";
 import { buildBehaves } from "./kit-behaves.mjs";
 import { behavesDocument, galleryDocument } from "./kit-gallery.mjs";
 import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
+import { templatesRead } from "./templates-read.mjs";
 import {
   inboxGlobalsBundle,
   kitGlobalsBundle,
@@ -114,15 +115,36 @@ export function answer(method, pathname, params, record) {
       body: ok({ config: record.config, version: record.version, role: record.role, configBroken: false }),
     };
   }
-  // People's reads, where the record has people (the pipeline scenario): the list as GET contacts pages it, the
-  // member's saved lists and views (none), and one person as the person read hands them over. A record with no
-  // people answers none of them, so People stays the seeded page there, as it always has.
+  // The templates read, as the route answers it (templates-read.mjs): the composers', or Settings' with `all`.
+  if (pathname === "/api/v1/templates") {
+    return { status: 200, body: ok(templatesRead(record.templates ?? [], { all: params.get("all") === "1" })) };
+  }
+  // The workspace's channels as GET channels hands them over: the rows the record knows, and nothing Meta has said of them.
+  if (pathname === "/api/v1/channels") {
+    return { status: 200, body: ok({ channels: (record.known?.channels ?? []).map(channelOf) }) };
+  }
+  // People's reads, where the record has people (the pipeline and email-only scenarios): the list as GET contacts pages
+  // it, the member's saved lists (the record's own) and views (none), and one person as the person read hands them over. A
+  // record with no people answers none of them, so People stays the seeded page there, as it always has.
   if (record.people) {
     const people = peopleAnswer(pathname, params, record);
     if (people) return people;
   }
   return { status: 404, body: err("not_found", `the harness has no ${pathname}`) };
 }
+
+/**
+ * A channel of the record as GET channels hands it over (contracts ChannelDto): its kind, number and status, with no word
+ * from Meta and nobody heard on it yet. The record keeps no id or date for a line, so these are the harness's own.
+ */
+const channelOf = (c) => ({
+  id: `hx-channel-${c.kind}`,
+  kind: c.kind,
+  number_e164: c.number_e164 ?? null,
+  status: c.status ?? "active",
+  created_at: "2026-09-01T00:00:00.000Z",
+  last_inbound_at: null,
+});
 
 /** People's reads from a record with people; null for a path that is not one of them. */
 function peopleAnswer(pathname, params, record) {
@@ -143,7 +165,7 @@ function peopleAnswer(pathname, params, record) {
       }),
     };
   }
-  if (pathname === "/api/v1/segments") return { status: 200, body: ok({ lists: [] }) };
+  if (pathname === "/api/v1/segments") return { status: 200, body: ok({ lists: record.lists ?? [] }) };
   if (pathname === "/api/v1/views") return { status: 200, body: ok({ views: {} }) };
   const one = pathname.match(/^\/api\/v1\/contacts\/([0-9a-f-]{36})$/i);
   if (one) {

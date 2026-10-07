@@ -9,6 +9,7 @@
  */
 import type { ChannelsReady } from "../broadcasts/reach-for";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
+import type { CampaignMessage } from "../templates/campaign-message";
 
 /** One moment's count as the playbooks surface keeps it (`pools`), less what the home does not read. */
 export interface LifecyclePool {
@@ -139,13 +140,12 @@ export interface LifecycleBroadcasts {
   report: LifecycleReport | null;
 }
 
-/** A template row, as far as the home reads it: the library's count, and the call's text. */
+/** A template row, as far as the home reads it: the call's text. */
 export interface LifecycleTemplate {
   name: string;
   language: string;
   meta_status?: string | null;
   variables: unknown;
-  hidden_at?: string | null;
   /** Why this product cannot send it, as the reader answers (templateBlocked): the call's text is never one of those. */
   blocked?: string | null;
 }
@@ -157,8 +157,10 @@ export interface LifecycleInput {
   playbooks: LifecyclePlaybooks | undefined;
   /** The broadcasts surface: undefined before it is read, null where it could not be (the tiles made from it say which). */
   broadcasts: LifecycleBroadcasts | null | undefined;
-  /** The workspace's WhatsApp rows (the settings surface's `templatesAll`); null where they could not be read. */
+  /** The workspace's WhatsApp rows (the settings surface's `templatesAll`): the call's text; null where unread. */
   library: readonly LifecycleTemplate[] | null | undefined;
+  /** The workspace's messages (the settings surface's `messages`), which the Library counts; null where unread. */
+  messages: readonly Pick<CampaignMessage, "name" | "hidden">[] | null | undefined;
   /** The reach-outs' chains; null where they could not be read. */
   reachOuts: readonly ReachOutChainDto[] | null | undefined;
 }

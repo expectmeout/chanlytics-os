@@ -34,6 +34,16 @@ export const VERSION_CHANNEL_WORDS: Record<VersionChannel, string> = {
   sms: "Text",
 };
 
+/**
+ * The sentence for a channel a message has no version on at all: the one spelling of it, which messageWhyNot says
+ * (campaign-message.ts), and the previews and Ask's cards say where they hold words by channel and no message.
+ */
+export function noVersionWords(channel: VersionChannel): string {
+  return channel === "whatsapp"
+    ? "This message has no WhatsApp version."
+    : `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version yet.`;
+}
+
 /** The longest subject: Meta's limit for a heading, which an email's subject is stored as. */
 export const EMAIL_SUBJECT_MAX = 60;
 /** The longest email body a version may be. */

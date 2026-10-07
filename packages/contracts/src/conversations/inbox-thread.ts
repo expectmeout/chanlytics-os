@@ -140,15 +140,42 @@ export function snoozedThreadWords(openRequest: string | null): string {
   return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
 
+/** The wire one message travelled: a call's note is the phone, and words are the channel they were written on. */
+const wireOf = (m: Pick<MessageDto, "type" | "channel">): InboxThreadVM["primaryChannel"] =>
+  m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
+
 /**
  * The row's preview: the last thing that happened between them. A call's note counts, since a contact who has only ever
  * phoned has nothing else; a team's note does not, nor our words that never reached them.
  */
-function previewOf(messages: readonly MessageDto[]): string {
+function previewOf(messages: readonly MessageDto[]): { text: string; channel: InboxThreadVM["previewChannel"] } {
   const last = [...messages]
     .reverse()
     .find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
-  return last ? messageWords(last).slice(0, 110) : "";
+  return last ? { text: messageWords(last).slice(0, 110), channel: wireOf(last) } : { text: "", channel: null };
+}
+
+/**
+ * The customer's own words where the decision is made. The reason's sentence
+ * says why a person is needed; this says what they asked: the last thing they
+ * wrote, which is what they are waiting on, or for a call back what the call
+ * left behind -- the details the call back's sentence promises.
+ */
+function askOf(escalation: EscalationDto | null, lastInbound: MessageDto | undefined): InboxThreadVM["ask"] {
+  if (!escalation) return null;
+  if (escalation.reason === "callback") {
+    const text = escalation.details?.trim();
+    return text ? { kind: "call", label: "From the call", text, quoted: false, channel: "phone" } : null;
+  }
+  if (!lastInbound) return null;
+  const wrote = lastInbound.type === "text";
+  return {
+    kind: wrote ? "wrote" : "sent",
+    label: wrote ? "They wrote" : "They sent",
+    text: messageWords(lastInbound),
+    quoted: wrote,
+    channel: wireOf(lastInbound),
+  };
 }
 
 export function toInboxThreadVM(
@@ -263,24 +290,11 @@ export function toInboxThreadVM(
     ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS))
     : undefined;
 
-  // The customer's own words where the decision is made. The reason's sentence
-  // says why a person is needed; this says what they asked: the last thing they
-  // wrote, which is what they are waiting on, or for a call back what the call
-  // left behind -- the details the call back's sentence promises.
-  const ask: InboxThreadVM["ask"] = !escalation
-    ? null
-    : escalation.reason === "callback"
-      ? escalation.details?.trim()
-        ? { kind: "call" as const, label: "From the call", text: escalation.details.trim(), quoted: false }
-        : null
-      : lastInbound
-        ? lastInbound.type === "text"
-          ? { kind: "wrote" as const, label: "They wrote", text: messageWords(lastInbound), quoted: true }
-          : { kind: "sent" as const, label: "They sent", text: messageWords(lastInbound), quoted: false }
-        : null;
+  const ask = askOf(escalation, lastInbound);
 
   // A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1).
   const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
+  const preview = previewOf(dto.messages);
 
   return {
     id: `th-${dto.id}`,
@@ -327,7 +341,8 @@ export function toInboxThreadVM(
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
-    preview: previewOf(dto.messages),
+    preview: preview.text,
+    previewChannel: preview.channel,
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther

@@ -14,7 +14,7 @@ import { starterWords } from "./composer";
 import type { TemplateGroup, TplLang } from "./group";
 import { syncTemplates, templates as templateVerbs } from "./verbs";
 import type { VersionDraft } from "./verbs";
-import { TPL_VERSION_WORDS, tplTitle } from "./words";
+import { TPL_VERSION_WORDS, tplLangLabel, tplTitle } from "./words";
 
 interface ActsProps {
   doingRef: RefObject<string | null>;
@@ -111,6 +111,15 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
   };
   const saveVersion = (g: TemplateGroup, lang: TplLang, draft: VersionDraft) =>
     writeVersion(draft, () => TPL_VERSION_WORDS.saved(g.title, VERSION_CHANNEL_WORDS[draft.channel], lang.label));
+  // The first version of a message the composer wrote: the same save, and the toast says the message is in the Library.
+  const beginMessage = (draft: VersionDraft) =>
+    writeVersion(draft, () =>
+      TPL_VERSION_WORDS.began(
+        draft.message?.title ?? draft.name,
+        VERSION_CHANNEL_WORDS[draft.channel],
+        tplLangLabel(draft.language),
+      ),
+    );
   // A reach-out's email, written where it is read: its save sends what waits for the step back to the check, and says so.
   const saveEmail = (draft: VersionDraft) => writeVersion(draft, (saved) => reachOutEditedWords(saved.rechecked ?? 0));
   const removeVersion = (g: TemplateGroup, lang: TplLang, row: TemplateDto) =>
@@ -129,5 +138,16 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
         </>
       ),
     });
-  return { rename, toggleHidden, remove, addStarters, sync, written, saveVersion, saveEmail, removeVersion };
+  return {
+    rename,
+    toggleHidden,
+    remove,
+    addStarters,
+    sync,
+    written,
+    saveVersion,
+    beginMessage,
+    saveEmail,
+    removeVersion,
+  };
 }

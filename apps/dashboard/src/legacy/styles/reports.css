@@ -93,7 +93,13 @@
    in the muted ink, the picked fill while it is open. It was the kit's outlined button, which the touch floor drew 36px
    wide and 44 tall beside a strip of another glass (Ruben, 7 Oct 2026). */
 .rpt-period > .rpt-when-open { flex: none; width: var(--control-h-lg); height: var(--control-h-lg); padding: 0; border: 0; border-radius: var(--radius-circle); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); color: var(--ink-muted); }
-.rpt-period > .rpt-when-open:hover, .rpt-period > .rpt-when-open[aria-expanded="true"] { background: var(--selected-fill); color: var(--ink); }
+.rpt-period > .rpt-when-open[aria-expanded="true"] { background: var(--selected-fill); color: var(--ink); }
+/* The picked fill under a pointer that hovers, and only there: a touch screen keeps :hover on the last thing tapped, so
+   the button closed by a second tap wore the picked fill until something else was tapped, and a swipe across the page
+   is no tap (Ruben, 7 Oct 2026: "the date picker highlight"). */
+@media (hover: hover) {
+  .rpt-period > .rpt-when-open:hover { background: var(--selected-fill); color: var(--ink); }
+}
 /* 44px on a phone, where the strip beside it is 44 (kit.css), and under a thumb wherever it stands. */
 @media (max-width: 900px), (pointer: coarse) {
   .rpt-period > .rpt-when-open { width: 44px; height: 44px; }

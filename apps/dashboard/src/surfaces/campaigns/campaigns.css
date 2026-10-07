@@ -3746,6 +3746,12 @@ section:has(> .tpl-composer:not(.is-translate)) {
     gap: 12px;
     padding: 0 12px 12px;
   }
+  /* The list's pane is as tall as what it holds, up to the screen's rest, as Live's call pane is: an empty Sent stood a
+     whole screen tall round one card (7 Oct 2026). */
+  .cm-split > .cm-list {
+    align-self: start;
+    max-height: 100%;
+  }
   .cm-split[data-open] {
     grid-template-columns: minmax(0, 1fr);
     padding: 0;
@@ -4555,6 +4561,35 @@ div.tpl-slotbox:not([data-lines="1"]) {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* A new message written as an email, or a text chosen for it (composer-forms.tsx): its fields one under another, each
+   value a name beside its example, and the acts that add or take one away under them. The editor of its words is
+   .tpl-ver-edit, drawn as it is for any version. */
+.tpl-own {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 0;
+}
+.tpl-own > .bc-excl-hint {
+  align-self: flex-start;
+}
+.tpl-own-values {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tpl-own-value {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: var(--space-2);
+}
+.tpl-own-acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
 
 /* ====================================================================
    Campaigns home (canvas A, "Lifecycle"; surfaces/campaigns/home/)
@@ -5188,6 +5223,24 @@ div.tpl-slotbox:not([data-lines="1"]) {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+  /* And it is the glass control the Calendar's options are (calendar.css .cal-options): a 44px circle round its glyph, a
+     capsule where its count stands beside it, in the muted ink. The kit's small outlined button stood a narrow 33px square
+     beside New, and all but vanished on the light side (7 Oct 2026). */
+  a.cmh-library {
+    min-width: 44px;
+    height: 44px;
+    padding: 0 14px;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-control-fill);
+    box-shadow: var(--surface-control-depth);
+    color: var(--ink-muted);
+  }
+  a.cmh-library:hover {
+    background: var(--selected-fill);
+    color: var(--ink);
   }
 }
 

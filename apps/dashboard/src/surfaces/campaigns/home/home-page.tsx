@@ -54,7 +54,7 @@ function headActs(home: LifecycleHome, newMessage: () => void) {
   const { library } = home.head;
   return (
     <>
-      <Button size="sm" {...routeDoor("messages")} data-testid="cmh-library">
+      <Button size="sm" className="cmh-library" {...routeDoor("messages")} data-testid="cmh-library">
         <Icon name="content" size={13} /> <span className="cmh-library-word">{library.label}</span>
         {library.count !== null ? <span className="cmh-n tabular">{library.count}</span> : null}
       </Button>

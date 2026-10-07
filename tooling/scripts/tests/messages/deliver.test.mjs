@@ -2357,7 +2357,21 @@ async function broadcastBatchByEmail({ who, facts, trigger = null }) {
       workspacePaused: async () => false,
       fail: async () => {},
       startSending: async () => true,
-      template: async () => reminder,
+      // The message as the jobs adapter reads it: Meta's row for it and the email version, the one the person is sent.
+      message: async (name, language) =>
+        ["whatsapp", "email"].map((channel) => ({
+          id: `t-${channel}`,
+          channel,
+          name,
+          language,
+          variables: [],
+          hidden_at: null,
+          title: null,
+          source: channel === "whatsapp" ? "meta" : "chanlytics",
+          rejected_reason: null,
+          ...reminder,
+          ...(channel === "whatsapp" ? { components: [{ type: "BODY", text: reminder.body_preview }] } : {}),
+        })),
       facts: async () => ({ businessName: "Best Movers", bookingLink: null, timezone: "UTC", address: "12 Main St" }),
       batch: async () => [{ contact_id: "k1", facts, channel: "email" }],
       contacts: async (ids) =>

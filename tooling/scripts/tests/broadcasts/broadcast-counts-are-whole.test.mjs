@@ -437,6 +437,7 @@ const wire = ({
   more = false,
   people = [row({ id: "p1" }), row({ id: "p2", phone_e164: "+17865550182" })],
   lists = [],
+  templates = { templates: [] },
 } = {}) => {
   const offsets = [];
   globalThis.window.fetch = async (url) => {
@@ -455,7 +456,7 @@ const wire = ({
       });
     }
     if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists } });
-    if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [] } });
+    if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: templates });
     if (u.pathname === "/api/v1/channels") return json(200, { ok: true, data: { channels: [] } });
     if (u.pathname === "/api/v1/settings") return json(200, { ok: true, data: { config: { brain: {} }, version: 1 } });
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
@@ -613,5 +614,70 @@ test("REGRESSION: a send to a list past a thousand people enrols every one of th
     await createBroadcastPorts({ supabase: db }, "t-other", { fresh: false }).list({ kind: "saved", id: S }, now),
     null,
     "another workspace's list is no list",
+  );
+});
+
+test("the surface offers the messages of the templates read by the channels each holds: an email version alone is one, a WhatsApp version in review keeps its standing, and each is stamped with what it needs", async () => {
+  const { campaignMessagesOf } = await import("@chanlytics/contracts");
+  /** One version of a message, as GET templates returns its row. */
+  const version = (name, channel, over = {}) => ({
+    id: `t-${name}-${channel}`,
+    channel,
+    name,
+    language: "en_US",
+    meta_status: "approved",
+    category: "utility",
+    source: "chanlytics",
+    hidden_at: null,
+    title: null,
+    blocked: null,
+    variables: [{ position: 1, label: "First name", example: "Dani" }],
+    header: channel === "email" ? `Subject of ${name}` : null,
+    body_preview: `Words of ${name} on ${channel}`,
+    ...over,
+  });
+  const rows = [
+    // An email alone, a utility message.
+    version("hours_note", "email"),
+    // A WhatsApp version in review with an email beside it: the read returns the email, and the message holds the standing.
+    version("fall_offer", "whatsapp", { meta_status: "pending", category: "marketing" }),
+    version("fall_offer", "email", { category: "marketing" }),
+    // A WhatsApp version alone, approved.
+    version("quick_note", "whatsapp"),
+    // A WhatsApp version alone, still in review: not offered.
+    version("later_note", "whatsapp", { meta_status: "pending" }),
+  ];
+  wire({
+    templates: { templates: rows.filter((r) => r.meta_status === "approved"), messages: campaignMessagesOf(rows) },
+  });
+  await broadcastsOverride.apply();
+  const offered = surfaceValue("broadcasts").templates;
+  assert.deepEqual(
+    offered.map((t) => [t.name, t.id, t.channel, t.channels, t.purpose]),
+    [
+      ["hours_note", "t-hours_note-email", "email", ["email"], "conversational"],
+      ["fall_offer", "t-fall_offer-whatsapp", "email", ["email"], "marketing"],
+      ["quick_note", "t-quick_note-whatsapp", "whatsapp", ["whatsapp"], "conversational"],
+    ],
+    "by name, under each message's anchor's id, the words on the row the read holds, the channels it can be sent on",
+  );
+  assert.equal(
+    offered[1].message.versions.whatsapp.status,
+    "pending",
+    "the version in review keeps its standing inside its message",
+  );
+  assert.deepEqual(offered[0].versions, {
+    email: { subject: "Subject of hours_note", body: "Words of hours_note on email" },
+  });
+  // A read from before messages were kept: the same, made of the rows it holds (which leave the version in review out).
+  wire({ templates: { templates: rows.filter((r) => r.meta_status === "approved") } });
+  await broadcastsOverride.apply();
+  assert.deepEqual(
+    surfaceValue("broadcasts").templates.map((t) => [t.name, t.id, t.channels]),
+    [
+      ["hours_note", "t-hours_note-email", ["email"]],
+      ["fall_offer", "t-fall_offer-email", ["email"]],
+      ["quick_note", "t-quick_note-whatsapp", ["whatsapp"]],
+    ],
   );
 });

@@ -3,6 +3,7 @@ import {
   FOLLOW_UP_NEEDS_DEALS,
   REACH_OUT_IS_NOT_A_MOMENT,
   CAMPAIGNS_PAUSED_WORDS,
+  RUN_NOW_WITHOUT_VERSION_WORDS,
   triggerOf,
 } from "@chanlytics/contracts";
 import { write } from "@/server/route";
@@ -24,7 +25,9 @@ const SAID: Record<string, string> = {
   preview: "Running only works on the production dashboard.",
   not_found: "Playbook not found.",
   never: "This playbook's class is set to Never in Settings › Autonomy, so nothing runs.",
-  template_not_approved: "Its template is no longer approved by WhatsApp. Pick another template.",
+  // The run's stop when WhatsApp is all it goes by and its message has no WhatsApp version to send (the stored name is a
+  // closed set, and stays).
+  template_not_approved: RUN_NOW_WITHOUT_VERSION_WORDS,
   number_flagged: "WhatsApp flagged this number's quality; wait for it to recover.",
   already_ran_today: "It already ran today. It runs again tomorrow at its hour.",
   deals_off: FOLLOW_UP_NEEDS_DEALS,

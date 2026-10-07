@@ -23,6 +23,7 @@ import {
   doorOf,
   PEOPLE_LISTS,
   broadcastName,
+  campaignMessagesOf,
   channelsReady,
   cleanParam,
   eligibleFor,
@@ -346,9 +347,11 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
   assert.ok(h.includes("batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit })"));
   assert.ok(BROADCAST_CHUNK === 25);
   assert.ok(
-    // And its components, where an email version keeps its subject: a version is a row of the same name on its channel.
-    h.includes('.select("meta_status, body_preview, category, components")'),
-    "the category is selected: it decides which yes the send needs",
+    // The message is db's read too (templates.ts messageVersionRowsOf, run against the database in memory by
+    // message-version-rows.test.mjs): every row of its name and language, whatever its channel, with the category and the
+    // components an email version keeps its subject in.
+    h.includes("message: (name, language) => messageVersionRowsOf(db, job.tenant_id, { name, language })"),
+    "the message is read whole: its category decides which yes the send needs",
   );
   assert.ok(
     // (The list is long enough to stand on its own lines, and ends with their answer about offers by email: an offer's
@@ -443,11 +446,14 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
   // and a paid template blast then goes out under a subscription that stopped.
   await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "tenants.select": blip })), job), /cannot read the workspace/);
 
-  // The worst of the three. A null template reads as "no longer approved by
-  // WhatsApp": the broadcast is terminally failed and the owner is emailed
+  // The worst of the three. A message with no rows reads as one WhatsApp no
+  // longer approves: the broadcast is terminally failed and the owner is emailed
   // something untrue about their Meta account, over a statement timeout.
   const w = world();
-  await assert.rejects(dispatchJob(ctx(fakeDb(w, { "templates.select": blip })), job), /cannot read template/);
+  await assert.rejects(
+    dispatchJob(ctx(fakeDb(w, { "templates.select": blip })), job),
+    /messageVersionRowsOf: canceling statement due to statement timeout/,
+  );
   assert.notEqual(w.broadcasts[0].state, "failed", "not failed over a read that did not happen");
   assert.deepEqual(sent, [], "and nobody is told WhatsApp rejected a template it did not reject");
 
@@ -612,15 +618,55 @@ test("the job reads the stalls it carried, so a run that keeps stalling stops at
   assert.deepEqual(later[0][2], { broadcast_id: "b1", stalls: 1 });
 });
 
-test("the routes: an approved template, values Meta accepts, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", () => {
+test("the routes: a message, values its slots take, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", async () => {
   const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
   assert.ok(r.includes('role: "operator",') && r.includes('rate: "broadcast",'));
-  // The template, the values, the audience, the number, the assembly and the ledger are run: core-campaigns.test.mjs.
-  const a = readCode("apps/dashboard/src/server/ports/campaign-ports.ts");
-  assert.ok(
-    a.includes('.select("id, name, language, meta_status, category, variables, body_preview, title")'),
-    "category is selected, or the purpose is always marketing",
+  // The message, the values, the audience, the number, the assembly and the ledger are run: core-campaigns.test.mjs.
+  // The route's read of the message is every row of it, on any channel, whichever version's id is picked, with the category
+  // (or the purpose is always marketing) and no other workspace's.
+  const { templateValuePorts } = await importSrc("apps/dashboard/src/server/ports/campaign-ports.ts");
+  const WA = "77777777-7777-4777-8777-777777777771";
+  const EMAIL = "77777777-7777-4777-8777-777777777772";
+  const OTHER = "77777777-7777-4777-8777-777777777773";
+  const version = (id, channel, over = {}) => ({
+    id,
+    tenant_id: TID,
+    channel,
+    name: "spring_offer",
+    language: "en_US",
+    meta_status: "approved",
+    category: "utility",
+    variables: [],
+    hidden_at: null,
+    title: null,
+    source: channel === "whatsapp" ? "meta" : "chanlytics",
+    components: [],
+    body_preview: null,
+    rejected_reason: null,
+    ...over,
+  });
+  const ports = templateValuePorts(
+    {
+      supabase: fakeDb({
+        templates: [
+          version(WA, "whatsapp"),
+          version(EMAIL, "email", { category: null }),
+          version(OTHER, "whatsapp", { tenant_id: "22222222-2222-2222-2222-222222222222" }),
+        ],
+      }),
+    },
+    TID,
   );
+  for (const id of [WA, EMAIL])
+    assert.deepEqual(
+      (await ports.message(id)).map((v) => [v.id, v.channel, v.category]).sort(),
+      [
+        [WA, "whatsapp", "utility"],
+        [EMAIL, "email", null],
+      ].sort(),
+      `picked by ${id}`,
+    );
+  assert.deepEqual(await ports.message(OTHER), [], "another workspace's version names nothing here");
   const l = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
   assert.ok(
     l.includes('if (status === "delivered" || status === "read") c.delivered += 1;'),
@@ -783,11 +829,41 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     s.includes("counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }"),
     "the chip's number is the length of the list the preview walks -- never a second count",
   );
-  assert.ok(
-    s.includes("purpose: purposeOfTemplate(t.category)"),
-    "the purpose is stamped by the surface, never decided in the page",
+  // What the surface offers is made of the read by one function (parts/channels.ts cmOfferedMessages), run here: the purpose is
+  // stamped there, from the message's own category (contracts), never decided in the page, and a message is offered by the channels
+  // it holds -- an email version alone is a message, a version WhatsApp has not approved is not one.
+  const { cmOfferedMessages } = await importSrc("apps/dashboard/src/surfaces/campaigns/parts/channels.ts");
+  const version = (channel, over = {}) => ({
+    id: `t-${channel}`,
+    channel,
+    name: "note",
+    language: "en_US",
+    meta_status: "approved",
+    category: "marketing",
+    hidden_at: null,
+    blocked: null,
+    variables: [],
+    body_preview: "Hi",
+    ...over,
+  });
+  const offeredOf = (...rows) =>
+    cmOfferedMessages({
+      templates: rows.filter((r) => r.meta_status === "approved"),
+      messages: campaignMessagesOf(rows),
+    });
+  assert.equal(offeredOf(version("whatsapp"))[0].purpose, "marketing", "an offer needs the yes to offers");
+  assert.equal(offeredOf(version("whatsapp", { category: "utility" }))[0].purpose, "conversational");
+  assert.equal(offeredOf(version("email", { category: "utility" }))[0].purpose, "conversational", "on any channel");
+  assert.deepEqual(
+    offeredOf(version("email")).map((t) => [t.id, t.channels]),
+    [["t-email", ["email"]]],
+    "a message with an email version and no WhatsApp row is offered",
   );
-  assert.ok(s.includes('.filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")'));
+  assert.deepEqual(
+    offeredOf(version("whatsapp", { meta_status: "pending" })),
+    [],
+    "one WhatsApp has not approved is not",
+  );
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
   assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");
@@ -1046,7 +1122,11 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
     audience_kind: "everyone",
   });
   assert.deepEqual([pending.proposal, pending.isError], [null, true]);
-  assert.match(JSON.parse(pending.result).error, /that template is not approved by WhatsApp/);
+  assert.match(
+    JSON.parse(pending.result).error,
+    /^WhatsApp is still reviewing this message's WhatsApp version\./,
+    "the standing of the one version it has, in contracts' words",
+  );
   // The card commits through the broadcast route, the same door the page uses, and its undo is the cancel route:
   // executed in ask-commit.test.mjs ("a broadcast and a playbook", "an undo names the decision it reverses"), over
   // the typed client, from the broadcast's spec (contracts ask-proposals/campaigns.ts).

@@ -24,6 +24,8 @@ import {
   PLAYBOOK_TRIGGERS,
   POLICY_CLASS_WORDS,
   POLICY_MODE_WORDS,
+  MESSAGE_GONE_WORDS,
+  campaignMessagesOf,
 } from "@chanlytics/contracts";
 import {
   installLegacyReact,
@@ -667,10 +669,10 @@ test("REGRESSION (C10): a playbook's detail shows the words its runs send -- it 
   setSurfaceValue("playbooks", playbooksSurface({ templates: [] }));
   tree = pane(playbook());
   assert.equal(byTestId(tree, "pb-words"), null);
-  assert.match(
+  assert.equal(
     textOf(byTestId(tree, "pb-template-gone")),
-    /no longer approved/,
-    "a template WhatsApp no longer approves is said, since the runs skip it",
+    MESSAGE_GONE_WORDS.card,
+    "a message with no version a run can send is said, in contracts' words, true of a message on any channel: the runs skip it",
   );
 
   // A read of the templates that failed is not "no longer approved": the detail shows no words and calls nothing withdrawn.
@@ -1151,5 +1153,49 @@ test("a playbook's card does not approve a run whose day has passed: the verb wo
     assert.deepEqual(approved, ["b-wait"]);
   } finally {
     playbooks.approveRun = keep;
+  }
+});
+
+test("a playbook's detail finds its message by its name and language through the surface's own read: a WhatsApp version added since moved the id the message is offered by", async () => {
+  const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
+  const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty]));
+  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
+  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
+  // Made when the message had an email version alone, its stored template_id that row's. A WhatsApp version added since is the
+  // message's anchor, so the composers' read offers it by the WhatsApp row's id.
+  const stored = { ...route, id: "pb-quiet", trigger: "quiet_30", template_id: "tpl-email" };
+  const version = (channel) => ({
+    ...TEMPLATE,
+    id: `tpl-${channel === "whatsapp" ? "wa" : channel}`,
+    channel,
+    header: channel === "email" ? "Come back" : null,
+    blocked: null,
+    hidden_at: null,
+    source: "chanlytics",
+  });
+  const rows = [version("whatsapp"), version("email")];
+  const answer = (data) =>
+    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
+  const kept = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
+    if (path === "/api/v1/playbooks") return answer({ playbooks: [stored], pools, timezone: ZONE, calendar: "none" });
+    if (path === "/api/v1/templates") return answer({ templates: rows, messages: campaignMessagesOf(rows) });
+    if (path === "/api/v1/channels") return answer({ channels: [] });
+    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
+  };
+  try {
+    await playbooksOverride.apply();
+    const P = surfaceValue("playbooks");
+    assert.deepEqual(
+      P.templates.map((t) => [t.id, t.name, t.channels]),
+      [["tpl-wa", "winback_offer", ["whatsapp", "email"]]],
+      "one message, offered by its anchor's id, holding both its versions",
+    );
+    const tree = pane(P.rows[0]);
+    assert.ok(byTestId(tree, "pb-words"), "its words are drawn: the message is found by its name and language");
+    assert.equal(byTestId(tree, "pb-template-gone"), null, "and it is not called gone for an id that moved");
+  } finally {
+    globalThis.fetch = kept;
   }
 });

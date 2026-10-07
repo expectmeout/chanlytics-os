@@ -1052,12 +1052,13 @@ a.more-item {
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
-/* Under a thumb a tab is pressed over the 44px every button is (legacy-bridge/legacy.css, the touch floor: a link,
-   which that floor does not name, keeps it here) and drawn 38px tall, as the Calendar's views are: its press area
-   reaches 3px over and under it, inside the strip's 4px. Drawn 44px tall, a tab made its strip 52px, a step taller
-   than the Calendar's capsule of views under the same head (Ruben, 7 Oct 2026). */
+/* Under a thumb a tab is pressed over the 44px every button is (legacy-bridge/legacy.css, the touch floor) and drawn
+   38px tall, as the Calendar's views are: its press area reaches 3px over and under it, inside the strip's 4px. Drawn
+   44px tall, a tab made its strip 52px, a step taller than the Calendar's capsule of views under the same head (Ruben,
+   7 Oct 2026). Named under its strip, so it outweighs the floor on a tab that is a button (Settings' sections): a
+   link the floor does not name, and Settings' strip alone stood 52px (7 Oct 2026, e2e/shell/phone.spec.ts). */
 @media (pointer: coarse) {
-  .stabs-tab {
+  .stabs .stabs-tab {
     position: relative;
     min-height: 38px;
   }
@@ -3864,4 +3865,14 @@ textarea.rec-input,
   color: var(--ink-dim);
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+/* On a phone a figure is half a strip, and the period before was cut short beside the number ("none the 7 days befo…"):
+   it wraps there instead, at two lines at most, as the line under it does (7 Oct 2026). */
+@media (max-width: 900px) {
+  .figure-change {
+    display: -webkit-box;
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
 }

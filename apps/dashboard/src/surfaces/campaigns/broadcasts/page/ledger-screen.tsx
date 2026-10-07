@@ -3,7 +3,6 @@
  * legacy/pages/broadcasts.jsx, decision 0015). Plain functions that return the elements they draw, called from
  * BroadcastsReal with the page's state.
  */
-import { CAMPAIGN_ROOMS } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { EmptyState } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
@@ -168,17 +167,13 @@ export function bcLedger(v: BcV) {
           />
         )}
       </div>
+      {/* Its way on is the page's New, in the head: a second here said it twice on one screen (7 Oct 2026). */}
       {rows.length === 0 && (
         <EmptyState
           kind="card"
           glyph="send"
           title="Nothing sent or queued yet"
           body="Every run lands here — the ones you send, and the ones your playbooks send."
-          action={{
-            label: CAMPAIGN_ROOMS.newMessage,
-            onClick: write,
-            gate: { ...gate("approve", "send a message") },
-          }}
           testid="bc-empty"
         />
       )}

@@ -58,7 +58,7 @@ export const wordsFor = (w: Words, channel: ConsentChannel): string => (typeof w
  */
 export const BROADCAST_FAILURE_WORDS: Record<BroadcastFailure, Words> = {
   paused: "the workspace was paused",
-  template_not_approved: "WhatsApp no longer approves its template",
+  template_not_approved: "its WhatsApp version is no longer approved",
   wire_unavailable: {
     whatsapp: "WhatsApp could not be reached",
     sms: "the texting provider could not be reached",

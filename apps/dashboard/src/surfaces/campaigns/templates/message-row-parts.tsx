@@ -7,8 +7,8 @@
  */
 import type { ReactNode } from "react";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { refusedWords } from "@chanlytics/contracts";
-import type { TemplateSentWords } from "@chanlytics/contracts";
+import { VERSION_CHANNELS, refusedWords } from "@chanlytics/contracts";
+import type { CampaignMessage, TemplateSentWords, VersionChannel } from "@chanlytics/contracts";
 import { gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -26,6 +26,7 @@ import { MessagePreview } from "../parts/message-preview";
 import { TemplateComposer } from "./composer";
 import type { TemplateMade } from "./composer-acts";
 import type { PresentRow, StarterGroup, TemplateGroup, TemplateRow, TplLang } from "./group";
+import { languageStatus } from "./message-row-facts";
 import type { StarterLibrary } from "./verbs";
 import { tplTag, tplTitle } from "./words";
 
@@ -60,7 +61,9 @@ export interface RowCtx {
   onHide: (row: TemplateDto) => void;
   onDelete: (row: TemplateDto) => void;
   onWritten?: (g: TemplateGroup, lang: TplLang, made: TemplateMade) => void;
+  /** The languages WhatsApp holds, and the languages the message holds a version in on any channel. */
   present: PresentRow[];
+  onFile: TemplateRow[];
   renaming: boolean;
   draft: string;
   arm: boolean;
@@ -74,7 +77,11 @@ export interface RowCtx {
   setBack: (v: string | null) => void;
   view: string;
   cur: TemplateRow;
+  /** The language in view: its WhatsApp version where WhatsApp holds one, and the message it is a version of. */
   row: TemplateDto | null;
+  message: CampaignMessage | null;
+  /** Where that language stands on each channel, in contracts' words (messageStandingWords). */
+  standing: Record<VersionChannel, string>;
   starterText: { body: string; footer: string | null } | null;
   source: { ref: { id: string } | { starter: string; from: string }; from: string; name: string } | null;
   mayAdd: boolean;
@@ -251,14 +258,15 @@ export function closedLine(c: LineCtx) {
  * a run sends one language to everyone.
  */
 export function langBar(c: RowCtx) {
-  const { g, langs, S, present, view, row, mayAdd, note, pick } = c;
-  // The languages the one chip opens (contracts messageLanguageChoices): the ones WhatsApp holds with their state, the
-  // ones the starter library has written, and every other language WhatsApp takes when one may be added.
-  const codes = present.map((r) => r.lang.id);
+  const { g, langs, S, onFile, view, cur, mayAdd, note, pick } = c;
+  // The languages the one chip opens (contracts messageLanguageChoices): the ones the message holds on any channel, with
+  // where each stands, the ones the starter library has written, and every other language WhatsApp takes when one may
+  // be added.
+  const codes = onFile.map((r) => r.lang.id);
   const more = codes.filter((code) => code !== view).length;
   const starter = g.starter;
   const choices = S.languageChoices({
-    onFile: present.map((r) => ({ language: r.lang.id, meta_status: r.row.meta_status })),
+    onFile: onFile.map((r) => ({ language: r.lang.id, meta_status: languageStatus(r) })),
     ready: starter ? langs.map((l) => l.id).filter((id) => starter.texts && starter.texts[id]) : [],
     canAdd: mayAdd,
   });
@@ -280,7 +288,7 @@ export function langBar(c: RowCtx) {
         chevron={cmChevron()}
         face={
           <>
-            <CmLangGlyph status={row ? row.meta_status : null} size={12} />
+            <CmLangGlyph status={languageStatus(cur)} size={12} />
             {tplTag(view, codes)}
             {more > 0 ? ` +${more}` : null}
           </>
@@ -535,6 +543,24 @@ function readPane(c: RowCtx) {
 }
 
 /**
+ * Where the language in view stands on each channel, in contracts' words ("WhatsApp · in review", "Email · ready", "Text ·
+ * not written"): the languages' state, said once for every channel the message can be written for, so a message with no
+ * WhatsApp version is never read as one WhatsApp refused.
+ */
+function languageStandingLine(c: RowCtx) {
+  return (
+    <p className="bc-excl-hint" data-testid="template-standing">
+      {VERSION_CHANNELS.map((channel, i) => (
+        <span key={channel} data-channel={channel}>
+          {i > 0 ? ", " : ""}
+          {c.standing[channel]}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/**
  * The open message, in the pane's body: its one language control first, where it stays whichever language is picked --
  * one panel, so the control keeps its place and its focus when a pick moves between a language on file and one being
  * written (two panels remounted it, and a keyboard's focus fell to the page). With the channel switch on an email or a
@@ -545,6 +571,7 @@ export function openRow(c: RowCtx, bar: ReactNode, version: ReactNode = null) {
   return (
     <div className="msg-row-open tpl-read" data-testid="template-open-body">
       {bar}
+      {languageStandingLine(c)}
       {version ?? (
         <>
           {rowHints(row)}
