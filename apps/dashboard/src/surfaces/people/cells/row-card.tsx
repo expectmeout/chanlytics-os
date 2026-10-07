@@ -8,7 +8,9 @@
  * on the rest opens (clients.css lays the box over it); `pick` says where the row stands in a selection, and the kit's
  * face draws it. `tail`: a line of its own under the facts, where a page has one more thing to say of the row (the
  * Pipeline's next step). `swipe`: a thumb's handlers (data-bits touchSwipe) on the row, which then slides over
- * `grounds`, the words on either side of it (Leads' Keep and Exclude); neither is drawn without the other.
+ * `grounds`, the words on either side of it (Leads' Keep and Exclude); neither is drawn without the other. `unread`: the
+ * person is new to the reader (surfaces/seen.ts), and the name and what was said wear the page's own marks for it
+ * (clients.css .pl-unread), as the Inbox's unread row does.
  */
 import type { ReactElement, ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -27,6 +29,7 @@ export function plRowCard({
   face,
   pick,
   name,
+  unread = false,
   numeric = false,
   pill,
   lead = null,
@@ -39,6 +42,7 @@ export function plRowCard({
   face: CardFace;
   pick?: RowPick;
   name: ReactNode;
+  unread?: boolean;
   numeric?: boolean;
   pill: ReactNode;
   lead?: ReactNode;
@@ -49,6 +53,7 @@ export function plRowCard({
   grounds?: ReactNode;
 }): ReactElement<{ className?: string }> {
   const holds = face.glyph ? { glyph: <Icon name={face.glyph} size={12} /> } : { initials: face.initials ?? "" };
+  const who = numeric ? <span className="tabular">{name}</span> : name;
   return (
     // A row that slides takes its own touch: the strip of views over the page is not walked by it (surface-tabs.jsx).
     <td
@@ -67,12 +72,12 @@ export function plRowCard({
           ...(face.mark ? { mark: face.mark } : {}),
           ...(pick ? { pick } : {}),
         }}
-        name={numeric ? <span className="tabular">{name}</span> : name}
+        name={unread ? <span className="pl-unread">{who}</span> : who}
         end={pill ? (place) => <span className={place}>{pill}</span> : undefined}
         said={
           lead
             ? (place) => (
-                <div className={place} data-testid={leadTestid}>
+                <div className={unread ? `${place} pl-unread-said` : place} data-testid={leadTestid}>
                   {lead}
                 </div>
               )

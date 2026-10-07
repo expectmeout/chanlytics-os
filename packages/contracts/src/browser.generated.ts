@@ -45,6 +45,7 @@ export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, 
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
 export { whatsappOffersOpen } from "./broadcasts/whatsapp-offers";
 export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments } from "./calendar/appointment-item";
+export { appointmentKeyOf } from "./calendar/appointment-key";
 export { dayIntervals, closedOn, openAt, hasHours, freeWindows, filterOpenings, describeOpenings, BOOKING_DEFAULTS } from "./calendar/availability";
 export { isBookingTool, bookingToolName, bookingToolOfAddress, bookingNoticeOf, NOTICE_SCHEMA, NOTICE_READ_MAX_TOKENS, noticePrompt, isNoticeHold, NOTICE_DEFAULT_LENGTH_MS, noticeAnswerOf, clientKeyOf, appointmentKey, SAME_VISIT_MS, BOOKING_TOOL_IDS, bookingToolOptions, BOOKING_TOOL_STEPS, GMAIL_FORWARD_NOTE, BOOKING_TRY_NOTE, NOTICE_HOLD_WORDS, forwardingConfirmationOf } from "./calendar/booking-notice";
 export { serviceOf, toCalendarVM } from "./calendar/calendar";
@@ -53,8 +54,9 @@ export { spanForView, windowFor, coversSpan, frameOf } from "./calendar/calendar
 export { clockLabel, closureDatesLabel, closuresFrom, readAgoLabel, ruleParts, rulesLine, feedNotes, hoursLines, CALENDAR_FEED_WORDS } from "./calendar/calendar-words";
 export { shiftKey, mondayOf, isDayKey, monthSpan, shiftMonth, monthLabelOf, zoneMidnight } from "./calendar/day-keys";
 export { parseIcs } from "./calendar/feed";
+export { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, appointmentHolds, appointmentKeysOf, feedAppointmentRows } from "./calendar/feed-appointments";
 export { feedUrlOk, fetchPublic, feedProblemWords, feedBodyProblem, offeringHorizon, seasonHorizon, previewHorizon, FEED_GUIDES, FEED_CHECK_WORDS, FEED_MAX_BYTES } from "./calendar/feed-url";
-export { sameListed, matchService, needsConsultation, offerFor, offerLead, foldName } from "./calendar/service-offer";
+export { sameListed, matchService, needsConsultation, offerFor, offerLead, foldName, serviceNamedIn } from "./calendar/service-offer";
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./calendar/zone-math";
 export { brainMetaOf, replyWhy, BRAIN_INTENTS, INTENT_LABELS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, CONFIDENCE_STEPS } from "./config/brain";
 export { abilityRows, cannotRows } from "./config/business-tab/abilities";
@@ -100,7 +102,7 @@ export { isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy 
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { messageStatusLabel, sendFailureWords, reachedCustomer, isHeldDraft, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
-export { standingOf, replyWaitsOnYou, HELD_WORDS } from "./conversations/standing";
+export { standingOf, replyWaitsOnYou, HELD_WORDS, seenBy, isUnseen } from "./conversations/standing";
 export { agentFor, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
 export { contactName, isIdentifierName, shortName, contactMeta, initialsOf, isEmailStopped, emailStoppedWords } from "./conversations/thread-contact";
@@ -132,14 +134,13 @@ export { listingFactsOf, bookingPageKept, bookingPageOffered, hoursFromGoogle, p
 export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, autoReplyBell, autoReplyHold, reviewHeldWords, reviewReplyWords, REVIEW_REPLY_MAX_WORDS, REVIEW_REPLY_MAX_CHARS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS } from "./google/review-reply";
 export { LEAD_CHECK_KEYS } from "./leads/lead-dtos";
 export { leadTodayLine, leadHoursShort, leadWhere, leadUndoable, leadExclusionWord, leadCheckWord, leadSlots, leadTintOf, leadTileSrc, LEAD_UNDO_MS, LEAD_SLOT_WORDS, LEAD_TILE_PX } from "./leads/lead-facts";
-export { leadsFirstDayWays } from "./leads/lead-first-day";
 export { LEAD_IMPORT_MAX_BYTES, LEAD_LIST_MAX, LEAD_LIST_VIAS, LEAD_IMPORT_WORDS, isLeadList, leadChooseAnswerWords, leadChooseNameOf, leadImportAnswerWords, leadImportColumnWords, leadImportColumns, leadImportCountWords, leadImportEstimateUsd, leadImportNameOf, leadImportPlanOf, leadImportReady, leadImportSaveLabel, leadListEmptyOf, leadListStripOf, regionOf, websiteHostOf } from "./leads/lead-import";
 export { leadWeekSummary, leadWeekBars, toLeadPeekVM, leadPeekMenu, leadSearchWords, LEAD_REMOVE_KEEPS } from "./leads/lead-peek";
 export { stageArgs, leadsRoute, parseLeadsRoute, leadDraftFooter, leadQuestionMail, leadPlanLikely, leadPlanFacts, leadPlanAsk, LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, leadQuestionTitle, LEAD_QUESTION_WAIT_LINE, leadQuestionRoute, LEAD_PRIOR_MIN_PLACES } from "./leads/lead-plan";
 export { leadReviewCosts, leadAskedFor, leadReviewGroups, leadMapPlot, leadMapNote, leadLowerFirst, LEAD_REVIEW_GROUP_WORDS, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_CHECK_CENTS_EACH, leadCheckAgainCents, LEAD_MAP_MAX_SPAN_M, leadMapAcross } from "./leads/lead-review";
 export { leadBand, leadMarkSrc, toLeadRowVM, leadRail, leadsStanding, LEAD_MARKS_BUCKET, LEAD_MARK_PATH } from "./leads/lead-row";
 export { leadNoteLeft, leadLowShare, leadNotBusinessesLine, leadNoCardLine, leadNearWhere, leadAnd, leadEndingLine, leadAllowanceFact, outcomeMove, LEAD_CLASSES, LEAD_LISTS, LEAD_SORTS, LEAD_CALL_OUTCOMES, LEAD_NOT_A_FIT_WHYS, LEAD_STAGE_WORDS, LEAD_CLOSED_WORDS, LEAD_FIT_WORDS, LEAD_EMAIL_WORDS, LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_LIST_WORDS, LEAD_SOURCE_WORD, LEAD_LOCKED_LINE, LEAD_DRAFT_NOTE, LEAD_NO_ADDRESS, LEAD_CONSENT_REFUSAL, LEAD_NOT_A_FIT_WORDS, LEAD_NOT_A_FIT_TITLE, LEAD_SUPPRESSING_WHY, LEAD_REVIEW_WORD, LEAD_LEFT_OUT_WORD, LEAD_CLASS_WORDS, LEAD_UNREACHABLE_WORD, LEAD_CHECK_UNSURE, LEAD_CHECK_WORDS, LEAD_ERASE_WORDS, LEAD_MAILBOX_WORDS, LEAD_CONTACT_STANDARD_WORDS, LEAD_NO_EMAIL_LINE, LEAD_SENT_QUESTION, LEAD_CALL_QUESTION, LEAD_NOTE_PLACEHOLDER, LEAD_NOTE_MAX, LEAD_TALKING_NOTE, LEAD_UNCLAIMED_NOTE, LEAD_LOW_SHARE_FLOOR, LEAD_NO_CARD_LINE, LEAD_OUTSIDE_US_LINE, LEAD_PAUSED_TITLE } from "./leads/lead-words";
-export { leadReachLine, LEAD_FIRST_DAY_TITLE, LEAD_FIRST_DAY_SUB, LEAD_FIRST_DAY_FOOT, LEAD_SUGGEST_UNAVAILABLE, LEAD_WORDS, LEAD_SUGGEST_DAYS, LEAD_PRIOR_MIN } from "./leads/leads";
+export { leadReachLine, LEAD_SUGGEST_UNAVAILABLE, LEAD_WORDS, LEAD_SUGGEST_DAYS, LEAD_PRIOR_MIN } from "./leads/leads";
 export { LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_DAY_CAP_USD, LEAD_PLATFORM_DAY_CAP_USD, LEAD_QUESTION_THRESHOLD, LEAD_QUESTION_MIN_EVIDENCE, LEAD_PROBE_PLACES, LEAD_JUDGE_BATCH, LEAD_MAX_PLACES, LEAD_FACT_MAX, LEAD_REASON_MAX_WORDS, LEAD_ASSUMED_YIELD, LEAD_ESTIMATE_MARGIN, LEAD_ASK_MIN_FACTOR, LEAD_ASK_MAX_FACTOR, leadMonth } from "./leads/search/caps";
 export { LEAD_CARDS, estimateRoundUsd, placesToAsk, LEAD_COUNT_CHOICES, planCeiling, planMinutes } from "./leads/search/cards";
 export { LEAD_KIND_KEY, leadKindWord, LEAD_UNREACHABLE_KEY, leadPhoneState, classify } from "./leads/search/class";
@@ -282,7 +283,7 @@ export { guessSlotKind, defaultSlotKinds, defaultParamSpecs, slotChoices, templa
 export { TEMPLATE_TITLE_MAX, templateTitle, playbookName } from "./templates/template-titles";
 export { templateNameOk, slugTemplateName, placeholdersOf, placeholdersSequential, validateTemplateDraft, templateComponents, parseParamSpec, parseParamSpecs, paramLabel, playbooksStillSending, firstNameOf, resolveParams, exampleParams, templateUsage, templateUseWords, templateUseNote, templateUnused, templateSends, templateSentWords, TEMPLATE_LANGUAGES, TEMPLATE_CATEGORIES, TEMPLATE_BODY_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_EXAMPLE_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_NAME_MAX, TEMPLATE_NAME_WORDS, TEMPLATE_BUTTON_TEXT_MAX, PARAM_SOURCES, PARAM_SOURCE_LABELS, PARAM_SOURCE_HINTS } from "./templates/templates";
 export { NOTIFICATION_KIND_GROUPS, NOTIFICATION_PANE_WORDS, EMAILED_NOTIFICATION_KINDS, emailsNotificationKind } from "./today/notification-kinds";
-export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX } from "./today/notifications";
+export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, noteWhose, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX } from "./today/notifications";
 export { parseDevice, firstLine, pushFor, PUSH_PLATFORMS, PUSH_KINDS, isPushKind, unreadFor, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./today/push";
 export { todayAwayGrouped, bellSections } from "./today/today-away";
 export { toTodayVM } from "./today/today-brief";

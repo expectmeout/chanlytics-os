@@ -177,7 +177,7 @@ export async function reportDaysFor(rc: ReaderContext, input: z.infer<typeof Rep
  * are no record to count. The window is the database's where the ledger is kept, else the turn's own zone and day. Whether
  * the lens has anything to draw asks what this deployment can do with Google only when no listing is kept. A function that
  * answers nothing is the page's 404, in its words; a ledger that cannot be read is the route's failure, never null, so "not
- * on record" and "could not read" are not the same answer. A database that does not have the function yet (00346 is applied
+ * on record" and "could not read" are not the same answer. A database that does not have the function yet (00350 is applied
  * on the owner's word, after the dashboard deploys) answers null: the ledger is then null for every workspace, the lens
  * draws the listing alone, and the log says `reviews_ledger_missing` once a read. No row of its own: it is drawn on the
  * Reports page, which `report` names.

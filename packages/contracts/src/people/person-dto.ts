@@ -142,6 +142,15 @@ export interface PersonRowDto {
    */
   in_touch_at?: string | null;
   added_at?: string | null;
+  /**
+   * The reader's own reading of this person (00349, conversations/standing.ts SeenOf): everything before `seen_at`
+   * they have seen, and `marked_unread` when they put the person back. Absent where the reader could not say, and
+   * the row is then never called new.
+   */
+  seen_at?: string | null;
+  marked_unread?: boolean;
+  /** The stamp of their mark's last writing; absent where they have none. */
+  marked_at?: string | null;
 }
 
 export interface PersonIdentityDto {

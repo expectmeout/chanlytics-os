@@ -118,6 +118,7 @@ const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { ThreadPane } = await import(`${S}/surfaces/inbox/thread/thread-pane.tsx`);
 const { ixSending, ixBucketOf, ixWaitsOnYou } = await import(`${S}/surfaces/inbox/rules.ts`);
+const { threadUnread } = await import(`${S}/surfaces/seen.ts`);
 const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 Object.assign(globalThis, {
@@ -312,15 +313,48 @@ test("Needs you holds what waits on you and nothing else: the thread you took ov
   );
 });
 
-test("opening a thread that needs you keeps its dot: on a real thread the dot means it needs you, not that it is unread", () => {
-  const { seen, render } = page([mine, rosa]);
-  seen.list.onSelectThread(rosa.id);
-  render();
-  assert.equal(
-    seen.list.threads.find((t) => t.id === rosa.id).unread,
-    true,
-    "REGRESSION: opening it cleared the dot, and the next read lit it again",
+test("opening a real thread reads it, and it stays read over the next read: the dot is the reader's own mark, kept on the server; a demo's is the page's", async () => {
+  // Iris wrote five minutes ago, and the reader last opened her an hour ago: new to them. On a phone the list is the
+  // screen, so nothing is read by landing.
+  const iris = toInboxThreadVM(
+    conv("c9", "Iris Vale", { last_inbound_at: ago(5), seen_at: ago(60) }),
+    asked("c9", 30),
+    ZONE,
+    NOW,
   );
+  const realFetch = globalThis.fetch;
+  const realMatch = globalThis.matchMedia;
+  const marks = [];
+  globalThis.fetch = async (url, init = {}) => {
+    const hit = /\/api\/v1\/contacts\/([^/]+)\/seen/.exec(String(url));
+    if (hit && init.method === "PUT") marks.push([hit[1], JSON.parse(String(init.body)).seen]);
+    // The door's answer: the stamp of the mark it wrote, which the tab holds its own word against.
+    return new Response(JSON.stringify({ ok: true, data: { marked_at: new Date().toISOString() } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  try {
+    const { seen, render } = page([mine, iris]);
+    const dot = (id) => threadUnread(seen.list.threads.find((t) => t.id === id));
+    assert.equal(dot(iris.id), true, "new to the reader: the row wears the dot");
+    await settle();
+    assert.deepEqual(marks, [], "a phone's list read nobody by landing");
+    seen.list.onSelectThread(iris.id);
+    render();
+    await settle();
+    assert.equal(dot(iris.id), false, "REGRESSION: a thread never went from unread to read by being opened");
+    assert.deepEqual(marks, [["p-c9", true]], "and the mark is the server's, so it is read on their other screens");
+    // The next read left before the mark landed, and still says new: the tab's own word holds.
+    landsARead();
+    render();
+    assert.equal(dot(iris.id), false, "REGRESSION: opening it cleared the dot, and the next read lit it again");
+    assert.deepEqual(marks.length, 1, "opened once, marked once");
+  } finally {
+    globalThis.fetch = realFetch;
+    globalThis.matchMedia = realMatch;
+  }
   const seeded = {
     id: "t-seed",
     real: false,

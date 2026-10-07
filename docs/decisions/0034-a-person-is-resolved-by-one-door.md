@@ -7,8 +7,9 @@ written by it and `person.resolved` in the catalogue, as evidence the purge take
 the same day (00344): every writer matches through the door (`ingest_inbound`, `ingest_call`, `lead_set_stage` and
 `reach_out_person` in SQL; the calendar sweep, the booking link and the email intake through `packages/db`'s
 `resolvePerson`), a doubt is a row on `person_doubts` that the People page shows as "Same person?" with Merge (0028's
-door) and Not the same (`person_doubt_dismiss`), and the two open questions are answered below. Step 5, the lead link on
-every identity, is not yet built. Proposed the same day. Written against
+door) and Not the same (`person_doubt_dismiss`), and the two open questions are answered below; step 5, the lead link
+on every identity, built the same day (00346): the door links the lead holding a person's number or address whenever it
+learns one, and the insert trigger that did it once is gone. Proposed the same day. Written against
 commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6
 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Where this
 note and the code disagree, the code wins.
@@ -147,6 +148,16 @@ _Both orders:_ a table only the door writes and only a newer dashboard reads.
 
 **5 · Leads link on every identity.** `contacts_link_lead` fires from the door on every identity added, not on insert
 alone, and writes `lead.converted` with a version bump, which `lead_link_contact` never did (00184). _Both orders._
+Built, 00346: `person_link_lead`, called by `resolve_person` when it makes a person, fills a number or an address, or adds
+an identity, takes the lead holding the person's number, else their address, that names nobody yet, and converts it
+through `lead_convert_by` (its version moved, `lead.converted` with how `arrived` for a person who wrote or called, at
+any stage, and `added` for one a member, a file, the calendar or the finder named, an open lead only, so a lead a member
+archived stays archived, its person linked), writing `contact.added {source lead, lead_id}` for a
+person it made whom no door had named, as the trigger did. The lead a caller converts itself (`lead_set_stage`, which
+names it in `p_detail`) is skipped, a reach-out's cold first email holds the link off, and a link that fails warns and
+is undone alone, never the arrival. The trigger and its function are dropped, since the door is the only writer of a
+person. Tested in `database/event-shapes.db`, `messages/a-person-keeps-how-they-first-reached-us.db` (the lead is the
+first touch, with its id as the ref) and `reach-out-replies/never-again.db` (the two new words, and an archived lead that only its person's arrival converts).
 
 ## Tests
 

@@ -373,6 +373,12 @@
 
 /* Empty mini state */
 /* The list's own empty is the shared EmptyState, centred in the narrow column. */
+/* "Inbox zero", where no thread is open (thread.tsx): its words stand a little over the middle of their room, two
+   parts of the room left above them and three below, as a page's one message is hung. The kit centres a page's empty
+   state; here the page places it, by two spacers, since the middle of this pane is under the window's own. */
+.inbox > .ix-zero { justify-content: flex-start; min-height: 0; }
+.inbox > .ix-zero::before { content: ""; flex: 2 1 0; }
+.inbox > .ix-zero::after { content: ""; flex: 3 1 0; }
 .ix-empty-mini { border: 0; background: transparent; align-items: center; text-align: center; padding: 56px 24px; }
 .ix-empty-mini .empty-body { max-width: 220px; }
 
@@ -2199,8 +2205,17 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     var(--focus-ring),
     var(--selected-depth);
 }
+/* A thread new to the reader (surfaces/seen.ts): the name a step heavier (below), what they said in ink, and the dot
+   at the row's edge, between it and the face. The dot was 4px and the words kept the read row's grey, so in a list
+   where every row was unread or none was, nobody could tell which (Ruben, 7 Oct 2026). */
 .ix-thread.unread:not(.pri-p1)::before {
-  left: 6px;
+  left: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-circle);
+}
+.ix-thread.unread .ix-thread-preview {
+  color: var(--ink);
 }
 @media (width > 900px) {
   /* The row as the canvas sets it: the face and the words, 12 between, on 12 10 12 12 of padding; the box for a

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-220 handlers in 46 domains.
+221 handlers in 46 domains.
 
 ## activity
 
@@ -514,6 +514,15 @@ Writes; for a member of the row's own workspace, owner or above; counts against 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `mode` | one of `"auto"`, `"ask"`, `"never"`, `"inherit"` | yes |  |
+
+### `PUT /api/v1/contacts/[id]/seen`
+
+Writes; for a member of the row's own workspace, viewer or above; counts against the `seen_mark` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `seen` | boolean | yes |  |
+| `heard_at` | string (date-time) | no |  |
 
 ### `PUT /api/v1/contacts/consent`
 

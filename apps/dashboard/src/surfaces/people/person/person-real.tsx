@@ -27,6 +27,8 @@ import { aboutCard, campaignsCard, comingUpSection, historySection } from "./sec
 import { settingsCard } from "./settings-card";
 import { heldPerson, readPerson } from "./read";
 import { usePeopleSeam } from "./use-people";
+import { useSeeOpen } from "../../seen";
+import { plReading } from "../cells/columns";
 
 /** What the page holds of the person: the read under way, the copy it has, that they are not here, or that reading failed. */
 interface PageRead {
@@ -160,6 +162,14 @@ function ClientProfileReal({ id }: { id: string }) {
   const load = useLoad(id, setSt);
   const people = usePeopleSeam();
   const { vm, loading, missing, error } = st;
+  // Their People row, once People has it. Their page open is them read (surfaces/seen.ts), here as in People, the Inbox
+  // and Conversations: the row says what was new, and the page on screen is the reader seeing it.
+  const peopleRow = people && people.rows ? people.rows.find((r) => r.id === id) : null;
+  const reading = vm && peopleRow ? peopleRow : null;
+  useSeeOpen(
+    reading ? { personId: id, conversationId: reading.conversationId } : null,
+    reading ? plReading(reading) : undefined,
+  );
   if (missing)
     return (
       <PersonProfileFrame onBack={backToPeople}>
@@ -188,7 +198,6 @@ function ClientProfileReal({ id }: { id: string }) {
   }
   // Where the proposal follow-up has them in hand (0006), their People row says so: the deal card then says when its run goes,
   // and leads with no nudge of its own. People unread, the card says what it said.
-  const peopleRow = people && people.rows ? people.rows.find((r) => r.id === id) : null;
   const dealP = peopleRow && peopleRow.followUp ? { ...vm, followUp: peopleRow.followUp } : vm;
   const phoneOnly = /^[+\d(]/.test(vm.name);
   const first = phoneOnly ? "them" : shortName(vm.name);

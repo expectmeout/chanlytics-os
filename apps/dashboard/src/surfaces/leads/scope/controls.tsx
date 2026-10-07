@@ -5,7 +5,10 @@
  * canvas), stand at the right of the strip over the list, as People's Add a person does (`LeadsActs`).
  */
 import type { LeadSearchDto } from "@chanlytics/contracts";
+import type { ReactNode } from "react";
 import { ReachOutDoor } from "../../campaigns/reach-out/door";
+import { ActWords } from "../../kit/head/act-words";
+import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { gate } from "../../legacy-verbs";
@@ -47,10 +50,26 @@ export const LeadsActs = ({
       data-testid="leads-find"
       {...(canFind ? {} : gate("find", "find leads"))}
     >
-      <Icon name="three" size={12} /> Find leads
+      <ActWords icon={<Icon name="three" size={12} />} words="Find leads" />
     </button>
   </>
 );
+
+/**
+ * Leads' head where no standing line is drawn: People's name, and the act it is handed. A desk says its standing with its
+ * line (people/rail/standing.tsx) and Find leads beside it; a phone drew no line and said nothing, so the frame named the
+ * page from its crumbs and it had no act (Ruben, 7 Oct 2026).
+ *
+ * A phone's act is Import leads (reach-out/lists.tsx `importAct`), on the first day too: the door that brings leads in,
+ * as People's is Add a person and the Pipeline's New proposal, each at the right of the row of views. Find leads is Ask
+ * on a phone, whose circle stands over every page (spec F1), and the first day's own door. A desk's first day says the
+ * name alone: the page's door is the one press there, and "0 leads · 0 ready · 0 searches" is no standing to say. Draws
+ * nothing of its own.
+ */
+export const LeadsHead = ({ act }: { act?: ReactNode }) => {
+  useStanding({ title: "People", back: null, act });
+  return null;
+};
 
 export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
   const exportItem = p.canExport

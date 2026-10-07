@@ -1,5 +1,5 @@
 /**
- * The report functions Reports reads (00251, 00304, 00241, 00346): the receptionist's series, the campaigns', the reviews'
+ * The report functions Reports reads (00251, 00304, 00241, 00350): the receptionist's series, the campaigns', the reviews'
  * and the reach-outs', each over a period of days and the period before it. The one place they are called by name; the
  * dashboard asks on the session client, so RLS decides what a member reads (`report_series`, `campaign_series` and
  * `reviews_ledger` are SECURITY INVOKER; `reach_out_report` is a definer that checks the member again). A read that
@@ -26,10 +26,10 @@ export async function campaignSeries(db: Db, tenantId: string, days: number): Pr
 }
 
 /**
- * The reviews on record for the Reviews lens, over `days` and the period before (`reviews_ledger`, 00346): the profile's
+ * The reviews on record for the Reviews lens, over `days` and the period before (`reviews_ledger`, 00350): the profile's
  * reviews dated in the workspace's own zone, the counts, the oldest few that wait. Contracts' `isReviewsLedgerDto` tells
  * its answer from `{ error: "unknown_tenant" }`. Null is a database that does not have the function yet: the dashboard
- * deploys at the merge and 00346 goes to production on the owner's word, so for that window every read answers it, and
+ * deploys at the merge and 00350 goes to production on the owner's word, so for that window every read answers it, and
  * the lens draws the listing alone (the function itself never answers null). Any other failure throws.
  */
 export async function reviewsLedger(db: Db, tenantId: string, days: number): Promise<Json | null> {

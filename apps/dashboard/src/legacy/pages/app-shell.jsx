@@ -665,7 +665,7 @@ const appChrome = (s) => {
             {/* the disc with its state dot on the rim (ask-face.jsx AskDisc), the three over it on the same surface */}
             {window.AskDisc ? <window.AskDisc testId="phone-ask-disc" /> : null}
             {PhoneFace
-              ? <PhoneFace className="phone-ask-face" ground="raised" side={12.5} testId="phone-ask-face" />
+              ? <PhoneFace className="phone-ask-face" ground="raised" side={14} testId="phone-ask-face" />
               : <Icon name="sparkle" size={20} />}
           </button>
         )}

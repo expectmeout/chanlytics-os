@@ -123,7 +123,21 @@ export interface InboxThreadVM {
   /** Absolute times, epoch ms, for anything that must not drift with the
    *  clock — the bell keys its read state on them. */
   lastAtMs: number;
+  /**
+   * When the customer last wrote or called, epoch ms; 0 when they never have. What `unread` is judged against, and so
+   * what a mark made in this tab is held against until the next read (surfaces/seen.ts): never `lastAtMs`, which our
+   * own reply moves.
+   */
+  heardAtMs: number;
+  /** The stamp of the reader's own mark on this person as this read carried it, epoch ms; 0 where they have none. */
+  markAtMs: number;
   escalatedAtMs?: number;
+  /**
+   * New to the reader: the customer wrote or called after they last opened the thread, or they put it back as unread
+   * (standing.ts isUnseen, over the reader's own marks, 00349). It meant needsYou until the marks were kept, since
+   * nothing else was known of a reader: a thread never went from unread to read, and one the receptionist handled
+   * alone never read as new (Ruben, 7 Oct 2026). Needs you is the pill's to say, and stays.
+   */
   unread: boolean;
   pinned: false;
   value?: number; // omitted: no revenue model on real threads (v1.1)

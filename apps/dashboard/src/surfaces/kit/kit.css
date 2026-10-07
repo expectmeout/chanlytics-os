@@ -596,9 +596,9 @@ a.more-item {
 /* Under 900px, the kit's one phone breakpoint, the kit's Menu is the phone's action sheet, from the bottom edge as the Sheet's is: the menu opened as a
    desktop popover pinned to the far top corner, over the conversation and as far from the thumb as the screen allows.
    Base UI places the positioner with inline styles, so the sheet's place is held by !important; the menu stands in flow
-   on it. The handle says it is a sheet, an item is a thumb tall, and the layer behind it is only what a press outside
-   closes it through, with the ink's wash in Classic and none in Glass, where the sheet is glass over the page itself
-   (as the bell's is). The Sheet's own wash and handle are above. */
+   on it. The handle says it is a sheet, an item is a thumb tall, and the layer behind it, which a press outside
+   closes it through, wears the phone's one veil (tokens.css --surface-veil), as the drawer's and every sheet's does:
+   it wore none, as the bell's did. The Sheet's own wash and handle are above. */
 @media (max-width: 900px) {
   .pop-place:has(> .more-menu) {
     position: fixed !important;
@@ -635,7 +635,7 @@ a.more-item {
     height: 18px;
   }
   .more-backdrop[data-open] {
-    background: transparent;
+    background: var(--surface-veil);
   }
 }
 @keyframes more-sheet-in {
@@ -2971,8 +2971,10 @@ a.list-row {
   }
 }
 @media (max-width: 900px) {
-  .sheet-backdrop {
-    background: var(--surface-scrim-modal);
+  /* A phone's veil (tokens.css): the same behind a small job, a record's sheet and the drawer. */
+  .sheet-backdrop,
+  .rec-sheet-backdrop {
+    background: var(--surface-veil);
   }
   .sheet {
     top: auto;

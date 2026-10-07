@@ -82,6 +82,29 @@
     var(--focus-ring),
     var(--selected-depth);
 }
+/* A person new to the reader (surfaces/seen.ts): the Inbox's unread row (inbox.css .ix-thread.unread), part for part.
+   The name a step heavier, what they said in ink, and the dot at the row's edge. Every row drew at one weight, read
+   or not (Ruben, 7 Oct 2026). */
+.cv-row {
+  position: relative; /* holds the dot */
+}
+.cv-row.unread .cv-row-who {
+  font-weight: var(--weight-semibold);
+}
+.cv-row.unread .cv-row-snippet {
+  color: var(--ink);
+}
+.cv-row.unread::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-circle);
+  background: var(--ink);
+  transform: translateY(-50%);
+}
 
 .cv-row-avatar {
   position: relative; /* holds the wire's badge (.cv-row-wire) */

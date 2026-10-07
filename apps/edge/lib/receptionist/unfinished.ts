@@ -56,12 +56,20 @@ type Db = SupabaseClient<Database>;
  * mailbox's last-received stamp never moved.
  *
  * A new channel is excluded by construction, which is the safe direction: a
- * channel is added here only once somebody decides this sweep owns it.
+ * channel is added here only once somebody decides this sweep owns it. A text
+ * is answered after its acknowledgement by a job (inbound_answer, 00347): its
+ * message is left alone while that job waits or runs and is not long overdue,
+ * and is this sweep's again once the job has failed for good.
  */
 const INLINE_INTAKE = ["whatsapp", "sms"] as const;
 
 /** A customer's message older than this with no processed_at stamp was never finished with. */
 const UNANSWERED_INBOUND_AFTER_MS = 3 * MIN_MS;
+/**
+ * How long a text's answer job holds its text from this sweep once due: its one retry's wait and a lease, with room.
+ * Past it the ledger has stopped claiming replies (which pages the platform within the minute, jobs_replies_late).
+ */
+const ANSWER_JOB_GRACE_MS = 10 * MIN_MS;
 /** A queued reply older than this with no live job is nobody's. */
 const ORPHAN_QUEUED_AFTER_MS = 10 * MIN_MS;
 /** Older than this is not this sweep's to raise. */
@@ -117,6 +125,48 @@ interface QueuedRow {
 const iso = (ms: number) => new Date(ms).toISOString();
 const short = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
 
+/**
+ * The messages, of these, that a job of this kind still waiting or running names (payload.message_id); with `dueSince`,
+ * only a job due since then, so one the ledger has left overdue holds nothing.
+ */
+async function liveJobsNaming(
+  db: Db,
+  kind: "outbound_send" | "inbound_answer",
+  ids: string[],
+  dueSince?: string,
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  let q = db
+    .from("jobs")
+    .select("payload")
+    .eq("kind", kind)
+    .in("state", ["scheduled", "fired"])
+    .in("payload->>message_id", ids);
+  if (dueSince) q = q.gt("due_at", dueSince);
+  const { data, error } = await q;
+  if (error) throw new Error(`unfinished: cannot read the jobs: ${error.message}`);
+  const named = (data ?? []).map((j) => {
+    const p = j.payload;
+    return p !== null && typeof p === "object" && !Array.isArray(p) && typeof p.message_id === "string"
+      ? p.message_id
+      : "";
+  });
+  return new Set(named.filter(Boolean));
+}
+
+/**
+ * The texts, of these, whose answer is a job still in hand (inbound_answer, 00347): waiting or running, and due since
+ * ANSWER_JOB_GRACE_MS ago. Not abandoned, so not this sweep's; one overdue past it is a ledger that stopped, and the
+ * text is a person's.
+ */
+const textsInHand = (db: Db, rows: InboundRow[], now: number) =>
+  liveJobsNaming(
+    db,
+    "inbound_answer",
+    rows.map((r) => r.id),
+    iso(now - ANSWER_JOB_GRACE_MS),
+  );
+
 export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSummary> {
   const now = p.now ? p.now() : Date.now();
   const out: UnfinishedSummary = { unanswered: 0, orphaned: 0, told: 0 };
@@ -141,7 +191,9 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
     .order("created_at", { ascending: true })
     .limit(BATCH);
   if (inErr) throw new Error(`unfinished: cannot read inbound messages: ${inErr.message}`);
-  const rows = (inbound ?? []) as unknown as InboundRow[];
+  const found = (inbound ?? []) as unknown as InboundRow[];
+  const answering = await textsInHand(p.db, found, now);
+  const rows = found.filter((r) => !answering.has(r.id));
   if (rows[0]) {
     // A reply that went out after the message, before the stamp, is not a
     // customer with no answer: the crash was between the send and the mark.
@@ -208,18 +260,10 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
   if (qErr) throw new Error(`unfinished: cannot read queued replies: ${qErr.message}`);
   const stuck = (queued ?? []) as unknown as QueuedRow[];
   if (stuck.length) {
-    const { data: jobs, error: jErr } = await p.db
-      .from("jobs")
-      .select("payload")
-      .eq("kind", "outbound_send")
-      .in("state", ["scheduled", "fired"])
-      .in(
-        "payload->>message_id",
-        stuck.map((s) => s.id),
-      );
-    if (jErr) throw new Error(`unfinished: cannot read the jobs: ${jErr.message}`);
-    const live = new Set(
-      ((jobs ?? []) as { payload: { message_id?: unknown } | null }[]).map((j) => String(j.payload?.message_id ?? "")),
+    const live = await liveJobsNaming(
+      p.db,
+      "outbound_send",
+      stuck.map((s) => s.id),
     );
     for (const s of stuck) {
       if (live.has(s.id)) continue;

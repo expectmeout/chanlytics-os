@@ -30,6 +30,7 @@ test("each once-only kind carries its subject as its key; a kind with no rule ca
     dueAt: at,
     payload: { message_id: "msg1", stage: "reread-1" },
   });
+  await scheduleJobOnce(db, { tenantId: T, kind: "inbound_answer", dueAt: at, payload: { message_id: "msg2" } });
   await scheduleJob(db, { tenantId: T, kind: "push_receipts", dueAt: at, payload: { tickets: [] } });
   assert.deepEqual(
     tables.jobs.map((j) => [j.kind, j.dedupe_key ?? null]),
@@ -38,6 +39,7 @@ test("each once-only kind carries its subject as its key; a kind with no rule ca
       ["lead_collect", "lead_collect:run1:p40"],
       ["reply_read", "reply_read:msg1:read"],
       ["reply_read", "reply_read:msg1:reread-1"],
+      ["inbound_answer", "inbound_answer:msg2"],
       ["push_receipts", null],
     ],
   );

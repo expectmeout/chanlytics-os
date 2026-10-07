@@ -4,7 +4,7 @@
  * the reach-outs' say the database's refusal with its code, for the door to word. The reviews' ledger (`reviews_ledger`)
  * is one of them: its counts, its window in the workspace's zone and who wrote each reply are SQL's, held by
  * google/google-reviews-ledger.db.test.mjs over a real database. It alone answers null where the database does not have
- * its function yet (00346 is applied after the dashboard deploys).
+ * its function yet (00350 is applied after the dashboard deploys).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -52,7 +52,7 @@ test("a read that fails throws, never nothing; the reach-outs' refusal keeps the
   });
 });
 
-test("a database that does not have the reviews' ledger yet (00346 not applied) answers null, and only that: any other refusal throws, and no other function is excused", async () => {
+test("a database that does not have the reviews' ledger yet (00350 not applied) answers null, and only that: any other refusal throws, and no other function is excused", async () => {
   const gone = "Could not find the function public.reviews_ledger(p_days, p_tenant_id) in the schema cache";
   const refusedWith = (code) => ({ data: null, error: { message: gone, code } });
   for (const code of ["PGRST202", "42883"])

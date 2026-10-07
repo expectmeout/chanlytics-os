@@ -1153,14 +1153,17 @@ waiting who is not a customer, then bulk, each workspace taking its turn at bulk
   for it, and the platform was paged. A campaigns domain Resend could not be asked about is not a stop: a run of offers
   waits a minute and asks again (paged as `campaigns_domain_unread`), and a visit's email, which leaves from the mail
   domain, goes. Each says how many got it, and sending it again reaches the whole list.
-- **A yes by email is recorded only from a header the provider wrote.** Set `EMAIL_AUTHSERV_ID` on the edge to the name
-  Resend's receiving side puts at the start of the `Authentication-Results` header (the word before the first
-  semicolon), read off one real email received on `EMAIL_DOMAIN`. Blank, no yes by email is recorded (a STOP or an
-  UNSUBSCRIBE by email never needs it); a header that names anything else, or two that name it, is no proof.
-  **Bookings by email need it too** (00345): a booking tool's email becomes an appointment only from a proved sender,
-  in a workspace that named that tool, and a forward by hand only from a member whose own address is proved. Blank,
-  none is read: each lands in the Inbox as an automated email, and Settings › Business keeps saying "Waiting for the
-  first booking email".
+- **A yes by email is recorded only from a sender the provider proved.** Nothing is set for it. The proof is Resend's
+  own verdict on each received email (`authentication` in its answer: SPF, DKIM and DMARC as its receiving server
+  worked them out, which nothing in the message can write): DMARC passed, or DKIM passed by the From domain. An email
+  with no verdict, or any other, proves nothing, and no yes by email is recorded from it (a STOP or an UNSUBSCRIBE by
+  email never needs one). **Bookings by email stand on the same proof** (00345): a booking tool's email becomes an
+  appointment only from a proved sender, in a workspace that named that tool, and a forward by hand only from a member
+  whose own address is proved. Unproved, none is read: each lands in the Inbox as an automated email, and Settings ›
+  Business keeps saying "Waiting for the first booking email". What the provider said is on the intake's own log line
+  (`email_ingested`, its `sender_checks`): `null` there on every email is the provider handing no verdict over (on
+  one email it is also what an email the provider no longer had reads as). A yes that was refused is
+  `email_yes_unauthenticated`, the same request's line (`request_id`).
 - **A statement that hangs.** The service role's statements end at 30 seconds (00283) and the client gives up on a request
   at 40, so a hung statement no longer holds a function until it is killed.
 

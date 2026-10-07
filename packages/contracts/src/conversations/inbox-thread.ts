@@ -7,7 +7,7 @@ import { MIN_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
-import { HELD_WORDS, replyWaitsOnYou, standingOfThread } from "./standing";
+import { HELD_WORDS, readingOf, replyWaitsOnYou, standingOfThread } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
 import { agentFor, isChatMessage, replyWireOf, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
@@ -176,6 +176,12 @@ function askOf(escalation: EscalationDto | null, lastInbound: MessageDto | undef
     quoted: wrote,
     channel: wireOf(lastInbound),
   };
+}
+
+/** What the thread says of its reader: the dot, when the customer was last heard from, and their mark's stamp. */
+function inboxReading(dto: ConversationDto): Pick<InboxThreadVM, "unread" | "heardAtMs" | "markAtMs"> {
+  const { unseen, heardAtMs, markAtMs } = readingOf(dto.last_inbound_at, dto);
+  return { unread: unseen, heardAtMs, markAtMs };
 }
 
 export function toInboxThreadVM(
@@ -362,9 +368,8 @@ export function toInboxThreadVM(
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     ...(escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {}),
-    // The dot means a person is needed and nobody has it: needsYou, the one rule.
-    // "Escalated and not mine" lit it on a thread a teammate is answering too.
-    unread: needsYou,
+    // The dot is the reader's own (standing.ts isUnseen, 00349; inbox-thread-vm.ts says what it meant before).
+    ...inboxReading(dto),
     pinned: false,
     tags: [],
     priority: "P2",

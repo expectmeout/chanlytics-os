@@ -209,6 +209,7 @@ export const ROUTE_KEYS = [
   "PUT contacts/[id]/details",
   "PUT contacts/[id]/marketing-consent",
   "PUT contacts/[id]/receptionist",
+  "PUT contacts/[id]/seen",
   "PUT contacts/consent",
   "PUT contacts/marketing-consent",
   "PUT contacts/notes",

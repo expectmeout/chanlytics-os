@@ -4,6 +4,7 @@
  * so do the frame's crumbs and Ask (which took `CV_ROUTE` and `CV_IN_CHANNEL` off the window: the app publishes those two
  * names from here). No React, so it stays light for whoever imports it. And the one row a person has in the list.
  */
+import type { SeenReading } from "@chanlytics/contracts";
 import type { ConversationRow } from "./types";
 
 // Keyed on what the view model says (writtenChannelOf): "email", not "mail".
@@ -67,17 +68,25 @@ export const cvAddress = (channel: string | null | undefined, id: string | null 
 /**
  * Each call stands as its thread does (contracts standingOf, the Inbox's word). A person who has only ever phoned has
  * no chat row (the surface leaves out a thread with nothing written), so without it their row could never say what
- * the Inbox says of them: a call-back flagged at noon read "Hung up early" under the call at one.
+ * the Inbox says of them: a call-back flagged at noon read "Hung up early" under the call at one. And it is new to the
+ * reader as its thread is (contracts isUnseen): the reader's mark is on the person, whichever row of theirs is drawn.
  */
 export function cvCallsStandAsTheirThread(
   calls: ReadonlyArray<ConversationRow>,
   threads: ReadonlyArray<ConversationRow>,
 ): ConversationRow[] {
-  const standing = new Map<string, NonNullable<ConversationRow["standing"]>>();
-  for (const t of threads) if (t.threadId && t.standing) standing.set(t.threadId, t.standing);
+  const byThread = new Map<string, ConversationRow>();
+  for (const t of threads) if (t.threadId) byThread.set(t.threadId, t);
   return calls.map((c) => {
-    const s = c.threadId ? standing.get(c.threadId) : undefined;
-    return s ? { ...c, standing: s } : c;
+    const t = c.threadId ? byThread.get(c.threadId) : undefined;
+    if (!t) return c;
+    return {
+      ...c,
+      ...(t.standing ? { standing: t.standing } : {}),
+      ...(t.unseen !== undefined ? { unseen: t.unseen } : {}),
+      ...(t.heardAtMs !== undefined ? { heardAtMs: t.heardAtMs } : {}),
+      ...(t.markAtMs !== undefined ? { markAtMs: t.markAtMs } : {}),
+    };
   });
 }
 
@@ -116,6 +125,25 @@ const cvPartsOf = (c: ConversationRow): ConversationRow[] => c.parts ?? [c];
  */
 export const cvLeadOf = (c: ConversationRow): ConversationRow =>
   c.live ? c : (cvPartsOf(c).find((p) => p.standing && p.standing !== "quiet") ?? c);
+
+/**
+ * Whose a row is, for the reader's marks (surfaces/seen.ts): the person, and the conversation their thread is. A
+ * caller who withheld their number is nobody, and their row is never called new.
+ */
+export const cvWhoseRow = (c: ConversationRow): { personId: string | null; conversationId: string | null } => ({
+  personId: c.clientId,
+  conversationId: c.threadId && c.threadId.startsWith("th-") ? c.threadId.slice(3) : null,
+});
+
+/**
+ * What the last read said of a person's row (contracts SeenReading): new to the reader when any row it stands for is, when
+ * they were last heard from, and the stamp of the reader's mark, each the latest among the rows it stands for.
+ */
+export const cvSeenOf = (c: ConversationRow): SeenReading => ({
+  unseen: cvPartsOf(c).some((p) => !!p.unseen),
+  heardAtMs: Math.max(0, ...cvPartsOf(c).map((p) => p.heardAtMs ?? 0)),
+  markAtMs: Math.max(0, ...cvPartsOf(c).map((p) => p.markAtMs ?? 0)),
+});
 
 /** The row of `rows` that holds `id`, and the part it names: a link to one call opens its person's row at that call. */
 export function cvFind(

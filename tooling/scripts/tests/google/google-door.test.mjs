@@ -1635,7 +1635,7 @@ test("refresh under the auto mode: the review the receptionist answered rings on
     "one bell, about the review row, for the page where the reply is read",
   );
   assert.equal(tables.notifications[0].route, "reports/reviews");
-  // The ledger the Reviews report reads who wrote a reply from (reviews_ledger, 00346, joined to this by the database test):
+  // The ledger the Reviews report reads who wrote a reply from (reviews_ledger, 00350, joined to this by the database test):
   // the event is the receptionist's, filed under the review row.
   const replied = tables.events.filter((e) => e.kind === "google.replied");
   assert.deepEqual(

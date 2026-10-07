@@ -1075,6 +1075,88 @@ type Database = {
                     }
                 ];
             };
+            contact_marks: {
+                Row: {
+                    contact_id: string;
+                    marked_at: string;
+                    seen_at: string | null;
+                    tenant_id: string;
+                    unread_at: string | null;
+                    user_id: string;
+                };
+                Insert: {
+                    contact_id: string;
+                    marked_at?: string;
+                    seen_at?: string | null;
+                    tenant_id: string;
+                    unread_at?: string | null;
+                    user_id: string;
+                };
+                Update: {
+                    contact_id?: string;
+                    marked_at?: string;
+                    seen_at?: string | null;
+                    tenant_id?: string;
+                    unread_at?: string | null;
+                    user_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "contact_marks_contact_id_same_workspace";
+                        columns: ["tenant_id", "contact_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "contact_marks_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "contact_marks_user_id_same_workspace";
+                        columns: ["user_id", "tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "memberships";
+                        referencedColumns: ["user_id", "tenant_id"];
+                    }
+                ];
+            };
+            contact_reads: {
+                Row: {
+                    seen_at: string;
+                    tenant_id: string;
+                    user_id: string;
+                };
+                Insert: {
+                    seen_at?: string;
+                    tenant_id: string;
+                    user_id: string;
+                };
+                Update: {
+                    seen_at?: string;
+                    tenant_id?: string;
+                    user_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "contact_reads_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "contact_reads_user_id_same_workspace";
+                        columns: ["user_id", "tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "memberships";
+                        referencedColumns: ["user_id", "tenant_id"];
+                    }
+                ];
+            };
             contacts: {
                 Row: {
                     acquired_ref: string | null;
@@ -6030,6 +6112,17 @@ type Database = {
                 };
                 Returns: number;
             };
+            appointments_feed_sync: {
+                Args: {
+                    p_from: string;
+                    p_now?: string;
+                    p_rows: Json;
+                    p_tenant_id: string;
+                    p_timezone: string;
+                    p_to: string;
+                };
+                Returns: Json;
+            };
             appointments_scrub: {
                 Args: {
                     p_contact_id: string;
@@ -6236,6 +6329,21 @@ type Database = {
                     contact_id: string;
                     first_at: string;
                 }[];
+            };
+            contact_mark: {
+                Args: {
+                    p_contact_id: string;
+                    p_heard_at?: string;
+                    p_seen: boolean;
+                };
+                Returns: Json;
+            };
+            contact_seen: {
+                Args: {
+                    p_contact_ids: string[];
+                    p_tenant_id: string;
+                };
+                Returns: Json;
             };
             create_mailbox: {
                 Args: {
@@ -7676,6 +7784,17 @@ type Database = {
                     p_doubt_id: string;
                 };
                 Returns: Json;
+            };
+            person_link_lead: {
+                Args: {
+                    p_assurance: string;
+                    p_contact_id: string;
+                    p_made?: boolean;
+                    p_skip_lead?: string;
+                    p_source: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
             };
             person_moments_check: {
                 Args: {

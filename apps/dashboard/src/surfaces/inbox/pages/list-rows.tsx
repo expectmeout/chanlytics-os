@@ -11,6 +11,7 @@ import type { ListCtx } from "./inbox-list";
 import { ReplyChip } from "../thread/reply-strip";
 import { channelIconOf } from "../thread/timeline";
 import { inboxData } from "../store";
+import { threadUnread } from "../../seen";
 import type { Thread } from "../types";
 
 /**
@@ -189,7 +190,7 @@ export function threadRow(L: ListCtx, t: Thread, i: number) {
   return (
     <div
       key={t.id}
-      className={`ix-thread ${isActive ? "active" : ""} ${isSelected ? "selected" : ""} ${t.unread ? "unread" : ""} pri-${t.priority?.toLowerCase()}`}
+      className={`ix-thread ${isActive ? "active" : ""} ${isSelected ? "selected" : ""} ${threadUnread(t) ? "unread" : ""} pri-${t.priority?.toLowerCase()}`}
       role="option"
       aria-selected={isSelected}
       aria-current={isActive ? "true" : undefined}

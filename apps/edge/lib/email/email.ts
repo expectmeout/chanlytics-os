@@ -166,8 +166,7 @@ export function emailWaitingMessage(n: EmailWaiting): NotifyMessage {
 /**
  * Email's intake as the job runner is handed it; undefined when email is off here or there is no provider key to fetch
  * with. `campaigns` is bound for a job that sends offers, while the campaigns domain is verified (campaigns-domain.ts); `closed`
- * is why offers cannot leave when the deployment names a campaigns domain the provider does not verify. `authservId` is the
- * name the provider's receiving side writes into the header that proves a sender (EMAIL_AUTHSERV_ID): none, no yes by email.
+ * is why offers cannot leave when the deployment names a campaigns domain the provider does not verify.
  */
 export function emailIntake(
   db: Db,
@@ -183,7 +182,6 @@ export function emailIntake(
     ...(campaigns ? { campaigns } : {}),
     ...(closed ? { campaignsClosed: closed } : {}),
     ...(unread ? { campaignsUnread: unread } : {}),
-    authservId: env.EMAIL_AUTHSERV_ID ?? null,
     fetch: (receivedId) => fetchReceivedEmail({ apiKey }, receivedId),
     erasedBefore: (tenantId, address, receivedAtIso) => erasedBeforeEmail(db, tenantId, address, receivedAtIso),
     // Best-effort by contract: the thread is already flagged, which is the

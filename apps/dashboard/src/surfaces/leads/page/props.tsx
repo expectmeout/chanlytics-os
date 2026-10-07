@@ -9,7 +9,6 @@ import {
   type leadBand,
   leadMapPlot,
   leadReviewGroups,
-  leadsFirstDayWays,
   leadsRoute,
   type leadsStanding,
   type LeadArea,
@@ -20,7 +19,6 @@ import {
   type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
-import { setupDto } from "../../legacy-verbs";
 import type { usePlControls } from "../../people/hooks/use-controls";
 import type { usePlPlace } from "../../people/hooks/use-place";
 import type { PeopleRead, TableEmpty } from "../../people/types";
@@ -310,6 +308,7 @@ export const leadsBulkProps = (p: LeadsPage) => {
     canFind: p.canFind,
     canExport: p.canExport,
     importDoor: p.lists.importDoor,
+    importAct: p.lists.importAct,
     listsNode: p.lists.node,
     // Write to them (Part 7): the rows chosen and shown, never all that match (a view is not a list of ids).
     writeToThem: p.lists.writeAct({
@@ -423,30 +422,18 @@ export const leadsPeekProps = (p: LeadsPage) => {
   };
 };
 
-/**
- * The three ways claim only what THIS tab has read: the line is the setup surface's, which this route does not load on a
- * cold open, so it is passed only when the owner came from Setup in this tab (Task 17, decision 2).
- */
-const waysOf = (people: PeopleRead) => {
-  const dto = setupDto();
-  return leadsFirstDayWays({
-    voice: dto ? dto.channels.voice : null,
-    whatsapp: dto ? dto.channels.whatsapp : null,
-    calendar: (people.calendar && people.calendar.state) || "none",
-    people: (people.aggregates && people.aggregates.total) || 0,
-  });
-};
-
 /** The strip, the next page, and the first day. */
 export const leadsFootProps = (p: LeadsPage) => {
-  const { leads, leadLine, setLeadLine, nav } = p;
+  const { leads, leadLine, setLeadLine } = p;
   return {
     onStripAction: p.onStripAction,
     onTakeOffered: p.takeOffered,
     onMore: p.leadsMore,
     loadingMore: p.leadsMoreBusy,
-    firstDay: leads.searches.length === 0 && !leads.readFailed,
-    ways: waysOf(p.people),
+    // The first day: no search kept AND no lead held. A list brought in keeps no search, and its leads are there to
+    // work, so its rail and its table stand: the first day drew over them (7 Oct 2026).
+    firstDay: leads.searches.length === 0 && leads.counts.all === 0 && !leads.readFailed,
+    onImport: p.lists.openImport,
     lineOpen: !!leadLine,
     lineDraft: leadLine ? leadLine.draft : "",
     lineError: leadLine ? leadLine.error : null,
@@ -456,7 +443,6 @@ export const leadsFootProps = (p: LeadsPage) => {
     onLineDraft: (draft: string) => setLeadLine((l) => ({ busy: false, ...l, draft, error: null })),
     onSaveLine: p.saveBusinessLine,
     onCancelLine: () => setLeadLine(null),
-    onGo: (to: string) => nav(to),
     toastNode: p.toastNode,
   };
 };

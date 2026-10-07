@@ -119,6 +119,13 @@ export const JOB_KINDS = [
    * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
    */
   "event_deliver",
+  /**
+   * One text answered after its acknowledgement (00347, decision 0031 Phase 2): the SMS door records the text and answers
+   * Twilio, and this job takes it up again through the whole inbound phase (core answerInbound with `resume`), keyed
+   * 'inbound_answer:<message>' (jobs.dedupe_key), in the reply lane. A runner killed mid-turn leaves it to be claimed
+   * again: the message is answered while it is unprocessed and no reply names it, so a second claim never texts twice.
+   */
+  "inbound_answer",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -342,6 +349,12 @@ export const EVENT_KINDS = [
   "reach_out.reply_undone",
   // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
   "workspace.activated",
+  /**
+   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00348, decision 0002): { change: added
+   * | moved | vanished | back, source, starts_at }, never its title. On the appointment; hidden from the activity
+   * log unless asked for by name, since a calendar read writes one per appointment.
+   */
+  "appointment.changed",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 

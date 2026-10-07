@@ -1,4 +1,4 @@
--- 00346 · The reviews on record are read once for a report (Reports, the Reviews lens).
+-- 00350 · The reviews on record are read once for a report (Reports, the Reviews lens).
 --
 -- The lens counted the owner's Business Profile reviews from seven requests of the dashboard's own (the period's rows, two
 -- counts, the oldest, the ones that wait, who answered, what was held) with the window cut at a UTC midnight a day early

@@ -3,7 +3,7 @@
  * consultation has had no proposal since, and where a person stands on the way to a deal (dealStageOf), the one
  * rule the Pipeline's groups and People's deal lists both read.
  */
-import { foldName, needsConsultation, type ConsultRules } from "../calendar/service-offer";
+import { foldName, needsConsultation, serviceNamedIn, type ConsultRules } from "../calendar/service-offer";
 import { DAY_MS } from "../shared/time";
 import type { DealStage } from "./deal-words";
 import { dealIsOpen, type DealVM } from "./deal-vm";
@@ -13,24 +13,15 @@ export const CONSULT_FOLLOW_DAYS = 7;
 
 /**
  * The consult-first service a calendar title names, as Settings spells it: what a proposal started from that
- * consultation is for (0008). The longest name the title holds, so "Kitchen remodel" wins over "Remodel"; null where
- * it names none. The fold is availability's.
+ * consultation is for (0008): the longest a title names (calendar serviceNamedIn) of those that need one; null where
+ * it names none.
  */
 export function consultServiceOf(
   title: string | null | undefined,
   services: readonly { name: string }[] | undefined,
   rules: ConsultRules | null | undefined,
 ): string | null {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return null;
-  let best: { name: string; folded: string } | null = null;
-  for (const s of services ?? []) {
-    const name = String(s.name ?? "").trim();
-    const folded = foldName(name);
-    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
-    if (!best || folded.length > best.folded.length) best = { name, folded };
-  }
-  return best ? best.name : null;
+  return serviceNamedIn(title, services, (name) => needsConsultation(name, rules));
 }
 
 /** A calendar title that is a consultation: it says so, or it names a consult-first service (consultServiceOf). */

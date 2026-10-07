@@ -17,6 +17,7 @@ import { TICK_MS } from "../constants";
 import { ixAnswerer } from "../answerer";
 import { ixDraftKey, ixHeld, ixReadAgain } from "../rules";
 import { canDo, presenceAway, useToast, type Flash } from "../shell";
+import { unseePerson } from "../../seen";
 import { inboxData, OWN_VERBS, VW_STORE } from "../store";
 import { InboxThread, type InboxThreadProps } from "./thread";
 import { threadVerbs } from "./thread-verbs";
@@ -194,6 +195,18 @@ function realThread(
         }}
         onArchive={() => {
           if (can()) void verb(t, "archive", {}, "archived");
+        }}
+        // The reader's own mark, any role's (surfaces/seen.ts): the row says unread again until they open it.
+        onMarkUnread={() => {
+          if (!t.clientId) return;
+          unseePerson(t.clientId);
+          say({
+            msg: (
+              <>
+                <b>{t.who}</b> marked as unread
+              </>
+            ),
+          });
         }}
         onSend={(_id, text) => {
           if (!can()) return undefined;

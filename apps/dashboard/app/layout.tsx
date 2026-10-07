@@ -43,15 +43,24 @@ export const metadata: Metadata = {
   description: "The business workspace where AI agents do the work and you make the calls.",
   // The installable shell: a manifest, the icons a phone wants, and the
   // full-screen mode Safari reads from here rather than from the manifest.
+  //
+  // The phone's own bar (the clock, the battery) stands over the app, never on it: "default". It was
+  // "black-translucent", which draws the page under that bar, and iOS 26 and 27 lay such a page out one bar short of
+  // the screen: the app ended 59px above an iPhone's foot on a strip nothing can be drawn in, its tab bar and every
+  // sheet with it (Ruben's screenshots, 7 Oct 2026; the same on other apps' iOS 27 phones that month). Under "default"
+  // the app starts under the bar and reaches the foot, and iOS colours the bar from the page and picks a clock that
+  // reads on it, in either theme. iOS reads this when the app is added to the home screen, so an app added before
+  // keeps the old layout until it is removed and added again; the frame still keeps the bar's room for those
+  // (components.css, .app-root).
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Chanlytics" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Chanlytics" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // Draw under the notch and the home bar; the shell pads with the safe-area insets.
+  // Draw to the screen's edges, under the home bar and beside a notch; the shell pads with the safe-area insets.
   viewportFit: "cover",
   // The browser's own chrome -- a phone's address bar, the tab strip, the installed shell's status bar -- in the
   // paper of the theme the document says it is (contracts THEME_COLORS, tokens.css --bg as sRGB).

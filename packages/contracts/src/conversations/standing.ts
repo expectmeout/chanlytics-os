@@ -117,3 +117,92 @@ export function replyWaitsOnYou(
   if (r.endsAtMs !== undefined && r.endsAtMs !== null) return r.endsAtMs > nowMs;
   return !!r.queued;
 }
+
+/* ------------------------------------------------------ what a member has seen */
+
+/**
+ * Whether a person is new to the member looking: decided once, for the Inbox, Conversations and People.
+ *
+ * A row never went from unread to read. The Inbox's dot meant "needs you", every other list drew each row at one
+ * weight, and nothing recorded that anyone had opened a thread (Ruben, 7 Oct 2026). Now each member keeps their own
+ * reading of each person (00349: contact_reads, the floor everything before which is seen, and contact_marks, when they
+ * last opened the person and whether they put it back as unread), and a person is new to them when the customer's
+ * last message or call (conversations.last_inbound_at) came after it.
+ *
+ * Apart from standing: a thread that needs you may be one you have read, and one the receptionist answered on its own
+ * may be one you have not. The two are drawn apart too (the amber of Needs you is never this).
+ */
+
+/**
+ * What the door answers for a member (contact_seen): their floor, and their marks for the people asked about.
+ * `marked_at` is the database's stamp of the mark's last writing, whichever way it went.
+ */
+export interface SeenMarksDto {
+  floor_at: string | null;
+  marks: { contact_id: string; seen_at: string | null; unread_at: string | null; marked_at?: string | null }[];
+}
+
+/**
+ * A member's reading of one person, as a row carries it. `seen_at` is the later of their floor and when they last
+ * opened the person; absent or null where the reader could not say (the marks were not read, or the workspace has none
+ * yet), and then nothing is called new: a list never claims an unread it cannot show a mark for.
+ */
+export interface SeenOf {
+  seen_at?: string | null;
+  marked_unread?: boolean;
+  /**
+   * When the member's own mark on this person was last written, as the database stamped it; absent where they have
+   * none. A tab that has just marked someone holds its word until a read carries a stamp as late as its own
+   * (surfaces/seen.ts): the one way to tell a read that left before the mark from one made after it.
+   */
+  marked_at?: string | null;
+}
+
+/** Each person's reading, from the door's answer: the later of the floor and their own mark, and whether they put it back. */
+export function seenBy(marks: SeenMarksDto | null): (contactId: string) => SeenOf {
+  if (!marks) return () => ({});
+  const floorMs = marks.floor_at ? Date.parse(marks.floor_at) : Number.NEGATIVE_INFINITY;
+  const own = new Map(marks.marks.map((m) => [m.contact_id, m]));
+  return (contactId) => {
+    const mark = own.get(contactId);
+    const markMs = mark?.seen_at ? Date.parse(mark.seen_at) : Number.NEGATIVE_INFINITY;
+    const seenMs = Math.max(floorMs, markMs);
+    return {
+      ...(Number.isFinite(seenMs) ? { seen_at: new Date(seenMs).toISOString() } : {}),
+      ...(mark?.unread_at ? { marked_unread: true } : {}),
+      ...(mark?.marked_at ? { marked_at: mark.marked_at } : {}),
+    };
+  };
+}
+
+/**
+ * New to the member: they put it back as unread, or the customer wrote or called after they last saw the person.
+ * Nothing came in, nothing is new; and a reading that is not known is never called new. `heardAt` is when the customer
+ * last wrote or called, as the row holds it: the column's own words, or epoch ms where a row has worked it out (People).
+ */
+export function isUnseen(heardAt: string | number | null | undefined, seen: SeenOf): boolean {
+  if (seen.marked_unread) return true;
+  if (!heardAt || !seen.seen_at) return false;
+  return (typeof heardAt === "number" ? heardAt : Date.parse(heardAt)) > Date.parse(seen.seen_at);
+}
+
+/**
+ * What a row says of its reader, for the tab that draws it (surfaces/seen.ts): whether the person is new to them, when
+ * the customer was last heard from, and the stamp of the reader's own mark as the read carried it. Epoch ms, 0 where
+ * there is none.
+ */
+export interface SeenReading {
+  unseen: boolean;
+  heardAtMs: number;
+  markAtMs: number;
+}
+
+const msOf = (at: string | number | null | undefined): number => {
+  const ms = typeof at === "number" ? at : at ? Date.parse(at) : 0;
+  return Number.isFinite(ms) ? ms : 0;
+};
+
+/** A row's reading, from when its person was last heard from and what the read said of the member's marks. */
+export function readingOf(heardAt: string | number | null | undefined, seen: SeenOf): SeenReading {
+  return { unseen: isUnseen(heardAt, seen), heardAtMs: msOf(heardAt), markAtMs: msOf(seen.marked_at) };
+}

@@ -1278,6 +1278,8 @@ async function readReply(ports, cmd) {
 
 // src/messages/broadcast.ts
 import {
+  appointmentHolds,
+  appointmentKeysOf,
   BROADCAST_CHUNK,
   BROADCAST_GAP_MS,
   BROADCAST_THROTTLE_WAITS_MS,
@@ -1651,14 +1653,26 @@ async function wireIsUnbound(ports, b, cmd, batch) {
 }
 async function readPeople(ports, b, batch) {
   const ids = batch.map((r) => r.contact_id);
-  if (ids.length === 0) return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), unreadable: false };
+  if (ids.length === 0) return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), appointments: /* @__PURE__ */ new Map(), unreadable: false };
   try {
-    const [people, priors] = await Promise.all([ports.contacts(ids), ports.alreadySent(b.id, ids)]);
-    return { people, priors, unreadable: false };
+    const [people, priors, appointments] = await Promise.all([
+      ports.contacts(ids),
+      ports.alreadySent(b.id, ids),
+      appointmentsOf(ports, b, batch)
+    ]);
+    return { people, priors, appointments, unreadable: false };
   } catch (e) {
     broadcastLog.error("broadcast_batch_unreadable", { broadcast_id: b.id, error: errField3(e) });
-    return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), unreadable: true };
+    return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), appointments: /* @__PURE__ */ new Map(), unreadable: true };
   }
+}
+async function appointmentsOf(ports, b, batch) {
+  const keys = appointmentKeysOf(batch);
+  if (!ports.appointments || keys.length === 0) return /* @__PURE__ */ new Map();
+  return ports.appointments(keys).catch((e) => {
+    broadcastLog.warn("broadcast_appointments_unread", { broadcast_id: b.id, error: errField3(e) });
+    return /* @__PURE__ */ new Map();
+  });
 }
 function addressOf3(c, channel) {
   const to = channel === "email" ? c.email : c.phone_e164;
@@ -1680,6 +1694,7 @@ async function sendOne(w, r) {
     await w.mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
     return "go on";
   }
+  if (!appointmentHolds(w.appointments, rowFacts(r))) return skip("appointment_changed");
   if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");
   if (channel === "email" && w.offersClosed) return skip("email_marketing_disabled");
   if (channel !== "whatsapp" && await overAllowance(w, channel)) return skip("month_allowance");
@@ -1762,7 +1777,7 @@ async function sendBroadcastBatch(ports, cmd) {
   const offers = isOfferByEmail5({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger2(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
   if (head === "wait" || head === "stopped") return;
-  const { people, priors, unreadable } = await readPeople(ports, b, batch);
+  const { people, priors, appointments, unreadable } = await readPeople(ports, b, batch);
   const w = {
     ports,
     cmd,
@@ -1776,6 +1791,7 @@ async function sendBroadcastBatch(ports, cmd) {
     facts,
     people,
     priors,
+    appointments,
     month: {},
     offersClosed: head === "closed",
     // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.
@@ -2402,13 +2418,9 @@ function recipientFacts(r, goesAt) {
     const day = v ? visitMomentDay(p.trigger, v.timezone, ctx.now.getTime()) : null;
     const tomorrow = p.trigger === "visit_tomorrow";
     const onDay = v && day ? visitOnDay(v, day, tomorrow ? "next" : "last", (via) => theirs(person, via)) : null;
-    return visitFactsFor(
-      p.trigger,
-      onDay ?? (tomorrow ? v?.next ?? null : v?.last ?? null),
-      ctx.tz,
-      [person.givenName, person.waName],
-      goesAt
-    );
+    const visit = onDay ?? (tomorrow ? v?.next ?? null : v?.last ?? null);
+    const words = visitFactsFor(p.trigger, visit, ctx.tz, [person.givenName, person.waName], goesAt);
+    return words && visit?.key ? { ...words, appointment: visit.key, visit_start: visit.start, appointment_read_at: ctx.now.toISOString() } : words;
   };
 }
 function touchEnrolled(r, goesAt, eligible, held) {
@@ -38082,25 +38094,42 @@ async function ingestOrSay(cx) {
     throw e;
   }
 }
-async function ingestMessage(cx) {
-  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
+async function setAside(cx) {
+  const { ports, tenantId, isEnvDefault, from, channel, db, rt } = cx;
   const recordOrSay = () => ingestOrSay(cx);
   if (shortCode(from)) {
-    const ing2 = await recordOrSay();
-    const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
-    await sink2.unreachableSender();
-    await sink2.processed(handledOf(SET_ASIDE));
-    return;
+    const ing = await recordOrSay();
+    const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    await sink.unreachableSender();
+    await sink.processed(handledOf(SET_ASIDE));
+    return true;
   }
   const digits = (s) => s.replace(/\D/g, "");
   const allow = ports.env.allowlist.split(",").map(digits).filter(Boolean);
   if (isEnvDefault && allow.length && !allow.includes(digits(from))) {
-    const ing2 = await recordOrSay();
-    const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
-    await sink2.allowlistSkip();
-    await sink2.processed(handledOf(SET_ASIDE));
-    return;
+    const ing = await recordOrSay();
+    const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    await sink.allowlistSkip();
+    await sink.processed(handledOf(SET_ASIDE));
+    return true;
   }
+  return false;
+}
+async function recordMessage(cx) {
+  if (await setAside(cx)) return void 0;
+  const ing = await ingestOrSay(cx);
+  return ing && !ing.is_new ? void 0 : ing;
+}
+async function answeredBefore(cx, ing) {
+  const { ports, db, tenantId, L } = cx;
+  if (!ports.persist.answered || !await ports.persist.answered(db, tenantId, ing)) return false;
+  L.info("wa_resume_answered");
+  return true;
+}
+async function ingestMessage(cx, resume = false) {
+  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
+  const recordOrSay = () => ingestOrSay(cx);
+  if (await setAside(cx)) return;
   const ing = await recordOrSay();
   const thread = await ports.persist.thread(db, tenantId, ing);
   const ingestMs = Date.now() - t0;
@@ -38124,7 +38153,7 @@ async function ingestMessage(cx) {
     who: n.profileName ?? null,
     about: ing ? { type: "conversation", id: ing.conversation_id } : null
   });
-  if (ing && !ing.is_new) {
+  if (ing && !ing.is_new && !(resume && !ing.processed && !await answeredBefore(cx, ing))) {
     L.info("wa_skip_pg_dupe");
     return;
   }
@@ -38707,9 +38736,13 @@ async function stillOurs(at, t, photo) {
 }
 
 // src/inbound/answer.ts
+async function recordInbound(input, ports) {
+  const cx = await openInbound(input, ports);
+  return await recordMessage(cx) ?? null;
+}
 async function answerInbound(input, ports) {
   const cx = await openInbound(input, ports);
-  const kept = await ingestMessage(cx);
+  const kept = await ingestMessage(cx, input.resume === true);
   if (!kept) return;
   const at = { ...cx, ...kept, ...await modeInForce(cx, kept.ing) };
   if (await firstGates(at) !== GO) return;
@@ -38894,6 +38927,7 @@ export {
   readCampaignMessage,
   readReply,
   reconcileUnknownRuns,
+  recordInbound,
   refusalScript,
   rejudgeProbe,
   replyPosture,

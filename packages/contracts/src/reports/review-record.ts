@@ -1,7 +1,7 @@
 /**
  * Reports › Reviews — what the reviews on record say, counted once.
  *
- * The database hands over the profile's reviews in one answer (reviews_ledger, 00346): each review of the period and the one
+ * The database hands over the profile's reviews in one answer (reviews_ledger, 00350): each review of the period and the one
  * before it on its day in the workspace's zone, with whether it has a reply, how long the reply took and who wrote it, and
  * the counts the record holds. This is the counting of it: the window, how far back the record reaches, and what a period
  * holds, in one pass over those rows. review-report.ts puts the counts in words. A count over the profile's reviews is exact
@@ -49,7 +49,7 @@ export interface ReviewWaitingDto extends GoogleReviewDto {
 }
 
 /**
- * What the profile's reviews hold, read once by the database in the workspace's own zone (reviews_ledger, 00346): the
+ * What the profile's reviews hold, read once by the database in the workspace's own zone (reviews_ledger, 00350): the
  * window it is of, the counts the record holds, the reviews of the period and the one before it, and the ones that wait.
  */
 export interface ReviewsLedgerDto {

@@ -216,15 +216,21 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-figures.listing .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
   .rpt-figures.listing .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
 }
+/* On a phone the panes stand at the boards' 12px from the screen's edges, under the frame's row of views, which stands
+   there on every page (components.css): they stood at the head's 16, so the row and the page's width changed between the
+   Inbox and Reports (Ruben, 7 Oct 2026). The head over them keeps its 16: the gutter is named on the page alone. */
+@media (max-width: 900px) {
+  .main-scroll > .rpt { --gutter-page: 12px; }
+}
 @media (max-width: 760px) {
-  .rpt-inner { padding: 0 16px 40px; }
+  .rpt-inner { padding: 0 var(--gutter-page) 40px; }
   .rpt-head { padding: 10px 0; }
   /* The period stands over what scrolls, as every page's strip does (25 Sep): sticky, the head rode a pull down with
      the rows. Only the body scrolls, edge to edge so a thumb at the side scrolls it too, and it keeps the page's foot. */
   .rpt { overflow: hidden; display: flex; flex-direction: column; }
   .rpt-inner { flex: 1 1 auto; min-height: 0; padding-bottom: 0; }
   .rpt-head { position: static; flex: none; }
-  .rpt-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-inline: -16px; padding: 12px 16px 40px; }
+  .rpt-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-inline: calc(-1 * var(--gutter-page)); padding: 12px var(--gutter-page) 40px; }
   .rpt-dates { display: none; }
   .rpt-hero, .rpt-facts, .rpt-grid > .rpt-span-4, .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
   .rpt-hero { padding: 18px; gap: 16px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; }
@@ -290,4 +296,17 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
    narrow for both, it wraps (components.css). */
 .main:has(> .main-scroll > .rpt) .pg-slot {
   max-width: var(--measure-wide);
+}
+/* The first card stands 14px under the row of views on a desk, where the Inbox's and People's panes stand (the slot's own
+   14): the body's 12 over it stood Reports' cards 26 under their row. A phone's body is what scrolls, and keeps its 12
+   under a slot that gives up 12 of its 16, so its first card stands 16 under the row. */
+@media (width > 900px) {
+  .main-scroll > .rpt .rpt-body {
+    padding-top: 0;
+  }
+}
+@media (max-width: 900px) {
+  .main:has(> .main-scroll > .rpt) .pg-slot {
+    padding-bottom: 4px;
+  }
 }

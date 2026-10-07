@@ -377,9 +377,11 @@
   .cal-head { padding-top: var(--space-2); }
   .cal-when { flex: 1 1 100%; justify-content: space-between; margin-right: 0; }
   .cal-when .cal-steps { order: 2; }
-  .cal-tools { flex: 1 1 100%; }
-  .cal-views { flex: 1 1 auto; }
-  .cal-views > * { flex: 1 1 0; padding-left: 4px; padding-right: 4px; }
+  /* The views are as wide as their words, as the frame's row of views is on every other page (they were stretched over
+     the row, four tabs 75px each), with the options at the row's right; the range and the steps take the row under them. */
+  .cal-tools { flex: none; margin-left: auto; }
+  .cal-views { flex: none; }
+  .cal-views > * { flex: none; }
   .cal-tools .cal-service { display: none; }
   /* A notice over the board on a phone: its words take the width and its buttons go under them, where they read as
      a column a few words wide beside the buttons. */
@@ -462,6 +464,11 @@
 @media (max-width: 720px) {
   /* Inbox: the list OR the thread, never both squeezed into one screen */
   .inbox, .inbox.with-rail { grid-template-rows: minmax(0, 1fr); }
+  /* With nothing in the bucket the list is its buckets and its search alone, and "Inbox zero" takes the room under
+     them, clear of the tab bar: the list kept the screen's upper half empty and the message stood in the 40vh under
+     it, its button behind the bar. */
+  .inbox:has(> .ix-zero) { grid-template-rows: auto minmax(0, 1fr); }
+  .inbox > .ix-zero { padding-top: 0; padding-bottom: var(--page-foot, 0px); }
   .inbox .ix-list { border-bottom: none; }
   .inbox .ix-thread-pane, .inbox > .ix-empty-state { display: none; }
   .inbox[data-takeover] .ix-list { display: none; }
@@ -701,7 +708,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      drawer; the base rule's filter stays, and no blur is added, since a blurred page left the glass nothing lit to show. The wash is
      reached by its role: a class named nav-backdrop is counted by the primitives ratchet each time a rule names it. */
   .side-wrap > [role="presentation"] {
-    background: color-mix(in oklab, var(--surface-scrim) 36%, transparent);
+    background: var(--surface-veil);
   }
   /* The Inbox's sending strip (fixed under the top bar, full width here) stands under the island while a call is up:
      over it, it hid the island whole (66 to 110px), the one door to Live, for as long as drafts waited. The strip of

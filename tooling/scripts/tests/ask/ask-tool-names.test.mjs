@@ -841,8 +841,14 @@ test("every old tool's call, made by its new name and action, answers the bytes 
             "mailboxes.select",
           ]
         : withDoubts;
+    // 7 Oct 2026 (00349): the Inbox's read and a page of People say what the member asking has seen of each person they
+    // hold (server/people/person-seen.ts), for the rows that say who is new to them: one call to the door more, where
+    // the read holds anyone. The old tools that read through the Inbox's hundred make it, and a search of People with
+    // no list (a list is counted over the pool, which is not a page). Their bytes are unchanged: no tool says it.
+    const readsSeen = THROUGH_THE_HUNDRED.has(old) || (old === "search_people" && !input.list);
+    const withSeen = readsSeen ? [...withCalendar, "rpc:contact_seen"] : withCalendar;
     // 7 Oct 2026 (Reports phase C, lens 1, T4): the report reads the Reviews lens too: six reads more (withReviewReads).
-    const reads = NAMES[old] === "report" ? withReviewReads(withCalendar) : withCalendar;
+    const reads = NAMES[old] === "report" ? withReviewReads(withSeen) : withSeen;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)

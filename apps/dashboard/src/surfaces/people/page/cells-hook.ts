@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { askOnScreenKey, setAskOnScreen } from "../../legacy-verbs";
+import { useSeen } from "../../seen";
 import { warmPeople, warmPerson } from "../people-detail";
 import { usePlPlace } from "../hooks/use-place";
 import type { PlaceControls } from "../hooks/use-place";
@@ -39,6 +40,9 @@ export function usePeopleCells({
     for (const s of saved) for (const id of s.ids) (m[id] = m[id] || []).push(s.name);
     return m;
   }, [saved]);
+  // Who is new to the reader is a cell's too (cells/columns.tsx plUnread), and it moves without the rows moving: a note
+  // read in the bell, a person opened in another of the three lists. The context is made again then, so the rows draw.
+  const seen = useSeen();
   const cellOpenRef = useRef(onOpenProfile);
   cellOpenRef.current = onOpenProfile;
   const cellDropRef = useRef(dropFromList);
@@ -51,6 +55,7 @@ export function usePeopleCells({
     activeSaved ? activeSaved.id : null,
     canEditLists,
     columns.map((c) => (c.off ? `-${c.key}` : c.key)).join(","),
+    seen,
   ];
   if (!cellCtxRef.current || cellCtxRef.current.key.some((v, i) => !Object.is(v, cellCtxKey[i]))) {
     cellCtxRef.current = {
