@@ -356,6 +356,41 @@ test("a page that stays (the Calendar's days) leaves, turns, and comes back in f
   assert.equal(style.transform, "", "the page's own rules own it again");
 });
 
+test("a page that stays waits where it went until `go` says the next has landed, then comes back in with it", async () => {
+  // Reports' lenses: the strip's `go` answers once the address and the page have moved (surface-tabs.jsx stripPager).
+  // Brought back in as soon as it was asked, the page came in showing the lens it was leaving, which turned into the
+  // next in mid-air (7 Oct 2026).
+  const moves = [];
+  const style = {};
+  const el = element({
+    style: new Proxy(style, {
+      set: (o, k, v) => {
+        if (k === "transform") moves.push(v);
+        o[k] = v;
+        return true;
+      },
+    }),
+  });
+  let landed = null;
+  const h = touchSwipe({
+    pages: () =>
+      pager({
+        stays: true,
+        go: () =>
+          new Promise((r) => {
+            landed = r;
+          }),
+      }),
+  });
+  drag(h, el, [300, 300], [240, 300], [160, 300]);
+  await wait(220);
+  assert.ok(landed, "asked for the next once it had left");
+  assert.equal(moves.at(-1), "translate3d(-375px, 0, 0)", "and waits where it went while the next draws");
+  landed();
+  await wait(20);
+  assert.deepEqual(moves.slice(-2), ["translate3d(40px, 0, 0)", "translate3d(0, 0, 0)"], "then in from the right");
+});
+
 test("under reduced motion a page still follows, and the switch is at once; a swipe read only at its ends switches too", () => {
   reduced = true;
   try {
@@ -473,6 +508,8 @@ test("People's strip is walked to 900px, where its page is one column; any other
       offsetWidth: 80,
       isConnected: true,
       classList: { contains: (c) => c === "active" && active },
+      // Pressed, the tab is the address's own at once here: `go` answers as soon as it is (stripPager).
+      getAttribute: (n) => (n === "aria-current" ? "page" : null),
       click: () => pressed.push(name),
     });
     const tabs = [tab(true, "people"), tab(false, "leads")];

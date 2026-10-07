@@ -268,8 +268,8 @@ const keyPress = (fn) => (e) => {
 // what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, `go(step)`
 // at once and it leaves that way while the next draws (it waited the leave out, 5 Oct 2026); otherwise it settles. `follow` hears every move ("move") and the end ("leave",
 // "settle"). The answer is kept with the touch, so a page drawn again mid-gesture loses nothing. `back` goes first.
-// A page that `stays` (the Calendar's days: the same element shows the next ones) comes back in after `go`, from the
-// side it is going to, 40px, as a new view slides in (components.css route-slide-*).
+// A page that `stays` (the Calendar's days, Reports' lenses: the same element shows the next) is asked for the next once it
+// has left, waits where it went until `go` has landed it (a promise, surface-tabs.jsx stripPager), then comes back in from the side it is going to, 40px (components.css route-slide-*).
 //
 // A swipe across, with nothing following, is `onLeft`/`onRight`: `min` of travel (80px) along the axis it went
 // further on, so a scroll is never a move and a move never a scroll. A touch the browser reports only at its ends is
@@ -373,8 +373,8 @@ const swipeLeave = (g, close) => {
   const early = way === "page" && !(g.pages && g.pages.stays);
   if (early) close();
   const done = () => {
+    if (way === "page" && g.pages && g.pages.stays) { Promise.resolve(close()).then(() => swipeArrive(g)); return; }
     if (!early) close();
-    if (way === "page" && g.pages && g.pages.stays) { swipeArrive(g); return; }
     if (way === "away") {
       setTimeout(() => {
         if (g.onGrab) g.onGrab(el, false);

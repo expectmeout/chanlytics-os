@@ -2346,18 +2346,27 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
      row of views at 12 under a head at 16), 4 in from the slot's gutter, the edge of the capsules under them (the
      Inbox's and People's search). Reports' panes stand at the gutter, so its strip and its period stand there too, as
      the Calendar's views and options do over its panes: 4px out, the two stood apart from everything under them
-     (Ruben, 7 Oct 2026). */
-  .pg-slot > :nth-child(2):not(.pg-act-slot) {
+     (Ruben, 7 Oct 2026). The slot says whose views it holds (app-shell.jsx glassHead `data-strip`, the chrome's
+     `views.name`), so Reports' row is known at first paint and never by the page under it: the page draws once its
+     read lands, a beat after the strip, and a rule keyed on the page's body moved the strip 4px at that beat. */
+  .pg-slot:not([data-strip="reports"]) > :nth-child(2):not(.pg-act-slot) {
     margin-left: -4px;
   }
-  .pg-slot:has(> nav) > .pg-act-slot {
+  .pg-slot:has(> nav):not([data-strip="reports"]) > .pg-act-slot {
     margin-right: -4px;
   }
-  .main:has(> .main-scroll > .rpt) .pg-slot > nav {
-    margin-left: 0;
-  }
-  .main:has(> .main-scroll > .rpt) .pg-slot > .pg-act-slot {
-    margin-right: 0;
+  /* The period's place is kept from the first paint. The period is the page's act (period-picker.tsx, said through the
+     head into #pg-act), and the page draws only once its read lands, a second or two after the strip: with the act's
+     place empty the column was 0 wide, the strip spanned the screen, and shrank 52px as the period came (Ruben, 7 Oct
+     2026). Until it comes, the place holds a circle of the same glass with nothing in it (reports.css .rpt-when-open),
+     as the Calendar's options button stands beside its views before the days are read. */
+  .pg-slot[data-strip="reports"] > .pg-act-slot:has(> #pg-act:empty)::before {
+    content: "";
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-circle);
+    background: var(--surface-control-fill);
+    box-shadow: var(--surface-control-depth);
   }
   /* The Inbox's row of views (Needs you, Conversations, Live) stands on a phone as on a desk (Ruben, 2 Oct 2026: the
      canvas's swipe between them was not found); the buckets' capsule is the list's own, under it. */
