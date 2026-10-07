@@ -1184,9 +1184,9 @@ interface IncomingEmail {
         size: number | null;
     }>;
     /**
-     * The receiving side PROVES the sender is who the From line says (channels senderAuthenticated: an aligned DMARC pass, or
-     * a DKIM pass signed by the From domain). A From anyone can forge is not one: a yes (YES OFFERS) is taken only from an
-     * email that has it, and is refused, and logged, from one that does not or whose header says nothing. A no (STOP,
+     * The receiving side PROVES the sender is who the From line says (channels senderAuthenticated: the provider's own
+     * verdict, a DMARC pass or a DKIM pass by the From domain). A From anyone can forge is not one: a yes (YES OFFERS) is
+     * taken only from an email that has it, and is refused, and logged, from one that does not. A no (STOP,
      * UNSUBSCRIBE) is always taken, since a no only narrows. Required: no caller may leave a proof out and have a yes taken.
      */
     senderAuthenticated: boolean;

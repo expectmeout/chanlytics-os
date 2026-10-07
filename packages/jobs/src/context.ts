@@ -90,12 +90,6 @@ export interface JobContext {
      * goes). An offer's run waits and asks again (core BroadcastBatchPorts.offersUnread). Absent: nothing of the kind.
      */
     campaignsUnread?: string | null;
-    /**
-     * The name the provider's own receiving side writes into the Authentication-Results header of every email it hands over
-     * (RFC 8601's authserv-id: channels senderAuthenticated). A yes by email is believed only from a header that names it, so
-     * one a sender wrote into its own mail, which names anything else, proves nothing. Absent: no yes by email is recorded.
-     */
-    authservId?: string | null;
     /** One received email by the provider's id; null when the provider has none such. Throws when it cannot be asked. */
     fetch: (receivedId: string) => Promise<ReceivedEmail | null>;
     /** Was this email received before a person with this address asked to be forgotten (00125's digest)? */

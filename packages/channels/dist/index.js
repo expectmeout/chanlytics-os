@@ -2965,15 +2965,11 @@ function headersOf(v) {
     for (const [k, val] of Object.entries(v)) put(k, Array.isArray(val) ? val[0] : val);
   return out;
 }
-function allValuesOf(v, name) {
-  const out = [];
-  const take = (k, val) => {
-    if (typeof k !== "string" || k.toLowerCase() !== name) return;
-    for (const x of Array.isArray(val) ? val : [val]) if (typeof x === "string") out.push(x);
-  };
-  if (Array.isArray(v)) for (const h of v) take(h?.name, h?.value);
-  else if (v && typeof v === "object") for (const [k, val] of Object.entries(v)) take(k, val);
-  return out;
+function senderChecksOf(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const said = v;
+  const word = (x) => typeof x === "string" ? x : "";
+  return { spf: word(said.spf), dkim: word(said.dkim), dmarc: word(said.dmarc) };
 }
 function receivedEmailFrom(body) {
   const b = body;
@@ -2989,7 +2985,7 @@ function receivedEmailFrom(body) {
     text: str2(b.text),
     html: str2(b.html),
     headers: headers2,
-    authResults: allValuesOf(b.headers, "authentication-results"),
+    authentication: senderChecksOf(b.authentication),
     messageId: messageIdHeader(str2(b.message_id) ?? headers2["message-id"]),
     createdAt: str2(b.created_at),
     attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
@@ -3005,49 +3001,17 @@ function receivedEmailFrom(body) {
 function messageIdsIn(header) {
   return (header ?? "").split(/\s+/).map(messageIdHeader).filter((x) => x !== null);
 }
-function withoutComments(header) {
-  let said = header.toLowerCase().replace(/"[^"]*"/g, '""');
-  for (let before = ""; before !== said; ) {
-    before = said;
-    said = said.replace(/\([^()]*\)/g, " ");
-  }
-  return said;
+function oneMailbox(m) {
+  if (!m?.address.includes("@")) return false;
+  const name = (m.name ?? "").replace(/^'(.*)'$/, "$1").toLowerCase();
+  return !/[<>]/.test(name) && (!name.includes("@") || name === m.address);
 }
-function authservIdOf(header) {
-  return withoutComments(header).split(";")[0]?.trim().split(/\s+/)[0] ?? "";
-}
-function authResultsOf(header) {
-  return withoutComments(header).split(";").slice(1).flatMap((clause) => {
-    const [head, ...rest] = clause.trim().split(/\s+/);
-    const m = /^([a-z0-9-]+)(?:\/\d+)?=([a-z]+)$/.exec(head ?? "");
-    if (!m) return [];
-    const props = /* @__PURE__ */ new Map();
-    for (const pair of rest) {
-      const eq = pair.indexOf("=");
-      if (eq > 0 && !props.has(pair.slice(0, eq))) props.set(pair.slice(0, eq), pair.slice(eq + 1));
-    }
-    return [{ method: m[1] ?? "", result: m[2] ?? "", props }];
-  });
-}
-var domainOf = (identity) => {
-  const d = identity?.slice(identity.lastIndexOf("@") + 1).trim();
-  return d || null;
-};
-function senderAuthenticated(e, authservId) {
-  const expected = authservId?.trim().toLowerCase();
-  if (!expected) return false;
-  const from = domainOf(e.from?.address.toLowerCase());
-  if (!from) return false;
-  const own = (e.authResults ?? []).filter((h) => authservIdOf(h) === expected);
-  if (own.length !== 1) return false;
-  const results = authResultsOf(own[0] ?? "");
-  const dmarc = results.filter((r) => r.method === "dmarc");
-  if (dmarc.some((r) => r.result === "fail")) return false;
-  const alignedDmarc = dmarc.some((r) => r.result === "pass" && domainOf(r.props.get("header.from")) === from);
-  const signedByFrom = results.some(
-    (r) => r.method === "dkim" && r.result === "pass" && (r.props.has("header.d") ? r.props.get("header.d") === from : domainOf(r.props.get("header.i")) === from)
-  );
-  return alignedDmarc || signedByFrom;
+var DMARC_SAID_NOTHING = /* @__PURE__ */ new Set(["gray", "unknown", "processing_failed"]);
+function senderAuthenticated(e) {
+  const said = e.authentication;
+  const own = e.headers.from === void 0 ? e.from : addressOf(e.headers.from);
+  if (!said || !oneMailbox(e.from) || !oneMailbox(own) || own.address !== e.from.address) return false;
+  return said.dmarc === "pass" || said.dkim === "pass" && DMARC_SAID_NOTHING.has(said.dmarc);
 }
 function classifyReceived(e) {
   const h = e.headers;
