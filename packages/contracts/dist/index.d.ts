@@ -13314,15 +13314,15 @@ declare const PageContextSchema: z$1.ZodObject<{
         other: "other";
         calendar: "calendar";
         people: "people";
+        pipeline: "pipeline";
+        campaigns: "campaigns";
+        reports: "reports";
         today: "today";
         leads: "leads";
-        reports: "reports";
         conversations: "conversations";
         inbox: "inbox";
         settings: "settings";
         live: "live";
-        pipeline: "pipeline";
-        campaigns: "campaigns";
     }>;
     route: z$1.ZodString;
     view: z$1.ZodOptional<z$1.ZodNullable<z$1.ZodString>>;

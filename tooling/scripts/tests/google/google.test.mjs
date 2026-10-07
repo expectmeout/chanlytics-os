@@ -40,6 +40,7 @@ import {
   setupSteps,
   serverNotificationRows,
   verbForRoute,
+  lensRoute,
   EVENT_KINDS,
   SERVER_NOTIFICATION_KINDS,
   GOOGLE_SHOWN_REVIEWS,
@@ -588,8 +589,9 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
   assert.deepEqual(vm.table.rows, [["Ana P.", 5, "2h ago", "Fast, careful, and on time. Would hire again."]]);
   assert.deepEqual(vm.todayLine, {
     text: "New on Google: ★★★★★ from Ana P. — “Fast, careful, and on time. Would hire again.”",
-    to: "reports",
+    to: lensRoute("reviews"),
   });
+  assert.equal(vm.todayLine.to, "reports/reviews", "Today's line opens the Reviews lens, where the review is drawn");
   const longer = toGoogleVM(
     dto({
       days: [
@@ -759,7 +761,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   assert.equal(row(linked, "google").state, "ready");
   assert.equal(row(linked, "google").sentence, "Northside Movers · 4.8 ★ · 213 reviews on Google.");
   assert.deepEqual(row(linked, "google").details, ["Checked 3h ago", "New reviews reach your bell and Reports"]);
-  assert.deepEqual(row(linked, "google").verb, { label: "Open Reports", to: "reports" });
+  assert.deepEqual(row(linked, "google").verb, { label: "Open Reports", to: lensRoute("reviews") });
   const trouble = setup({
     ready: true,
     listing: {
@@ -776,6 +778,11 @@ test("Setup's Google row: absent until the platform can look listings up; then F
     row(trouble, "google").sentence,
     "Northside Movers is on record, but Google could not be read since 1d ago — it is read again once a day.",
   );
+  assert.deepEqual(
+    row(trouble, "google").verb,
+    { label: "Open Reports", to: lensRoute("reviews") },
+    "the row that waits on Google opens the same lens",
+  );
   assert.equal(row(find, "google").later, false);
   const later = setup({ ready: true, places: true, listing: null }, { later: ["google"] });
   assert.equal(row(later, "google").later, true, "put off for later, like any optional row");
@@ -784,29 +791,34 @@ test("Setup's Google row: absent until the platform can look listings up; then F
 
 /* ------------------------------------------------------------- the bell */
 
-test("a review on the bell is good news that opens Reports, and its route has a verb", () => {
+test("a review on the bell is good news that opens the Reviews lens, and its route has a verb", () => {
   assert.ok(SERVER_NOTIFICATION_KINDS.includes("review"));
+  const stored = (id, route) => ({
+    id,
+    kind: "review",
+    title: "New on Google: ★★★★★ from Ana P.",
+    body: "“Fast, careful, and on time.”\n4.8 ★ overall · 213 reviews.",
+    route,
+    subject_type: "review",
+    subject_id: "r-ana",
+    created_at: "2026-09-07T14:00:00Z",
+    read: false,
+    dismissed: false,
+  });
   const rows = serverNotificationRows({
     seen_at: null,
-    notifications: [
-      {
-        id: "1",
-        kind: "review",
-        title: "New on Google: ★★★★★ from Ana P.",
-        body: "“Fast, careful, and on time.”\n4.8 ★ overall · 213 reviews.",
-        route: "reports",
-        subject_type: "review",
-        subject_id: "r-ana",
-        created_at: "2026-09-07T14:00:00Z",
-        read: false,
-        dismissed: false,
-      },
-    ],
+    notifications: [stored("1", lensRoute("reviews")), stored("2", "reports"), stored("3", null)],
   });
   assert.deepEqual(
-    [rows[0].icon, rows[0].tone, rows[0].action, rows[0].to, rows[0].message],
-    ["star", "ok", "Open Reports", "reports", "“Fast, careful, and on time.”"],
+    rows.map((r) => [r.icon, r.tone, r.action, r.to, r.message]),
+    [
+      ["star", "ok", "Open Reports", "reports/reviews", "“Fast, careful, and on time.”"],
+      ["star", "ok", "Open Reports", "reports", "“Fast, careful, and on time.”"],
+      ["star", "ok", "Open Reports", "reports/reviews", "“Fast, careful, and on time.”"],
+    ],
+    "a row written now opens the lens; one kept before it keeps the Overview; one with no route falls to the kind's door, the lens",
   );
+  assert.equal(verbForRoute(lensRoute("reviews")), "Open Reports");
   assert.equal(verbForRoute("reports"), "Open Reports");
   for (const k of ["google.linked", "google.unlinked", "google.reviews"]) assert.ok(EVENT_KINDS.includes(k), k);
 });
@@ -846,16 +858,13 @@ test("the migration: three tables that hang off the listing, members read, realt
 test("the edge library: the key alone on the edge, one check routine, a failed read that moves no stamp, the manifests", () => {
   // The door -- the knock, status, search, link (a read before a row, the
   // old place's reviews forgotten), unlink, refresh, and the two events --
-  // runs in google-door.test.mjs. The library is modules: the key's, the check's and the profile's sync.
+  // runs in google-door.test.mjs. The library is modules: the key's, the check's and the profile's sync. The
+  // bell each of them rings, and the lens it opens, run there and in cron-doors-b.test.mjs.
   const lib = ["google-config", "listing-check", "profile-sync"]
     .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
     .join("\n");
   assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));
-  assert.ok(
-    lib.includes("planListingCheck(") &&
-      /kind: "review",\s*title: b\.title,\s*body: b\.body,\s*route: "reports"/.test(lib),
-    "the plan decides, the edge writes and rings",
-  );
+  assert.ok(lib.includes("planListingCheck("), "the plan decides, the edge writes and rings");
   assert.ok(
     lib.includes(".update({ check_error: error })"),
     "a failed read leaves its words and the last good numbers",
@@ -937,9 +946,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
   // Reports' Reviews page draws the section from its own read (`reports_reviews`) and holds no `google` value when it does, the source
   // named and what the receptionist does under a new review beside it (executed: reports-page.test.mjs, Google's reviews under the period).
-  const brief = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
-  assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
-  assert.ok(brief.includes('useSurface("google")'), "Today's line reads the seam's Google, the one value there is");
+  // Today's line reads the seam's Google, the one value there is, and its door opens the Reviews lens: executed in
+  // today/today-page.test.mjs, over a review that landed this morning.
   const settings = readCode("apps/dashboard/src/surfaces/settings/connections/row.tsx");
   assert.ok(
     settings.includes('"verb:google-check": "google-check"') && settings.includes('data-testid="google-remove"'),

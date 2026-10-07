@@ -17146,7 +17146,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   const news = latest.find((r2) => r2.isNew) ?? null;
   const todayLine = news ? {
     text: `New on Google: ${news.stars} from ${news.author}${news.text ? ` \u2014 \u201C${reviewSnippet(news.text)}\u201D` : ""}`,
-    to: "reports"
+    to: lensRoute("reviews")
   } : null;
   return {
     listing: {
@@ -29417,7 +29417,7 @@ function googleRow(i, ctx) {
       required: false,
       sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} \u2014 it is read again once a day.`,
       details: [],
-      verb: { label: "Open Reports", to: "reports" }
+      verb: { label: "Open Reports", to: lensRoute("reviews") }
     };
   }
   if (g) {
@@ -29429,7 +29429,7 @@ function googleRow(i, ctx) {
       required: false,
       sentence: `${listingLine(g)}.`,
       details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", reach],
-      verb: { label: "Open Reports", to: "reports" }
+      verb: { label: "Open Reports", to: lensRoute("reviews") }
     };
   }
   if (i.google.places !== false) {
@@ -32977,8 +32977,8 @@ var SERVER_LOOK = {
   leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
   /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
   leads_question: { icon: "alert", tone: "warn", action: "Answer it", to: "clients/leads", own: true },
-  /** A review on Google: good news with somewhere to read it. */
-  review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
+  /** A review on Google: good news, on the Reviews lens, where it is read. A row kept before then says `reports`, and keeps it. */
+  review: { icon: "star", tone: "ok", action: "Open Reports", to: lensRoute("reviews") },
   /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
   billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
   /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */

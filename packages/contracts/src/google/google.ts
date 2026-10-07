@@ -18,6 +18,7 @@ import type { SchemaSet } from "../shared/schema-sets";
 import { agoWords, DATE_FMT, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
+import { lensRoute } from "../reports/lenses";
 import { dayDate, fmtDay, rangeLabelOf } from "../reports/reports";
 import { compareWords, type ReportTileVM } from "../reports/report-tiles";
 import type { Hours } from "../config/workspace-config/business-profile";
@@ -651,7 +652,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
   const todayLine = news
     ? {
         text: `New on Google: ${news.stars} from ${news.author}${news.text ? ` — “${reviewSnippet(news.text)}”` : ""}`,
-        to: "reports",
+        to: lensRoute("reviews"),
       }
     : null;
 

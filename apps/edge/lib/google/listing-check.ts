@@ -6,7 +6,7 @@
  */
 import { emitEvent } from "../packages/db.js";
 import { planListingCheck, publicFetcher, type PlaceDetails } from "../packages/channels.js";
-import { bookingPageKept, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
+import { bookingPageKept, lensRoute, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
 import { siteBookingPage } from "./booking-page.js";
 import { recordNotification } from "../ops/notify.js";
 import { logger } from "../log.js";
@@ -126,7 +126,7 @@ export async function checkListing(
       kind: "review",
       title: b.title,
       body: b.body,
-      route: "reports",
+      route: lensRoute("reviews"),
       about: b.review_id ? { type: "review", id: b.review_id } : null,
     });
   }

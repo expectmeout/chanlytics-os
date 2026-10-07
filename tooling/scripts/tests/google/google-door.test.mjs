@@ -35,13 +35,14 @@ import {
   PLACES_DETAILS_MASK,
   PLACES_SEARCH_LIMIT,
 } from "@chanlytics/channels";
-import { localDate } from "@chanlytics/contracts";
+import { lensRoute, localDate } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { scripted, said } from "../ai/_model-world.mjs";
 
 // Each test file is its own process: this is the whole environment. The key
-// and the OAuth trio open both halves; no model key, so a draft says so
-// rather than reaching a model; no Supabase credentials, so `setPg(null)`
-// really is no database.
+// and the OAuth trio open both halves; no model key (a case that wants a draft
+// holds one, and a scripted model), so a draft says so rather than reaching a
+// model; no Supabase credentials, so `setPg(null)` really is no database.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.GOOGLE_PLACES_API_KEY = "places-key-for-this-file";
 process.env.GOOGLE_OAUTH_CLIENT_ID = "oauth-client-for-this-file";
@@ -106,8 +107,12 @@ const silent = (why = "this case must not reach Google") =>
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
+const { setModelFetch } = await import(at("apps/edge/lib/model.ts"));
 const door = await import(at("apps/edge/api/admin/google.ts"));
-after(() => setPg(null));
+after(() => {
+  setPg(null);
+  setModelFetch(null);
+});
 
 const AUD = "/api/admin/google";
 /** Harbor Moving: the workspace every token below is about. */
@@ -930,7 +935,7 @@ test("refresh on the public listing: the rating, the count and the day are writt
   const bell = tables.notifications[0];
   assert.deepEqual(
     [bell.tenant_id, bell.kind, bell.route, bell.subject_type, bell.subject_id],
-    [A, "review", "reports", "review", "r-rosa"],
+    [A, "review", lensRoute("reviews"), "review", "r-rosa"],
   );
   assert.equal(bell.title, "New on Google: ★★★★★ from Rosa");
   assert.equal(bell.body, "“Careful movers, on time.”\n4.6 ★ overall · 11 reviews.");
@@ -1529,7 +1534,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   );
   assert.deepEqual(
     tables.notifications.map((n) => [n.kind, n.title, n.route, n.subject_type, n.subject_id]),
-    [["review", "New on Google: ★★★★★ from Luis", "reports", "review", "g-3"]],
+    [["review", "New on Google: ★★★★★ from Luis", lensRoute("reviews"), "review", "g-3"]],
     "written since the last sync and not on record: news; Rosa's, on record, is not",
   );
   assert.deepEqual(
@@ -1540,6 +1545,54 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     !net.calls.some((c) => c.url.startsWith("https://places.googleapis.com")),
     "with the profile connected the reviews come from there: the public listing is not read here",
   );
+});
+
+test("refresh under the auto mode: the review the receptionist answered rings one bell, under that review, that opens the Reviews lens", async () => {
+  const unanswered = reviewRow(R1, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) });
+  const tables = world({
+    google_listings: [listingRow()],
+    google_connections: [connRow()],
+    google_reviews: [unanswered],
+    policies: [
+      {
+        id: "55555555-5555-4555-8555-555555555555",
+        tenant_id: A,
+        class: "reviews",
+        mode: "auto",
+        subject_type: null,
+        subject_id: null,
+        limits: {},
+        updated_at: ago(2 * DAY),
+      },
+    ],
+    billing_accounts: [{ tenant_id: A, mode: "direct", status: "none" }],
+    ai_usage: [],
+  });
+  use(tables, new Map([[A, liveCreds()]]));
+  const REPLY = "Thank you, Rosa. See you next time.";
+  const model = scripted(said(REPLY));
+  setModelFetch(model.fetch);
+  const net = google({
+    reviews: [{ ...GBP_REVIEW, createTime: unanswered.published_at, updateTime: unanswered.published_at }],
+  });
+  const [status, body] = await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () =>
+    answer(await knock({ op: "refresh" })),
+  );
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.read, { ok: true, fresh: 0, counted: 0, answered: 1 });
+  assert.equal(model.calls.length, 1, "one draft, for the one review");
+  assert.deepEqual(
+    net.asked().filter(([method]) => method === "PUT"),
+    [["PUT", REPLY_URL("accounts/111", "222", "g-1")]],
+    "and its reply posted under Google's name for the review",
+  );
+  assert.equal(tables.google_reviews.find((r) => r.id === R1).reply_text, REPLY);
+  assert.deepEqual(
+    tables.notifications.map((n) => [n.tenant_id, n.kind, n.title, n.route, n.subject_type, n.subject_id]),
+    [[A, "review", "Replied to Rosa's review", lensRoute("reviews"), "review", R1]],
+    "one bell, about the review row, for the page where the reply is read",
+  );
+  assert.equal(tables.notifications[0].route, "reports/reviews");
 });
 
 /* ----------------------------------- reply -------------------------------- */

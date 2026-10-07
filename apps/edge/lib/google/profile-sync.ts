@@ -6,7 +6,7 @@
  */
 import { emitEvent } from "../packages/db.js";
 import { listReviews, planProfileSync, reviewParent, type PlacesHttp } from "../packages/channels.js";
-import { autoReplyBell, localDate, type EdgeRefusal } from "../packages/contracts.js";
+import { autoReplyBell, lensRoute, localDate, type EdgeRefusal } from "../packages/contracts.js";
 import { recordNotification } from "../ops/notify.js";
 import { logger } from "../log.js";
 import { readAllRows } from "../paged.js";
@@ -133,7 +133,7 @@ export async function syncProfile(
       kind: "review",
       title: b.title,
       body: b.body,
-      route: "reports",
+      route: lensRoute("reviews"),
       about: b.review_id ? { type: "review", id: b.review_id } : null,
     });
   }
@@ -151,7 +151,7 @@ export async function syncProfile(
       kind: "review",
       title: bell.title,
       body: bell.body,
-      route: "reports",
+      route: lensRoute("reviews"),
       about: aboutOne(answered),
     });
   }
