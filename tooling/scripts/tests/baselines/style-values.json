@@ -42,8 +42,8 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/components.css": {
-    "font": 55,
-    "radius": 15,
+    "font": 54,
+    "radius": 14,
     "shadow": 5,
     "colour": 7,
     "blur": 0

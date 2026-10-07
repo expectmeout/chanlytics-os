@@ -55,8 +55,8 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::NotifPopover#1": {
-    "lines": 162,
-    "branches": 13,
+    "lines": 156,
+    "branches": 11,
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::Topbar#1": {
