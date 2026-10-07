@@ -215,6 +215,7 @@
 .ix-thread.active .ix-thread-check { opacity: 1; }
 
 .ix-thread-avatar {
+  position: relative; /* holds the wire's badge (.ix-thread-wire) */
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -302,11 +303,23 @@
 }
 /* A row ends at its last line: a real row has no foot, and a row with no reason has no subject line. */
 .ix-thread-subject:last-child, .ix-thread-line3:last-child { margin-bottom: 0; }
-.ix-thread-channels {
+/* The wire a row's words came on: a badge at the foot of the face, as a messaging app marks the line a contact is on
+   (a 15px disc of the page's paper over the face's edge, the glyph in the muted ink), so the lines of words carry no
+   glyph at all. One a row, the wire of the words shown; every wire is said once, in words, in the thread's header.
+   The face holds it (position: relative, above). Conversations' row wears the same (conversations.css .cv-row-wire). */
+.ix-thread-wire {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
   display: flex;
-  gap: 2px;
-  color: var(--ink-faint);
-  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: var(--radius-circle);
+  background: var(--bg);
+  box-shadow: var(--surface-inset-ring);
+  color: var(--ink-muted);
 }
 .ix-thread-preview {
   font-size: 11.5px;
@@ -2175,7 +2188,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   border-radius: var(--surface-row-radius);
 }
 .ix-thread:hover {
-  background: color-mix(in oklab, var(--selected-fill) 55%, transparent);
+  background: var(--hover-fill);
 }
 .ix-thread.active {
   background: var(--selected-fill);
@@ -2649,6 +2662,11 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   .ix-thread:hover > :nth-child(2),
   .ix-thread.selected > :nth-child(2) {
     color: transparent;
+  }
+  /* The face is the box while a pointer is on the row or it is picked: its badge stands down with its letters. */
+  .ix-thread:hover > :nth-child(2) > .ix-thread-wire,
+  .ix-thread.selected > :nth-child(2) > .ix-thread-wire {
+    opacity: 0;
   }
   .ix-list > :nth-child(2) > .ix-checkall {
     width: 0;

@@ -54,9 +54,10 @@ Object.assign(globalThis, {
   },
 });
 const S = "../../../../../apps/dashboard/src";
-const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { ConversationsPage, OutcomePill } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
 const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
-const { cvRoute: route, cvAddress: address } = await import(`${S}/surfaces/inbox/cv-rules.ts`);
+const cvRules = await import(`${S}/surfaces/inbox/cv-rules.ts`);
+const { cvRoute: route, cvAddress: address } = cvRules;
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { installTabMemory, clearTabMemory } = await import(`${S}/legacy-bridge/tab-memory.ts`);
 installTabMemory(globalThis.window);
@@ -169,7 +170,7 @@ const withRows = (list) => {
 beforeEach(() => {
   fresh();
   clearTabMemory();
-  setSurfaceValue("inbox", { THREADS: [], CHANNEL_LABELS: { whatsapp: "WhatsApp" } });
+  setSurfaceValue("inbox", { THREADS: [], CHANNEL_LABELS: { whatsapp: "WhatsApp", phone: "Phone" } });
   withRows([rosa, emily]);
 });
 
@@ -365,4 +366,111 @@ test("the box's words are kept per tab, in the tab's storage: back after a trip 
   // Signed out, gone.
   clearTabMemory();
   assert.equal(TM.place("conversations", "all"), null);
+});
+
+/* ---------------------------------- one row per person ---------------------------------- */
+
+test("REGRESSION: a person who called three times is one row, their newest, saying how many -- not three rows of their name", () => {
+  const { cvOnePerPerson, cvLeadOf } = cvRules;
+  const tabs = (tree) => find(tree, (n) => n.type === SubTabs).props.tabs;
+  const theirs = (id, at, summary) =>
+    call(id, "Emily Chen", {
+      contact_id: "k-emily",
+      conversation_id: "cv-emily",
+      started_at: at,
+      ended_at: at,
+      summary,
+    });
+  // Newest first, as the surface sorts them.
+  const emilys = [
+    theirs("k3", "2026-09-14T13:40:00Z", "She asked about parking."),
+    theirs("k2", "2026-09-14T13:20:00Z", "She booked the trial for Friday."),
+    theirs("k1", "2026-09-14T13:00:00Z", "She hung up."),
+  ];
+  withRows([emilys[0], rosa, emilys[1], emilys[2]]);
+  let tree = ConversationsPage({ channel: "all", initialId: null });
+  assert.equal(rows(tree).length, 2, "REGRESSION: a row for every call");
+  const emily = textOf(rows(tree)[0]);
+  assert.ok(emily.includes("Emily Chen") && emily.includes("3 calls"), emily);
+  assert.equal(tabs(tree).find((t) => t.id === "phone").count, 1, "the tab counts the people it shows");
+
+  // A link to one of the calls (Ask's, Today's) opens it, on its person's row.
+  fresh();
+  tree = ConversationsPage({ channel: "all", initialId: "cv-k2" });
+  assert.equal(rows(tree).length, 2);
+  assert.ok(String(rows(tree)[0].props.className).includes("active"), "their row is the one open");
+  assert.ok(
+    textOf(byTestId(tree, "cv-call-pane")).includes("She booked the trial for Friday."),
+    "at the call asked for",
+  );
+  assert.equal(byTestId(tree, "cv-missing-thread"), null, "never 'not among the newest'");
+
+  // A search keeps what it matched, and the row leads with it.
+  searchBox(tree).props.onChange({ target: { value: "parking" } });
+  tree = redraw({ channel: "all", initialId: null });
+  assert.equal(rows(tree).length, 1);
+  assert.ok(!textOf(rows(tree)[0]).includes("calls"), "one call matched: no count");
+
+  // A thread that needs you says so under the call that came after it; a call going on now says that.
+  const needs = { ...rosa, standing: "needs_you" };
+  const after = { ...call("k9", "Rosa Díaz", { contact_id: rosa.clientId }), outcome: "abandoned" };
+  const [one] = cvOnePerPerson([after, needs]);
+  assert.equal(one.id, after.id, "the newest leads the row");
+  assert.equal(cvLeadOf(one).standing, "needs_you", "REGRESSION: 'Hung up early' over a thread that needs you");
+  assert.equal(cvLeadOf({ ...one, live: true }).id, after.id);
+  // A caller who withheld their number is nobody's: each of their calls stands alone.
+  const anon = (id) => ({ ...call(id, "Unknown"), clientId: null, threadId: undefined });
+  assert.equal(cvOnePerPerson([anon("a1"), anon("a2")]).length, 2);
+});
+
+test("REGRESSION: a person who only phones says what the Inbox says of them -- 'Needs you', not the 'Hung up early' of the call after -- and a row of several calls says the count, not one call's length", () => {
+  const { cvCallsStandAsTheirThread } = cvRules;
+  const drawn = (row) => find(row, (n) => n.type === OutcomePill).rendered.props.value;
+  const foot = (row) => find(row, (n) => n.props?.className === "cv-row-foot");
+  // Their thread holds nothing written, so the surface gives it no row: it is read only for who has it.
+  const thread = {
+    ...toConversationVM(conv("e1", "Emily Chen", [msg({ type: "call_summary", sender: "ai" })]), null, ZONE, NOW),
+    standing: "needs_you",
+  };
+  const theirs = (id, at, over = {}) =>
+    call(id, "Emily Chen", { contact_id: "k-e1", conversation_id: "e1", started_at: at, ended_at: at, ...over });
+  const hungUp = theirs("k6", "2026-09-14T13:40:00Z", { disconnection_reason: "user_hangup", duration_ms: 7_000 });
+  const earlier = theirs("k5", "2026-09-14T13:00:00Z");
+  assert.equal(hungUp.outcome, "abandoned", "the newest is a call they hung up on");
+
+  const calls = cvCallsStandAsTheirThread([hungUp, earlier], [thread]);
+  assert.deepEqual(
+    calls.map((c) => c.standing),
+    ["needs_you", "needs_you"],
+    "each call stands as its thread",
+  );
+  assert.equal(cvCallsStandAsTheirThread([emily], [thread])[0], emily, "a call of another thread is left as it was");
+
+  withRows(calls);
+  let tree = ConversationsPage({ channel: "all", initialId: null });
+  const [row] = rows(tree);
+  assert.equal(drawn(row), "escalated", "REGRESSION: the row said 'Hung up early' while the Inbox said 'Needs you'");
+  assert.equal(textOf(foot(row)), "2 calls", "REGRESSION: one call's 0:07 beside '2 calls' read as theirs together");
+  // The row is the Inbox's beside it: the wire one badge on the face, named for a screen reader (no glyph before the
+  // name), the time at the first line's end, and no receptionist's name where one answers everything here.
+  const byClass = (node, cls) => find(node, (n) => n.props?.className === cls);
+  const wire = byClass(row, "cv-row-wire");
+  assert.equal(wire?.props["aria-label"], "Phone", "the wire, on the face, named");
+  assert.equal(find(wire, (n) => n.props?.name)?.props.name, "phone");
+  assert.ok(byClass(byClass(row, "cv-row-avatar"), "cv-row-wire"), "the face holds it");
+  assert.equal(
+    find(byClass(row, "cv-row-line1"), (n) => n.props?.name),
+    null,
+    "no glyph on the line of the name",
+  );
+  assert.ok(byClass(byClass(row, "cv-row-line1"), "cv-row-at tabular"), "the time ends the first line");
+  assert.ok(!textOf(row).includes("Receptionist"), "one receptionist answers here: the foot does not name it");
+
+  // Quiet again, the call says its own story; and a row of one call keeps its length.
+  withRows([{ ...hungUp, standing: "quiet" }]);
+  fresh();
+  tree = ConversationsPage({ channel: "all", initialId: null });
+  assert.equal(drawn(rows(tree)[0]), "abandoned");
+  assert.ok(textOf(rows(tree)[0]).includes("0:07"), "a row of one call says how long it ran, in its words");
+  assert.equal(foot(rows(tree)[0]), null, "and nothing under them: one receptionist here, one call");
 });

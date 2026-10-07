@@ -3107,7 +3107,7 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     border-radius: var(--surface-row-radius);
   }
   .pl-table tbody > tr[id]:hover {
-    background: color-mix(in oklab, var(--selected-fill) 55%, transparent);
+    background: var(--hover-fill);
   }
   /* Under the search the line is a caption: what the rows are, said once, small and dim, so the first person stays on
      the first screen under the Inbox's tiers. */
