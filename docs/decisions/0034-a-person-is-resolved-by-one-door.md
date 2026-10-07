@@ -1,7 +1,11 @@
 # 0034 · A person is resolved by one door
 
 **Status:** Decided on 6 October 2026 (Ruben: "all approved"), with 0031; step 0 (`create_person` refuses a number whose
-person asked to be forgotten, 00331) built with the note, the rest not yet built. Proposed the same day. Written against
+person asked to be forgotten, 00331) built with the note; steps 1 and 3, and step 2's first two writers, built on 7
+October 2026 (00342): `resolve_person`, called by `create_person` and `import_person`, with `contact_identities.assurance`
+written by it and `person.resolved` in the catalogue, as evidence the purge takes. Until step 4's queue exists a doubt is
+answered in the door's result (`doubt`, `doubt_seen`) and recorded on its event, not on a row. The other seven writers,
+the queue and the lead link (steps 2, 4 and 5) are not yet built. Proposed the same day. Written against
 commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main, 6
 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Where this
 note and the code disagree, the code wins.
@@ -104,14 +108,20 @@ The verbs in core (`packages/core/src/people/`) take the outcome; the adapters a
 **0 · The erasure gap.** 00331: built with this note. _Both orders:_ a door's body.
 
 **1 · The door, called by nobody.** `resolve_person` beside the nine writers, with `person.resolved` in the catalogue
-(0032 step 1) and `people/resolve-person.db.test.mjs`. _Both orders:_ a function nothing calls.
+(0032 step 1) and `people/doors/resolve-person.db.test.mjs`. Built, 00342, with a `p_detail` the caller's own words for
+`contact.added` ride in (a calendar guest's title, later a lead's id), so the event keeps the shape 00053 and 00170
+wrote; the number is read as contracts' `normalizePhone` reads it until the workspace's country decides (Risks).
+_Both orders:_ a function nothing calls.
 
 **2 · The writers move, one at a time,** each keeping its old path for a release: `create_person` and `import_person`
-first (members' doors, the smallest), then the calendar sweep and the board, then `lead_set_stage` and
+first (members' doors, the smallest; built, 00342: each keeps its signature, its checks and its answer, and asks the
+door for the match as a member's assertion), then the calendar sweep and the board, then `lead_set_stage` and
 `reach_out_person`, then `ingest_call`, then the booking link and the email backfill, and `ingest_inbound` last, with
 `inbound-executed.test.mjs`'s cases green. _Both orders:_ each writer's old path answers an older edge.
 
-**3 · Assurance on identities.** The column, written by the door; readers ignore it until step 5. _Both orders._
+**3 · Assurance on identities.** The column, written by the door; readers ignore it until step 5. Built, 00342: observed
+by default for every identity the inbound doors wrote before it, and a stronger word replaces a weaker one on the
+door's upsert, never the reverse. _Both orders._
 
 **4 · The doubt queue:** `person_doubts`, written by `resolve_person`, and the People page's "same person?" row with
 Merge (0028's door, `POST /api/v1/contacts/[id]/merge`) and Not the same, which settles the pair. _Both orders:_ a
@@ -122,7 +132,7 @@ alone, and writes `lead.converted` with a version bump, which `lead_link_contact
 
 ## Tests
 
-- **The door** (`people/resolve-person.db.test.mjs`): the same person seen by WhatsApp, then SMS, then email is one
+- **The door** (`people/doors/resolve-person.db.test.mjs`): the same person seen by WhatsApp, then SMS, then email is one
   row with three identities; an erased number is refused on every path; a name-only match is a doubt, not a merge; a
   found identity never overrides an observed one.
 - **The nine writers** keep their existing cases (`inbound-executed`, `import-person.db`, `cron-calendar-door`,
