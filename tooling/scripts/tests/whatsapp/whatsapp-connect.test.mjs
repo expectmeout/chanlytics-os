@@ -91,7 +91,10 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
   const r = readCode("apps/dashboard/app/api/v1/channels/whatsapp/connect/route.ts");
   assert.ok(r.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
   assert.ok(r.includes('rate: "settings",'));
-  assert.ok(r.includes("if (!ID.test(phoneNumberId) || !ID.test(wabaId))"));
+  assert.ok(
+    r.includes("if ((phoneNumberId && !ID.test(phoneNumberId)) || (wabaId && !ID.test(wabaId)))"),
+    "an id is validated only when the window gave one: the edge reads a missing one from the token's grant",
+  );
   assert.ok(r.includes('recordDecision(ctx, member.tenantId, "channel", r.channelId, "connect_channel", {'));
   assert.ok(r.includes('"upstream_meta"'), "Meta is the upstream that failed, not the model");
   assert.ok(r.includes('number_taken: "That number is already connected to another workspace."'));
@@ -132,14 +135,43 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
     }),
     { cancelled: true },
   );
-  assert.equal(
-    mod.parseSignupMessage(
-      "https://evil.example",
-      JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { phone_number_id: "1", waba_id: "2" } }),
-    ),
-    null,
-    "only Meta's own origins are heard",
-  );
+  // What Meta's window says as it finishes is heard from any of Meta's hosts (Meta's own sample: an origin ending in
+  // facebook.com), held to https and to the domain itself. Two hosts named outright heard nothing from a third (8 October).
+  const finish = JSON.stringify({
+    type: "WA_EMBEDDED_SIGNUP",
+    event: "FINISH",
+    data: { phone_number_id: "1234567", waba_id: "7654321" },
+  });
+  for (const origin of [
+    "https://www.facebook.com",
+    "https://web.facebook.com",
+    "https://business.facebook.com",
+    "https://facebook.com",
+  ])
+    assert.deepEqual(
+      mod.parseSignupMessage(origin, finish),
+      { phone_number_id: "1234567", waba_id: "7654321" },
+      origin,
+    );
+  for (const origin of [
+    "https://evil.example",
+    "https://notfacebook.com",
+    "https://facebook.com.evil.example",
+    "http://www.facebook.com",
+    "null",
+    "",
+  ])
+    assert.equal(mod.parseSignupMessage(origin, finish), null, `${origin || "(empty)"}: not Meta's own page`);
+  // The account alone (its number is added later), and whichever id a finish names: the edge reads the rest from the token.
+  const said = (event, data) =>
+    mod.parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event, data }));
+  assert.deepEqual(said("FINISH_ONLY_WABA", { waba_id: "7654321", business_id: "1" }), {
+    phone_number_id: null,
+    waba_id: "7654321",
+  });
+  assert.deepEqual(said("FINISH", { waba_ids: ["7654321"] }), { phone_number_id: null, waba_id: "7654321" });
+  assert.deepEqual(said("FINISH", { phone_number_id: "1234567" }), { phone_number_id: "1234567", waba_id: null });
+  assert.equal(said("FINISH", {}), null, "a finish that names nothing is nothing heard");
   assert.equal(mod.parseSignupMessage("https://www.facebook.com", "not json"), null);
   assert.equal(mod.parseSignupMessage("https://www.facebook.com", { type: "OTHER" }), null);
   const src = readCode("apps/dashboard/src/surfaces/settings/connections/whatsapp.ts");
@@ -463,6 +495,7 @@ function browser({ opens = true, sdk = true, standalone = false } = {}) {
     opens,
     sdk,
     fetched: [],
+    sent: [],
     scripts: [],
     asked: [],
     inits: [],
@@ -485,8 +518,19 @@ function browser({ opens = true, sdk = true, standalone = false } = {}) {
       setItem: (k, v) => void b.held.set(k, String(v)),
       removeItem: (k) => void b.held.delete(k),
     },
-    fetch: async (url) => {
+    fetch: async (url, init) => {
       b.fetched.push(String(url));
+      // The app's own route: what the page sent is kept, and the number is connected.
+      if (String(url).includes("channels/whatsapp/connect")) {
+        b.sent.push(init && typeof init.body === "string" ? JSON.parse(init.body) : null);
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: { number_e164: "+15551230000", verified_name: "Harbor Moving", quality_rating: null },
+          }),
+          { status: 200 },
+        );
+      }
       return new Response(JSON.stringify({ ok: true, data: DOOR }), { status: 200 });
     },
     document: {
@@ -612,6 +656,48 @@ test("an app on an iPhone's home screen is sent to the browser: the window it wo
     );
     assert.deepEqual([b.logins, b.asked, b.fetched, b.scripts], [[], [], [], []], "nothing was asked of anyone");
     assert.equal(b.held.has(SIGNUP_MARK), false);
+  });
+});
+
+test("a code that arrives without the ids is sent all the same, with whatever the window did say: the edge reads the rest from the token itself; a window the owner closed sends nothing", async () => {
+  // Meta's window posts the ids as a courtesy a browser can miss (8 October 2026: three sign-ups finished on Meta's side,
+  // the page heard none, and each code was thrown away with "finished without a number"). The code is what is needed.
+  const b = browser();
+  await inBrowser(b, async (mod) => {
+    mod.waConnect.prepare(DOOR);
+    await turn();
+    await turn();
+    const heard = (origin, event, data) => {
+      for (const fn of b.listeners) fn({ origin, data: JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event, data }) });
+    };
+    // Nothing heard: the code alone.
+    let running = mod.waConnect.start();
+    b.logins[0].cb({ authResponse: { code: "AQBx-code-1" } });
+    let result = await within(running);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.number, "+15551230000");
+    assert.deepEqual(b.sent, [{ code: "AQBx-code-1" }]);
+    // The window named the account and not the number, from a Meta host the page used to be deaf to.
+    running = mod.waConnect.start();
+    heard("https://business.facebook.com", "FINISH_ONLY_WABA", { waba_id: "987654321098", business_id: "1" });
+    b.logins[1].cb({ authResponse: { code: "AQBx-code-2" } });
+    result = await within(running);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.deepEqual(b.sent[1], { code: "AQBx-code-2", waba_id: "987654321098" });
+    // Both named: both sent, as before.
+    running = mod.waConnect.start();
+    heard("https://www.facebook.com", "FINISH", { phone_number_id: "123456789012", waba_id: "987654321098" });
+    b.logins[2].cb({ authResponse: { code: "AQBx-code-3" } });
+    result = await within(running);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.deepEqual(b.sent[2], { code: "AQBx-code-3", phone_number_id: "123456789012", waba_id: "987654321098" });
+    // A cancel is still a cancel, and no code goes anywhere.
+    running = mod.waConnect.start();
+    heard("https://www.facebook.com", "CANCEL", { current_step: "BUSINESS_INFO" });
+    b.logins[3].cb({ authResponse: { code: "AQBx-code-4" } });
+    result = await within(running);
+    assert.equal(result.reason, "cancelled");
+    assert.equal(b.sent.length, 3);
   });
 });
 

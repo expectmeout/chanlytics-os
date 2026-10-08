@@ -245,7 +245,7 @@
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {
-    "lines": 143,
+    "lines": 138,
     "branches": 42,
     "depth": 1
   },

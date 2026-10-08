@@ -6,15 +6,16 @@
  * this the knock (`auth`) and what the body carried; everything after is here, in the order the door had it.
  *
  * The dashboard, having checked that the caller owns the workspace, sends
- * what Embedded Signup gave the browser: the one-time code and the ids of
- * the WABA and the phone number the business chose. This edge holds the
- * app secret and the service role, so it does the rest: the code becomes
- * the business's own token, the number is read back and proven to be the
- * WABA's, the app subscribes to the WABA, the number is registered for
- * Cloud API messaging, the channel row is written, and the token goes into
- * Vault through the one function that may write a credential. From then on
- * the receptionist answers on this number with this business's token, never
- * the environment's.
+ * what Embedded Signup gave the browser: the one-time code and, where the
+ * browser heard them, the ids of the WABA and the phone number the business
+ * chose. This edge holds the app secret and the service role, so it does the
+ * rest: the code becomes the business's own token, an id the browser did not
+ * hear is read from the token's own grant (idsOf), the number is read back
+ * and proven to be the WABA's, the app subscribes to the WABA, the number is
+ * registered for Cloud API messaging, the channel row is written, and the
+ * token goes into Vault through the one function that may write a
+ * credential. From then on the receptionist answers on this number with this
+ * business's token, never the environment's.
  *
  * Signed admin token only: the dashboard is the sole caller, as for steer.
  */
@@ -32,7 +33,10 @@ import {
   registerNumber,
   subscribeWaba,
   toE164,
+  tokenGrants,
+  wabaIdsGranted,
   wabaInfo,
+  wabaPhoneNumbers,
 } from "./meta-graph.js";
 import { readAndKeepStanding } from "./number-standing.js";
 import { env } from "../env.js";
@@ -157,39 +161,23 @@ async function writeChannelRow(
   return row;
 }
 
-export async function connectWhatsAppNumber(auth: Admitted, body: Partial<ConnectBody>): Promise<Response> {
-  const appId = metaAppId();
-  const appSecret = env.META_APP_SECRET;
-  if (!appId || !appSecret) return refuse(503, "no_app_credentials");
-  const ws = workspaceFor(auth, body.tenant_id);
-  if (!ws.ok) return ws.response;
-  body.tenant_id = ws.tenantId ?? undefined;
-  const tenantId = String(body.tenant_id || "");
-  const userId = personFor(auth, body.user_id) ?? "";
-  const code = String(body.code || "").trim();
-  const phoneNumberId = String(body.phone_number_id || "").trim();
-  const wabaId = String(body.waba_id || "").trim();
-  if (
-    !UUID.test(tenantId) ||
-    !UUID.test(userId) ||
-    !code ||
-    code.length > 2000 ||
-    !ID.test(phoneNumberId) ||
-    !ID.test(wabaId)
-  ) {
-    return refuse(400, "bad_request", "tenant_id, user_id, code, phone_number_id and waba_id required");
-  }
-  const db = pg();
-  if (!db) return refuse(503, "no_database");
+type Db = NonNullable<ReturnType<typeof pg>>;
+type Log = ReturnType<typeof logger>;
 
-  const L = logger({ tenant_id: tenantId, phone_number_id: phoneNumberId, waba_id: wabaId });
+/** The ids a sign-up ends with, and where they came from: Meta's window named both, or the token itself was asked. */
+interface SignupIds {
+  phoneNumberId: string;
+  wabaId: string;
+  from: "message" | "token";
+}
 
-  // A number already connected to another workspace is not connected twice.
-  // The ERROR is read, not just the row: (kind, external_id) is unique, so the
-  // upsert below is an UPDATE of whatever row holds this number — including
-  // another workspace's, whose tenant_id and Vault token it would rewrite. A
-  // read that failed says nothing about who holds the number, and treating it
-  // as "nobody" is how a pooler blip moved a live number between workspaces.
+/**
+ * A number already connected to another workspace is not connected twice. The ERROR is read, not just the row: (kind,
+ * external_id) is unique, so the write that follows is an UPDATE of whatever row holds this number — including another
+ * workspace's, whose tenant_id and Vault token it would rewrite. A read that failed says nothing about who holds the
+ * number, and treating it as "nobody" is how a pooler blip moved a live number between workspaces.
+ */
+async function heldElsewhere(db: Db, L: Log, tenantId: string, phoneNumberId: string): Promise<Response | null> {
   const { data: taken, error: takenErr } = await db
     .from("tenant_channels")
     .select("id, tenant_id")
@@ -204,6 +192,115 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
     L.info("wa_connect_number_taken");
     return refuse(409, "number_taken");
   }
+  return null;
+}
+
+/**
+ * The ids the sign-up ends with. Meta's window posts them to the page as it finishes and the page sends them on, but that
+ * message is a courtesy a browser can miss (8 October 2026: three sign-ups finished on Meta's side, the page heard no ids,
+ * and each code was thrown away with nothing connected). The token itself knows: Meta's introspection lists the accounts
+ * the sign-up granted, the newest first, and the account lists its numbers. One number is the business that just signed
+ * up and is connected as if named; none, or several with none named, is said rather than guessed.
+ */
+async function idsOf(
+  db: Db,
+  tenantId: string,
+  app: { id: string; secret: string },
+  token: string,
+  given: { phoneNumberId: string; wabaId: string },
+): Promise<SignupIds | Response> {
+  if (given.phoneNumberId && given.wabaId) return { ...given, from: "message" };
+  const L = boundLog(tenantId, given.phoneNumberId, given.wabaId);
+  let wabaId = given.wabaId;
+  if (!wabaId) {
+    const grants = await tokenGrants(app.id, app.secret, token);
+    if (!grants.ok) {
+      L.info("wa_connect_grant_unreadable", { error: grants.error, code: grants.code });
+      return refuse(502, "grant_unreadable", grants.error);
+    }
+    wabaId = wabaIdsGranted(grants.data)[0] ?? "";
+    if (!wabaId) {
+      L.info("wa_connect_waba_not_granted");
+      return refuse(502, "waba_not_granted");
+    }
+  }
+  let phoneNumberId = given.phoneNumberId;
+  if (!phoneNumberId) {
+    const numbers = await wabaPhoneNumbers(token, wabaId);
+    if (!numbers.ok) {
+      L.info("wa_connect_number_unreadable", { waba_id: wabaId, error: numbers.error });
+      return refuse(502, "number_unreadable", numbers.error);
+    }
+    const ids = (numbers.data.data ?? []).map((n) => String(n.id ?? "")).filter((id) => ID.test(id));
+    if (ids.length === 0) {
+      L.info("wa_connect_number_missing", { waba_id: wabaId });
+      return refuse(502, "number_missing");
+    }
+    if (ids.length > 1) {
+      L.info("wa_connect_number_ambiguous", { waba_id: wabaId, numbers: ids.length });
+      return refuse(502, "number_ambiguous", `${ids.length} numbers on the account`);
+    }
+    phoneNumberId = ids[0] ?? "";
+  }
+  L.info("wa_connect_found", {
+    waba_id: wabaId,
+    phone_number_id: phoneNumberId,
+    waba_from: given.wabaId ? "message" : "token",
+    number_from: given.phoneNumberId ? "message" : "account",
+  });
+  // A number found this way is checked as one the window named is (before Meta is asked, in the caller).
+  if (!given.phoneNumberId) {
+    const held = await heldElsewhere(db, boundLog(tenantId, phoneNumberId, wabaId), tenantId, phoneNumberId);
+    if (held) return held;
+  }
+  return { phoneNumberId, wabaId, from: "token" };
+}
+
+/** An id the window gave that is not Meta's; an absent one is not wrong, it is looked up. */
+const badId = (id: string): boolean => id !== "" && !ID.test(id);
+
+/** The door's log, bound to what is known of the number and the account at that point. */
+function boundLog(tenantId: string, phoneNumberId: string, wabaId: string): Log {
+  return logger({
+    tenant_id: tenantId,
+    ...(phoneNumberId ? { phone_number_id: phoneNumberId } : {}),
+    ...(wabaId ? { waba_id: wabaId } : {}),
+  });
+}
+
+export async function connectWhatsAppNumber(auth: Admitted, body: Partial<ConnectBody>): Promise<Response> {
+  const appId = metaAppId();
+  const appSecret = env.META_APP_SECRET;
+  if (!appId || !appSecret) return refuse(503, "no_app_credentials");
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
+  const tenantId = String(body.tenant_id || "");
+  const userId = personFor(auth, body.user_id) ?? "";
+  const code = String(body.code || "").trim();
+  // The ids Meta's window named, where the page heard it; either may be missing (idsOf).
+  const given = { phoneNumberId: String(body.phone_number_id || "").trim(), wabaId: String(body.waba_id || "").trim() };
+  if (
+    !UUID.test(tenantId) ||
+    !UUID.test(userId) ||
+    !code ||
+    code.length > 2000 ||
+    badId(given.phoneNumberId) ||
+    badId(given.wabaId)
+  ) {
+    return refuse(
+      400,
+      "bad_request",
+      "tenant_id, user_id and code required; phone_number_id and waba_id, when given, Meta's ids",
+    );
+  }
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+  let L = boundLog(tenantId, given.phoneNumberId, given.wabaId);
+
+  // A number the window named that another workspace holds is refused before Meta is asked.
+  const held = given.phoneNumberId ? await heldElsewhere(db, L, tenantId, given.phoneNumberId) : null;
+  if (held) return held;
 
   // 1. The code becomes the business's token.
   const tok = await exchangeCode(appId, appSecret, code);
@@ -212,6 +309,12 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
     return refuse(502, "exchange_failed", tok.error);
   }
   const token = tok.data.access_token;
+
+  // The ids: the window's, or the token's own grant (and a number found that way checked as one named is).
+  const ids = await idsOf(db, tenantId, { id: appId, secret: appSecret }, token, given);
+  if (ids instanceof Response) return ids;
+  const { phoneNumberId, wabaId } = ids;
+  L = boundLog(tenantId, phoneNumberId, wabaId);
 
   // 2. The number, as Meta holds it, and the WABA it belongs to.
   const [num, waba] = await Promise.all([phoneNumber(token, phoneNumberId), wabaInfo(token, wabaId)]);
@@ -290,10 +393,13 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
   }
 
   await connected(db, tenantId, row.id, { phoneNumberId, wabaId, e164, name: config.verified_name, by: userId, token });
-  L.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration });
+  L.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration, ids_from: ids.from });
   return json(200, {
     ok: true,
     channel_id: row.id,
+    phone_number_id: phoneNumberId,
+    waba_id: wabaId,
+    ids_from: ids.from,
     number_e164: e164,
     verified_name: config.verified_name,
     quality_rating: config.quality_rating,

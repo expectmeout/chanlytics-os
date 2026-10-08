@@ -48,6 +48,10 @@ type ConnectOutcome =
   | {
       ok: true;
       channelId: string;
+      /** The number and the account connected: the window's, or the ones the edge read from the token's grant. */
+      phoneNumberId: string;
+      wabaId: string;
+      idsFrom: "message" | "token";
       numberE164: string | null;
       verifiedName: string | null;
       qualityRating: string | null;
@@ -55,11 +59,14 @@ type ConnectOutcome =
     }
   | { ok: false; reason: EdgeReason; detail?: string };
 
-/** The owner's number becomes a channel: the edge exchanges the code, registers the number and stores the token. */
+/**
+ * The owner's number becomes a channel: the edge exchanges the code, finds an id the browser did not hear from the token's
+ * own grant, registers the number and stores the token.
+ */
 export async function connectWhatsApp(
   tenantId: string,
   userId: string,
-  body: { code: string; phone_number_id: string; waba_id: string },
+  body: { code: string; phone_number_id?: string; waba_id?: string },
 ): Promise<ConnectOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
@@ -70,6 +77,9 @@ export async function connectWhatsApp(
   const j = (r.body ?? {}) as {
     ok?: boolean;
     channel_id?: string;
+    phone_number_id?: string;
+    waba_id?: string;
+    ids_from?: string;
     number_e164?: string | null;
     verified_name?: string | null;
     quality_rating?: string | null;
@@ -80,6 +90,9 @@ export async function connectWhatsApp(
     return {
       ok: true,
       channelId: j.channel_id,
+      phoneNumberId: j.phone_number_id ?? body.phone_number_id ?? "",
+      wabaId: j.waba_id ?? body.waba_id ?? "",
+      idsFrom: j.ids_from === "token" ? "token" : "message",
       numberE164: j.number_e164 ?? null,
       verifiedName: j.verified_name ?? null,
       qualityRating: j.quality_rating ?? null,
