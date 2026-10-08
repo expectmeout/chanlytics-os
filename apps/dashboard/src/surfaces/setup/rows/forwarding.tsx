@@ -9,8 +9,9 @@
  * where there is room, one on a phone (settings.css, .setup-fw-form), on the look's inset surface (.setup-chooser).
  *
  * All of it is written in the kit's classes, and the file imports no part of the kit: a field is a label that holds
- * its box, the carrier the browser's own select in that box, the choice two radios, the acts buttons as the rows
- * beside it write them. Both Today (the workspace route) and the first run's page load this file, so a module it
+ * its box, the carrier the browser's own select in that box (whose open list wears the theme: tokens.css
+ * color-scheme), the choice two radios with a radio group's keys (modeChoice), the acts buttons as the rows beside it
+ * write them. Both Today (the workspace route) and the first run's page load this file, so a module it
  * imports moves to the chunk those two share, and the pages that were sharing it download it again. Each of these
  * was built and measured against main's own build (8 Oct 2026, gzipped): the kit's Field, Select and Segmented added
  * 71 KB to the route; fetched on demand instead, they split again the chunks the pages share, about 540 bytes on
@@ -18,7 +19,7 @@
  * 13 to 20 KB each; and the record kit's own field, which the first run's files import, left the route's chunk and
  * People downloaded the record kit twice, 6.5 KB.
  */
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { isCarrier, isForwardingMode, type Carrier, type LineDto } from "@chanlytics/contracts";
 import { canDo, gate, type LegacyFlash } from "../../legacy-verbs";
 import { FORWARDING_WORDS, setupVerbs, type SetupSurface } from "../surface";
@@ -91,6 +92,53 @@ function codeCard(
             Off again: <b className="tabular">{codes.off.code}</b>
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** The arrows that walk a radio group, and which way: the next option, or the one before. */
+const MODE_STEPS: Partial<Record<string, number>> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+
+/**
+ * Which calls: one of two on the kit's track, a radio group with a radio group's keys, as the kit's choice of a few has
+ * them (kit/record/field.tsx RecordToggleGroup, which this file may not import: the header says why). One tab stop,
+ * on the one chosen; an arrow chooses the other and takes the focus there, wrapping at either end; a press or Space
+ * chooses. It said it was a radio group and gave each option a tab stop of its own, with no arrows (the review of 8
+ * Oct 2026).
+ */
+function modeChoice(mode: string, setMode: (mode: string) => void) {
+  const W = FORWARDING_WORDS;
+  const at = W.modes.findIndex((m) => m === mode);
+  const walkModes = (e: KeyboardEvent<HTMLDivElement>) => {
+    const step = MODE_STEPS[e.key];
+    if (!step) return;
+    e.preventDefault();
+    // `at()` takes the one before the first as the last, and the remainder takes the one after the last as the first.
+    const next = W.modes.at((Math.max(0, at) + step) % W.modes.length);
+    if (!next) return;
+    setMode(next);
+    e.currentTarget.querySelector<HTMLElement>(`[data-testid="setup-fw-mode-${next}"]`)?.focus();
+  };
+  return (
+    <div className="rec-field setup-fw-wide">
+      <span className="rec-field-label">Which calls</span>
+      {/* eslint-disable-next-line jsx-a11y-x/interactive-supports-focus -- the group is not a tab stop: its chosen option is, and the arrows walk it */}
+      <div className="rec-seg" role="radiogroup" aria-label="Which calls" onKeyDown={walkModes}>
+        {W.modes.map((m, i) => (
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={mode === m}
+            tabIndex={mode === m || (at < 0 && i === 0) ? 0 : -1}
+            className="rec-seg-btn"
+            onClick={() => setMode(m)}
+            data-testid={`setup-fw-mode-${m}`}
+          >
+            {W.modeWords[m] ?? m}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -181,24 +229,7 @@ export const ForwardingCard = ({ S, flash, onDone }: ForwardingProps) => {
             </select>
           </label>
         </div>
-        <div className="rec-field setup-fw-wide">
-          <span className="rec-field-label">Which calls</span>
-          <div className="rec-seg" role="radiogroup" aria-label="Which calls">
-            {W.modes.map((m) => (
-              <button
-                key={m}
-                type="button"
-                role="radio"
-                aria-checked={mode === m}
-                className="rec-seg-btn"
-                onClick={() => setMode(m)}
-                data-testid={`setup-fw-mode-${m}`}
-              >
-                {W.modeWords[m] ?? m}
-              </button>
-            ))}
-          </div>
-        </div>
+        {modeChoice(mode, setMode)}
         <div className="rec-field">
           <label>
             <span className="rec-field-label">The phone you&rsquo;ll test from (optional)</span>

@@ -7220,7 +7220,7 @@ var leadAndRest = (lead, rest = "") => {
   const after = rest.trim();
   return { lead, rest: after, sentence: after ? `${lead} ${after}` : lead };
 };
-var heldWords = (n) => n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`;
+var bookingEmailsHeldWords = (n) => n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`;
 var noTimesWords = (bookingLink) => bookingLink ? "The receptionist sends your booking link instead of naming open times." : "The receptionist does not name open times.";
 function unreadLink(f, by, emailsWork) {
   return {
@@ -7265,7 +7265,7 @@ function emailsNeedYou(step2, f, e, by, times) {
       state: e.lastAt || times ? "attention" : "needs_you",
       tone: "warn",
       words: `${e.held} to look at`,
-      ...leadAndRest(heldWords(e.held)),
+      ...leadAndRest(bookingEmailsHeldWords(e.held)),
       times,
       next: TO_THE_ROW(e.held === 1 ? "Look at it" : "Look at them")
     };
@@ -7389,7 +7389,9 @@ var BOOKING_TOOL_WORDS = {
   link: {
     title: "Calendar link",
     why: "So the receptionist can offer open times.",
-    anyway: "I have a calendar link"
+    anyway: "I have a calendar link",
+    /** Under "I book by hand", where a link is kept: that answer has none, so saving it takes the link away. */
+    goes: "Saving this removes your calendar link."
   },
   emails: {
     title: "Booking emails",
@@ -7397,8 +7399,9 @@ var BOOKING_TOOL_WORDS = {
   }
 };
 function calendarLinkShown(withWhat, held) {
+  if (withWhat === BOOKS_BY_HAND) return "hidden";
   if (held) return "shown";
-  if (!withWhat || withWhat === BOOKS_BY_HAND) return "hidden";
+  if (!withWhat) return "hidden";
   return bookingToolCalendar(withWhat) === "none" ? "offered" : "shown";
 }
 function calendarLinkNote(withWhat, bookingLink) {
@@ -9857,7 +9860,7 @@ function saidYesOnAny(r2, purpose, how) {
     (c) => how.channels.includes(c) && how.ready[c].ready && channelRefuses(c, purpose, how.about, how.ready) === null && saidYesTo(r2, purpose, c, how.about)
   );
 }
-function heldWords2(held, purpose) {
+function heldWords(held, purpose) {
   switch (held) {
     case "no_number":
       return "No phone number on file, so nothing can be sent.";
@@ -9917,7 +9920,7 @@ function audiencePreview(rows, kind, id, savedIds, purpose, how, limit = 5, touc
   const order = [...named.slice(0, 1), ...unnamed.slice(0, 1), ...named.slice(1), ...unnamed.slice(1)];
   const people = order.slice(0, limit).map((x) => previewPerson(x.r, null, x.p.channel));
   for (const { r: r2, p } of held.slice(0, 2))
-    people.push(previewPerson(r2, p.held ? heldWords2(p.held, purpose) : null, null));
+    people.push(previewPerson(r2, p.held ? heldWords(p.held, purpose) : null, null));
   return {
     people,
     split: reachSplit(pool, purpose, how),
@@ -29490,7 +29493,7 @@ function googleListingRow(i, { connection: c, listing: l, nowMs }) {
 function calendarRow(i) {
   const s = calendarSourceOf(calendarSourceFacts(i.calendar ?? { state: "none" }));
   const tool = bookingToolName(i.calendar?.tool);
-  const DETAIL2 = { both: `${tool} \xB7 calendar link`, link: "Calendar link", emails: tool, hand: s.words, nothing: null };
+  const DETAIL2 = { both: `${tool} \xB7 calendar link`, link: "Calendar link", emails: tool, hand: null, nothing: null };
   const detail = DETAIL2[s.by];
   return {
     kind: "calendar",
@@ -35808,6 +35811,7 @@ export {
   bookedAfterAsk,
   bookedSeenOf,
   bookedTileOf,
+  bookingEmailsHeldWords,
   bookingEmailsStep,
   bookingHeld,
   bookingLinkAction,
@@ -36158,7 +36162,7 @@ export {
   heldDraftWaits,
   heldLine,
   heldNoticeWords,
-  heldWords2 as heldWords,
+  heldWords,
   hexOf,
   holdDoors,
   holdOf,

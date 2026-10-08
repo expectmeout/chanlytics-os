@@ -120,6 +120,7 @@ export { serviceSuggestionsOf, checkChipsOf, SERVICE_SUGGESTION_TYPES } from "./
 export type { CheckChipVM, CheckChipSetVM, CheckChipsVM } from "./check-chips";
 export {
   CALENDAR_SETTING_ROUTE,
+  bookingEmailsHeldWords,
   bookingEmailsStep,
   calendarSourceOf,
   calendarSourceFacts,

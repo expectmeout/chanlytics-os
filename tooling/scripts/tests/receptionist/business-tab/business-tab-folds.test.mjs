@@ -826,6 +826,12 @@ test("fallbacks and the calendar write what the old form wrote: the three messag
   const hand = S.saveFold("calendar", S.saveFold("calendar", noFeed, link("", "booksy")), link("", "hand"));
   assert.deepEqual(hand.bookings, { by_hand: true });
   assert.equal("bookings" in S.saveFold("calendar", hand, link("https://calendar.example.com/a.ics")), false);
+  // REGRESSION (the review of 8 Oct 2026): "by hand" over a link that is kept is written with no link. Kept beside
+  // it, the link outranked the word on the next read (contracts booksWithOf), and the row said "Calendar link".
+  const overLink = S.saveFold("calendar", stored(), link(STORED.calendar.ical_url, "hand"));
+  assert.equal("calendar" in overLink, false, "the link goes with the word that nothing is read");
+  assert.deepEqual(overLink.bookings, { by_hand: true });
+  assert.equal(S.draftOf("calendar", overLink).with, "hand", "and it reads back as it was said");
 });
 
 /* ------------------------------------ what stops a save ------------------------------------ */
@@ -924,6 +930,8 @@ test("problemsOf says the old form's sentences, but for what an empty box means,
   // refuse a non-owner's change of the tool beside it. Even the mask of a short address, which is the mark alone.
   for (const masked of ["https://calendar.example…ic.ics", "…"])
     assert.deepEqual(S.problemsOf("calendar", { with: "booksy", ical_url: masked }), {}, masked);
+  // Under "by hand" no address is drawn or written, so none is judged: a refusal would be of a box not on screen.
+  assert.deepEqual(S.problemsOf("calendar", { with: "hand", ical_url: "calendar" }), {});
 
   // Nothing for a good draft: every fold, as it opens on the record.
   for (const fold of FOLDS) assert.deepEqual(S.problemsOf(fold, S.draftOf(fold, stored())), {}, fold);

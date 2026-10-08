@@ -276,12 +276,14 @@ export const btCalendarDraft = (config: Config): CalendarDraft => {
  * is a section of its own (00345), never a key of the calendar's: a calendar section with a tool and no address is one
  * a build from before this could not read, and its whole config with it. A tool of the list is written as the tool;
  * "by hand" as its own switch; a calendar with no tool behind it is the address and nothing more, so neither key is
- * kept for it.
+ * kept for it. "By hand" is the owner's word that nothing is read, so it is written with no address, whatever the
+ * draft still holds of one: kept beside it, the address outranked the word on the next read, and the row said
+ * "Calendar link" (contracts calendarLinkShown).
  */
 export const btWriteCalendar = (next: Config, draft: unknown) => {
   btWhole("calendar", draft, ["with", "ical_url"], "string");
   const d = draft as CalendarDraft;
-  const feed = trimmed(d.ical_url);
+  const feed = d.with === BOOKS_BY_HAND ? "" : trimmed(d.ical_url);
   const calendar = { ...(next.calendar || {}) };
   btPut(calendar, "ical_url", feed || undefined);
   if (Object.keys(calendar).length) next.calendar = calendar;
@@ -296,10 +298,12 @@ export const btWriteCalendar = (next: Config, draft: unknown) => {
 /**
  * What the owner books with is picked from a list, never typed: nothing to refuse. The address is judged as typed,
  * except one the server masked (only an owner is sent it whole): it is the stored one, kept as it is, and judging the
- * mask would refuse a non-owner's change of the tool beside it.
+ * mask would refuse a non-owner's change of the tool beside it. Under "by hand" no address is drawn or written, so
+ * none is judged: a refusal would be of a box that is not on screen.
  */
 export const btCalendarProblems = (draft: unknown): Problems => {
-  const feed = trimmed(draft && (draft as CalendarDraft).ical_url);
+  const d = (draft || {}) as Partial<CalendarDraft>;
+  const feed = d.with === BOOKS_BY_HAND ? "" : trimmed(d.ical_url);
   return feed && !feed.includes("…") && !/^(https?|webcal):\/\/\S+$/i.test(feed)
     ? { ical_url: "The calendar link needs to be a full address, starting with https:// or webcal://" }
     : {};

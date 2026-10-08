@@ -1203,6 +1203,47 @@ test("the fold asks what the owner books with and draws only what that answer ha
   }
 });
 
+test("REGRESSION (the review of 8 Oct 2026): 'I book by hand' over a calendar link that is kept hides its box, says the link goes, and saves without it -- it kept the link, which outranked the word, and the row said 'Calendar link'", () => {
+  const sent = saving();
+  try {
+    W.__CALENDAR = calendarRead(readOk());
+    let tree = drawTab();
+    const before = written(W.__SETTINGS.config);
+    const kept = before.calendar.ical_url;
+    assert.ok(kept, "the workspace keeps a calendar link");
+    openFold(tree, "calendar");
+    tree = redrawTab();
+    const box = () => find(redrawTab(), (n) => n.props?.id === "bt-calendar");
+    assert.equal(box().props.value, kept, "a calendar with a link draws it in its box");
+    pickBooksWith(tree, "hand");
+    tree = redrawTab();
+    assert.equal(byTestId(tree, "bto-link"), null, "by hand has no box, even over a link that is kept");
+    assert.equal(
+      textOf(byTestId(tree, "bto-link-note")),
+      "Nothing to connect. The receptionist sends your booking link instead of naming open times. Saving this removes your calendar link.",
+    );
+    // Another answer before saving: the address is still in its box, so a change of mind loses nothing.
+    pickBooksWith(tree, "calendar");
+    assert.equal(box().props.value, kept);
+    pickBooksWith(redrawTab(), "hand");
+    tree = redrawTab();
+    saveFoldOf(tree, "calendar");
+    assert.deepEqual(sent[0].config, { ...without(before, "calendar"), bookings: { by_hand: true } });
+    // Saved, the row says the owner's own word, and no line of a calendar's read.
+    const row = byTestId(drawTab({ config: { calendar: undefined, bookings: { by_hand: true } } }), "rec-row-calendar");
+    assert.equal(textOf(byTestId(row, "bt-bookings-tool")), "Booked by hand");
+    // A tool that gives no calendar, its box asked for, then "by hand": the press that asked is not carried over.
+    openFold(drawTab({ config: { calendar: undefined, bookings: { tool: "booksy" } } }), "calendar");
+    tree = redrawTab();
+    press(byTestId(tree, "bto-link-anyway"));
+    assert.ok(byTestId(redrawTab(), "bto-link"), "asked for, the box is drawn");
+    pickBooksWith(redrawTab(), "hand");
+    assert.equal(byTestId(redrawTab(), "bto-link"), null);
+  } finally {
+    delete W.__CALENDAR;
+  }
+});
+
 test("a calendar that could not be read says so in the Calendar page's words; with no read, the row says nothing of one and asks", () => {
   const was = { calendar: W.__calendar, failed: W.__surfaceFailed };
   try {

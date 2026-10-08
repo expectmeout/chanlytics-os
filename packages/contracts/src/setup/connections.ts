@@ -641,9 +641,10 @@ function googleListingRow(i: ConnectionInputs, { connection: c, listing: l, nowM
 function calendarRow(i: ConnectionInputs): Draft {
   const s = calendarSourceOf(calendarSourceFacts(i.calendar ?? { state: "none" }));
   const tool = bookingToolName(i.calendar?.tool);
-  // What makes the row this workspace's: the tool it books with, the link it reads, both, or its own word that it
-  // books by hand (which has no state to show beside it, so it is said here).
-  const DETAIL = { both: `${tool} · calendar link`, link: "Calendar link", emails: tool, hand: s.words, nothing: null };
+  // What makes the row this workspace's: the tool it books with, the link it reads, or both. A business that books by
+  // hand has neither, and its own word is the row's state: said here too, the row read "Booked by hand" twice, beside
+  // its name and in its pill (seen on a real save, 8 Oct 2026).
+  const DETAIL = { both: `${tool} · calendar link`, link: "Calendar link", emails: tool, hand: null, nothing: null };
   const detail = DETAIL[s.by];
   return {
     kind: "calendar",

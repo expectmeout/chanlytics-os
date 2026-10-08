@@ -19,8 +19,10 @@ import {
   BOOKING_TOOL_STEPS,
   BOOKING_TOOL_WORDS,
   BOOKING_TRY_NOTE,
+  BOOKS_BY_HAND,
   BOOKS_WITH_CALENDAR,
   GMAIL_FORWARD_NOTE,
+  bookingEmailsHeldWords,
   bookingToolName,
   bookingToolOfLink,
   booksWithName,
@@ -271,7 +273,7 @@ const BtoBookingsHeld = ({ notices }: { notices: Notices }) => {
   return (
     <div className="bt-bookings-held" data-testid="bto-bookings-held">
       <p className="bt-fold-note">
-        <b>{notices.held === 1 ? "One booking email needs a look." : `${notices.held} booking emails need a look.`}</b>
+        <b>{bookingEmailsHeldWords(notices.held)}</b>
       </p>
       {notices.heldList.map((h) => {
         const meta = [h.tool, h.receivedAgo].filter(Boolean).join(" · ");
@@ -327,18 +329,23 @@ interface PartProps {
 /**
  * The calendar link, for what the owner books with: its box where that answer has a link to give; a sentence, and the
  * box behind one press, where the tool is known to give none; a sentence alone where there is nothing to read
- * (contracts calendarLinkShown and calendarLinkNote). A link typed or stored is always drawn.
+ * (contracts calendarLinkShown and calendarLinkNote). A link typed or stored is drawn under every answer but "I book
+ * by hand", which has none: there the sentence says that saving takes a kept link away, and the draft keeps the
+ * address, so an owner who picks another answer before saving finds it still in its box.
  */
 const BtoLinkPart = ({ f, stored, offers }: PartProps) => {
   const [asked, setAsked] = useState(false);
   const d = f.draft;
   const held = !!String(d.ical_url || "").trim() || !!stored;
-  const shown = asked ? "shown" : calendarLinkShown(d.with, held);
+  // The press behind "offered" shows the box for that answer only: it is not carried to an answer that has none.
+  const rule = calendarLinkShown(d.with, held);
+  const shown = rule === "offered" && asked ? "shown" : rule;
   const note = calendarLinkNote(d.with, offers);
   if (shown !== "shown")
     return (
       <p className="bt-fold-note" data-testid="bto-link-note">
         {note}
+        {d.with === BOOKS_BY_HAND && stored ? ` ${BOOKING_TOOL_WORDS.link.goes}` : ""}
         {shown === "offered" && !f.readOnly ? (
           <>
             {" "}

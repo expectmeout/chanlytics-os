@@ -111,7 +111,9 @@ const leadAndRest = (lead: string, rest = ""): Pick<CalendarSourceVM, "lead" | "
   return { lead, rest: after, sentence: after ? `${lead} ${after}` : lead };
 };
 
-const heldWords = (n: number) => (n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`);
+/** How many booking emails wait for a person, as a sentence: the status's lead and the fold's own line over its list. */
+export const bookingEmailsHeldWords = (n: number): string =>
+  n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`;
 
 /** What the receptionist does about open times with no link to read them from. */
 const noTimesWords = (bookingLink: boolean) =>
@@ -171,7 +173,7 @@ function emailsNeedYou(
       state: e.lastAt || times ? "attention" : "needs_you",
       tone: "warn",
       words: `${e.held} to look at`,
-      ...leadAndRest(heldWords(e.held)),
+      ...leadAndRest(bookingEmailsHeldWords(e.held)),
       times,
       next: TO_THE_ROW(e.held === 1 ? "Look at it" : "Look at them"),
     };
@@ -346,6 +348,8 @@ export const BOOKING_TOOL_WORDS = {
     title: "Calendar link",
     why: "So the receptionist can offer open times.",
     anyway: "I have a calendar link",
+    /** Under "I book by hand", where a link is kept: that answer has none, so saving it takes the link away. */
+    goes: "Saving this removes your calendar link.",
   },
   emails: {
     title: "Booking emails",
@@ -356,12 +360,16 @@ export const BOOKING_TOOL_WORDS = {
 /**
  * Whether the fold draws the calendar link's box for what the owner books with: `shown` where the answer has a link to
  * give; `offered` behind one press where the tool is known to give none (an owner may still keep a calendar of their
- * own); `hidden` where there is nothing to read (by hand, or nothing said yet). A link already typed or stored is
- * always shown: nothing kept is ever out of sight.
+ * own); `hidden` where there is nothing to read (by hand, or nothing said yet). A link already typed or stored is on
+ * screen under every answer but one. "I book by hand" is the owner's word that nothing is read: it has no box, and
+ * saving it takes a kept link away, which the fold says first (BOOKING_TOOL_WORDS.link.goes). It kept the box, and the
+ * link with it, and a link outranks the word on the next read (booksWithOf): an owner who said "by hand" and saved
+ * was told "Calendar link" (the review of 8 Oct 2026).
  */
 export function calendarLinkShown(withWhat: string, held: boolean): "shown" | "offered" | "hidden" {
+  if (withWhat === BOOKS_BY_HAND) return "hidden";
   if (held) return "shown";
-  if (!withWhat || withWhat === BOOKS_BY_HAND) return "hidden";
+  if (!withWhat) return "hidden";
   return bookingToolCalendar(withWhat) === "none" ? "offered" : "shown";
 }
 

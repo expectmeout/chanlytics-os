@@ -230,7 +230,7 @@ export { reviewsWindowOf, reviewsAreOnRecord, isReviewsLedgerDto } from "./repor
 export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./reports/review-report";
 export { ROUTE_KEYS } from "./route-keys.generated";
 export { SCHEMA_SETS } from "./schema-sets.generated";
-export { CALENDAR_SETTING_ROUTE, bookingEmailsStep, calendarSourceOf, calendarSourceFacts, forwardStillAsked, BOOKS_WITH_CALENDAR, BOOKS_BY_HAND, BOOKING_TOOL_WORDS, booksWithOptions, booksWithOf, booksWithName, calendarLinkShown, calendarLinkNote, BOOKED_NEEDS_A_LINK } from "./setup/calendar-source";
+export { CALENDAR_SETTING_ROUTE, bookingEmailsHeldWords, bookingEmailsStep, calendarSourceOf, calendarSourceFacts, forwardStillAsked, BOOKS_WITH_CALENDAR, BOOKS_BY_HAND, BOOKING_TOOL_WORDS, booksWithOptions, booksWithOf, booksWithName, calendarLinkShown, calendarLinkNote, BOOKED_NEEDS_A_LINK } from "./setup/calendar-source";
 export { capabilityStatus, CAPABILITY_KINDS } from "./setup/capabilities";
 export { serviceSuggestionsOf, checkChipsOf, SERVICE_SUGGESTION_TYPES } from "./setup/check-chips";
 export { googleAudienceWords, smsStateRow, connectionRows, CONNECTION_KINDS, CONNECTION_GROUP_WORDS } from "./setup/connections";

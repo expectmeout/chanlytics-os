@@ -566,6 +566,60 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
   // Which calls: two radios, the one chosen said so (the kit's track reads aria-checked).
   const checked = () => ["unanswered", "always"].map((m) => byTestId(tree, `setup-fw-mode-${m}`).props["aria-checked"]);
   assert.deepEqual(checked(), [true, false]);
+  // And a radio group's keys (the review of 8 Oct 2026: it said it was one, with a tab stop on each option and no
+  // arrows): one tab stop, on the one chosen; an arrow chooses the other and takes the focus there, wrapping.
+  const stops = () => ["unanswered", "always"].map((m) => byTestId(tree, `setup-fw-mode-${m}`).props.tabIndex);
+  const group = () => {
+    let hit = null;
+    walk(tree, (n) => {
+      if (!hit && n.props?.role === "radiogroup") hit = n;
+    });
+    return hit;
+  };
+  const focused = [];
+  const key = (name) => {
+    const e = { key: name, stopped: false, preventDefault: () => (e.stopped = true) };
+    e.currentTarget = { querySelector: (sel) => ({ focus: () => focused.push(sel) }) };
+    return e;
+  };
+  assert.equal(group().props["aria-label"], "Which calls");
+  assert.deepEqual(stops(), [0, -1]);
+  const right = key("ArrowRight");
+  group().props.onKeyDown(right);
+  tree = mount();
+  assert.equal(right.stopped, true, "the arrow is the group's, not the page's scroll");
+  assert.deepEqual(
+    [checked(), stops()],
+    [
+      [false, true],
+      [-1, 0],
+    ],
+  );
+  group().props.onKeyDown(key("ArrowRight"));
+  tree = mount();
+  assert.deepEqual(
+    [checked(), stops()],
+    [
+      [true, false],
+      [0, -1],
+    ],
+    "past the last is the first",
+  );
+  group().props.onKeyDown(key("ArrowUp"));
+  tree = mount();
+  assert.deepEqual(checked(), [false, true], "before the first is the last");
+  group().props.onKeyDown(key("ArrowLeft"));
+  tree = mount();
+  assert.deepEqual(focused, [
+    '[data-testid="setup-fw-mode-always"]',
+    '[data-testid="setup-fw-mode-unanswered"]',
+    '[data-testid="setup-fw-mode-always"]',
+    '[data-testid="setup-fw-mode-unanswered"]',
+  ]);
+  const other = key("a");
+  group().props.onKeyDown(other);
+  tree = mount();
+  assert.deepEqual([other.stopped, checked()], [false, [true, false]], "any other key is the page's");
   byTestId(tree, "setup-fw-mode-always").props.onClick();
   tree = mount();
   assert.deepEqual(checked(), [false, true]);

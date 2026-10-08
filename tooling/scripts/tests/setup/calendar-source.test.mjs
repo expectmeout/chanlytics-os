@@ -12,8 +12,10 @@ import { importSrc } from "../_source.mjs";
 
 const {
   CALENDAR_SETTING_ROUTE,
+  BOOKING_TOOL_WORDS,
   BOOKS_BY_HAND,
   BOOKS_WITH_CALENDAR,
+  bookingEmailsHeldWords,
   bookingEmailsStep,
   booksWithName,
   booksWithOf,
@@ -224,7 +226,9 @@ test("Connections' row is the one answer: its state, its words, its sentence and
   assert.deepEqual(broken.verb, { label: "Check the link", to: CALENDAR_SETTING_ROUTE, who: "owner" });
   const hand = row({ state: "none", by_hand: true });
   assert.equal(hand.state, "none");
-  assert.equal(hand.detail, "Booked by hand");
+  // Its own word is the row's state, said once: beside the name too, the row read "Booked by hand" twice.
+  assert.deepEqual([hand.detail, hand.stateWords], [null, "Booked by hand"]);
+  assert.deepEqual(hand.verb, { label: "Change", to: CALENDAR_SETTING_ROUTE, who: "owner" });
   // A read from before any of it (no calendar at all) is still a row, not connected.
   assert.equal(row(null).stateWords, "Not connected");
 });
@@ -242,7 +246,7 @@ test("what the owner books with: the picker's choices, what the stored settings 
   assert.equal(booksWithName(""), null);
 });
 
-test("the fold draws the calendar link's box only where the answer has a link to give, and never hides one it holds", () => {
+test("the fold draws the calendar link's box only where the answer has a link to give, and hides one it holds only under 'by hand', which takes it away", () => {
   assert.equal(calendarLinkShown("", false), "hidden");
   assert.equal(calendarLinkShown(BOOKS_BY_HAND, false), "hidden");
   assert.equal(calendarLinkShown(BOOKS_WITH_CALENDAR, false), "shown");
@@ -253,8 +257,19 @@ test("the fold draws the calendar link's box only where the answer has a link to
   // A tool not verified is asked, never told.
   assert.equal(bookingToolCalendar("setmore"), null);
   assert.equal(calendarLinkShown("setmore", false), "shown");
-  // Whatever the answer, a link typed or stored is on screen.
-  for (const w of ["", BOOKS_BY_HAND, "booksy"]) assert.equal(calendarLinkShown(w, true), "shown");
+  // A link typed or stored is on screen under every answer but one. "By hand" is the owner's word that nothing is
+  // read: it has no box, and saving it takes the link away, which the fold says first. It kept the box and the link,
+  // and a link outranks the word on the next read: the owner said "by hand", saved, and was told "Calendar link".
+  for (const w of ["", BOOKS_WITH_CALENDAR, "booksy", "square"]) assert.equal(calendarLinkShown(w, true), "shown");
+  assert.equal(calendarLinkShown(BOOKS_BY_HAND, true), "hidden");
+  assert.equal(BOOKING_TOOL_WORDS.link.goes, "Saving this removes your calendar link.");
+  // The emails held for a look, counted in one sentence: the status's lead and the fold's line over its list.
+  assert.equal(bookingEmailsHeldWords(1), "One booking email needs a look.");
+  assert.equal(bookingEmailsHeldWords(3), "3 booking emails need a look.");
+  assert.equal(
+    calendarSourceOf(facts({ tool: "booksy", emails: { ...WORKING, held: 3 } })).lead,
+    bookingEmailsHeldWords(3),
+  );
   assert.equal(
     calendarLinkNote("booksy", true),
     "Booksy offers no calendar link. The receptionist sends your booking link instead of naming open times.",
