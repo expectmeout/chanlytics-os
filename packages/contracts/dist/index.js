@@ -5333,6 +5333,11 @@ var ASK_CAPS = {
 };
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
 var ASK_UNDO_MS = 10 * 6e4;
+var ASK_CARD_FRESH_MS = DAY_MS;
+function askCardLapsed(p, nowMs) {
+  const made = typeof p.made_at === "string" ? Date.parse(p.made_at) : NaN;
+  return Number.isFinite(made) && nowMs - made > ASK_CARD_FRESH_MS;
+}
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var UUID = /^[0-9a-f-]{36}$/;
 function scopeFromRoute(page, param, label) {
@@ -7027,13 +7032,19 @@ function lifecycleStateOf(p) {
 // src/ask-proposals/spec.ts
 var PROPOSAL_WORDS = {
   cannotApprove: "This card cannot be approved from here.",
-  noUndo: "This one has no undo."
+  noUndo: "This one has no undo.",
+  /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
+  lapsed: "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now."
 };
 var asText = (v) => v == null ? "" : String(v);
 var rec = (v) => v && typeof v === "object" ? v : {};
 var decisionOf = (data) => {
   const id = rec(data).decision_id;
   return typeof id === "string" && id ? id : null;
+};
+var wasIn = (data, k) => {
+  const was = rec(rec(data).was);
+  return Object.prototype.hasOwnProperty.call(was, k) ? was[k] : void 0;
 };
 var idIn = (pl, k) => typeof pl?.[k] === "string" && pl[k] ? pl[k] : null;
 var refuseWith = (words3) => ({ refused: words3 });
@@ -7128,7 +7139,9 @@ var playbookChannelsSpec = {
   undo: {
     label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
     window: "ten_minutes",
-    record: (p) => ({ playbook_id: p.payload.playbook_id, was: p.payload.was }),
+    // The channels the route found when it wrote (its answer's `was`), the card's own reading where an older route
+    // answers none.
+    record: (p, data) => ({ playbook_id: p.payload.playbook_id, was: wasIn(data, "channels") ?? p.payload.was }),
     call: (u) => {
       const was = channelsIn(u.was);
       return was.length === 0 || !asText(u.playbook_id) ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: { channels: was } };
@@ -10161,11 +10174,16 @@ var personModeSpec = {
   undo: {
     label: () => "Set it back",
     window: "ten_minutes",
-    record: (p, data) => ({
-      contact_id: p.payload.contact_id,
-      mode: p.payload.previous ?? "inherit",
-      decision_id: decisionOf(data)
-    }),
+    // The mode the route found when it wrote (its answer's `was`; none is inherit), the card's own reading where an
+    // older route answers none.
+    record: (p, data) => {
+      const was = wasIn(data, "mode");
+      return {
+        contact_id: p.payload.contact_id,
+        mode: was === void 0 ? p.payload.previous ?? "inherit" : was ?? "inherit",
+        decision_id: decisionOf(data)
+      };
+    },
     call: (u) => ({
       route: "PUT contacts/[id]/receptionist",
       params: { id: asText(u.contact_id) },
@@ -10263,11 +10281,13 @@ var personDetailsSpec = {
   undo: {
     label: () => "Set it back",
     window: "ten_minutes",
-    // Each changed field as it was before the card: the route clears a field with an empty string, so one that held
-    // nothing is set back to nothing. One whose previous value the card does not carry is never cleared on a guess.
-    record: ({ payload: pl }) => {
-      const prev = rec(pl.previous);
+    // Each changed field as the route found it when it wrote (its answer's `was`), the card's own reading where an
+    // older route answers none: the route clears a field with an empty string, so one that held nothing is set back to
+    // nothing. One whose previous value neither carries is never cleared on a guess.
+    record: ({ payload: pl }, data) => {
       const changed = DETAIL_FIELDS.filter((k) => typeof pl[k] === "string");
+      const found = rec(rec(data).was);
+      const prev = changed.length > 0 && changed.every((k) => k in found) ? found : rec(pl.previous);
       if (!changed.length || changed.some((k) => !(k in prev))) return null;
       return { contact_id: pl.contact_id, ...Object.fromEntries(changed.map((k) => [k, asText(prev[k])])) };
     },
@@ -10346,8 +10366,11 @@ var policySpec = {
     label: () => "Set it back",
     window: "ten_minutes",
     // The events ledger keeps policy changes and hands back no row id, so this undo names none.
-    record: (p) => {
-      const prev = p.payload.previous ?? {};
+    // The row as the route found it when it wrote (its answer's `was`), the card's own reading where an older route
+    // answers none.
+    record: (p, data) => {
+      const found = rec(data).was;
+      const prev = found && typeof found === "object" ? found : p.payload.previous ?? {};
       return { class: p.payload.class, mode: prev.mode ?? null, min_confidence: prev.min_confidence ?? null };
     },
     call: (u) => !u.mode && typeof u.min_confidence !== "number" ? refuseWith("The previous setting is unknown; change it in Settings.") : { route: "PUT policies", body: policyBody(u.class, u.mode, u.min_confidence) },
@@ -37035,6 +37058,7 @@ export {
   ASK_ANSWER_CAPS,
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
+  ASK_CARD_FRESH_MS,
   ASK_CITATION_KINDS,
   ASK_CONTEXT_MAX_ROWS,
   ASK_CONTEXT_ROW_KINDS,
@@ -37922,6 +37946,7 @@ export {
   asPersonMode,
   asTenantId,
   askCallOutcome,
+  askCardLapsed,
   askIntent,
   askJump,
   askModelProfile,

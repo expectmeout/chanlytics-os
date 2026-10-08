@@ -380,9 +380,16 @@ export const refuse = (why: string): ProposalOutcome => ({
  * either (D7). A builder whose kind needs more than an operator refuses a member below it first, in its route's words
  * (`roleAtLeast`, `proposalBelowNeeds`).
  */
-export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo">): ProposalOutcome => {
+export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at">): ProposalOutcome => {
   const spec = PROPOSAL_SPECS[p.kind];
-  const proposal: AskProposal = { id: nextId(), ...p, needs: spec.needs, undo: spec.undo?.label(p) ?? null };
+  const proposal: AskProposal = {
+    id: nextId(),
+    ...p,
+    needs: spec.needs,
+    undo: spec.undo?.label(p) ?? null,
+    // When it was made: a card is approved while it is fresh (contracts askCardLapsed), never days on.
+    made_at: new Date().toISOString(),
+  };
   return {
     proposal,
     isError: false,

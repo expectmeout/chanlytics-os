@@ -1034,3 +1034,112 @@ test("the ledger writer: an undo that names a decision the database does not hav
     /decision: permission denied/,
   );
 });
+
+/* ---- a card that cannot act on a picture that has moved (the 8 October architecture review, R11) ---- */
+
+test("a card is approved while it is fresh: past a day nothing leaves the tab and it is asked for again; one that does not say when it was made is not held", async () => {
+  const now = Date.parse("2026-10-08T12:00:00Z");
+  const made = (hoursAgo) => new Date(now - hoursAgo * 3_600_000).toISOString();
+  const mode = (extra) => card("person_mode", { contact_id: P1, mode: "never", who: "Rosa" }, extra);
+
+  // Three days old: it was proposed against the person, the list and the setting as they stood then.
+  const old = tab();
+  assert.deepEqual(await commitProposal(old.win, mode({ made_at: made(72) }), old.client, now), {
+    ok: false,
+    message:
+      "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  });
+  assert.deepEqual(old.sent, [], "nothing was sent");
+  assert.deepEqual(old.events, [], "and the window was told nothing");
+
+  // Inside the day it goes, to the last hour of it.
+  for (const hours of [0, 1, 23.9]) {
+    const fresh = tab();
+    const r = await commitProposal(fresh.win, mode({ made_at: made(hours) }), fresh.client, now);
+    assert.equal(r.ok, true, `${hours} hours old`);
+    assert.equal(fresh.sent.length, 1);
+  }
+  // A card from before cards said when they were made, or one whose time cannot be read: nothing is refused on a guess.
+  for (const extra of [{}, { made_at: "not a time" }]) {
+    const t = tab();
+    assert.equal((await commitProposal(t.win, mode(extra), t.client, now)).ok, true, JSON.stringify(extra));
+  }
+});
+
+test("an undo puts back what was there when the route wrote, not what the card read when it was proposed; an older route's answer falls back to the card's own reading", async () => {
+  // Between a card and its Approve a teammate changed the same thing. The card still says what it read; the route's
+  // answer says what it found (`was`), and that is what Set it back restores.
+  const answering = (over) => (key) => envelope({ ...ANSWERS[key], ...over });
+
+  // A person's mode: the card read "auto", the route found "ask".
+  const a = tab(answering({ was: { mode: "ask" } }));
+  const mode = card("person_mode", { contact_id: P1, mode: "never", who: "Rosa", previous: "auto" });
+  assert.equal((await commitProposal(a.win, mode, a.client)).undo.mode, "ask");
+  // The route found no row of their own: back to the workspace's rule, whatever the card read.
+  const b = tab(answering({ was: { mode: null } }));
+  assert.equal((await commitProposal(b.win, mode, b.client)).undo.mode, "inherit");
+  // An older route answers no `was`: the card's own reading, as before.
+  const c = tab();
+  assert.equal((await commitProposal(c.win, mode, c.client)).undo.mode, "auto");
+
+  // A policy: the row as the route found it.
+  const p = tab(answering({ was: { mode: "veto", min_confidence: 0.6 } }));
+  const policy = card("policy", { class: "reply", mode: "ask", previous: { mode: "auto", min_confidence: null } });
+  assert.deepEqual((await commitProposal(p.win, policy, p.client)).undo, {
+    class: "reply",
+    mode: "veto",
+    min_confidence: 0.6,
+  });
+  const p0 = tab();
+  assert.deepEqual((await commitProposal(p0.win, policy, p0.client)).undo, {
+    class: "reply",
+    mode: "auto",
+    min_confidence: null,
+  });
+
+  // A person's name and address: each changed field as the route found it; a field it did not answer for leaves the
+  // card's reading in charge of all of them, never half of each.
+  const details = card("person_details", {
+    contact_id: P1,
+    who: "Rosa",
+    name: "Rosa Díaz",
+    email: "rosa@example.com",
+    previous: { name: "Rosa", email: "" },
+  });
+  const stored = { contact_id: P1, name: "Rosa Díaz", email: "rosa@example.com" };
+  const answersDetails = (was) => () => envelope({ ...stored, ...(was ? { was } : {}) });
+  const d = tab(answersDetails({ name: "Rosa D.", email: "rd@example.com" }));
+  assert.deepEqual((await commitProposal(d.win, details, d.client)).undo, {
+    contact_id: P1,
+    name: "Rosa D.",
+    email: "rd@example.com",
+  });
+  const half = tab(answersDetails({ name: "Rosa D." }));
+  assert.deepEqual((await commitProposal(half.win, details, half.client)).undo, {
+    contact_id: P1,
+    name: "Rosa",
+    email: "",
+  });
+  const none = tab(answersDetails(null));
+  assert.deepEqual((await commitProposal(none.win, details, none.client)).undo, {
+    contact_id: P1,
+    name: "Rosa",
+    email: "",
+  });
+
+  // A playbook's channels: what it went by when the route wrote.
+  const channels = card("playbook_channels", {
+    playbook_id: PB1,
+    name: "Win-back",
+    channels: ["whatsapp", "email"],
+    was: ["whatsapp"],
+  });
+  const saved = { id: PB1, name: "Win-back", state: "running" };
+  const k = tab(() => envelope({ ...saved, was: { channels: ["whatsapp", "sms"] } }));
+  assert.deepEqual((await commitProposal(k.win, channels, k.client)).undo, {
+    playbook_id: PB1,
+    was: ["whatsapp", "sms"],
+  });
+  const k0 = tab(() => envelope(saved));
+  assert.deepEqual((await commitProposal(k0.win, channels, k0.client)).undo, { playbook_id: PB1, was: ["whatsapp"] });
+});

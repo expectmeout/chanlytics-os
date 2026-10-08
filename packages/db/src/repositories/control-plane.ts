@@ -159,25 +159,36 @@ export async function personReplyMode(db: Db, tenantId: string, contactId: strin
  * Set or clear one person's receptionist mode. `null` removes the row, so the
  * person follows the workspace policy again. Insert and delete are owner-only
  * under RLS (00029); a forbidden insert raises, and the route decides the
- * role before getting here.
+ * role before getting here. Answers the mode the person had before this write, null when they followed the workspace
+ * policy: what an undo puts back (the row a delete took, or the row as it was read just before it was replaced).
  */
 export async function setPersonReplyMode(
   db: Db,
   tenantId: string,
   contactId: string,
   mode: string | null,
-): Promise<void> {
+): Promise<string | null> {
   if (mode === null) {
-    const { error } = await db
+    const { data, error } = await db
       .from("policies")
       .delete()
       .eq("tenant_id", tenantId)
       .eq("class", "reply")
       .eq("subject_type", "contact")
-      .eq("subject_id", contactId);
+      .eq("subject_id", contactId)
+      .select("mode");
     if (error) throw new Error(error.message);
-    return;
+    return data?.[0]?.mode ?? null;
   }
+  const { data: was, error: readError } = await db
+    .from("policies")
+    .select("mode")
+    .eq("tenant_id", tenantId)
+    .eq("class", "reply")
+    .eq("subject_type", "contact")
+    .eq("subject_id", contactId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
   const { error } = await db
     .from("policies")
     .upsert(
@@ -185,6 +196,7 @@ export async function setPersonReplyMode(
       { onConflict: "tenant_id,class,subject_type,subject_id" },
     );
   if (error) throw new Error(error.message);
+  return was?.mode ?? null;
 }
 
 /**

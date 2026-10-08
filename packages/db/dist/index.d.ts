@@ -38860,9 +38860,10 @@ declare function personReplyMode(db: Db$9, tenantId: string, contactId: string):
  * Set or clear one person's receptionist mode. `null` removes the row, so the
  * person follows the workspace policy again. Insert and delete are owner-only
  * under RLS (00029); a forbidden insert raises, and the route decides the
- * role before getting here.
+ * role before getting here. Answers the mode the person had before this write, null when they followed the workspace
+ * policy: what an undo puts back (the row a delete took, or the row as it was read just before it was replaced).
  */
-declare function setPersonReplyMode(db: Db$9, tenantId: string, contactId: string, mode: string | null): Promise<void>;
+declare function setPersonReplyMode(db: Db$9, tenantId: string, contactId: string, mode: string | null): Promise<string | null>;
 /**
  * Whether the receptionist may speak under the business's name on its own right now, with nobody reading it first (a
  * public reply): not while the workspace is paused (tenants.status: billing stopped it, or a person did), not once its

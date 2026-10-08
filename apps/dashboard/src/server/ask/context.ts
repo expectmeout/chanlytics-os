@@ -1,5 +1,5 @@
 import "server-only";
-import type { AskSurface, PageContext } from "@chanlytics/contracts";
+import { fenced, type AskSurface, type PageContext } from "@chanlytics/contracts";
 import { stableJson, type ReaderContext, type RowRef } from "../readers";
 import type { WorkspaceShape } from "../readers/shape";
 import {
@@ -90,11 +90,12 @@ export function clearContextCache(): void {
   kept.clear();
 }
 
+/** The page's data as the model reads it: fenced, since a page's rows carry customers' own words (contracts ai/fence.ts). */
 const block = (source: string, title: string, text: string): SearchResultBlock => ({
   type: "search_result",
   source,
   title,
-  content: [{ type: "text", text }],
+  content: [{ type: "text", text: fenced("record", text) }],
   citations: { enabled: false },
 });
 const size = (b: SearchResultBlock): number => b.source.length + b.title.length + b.content[0].text.length;

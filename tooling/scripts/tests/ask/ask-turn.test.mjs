@@ -15,6 +15,15 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+
+/**
+ * A tool's result as the model was sent it, read back: the tool's own JSON inside a fence (round.ts resultBlocks,
+ * cross-page.ts readBlock). Fails when it was sent bare.
+ */
+function fromRecord(sent) {
+  assert.ok(sent.startsWith("<record>\n") && sent.endsWith("\n</record>"), `fenced: ${String(sent).slice(0, 40)}`);
+  return JSON.parse(sent.slice("<record>\n".length, -"\n</record>".length));
+}
 import { rows } from "../_rows.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import {
@@ -408,7 +417,7 @@ test("a read, then the answer: the read runs for real, its rows enter the read s
     "the read's result goes back under the call's id",
   );
   assert.ok(
-    JSON.parse(second.at(-1).content[0].content).threads.some((t) => t.conversation_id === C1),
+    fromRecord(second.at(-1).content[0].content).threads.some((t) => t.conversation_id === C1),
     "with the rows the fake database holds",
   );
   assert.ok(
@@ -1626,7 +1635,7 @@ test("inbox.search in a turn (PR 4.5): the model searches for a word, reads a me
   );
   const result = s.requests[1].messages.at(-1).content[0];
   assert.deepEqual([result.tool_use_id, result.is_error], ["t-inbox.search", false]);
-  assert.deepEqual(JSON.parse(result.content), {
+  assert.deepEqual(fromRecord(result.content), {
     words: "parking",
     days: 30,
     shown: 2,
@@ -3227,7 +3236,7 @@ test("the day is read once a turn, each tool as its page reads it: today, inbox.
     "the newest hundred once, shared; the escalated one past it once, for the Inbox; the calls and the escalations once; and no tenant: the zone is the turn's",
   );
   const out = Object.fromEntries(
-    s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, JSON.parse(c.content)]),
+    s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, fromRecord(c.content)]),
   );
   const [longest] = out["t-today"].needs_you.rows;
   assert.equal(longest.route, `inbox/th-${longest.conversation_id}`, "a Today row says where it opens");
@@ -3357,7 +3366,7 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
     "the call under the workspace's own filter",
   );
   const out = Object.fromEntries(
-    s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, JSON.parse(c.content)]),
+    s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, fromRecord(c.content)]),
   );
   const text = out["t-text"];
   assert.deepEqual(
@@ -4868,7 +4877,7 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
       .at(-1)
       .messages.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
       .filter((c) => c.type === "tool_result")
-      .map((c) => [c.tool_use_id, JSON.parse(c.content)]),
+      .map((c) => [c.tool_use_id, fromRecord(c.content)]),
   );
   assert.deepEqual(
     out["t-workspace.settings"].channels,
@@ -5632,7 +5641,7 @@ test("the row the scope names rides in whole, read by its own tool, as data besi
     ],
     "the page, then the scope's row, the breakpoint on the last",
   );
-  assert.ok(JSON.parse(data[1].content[0].text).messages, "the thread, as inbox.thread reads it");
+  assert.ok(fromRecord(data[1].content[0].text).messages, "the thread, as inbox.thread reads it");
   assert.deepEqual(r.tools, [], "the model called nothing");
 });
 
@@ -6171,14 +6180,14 @@ test("the raw at the caps (a number for the pull request, not a limit: the Phase
 
   // Every read at its cap, as the model was sent it.
   const want = rawOf(s.requests);
-  const riding = (source) => JSON.parse(want.question.find((b) => b.source === source).content[0].text);
+  const riding = (source) => fromRecord(want.question.find((b) => b.source === source).content[0].text);
   assert.equal(riding("read://calls.list").calls.length, ASK_CAPS.calls, "a cross-page read: the calls");
   assert.equal(riding("read://inbox.list").threads.length, ASK_CAPS.threads, "a cross-page read: the held drafts");
   assert.equal(riding("read://inbox.thread").messages.length, ASK_CAPS.messages, "the scope's thread");
   const results = want.rounds
     .filter((m) => m.role === "user")
     .flatMap((m) => m.content)
-    .map((b) => JSON.parse(b.content));
+    .map((b) => fromRecord(b.content));
   const [thread, transcript] = [ASK_CAPS.messagesMore, ASK_CAPS.transcript];
   assert.deepEqual(
     results.map((x) => (x.messages ?? x.transcript).length),

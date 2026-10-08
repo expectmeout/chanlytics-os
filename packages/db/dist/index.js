@@ -3201,15 +3201,18 @@ async function personReplyMode(db, tenantId, contactId) {
 }
 async function setPersonReplyMode(db, tenantId, contactId, mode) {
   if (mode === null) {
-    const { error: error2 } = await db.from("policies").delete().eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId);
+    const { data, error: error2 } = await db.from("policies").delete().eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId).select("mode");
     if (error2) throw new Error(error2.message);
-    return;
+    return data?.[0]?.mode ?? null;
   }
+  const { data: was, error: readError } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId).maybeSingle();
+  if (readError) throw new Error(readError.message);
   const { error } = await db.from("policies").upsert(
     { tenant_id: tenantId, class: "reply", mode, subject_type: "contact", subject_id: contactId },
     { onConflict: "tenant_id,class,subject_type,subject_id" }
   );
   if (error) throw new Error(error.message);
+  return was?.mode ?? null;
 }
 async function workspaceAnswersOnItsOwn(db, tenantId) {
   const [tenant, billing] = await Promise.all([

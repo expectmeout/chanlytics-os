@@ -1351,7 +1351,8 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
   const before = { ...rowOf(K1) };
   let ctx = ctxFor(tables, { id: K1 });
   const out = await playbook.PUT.run(send("PUT", { channels: ["email", "whatsapp"] }), ctx);
-  assert.deepEqual(out, { id: K1, name: "Visit reminder", state: "running" });
+  // What it went by before this write rides back, for an undo that puts back what was there now.
+  assert.deepEqual(out, { id: K1, name: "Visit reminder", state: "running", was: { channels: ["whatsapp"] } });
   assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "in the product's order");
   assert.deepEqual({ ...rowOf(K1), channels: null }, { ...before, channels: null }, "nothing else of it moved");
   const written = ctx.supabase.seen.filter((s) => s.table === "playbooks" && s.op === "update").map((s) => s.values);

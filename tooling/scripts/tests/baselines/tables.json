@@ -1,7 +1,6 @@
 {
   "apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::rpc": 1,
-  "apps/dashboard/app/api/v1/contacts/[id]/details/route.ts::rpc": 4,
   "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/notes/decide/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/notes/done/route.ts::rpc": 1,

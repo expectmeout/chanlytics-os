@@ -66,7 +66,8 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
       const { error } = await updatePlaybook(ctx.supabase, id, { channels });
       if (error) throw playbookWriteError(error);
     }
-    return { id, name: p.name, state: p.state };
+    // What it went by before this write, for an undo: the channels as this request found them, never a card's copy.
+    return { id, name: p.name, state: p.state, was: { channels: kept } };
   }
   const v = await checkPlaybookInput(ctx, p.tenant_id, body, { ...p, channels: kept });
   const { error } = await updatePlaybook(ctx.supabase, id, {

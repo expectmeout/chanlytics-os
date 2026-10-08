@@ -487,9 +487,11 @@ test("an erasure hands the Ask scrub, the kept deliveries' scrub and the notes' 
   );
 });
 
-test("details: an operator where the person lives, a name or notes or both, trimmed, through the two doors; an erased person is a 404", async () => {
+test("details: an operator where the person lives, a name or notes or both, trimmed, through the two doors, the answer saying what the name was; an erased person is a 404", async () => {
   const doors = [];
   const rpcs = {
+    // The person as they stand before the name's door runs (people_list narrowed to them): what the answer says it was.
+    people_list: (a) => [{ id: a.p_contact_id, display_name: "Ada L.", email: null }],
     set_person_name: (a) => {
       doors.push(["name", a]);
       return { name: a.p_name || null };
@@ -520,7 +522,8 @@ test("details: an operator where the person lives, a name or notes or both, trim
     send("PUT", { name: "  Ada Lovelace  ", notes: " Sees Sofia " }),
     ctxFor(tables, { id: P2 }, rpcs),
   );
-  assert.deepEqual(out, { contact_id: P2, name: "Ada Lovelace", notes: "Sees Sofia" });
+  // What the name was rides back, for an undo that puts back what was there at this write; notes carry none.
+  assert.deepEqual(out, { contact_id: P2, name: "Ada Lovelace", notes: "Sees Sofia", was: { name: "Ada L." } });
   assert.deepEqual(doors, [
     ["name", { p_contact_id: P2, p_name: "Ada Lovelace" }],
     ["notes", { p_contact_id: P2, p_notes: "Sees Sofia" }],
@@ -532,7 +535,13 @@ test("details: an operator where the person lives, a name or notes or both, trim
 test("details: an email address is judged by the one normalizer before the door opens, stored in its spelling, cleared by an empty string, and the door's own refusal for a second person with it is a 409 in the owner's words", async () => {
   const doors = [];
   const taken = { code: "23505", message: "Another person here already has that address." };
+  let onFile = "old@example.com";
   const rpcs = {
+    // The person as they stand before the address's door runs: read after the address is judged, never before.
+    people_list: (a) => {
+      doors.push("read");
+      return [{ id: a.p_contact_id, display_name: null, email: onFile }];
+    },
     set_person_email: (a) => {
       doors.push(a);
       if (a.p_email === "taken@example.com") {
@@ -562,13 +571,22 @@ test("details: an email address is judged by the one normalizer before the door 
     });
   }
   assert.equal(doors.length, 0, "no door was opened for a refusal");
-  assert.deepEqual(await put({ email: "  Ana@Example.COM " }), { contact_id: P2, email: "ana@example.com" });
+  assert.deepEqual(await put({ email: "  Ana@Example.COM " }), {
+    contact_id: P2,
+    email: "ana@example.com",
+    was: { email: "old@example.com" },
+  });
   assert.deepEqual(
     doors,
-    [{ p_contact_id: P2, p_email: "ana@example.com" }],
-    "the door is handed the stored spelling, not the typed one",
+    ["read", { p_contact_id: P2, p_email: "ana@example.com" }],
+    "what it was is read first, then the door is handed the stored spelling, not the typed one",
   );
-  assert.deepEqual(await put({ email: "" }), { contact_id: P2, email: null }, "an empty string clears");
+  onFile = "ana@example.com";
+  assert.deepEqual(
+    await put({ email: "" }),
+    { contact_id: P2, email: null, was: { email: "ana@example.com" } },
+    "an empty string clears, and the answer says what it held",
+  );
   await assert.rejects(put({ email: "taken@example.com" }), (e) => {
     assert.equal(e.code, "conflict");
     assert.equal(e.status, 409);

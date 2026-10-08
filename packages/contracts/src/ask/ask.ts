@@ -17,7 +17,7 @@
  * without a model (ask-fast-paths.ts) and the settings a card may change (ask-settings-change.ts).
  */
 import type { SchemaSet } from "../shared/schema-sets";
-import { MIN_MS } from "../shared/time";
+import { DAY_MS, MIN_MS } from "../shared/time";
 import type { AskAnswer } from "./ask-answer";
 import type { AskCitation } from "./citations";
 import type { ProposalNeeds } from "../ask-proposals/spec";
@@ -184,6 +184,12 @@ export interface AskProposal {
    * route refuses a key it does not know, so such a tab records the deal and leaves the step.
    */
   step?: { body: string; due_on: string } | null;
+  /**
+   * When the card was made (ISO), set by its builder. A card is approved while it is fresh (askCardLapsed): what it
+   * would change was read then, and the list it sends to, the thread it answers and the setting it replaces all move.
+   * Absent on a card made before this, which is not held to it.
+   */
+  made_at?: string;
   /** Set once the person acted on the card. */
   outcome?: AskProposalOutcome | null;
 }
@@ -200,6 +206,19 @@ export interface AskProposalOutcome {
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */
 export const ASK_UNDO_MS = 10 * 60_000;
+
+/** How long a card may be approved after it was made: a day. Past it, it is asked for again and made from what is true then. */
+export const ASK_CARD_FRESH_MS = DAY_MS;
+
+/**
+ * Whether a card is too old to approve. A card left in a thread was approved days later against the list, the thread
+ * or the setting as it stood when it was proposed: a three-day-old broadcast card sent to today's audience under
+ * Monday's count. False for a card that does not say when it was made, or says it unreadably: nothing is refused on a guess.
+ */
+export function askCardLapsed(p: Pick<AskProposal, "made_at">, nowMs: number): boolean {
+  const made = typeof p.made_at === "string" ? Date.parse(p.made_at) : NaN;
+  return Number.isFinite(made) && nowMs - made > ASK_CARD_FRESH_MS;
+}
 
 export interface AskMessageVM {
   id: string;

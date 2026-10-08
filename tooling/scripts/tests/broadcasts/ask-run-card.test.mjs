@@ -322,10 +322,46 @@ const CARD_ROUTES = [
  * card names over the database the card's builder read -- the card's marks carried as route() carries them, and the
  * jobs the approval schedules on the service client -- answered as the server answers; the window the walk tells.
  */
+/**
+ * The approval's door over the tables in memory, as 00353 writes it (approve_broadcast): a run of the workspace that
+ * still waits is released for the moment given, its send job written when one is asked for, and the approval recorded
+ * as the member's, together; null, and nothing written, for a run that no longer waits.
+ */
+const approvalDoor = (tables) => ({
+  approve_broadcast: (a) => {
+    const run = tables.broadcasts.find(
+      (b) => b.id === a.p_broadcast_id && b.tenant_id === a.p_tenant_id && b.state === "pending_approval",
+    );
+    if (!run) return null;
+    Object.assign(run, { state: "scheduled", scheduled_for: a.p_send_at });
+    if (a.p_job)
+      (tables.jobs ??= []).push({
+        id: `job-${tables.jobs.length + 1}`,
+        tenant_id: a.p_tenant_id,
+        kind: "broadcast_send",
+        due_at: a.p_send_at,
+        payload: { ...a.p_job, broadcast_id: a.p_broadcast_id },
+      });
+    const decision = {
+      id: `decision-${(tables.decisions ??= []).length + 1}`,
+      tenant_id: a.p_tenant_id,
+      subject_type: "broadcast",
+      subject_id: a.p_broadcast_id,
+      verb: "send_broadcast",
+      actor_type: "user",
+      actor_user_id: USER,
+      payload: { ...a.p_decision, ...(a.p_via ? { via: a.p_via } : {}) },
+      undo_of: a.p_undo_of ?? null,
+    };
+    tables.decisions.push(decision);
+    return { decision_id: decision.id, undo_dropped: false };
+  },
+});
+
 function tabOver(tables) {
   const sent = [];
   const events = [];
-  const supabase = fakeDb(tables, {}, {});
+  const supabase = fakeDb(tables, {}, approvalDoor(tables));
   setServiceClient(supabase);
   const client = createApi({
     fetch: async (url, init) => {

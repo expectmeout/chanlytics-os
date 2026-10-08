@@ -9,11 +9,6 @@
     "branches": 34,
     "depth": 2
   },
-  "apps/dashboard/app/api/v1/contacts/[id]/details/route.ts::handle#1": {
-    "lines": 57,
-    "branches": 31,
-    "depth": 2
-  },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
     "lines": 174,
     "branches": 1,

@@ -25,7 +25,7 @@ export const PersonModeChange = z.object({
 export async function setPersonMode(ctx: RouteContext, contact: ContactRow, input: z.infer<typeof PersonModeChange>) {
   const id = contact.id;
   const m: Mode = input.mode;
-  await setPersonReplyMode(ctx.supabase, contact.tenant_id, id, m === "inherit" ? null : m);
+  const was = await setPersonReplyMode(ctx.supabase, contact.tenant_id, id, m === "inherit" ? null : m);
 
   // On the ledger as what it is: silencing or un-silencing the receptionist
   // for one person, with the mode in the payload.
@@ -38,6 +38,7 @@ export async function setPersonMode(ctx: RouteContext, contact: ContactRow, inpu
     { receptionist_mode: m },
   );
 
-  // The ledger row rides back so an undo can name it.
-  return { contact_id: id, mode: m === "inherit" ? null : m, decision_id: decisionId };
+  // The ledger row rides back so an undo can name it, and the mode the person had before this write (null: the
+  // workspace's own), so an undo puts back what was there now and not what a card read when it was proposed.
+  return { contact_id: id, mode: m === "inherit" ? null : m, decision_id: decisionId, was: { mode: was } };
 }
