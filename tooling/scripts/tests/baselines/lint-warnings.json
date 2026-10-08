@@ -302,7 +302,6 @@
     "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/surfaces/setup/first-run/phone.tsx": {
-    "jsx-a11y-x/label-has-associated-control": 1,
     "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/surfaces/setup/first-run/try.tsx": {

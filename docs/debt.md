@@ -234,7 +234,7 @@ inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     291
 source-text reads in tests          762
-lint warnings                       354   in 152 files, 59 of them exhaustive-deps
+lint warnings                       353   in 152 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      729   the shell included
 workspace route CSS, KB gzipped     146
 workspace pages' own JS, KB        1276   gzipped, beyond the route, summed over 14 pages
