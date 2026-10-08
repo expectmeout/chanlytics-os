@@ -8033,6 +8033,20 @@ export type Database = {
           why_it_fits: string
         }[]
       }
+      record_consent: {
+        Args: {
+          p_batch?: number
+          p_consent: string
+          p_contact_id: string
+          p_message_id?: string
+          p_note?: string
+          p_purpose: string
+          p_source: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       recording_opened: { Args: { p_call_id: string }; Returns: boolean }
       relay_events: { Args: { p_limit?: number }; Returns: number }
       release_conversation_control: {

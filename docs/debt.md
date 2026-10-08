@@ -233,7 +233,7 @@ as never                             13
 non-null assertions, x!             110
 index reads the compiler lets pass  473   in 126 files
 table names outside packages/db     471
-SQL functions outside packages/db   125   called by .rpc
+SQL functions outside packages/db   121   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
@@ -246,7 +246,7 @@ primitives outside the kit         1793   selectors naming 733 classes
 inline style props                  206   in 55 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     288
-source-text reads in tests          762
+source-text reads in tests          760
 lint warnings                       353   in 152 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      742   the shell included
 workspace route CSS, KB gzipped     148

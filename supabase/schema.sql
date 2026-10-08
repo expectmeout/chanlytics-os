@@ -16201,6 +16201,62 @@ COMMENT ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace 
 
 
 --
+-- Name: record_consent(uuid, text, text, text, text, uuid, integer, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text DEFAULT NULL::text, p_message_id uuid DEFAULT NULL::uuid, p_batch integer DEFAULT NULL::integer, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+  v_before text;
+  v_door   jsonb;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule): the decision below is theirs.
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_purpose is null or p_purpose not in ('conversational', 'marketing') then
+    raise exception 'record_consent: the answer is about their visit (conversational) or about offers (marketing)'
+      using errcode = '22023';
+  end if;
+  -- The person's workspace, and the answer they had before the door changes it: the history line says what it was.
+  select c.tenant_id, case when p_purpose = 'marketing' then c.marketing_consent else c.consent end
+    into v_tenant, v_before
+    from public.contacts c
+   where c.id = p_contact_id;
+  -- A stranger learns nothing (00027's rule); the door below says the same to anyone this let past.
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Contact not found.' using errcode = 'P0002';
+  end if;
+  if p_purpose = 'marketing' then
+    v_door := public.set_marketing_consent(v_tenant, p_contact_id, p_consent, p_source, p_note, null, p_message_id);
+  else
+    v_door := public.set_contact_consent(p_contact_id, p_consent, p_source, p_note, p_message_id);
+  end if;
+  -- The line the route used to write after the door, with the fields it wrote: the purpose only for offers, the
+  -- message only where one was named, the size of the batch only for an answer recorded for many at once.
+  return v_door || public.team_decision(
+    v_tenant, v_user, 'contact', p_contact_id, 'consent_change',
+    jsonb_build_object('consent', p_consent, 'source', p_source, 'note', p_note, 'previous', v_before)
+      || jsonb_strip_nulls(jsonb_build_object(
+           'purpose', case when p_purpose = 'marketing' then 'marketing' end,
+           'message_id', p_message_id,
+           'batch', p_batch)),
+    p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid) IS 'A member records a person''s answer and its line in their history together (00356): the purpose''s own door (set_contact_consent, or set_marketing_consent for offers), then the consent_change decision as theirs, in one transaction. The doors'' rules are unchanged and asked there; this decides none of them. Returns what the door returns with decision_id and undo_dropped. The edge and the yes page keep calling the doors themselves and write no decision.';
+
+
+--
 -- Name: record_workspace_created(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32337,6 +32393,15 @@ GRANT ALL ON FUNCTION public.reach_out_stale_sends(p_before timestamp with time 
 
 REVOKE ALL ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid) TO service_role;
 
 
 --

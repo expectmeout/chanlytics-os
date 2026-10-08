@@ -718,6 +718,19 @@ async function markContact(db, contactId, mark) {
     marked_at: stampOf(o.marked_at)
   };
 }
+function recordConsent(db, p) {
+  return db.rpc("record_consent", {
+    p_contact_id: p.contactId,
+    p_purpose: p.purpose,
+    p_consent: p.consent,
+    p_source: p.source,
+    ...p.note ? { p_note: p.note } : {},
+    ...p.messageId ? { p_message_id: p.messageId } : {},
+    ...p.batch ? { p_batch: p.batch } : {},
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+}
 
 // src/repositories/ingest.ts
 import {
@@ -4451,6 +4464,7 @@ export {
   recordCallNote,
   recordCarrierOptOut,
   recordCheck,
+  recordConsent,
   recordEchoAndPause,
   recordEmailNo,
   recordEmailStatus,

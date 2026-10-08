@@ -1,7 +1,5 @@
 {
-  "apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::rpc": 1,
-  "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/notes/decide/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/notes/done/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/notes/remove/route.ts::rpc": 1,
@@ -71,7 +69,6 @@
   "apps/dashboard/src/server/metrics/metrics.ts::rpc": 1,
   "apps/dashboard/src/server/people/consent-qr.ts": 1,
   "apps/dashboard/src/server/people/consent.ts": 1,
-  "apps/dashboard/src/server/people/consent.ts::rpc": 2,
   "apps/dashboard/src/server/people/deals.ts": 3,
   "apps/dashboard/src/server/people/erase-contact.ts": 4,
   "apps/dashboard/src/server/people/erase-contact.ts::rpc": 2,

@@ -347,6 +347,7 @@ export {
   erasureDigests,
   scrubPersonNotes,
   mergePeople,
+  recordConsent,
   resolvePerson,
   PERSON_FORGOTTEN,
   openDoubtsOf,
