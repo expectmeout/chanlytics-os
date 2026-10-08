@@ -346,7 +346,7 @@
   },
   "packages/contracts/src/setup/first-run-try.ts::firstRunTryOf#1": {
     "lines": 127,
-    "branches": 54,
+    "branches": 48,
     "depth": 1
   },
   "packages/contracts/src/setup/first-run.ts::firstRunOf#1": {
@@ -358,11 +358,6 @@
     "lines": 55,
     "branches": 39,
     "depth": 1
-  },
-  "packages/contracts/src/setup/setup-rows.ts::setupSteps#1": {
-    "lines": 59,
-    "branches": 31,
-    "depth": 2
   },
   "packages/contracts/src/shell/refusal.ts::refusalOf#1": {
     "lines": 58,

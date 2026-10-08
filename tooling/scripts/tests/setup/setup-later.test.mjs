@@ -237,6 +237,75 @@ test("an owner whose receptionist answers nowhere lands on the first run, once a
   }
 });
 
+test("the number the owner keeps is the member's too: read with their view, saved beside the rows they put off, and never dropped by a Later", async () => {
+  const before = wire.views;
+  wire.views = { views: { setup: { later: ["calendar"], phone: { way: "keep", number: "+13055550100" } } } };
+  try {
+    await setupOverride.apply();
+    assert.deepEqual(surfaceValue("setup").want, { way: "keep", number: "+13055550100" });
+    assert.equal(surfaceValue("setup").vm.forwardingOwed, true, "the rows are told: the phone step is not done");
+    // A row put off saves the whole view, the number kept with it: a save replaces the view.
+    await setupVerbs.later("team", true);
+    assert.deepEqual(saves().at(-1)[2], {
+      view: { later: ["calendar", "team"], phone: { way: "keep", number: "+13055550100" } },
+    });
+    // Said again, nothing is sent.
+    const sent = saves().length;
+    assert.deepEqual(await setupVerbs.want({ way: "keep", number: "+13055550100" }), { ok: true, message: "" });
+    assert.equal(saves().length, sent);
+    // Another number, at once on the page and then on the wire; a new number wants none, and the key leaves the view.
+    const moved = setupVerbs.want({ way: "move", number: "+13055550177" });
+    assert.deepEqual(surfaceValue("setup").want, { way: "move", number: "+13055550177" }, "shown at once");
+    assert.equal((await moved).ok, true);
+    assert.deepEqual(saves().at(-1)[2], {
+      view: { later: ["calendar", "team"], phone: { way: "move", number: "+13055550177" } },
+    });
+    assert.equal((await setupVerbs.want(null)).ok, true);
+    assert.deepEqual(saves().at(-1)[2], { view: { later: ["calendar", "team"] } });
+    assert.equal(surfaceValue("setup").vm.forwardingOwed, false);
+    // Refused: the page says what the member's view still holds.
+    wire.putOk = false;
+    const r = await setupVerbs.want({ way: "keep", number: "+13055550100" });
+    assert.equal(r.ok, false);
+    assert.equal(surfaceValue("setup").want, null, "not kept, so not said");
+  } finally {
+    wire.putOk = true;
+    wire.views = before;
+    await setupOverride.apply();
+  }
+});
+
+test("a quiet look reads Setup again for a step that waits, and one that fails changes nothing on screen", async () => {
+  await setupOverride.apply();
+  const before = surfaceValue("setup");
+  const was = wire.setup;
+  // What a waiting step waits for lands: the look brings it, with no word said.
+  wire.setup = { ...SETUP, business: { ...SETUP.business, services: 5 } };
+  try {
+    await setupVerbs.peek();
+    assert.equal(surfaceValue("setup").dto.business.services, 5, "what landed is on the page");
+    // The read fails (a phone back from sleep, a network that dropped): a failed READ puts the page's failed card up,
+    // and a failed LOOK must not, since the step is only waiting.
+    const fetchWas = w.fetch;
+    w.fetch = async (url, init) => {
+      if (String(url).includes("/api/v1/setup")) return refused(500, "internal", "no");
+      return fetchWas(url, init);
+    };
+    try {
+      const held = surfaceValue("setup");
+      await setupVerbs.peek();
+      assert.equal(surfaceValue("setup"), held, "what is drawn stands");
+      assert.notEqual(surfaceValue("setup"), null, "never the failed card over a step that waits");
+    } finally {
+      w.fetch = fetchWas;
+    }
+  } finally {
+    wire.setup = was;
+    await setupOverride.apply();
+    assert.equal(surfaceValue("setup").dto.business.services, before.dto.business.services);
+  }
+});
+
 // Was "the first run's helpers are published for the pages that draw it" (window.__firstRun = contracts' helpers). The
 // first run and Today's card import FIRST_RUN_HELPERS and FORWARDING_WORDS themselves now, so the surface publishes
 // neither; what it still hands the Settings JSX is its verbs, as the module's own object.

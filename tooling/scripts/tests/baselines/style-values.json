@@ -69,13 +69,6 @@
     "colour": 0,
     "blur": 0
   },
-  "apps/dashboard/src/legacy/styles/first-run.css": {
-    "font": 36,
-    "radius": 4,
-    "shadow": 3,
-    "colour": 0,
-    "blur": 0
-  },
   "apps/dashboard/src/legacy/styles/fleet.css": {
     "font": 10,
     "radius": 4,

@@ -292,6 +292,9 @@ export interface FirstRunWho {
 
 const rowOf = (vm: SetupVM, id: string): SetupRowVM | null => vm.rows.find((r) => r.id === id) ?? null;
 const stepDone = (vm: SetupVM, def: FirstRunStepDef): boolean =>
+  // A number the owner chose to keep or move is not done with a line that answers: its forwarding is still to be saved,
+  // or put off by name (Setup's `forwardingOwed`). Without it the step read as done from any tab that lost the choice.
+  !(def.key === "phone" && vm.forwardingOwed) &&
   def.needs.every((id) => {
     const r = rowOf(vm, id);
     // The test call is waited for until it came in, or the member skipped it: in the first run (TRY_SKIPPED, which

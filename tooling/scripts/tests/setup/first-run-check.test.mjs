@@ -88,12 +88,16 @@ const surface = (d, later = []) => ({
 });
 
 let param = null;
+// A move to another step is a pushed entry (`went`); a move within the step drawn replaces the address (`replaced`).
 const replaced = [];
+const went = [];
+/** Every move the page made, of either kind. */
+const moves = () => replaced.length + went.length;
 const page = () =>
   W.React.createElement(FirstRun, {
     param,
     onNavigate: (to, o) => {
-      if (o && o.replace) replaced.push(to);
+      (o && o.replace ? replaced : went).push(to);
     },
   });
 /**
@@ -274,7 +278,7 @@ test("a role that may not change the business goes on with Looks right and sends
     );
     byTestId(tree, "fr-onward").props.onClick();
     assert.deepEqual(sent, [], "nothing sent to a door that would refuse it");
-    assert.equal(replaced.at(-1), "start", "and the step goes on");
+    assert.equal(went.at(-1), "start/phone", "and the step goes on");
   } finally {
     W.canDo = was;
     delete W.__workspace;
@@ -283,12 +287,12 @@ test("a role that may not change the business goes on with Looks right and sends
 
 /* ------------------------------------ (D) moving between steps ------------------------------------ */
 
-test("(D) the step's heading takes focus when the step changes -- so a screen reader says where the owner is -- and not on the page's arrival", () => {
+test("(D) the step's heading takes focus when the step on screen changes -- so a screen reader says where the owner is -- and not on the page's arrival", () => {
   const focused = [];
   const was = globalThis.document.getElementById;
   globalThis.document.getElementById = (id) => (id === "fr-heading" ? { focus: (o) => focused.push(o) } : null);
   try {
-    let tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking" });
+    let tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
     tree = redraw();
     assert.deepEqual(focused, [], "arriving is not a move");
     assert.equal(
@@ -301,6 +305,34 @@ test("(D) the step's heading takes focus when the step changes -- so a screen re
     assert.deepEqual(focused, [{ preventScroll: true }], "the move: the heading, without jumping the page");
     redraw();
     assert.equal(focused.length, 1, "once a move");
+    // The move is the step drawn, never the address: the bare address draws the step the workspace is on, the same one.
+    param = null;
+    redraw();
+    assert.equal(focused.length, 1, "the same step at another address is no move");
+  } finally {
+    globalThis.document.getElementById = was;
+    delete W.__workspace;
+  }
+});
+
+test("(D) the heading takes focus when the step changes under ONE address: Looks right goes on from the bare address, where the button pressed is gone", () => {
+  const focused = [];
+  const was = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === "fr-heading" ? { focus: (o) => focused.push(o) } : null);
+  try {
+    // Check at the bare address, a fact still missing; its last fact lands and it stays on screen (the owner is on it).
+    let tree = draw({ sellsBy: "booking" });
+    tree = redraw();
+    setSurfaceValue("setup", surface(dto({ services: 2 })));
+    tree = redraw();
+    assert.equal(textOf(byTestId(tree, "fr-heading")), "Here's what we found", "Check stays while the owner is on it");
+    assert.deepEqual(focused, [], "nothing on screen moved");
+    byTestId(tree, "fr-onward").props.onClick();
+    assert.equal(replaced.at(-1), "start/business", "the bare address being left is named for its step");
+    assert.equal(went.at(-1), "start/phone", "and the way on is a new entry, named for the step it opens");
+    tree = redraw();
+    assert.equal(byTestId(tree, "first-run").props["data-step"], "phone", "the phone step, drawn in Check's place");
+    assert.deepEqual(focused, [{ preventScroll: true }], "the step changed under one address: the heading has focus");
   } finally {
     globalThis.document.getElementById = was;
     delete W.__workspace;
@@ -316,17 +348,17 @@ test("(D) a move while a row holds typing never saved asks first: Stay keeps the
     tree = redraw();
     typeInto(tree, "website", "harbor-moving.example");
     tree = redraw();
-    const before = replaced.length;
+    const before = moves();
     byTestId(tree, "fr-onward").props.onClick();
     tree = redraw();
     const words = FIRST_RUN_HELPERS.words.leave;
-    assert.equal(replaced.length, before, "nothing moved");
+    assert.equal(moves(), before, "nothing moved");
     assert.match(textOf(byTestId(tree, "fr-leave-confirm")), new RegExp(words.question.replace("?", "\\?")));
     assert.match(textOf(byTestId(tree, "fr-leave-confirm")), new RegExp(words.detail));
     press(byTestId(tree, "fr-leave-no"));
     tree = redraw();
     assert.equal(byTestId(tree, "fr-leave-confirm"), null);
-    assert.equal(replaced.length, before, "Stay: still here");
+    assert.equal(moves(), before, "Stay: still here");
     // The Rail's step, and Finish later, ask the same.
     byTestId(tree, "fr-later").props.onClick();
     tree = redraw();
@@ -336,7 +368,7 @@ test("(D) a move while a row holds typing never saved asks first: Stay keeps the
     byTestId(tree, "fr-onward").props.onClick();
     tree = redraw();
     press(byTestId(tree, "fr-leave-yes"));
-    assert.equal(replaced.length, before + 1, "Yes: the move it asked about");
+    assert.equal(moves(), before + 1, "Yes: the move it asked about");
 
     // A save on its way is not "without saving": asked in other words, and never as a danger.
     tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
@@ -375,9 +407,9 @@ test("(D) Continue pressed while a choice of how customers buy waits for the key
 test("(D) with nothing typed, a move goes at once: nothing is asked", () => {
   try {
     const tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
-    const before = replaced.length;
+    const before = moves();
     byTestId(tree, "fr-onward").props.onClick();
-    assert.equal(replaced.length, before + 1);
+    assert.equal(moves(), before + 1);
     assert.equal(byTestId(redraw(), "fr-leave-confirm"), null);
   } finally {
     delete W.__workspace;
@@ -470,7 +502,10 @@ test("at what the profile keeps, no chip that is off is offered: the ones on sta
   const sent = saving();
   const many = Array.from({ length: PROFILE_LIMITS.services - 1 }, (_, i) => ({ name: `Service ${i + 1}` }));
   const tree = draw({ profile: { ...HARBOR, services: [...many, { name: "Packing" }] } });
-  const drawn = all(byTestId(tree, "fr-chips-services"), (n) => n.props && n.props["aria-pressed"] !== undefined);
+  const drawn = all(
+    byTestId(tree, "fr-chips-services"),
+    (n) => typeof n.type === "string" && n.props && n.props["aria-pressed"] !== undefined,
+  );
   assert.deepEqual(drawn.map(textOf), ["Packing"]);
   assert.equal(textOf(byTestId(tree, "fr-chips-services-full")), profileRefusal("services"));
   press(chip(tree, "services", "Packing"));
@@ -594,10 +629,10 @@ test("Looks right is held with the facts row's own sentence until the step is do
     assert.equal(onward.props["aria-disabled"], true);
     assert.equal(onward.props["aria-describedby"], "fr-held");
     assert.equal(textOf(byTestId(tree, "fr-held")), "Still missing: services.");
-    const before = replaced.length;
+    const before = moves();
     onward.props.onClick();
     assert.deepEqual(sent, []);
-    assert.equal(replaced.length, before, "and goes nowhere");
+    assert.equal(moves(), before, "and goes nowhere");
   } finally {
     delete W.__workspace;
   }
@@ -609,15 +644,16 @@ test("Looks right, the step done, sends the answer shown where none is stored an
     const done = dto({ services: 2 });
     let tree = draw({ setup: done, at: "business" });
     assert.equal(byTestId(tree, "fr-held"), null);
-    const before = replaced.length;
+    const before = went.length;
     byTestId(tree, "fr-onward").props.onClick();
     await settle();
     assert.deepEqual(sent, [{ sells_by: "booking" }], "they book an appointment, as Check showed");
-    assert.equal(replaced.length, before + 1);
-    assert.equal(replaced.at(-1), "start");
+    assert.equal(went.length, before + 1);
+    assert.equal(went.at(-1), "start/phone", "on to the phone step, a new entry");
     tree = draw({ setup: done, at: "business", sellsBy: "proposal" });
     byTestId(tree, "fr-onward").props.onClick();
-    assert.equal(replaced.at(-1), "start");
+    assert.equal(went.length, before + 2);
+    assert.equal(went.at(-1), "start/phone");
     assert.equal(sent.length, 1, "an answer stored is not sent again");
   } finally {
     delete W.__workspace;

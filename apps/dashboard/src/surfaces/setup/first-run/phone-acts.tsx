@@ -8,6 +8,7 @@ import type { RefObject } from "react";
 import {
   areaCodeOf,
   forwardingCarrierOf,
+  KEEP_ROW,
   type FIRST_RUN_PHONE_WORDS,
   type FirstRunPhoneVM,
 } from "@chanlytics/contracts";
@@ -136,6 +137,46 @@ export async function withMe(k: PhoneActs): Promise<void> {
 }
 
 /**
+ * The number kept or moved, said to the member's saved view before the plan starts or the number is bought (surface.ts
+ * `want`), so its forwarding is asked for from any tab: the choice was the tab's alone, and a reload or another tab read
+ * the step as done once the receptionist's own number answered. A new number wants none. A save refused holds nothing
+ * up: the tab still has the choice, as it always did.
+ */
+const keepWant = (k: PhoneActs): Promise<unknown> =>
+  setupVerbs.want(k.ph.way !== "new" && k.ph.number ? { way: k.ph.way, number: k.ph.number } : null);
+
+/**
+ * The code, or the number to forward to, copied for the phone it is typed on: an iPhone dials no code from a link, and a
+ * desk has nothing to dial with. A browser that will not copy (no clipboard on an insecure page, or a refusal) says so.
+ */
+export async function copyCode(k: PhoneActs, text: string): Promise<void> {
+  try {
+    if (typeof navigator === "undefined" || !navigator.clipboard) throw new Error("no clipboard");
+    await navigator.clipboard.writeText(text);
+    k.flash({ tone: "ok", msg: <>{k.W.copied}</> });
+  } catch {
+    k.flash({ tone: "warn", msg: <>{k.W.notCopied}</> });
+  }
+}
+
+/**
+ * The forwarding put off from the questions: Setup's own Later on the number kept, said with what it means, then on to
+ * where the workspace is. The row stays on the phone step with its Undo.
+ */
+export async function putOff(k: PhoneActs): Promise<void> {
+  if (k.busy) return;
+  k.setBusy(true);
+  const r = await setupVerbs.later(KEEP_ROW, true);
+  k.setBusy(false);
+  if (!r.ok) {
+    k.flash(refusalToast(r, k.W.notForwarded));
+    return;
+  }
+  k.flash({ tone: "info", msg: <>{k.W.putOffSaid}</> });
+  k.go("start");
+}
+
+/**
  * The step's one coral button. The number starts the plan (maySpend): by checkout, which takes no trial here, or, on a
  * free trial, by starting its plan now. Either way the choice waits in the tab, and the buy goes on once the plan lets it.
  */
@@ -154,6 +195,8 @@ export async function press(k: PhoneActs): Promise<void> {
     // The step's own address, so it stays on screen once its line answers.
     k.go("start/phone");
     k.setBusy(true);
+    // Before checkout, which leaves the page: a save still out would be dropped with it.
+    await keepWant(k);
     const r = cta.act === "plan" ? await B.checkout("start") : await B.startNow();
     k.setBusy(false);
     if (!r.ok) {
@@ -164,6 +207,7 @@ export async function press(k: PhoneActs): Promise<void> {
   }
   if (!canDo("disconnect")) return;
   k.setChoice(next);
+  void keepWant(k);
   k.go("start/phone");
 }
 

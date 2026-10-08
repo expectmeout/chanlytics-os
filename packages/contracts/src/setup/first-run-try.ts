@@ -11,7 +11,7 @@
 import { formatPhoneDisplay, normalizePhone, samePhone, whyNotAHandoff } from "../shared/phone";
 import { forwardingTestOpen } from "../voice/forwarding";
 import type { LiveCallVM } from "../voice/live";
-import { forwardedLineOf, type SetupDto } from "./setup";
+import { forwardedLineOf, keptPhoneKind, type SetupDto } from "./setup";
 import { MIN_MS } from "../shared/time";
 import { mmss } from "../shared/clock";
 
@@ -32,6 +32,12 @@ export interface FirstRunTryVM {
   number: string | null;
   /** A kept number that forwards: the test proves the forwarding. */
   forwarded: boolean;
+  /**
+   * The number as a press that dials it, for a phone in the hand: its words and its `tel:` address. Null where the
+   * number kept is a mobile's (its saved forwarding names a mobile company): that phone cannot call itself, and the
+   * page it would be pressed on is most likely open on it.
+   */
+  dial: { label: string; tel: string } | null;
   /** "Ask Chanlytics for help" (a person sets the forwarding up with them): only for a kept number. */
   help: string | null;
   /**
@@ -73,6 +79,15 @@ export interface FirstRunTryVM {
 
 export const FIRST_RUN_TRY_WORDS = {
   listenForwarded: "Call your number from your cell. Don't pick up.",
+  /**
+   * A number kept on a mobile, or on a phone the saved forwarding does not name as a landline's or an office's: the
+   * owner's cell may be the very phone that rings, and a phone cannot call itself.
+   */
+  listenForwardedOther: "Call your number from another phone. Don't pick up.",
+  leadOther:
+    "A phone can't call itself, so use a second one or ask someone to call. Ask what a customer would, like “Are you open on Sunday?”",
+  routeOther: (kept: string) => `Another phone calls ${kept} → nobody picks up → your receptionist answers`,
+  dial: (number: string) => `Call ${number}`,
   listenOwn: "Call your receptionist from your cell.",
   lead: "Ask what a customer would, like “Are you open on Sunday?”",
   listening: "Listening for your call",
@@ -144,6 +159,40 @@ export interface FirstRunTryInput {
   nowMs: number;
 }
 
+/** Which phone rings at a number kept (setup.ts keptPhoneKind); null where the receptionist's own number is called. */
+type KeptRings = ReturnType<typeof keptPhoneKind>;
+
+/**
+ * The number as a press that dials it, for a phone in the hand. None where the number kept rings a mobile: that phone
+ * cannot call itself, and the page the press is on is most likely open on it.
+ */
+function dialOf(toCall: string | null, shown: string | null, rings: KeptRings): FirstRunTryVM["dial"] {
+  return toCall && shown && rings !== "mobile"
+    ? { label: FIRST_RUN_TRY_WORDS.dial(shown), tel: `tel:${toCall}` }
+    : null;
+}
+
+/**
+ * What listening says of the phone to call from: the owner's cell for the receptionist's own number and for an office
+ * phone system's; another phone for any other number kept, since the cell may be the very phone that rings there.
+ */
+function listenWordsOf(
+  rings: KeptRings,
+  shown: string | null,
+  quiet: boolean,
+): { heading: string; lead: string; route: string | null } {
+  const W = FIRST_RUN_TRY_WORDS;
+  const number = shown ?? "";
+  const said =
+    rings === null
+      ? { heading: W.listenOwn, lead: W.lead, route: null }
+      : rings === "office"
+        ? { heading: W.listenForwarded, lead: W.lead, route: W.route(number) }
+        : { heading: W.listenForwardedOther, lead: W.leadOther, route: W.routeOther(number) };
+  // Nothing after three minutes (V7): the heading asks why, and the route a call takes is still said.
+  return quiet ? { heading: W.quietHeading, lead: "", route: said.route } : said;
+}
+
 export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): FirstRunTryVM {
   const W = FIRST_RUN_TRY_WORDS;
   const voice = dto.channels.voice;
@@ -154,19 +203,19 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
   // Forwarding is said to work only once a call proved it (the webhook marks it inside the test window).
   const proven = forwarded && fw!.forwarding_state === "verified";
   const shown = formatPhoneDisplay(kept ?? own);
-  const skip = { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway };
   const f0 = fw?.forwarding ?? null;
   const openTest = fw && f0 && fw.forwarding_state !== "verified" && !forwardingTestOpen(f0, nowMs) ? fw.id : null;
   const base = {
     number: shown,
     forwarded,
+    dial: dialOf(kept ?? own, shown, keptPhoneKind(fw)),
     help: forwarded ? W.help : null,
     openTest,
     listening: null,
     causes: [],
     call: null,
     transfer: null,
-    skip,
+    skip: { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway },
   };
   if (!own) return { ...base, stage: "rows", heading: "", lead: "" };
 
@@ -178,19 +227,19 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
     inbound.find((c) => (c.startedAtMs ?? 0) >= since - TRY_SLACK_MS) ?? (tested ? (inbound[0] ?? null) : null);
 
   if (!call) {
-    const f = fw?.forwarding ?? null;
-    const open = !!f && fw!.forwarding_state !== "verified" && forwardingTestOpen(f, nowMs);
-    const left = open && f.test_until ? Math.max(1, Math.ceil((Date.parse(f.test_until) - nowMs) / MIN_MS)) : null;
+    const open = !!f0 && fw!.forwarding_state !== "verified" && forwardingTestOpen(f0, nowMs);
+    const left = open && f0.test_until ? Math.max(1, Math.ceil((Date.parse(f0.test_until) - nowMs) / MIN_MS)) : null;
     const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
+    const said = listenWordsOf(keptPhoneKind(fw), shown, quiet);
     return {
       ...base,
       stage: quiet ? "quiet" : "listen",
-      heading: quiet ? W.quietHeading : forwarded ? W.listenForwarded : W.listenOwn,
-      lead: quiet ? "" : W.lead,
+      heading: said.heading,
+      lead: said.lead,
       listening: {
         sentence: quiet ? W.stillListening : W.listening,
         detail: left !== null ? W.listeningWindow(left) : W.listeningDetail,
-        route: forwarded ? W.route(shown ?? "") : null,
+        route: said.route,
       },
       causes: quiet
         ? forwarded

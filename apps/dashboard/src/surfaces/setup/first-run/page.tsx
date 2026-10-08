@@ -7,7 +7,12 @@
  * stored: the step is worked out from Setup's view model on every draw.
  *
  * Drawn by the frame INSTEAD of its chrome (app-shell.jsx, the start route, as it draws the shared viewer), so the page is
- * the whole screen; its App Router page is `app/(os)/w/[workspace]/start/[[...param]]/page.tsx`.
+ * the whole screen; its App Router page is `app/(os)/w/[workspace]/start/[[...param]]/page.tsx`. Its controls are the
+ * kit's (the button, the quiet link, the panel, the face, the record kit's field and choice), on the page's own light.
+ * The button, the link, the panel and the face are drawn by the kit's CLASSES on plain elements, as Setup's rows are,
+ * and not by its components: importing those four here made the bundler emit a second copy of a chunk four other pages
+ * share (13 KB each, measured 7 Oct 2026). They become the components when the surface's kit step takes `setup` out of
+ * the lint's pending list and the chunk is looked at with it.
  *
  * The business step is Find while an owner can link a listing (first-run.ts `find`): what Google has for the business,
  * found already, instead of the step's rows. Setup's Google row opens it (the one finder). After Find it is Check
@@ -19,10 +24,15 @@
 import { useRef, useState, type RefObject, type ReactNode } from "react";
 import {
   FIRST_RUN_HELPERS,
+  FIRST_RUN_ROUTE,
+  firstRunStepOf,
+  firstRunStepRoute,
   type FirstRunLiveVM,
   type FirstRunPhoneVM,
+  type FirstRunStepKey,
   type FirstRunTryVM,
   type FirstRunVM,
+  type FirstRunWho,
 } from "@chanlytics/contracts";
 import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
 import type { LiveSurface } from "../../live/surface";
@@ -31,6 +41,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { recFolds } from "../../kit/record/registry";
 import { canDo, refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { SetupRows } from "../rows/rows";
 import { SetupTry } from "../rows/try";
@@ -38,9 +49,17 @@ import { businessPart, businessTabSave } from "../shell";
 import { setupVerbs, type SetupSurface } from "../surface";
 import { FrCheck } from "./check";
 import { FrFind } from "./find";
-import { useBusinessTabRedraw, useHeadingFocus, useLanded, usePhoneChoice, useTryClock } from "./hooks";
+import {
+  useBusinessTabRedraw,
+  useHeadingFocus,
+  useLanded,
+  usePhoneChoice,
+  useTryClock,
+  useWaitingLook,
+  type Waits,
+} from "./hooks";
 import { alertEmails, brainOf, cardInputs, sellsByAnswer, sendAnswer, workspaceNow } from "./inputs";
-import { returnedFromStripe, trySince as trySinceKept, type KeptPhoneChoice } from "./memory";
+import { choiceFromWant, returnedFromStripe, trySince as trySinceKept, type KeptPhoneChoice } from "./memory";
 import { FrCard, FrLive, FrRail } from "./parts";
 import { FrPhone } from "./phone";
 import type { SettledEntry } from "./settle";
@@ -50,7 +69,7 @@ const W = FIRST_RUN_HELPERS.words;
 
 interface FirstRunProps {
   param?: string | null;
-  /** A move: pushed, or the address's own replace (`replace`), which Back leaves the first run from. */
+  /** A move: pushed, or the address's own replace (`replace`), for a move that stays on the step drawn. */
   onNavigate: (to: string, opts?: { replace?: boolean }) => void;
 }
 
@@ -68,6 +87,8 @@ interface StepView {
   lv: FirstRunLiveVM | null;
   phoneDrawn: boolean;
   tryDrawn: boolean;
+  /** The owner's choice on the phone step: the tab's, else the number their saved view says they keep or move. */
+  choice: KeptPhoneChoice | null;
 }
 
 /** Holds across draws, as React keeps a ref: whether Check and Try it are on screen, and when Try it opened. */
@@ -76,6 +97,16 @@ interface Stays {
   onTry: RefObject<boolean>;
   trySince: RefObject<number | null>;
 }
+
+/**
+ * Who is looking, for Find: whoever may set the workspace up (an owner, or the partner who brought it), by the role gate
+ * (View-as included), and what the business goes by.
+ */
+const lookerOf = (S: SetupSurface): FirstRunWho => ({
+  owner: canDo("settings"),
+  receptionistName: S.dto.business.name,
+  workspaceName: (workspaceNow() || { name: null }).name || null,
+});
 
 /**
  * The step on screen. Check stays on screen while the owner is on it: its step is done the moment its last fact lands (a
@@ -94,13 +125,7 @@ function stepViewOf(o: {
 }): StepView {
   const { S, param, stays, phoneChoice, live, read } = o;
   const F = FIRST_RUN_HELPERS;
-  // Who is looking, for Find: whoever may set the workspace up (an owner, or the partner who brought it), by the role
-  // gate (View-as included), and what the business goes by.
-  const who = {
-    owner: canDo("settings"),
-    receptionistName: S.dto.business.name,
-    workspaceName: (workspaceNow() || { name: null }).name || null,
-  };
+  const who = lookerOf(S);
   const asked = F.of(S.vm, param, who);
   const fr =
     !param && stays.onCheck.current && asked.shown.key !== "business"
@@ -110,13 +135,16 @@ function stepViewOf(o: {
         : asked;
   stays.onCheck.current = !!fr.check;
   const key = fr.shown.key;
+  // The tab that made the choice may be gone (a reload, another device, checkout's way back): the member's saved view
+  // still says which number they keep or move, and the step asks for its forwarding from there.
+  const choice = phoneChoice ?? choiceFromWant(S.want);
   // The phone step as contracts say it over Setup and the owner's choice (first-run-phone.ts); `rows` is Setup's own.
   const ph =
     key === "phone"
       ? F.phone({
           dto: S.dto,
           vm: S.vm,
-          choice: phoneChoice,
+          choice,
           returned: returnedFromStripe(phoneChoice),
           nowMs: Date.now(),
         })
@@ -140,7 +168,19 @@ function stepViewOf(o: {
     key === "live"
       ? F.live({ dto: S.dto, emails: alertEmails(cfgNow), business: S.dto.business.name, owner: canDo("settings") })
       : null;
-  return { fr, ph, tr, lv, phoneDrawn: !!ph && ph.stage !== "rows", tryDrawn };
+  return { fr, ph, tr, lv, phoneDrawn: !!ph && ph.stage !== "rows", tryDrawn, choice };
+}
+
+/** The phone step's stages that wait on Setup's read (the plan Stripe confirms, the number on its way). */
+const PHONE_WAITS: readonly string[] = ["starting", "buying", "getting"];
+/** Try it's stages that wait on a call. */
+const TRY_WAITS: readonly string[] = ["listen", "quiet", "call"];
+
+/** What the step drawn waits on from outside the page, for the look it takes at its own pace (hooks.tsx). */
+function waitsOf(v: StepView | null): Waits {
+  if (!v) return null;
+  if (v.tryDrawn && v.tr && TRY_WAITS.includes(v.tr.stage)) return "call";
+  return v.phoneDrawn && v.ph && PHONE_WAITS.includes(v.ph.stage) ? "setup" : null;
 }
 
 /** The step's heading and the sentence under it: the phone step's, Try it's or Live's while each draws its own. */
@@ -166,7 +206,7 @@ function stepFoot(o: { v: StepView; go: (to: string) => void; onward: () => void
   return (
     <div className="fr-foot">
       {back ? (
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(back)} data-testid="fr-back">
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => go(back)} data-testid="fr-back">
           {W.back}
         </button>
       ) : (
@@ -178,14 +218,15 @@ function stepFoot(o: { v: StepView; go: (to: string) => void; onward: () => void
         </span>
       ) : null}
       {lv && lv.finish.note ? (
-        <span className="fr-live-note" data-testid="fr-live-note">
+        <span className="fr-foot-note" data-testid="fr-live-note">
           {lv.finish.note}
         </span>
       ) : null}
       {fr.onward ? (
         <button
           type="button"
-          className="fr-onward"
+          className="btn btn-lg btn-primary fr-go"
+
           onClick={onward}
           // Held, it stays in reach and says why beside it, as a gated act does: never `disabled`, which lets go of focus.
           aria-disabled={fr.onward.held ? true : undefined}
@@ -220,23 +261,30 @@ function tops(o: {
           Chanlytics
         </span>
         <FrRail fr={fr} go={go} label={W.title} />
-        <button type="button" className="fr-later" onClick={() => leave("today")} data-testid="fr-later">
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => leave("today")} data-testid="fr-later">
           {W.later}
         </button>
       </header>
       <div className="fr-phone">
         <div className="fr-phone-top">
           <span data-testid="fr-phone-line">{fr.phoneLine}</span>
-          <button type="button" className="fr-later" onClick={() => leave("today")}>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => leave("today")}>
             {W.laterShort}
           </button>
         </div>
         <div className="fr-bar" aria-hidden="true">
           <span style={{ width: `${fr.progress}%` }} />
         </div>
-        <button type="button" className="fr-strip" aria-expanded={cardOpen} onClick={toggleCard} data-testid="fr-strip">
-          <span className="fr-card-av" aria-hidden="true">
-            {card.initials}
+        <button
+          type="button"
+          className="btn btn-ghost fr-strip"
+
+          aria-expanded={cardOpen}
+          onClick={toggleCard}
+          data-testid="fr-strip"
+        >
+          <span className="face face-sm" aria-hidden="true">
+            <span>{card.initials}</span>
           </span>
           <span className="fr-strip-words">{card.strip}</span>
           <Icon name="chevron-down" size={12} />
@@ -280,9 +328,44 @@ interface PageActs {
   onward: () => void;
 }
 
+/** The step an address of the first run names: `start/find` is the business step's, the bare address nobody's. */
+function stepOfAddress(to: string): FirstRunStepKey | null {
+  const param = to.startsWith(`${FIRST_RUN_ROUTE}/`) ? to.slice(FIRST_RUN_ROUTE.length + 1) : null;
+  return param === "find" ? "business" : firstRunStepOf(param);
+}
+
+/**
+ * A step's move, as the address takes it. Another step is a PUSHED entry, so the browser's Back (a phone's swipe) walks
+ * the steps the owner took, where every move once replaced the address and Back left the first run whole. A move
+ * within the step drawn (its own address, so it stays on screen) replaces. "On to where the workspace is" (the bare
+ * address) is said as that step's own address, read from Setup as it stands NOW (a press may have just changed it): an
+ * entry Back returns to must name its step, or it would draw wherever the workspace has got to by then. For the same
+ * reason the entry being left is named first, where it was the bare address.
+ */
+function moveTo(o: {
+  to: string;
+  S: SetupSurface;
+  v: StepView;
+  param: string | null;
+  onNavigate: FirstRunProps["onNavigate"];
+}) {
+  const { to, S, v, param, onNavigate } = o;
+  const now = surfaceValue("setup") ?? S;
+  const target =
+    to === FIRST_RUN_ROUTE ? firstRunStepRoute(FIRST_RUN_HELPERS.of(now.vm, null, lookerOf(now)).current) : to;
+  const here = v.fr.shown.key;
+  if (stepOfAddress(target) === here) {
+    onNavigate(target, { replace: true });
+    return;
+  }
+  if (!param) onNavigate(firstRunStepRoute(here), { replace: true });
+  onNavigate(target);
+}
+
 function pageActs(o: {
   S: SetupSurface;
   v: StepView;
+  param: string | null;
   onNavigate: FirstRunProps["onNavigate"];
   stays: Stays;
   flash: (f: LegacyFlash) => void;
@@ -295,7 +378,8 @@ function pageActs(o: {
   heldAnswer: RefObject<SettledEntry | null>;
   canEdit: boolean;
 }): PageActs {
-  const { S, v, onNavigate, stays, flash, setLeaving, making, setMaking, finishing, setFinishing, finishRefused } = o;
+  const { S, v, param, onNavigate, stays, flash, setLeaving, making, setMaking, finishing, setFinishing } = o;
+  const { finishRefused } = o;
   // Asked first while typing on the page was never saved (the record kit's own answer, the fold registry).
   const askFirst = (move: () => void) => {
     if (recFolds.dirty() || recFolds.saving()) {
@@ -305,15 +389,13 @@ function pageActs(o: {
     move();
   };
   const leave = (to: string) => askFirst(() => onNavigate(to));
-  // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run. A move
-  // opens the next step at its top: the shell is the page's scroll (first-run.css).
+  // A step's move (moveTo): pushed for another step, replaced within this one. The step it opens is at its top and its
+  // heading has focus (useHeadingFocus), whichever way it was reached.
   const go = (to: string) =>
     askFirst(() => {
       stays.onCheck.current = false;
       stays.onTry.current = false;
-      onNavigate(to, { replace: true });
-      const shell = "querySelector" in document ? document.querySelector<HTMLElement>(".fr-shell") : null;
-      if (shell && shell.scrollTo) shell.scrollTo(0, 0);
+      moveTo({ to, S, v, param, onNavigate });
     });
   // Set the receptionist up from what is known, where none is: once at a time, and a refusal said in its words.
   const make = async () => {
@@ -383,11 +465,10 @@ function stepBody(o: {
   canEdit: boolean;
   heldAnswer: RefObject<SettledEntry | null>;
   read: SettingsSurface | undefined;
-  phoneChoice: KeptPhoneChoice | null;
   setPhoneChoice: (c: KeptPhoneChoice | null) => void;
   finishing: boolean;
 }): ReactNode {
-  const { S, v, acts, flash, making, canEdit, heldAnswer, read, phoneChoice, setPhoneChoice, finishing } = o;
+  const { S, v, acts, flash, making, canEdit, heldAnswer, read, setPhoneChoice, finishing } = o;
   const { fr, ph, tr, lv, phoneDrawn, tryDrawn } = v;
   const { go, leave, make } = acts;
   const step = fr.shown;
@@ -416,7 +497,7 @@ function stepBody(o: {
       {phoneDrawn && ph ? (
         <FrPhone
           ph={ph}
-          choice={phoneChoice}
+          choice={v.choice}
           setChoice={setPhoneChoice}
           W={FIRST_RUN_HELPERS.phoneWords}
           flash={flash}
@@ -456,7 +537,8 @@ function stepBody(o: {
           </section>
         </div>
       ) : null}
-      {(fr.back || fr.onward) && !phoneFoot && !(tryDrawn && tr && tr.stage === "done")
+      {/* Find, the phone step with its own button, and Try it each draw the foot themselves: one foot a step. */}
+      {(fr.back || fr.onward) && !fr.find && !phoneFoot && !tryDrawn
         ? stepFoot({ v, go, onward: acts.onward, finishing })
         : null}
     </>
@@ -468,7 +550,6 @@ export const FirstRun = ({ param = null, onNavigate }: FirstRunProps) => {
   const read = useSurface("settings");
   const live = useSurface("live");
   const [cardOpen, setCardOpen] = useState(false);
-  useHeadingFocus(param);
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   // How customers buy, while Check's choice of it waits for the keys to settle: Continue sends that one (useSettled).
   const heldAnswer = useRef<SettledEntry | null>(null);
@@ -484,18 +565,22 @@ export const FirstRun = ({ param = null, onNavigate }: FirstRunProps) => {
   const finishRefused = useRef(false);
   useTryClock(stays.onTry, redraw);
   useLanded();
+  const v = S ? stepViewOf({ S, param, stays, phoneChoice, live, read }) : null;
+  // What is on screen, for the heading's focus: the step, and Find apart from Check, whatever the address says.
+  useHeadingFocus(v ? (v.fr.find ? "find" : v.fr.shown.key) : null);
+  useWaitingLook(waitsOf(v));
   // Every way out of the page before Setup is read: Today, after asking about typing never saved.
   const leaveEarly = (to: string) => {
     if (recFolds.dirty() || recFolds.saving()) setLeaving({ move: () => onNavigate(to), saving: recFolds.saving() });
     else onNavigate(to);
   };
-  if (!S) return notRead(S, leaveEarly);
-  const v = stepViewOf({ S, param, stays, phoneChoice, live, read });
+  if (!S || !v) return notRead(S, leaveEarly);
   // Whether this role may change the business, as the Business tab asks it: its rows' acts, and the answer's door.
   const canEdit = canDo("settings");
   const acts = pageActs({
     S,
     v,
+    param,
     onNavigate,
     stays,
     flash,
@@ -518,7 +603,7 @@ export const FirstRun = ({ param = null, onNavigate }: FirstRunProps) => {
       <div className="fr-body">
         <main className="fr-step" aria-labelledby="fr-heading">
           {stepHead(v)}
-          {stepBody({ S, v, acts, flash, making, canEdit, heldAnswer, read, phoneChoice, setPhoneChoice, finishing })}
+          {stepBody({ S, v, acts, flash, making, canEdit, heldAnswer, read, setPhoneChoice, finishing })}
         </main>
         <FrCard card={card} open={cardOpen} />
       </div>

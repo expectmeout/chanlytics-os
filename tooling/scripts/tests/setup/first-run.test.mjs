@@ -21,6 +21,9 @@ import {
   receptionistCardOf,
   shouldLandOnFirstRun,
   setupLaterOf,
+  setupPhoneWantOf,
+  keptPhoneKind,
+  KEEP_ROW,
   openWeekWords,
   servicesWords,
   FIRST_RUN_STEPS,
@@ -798,10 +801,78 @@ test("Try it waits for a call: Setup's row names the number to call, the skip le
     untried({ lines: { rows: [kept], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } } }),
     NOW,
   );
+  // A phone cannot call itself, and the cell may be the very phone that rings: another phone, unless the number kept
+  // is an office phone system's (setup.ts keptPhoneKind, the first run's own rule).
   assert.equal(
     forwarded.rows.find((r) => r.id === "try").sentence,
+    "Call +1 (305) 555-0100 from another phone and don't pick up.",
+  );
+  const office = { ...kept, forwarding: { carrier: "office", mode: "unanswered", destination_e164: VOICE } };
+  assert.equal(
+    setupSteps(
+      untried({ lines: { rows: [office], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } } }),
+      NOW,
+    ).rows.find((r) => r.id === "try").sentence,
     "Call +1 (305) 555-0100 from your cell and don't pick up.",
   );
+  assert.deepEqual([keptPhoneKind(null), keptPhoneKind(kept), keptPhoneKind(office)], [null, "unknown", "office"]);
+  assert.equal(keptPhoneKind({ ...kept, forwarding: { carrier: "tmobile" } }), "mobile");
+});
+
+test("a number the owner chose to keep holds the phone step until its forwarding is saved, or put off by name", () => {
+  // The receptionist's own number answers, and was called: without the choice, the first run is on Live.
+  assert.equal(firstRunOf(setupSteps(live(), NOW)).current, "live");
+  const want = { way: "keep", number: "+13055550100" };
+  const owed = setupSteps(live({ want }), NOW);
+  assert.equal(owed.forwardingOwed, true);
+  const fr = firstRunOf(owed);
+  assert.equal(fr.current, "phone", "the choice is the member's, read from their saved view: the step is not done");
+  assert.equal(fr.complete, false);
+  assert.equal(fr.steps.find((s) => s.key === "phone").state, "current");
+  const card = setupCardOf(owed);
+  assert.equal(card.start.status, "Next: your phone", "and Today's card opens the first run there");
+  // Saved: a forwarded line is on record, whatever its proof.
+  const kept = {
+    id: "fw",
+    e164: "+13055550100",
+    kind: "forwarded",
+    provider: "carrier",
+    area_code: 305,
+    voice_state: "none",
+    sms_state: "none",
+    whatsapp_state: "none",
+    port_state: "none",
+    forwarding_state: "instructed",
+    step: null,
+    last_error: null,
+    state_since: "2026-09-07T14:00:00Z",
+    created_at: "2026-09-07T14:00:00Z",
+  };
+  const lines = { rows: [kept], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } };
+  const saved = setupSteps(live({ want, lines }), NOW);
+  assert.equal(saved.forwardingOwed, false);
+  assert.equal(firstRunOf(saved).current, "live");
+  // Put off: Setup's own Later on "The number you already have".
+  const later = setupSteps(live({ want, later: [KEEP_ROW] }), NOW);
+  assert.equal(later.forwardingOwed, false);
+  assert.equal(firstRunOf(later).current, "live");
+  assert.equal(KEEP_ROW, "keep");
+});
+
+test("the number kept or moved is read from the member's saved view: a way, a number in E.164, nothing else", () => {
+  assert.deepEqual(setupPhoneWantOf({ later: [], phone: { way: "keep", number: "(305) 555-0100" } }), {
+    way: "keep",
+    number: "+13055550100",
+  });
+  assert.deepEqual(setupPhoneWantOf({ phone: { way: "move", number: "+13055550100", extra: 1 } }), {
+    way: "move",
+    number: "+13055550100",
+  });
+  assert.equal(setupPhoneWantOf({ phone: { way: "new", number: "+13055550100" } }), null, "a new number wants none");
+  assert.equal(setupPhoneWantOf({ phone: { way: "keep", number: "nope" } }), null);
+  assert.equal(setupPhoneWantOf({ phone: "keep" }), null);
+  assert.equal(setupPhoneWantOf({ later: ["keep"] }), null);
+  assert.equal(setupPhoneWantOf(null), null);
 });
 
 test("(D) the question before a move while typing is unsaved, and the other one while a save is out", async () => {

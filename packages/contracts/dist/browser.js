@@ -18650,10 +18650,26 @@ function setupLaterOf(view) {
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
+function setupPhoneWantOf(view) {
+  const phone = view && typeof view === "object" ? view.phone : null;
+  if (!phone || typeof phone !== "object") return null;
+  const { way, number: number2 } = phone;
+  if (way !== "keep" && way !== "move" || typeof number2 !== "string") return null;
+  const e164 = normalizePhone(number2);
+  return e164 ? { way, number: e164 } : null;
+}
 function forwardedLineOf(lines) {
   return lines?.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
 }
+var MOBILE_CARRIERS = ["verizon", "att", "tmobile"];
+function keptPhoneKind(line) {
+  if (!line) return null;
+  const carrier = line.forwarding?.carrier ?? null;
+  if (carrier === "office") return "office";
+  return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
+}
 var TRY_SKIPPED = "try-skipped";
+var KEEP_ROW = "keep";
 var SETUP_LATER_REFUSED = {
   reading: "Setting up is still being read. Try again in a moment.",
   unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
@@ -27840,6 +27856,14 @@ var TRY_QUIET_AFTER_MS = 3 * MIN_MS;
 var TRY_SLACK_MS = MIN_MS;
 var FIRST_RUN_TRY_WORDS = {
   listenForwarded: "Call your number from your cell. Don't pick up.",
+  /**
+   * A number kept on a mobile, or on a phone the saved forwarding does not name as a landline's or an office's: the
+   * owner's cell may be the very phone that rings, and a phone cannot call itself.
+   */
+  listenForwardedOther: "Call your number from another phone. Don't pick up.",
+  leadOther: "A phone can't call itself, so use a second one or ask someone to call. Ask what a customer would, like \u201CAre you open on Sunday?\u201D",
+  routeOther: (kept) => `Another phone calls ${kept} \u2192 nobody picks up \u2192 your receptionist answers`,
+  dial: (number2) => `Call ${number2}`,
   listenOwn: "Call your receptionist from your cell.",
   lead: "Ask what a customer would, like \u201CAre you open on Sunday?\u201D",
   listening: "Listening for your call",
@@ -27899,6 +27923,15 @@ var FIRST_RUN_TRY_WORDS = {
   stay: "OK, I'll call",
   anyway: "Skip anyway"
 };
+function dialOf(toCall, shown, rings) {
+  return toCall && shown && rings !== "mobile" ? { label: FIRST_RUN_TRY_WORDS.dial(shown), tel: `tel:${toCall}` } : null;
+}
+function listenWordsOf(rings, shown, quiet) {
+  const W = FIRST_RUN_TRY_WORDS;
+  const number2 = shown ?? "";
+  const said = rings === null ? { heading: W.listenOwn, lead: W.lead, route: null } : rings === "office" ? { heading: W.listenForwarded, lead: W.lead, route: W.route(number2) } : { heading: W.listenForwardedOther, lead: W.leadOther, route: W.routeOther(number2) };
+  return quiet ? { heading: W.quietHeading, lead: "", route: said.route } : said;
+}
 function firstRunTryOf({ dto, calls, since, nowMs }) {
   const W = FIRST_RUN_TRY_WORDS;
   const voice = dto.channels.voice;
@@ -27908,38 +27941,38 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
   const forwarded = !!kept;
   const proven = forwarded && fw.forwarding_state === "verified";
   const shown = formatPhoneDisplay(kept ?? own);
-  const skip = { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway };
   const f0 = fw?.forwarding ?? null;
   const openTest = fw && f0 && fw.forwarding_state !== "verified" && !forwardingTestOpen(f0, nowMs) ? fw.id : null;
   const base = {
     number: shown,
     forwarded,
+    dial: dialOf(kept ?? own, shown, keptPhoneKind(fw)),
     help: forwarded ? W.help : null,
     openTest,
     listening: null,
     causes: [],
     call: null,
     transfer: null,
-    skip
+    skip: { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway }
   };
   if (!own) return { ...base, stage: "rows", heading: "", lead: "" };
   const tested = !!voice.lastInboundAt;
   const inbound = calls.filter((c) => c.direction === "inbound" && !c.missed && c.startedAtMs !== null).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
   const call = inbound.find((c) => (c.startedAtMs ?? 0) >= since - TRY_SLACK_MS) ?? (tested ? inbound[0] ?? null : null);
   if (!call) {
-    const f = fw?.forwarding ?? null;
-    const open = !!f && fw.forwarding_state !== "verified" && forwardingTestOpen(f, nowMs);
-    const left = open && f.test_until ? Math.max(1, Math.ceil((Date.parse(f.test_until) - nowMs) / MIN_MS)) : null;
+    const open = !!f0 && fw.forwarding_state !== "verified" && forwardingTestOpen(f0, nowMs);
+    const left = open && f0.test_until ? Math.max(1, Math.ceil((Date.parse(f0.test_until) - nowMs) / MIN_MS)) : null;
     const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
+    const said = listenWordsOf(keptPhoneKind(fw), shown, quiet);
     return {
       ...base,
       stage: quiet ? "quiet" : "listen",
-      heading: quiet ? W.quietHeading : forwarded ? W.listenForwarded : W.listenOwn,
-      lead: quiet ? "" : W.lead,
+      heading: said.heading,
+      lead: said.lead,
       listening: {
         sentence: quiet ? W.stillListening : W.listening,
         detail: left !== null ? W.listeningWindow(left) : W.listeningDetail,
-        route: forwarded ? W.route(shown ?? "") : null
+        route: said.route
       },
       causes: quiet ? forwarded ? W.causesForwarded.map((c) => ({ ...c })) : [W.causeOwn(formatPhoneDisplay(own) ?? own)] : []
     };
@@ -28096,6 +28129,13 @@ var FIRST_RUN_PHONE_WORDS = {
   help: "The code didn't work",
   change: "Change the answers",
   keepCode: "Keep what I have",
+  /** The forwarding put off from the questions: what the link says, and what the page says once it is. */
+  putOff: "Set up forwarding later",
+  putOffSaid: "Put off. Until it is set up, only calls to your receptionist's own number are answered.",
+  /** The code, or the number to forward to, copied for the phone it is typed on. */
+  copy: "Copy",
+  copied: "Copied",
+  notCopied: "Not copied. Select the code and copy it yourself.",
   /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
   officeHeading: "Forward missed calls in your phone system",
   officeLead: "Office phone systems set this in their own settings, under \u201Cforwarding\u201D or \u201Cwhen no one answers\u201D.",
@@ -28343,7 +28383,9 @@ function askStageOf(s, asked) {
     code: null,
     forwardFrom: asked.forwardFrom,
     saved: asked.saved,
-    keepCode: asked.keepCode
+    keepCode: asked.keepCode,
+    // Asked again after a code was saved, the way back is Keep what I have: there is nothing left to put off.
+    putOff: asked.saved ? null : W.putOff
   };
 }
 function codeStageOf(s, heading, lead, code2) {
@@ -28599,10 +28641,14 @@ function unsureHoursWords(days) {
   return `Google's hours for ${list2} could not be copied: check ${days.length === 1 ? "that day" : "those days"}.`;
 }
 var rowOf = (vm, id) => vm.rows.find((r2) => r2.id === id) ?? null;
-var stepDone = (vm, def) => def.needs.every((id) => {
-  const r2 = rowOf(vm, id);
-  return !r2 || r2.state === "ready" || id === "try" && (vm.trySkipped || r2.later);
-});
+var stepDone = (vm, def) => (
+  // A number the owner chose to keep or move is not done with a line that answers: its forwarding is still to be saved,
+  // or put off by name (Setup's `forwardingOwed`). Without it the step read as done from any tab that lost the choice.
+  !(def.key === "phone" && vm.forwardingOwed) && def.needs.every((id) => {
+    const r2 = rowOf(vm, id);
+    return !r2 || r2.state === "ready" || id === "try" && (vm.trySkipped || r2.later);
+  })
+);
 function firstRunStepOf(param) {
   const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
   return hit ? hit.key : null;
@@ -29605,7 +29651,10 @@ function tryRow(_i, ctx) {
     title: "Try it",
     state: voice.lastInboundAt ? "ready" : "waiting_you",
     required: false,
-    sentence: voice.lastInboundAt ? `A call reached your receptionist ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.` : fwTry ? `Call ${through} from your cell and don't pick up.` : `Call ${through} from your cell.`,
+    sentence: voice.lastInboundAt ? `A call reached your receptionist ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.` : fwTry ? (
+      // A phone cannot call itself: only an office phone system's owner is sure to hold another phone, their cell.
+      `Call ${through} from ${keptPhoneKind(fwTry) === "office" ? "your cell" : "another phone"} and don't pick up.`
+    ) : `Call ${through} from your cell.`,
     details: [],
     // The first run's own step (first-run.ts firstRunStepRoute("try")), spelled here: that file reads this one.
     verb: voice.lastInboundAt ? null : { label: "Try it", to: "start/try" }
@@ -30092,6 +30141,14 @@ var SETUP_ROWS = [
   yesRow,
   googleRow
 ];
+var checkFactsOf = (i) => ({
+  receptionist: i.business.receptionist,
+  listed: !!i.google?.listing,
+  unsure: i.google?.unsure ?? [],
+  type: i.google?.type ?? null,
+  bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
+});
+var forwardingOwedOf = (i, later) => !!i.want && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
 function setupSteps(i, nowMs = Date.now()) {
   const later = new Set(i.later ?? []);
   const ctx = rowContextOf(i, nowMs);
@@ -30130,13 +30187,8 @@ function setupSteps(i, nowMs = Date.now()) {
     } : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     trySkipped: later.has(TRY_SKIPPED),
-    check: {
-      receptionist: i.business.receptionist,
-      listed: !!i.google?.listing,
-      unsure: i.google?.unsure ?? [],
-      type: i.google?.type ?? null,
-      bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
-    }
+    forwardingOwed: forwardingOwedOf(i, later),
+    check: checkFactsOf(i)
   };
 }
 
@@ -34915,6 +34967,7 @@ export {
   IN_APP_UA_RE,
   JOB_KINDS,
   JOB_STATES,
+  KEEP_ROW,
   LANGUAGE_GROUP_WORDS,
   LEAD_ASK_MAX_FACTOR,
   LEAD_ASK_MIN_FACTOR,
@@ -35942,6 +35995,7 @@ export {
   jittered,
   jobNewsWords,
   judgeDomain,
+  keptPhoneKind,
   knownForwarding,
   knownTimezones,
   languageBase,
@@ -36514,6 +36568,7 @@ export {
   servicesWords,
   setupCardOf,
   setupLaterOf,
+  setupPhoneWantOf,
   setupSteps,
   shadowPortOf,
   shareWords,

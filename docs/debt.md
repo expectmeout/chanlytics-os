@@ -208,7 +208,7 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit             86   of which over 200 lines: 13
+functions over the limit             85   of which over 200 lines: 13
 files over 800 lines                  3
 directories over 20 modules           3
 window globals                      100   names
@@ -227,8 +227,8 @@ event-shaped clocks                   9   of the registered clocks (invariant 6)
 tables with more than one writer     58   387 writers among them
 personal columns with no erasure strategy  195   in 44 tables
 breakpoints outside the set          35   in 11 files
-literal style values                982   in 23 stylesheets
-primitives outside the kit         1865   selectors naming 768 classes
+literal style values                939   in 22 stylesheets
+primitives outside the kit         1813   selectors naming 742 classes
 inline style props                  208   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     291

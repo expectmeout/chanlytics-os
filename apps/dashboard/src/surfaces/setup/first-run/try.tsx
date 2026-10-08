@@ -1,15 +1,18 @@
 /**
  * Try it (canvas R6–R8, P6, P7, V7, V8; contracts first-run-try.ts; moved from legacy/pages/first-run.jsx, decision 0015):
- * the owner calls the number customers call, from their cell, and the page follows the call on the Live page's own read
- * -- listening, "It picked up" the moment it starts, the words a turn behind, then the whole call and where a caller who
- * asks for a person goes. `tr` is the step as contracts say it. For a kept number not yet proven, the test window opens as
- * the screen does (the call webhook proves forwarding only inside one). The transfer saves through the Business tab's one
- * saver, as that tab's row does; the skip asks once (V8), then puts the wait off for this member (TRY_SKIPPED), and Today
- * keeps its row.
+ * the owner calls the number customers call, and the page follows the call on the Live page's own read -- listening, "It
+ * picked up" the moment it starts, the words a turn behind, then the whole call and where a caller who asks for a person
+ * goes. `tr` is the step as contracts say it. For a kept number not yet proven, the test window opens as the screen does
+ * (the call webhook proves forwarding only inside one). The transfer saves through the Business tab's one saver, as that
+ * tab's row does; the skip asks once (V8), then puts the wait off for this member (TRY_SKIPPED), and Today keeps its row.
+ *
+ * The step draws its own foot at every stage: Back, and on a phone the number as a press that dials it (`tr.dial`), since
+ * the phone the page is read on is most often the phone the call is made from.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { TRY_SKIPPED, type FIRST_RUN_TRY_WORDS, type FirstRunTryVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { RecordToggleGroup } from "../../kit/record/field";
 import { canDo, gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { businessTabSave } from "../shell";
 import { setupVerbs } from "../surface";
@@ -29,14 +32,25 @@ interface TryProps {
   backLabel: string;
 }
 
+/** The step's way back, where it has one. */
+function backOf(back: string | null, backLabel: string, go: (to: string) => void): ReactNode {
+  return back ? (
+    <button type="button" className="btn btn-sm btn-ghost" onClick={() => go(back)} data-testid="fr-back">
+      {backLabel}
+    </button>
+  ) : (
+    <span />
+  );
+}
+
 /** The call's words, a turn each. */
 function turnsOf(tr: FirstRunTryVM): ReactNode {
   return tr.call ? (
-    <ol className="fr-try-turns" data-testid="fr-try-turns">
+    <ol className="fr-turns" data-testid="fr-try-turns">
       {tr.call.turns.map((t, i) => (
-        <li key={i} className={t.agent ? "fr-try-turn is-agent" : "fr-try-turn"}>
-          <span className="fr-try-who">{t.who}</span>
-          <span className="fr-try-said">{t.text}</span>
+        <li className="panel panel-inset panel-sm fr-turn" key={i}>
+          <span className="fr-label">{t.who}</span>
+          <span className="fr-sentence">{t.text}</span>
         </li>
       ))}
     </ol>
@@ -51,26 +65,29 @@ function listenStage(o: {
   help: () => void;
   busy: boolean;
   skipper: ReactNode;
+  back: ReactNode;
 }) {
-  const { tr, W, go, help, busy, skipper } = o;
+  const { tr, W, go, help, busy, skipper, back } = o;
   const l = tr.listening;
   return (
     <div className="fr-line-step" data-testid="fr-try" data-stage={tr.stage}>
-      <span className="fr-code-dial tabular" data-testid="fr-try-number">
-        {tr.number}
-      </span>
-      <div className="fr-try-listen" role="status">
-        <span className="fr-try-pulse" aria-hidden="true" />
-        <span className="fr-line-sentence">{l && l.sentence}</span>
-        <span className="fr-line-detail">{l && l.detail}</span>
+      <div className="panel fr-pane">
+        <span className="fr-dial tabular" data-testid="fr-try-number">
+          {tr.number}
+        </span>
+        <div className="fr-listen" role="status">
+          <span className="fr-pulse" aria-hidden="true" />
+          <span className="fr-sentence">{l && l.sentence}</span>
+          <span className="fr-detail">{l && l.detail}</span>
+        </div>
+        {l && l.route ? (
+          <p className="fr-quiet" data-testid="fr-try-route">
+            {l.route}
+          </p>
+        ) : null}
       </div>
-      {l && l.route ? (
-        <p className="fr-code-off" data-testid="fr-try-route">
-          {l.route}
-        </p>
-      ) : null}
       {tr.causes.length ? (
-        <dl className="fr-try-causes" data-testid="fr-try-causes">
+        <dl className="fr-causes" data-testid="fr-try-causes">
           {tr.causes.map((c) => (
             <div key={c.question}>
               <dt>{c.question}</dt>
@@ -80,16 +97,16 @@ function listenStage(o: {
         </dl>
       ) : null}
       {tr.stage === "quiet" ? (
-        <div className="fr-code-links">
+        <div className="fr-links">
           {tr.forwarded ? (
-            <button type="button" className="fr-find-link" onClick={() => go("start/phone")} data-testid="fr-try-code">
+            <button type="button" className="link-btn" onClick={() => go("start/phone")} data-testid="fr-try-code">
               {W.showCode}
             </button>
           ) : null}
           {tr.help ? (
             <button
               type="button"
-              className="fr-find-link"
+              className="link-btn"
               onClick={help}
               disabled={busy}
               data-testid="fr-try-help"
@@ -101,6 +118,15 @@ function listenStage(o: {
         </div>
       ) : null}
       {skipper}
+      <div className="fr-foot">
+        {back}
+        {tr.dial ? (
+          <a className="btn btn-lg btn-primary fr-go fr-call" href={tr.dial.tel} data-testid="fr-try-dial">
+            <Icon name="phone" size={14} />
+            {tr.dial.label}
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -114,64 +140,57 @@ function doneStage(o: {
   choose: (option: Transfer["options"][number]) => void;
   go: (to: string) => void;
   leave: (to: string) => void;
-  back: string | null;
-  backLabel: string;
+  back: ReactNode;
 }) {
-  const { tr, t, value, W, choose, go, leave, back, backLabel } = o;
+  const { tr, t, value, W, choose, go, leave, back } = o;
   return (
     <div className="fr-line-step" data-testid="fr-try" data-stage="done">
-      <p className="fr-line-detail" data-testid="fr-try-meta">
-        {tr.call && tr.call.line}
-      </p>
-      {turnsOf(tr)}
-      <span className="fr-line-label" id="fr-try-transfer-label">
-        {t.label}
-      </span>
-      <div
-        className="fr-find-hits"
-        role="radiogroup"
-        aria-labelledby="fr-try-transfer-label"
-        data-testid="fr-try-transfer"
-      >
-        {t.options.map((op) => (
-          <label key={op.key} className="fr-find-hit" data-testid={`fr-try-transfer-${op.key}`}>
-            <input
-              type="radio"
-              name="fr-try-transfer"
-              value={op.key}
-              checked={value === op.key}
-              onChange={() => choose(op)}
-              {...gate("settings", "choose where callers are put through")}
-            />
-            <span className="fr-find-body">
-              <span className="fr-find-name">{op.label}</span>
-              <span className="fr-find-where">{op.sentence}</span>
-            </span>
-          </label>
-        ))}
-      </div>
-      {t.note ? (
-        <p className="fr-code-off" data-testid="fr-try-note">
-          {t.note}
+      <div className="panel fr-pane">
+        <p className="fr-detail" data-testid="fr-try-meta">
+          {tr.call && tr.call.line}
         </p>
-      ) : null}
+        {turnsOf(tr)}
+      </div>
+      <div className="panel fr-pane">
+        <span className="fr-label" id="fr-try-transfer-label">
+          {t.label}
+        </span>
+        <div className="fr-stack">
+          <RecordToggleGroup<string>
+            id="fr-try-transfer"
+            labelledBy="fr-try-transfer-label"
+            value={value}
+            options={t.options.map((op) => ({ value: op.key, label: op.label, hint: op.sentence }))}
+            onChange={(key) => {
+              const op = t.options.find((x) => x.key === key);
+              if (op) choose(op);
+            }}
+            gate={gate("settings", "choose where callers are put through")}
+            testid="fr-try-transfer"
+          />
+        </div>
+        {t.note ? (
+          <p className="fr-quiet" data-testid="fr-try-note">
+            {t.note}
+          </p>
+        ) : null}
+      </div>
       <div className="fr-foot">
-        {back ? (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(back)} data-testid="fr-back">
-            {backLabel}
-          </button>
-        ) : (
-          <span />
-        )}
+        {back}
         <button
           type="button"
-          className="fr-find-link"
+          className="link-btn"
           onClick={() => leave(tr.call ? tr.call.to : "")}
           data-testid="fr-try-inbox"
         >
           {W.inbox}
         </button>
-        <button type="button" className="fr-onward" onClick={() => go("start")} data-testid="fr-try-go">
+        <button
+          type="button"
+          className="btn btn-lg btn-primary fr-go"
+          onClick={() => go("start")}
+          data-testid="fr-try-go"
+        >
           {W.continue}
         </button>
       </div>
@@ -257,21 +276,21 @@ export const FrTry = ({ tr, W, flash, go, leave, back, backLabel }: TryProps) =>
     });
   };
   const skipper = (
-    <div className="fr-try-skip" data-testid="fr-try-skip">
+    <div className="fr-skip" data-testid="fr-try-skip">
       {nudged ? (
-        <p className="fr-check-note" data-testid="fr-try-nudge">
+        <p className="fr-note" data-testid="fr-try-nudge">
           {tr.skip.nudge}
         </p>
       ) : null}
-      <div className="fr-code-links">
+      <div className="fr-links">
         {nudged ? (
-          <button type="button" className="fr-find-link" onClick={() => setNudged(false)} data-testid="fr-try-stay">
+          <button type="button" className="link-btn" onClick={() => setNudged(false)} data-testid="fr-try-stay">
             {tr.skip.stay}
           </button>
         ) : null}
         <button
           type="button"
-          className="fr-find-link"
+          className="link-btn"
           onClick={() => void skip()}
           disabled={busy}
           data-testid="fr-try-skip-go"
@@ -281,20 +300,24 @@ export const FrTry = ({ tr, W, flash, go, leave, back, backLabel }: TryProps) =>
       </div>
     </div>
   );
+  const way = backOf(back, backLabel, go);
   if (tr.stage === "listen" || tr.stage === "quiet")
-    return listenStage({ tr, W, go, help: () => void help(), busy, skipper });
+    return listenStage({ tr, W, go, help: () => void help(), busy, skipper, back: way });
   if (tr.stage === "call") {
     return (
       <div className="fr-line-step" data-testid="fr-try" data-stage="call">
-        <p className="fr-line-started" data-testid="fr-try-proof">
-          <Icon name="check" size={12} />
-          {tr.call && tr.call.line}
-        </p>
-        {turnsOf(tr)}
-        <p className="fr-line-detail">{tr.call && tr.call.behind}</p>
+        <div className="panel fr-pane">
+          <p className="fr-proof" data-testid="fr-try-proof">
+            <Icon name="check" size={12} />
+            {tr.call && tr.call.line}
+          </p>
+          {turnsOf(tr)}
+          <p className="fr-detail">{tr.call && tr.call.behind}</p>
+        </div>
+        <div className="fr-foot">{way}</div>
       </div>
     );
   }
   if (!t0) return null;
-  return doneStage({ tr, t: t0, value: picked || t0.value, W, choose, go, leave, back, backLabel });
+  return doneStage({ tr, t: t0, value: picked || t0.value, W, choose, go, leave, back: way });
 };

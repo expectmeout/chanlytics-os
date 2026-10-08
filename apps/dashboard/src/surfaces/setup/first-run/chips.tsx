@@ -95,16 +95,17 @@ interface ChipsProps {
  * were (check-chips.ts). Hookless, since the languages' is drawn as its fold's rest.
  */
 export const FrChips = ({ list, label, set, doing, canEdit, flash, words, more, moreTestid }: ChipsProps) => (
-  <div className="fr-chips" role="group" aria-labelledby={`fr-chips-${list}-label`} data-testid={`fr-chips-${list}`}>
-    <span className="fr-chips-label" id={`fr-chips-${list}-label`} data-testid={`fr-chips-${list}-label`}>
+  <div className="fr-picks" role="group" aria-labelledby={`fr-chips-${list}-label`} data-testid={`fr-chips-${list}`}>
+    <span className="fr-label" id={`fr-chips-${list}-label`} data-testid={`fr-chips-${list}-label`}>
       {label}
     </span>
-    <span className="fr-chips-list">
+    <span className="fr-picks-list">
       {set.chips.map((c) => (
         <button
-          key={c.name}
           type="button"
-          className="fr-chip"
+          className="btn btn-sm fr-pick"
+          key={c.name}
+
           aria-pressed={c.on}
           onClick={() => chipPress({ list, chip: c, flash, words })}
           {...gate("settings", doing)}
@@ -117,7 +118,8 @@ export const FrChips = ({ list, label, set, doing, canEdit, flash, words, more, 
       {more && canEdit ? (
         <button
           type="button"
-          className="fr-chip fr-chip-more"
+          className="btn btn-sm btn-ghost"
+
           onClick={more.onClick}
           data-rec-act={more.act || undefined}
           data-testid={moreTestid}
@@ -127,7 +129,7 @@ export const FrChips = ({ list, label, set, doing, canEdit, flash, words, more, 
       ) : null}
     </span>
     {set.full ? (
-      <span className="fr-chips-full" data-testid={`fr-chips-${list}-full`}>
+      <span className="fr-detail" data-testid={`fr-chips-${list}-full`}>
         {set.full}
       </span>
     ) : null}

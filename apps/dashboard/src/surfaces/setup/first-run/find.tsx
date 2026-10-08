@@ -1,15 +1,20 @@
 /**
  * Find (canvas R1, P1; moved from legacy/pages/first-run.jsx, decision 0015): what Google has for the business, asked on
  * arrival with the name on record -- the receptionist's, or the one typed at sign-up (the search route falls back to it).
- * The best match first and checked, the others under it (on a phone, behind "Not this one? Search again"); one press links
- * the one checked, or the owner says they are not on Google, which puts Google's row off (their saved view) and leaves
+ * The best match first and chosen, the others under it (on a phone, behind "Not this one? Search again"); one press links
+ * the one chosen, or the owner says they are not on Google, which puts Google's row off (their saved view) and leaves
  * the step's rows -- or, where Find was asked for by name, goes to the step's own address (`done`). The step is Find only
  * for an owner, who alone may search and link. The toast is the page's (`flash`): a link ends Find as the surfaces repaint.
+ *
+ * The candidates are the kit's choice of a few, each with the line under it (the record kit's group, one above the
+ * other); the search its box and button; the step's two presses stand in the step's foot, where every step's do.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { FIRST_RUN_WORDS, GoogleCandidateDto } from "@chanlytics/contracts";
-import { canDo, gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { googleVerbs } from "@/legacy-bridge/google";
+import { StatePill } from "../../kit/pill/state-pill";
+import { RecordBox, RecordToggleGroup } from "../../kit/record/field";
+import { canDo, gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { setupVerbs } from "../surface";
 
 type FindWords = (typeof FIRST_RUN_WORDS)["find"];
@@ -31,7 +36,18 @@ interface FindProps {
   make: () => void;
 }
 
-/** The candidates as a radiogroup: the best first, checked, with its pill. */
+/** A choice's words with what marks it beside them (the best match, the way most businesses take): a state's pill. */
+export function markedLabel(words: string, mark: string | null): ReactNode {
+  if (!mark) return words;
+  return (
+    <span className="fr-opt">
+      {words}
+      <StatePill kind="setup" value="ready" label={mark} />
+    </span>
+  );
+}
+
+/** The candidates as one choice: the best first, chosen, with its pill; under them, the one chosen on Google's map. */
 function hitsOf(o: {
   W: FindWords;
   hits: GoogleCandidateDto[];
@@ -40,30 +56,29 @@ function hitsOf(o: {
   busy: boolean;
 }) {
   const { W, hits, picked, setPicked, busy } = o;
+  const chosen = hits.find((c) => c.place_id === picked) ?? null;
   return (
-    <div className="fr-find-hits" role="radiogroup" aria-label={W.pick}>
-      {hits.map((c, i) => (
-        <label key={c.place_id} className={i === 0 ? "fr-find-hit is-best" : "fr-find-hit"} data-testid="fr-find-hit">
-          <input
-            type="radio"
-            name="fr-find"
-            value={c.place_id}
-            checked={picked === c.place_id}
-            onChange={() => setPicked(c.place_id)}
-            disabled={busy}
-          />
-          <span className="fr-find-body">
-            <span className="fr-find-name">{c.name}</span>
-            <span className="fr-find-where">{[c.category, c.address || W.noAddress].filter(Boolean).join(" · ")}</span>
-            {c.maps_uri ? (
-              <a className="fr-find-maps" href={c.maps_uri} target="_blank" rel="noreferrer">
-                {W.maps}
-              </a>
-            ) : null}
-          </span>
-          {i === 0 ? <span className="pill pill-ok fr-find-best">{W.best}</span> : null}
-        </label>
-      ))}
+    <div className="panel fr-pane">
+      <div className="fr-stack">
+        <RecordToggleGroup<string>
+          id="fr-find-hits"
+          label={W.pick}
+          value={picked}
+          options={hits.map((c, i) => ({
+            value: c.place_id,
+            label: markedLabel(c.name, i === 0 ? W.best : null),
+            hint: [c.category, c.address || W.noAddress].filter(Boolean).join(" · "),
+          }))}
+          onChange={setPicked}
+          readOnly={busy}
+          testid="fr-find-hits"
+        />
+      </div>
+      {chosen && chosen.maps_uri ? (
+        <a className="link-btn" href={chosen.maps_uri} target="_blank" rel="noreferrer" data-testid="fr-find-maps">
+          {W.maps}
+        </a>
+      ) : null}
     </div>
   );
 }
@@ -74,16 +89,16 @@ function findNotes(W: FindWords, found: Found | null, busy: boolean, ask: (words
   return (
     <>
       {found === null ? (
-        <p className="fr-find-note" role="status" data-testid="fr-find-reading">
+        <p className="fr-note" role="status" data-testid="fr-find-reading">
           {W.reading}
         </p>
       ) : null}
       {found && !found.ok ? (
-        <p className="fr-find-note" role="alert" data-testid="fr-find-failed">
+        <p className="fr-note" role="alert" data-testid="fr-find-failed">
           {found.message}{" "}
           <button
             type="button"
-            className="fr-find-link"
+            className="link-btn"
             onClick={() => ask(found.ownWords ? found.query : null)}
             disabled={busy}
             data-testid="fr-find-retry"
@@ -93,12 +108,12 @@ function findNotes(W: FindWords, found: Found | null, busy: boolean, ask: (words
         </p>
       ) : null}
       {found && found.ok && hits.length === 0 ? (
-        <p className="fr-find-note" data-testid="fr-find-none">
+        <p className="fr-note" data-testid="fr-find-none">
           {W.none(found.query)}
         </p>
       ) : null}
       {found && found.ok && hits.length > 0 && found.ownWords ? (
-        <p className="fr-find-note">{W.typed(found.query)}</p>
+        <p className="fr-note">{W.typed(found.query)}</p>
       ) : null}
     </>
   );
@@ -171,37 +186,46 @@ export const FrFind = ({ W, flash, done, go, make }: FindProps) => {
       {hits.length > 0 && !more ? (
         <button
           type="button"
-          className="fr-find-link fr-find-more"
+          className="link-btn fr-find-more"
           onClick={() => setMore(true)}
           data-testid="fr-find-more"
         >
           {W.more}
         </button>
       ) : null}
-      <form className="fr-find-search" role="search" onSubmit={search}>
-        <input
-          className="fr-find-input"
+      <form className="fr-find-form" role="search" onSubmit={search}>
+        <RecordBox
+          id="fr-find-words"
+          label={W.search}
           value={words}
-          onChange={(e) => setWords(e.target.value)}
+          onChange={setWords}
           placeholder={W.search}
-          aria-label={W.search}
           maxLength={200}
-          data-testid="fr-find-words"
+          testid="fr-find-words"
         />
-        <button
-          type="submit"
-          className="btn btn-sm"
-          disabled={busy || searchWords.length < 3}
-          data-testid="fr-find-search"
-        >
+        <button className="btn" type="submit" disabled={busy || searchWords.length < 3} data-testid="fr-find-search">
           {W.searchCta}
         </button>
       </form>
-      <div className="fr-find-acts">
+      <p className="fr-legal">
+        <a className="link-btn" href="/terms">
+          {W.terms}
+        </a>
+        <span aria-hidden="true"> · </span>
+        <a className="link-btn" href="/privacy">
+          {W.privacy}
+        </a>
+      </p>
+      <div className="fr-foot">
+        <span />
+        <button type="button" className="link-btn" onClick={notOnGoogle} disabled={busy} data-testid="fr-find-not">
+          {W.notOnGoogle}
+        </button>
         {hits.length > 0 ? (
           <button
             type="button"
-            className="fr-onward"
+            className="btn btn-lg btn-primary fr-go"
+
             onClick={linkPicked}
             disabled={busy || !picked}
             aria-busy={busy || undefined}
@@ -211,15 +235,7 @@ export const FrFind = ({ W, flash, done, go, make }: FindProps) => {
             {W.yes}
           </button>
         ) : null}
-        <button type="button" className="fr-find-link" onClick={notOnGoogle} disabled={busy} data-testid="fr-find-not">
-          {W.notOnGoogle}
-        </button>
       </div>
-      <p className="fr-find-legal">
-        <a href="/terms">{W.terms}</a>
-        <span aria-hidden="true"> · </span>
-        <a href="/privacy">{W.privacy}</a>
-      </p>
     </div>
   );
 };

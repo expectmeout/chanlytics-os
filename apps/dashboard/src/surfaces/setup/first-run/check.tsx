@@ -49,11 +49,12 @@ const part = (name: Parameters<typeof businessPart>[0]): BusinessPart => busines
 function noBrain(check: FirstRunCheckVM, W: CheckWords, make: () => void, making: boolean): ReactNode {
   if (check.make) {
     return (
-      <div className="fr-check-make" data-testid="fr-check-make">
-        <p className="fr-check-note">{check.make.sentence}</p>
+      <div className="fr-make" data-testid="fr-check-make">
+        <p className="fr-note">{check.make.sentence}</p>
         <button
           type="button"
-          className="fr-onward"
+          className="btn btn-lg btn-primary"
+
           onClick={make}
           disabled={making}
           aria-busy={making || undefined}
@@ -67,7 +68,7 @@ function noBrain(check: FirstRunCheckVM, W: CheckWords, make: () => void, making
   }
   if (check.waiting)
     return (
-      <p className="fr-check-note" data-testid="fr-check-waiting">
+      <p className="fr-note" data-testid="fr-check-waiting">
         {check.waiting}
       </p>
     );
@@ -104,7 +105,7 @@ function offerCard(o: {
   const ServicesRow = part("BtServicesRow");
   const LanguagesRow = part("BtLanguagesRow");
   return (
-    <section className="rec-card fr-check-card" aria-label={W.groups.offer}>
+    <section className="rec-card fr-check-group" aria-label={W.groups.offer}>
       <ServicesRow brain={brain} canEdit={canEdit} saver={saver} />
       {chips.services.chips.length || chips.services.full ? (
         <FrChips
@@ -161,7 +162,7 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, held, sett
   const quotes = bookingLinkOptional(answer.shown);
   const linkRow = !quotes || !!brain.booking_link;
   const note = check.unsure ? (
-    <span className="fr-check-unsure" data-testid="fr-check-unsure">
+    <span className="fr-unsure" data-testid="fr-check-unsure">
       {check.unsure}
     </span>
   ) : null;
@@ -181,7 +182,7 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, held, sett
   const find = check.find;
   return (
     <div className="fr-check" data-testid="fr-check">
-      <section className="rec-card fr-check-card" aria-label={W.groups.facts}>
+      <section className="rec-card fr-check-group" aria-label={W.groups.facts}>
         <HoursRow
           brain={brain}
           prompt={settings.prompt || null}
@@ -194,7 +195,7 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, held, sett
         <AddressRow {...rows} />
         <WebsiteRow {...rows} />
       </section>
-      <section className="rec-card fr-check-card" aria-label={W.groups.buys}>
+      <section className="rec-card fr-check-group" aria-label={W.groups.buys}>
         {choice ? (
           <div className="fr-check-buys">
             {choice({
@@ -219,7 +220,7 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, held, sett
               testid: "fr-sells-by",
             })}
             {!linkRow ? (
-              <p className="fr-check-note" data-testid="fr-check-quotes">
+              <p className="fr-note" data-testid="fr-check-quotes">
                 {bookingLinkRowWords(answer.shown).hint}
               </p>
             ) : null}
@@ -239,8 +240,8 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, held, sett
       </section>
       {offerCard({ W, brain, rows, canEdit, flash, saver, chips })}
       {find ? (
-        <p className="fr-check-note">
-          <button type="button" className="fr-find-link" onClick={() => go(find.to)} data-testid="fr-check-find">
+        <p className="fr-note">
+          <button type="button" className="link-btn" onClick={() => go(find.to)} data-testid="fr-check-find">
             {find.label}
           </button>
         </p>

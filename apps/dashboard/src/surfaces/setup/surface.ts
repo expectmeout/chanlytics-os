@@ -12,11 +12,13 @@
 import {
   setupSteps,
   setupLaterOf,
+  setupPhoneWantOf,
   shouldLandOnFirstRun,
   FIRST_RUN_LANDED_KEY,
   FIRST_RUN_ROUTE,
   SETUP_LATER_REFUSED,
   type SetupDto,
+  type SetupPhoneWant,
   type SetupVM,
   type SetupRequestKind,
   forwardingCodes,
@@ -41,6 +43,8 @@ export interface SetupSurface {
   role: string;
   /** The rows this member put off: their saved Setup view (memberships.views.setup), the same on every device. */
   later: string[];
+  /** The number this member said they keep or move on the first run's phone step, from the same saved view. */
+  want: SetupPhoneWant | null;
   vm: SetupVM;
   fetchedAt: number;
 }
@@ -48,6 +52,11 @@ export interface SetupSurface {
 interface SetupApi {
   /** Put optional rows off, or take them back: this member's, saved to their view, on every device. */
   later(ids: string | string[], on: boolean): Promise<{ ok: boolean; message: string }>;
+  /**
+   * The number this member keeps or moves (the first run's phone step), or null for a new one: saved to their view
+   * beside the rows they put off, so the step asks for its forwarding from any tab. Nothing to say where it stands.
+   */
+  want(next: SetupPhoneWant | null): Promise<{ ok: boolean; message: string }>;
   /**
    * The receptionist from what is known: set up where there is none, from Google's listing when one is linked and the
    * name typed at sign-up otherwise; filled from Google where one states none of it. `wrote` is false when there was
@@ -63,6 +72,12 @@ interface SetupApi {
   deactivate(kind: string): Promise<{ ok: boolean; message: string }>;
   /** Read the workspace again: the failed card's retry. */
   refresh(): Promise<void>;
+  /**
+   * Look again without a word, for a step that waits on something outside the page (a plan, a number, a call): the live
+   * feed says when it lands, and this asks at the step's own pace in case it did not. What is drawn stays if the look
+   * fails, where a failed read would put the page's failed card over a step that is only waiting.
+   */
+  peek(): Promise<void>;
   /** The product's own line: numbers to choose from, the one chosen, a retry. Owners only; the route says so. */
   lines: {
     search(areaCode: string): Promise<{ ok: boolean; numbers: LineChoice[]; message: string }>;
@@ -109,8 +124,14 @@ declare global {
 
 declareSurfaceValue("setup", "__SETUP");
 
-function publish(dto: SetupDto, role: string, later: string[]): void {
-  setSurfaceValue("setup", { dto, role, later, vm: setupSteps({ ...dto, later }), fetchedAt: Date.now() });
+function publish(dto: SetupDto, role: string, later: string[], want: SetupPhoneWant | null): void {
+  setSurfaceValue("setup", { dto, role, later, want, vm: setupSteps({ ...dto, later, want }), fetchedAt: Date.now() });
+}
+
+/** The member's Setup view as it stands on the page: a save replaces the whole of it, so every save sends all of it. */
+function viewNow(): Record<string, unknown> {
+  const s = surfaceValue("setup");
+  return { later: s?.later ?? [], ...(s?.want ? { phone: s.want } : {}) };
 }
 
 /**
@@ -122,6 +143,25 @@ let laterSaving: Promise<unknown> = Promise.resolve();
 let laterPending = 0;
 /** Whether the member's saved view was read. A save made without it would replace what they put off with less. */
 let laterKnown = false;
+
+/**
+ * Setup read and published: the workspace's facts, and beside them the member's own saved view (the door People's view
+ * goes through), which holds the rows they put off and the number they keep. A views read that fails puts nothing off
+ * rather than failing Setup.
+ */
+async function readSetup(): Promise<void> {
+  const [d, v] = await Promise.all([read("GET setup"), read("GET views").catch(() => null)]);
+  const prior = surfaceValue("setup");
+  // While a save of the view is out, or its read failed, what is on the page is newer than anything the read says.
+  const held = !!prior && (laterPending > 0 || !v);
+  const later = held ? prior.later : v ? setupLaterOf(v.views.setup) : [];
+  const want = held ? prior.want : v ? setupPhoneWantOf(v.views.setup) : null;
+  laterKnown = !!v || (laterKnown && !!prior);
+  publish(d.setup, d.role, later, want);
+}
+
+/** A quiet look still out: a second one waits for it. */
+let peeking = false;
 
 export const setupOverride: SurfaceOverride = {
   key: "setup",
@@ -151,13 +191,7 @@ export const setupOverride: SurfaceOverride = {
     (c.event === "UPDATE" && c.row.status === "ended" && !surfaceValue("setup")?.dto?.channels?.voice?.lastInboundAt),
   apply: async () => {
     try {
-      // The rows this member put off ride on their own saved view (the door People's view goes through), read beside
-      // the workspace's facts. A views read that fails puts nothing off rather than failing Setup.
-      const [d, v] = await Promise.all([read("GET setup"), read("GET views").catch(() => null)]);
-      const prior = surfaceValue("setup");
-      const later = prior && (laterPending > 0 || !v) ? prior.later : v ? setupLaterOf(v.views.setup) : [];
-      laterKnown = !!v || (laterKnown && !!prior);
-      publish(d.setup, d.role, later);
+      await readSetup();
     } catch (e) {
       // Null, not undefined: the page draws a card with a retry instead of "Reading your workspace…" for ever.
       setSurfaceValue("setup", null);
@@ -192,13 +226,13 @@ function later(ids: string | string[], on: boolean): Promise<{ ok: boolean; mess
     const now = surfaceValue("setup");
     if (!now) return;
     const next = off ? [...new Set([...now.later, ...changed])] : now.later.filter((x) => !changed.includes(x));
-    publish(now.dto, now.role, next);
+    publish(now.dto, now.role, next, now.want);
     window.dispatchEvent(new CustomEvent("surface:setup"));
   };
   move(on);
   laterPending += 1;
   const saved = laterSaving.then(async () => {
-    const r = await saveView("setup", { later: surfaceValue("setup")?.later ?? [] });
+    const r = await saveView("setup", viewNow());
     laterPending -= 1;
     // Not kept, so not put off (or back): this call's rows return as they were, and the caller says why.
     if (!r.ok) move(!on);
@@ -208,9 +242,43 @@ function later(ids: string | string[], on: boolean): Promise<{ ok: boolean; mess
   return saved;
 }
 
+/** The same want, said twice: nothing to save. */
+const sameWant = (a: SetupPhoneWant | null, b: SetupPhoneWant | null): boolean =>
+  a === b || (!!a && !!b && a.way === b.way && a.number === b.number);
+
+/**
+ * The number kept or moved, or none: shown at once, saved through the put-off rows' one line of saves (the view is one
+ * object), and put back as it was where refused.
+ */
+function want(next: SetupPhoneWant | null): Promise<{ ok: boolean; message: string }> {
+  const s = surfaceValue("setup");
+  if (!s) return Promise.resolve({ ok: false, message: SETUP_LATER_REFUSED.reading });
+  if (!laterKnown) return Promise.resolve({ ok: false, message: SETUP_LATER_REFUSED.unread });
+  const before = s.want;
+  if (sameWant(before, next)) return Promise.resolve({ ok: true, message: "" });
+  const say = (w: SetupPhoneWant | null) => {
+    const now = surfaceValue("setup");
+    if (!now) return;
+    publish(now.dto, now.role, now.later, w);
+    window.dispatchEvent(new CustomEvent("surface:setup"));
+  };
+  say(next);
+  laterPending += 1;
+  const saved = laterSaving.then(async () => {
+    const r = await saveView("setup", viewNow());
+    laterPending -= 1;
+    // Not kept: the page says what the member's view still holds. Only this call's own change is taken back.
+    if (!r.ok && sameWant(surfaceValue("setup")?.want ?? null, next)) say(before);
+    return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+  });
+  laterSaving = saved;
+  return saved;
+}
+
 /** Setup's verbs, each through its door. */
 export const setupVerbs: SetupApi = {
   later,
+  want,
   async receptionist() {
     const r = await api()("POST settings/receptionist", { body: {} });
     return r.ok ? { ok: true, wrote: r.data.wrote, message: "" } : { ok: false, wrote: false, message: r.message };
@@ -229,6 +297,18 @@ export const setupVerbs: SetupApi = {
   async refresh() {
     api().forget();
     await refreshSurfaces([setupOverride]);
+  },
+  async peek() {
+    if (peeking || !surfaceValue("setup")) return;
+    peeking = true;
+    try {
+      await readSetup();
+      window.dispatchEvent(new CustomEvent("surface:setup"));
+    } catch {
+      /* what is drawn stands: the step is waiting, not failed */
+    } finally {
+      peeking = false;
+    }
   },
   lines: {
     async search(areaCode) {

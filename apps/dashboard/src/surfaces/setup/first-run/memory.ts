@@ -11,7 +11,7 @@
  * checkout twice; a return older than PHONE_RETURN_MS with no trial is one Stripe never confirmed, and the step offers it
  * again.
  */
-import { HOUR_MS, MIN_MS, type PhoneChoice } from "@chanlytics/contracts";
+import { formatPhoneDisplay, HOUR_MS, MIN_MS, type PhoneChoice, type SetupPhoneWant } from "@chanlytics/contracts";
 import { tabMemoryFor } from "@/legacy-bridge/tab-memory";
 
 /** The phone step's choice as the tab keeps it: contracts', with when its buy went out and when Stripe sent it back. */
@@ -27,6 +27,13 @@ const PHONE_RETURN_MS = 15 * MIN_MS;
 /** Back from Stripe with a card given, recently enough that the trial may still be on its way. */
 export const returnedFromStripe = (c: KeptPhoneChoice | null): boolean =>
   !!(c && c.pending && c.returnedAt && Date.now() - c.returnedAt < PHONE_RETURN_MS);
+
+/**
+ * The choice a tab that holds none starts from: the number the member's saved Setup view says they keep or move
+ * (surface.ts `want`), written as the app writes one, with nothing pressed and no answers yet. Null without one.
+ */
+export const choiceFromWant = (want: SetupPhoneWant | null): KeptPhoneChoice | null =>
+  want ? { way: want.way, number: formatPhoneDisplay(want.number) ?? want.number, pick: null, pending: false } : null;
 
 export function phoneChoiceKept(): KeptPhoneChoice | null {
   try {
