@@ -70,6 +70,10 @@ const win = globalThis.window;
 
 const { peopleChrome } = await import("../../../../../apps/dashboard/src/surfaces/people/chrome.ts");
 const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
+// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
+// publishes it (seed-globals.ts); its hooks are this file's stub's.
+(await import("../../_legacy-react.mjs")).useStubHooks(globalThis.React);
+globalThis.ViewTabs = (await import("../../../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
 await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
 
 const people = (dealsOn) => ({ rows: [], lists: [], saved: [], dealsOn });
@@ -85,10 +89,12 @@ const tabsOf = (tree) => {
   walk(tree, (n) => n.type === "a" && /\bstabs-tab\b/.test(String(n.props?.className)) && out.push(n));
   return out;
 };
+/** The strip as it is drawn: the kit's nav, which SurfaceTabs hands the page's views (or its group's) to. */
 const strip = (props) => {
   cells = [];
   frames.begin();
-  return win.SurfaceTabs({ onNavigate() {}, ...props });
+  const drawn = win.SurfaceTabs({ onNavigate() {}, ...props });
+  return drawn ? drawn.rendered : null;
 };
 
 test("the chrome says People and Leads, and the Pipeline only where deals are on", () => {

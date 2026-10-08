@@ -6,12 +6,15 @@
  * never blanks the body. Reviews draws from a read of its own (reviews-surface.ts, made as it comes on screen) that follows the period
  * shown: the page asks how it stands against it once (`useFollower`) and hands that to the lens, the head and its own dimming. The
  * frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the period is the page's act at the strip's right, a
- * round button that opens it (period-picker.tsx), with its days beside it on a desk; the page draws the lens's body (lenses/). A real
+ * round button that opens it (period-picker.tsx), with its days beside it on a desk; the page draws the lens's body (lenses/), which
+ * is a view of its own: replaced as the lens changes (keyed by it), and moved by the deck every change of view moves by
+ * (kit/motion/view-deck.ts), from the side its lens stands on, while the page and what it holds of a period stay. A real
  * workspace draws the bridge's own numbers (`useSurface("reports")`); a demo session draws the same page from the contracts sample
  * (sample.ts); without either, the page says what Reports reads.
  */
 import { useEffect, useState } from "react";
 import {
+  REPORT_LENSES,
   REPORT_PERIOD_DEFAULT,
   REPORT_RANGES,
   lensOfRoute,
@@ -21,6 +24,8 @@ import {
 } from "@chanlytics/contracts";
 import { demoSession } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
+import { useSlide } from "../kit/motion/use-slide";
+import { viewDeck } from "../kit/motion/view-deck";
 import { useFollower, useSurface, type Follower } from "../use-surface";
 import { useRptDesk, useRptPhone } from "./blocks";
 import { lensShownHere } from "./chrome";
@@ -37,6 +42,9 @@ import { PeriodPicker } from "./period-picker";
 import type { ReviewsSurface } from "./reviews-surface";
 import { reportsSample, reviewsSample } from "./sample";
 import type { ReportsSurface } from "./surface";
+
+/** The lenses in the order the strip stands them: which side a lens arrives from. */
+const LENS_ORDER: readonly string[] = REPORT_LENSES.map((l) => l.id);
 
 /** Reports read nothing: a session with no workspace, and no demo to draw. */
 function readsAWorkspace() {
@@ -114,6 +122,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const reviews: Follower<ReviewsSurface> =
     !live && R ? { value: reviewsSample(R.period), state: "current" } : following;
   const desk = useRptDesk();
+  const slide = useSlide(LENS_ORDER, lens);
   const pick = async (period: ReportPeriodId) => {
     // The one shown, or the one on its way: nothing to read. Any other pick is read, whatever else is out.
     if (!R || period === (pending ?? R.period)) return;
@@ -152,7 +161,14 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
         {/* The period is the head's act (period-picker.tsx); a period that failed to load is said here, over the body. The
             frame's head says Reports and the lens's answer; the page does not title itself. */}
         {failedRow(failed, R)}
-        <div className="rpt-body" data-dims aria-busy={busy ? "true" : "false"}>
+        <div
+          className="rpt-body"
+          key={lens}
+          ref={viewDeck.view("reports")}
+          data-slide={slide}
+          data-dims
+          aria-busy={busy ? "true" : "false"}
+        >
           {lensBody(lens, { R, pick, phone }, lensShownHere(lens), reviews)}
         </div>
       </div>

@@ -1358,6 +1358,11 @@ test("the first run keeps Ask: the palette is drawn over the step, closed, and t
 });
 
 test("People has no tab strip on a real workspace -- its one real tab is People, and Lists and Leads are views of it; the demo keeps its seeded Deal board, over every view (N24)", async () => {
+  // The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
+  // publishes it; its hooks are this file's stub's.
+  const { useStubHooks } = await import("../../_legacy-react.mjs");
+  useStubHooks(globalThis.React);
+  globalThis.ViewTabs = (await importSrc("apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
   await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
   const tabsAt = (param) => {
     deep = true;
@@ -1365,7 +1370,13 @@ test("People has no tab strip on a real workspace -- its one real tab is People,
     frames.begin();
     return win.SurfaceTabs({ page: "clients", param, onNavigate() {} });
   };
-  const labels = (tree) => (tree ? tree.props.children.map((b) => textOf(b).trim()) : null);
+  const labels = (tree) =>
+    tree
+      ? tree.rendered.props.children
+          .flat()
+          .filter((n) => n && String(n.props?.className || "").includes("stabs-tab"))
+          .map((b) => textOf(b).trim())
+      : null;
   for (const param of [null, "seg:opted_in", "list:regulars", "state:needs", "p-9"])
     assert.equal(tabsAt(param), null, `nothing to switch to at ${param}: one real tab is no strip`);
   win.__DEMO_MODE = true;
@@ -1792,8 +1803,10 @@ test("Today waits for the card it draws above its queue, and once its own read i
 test("a move between two views of one strip arrives as the Inbox's tabs do -- People to Leads and back -- and a move within one family that is no strip's draws at once", async () => {
   // The fade was taken off People's scopes when a switch drew the whole scope before anything answered, and the fade
   // on top read as a wait. With the press answered first and the page drawn once (5 Oct 2026), People's scopes arrive
-  // as the Inbox's Needs you, Conversations and Live do: the route fade on a desk, the slide on a phone. One person's
-  // page to the next is the same family and no strip's move, and draws at once.
+  // as the Inbox's Needs you, Conversations and Live do: from the side the tab stands on, which the view says
+  // (`data-slide`) and the kit's deck brings it in by, the same on a desk and a phone (8 Oct 2026; it was a class a
+  // phone's stylesheet slid and a desk's ignored). One person's page to the next is the same family and no strip's
+  // move, and draws at once.
   shell.installShell(win);
   // Where a view stands on a strip is the strip's (surface-tabs.jsx stripPlace), over People's scope words (people-globals.ts).
   await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
@@ -1818,7 +1831,7 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
     deep = true;
     return t;
   };
-  const slides = (t) => view(t).props.className.match(/route-slide-(next|prev)/)?.[1] ?? null;
+  const slides = (t) => view(t).props["data-slide"] ?? null;
   const { tree } = mount("#/clients");
   assert.equal(stays(tree), false, "a page opened cold fades in");
   const leads = go("#/clients/leads");

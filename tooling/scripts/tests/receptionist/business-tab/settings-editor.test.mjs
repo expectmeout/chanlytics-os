@@ -306,33 +306,43 @@ const railRow = (tree, label) =>
 
 const classesOf = (n) => String(n.props?.className || "").split(" ");
 // Ruben, 25 Sep: on a phone Settings' sections are every page's strip -- the words alone, the one open underlined in the
-// accent -- where a boxed rail of icons ran off the screen's edge with no sign there was more.
-test("on a phone the sections are every page's strip: their words in order, the open one current, a press goes there", () => {
+// accent -- where a boxed rail of icons ran off the screen's edge with no sign there was more. It is the kit's strip
+// itself since 8 Oct 2026 (surfaces/kit/view-tabs): the page typed the markup again, with buttons where a section has
+// an address, and a slide of its own.
+test("on a phone the sections are every page's strip: their words in order, each a link to its section, the open one current, a press goes there", () => {
   const went = [];
   const tree = draw("workspace", went);
   const strip = find(tree, (n) => classesOf(n).includes("stabs-settings"));
   assert.ok(strip, "the strip (a phone shows it, mobile.css)");
-  assert.ok(classesOf(strip).includes("stabs"), "every page's strip, components.css .stabs");
-  const tabs = all(strip, (n) => n.type === "button");
+  assert.ok(classesOf(strip).includes("stabs"), "every page's strip, the kit's .stabs");
+  const tabs = all(strip, (n) => classesOf(n).includes("stabs-tab"));
   assert.deepEqual(
     tabs.map((t) => textOf(t).trim()),
     SET_TABS.map((t) => t.label),
     "the words alone, in the rail's order",
   );
+  assert.ok(
+    tabs.every((t, i) => t.type === "a" && String(t.props.href).endsWith(`/${SET_TABS[i].id}`)),
+    "a section has an address, so its tab is a link to it",
+  );
   assert.deepEqual(
     tabs.filter((t) => classesOf(t).includes("active")).map((t) => [textOf(t).trim(), t.props["aria-current"]]),
     [["Business", "page"]],
   );
-  tabs.find((t) => textOf(t).trim() === "Team").props.onClick();
+  let stopped = 0;
+  tabs.find((t) => textOf(t).trim() === "Team").props.onClick({ button: 0, preventDefault: () => stopped++ });
   assert.deepEqual(went, ["team"]);
+  assert.equal(stopped, 1, "the app's own move, not the link's");
 });
 
-test("a section opened comes in from its side, and keeps that while it stays open", () => {
+test("a section's pane is a view that says which side it arrives from, and keeps saying it while it stays open", () => {
+  // The deck every change of view moves by brings it in from there (surfaces/kit/motion/view-deck.ts); it was a class
+  // of the page's own that a phone's stylesheet slid.
   const pane = (tree) => find(tree, (n) => classesOf(n).includes("set-pane"));
-  draw("workspace");
-  assert.ok(classesOf(pane(draw("team"))).includes("set-slide-next"), "Team after Business: from the right");
-  assert.ok(classesOf(pane(draw("team"))).includes("set-slide-next"), "drawn again, still");
-  assert.ok(classesOf(pane(draw("profile"))).includes("set-slide-prev"), "Profile after Team: from the left");
+  assert.equal(pane(draw("workspace")).props["data-slide"], undefined, "the first section drawn arrives with the page");
+  assert.equal(pane(draw("team")).props["data-slide"], "next", "Team after Business: from the right");
+  assert.equal(pane(draw("team")).props["data-slide"], "next", "drawn again, still");
+  assert.equal(pane(draw("profile")).props["data-slide"], "prev", "Profile after Team: from the left");
 });
 
 /* ------------------------------ which card the pane draws ------------------------------ */

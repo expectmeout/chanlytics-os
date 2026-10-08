@@ -5,7 +5,7 @@
  * touch list and the pill with the frame's components.
  */
 import type { calendarPeekDeal } from "@chanlytics/contracts";
-import { openDealSheet, type DealSheetAsk, type SwipeHandlers, type SwipeOptions } from "../legacy-verbs";
+import { openDealSheet, type DealSheetAsk, type StayingPage, type SwipeHandlers } from "../legacy-verbs";
 import { statePillPart } from "../legacy-parts";
 
 /** People, as far as an appointment's peek reads it (contracts calendarPeekDeal): whether deals are on, and each row's deal. */
@@ -14,7 +14,6 @@ type PeopleRead = Parameters<typeof calendarPeekDeal>[1];
 /** What the shell publishes that the Calendar reads, under the names it publishes them. */
 interface CalendarShell {
   __PEOPLE?: PeopleRead;
-  ST_OWN_TOUCH?: string;
 }
 
 const shell = (): Window & CalendarShell => window;
@@ -44,11 +43,6 @@ export function askDealSheet(ask: { personId: string; mode: string | null; servi
   openDealSheet(ask as DealSheetAsk);
 }
 
-/** What keeps its own touch (surface-tabs.jsx ST_OWN_TOUCH: a dialog, a sheet, a menu, a toast), as a selector; nothing without the shell. */
-export function ownTouchSelector(): string | null {
-  return shell().ST_OWN_TOUCH ?? null;
-}
-
 /** Run a change so it is drawn at once (React's flushSync, which the shell publishes with its React), else just run it. */
 export function flushChange(change: () => void): void {
   const flush = window.ReactDOM?.flushSync;
@@ -57,24 +51,14 @@ export function flushChange(change: () => void): void {
 }
 
 /**
- * The page a swipe across the days walks to (data-bits `touchSwipe`, `pages`): the page each side and how it comes in.
- * `stays` is the Calendar's: the same element shows the next days, so it turns in place after `go`. The shell's own type
- * (legacy-verbs SwipePage) asks for a `follow` this page never gave and does not say `stays`; data-bits guards the one
- * and reads the other.
+ * A thumb's gestures for the Calendar's days, a page that stays (legacy-verbs StayingPage: the same element shows the
+ * next days, so data-bits turns it in place after `go`): none where the shell has none.
  */
-interface StayingPage {
-  prev: boolean;
-  next: boolean;
-  stays?: boolean;
-  go: (step: number) => void;
-}
-
-/** A thumb's gestures for a page that stays (see StayingPage): none where the shell has none. */
 export function touchSwipeStaying(options: {
   pages: (el: Element, from: EventTarget | null) => StayingPage | null;
   when: () => boolean;
 }): SwipeHandlers {
-  return window.touchSwipe ? window.touchSwipe(options as SwipeOptions) : {};
+  return window.touchSwipe ? window.touchSwipe(options) : {};
 }
 
 /** The shell's routes the Calendar sends a person to (data/constants.jsx `R`): the thread a booking link is texted in, and Settings. */

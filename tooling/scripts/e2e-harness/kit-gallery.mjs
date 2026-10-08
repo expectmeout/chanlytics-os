@@ -58,7 +58,8 @@ export const UNLISTED = {
     "Confirm's mark on a question about what was typed and not saved, which no stylesheet names (kit/confirm)",
   "pp-toast-ok":
     "usePPToast's tone class on a confirmation, which no stylesheet names (data-bits.jsx, pp-toast-<tone>)",
-  "stabs-inbox": "the Inbox's strip as SurfaceTabs marks each group's (stabs-<group>), which no stylesheet names",
+  "stabs-inbox": "the Inbox's strip as ViewTabs marks each strip's (stabs-<name>), which no stylesheet names",
+  "stabs-campaigns": "a second strip's own mark (ViewTabs, stabs-<name>), which no stylesheet names",
   "stabs-badge": "the count on a tab (SurfaceTabs), which mobile.css hides on a phone's Inbox",
   "rec-seg-label": "an option's label beside its hint (RecordToggleGroup), which no stylesheet names",
   "rec-combo-label": "an option's words beside its meta (RecordCombobox), which no stylesheet names",
@@ -1158,26 +1159,36 @@ export const FAMILIES = [
   {
     family: "Tab strip",
     about:
-      "A surface's views, SurfaceTabs: the picked one in ink over the accent's underline, a count on a tab, Campaigns' strip, and the underline a thumb carries between two tabs.",
+      "A page's views, ViewTabs (surfaces/kit/view-tabs/view-tabs.tsx): links on one capsule, the picked one the lozenge in ink, a count beside a word that has one, the dot on a view with something on now, and a second strip wearing its own name. The highlight a change of view carries is in each, unseen at rest.",
     entries: [
       {
         id: "stabs",
         html:
-          `<nav class="stabs stabs-inbox" aria-label="Section views">` +
-          `<a class="stabs-tab active" href="#">Needs you <span class="stabs-badge tally tally-warn" data-tone="warn">3</span></a>` +
-          `<a class="stabs-tab" href="#">Conversations</a><a class="stabs-tab" href="#">Live</a></nav>`,
+          `<nav class="stabs stabs-inbox" aria-label="Section views"><span class="stabs-pill" aria-hidden="true"></span>` +
+          `<a class="stabs-tab active" href="#" aria-current="page">Needs you <span class="stabs-badge tally tally-warn" data-tone="warn">3</span></a>` +
+          `<a class="stabs-tab" href="#">Conversations</a>` +
+          `<a class="stabs-tab" href="#">Live <span class="live-dot"></span></a></nav>`,
       },
       {
         id: "stabs-campaigns",
         html:
-          `<nav class="stabs" aria-label="Section views"><a class="stabs-tab" href="#">Playbooks</a>` +
-          `<a class="stabs-tab active" href="#">Broadcasts</a><a class="stabs-tab" href="#">Templates</a></nav>`,
+          `<nav class="stabs stabs-campaigns" aria-label="Section views"><span class="stabs-pill" aria-hidden="true"></span>` +
+          `<a class="stabs-tab" href="#">Playbooks</a>` +
+          `<a class="stabs-tab active" href="#" aria-current="page">Broadcasts</a><a class="stabs-tab" href="#">Templates</a></nav>`,
       },
+    ],
+  },
+  {
+    family: "Tab strip, as a view changes",
+    about:
+      "The highlight a change of view carries from the tab lit to the tab picked (surfaces/kit/view-tabs/glide.ts): one element, placed by transform on the page's own timeline while the strip says it glides, the picked tab's own fill clear meanwhile. Here it is half way from Needs you to Conversations, which is lit before the address has moved.",
+    entries: [
       {
         id: "stabs-glide",
         html:
-          `<nav class="stabs stabs-inbox" aria-label="Section views" data-glide="ease" style="--glide-w: 98px; --glide-x: 110px;">` +
-          `<a class="stabs-tab active" href="#">Needs you</a><a class="stabs-tab" href="#">Conversations</a>` +
+          `<nav class="stabs stabs-inbox" aria-label="Section views" data-glide="">` +
+          `<span class="stabs-pill" aria-hidden="true" style="transform: translate3d(48px, 0, 0) scaleX(1);"></span>` +
+          `<a class="stabs-tab" href="#" aria-current="page">Needs you</a><a class="stabs-tab active" href="#">Conversations</a>` +
           `<a class="stabs-tab" href="#">Live</a></nav>`,
       },
     ],

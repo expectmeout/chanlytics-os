@@ -45,7 +45,7 @@ The plan's contract (its §2.1), with what the build holds of each today.
 | The kit's rules | `apps/dashboard/src/surfaces/kit/kit.css`, reading a role where a look sets the value (a surface, a control, an action), and otherwise a scale or the theme's colour; one breakpoint, 900px. Four primitives stand in it twice until Phase 4 takes the house's out: `.avatar` and `.face`, `.rec-sheet` and `.sheet`, and the surfaces of `.rec-card-tip` and `.confirm-block` beside `.panel-pop` and `.panel-inset`. Its header says what belongs there |
 | Its registry | `apps/dashboard/src/surfaces/kit/classes.json`: the kit's class names (the house's own, no prefix) and, apart, the modifiers its rules name (`.active`, `.show`). The measures read it |
 | Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`, `Figure`, `MonthRange` (a period's days on a month, in the date picker's folder), and those with behaviour of their own, on Base UI: `Sheet`, `Menu`, `Popover`, `DatePicker`, `Select`, `Combobox`, `Tooltip`, `useToast`, `Switch`, `Segmented`, `Field` (Behaviour: Base UI, below): a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
-| The house's components over its classes | `StatePill`, `MoreMenu` and `usePPToast` in `apps/dashboard/src/legacy/components/data-bits.jsx`, and `SurfaceTabs`: JSX, which a surface cannot import. `Confirm`, `FieldError`, `EmptyState`, `FailedRead`, the record kit (`apps/dashboard/src/surfaces/kit/record/`) and `Icon` are the kit's own TSX, which the pages that have not moved read by name (`apps/dashboard/src/surfaces/kit/kit-globals.ts`). (Draw with the kit, step 2) |
+| The house's components over its classes | `StatePill`, `MoreMenu` and `usePPToast` in `apps/dashboard/src/legacy/components/data-bits.jsx`: JSX, which a surface cannot import. (`SurfaceTabs` is the frame's adapter over the kit's `ViewTabs`, `apps/dashboard/src/surfaces/kit/view-tabs/`, which a surface imports.) `Confirm`, `FieldError`, `EmptyState`, `FailedRead`, the record kit (`apps/dashboard/src/surfaces/kit/record/`) and `Icon` are the kit's own TSX, which the pages that have not moved read by name (`apps/dashboard/src/surfaces/kit/kit-globals.ts`). (Draw with the kit, step 2) |
 | The gallery | `tooling/scripts/e2e-harness/kit-gallery.mjs`: `node tooling/scripts/e2e-harness/server.mjs 3210 kit`, then http://localhost:3210/ (`t` turns the theme, `l` the look), and the page that runs the Base UI components at http://localhost:3210/behaves (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`); `docs/runbook.md`, "See the kit" |
 | Its checks | `e2e/kit/kit.spec.ts` and `e2e/kit/kit-behaves.spec.ts` in a browser; `tooling/scripts/tests/styles/kit-*.test.mjs` in `corepack pnpm test` |
 | The measures | `tooling/scripts/tests/_measures.mjs`, reading the stylesheets through `tooling/scripts/tests/_css.mjs` and the markup through `tooling/scripts/tests/_ast.mjs`; the baselines in `tooling/scripts/tests/baselines/`; the register, `docs/debt.md` |
@@ -206,7 +206,7 @@ TSX (Draw with the kit, step 2).
 | empty state | `EmptyState`, and `FailedRead` for a read that failed (`.empty*`) |
 | state pill | `StatePill` (`.pill`) |
 | name chip | `.chip`, its × `.chip-x` |
-| tab strip | `.stabs`, as `SurfaceTabs` draws it |
+| tab strip | `ViewTabs` (`.stabs`): a page's views as links; a view that is replaced as it changes registers with the kit's `viewDeck` and says its side with `data-slide` (`kit/motion/view-deck.ts`, `use-slide.ts`) |
 | card | `Panel`: `pane`, `inset` or `pop`; `sm` or `flush` |
 | meter, bar | `Meter` (`.meter`) |
 | tooltip, a native `title` | `Tooltip` (`.ui-tip`); on a legacy page a `data-tip` attribute, drawn by `.ui-tip` on hover and on keyboard focus, and `RecordTip` in the record kit |
@@ -257,7 +257,7 @@ told), and the kit's classes draw its parts, since Base UI draws nothing.
   change, and the first Base UI component a surface draws raises the workspace route's JS budget there, with the
   reason.
 - A surface's views that change the address are links, never Base UI's Tabs: a door is a link, and `.stabs` stays a
-  strip of links when `SurfaceTabs` moves.
+  strip of links: the kit's `ViewTabs`.
 - Held: each is drawn on the harness's running page (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`, at
   `/behaves`), which `e2e/kit/kit-behaves.spec.ts` drives with a keyboard and a pointer, at both widths, in both themes
   and looks, and holds, state by state, to its gallery family "on Base UI"; `kit-behaves.test.mjs` holds what a server

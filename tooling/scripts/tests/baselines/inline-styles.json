@@ -1,7 +1,6 @@
 {
   "apps/dashboard/src/legacy/components/data-bits.jsx": 1,
   "apps/dashboard/src/legacy/components/sidebar.jsx": 10,
-  "apps/dashboard/src/legacy/components/surface-tabs.jsx": 1,
   "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx": 12,
   "apps/dashboard/src/legacy/demo/pages/agent-store.jsx": 14,
   "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx": 69,

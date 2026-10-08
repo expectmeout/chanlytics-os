@@ -35,14 +35,14 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchEnd#1": {
-    "lines": 51,
-    "branches": 53,
+    "lines": 45,
+    "branches": 52,
     "depth": 3
   },
   "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchMove#1": {
     "lines": 43,
-    "branches": 58,
-    "depth": 3
+    "branches": 49,
+    "depth": 2
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
     "lines": 208,

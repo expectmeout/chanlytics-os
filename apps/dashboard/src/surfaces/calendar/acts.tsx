@@ -5,9 +5,10 @@
  * functions the page calls, never hooks.
  */
 import type { RefObject } from "react";
-import type { useLegacyToast } from "../legacy-verbs";
+import type { StayingPage, useLegacyToast } from "../legacy-verbs";
 import { surfaceValue } from "../surface-values";
-import { flushChange, ownTouchSelector } from "./shell-verbs";
+import { OWN_TOUCH } from "../kit/view-tabs/own-touch";
+import { flushChange } from "./shell-verbs";
 import { calendar } from "./verbs";
 
 type Flash = ReturnType<typeof useLegacyToast>[1];
@@ -82,14 +83,13 @@ export function aboutToggleAct(p: {
 
 /**
  * A swipe across the days walks them on a phone (data-bits touchSwipe, a page that stays): the step ‹ and › take, drawn at
- * once so the next days are what comes in. Never from what keeps its own touch: the strips' one list (surface-tabs.jsx
- * ST_OWN_TOUCH: a dialog, a sheet, a menu, a toast).
+ * once so the next days are what comes in. Never from what keeps its own touch: the strips' one list (the kit's
+ * OWN_TOUCH: a dialog, a sheet, a menu, a toast).
  */
 export function swipePagesOf(move: (n: number) => void) {
-  return (_el: Element, from: EventTarget | null) => {
-    const own = ownTouchSelector();
+  return (_el: Element, from: EventTarget | null): StayingPage | null => {
     const near = from as { closest?: (selector: string) => unknown } | null;
-    return near && near.closest && own && near.closest(own)
+    return near && near.closest && near.closest(OWN_TOUCH)
       ? null
       : { prev: true, next: true, stays: true, go: (step: number) => flushChange(() => move(step)) };
   };

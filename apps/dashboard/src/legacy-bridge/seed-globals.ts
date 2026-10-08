@@ -112,6 +112,11 @@ if (typeof window !== "undefined") {
     UnsavedAsk: KIT_GLOBALS.UnsavedAsk,
     tabDraft: KIT_GLOBALS.tabDraft,
     RecordSheet: KIT_GLOBALS.RecordSheet,
+    // The strip of views, the page a swipe walks and the deck a view moves by, which the frame draws and asks by name
+    // until it moves itself (surface-tabs.jsx, app-shell.jsx).
+    ViewTabs: KIT_GLOBALS.ViewTabs,
+    viewPager: KIT_GLOBALS.viewPager,
+    viewDeck: KIT_GLOBALS.viewDeck,
     __recordFolds: KIT_GLOBALS.__recordFolds,
     __settingsUnsaved: KIT_GLOBALS.__settingsUnsaved,
     __settingsSaving: KIT_GLOBALS.__settingsSaving,

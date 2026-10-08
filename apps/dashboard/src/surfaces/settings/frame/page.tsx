@@ -3,12 +3,16 @@
  * leave guard, and the pane the route names. Every pane is a module of this surface, imported (settings/<pane>/), and AI
  * memory is a pane that says it is not built.
  */
-import { Fragment, useRef, useState, type RefCallback } from "react";
+import { Fragment, useState, type RefCallback } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
+import { useSlide } from "../../kit/motion/use-slide";
+import { viewDeck } from "../../kit/motion/view-deck";
 import { recFolds } from "../../kit/record/registry";
+import { ViewTabs } from "../../kit/view-tabs/view-tabs";
 import { activity } from "@/legacy-bridge/activity";
 import { backOffice } from "@/legacy-bridge/platform";
+import { hrefOfRoute } from "@/legacy-bridge/workspace";
 import { useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
 import { PaneActivity } from "../activity/pane";
 import { PaneAutonomyReal } from "../autonomy/pane";
@@ -67,9 +71,8 @@ function PaneSoon({ which, onTab }: { which: keyof typeof SET_SOON; onTab: (tab:
   );
 }
 
-// The open tab, brought into view. On a phone the rail is one strip that scrolls sideways, and a pane opened by its
-// address (a bell's link, Setup's "Open Billing") left its own tab off the screen for every pane past Business. A
-// callback ref, not an effect: it runs when a tab becomes the open one and at no other time.
+// The open section's row, brought into view in the rail. A callback ref, not an effect: it runs when a row becomes
+// the open one and at no other time. (On a phone the sections are the kit's strip, which keeps its own picked tab in view.)
 const setTabIntoView: RefCallback<HTMLButtonElement> = (el) => {
   if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest", inline: "center" });
 };
@@ -157,36 +160,26 @@ export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: st
   };
   const listed = [...SET_TABS, ...(isPlatformAdmin() ? SET_TABS_PLATFORM : [])];
   const groups = groupsOf(listed);
-  // A section opened comes in from its side on a phone (settings.css set-slide-*), tapped or swiped: decided as it opens
-  // and kept for its life, since the page draws again while it stands (a toast, a save) and a class taken away mid-way
-  // stops the slide. The shell's own slide (route-slide-*) never plays here: every section is one mount of this page.
-  const opened = useRef<{ id: string | null; slide: "next" | "prev" | null }>({ id: null, slide: null });
-  if (opened.current.id !== active.id) {
-    const was = listed.findIndex((t) => t.id === opened.current.id);
-    const at = listed.findIndex((t) => t.id === active.id);
-    opened.current = { id: active.id, slide: was < 0 || at < 0 ? null : at > was ? "next" : "prev" };
-  }
-  const slide = opened.current.slide;
+  // A section is a view of this page: its pane is replaced as the section changes (keyed by it), registers with the
+  // deck every change of view moves by (kit/motion/view-deck.ts) and says which side it arrives from, by where the two
+  // sections stand in the rail. The frame's own view never changes here: every section is one mount of this page.
+  const slide = useSlide(
+    listed.map((t) => t.id),
+    active.id,
+  );
   return (
     <div className="settings">
-      {/* On a phone the sections are every page's strip (components.css .stabs): the words alone, the one open underlined
-          in the accent, and a swipe across the pane walks them (surface-tabs.jsx stripSwipe). The desk keeps its rail. */}
-      <nav className="stabs stabs-settings" aria-label="Settings sections">
-        {listed.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            ref={active.id === t.id ? setTabIntoView : undefined}
-            className={`stabs-tab${active.id === t.id ? " active" : ""}`}
-            aria-current={active.id === t.id ? "page" : undefined}
-            onPointerEnter={WARM[t.id]}
-            onFocus={WARM[t.id]}
-            onClick={() => go(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      {/* On a phone the sections are every page's strip, the kit's: a section has an address, so a tab is a link, a press
+          starts the pane leaving, and a swipe across the pane walks them (the shell's stripSwipe). A pane holding unsaved
+          work is not left until the page has asked. The desk keeps its rail. */}
+      <ViewTabs
+        name="settings"
+        label="Settings sections"
+        picked={active.id}
+        tabs={listed.map((t) => ({ id: t.id, label: t.label, href: hrefOfRoute(`admin/${t.id}`), warm: WARM[t.id] }))}
+        onPick={go}
+        mayLeave={() => !(recFolds.dirty() || recFolds.saving())}
+      />
       <aside className="set-nav">
         <div className="fl-roster-head">
           <span className="fl-roster-label">Settings</span>
@@ -211,7 +204,7 @@ export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: st
           </Fragment>
         ))}
       </aside>
-      <div className={`set-pane${slide ? ` set-slide-${slide}` : ""}`} key={active.id}>
+      <div className="set-pane" key={active.id} ref={viewDeck.view("settings")} data-slide={slide}>
         {leaving && (
           <LeaveAsk
             leaving={leaving}

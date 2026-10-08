@@ -100,10 +100,13 @@
 @media (prefers-reduced-motion: reduce) { .set-pane { animation: none; } }
 /* The sections as every page's strip is a phone's (settings.jsx, mobile.css); a desk has the rail. */
 .stabs-settings { display: none; }
-/* A section opened on a phone comes in from its side (settings.jsx set-slide-*), as a page from the tab beside does. */
-@media (max-width: 720px) and (prefers-reduced-motion: no-preference) {
-  .set-pane.set-slide-next { animation: route-slide-next 220ms var(--ease-out); }
-  .set-pane.set-slide-prev { animation: route-slide-prev 220ms var(--ease-out); }
+/* A section opened after another arrives by the deck every change of view moves by (surfaces/kit/motion/view-deck.ts;
+   the pane says its side, settings/frame/page.tsx), and plays no entrance of its own. On a phone it travels its own
+   width, as a page from the tab beside does. On a desk the sections are a rail, one under another, and nothing goes
+   across: the two panes cross-fade where they stand. */
+.set-pane[data-slide] { animation: none; }
+@media (min-width: 721px) {
+  .set-pane { --view-travel: 0px; }
 }
 
 /* The settings column. Every section on this surface takes it -- including

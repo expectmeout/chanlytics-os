@@ -261,15 +261,15 @@ const keyPress = (fn) => (e) => {
 // close is called; short of that, or when the page kept it open (it asks first about what was typed), it settles back.
 // Under reduced motion it still follows the finger, which is the person's own motion, and the rest happens at once.
 //
-// `pages(el, from)` is the third that follows: a page under a strip, walked across (surface-tabs.jsx stripPager). It is
-// asked once, as a touch is taken across (never from 24px of either edge, which is the phone's own back), with where
-// the touch began: `{ prev, next, moving, follow(progress, step, how), go(step) }`, or null for no page. The page moves
-// with the finger both ways; toward a side with no page it gives a quarter of the drag, 48px at most. `moving` names
-// what moves when it is not the element itself (People's strip is inside its page: all around it moves, it stays). Let go past a third (160px at most) or with a flick toward a page, `go(step)`
-// at once and it leaves that way while the next draws (it waited the leave out, 5 Oct 2026); otherwise it settles. `follow` hears every move ("move") and the end ("leave",
-// "settle"). The answer is kept with the touch, so a page drawn again mid-gesture loses nothing. `back` goes first.
-// A page that `stays` (the Calendar's days, Reports' lenses: the same element shows the next) is asked for the next once it
-// has left, waits where it went until `go` has landed it (a promise, surface-tabs.jsx stripPager), then comes back in from the side it is going to, 40px (components.css route-slide-*).
+// `pages(el, from)` is the third that follows: a page under a strip, walked across (the kit's viewPager, kit/view-tabs).
+// Asked once, as a touch is taken across (never from 24px of either edge, the phone's own back), with where the touch
+// began: `{ prev, next, drag(dx, step, open), settle(), go(step, speed) }`, or null. This only reads the touch: the page
+// moves itself, by the deck every change of view moves by (kit/motion/view-deck.ts). `drag` hears how far the finger
+// is, which side, and whether a page is there (toward none: a quarter of the drag, 48px at most). Let go past a third
+// (160px at most) or with a flick, `go(step, speed)` at once, at the finger's speed across in pixels a millisecond, so
+// the page carries on at it; otherwise `settle()`. Kept with the touch, so a redraw loses nothing. `back` goes first.
+// A page that `stays` (the Calendar's days) says only `{ prev, next, stays, go(step) }` and is turned in place
+// (swipeStays): it follows, leaves, is asked for the next, waits until `go` lands it, and comes back in from its side.
 //
 // A swipe across, with nothing following, is `onLeft`/`onRight`: `min` of travel (80px) along the axis it went
 // further on, so a scroll is never a move and a move never a scroll. A touch the browser reports only at its ends is
@@ -310,8 +310,8 @@ const SETTLE_MS = 240;
 // Long enough for React to have taken it away after the close: judged sooner, a sheet on its way out read as kept,
 // and settled back into view for a frame before it went.
 const KEPT_AFTER_MS = 60;
-// A page's switch is a navigation, which lands a task or two after the press, later than a sheet's close.
-const PAGE_KEPT_MS = 400;
+// A finger that has not moved for this long before it lifts lets go at rest.
+const STILL_MS = 80;
 const EDGE = 24;
 const RESIST = 0.25;
 const RESIST_MAX = 48;
@@ -319,62 +319,56 @@ const ARRIVE_PX = 40;
 const screenWide = (el) => (typeof window.innerWidth === "number" && window.innerWidth) || (el && el.offsetWidth) || 0;
 const pageStep = (dx) => (dx < 0 ? 1 : -1);
 const pageOpen = (p, step) => !!(p && (step > 0 ? p.next : p.prev));
+// How fast the finger is going across, in pixels a millisecond, from its last two places: what a page is let go at.
+const swipePace = (g, x) => {
+  const now = Date.now();
+  if (now > g.mt) g.vx = (x - g.mx) / (now - g.mt);
+  g.mx = x;
+  g.mt = now;
+};
 // Back where it was, on the settle's own curve; its inline styles go when it is there, so the page's own rules
 // (an entrance, a sheet's frame) own it again.
 const swipeSettle = (g) => {
   const { el, wash } = g;
-  const them = (g.moving || [el]).filter((m) => m && m.style);
   if (g.onGrab) g.onGrab(el, false);
   if (!el.style) return;
   const now = motionReduced();
-  for (const m of them) {
-    m.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
-    m.style.transform = "translate3d(0, 0, 0)";
-  }
+  el.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
+  el.style.transform = "translate3d(0, 0, 0)";
   if (wash && wash.style) {
     wash.style.transition = now ? "none" : `opacity ${SETTLE_MS}ms var(--ease-out)`;
     wash.style.opacity = "";
   }
   setTimeout(() => {
-    for (const m of them) {
-      m.style.transition = "";
-      m.style.transform = "";
-    }
+    el.style.transition = "";
+    el.style.transform = "";
     if (wash && wash.style) wash.style.transition = "";
   }, now ? 0 : SETTLE_MS + 20);
 };
 // A page that stays turns in place: in from the side it is going to, on the settle's curve.
 const swipeArrive = (g) => {
   const { el } = g;
-  const them = (g.moving || [el]).filter((m) => m && m.style);
   if (g.onGrab) g.onGrab(el, false);
+  if (!el.style) return;
   const now = motionReduced();
-  for (const m of them) {
-    m.style.transition = "none";
-    m.style.transform = now ? "" : `translate3d(${g.step * ARRIVE_PX}px, 0, 0)`;
-  }
+  el.style.transition = "none";
+  el.style.transform = now ? "" : `translate3d(${g.step * ARRIVE_PX}px, 0, 0)`;
   if (now) return;
   void el.offsetWidth;
-  for (const m of them) {
-    m.style.transition = `transform ${SETTLE_MS}ms var(--ease-out)`;
-    m.style.transform = "translate3d(0, 0, 0)";
-  }
+  el.style.transition = `transform ${SETTLE_MS}ms var(--ease-out)`;
+  el.style.transform = "translate3d(0, 0, 0)";
   setTimeout(() => {
-    for (const m of them) {
-      m.style.transition = "";
-      m.style.transform = "";
-    }
+    el.style.transition = "";
+    el.style.transform = "";
   }, SETTLE_MS + 20);
 };
-// Away the way it was pulled, then the close (a page walked across closes as it starts); still on screen after it, it settles back.
+// Away the way it was pulled, then the close; still on screen after it, it settles back. A page that stays is asked for
+// the next once it has left, and comes back in when that has landed.
 const swipeLeave = (g, close) => {
   const { el, wash, way } = g;
-  const them = (g.moving || [el]).filter((m) => m && m.style);
-  const early = way === "page" && !(g.pages && g.pages.stays);
-  if (early) close();
   const done = () => {
-    if (way === "page" && g.pages && g.pages.stays) { Promise.resolve(close()).then(() => swipeArrive(g)); return; }
-    if (!early) close();
+    if (way === "page") { Promise.resolve(close()).then(() => swipeArrive(g)); return; }
+    close();
     if (way === "away") {
       setTimeout(() => {
         if (g.onGrab) g.onGrab(el, false);
@@ -392,26 +386,34 @@ const swipeLeave = (g, close) => {
       if (shown) { swipeSettle(g); return; }
       if (g.onGrab) g.onGrab(el, false);
       if (!el.style) return;
-      for (const m of them) { m.style.transition = ""; m.style.transform = ""; }
+      el.style.transition = "";
+      el.style.transform = "";
       if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
-    }, way === "page" ? PAGE_KEPT_MS : KEPT_AFTER_MS);
+    }, KEPT_AFTER_MS);
   };
   if (!el.style || motionReduced()) { done(); return; }
   const w = el.offsetWidth || 600;
-  for (const m of them) {
-    m.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
-    m.style.transform =
-      way === "down" ? "translate3d(0, 100%, 0)"
-      : way === "away" ? "translate3d(-100%, 0, 0)"
-      : way === "page" ? `translate3d(${-g.step * w}px, 0, 0)`
-      : "translate3d(100%, 0, 0)";
-  }
+  el.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
+  el.style.transform =
+    way === "down" ? "translate3d(0, 100%, 0)"
+    : way === "away" ? "translate3d(-100%, 0, 0)"
+    : way === "page" ? `translate3d(${-g.step * w}px, 0, 0)`
+    : "translate3d(100%, 0, 0)";
   if (wash && wash.style) {
     wash.style.transition = `opacity ${LEAVE_MS}ms var(--ease-in)`;
     wash.style.opacity = "0";
   }
   setTimeout(done, LEAVE_MS);
 };
+// A page that stays (the Calendar's days) says only what is each side and how to turn: it is given a strip page's three
+// words here, over the element itself. It follows the finger, leaves, turns, and comes back in.
+const swipeStays = (g, page) => ({
+  prev: page.prev,
+  next: page.next,
+  drag: (d) => { if (g.el.style) Object.assign(g.el.style, { transition: "none", transform: `translate3d(${d}px, 0, 0)` }); },
+  settle: () => swipeSettle(g),
+  go: (step) => { g.step = step; swipeLeave(g, () => page.go(step)); },
+});
 const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, onAway = null, pages = null, min = 80, when = null, onGrab = null }) => ({
   onTouchStart: (e) => {
     const t = e && e.touches && e.touches[0];
@@ -421,7 +423,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       touches.delete(el);
       return;
     }
-    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null, from: e.target, pages: null, moving: null, step: 0 });
+    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null, from: e.target, pages: null, step: 0, mx: t.clientX, mt: Date.now(), vx: 0 });
   },
   onTouchMove: (e) => {
     const t = e && e.touches && e.touches[0];
@@ -430,6 +432,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     if (!t || !g) return;
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
+    swipePace(g, t.clientX);
     if (g.way === null) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < GRAB_AT) return;
       const allowed = !when || when();
@@ -437,13 +440,14 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       else if (dx > 0 && onBack && allowed && g.x > EDGE) g.way = "back";
       else if (dx < 0 && onAway && allowed) g.way = "away";
       else if (pages && allowed && g.x > EDGE && g.x < screenWide(el) - EDGE) {
-        g.pages = pages(el, g.from);
+        const page = pages(el, g.from);
+        g.pages = page && !page.drag ? swipeStays(g, page) : page;
         g.way = g.pages && (g.pages.prev || g.pages.next) ? "page" : "none";
       } else g.way = "none";
       if (g.way === "none") return;
       g.wash = washBehind(el);
-      g.moving = g.way === "page" && g.pages.moving ? g.pages.moving : null;
-      for (const m of g.moving || [el]) if (m && m.style) m.style.transition = "none";
+      // A page moves itself (the strip's, by the deck; one that stays, by swipeStays); anything else is the element.
+      if (g.way !== "page" && el.style) el.style.transition = "none";
       if (g.wash && g.wash.style) g.wash.style.transition = "none";
       if (onGrab) onGrab(el, true);
     }
@@ -461,9 +465,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     } else if (g.way === "page") {
       const step = pageStep(dx);
       const open = pageOpen(g.pages, step);
-      const d = open ? dx : Math.sign(dx) * Math.min(RESIST_MAX, Math.abs(dx) * RESIST);
-      for (const m of g.moving || [el]) if (m && m.style) m.style.transform = `translate3d(${d}px, 0, 0)`;
-      if (g.pages.follow) g.pages.follow(open ? Math.min(1, Math.abs(dx) / (el.offsetWidth || 600)) : 0, step, "move");
+      g.pages.drag(open ? dx : Math.sign(dx) * Math.min(RESIST_MAX, Math.abs(dx) * RESIST), step, open);
     }
   },
   onTouchEnd: (e) => {
@@ -486,14 +488,8 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       const step = pageStep(dx);
       const size = el.offsetWidth || 600;
       const flick = Math.abs(dx) > 24 && Math.abs(dx) / Math.max(1, Date.now() - g.at) > 0.5;
-      if (pageOpen(g.pages, step) && (Math.abs(dx) > Math.min(size / 3, 160) || flick)) {
-        g.step = step;
-        if (g.pages.follow) g.pages.follow(1, step, "leave");
-        swipeLeave(g, () => g.pages.go(step));
-      } else {
-        if (g.pages.follow) g.pages.follow(0, step, "settle");
-        swipeSettle(g);
-      }
+      if (pageOpen(g.pages, step) && (Math.abs(dx) > Math.min(size / 3, 160) || flick)) g.pages.go(step, Date.now() - g.mt > STILL_MS ? 0 : g.vx);
+      else g.pages.settle();
       return;
     }
     // Nothing followed: read at its ends, along the axis it went further on, `min` of travel. A page is walked here too,
@@ -504,7 +500,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       if (!back && g.way === null && pages && (!when || when()) && g.x > EDGE && g.x < screenWide(el) - EDGE) {
         const p = pages(el, g.from);
         if (pageOpen(p, pageStep(dx))) {
-          p.go(pageStep(dx));
+          p.go(pageStep(dx), 0);
           return;
         }
       }
@@ -522,8 +518,8 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     const g = el && touches.get(el);
     if (!g) return;
     touches.delete(el);
-    if (g.way === "page" && g.pages.follow) g.pages.follow(0, g.step || 1, "settle");
-    if (g.way === "down" || g.way === "back" || g.way === "away" || g.way === "page") swipeSettle(g);
+    if (g.way === "page") g.pages.settle();
+    else if (g.way === "down" || g.way === "back" || g.way === "away") swipeSettle(g);
   },
 });
 

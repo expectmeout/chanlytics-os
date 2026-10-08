@@ -51,13 +51,6 @@ export interface SurfaceViews {
   label: string;
   testid?: string;
   picked: string;
-  /**
-   * The page stays as its view changes: one mount across the views (the chrome's `mount`), the element on screen
-   * drawing the next (Reports' lenses). On a phone a swipe then brings the next view in as the Calendar's days come,
-   * once it has landed (surface-tabs.jsx stripPager, data-bits touchSwipe `stays`); absent, each view is a page
-   * mounted afresh, drawn as this one leaves.
-   */
-  stays?: boolean;
   tabs: readonly { id: string; label: string; to: string; testid?: string }[];
 }
 

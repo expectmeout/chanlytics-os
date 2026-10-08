@@ -49,3 +49,5 @@ export { useToast } from "./toast/toast";
 export type { ToastFlash, ToastGlyphs } from "./toast/toast";
 export { Tooltip } from "./tooltip/tooltip";
 export type { TooltipProps } from "./tooltip/tooltip";
+export { ViewTabs } from "./view-tabs/view-tabs";
+export type { ViewTab, ViewTabsProps } from "./view-tabs/view-tabs";
