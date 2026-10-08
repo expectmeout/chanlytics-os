@@ -9,16 +9,37 @@
  * one is up -- Today's, when its last row is skipped. `look` is how a row is drawn: `row`, the attention row the first run
  * draws; `card`, Today's compact row (SetupCardRow), whose first carries `left`, the card's count.
  */
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { stateOf, type SetupRowVM, type SetupVerb } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
 import { setupVerbs, type SetupSurface } from "../surface";
 import { pressVerb, type RowActs } from "./acts";
 import { SetupCardRow, type SetupCardAct } from "./card-row";
-import { ForwardingCard } from "./forwarding";
 import { setupGate, setupGated } from "./gates";
 import { LineChooser } from "./line-chooser";
+
+type ForwardingModule = Pick<typeof import("./forwarding"), "ForwardingCard">;
+let forwardingModule: ForwardingModule | null = null;
+let forwardingLoading: Promise<ForwardingModule> | null = null;
+
+/**
+ * The forwarding card, loaded once for the tab when a row first opens it; a test loads it before drawing the rows. It
+ * is drawn with the kit's field, select and segmented control, and Today draws these rows: imported here, those came
+ * with every page, and the workspace route grew 71 KB gzipped (8 Oct 2026). A load that failed is forgotten, so the
+ * next press asks again.
+ */
+export function loadForwardingCard(): Promise<ForwardingModule> {
+  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
+  forwardingLoading ??= import("./forwarding").then(
+    ({ ForwardingCard }) => (forwardingModule = { ForwardingCard }),
+    (e: unknown) => {
+      forwardingLoading = null;
+      throw e;
+    },
+  );
+  return forwardingLoading;
+}
 
 /** What a row's second button says: put it off, take it back, and the toast's words for a row taken off the card. */
 interface SetupLaterWords {
@@ -95,6 +116,27 @@ export const SetupRows = ({
   const flash = lent || own;
   const [chooser, setChooser] = useState(false);
   const [forwarding, setForwarding] = useState(false);
+  // The card a row opens, fetched as it is first opened and drawn as it lands (loadForwardingCard). One that could
+  // not be fetched closes again and says so, so the press is never one that did nothing.
+  const [, landed] = useState(0);
+  useEffect(() => {
+    if (!forwarding || forwardingModule) return undefined;
+    let live = true;
+    loadForwardingCard().then(
+      () => {
+        if (live) landed((n) => n + 1);
+      },
+      () => {
+        if (!live) return;
+        setForwarding(false);
+        flash({ tone: "danger", msg: <>That could not be opened. Check your connection and press it again.</> });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [forwarding, flash]);
+  const Forwarding = forwardingModule?.ForwardingCard;
   // The verb on its way, if any. Its button shows busy, and a second press -- the same row's or another row's --
   // waits for it to land instead of sending again (S23).
   const [pending, setPending] = useState<string | null>(null);
@@ -168,9 +210,15 @@ export const SetupRows = ({
               {r.id === "line" && chooser && (
                 <LineChooser S={S} flash={flash} onDone={() => setChooser(false)} onKeep={() => setForwarding(true)} />
               )}
-              {r.id === "keep" && forwarding && (
-                <ForwardingCard S={S} flash={flash} onDone={() => setForwarding(false)} />
-              )}
+              {r.id === "keep" &&
+                forwarding &&
+                (Forwarding ? (
+                  <Forwarding S={S} flash={flash} onDone={() => setForwarding(false)} />
+                ) : (
+                  <p className="setup-fw-note" role="status" data-testid="setup-forwarding-opening">
+                    Opening…
+                  </p>
+                ))}
             </div>
           );
         })}

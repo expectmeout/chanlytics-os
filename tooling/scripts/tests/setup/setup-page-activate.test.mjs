@@ -205,7 +205,10 @@ useStubHooks(globalThis.React);
 // same object, so a test that sets `window.__setup.x` for a while reaches the rows. Setup's value is the seam's.
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { SetupRows } = await importSrc("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
+const { SetupRows, loadForwardingCard } = await importSrc("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
+// The forwarding card is fetched when a row first opens it (rows.tsx loadForwardingCard): in hand here, as in a tab
+// that has opened it once, so a row that opens it draws it at once.
+await loadForwardingCard();
 Object.assign(setupVerbs, {
   later: async (ids, on) => {
     calls.later.push([ids, on]);
