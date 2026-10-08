@@ -184,6 +184,10 @@ const { PaneBillingReal } = await import("../../../../apps/dashboard/src/surface
 // test stubs by assigning onto it.
 const SETTINGS = "../../../../apps/dashboard/src/surfaces/settings/connections";
 const { PaneIntegrationsReal } = await import(`${SETTINGS}/pane.tsx`);
+// What the press beside a row's name opens is fetched when the press is first reached (row.tsx loadRowAbout): in hand
+// here, as in a tab that has reached one, so a row's notes are drawn where a test reads them.
+const { loadRowAbout } = await import(`${SETTINGS}/row.tsx`);
+await loadRowAbout();
 const { BusinessRecordForm } = await import(`${SETTINGS}/record-form.tsx`);
 const { businessRecord } = await import(`${SETTINGS}/record.ts`);
 const { sendingDomains } = await import(`${SETTINGS}/domains.ts`);

@@ -1,7 +1,7 @@
 /**
  * One connection, as Settings › Connections draws it (moved from legacy/pages/integrations-real.jsx, decision 0015 step
  * 11): its tile, its name beside what it is attached to, its state, and its one act. What else it would say (the
- * sentence about it, what Meta or Google holds) waits behind a quiet press beside its name (rowAbout), unless it waits
+ * sentence about it, what Meta or Google holds) waits behind a quiet press beside its name (AboutPress), unless it waits
  * on the owner, when it says why in a line of its own.
  *
  * On a phone a connection is a row of People's kind (25 Sep): the tile, its name over what it is attached to, its state,
@@ -10,14 +10,13 @@
  * sits a thumb's width from Check now. A row that wants something (Connect Google) keeps its button. On a desktop the
  * acts stand in the group's column, as they always have. Rows were 77 to 145px on a phone.
  */
-import type { MouseEvent, ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 import type { ConnectionRow as Row, ConnectionVerb } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
-import { Popover } from "../../kit/popover/popover";
 import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, gate, navigate } from "../../legacy-verbs";
 
@@ -70,60 +69,67 @@ interface ConnectionRowProps {
   confirm: (what: "remove" | "disconnect") => void;
 }
 
+type AboutModule = Pick<typeof import("./about"), "RowAbout">;
+let aboutModule: AboutModule | null = null;
+let aboutLoading: Promise<AboutModule> | null = null;
+
+/**
+ * What the press beside a row's name opens (about.tsx), loaded once for the tab when a press is first reached; a test
+ * loads it before drawing the page. A load that failed is forgotten, so the next press asks again.
+ */
+export function loadRowAbout(): Promise<AboutModule> {
+  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
+  aboutLoading ??= import("./about").then(
+    ({ RowAbout }) => (aboutModule = { RowAbout }),
+    (e: unknown) => {
+      aboutLoading = null;
+      throw e;
+    },
+  );
+  return aboutLoading;
+}
+
 /**
  * What a row says beyond its name and its state, behind one quiet press beside its name: the sentence about it, what
  * Meta or Google holds, and the doors to their pages. The page drew all of it under every name, four lines to a row
  * and a paragraph at a card's foot (Ruben, 7 Oct 2026: "all extra info should be on a need to know"); a row that waits
  * on the owner still says why in its own line (ConnectionRow).
+ *
+ * The press is the row's; what it opens is fetched as a pointer or the keyboard reaches it, and by the press itself
+ * where neither came first (a phone), which then opens it as it lands.
  */
-function rowAbout(r: Row): ReactNode {
+function AboutPress({ r }: { r: Row }) {
+  const [pressed, setPressed] = useState(false);
+  const [, landed] = useState(0);
   const listing = r.kind === "google_listing" && r.group === "connected";
   if (!r.sentence && !r.notes.length && !listing) return null;
-  return (
-    <Popover
-      label={`About ${r.title}`}
-      align="start"
-      className="set-int-about"
-      trigger={
-        <Button
-          variant="quiet"
-          size="sm"
-          iconOnly
-          aria-label={`About ${r.title}`}
-          data-testid={`connection-${r.kind}-why`}
-        >
-          <Icon name="info" size={13} />
-        </Button>
+  const Opened = aboutModule?.RowAbout;
+  const warm = () => void loadRowAbout().catch(() => {});
+  const press = (
+    <Button
+      variant="quiet"
+      size="sm"
+      iconOnly
+      aria-label={`About ${r.title}`}
+      data-testid={`connection-${r.kind}-why`}
+      onPointerEnter={Opened ? undefined : warm}
+      onFocus={Opened ? undefined : warm}
+      onClick={
+        Opened
+          ? undefined
+          : () => {
+              setPressed(true);
+              void loadRowAbout().then(
+                () => landed((n) => n + 1),
+                () => setPressed(false),
+              );
+            }
       }
     >
-      {r.sentence ? <p data-testid={`connection-${r.kind}-says`}>{r.sentence}</p> : null}
-      {r.notes.map((note, at) => (
-        <p key={`${at}:${note.text}`} data-testid="connection-note">
-          <span data-testid="connection-note-text">{note.text}</span>
-          {note.link && (
-            <>
-              {" "}
-              {/* Both go to Meta's own pages: a new tab, and nothing of this page's passes with it. */}
-              <LinkButton
-                href={note.link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="connection-note-link"
-              >
-                {note.link.label}
-              </LinkButton>
-            </>
-          )}
-        </p>
-      ))}
-      {listing ? (
-        <p>
-          The public listing is read once a day: Google shows five reviews and counts every rating. Connect the Business
-          Profile for all of them, and for the replies you send from Reports.
-        </p>
-      ) : null}
-    </Popover>
+      <Icon name="info" size={13} />
+    </Button>
   );
+  return Opened ? <Opened r={r} trigger={press} openFirst={pressed} /> : press;
 }
 
 /**
@@ -244,7 +250,7 @@ function rowAsk(o: Pick<ConnectionRowProps, "busy" | "setArm" | "confirm"> & { a
 }
 
 /**
- * The row's words: its name beside what it is attached to, the quiet press that says more (rowAbout), and, for a row
+ * The row's words: its name beside what it is attached to, the quiet press that says more (AboutPress), and, for a row
  * that waits on the owner, why, in a line of its own; any other row's sentence is behind that press.
  */
 function connectionWords(r: Row, wants: boolean): ReactNode {
@@ -260,7 +266,7 @@ function connectionWords(r: Row, wants: boolean): ReactNode {
             </span>
           ) : null}
         </span>
-        {rowAbout(r)}
+        <AboutPress r={r} />
       </span>
       {wants && r.sentence ? (
         <span className="set-team-mail" data-testid={`connection-${r.kind}-line`}>
