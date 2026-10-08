@@ -8,6 +8,7 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { ixAnswerer } from "../answerer";
 import { CONF } from "../constants";
 import type { ListCtx } from "./inbox-list";
+import { pickBox } from "./pick";
 import { ReplyChip } from "../thread/reply-strip";
 import { channelIconOf } from "../thread/timeline";
 import { inboxData } from "../store";
@@ -200,18 +201,7 @@ export function threadRow(L: ListCtx, t: Thread, i: number) {
       onKeyDown={(e) => onRowKey(e, i)}
     >
       {/* The mouse's box: the row itself says selected, and Space picks it. */}
-      <input
-        type="checkbox"
-        className="ix-thread-check"
-        checked={isSelected}
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={(e) => {
-          e.stopPropagation();
-          onToggleSelect(t.id);
-        }}
-        onClick={(e) => e.stopPropagation()}
-      />
+      {pickBox({ picked: isSelected, onToggle: () => onToggleSelect(t.id) })}
 
       <div className="ix-thread-avatar" data-priority={t.priority}>
         {t.avatar}

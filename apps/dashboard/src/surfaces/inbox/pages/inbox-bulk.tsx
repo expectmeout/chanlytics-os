@@ -1,121 +1,50 @@
 /**
  * The Inbox's bulk acts (moved from pages/inbox.jsx, decision 0015, step 3): a bulk act on real threads as one act
- * through the bulk courier, with its busy state, its count, its refusals and its Undo; and the bulk bar's three acts,
- * Approve all safe, Snooze and Archive, each over the selection.
+ * through the bulk courier, with its busy state, its count, its refusals and its Undo (the run is pick.tsx's, which
+ * Conversations runs too); and the bulk bar's acts, Approve all safe, the reader's mark, Snooze and Archive, each over
+ * the selection.
  */
 import { CONF, IX_NOW } from "../constants";
 import { patched, type InboxSoFar } from "./inbox-state";
 import type { InboxActs } from "./inbox-acts";
-import { ixRefusedWords } from "../rules";
+import { pickMark, pickRun } from "./pick";
+import { threadReading, threadUnread } from "../../seen";
 import { canDo } from "../shell";
-import { IX_STORE, OWN_VERBS } from "../store";
-import type { Approval, RealThread, SeededThread, Thread } from "../types";
-import { inboxBulk, type BulkVerb } from "../verbs";
+import { IX_STORE } from "../store";
+import type { Approval, Picked, RealThread, SeededThread, Thread } from "../types";
 
-/** A bulk act on real threads, as one act through the bulk courier: its busy state, its count, its refusals, its Undo. */
+/** A real thread picked, as the pick's acts read it. */
+const threadPicked = (t: RealThread): Picked => ({
+  id: t.id,
+  who: t.who,
+  conversationId: t.conversationId,
+  personId: t.clientId ?? null,
+  unread: threadUnread(t),
+  reading: threadReading(t),
+  snoozed: t.state === "snoozed",
+  archived: !!t.archived,
+});
+
+/**
+ * A bulk act on real threads, as one act through the bulk courier: its busy state, its count, its refusals, its Undo.
+ * The run is the pick's own (pick.tsx pickRun); this hands it the Inbox's threads as the rows picked.
+ */
 export const inboxRealBulk = (ix: InboxSoFar & InboxActs) => {
   const { threads, selected, setSelected, setBulkBusy, bulkRunRef, ppFlash } = ix;
-  // A bulk act on real threads is one act. Each thread went through the single verb: a toast apiece on a
-  // stack that keeps three, a re-read of three surfaces apiece, no count, no busy state and no Undo (the
-  // wiring audit's A19). Now one ask per thread through the bulk courier and one re-read at its end, one
-  // toast with the count and each refusal named, and the refused left selected to try again.
-  const runBulk = async (picks: RealThread[], verb: BulkVerb) => {
-    if (bulkRunRef.current) return null;
-    bulkRunRef.current = true;
-    setBulkBusy(verb);
-    // One of your own acts: its re-read is not news for the open pane (thread-pane.tsx counts these).
-    OWN_VERBS.n += 1;
-    try {
-      return await inboxBulk(picks, verb);
-    } finally {
-      OWN_VERBS.n -= 1;
-      bulkRunRef.current = false;
-      setBulkBusy(null);
-    }
-  };
-  const wakeAgain = async (snoozed: RealThread[]) => {
-    const r = await runBulk(snoozed, "wake");
-    if (!r) return;
-    ppFlash(
-      r.refused.length
-        ? {
-            tone: "danger",
-            msg: (
-              <>
-                <b>
-                  {r.done.length} of {snoozed.length}
-                </b>{" "}
-                woken — {ixRefusedWords(r.refused)}
-              </>
-            ),
-          }
-        : // A snooze lets go of whoever had the thread (core snooze clears the claim and the pause), so waking it
-          // brings it back to the Inbox, not back where it was (I2).
-          {
-            msg: (
-              <>
-                Snooze undone — <b>{r.done.length}</b> back in the Inbox
-              </>
-            ),
-          },
-    );
-  };
-  const bulkReal = async (verb: "snooze" | "archive") => {
-    if (!canDo("approve")) return;
-    const picks = selected
+  const run = pickRun({ setSelected, setBusy: setBulkBusy, running: bulkRunRef, flash: ppFlash });
+  const realPicks = (): Picked[] =>
+    selected
       .map((id) => threads.find((t) => t.id === id))
-      .filter((t): t is RealThread => !!(t && t.real));
-    const todo = picks.filter((t) => (verb === "snooze" ? t.state !== "snoozed" : !t.archived));
-    if (!todo.length) {
-      ppFlash({
-        tone: "info",
-        msg: <>{verb === "snooze" ? "Those are snoozed already" : "Those are archived already"}</>,
-      });
-      return;
-    }
-    const r = await runBulk(todo, verb);
-    if (!r) return;
-    setSelected(r.refused.map((x) => x.thread.id));
-    const past = verb === "snooze" ? "snoozed" : "archived";
-    const undo = verb === "snooze" && r.done.length ? () => wakeAgain(r.done) : null;
-    if (r.refused.length) {
-      ppFlash({
-        tone: "danger",
-        msg: (
-          <>
-            {r.done.length ? (
-              <>
-                <b>
-                  {r.done.length} of {todo.length}
-                </b>{" "}
-                {past}
-              </>
-            ) : (
-              <>Nothing was {past}</>
-            )}{" "}
-            — {ixRefusedWords(r.refused)}
-          </>
-        ),
-        undo,
-      });
-    } else {
-      ppFlash({
-        msg:
-          verb === "snooze" ? (
-            <>
-              <b>{r.done.length}</b> snoozed until tomorrow 10:00
-            </>
-          ) : (
-            <>
-              <b>{r.done.length}</b> archived — if they write again, they come back
-            </>
-          ),
-        undo,
-      });
-    }
+      .filter((t): t is RealThread => !!(t && t.real))
+      .map(threadPicked);
+  const bulkReal = (verb: "snooze" | "archive") => run.act(realPicks(), verb);
+  /** The reader's own mark over the real threads picked, as the bar offers it: null with nobody behind them. */
+  const realMark = () => {
+    const mark = pickMark(realPicks());
+    return mark && { seen: mark.seen, press: () => run.mark(mark) };
   };
   const isRealPick = () => selected.some((id) => threads.find((t) => t.id === id)?.real);
-  return { bulkReal, isRealPick };
+  return { bulkReal, realMark, isRealPick };
 };
 
 export type InboxRealBulk = ReturnType<typeof inboxRealBulk>;
@@ -123,9 +52,21 @@ export type InboxRealBulk = ReturnType<typeof inboxRealBulk>;
 /** A seeded thread whose plan may be approved in bulk: safe to send, and not yet decided. */
 type SafePick = SeededThread & { approval: Approval };
 
-/** The bulk bar's three acts: Approve all safe, Snooze and Archive, each over the selection. */
+/** The bulk bar's acts: Approve all safe, the reader's mark, Snooze and Archive, each over the selection. */
 export const inboxBulkActs = (ix: InboxSoFar & InboxActs & InboxRealBulk) => {
-  const { threads, selected, setSelected, flash, mutate, ppFlash, snooze, archiveThread, bulkReal, isRealPick } = ix;
+  const {
+    threads,
+    selected,
+    setSelected,
+    flash,
+    mutate,
+    ppFlash,
+    snooze,
+    archiveThread,
+    bulkReal,
+    realMark,
+    isRealPick,
+  } = ix;
   // Bulk actions
   const bulkApproveSafe = () => {
     const picks = selected.map((id) => threads.find((t) => t.id === id)).filter((t): t is Thread => !!t);
@@ -208,5 +149,28 @@ export const inboxBulkActs = (ix: InboxSoFar & InboxActs & InboxRealBulk) => {
       });
     setSelected([]);
   };
-  return { bulkApproveSafe, bulkSnooze, bulkArchive };
+  /**
+   * The mark the bar offers over the selection (pick.tsx pickMark), and its press: the reader's own mark on the person
+   * behind a real thread; on a seeded one the page's own flag, which every seeded thread has.
+   */
+  const bulkMark = (() => {
+    if (isRealPick()) return realMark();
+    const seeded = selected.flatMap((id) => threads.find((t) => t.id === id) ?? []);
+    const mark = pickMark(seeded.map((t) => ({ personId: t.id, unread: t.unread })));
+    if (!mark) return null;
+    const { seen, whom } = mark;
+    const press = () => {
+      whom.forEach((t) => mutate(t.personId, (x) => ({ ...x, unread: !seen })));
+      ppFlash({
+        msg: (
+          <>
+            <b>{whom.length}</b> marked as {seen ? "read" : "unread"}
+          </>
+        ),
+      });
+      setSelected([]);
+    };
+    return { seen, press };
+  })();
+  return { bulkApproveSafe, bulkSnooze, bulkArchive, bulkMark };
 };

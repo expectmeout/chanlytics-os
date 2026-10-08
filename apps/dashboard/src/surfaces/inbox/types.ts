@@ -13,6 +13,7 @@ import type {
   InboxThreadVM,
   MediaVM,
   ReplyWhyVM,
+  SeenReading,
   Standing,
   TemplateHolds,
 } from "@chanlytics/contracts";
@@ -363,6 +364,26 @@ export interface ConversationRow {
   notes?: CallNotes;
   /** On a person's one row (cv-rules.ts cvOnePerPerson): every row it stands for, newest first, itself the first. */
   parts?: ConversationRow[];
+}
+
+/**
+ * A row picked for one act over several (pages/pick.tsx), as the acts read it: whose it is, the thread behind it, and
+ * what the reader's mark says of it. The Inbox's thread and Conversations' row are each said this way.
+ */
+export interface Picked {
+  /** The row's name in the selection. */
+  id: string;
+  who: string;
+  /** Its thread on the server, which Snooze and Archive act on: null where the row has none. */
+  conversationId: string | null;
+  /** The person behind it, whom the reader's mark is on: null for a caller nobody knows. */
+  personId: string | null;
+  /** New to the reader now (surfaces/seen.ts). */
+  unread: boolean;
+  /** What the row's last read said of its reader: how far a mark made now says they have seen. */
+  reading: SeenReading;
+  snoozed: boolean;
+  archived: boolean;
 }
 
 /** A tab of the Conversations strip. */

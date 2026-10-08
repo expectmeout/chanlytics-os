@@ -43,7 +43,7 @@ copies                               73   of 21 names
 as unknown as                       140
 as never                             13
 non-null assertions, x!             110
-index reads the compiler lets pass  476   in 127 files
+index reads the compiler lets pass  473   in 126 files
 table names outside packages/db     473
 SQL functions outside packages/db   129   called by .rpc
 edge statements naming no workspace   28   in 15 files
@@ -62,7 +62,7 @@ source-text reads in tests          762
 lint warnings                       353   in 152 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      733   the shell included
 workspace route CSS, KB gzipped     146
-workspace pages' own JS, KB        1276   gzipped, beyond the route, summed over 14 pages
+workspace pages' own JS, KB        1280   gzipped, beyond the route, summed over 14 pages
 trees the lint's limits hold         47   16 of them with max-params waiting
 ```
 

@@ -26,7 +26,11 @@
   background: var(--bg);
   min-width: 0;
 }
-.cv-list-head { padding: 10px 12px 0; }
+/* The search, with the select-all box before it once a pick starts (pages/pick.tsx; inbox.css draws the box). */
+.cv-list-head { display: flex; align-items: center; padding: 10px 12px 0; }
+.cv-list-head > div { flex: 1 1 auto; min-width: 0; }
+/* What is picked, over the rows: the Inbox's own line (inbox.css .ix-list-head), which stands third in its list. */
+.cv-list > .ix-list-head { order: 0; }
 .cv-list-head .cl-search-wrap { max-width: none; }
 /* The filters are the kit's sub-tabs (SubTabs, kit.css), which bring their own line and sides. Five channels are 334px of
    tabs and a 320px phone has 288: the strip scrolls across there, where it was a strip of chips that did. */
@@ -61,6 +65,8 @@
   border-bottom: 1px solid var(--line);
   background: transparent;
   text-align: left;
+  /* The row was a button, whose lines are the font's own height: an option in a listbox now, it keeps them. */
+  line-height: normal;
   cursor: pointer;
   /* A row below the fold is not laid out or painted until it is near (as the Inbox's are, inbox.css .ix-thread). */
   content-visibility: auto;
@@ -72,11 +78,15 @@
    then the lozenge of the selected fill. The open row wore an ink bar down its edge and a ground of its own, which the
    row beside it in Needs you never did (Ruben, 6 Oct 2026). A call going on keeps its faint coral wash until opened. */
 .cv-row:hover { background: var(--hover-fill); }
+/* Picked for an act over several, as the Inbox's row is (inbox.css .ix-thread.selected). */
+.cv-row.selected { background: var(--accent-soft); }
 .cv-row.is-live { background: oklch(from var(--accent) l c h / 0.03); }
 .cv-row.active {
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);
 }
+/* A row a key reaches is ringed as the Inbox's is (inbox.css .ix-thread:focus-visible): the arrows walk these too. */
+.cv-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cv-row.active:focus-visible {
   box-shadow:
     var(--focus-ring),
@@ -362,6 +372,11 @@
    the search, then the rows straight on the page. The sub-menu is the kit's sub-tabs, as the Inbox's buckets are.
    ==================================================================== */
 @media (max-width: 900px) {
+  /* A phone picks nobody here, as in Needs you: no pointer brings the box, and the open thread's menu holds the acts. */
+  .cv-list-head > .ix-checkall,
+  .cv-row > .ix-thread-check {
+    display: none;
+  }
   /* 4px under the strip, as the Inbox's tabs are (its slot has 16 of padding under the strip). */
   .main:has(> .main-scroll > .conversations:not([data-takeover])) .pg-slot {
     padding-bottom: 4px;
