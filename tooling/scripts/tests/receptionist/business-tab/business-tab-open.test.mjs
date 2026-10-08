@@ -1244,6 +1244,54 @@ test("REGRESSION (the review of 8 Oct 2026): 'I book by hand' over a calendar li
   }
 });
 
+test("a workspace with no address is given the one its name makes in one press: the route Connections' own form calls, with the business's name; a refusal is said under the press, which is offered again", async () => {
+  const nothing = { state: "none", present: false, read_at: null, events: 0 };
+  const noAddress = {
+    tool: "booksy",
+    address: null,
+    suggested: "marisas-beauty-salon@mail.example.com",
+    last_at: null,
+    count: 0,
+    held: 0,
+    held_list: [],
+    forwarding: null,
+  };
+  // The page's own client makes the request (legacy-bridge/api.ts), over a fetch that answers as the route would.
+  const asked = [];
+  let answer = { status: 409, body: { ok: false, error: { code: "conflict", message: "That address is taken." } } };
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    asked.push({ url: String(url), method: init.method, body: init.body ? JSON.parse(String(init.body)) : null });
+    return new Response(JSON.stringify(answer.body), {
+      status: answer.status,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: noAddress }));
+    openFold(drawTab({ config: { calendar: undefined, bookings: { tool: "booksy" } } }), "calendar");
+    const make = () => byTestId(foldOf(redrawTab(), "calendar"), "bto-bookings-make");
+    assert.equal(textOf(make()), "Use marisas-beauty-salon@mail.example.com");
+    assert.equal(byTestId(foldOf(redrawTab(), "calendar"), "bto-bookings-make-refused"), null);
+    await make().props.onClick();
+    assert.equal(asked.length, 1, "one request, for one press");
+    assert.equal(asked[0].method, "POST");
+    assert.match(asked[0].url, /^\/api\/v1\/mailboxes(\?|$)/);
+    // The part before the @, and the name customers see beside it: the business's own.
+    assert.deepEqual(asked[0].body, { local_part: "marisas-beauty-salon", from_name: "Marisa's Beauty Salon" });
+    // Refused (the address is another workspace's): the door's own sentence, under the press, which is still there.
+    const open = foldOf(redrawTab(), "calendar");
+    assert.equal(textOf(byTestId(open, "bto-bookings-make-refused")), "That address is taken.");
+    assert.equal(byTestId(open, "bto-bookings-make-refused").props.role, "alert");
+    assert.equal(textOf(make()), "Use marisas-beauty-salon@mail.example.com");
+    assert.ok(!make().props.disabled, "and may be pressed again");
+    assert.equal(textOf(byTestId(open, "bto-bookings-choose")), "Choose another");
+  } finally {
+    globalThis.fetch = fetchWas;
+    delete W.__CALENDAR;
+  }
+});
+
 test("a calendar that could not be read says so in the Calendar page's words; with no read, the row says nothing of one and asks", () => {
   const was = { calendar: W.__calendar, failed: W.__surfaceFailed };
   try {
