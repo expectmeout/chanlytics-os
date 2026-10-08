@@ -73,7 +73,7 @@ export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords, 
 export { knownForwarding, sameAddress, sameName, resolveFacts, factConflicts, changedConfigFields, SOURCE_WORDS } from "./config/facts";
 export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./config/limits";
 export { offersBookingLink, priceNextStep, NO_LINK_DETAILS } from "./config/no-booking-link";
-export { violatesNoPrices, namesMoney, heldLine, spokenBreach, spokenBreachDetails, guardSpokenTurns, waWindow, replyWindow, isLiveCall, hardLimitsWords, replyDelayMs, WA_WINDOW_MS, REPLY_LIMITS, REPLY_MAX_ANY, CALL_HEARTBEAT_MS, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MIN_MS, REPLY_DELAY_MAX_MS, REPLY_CAP_DEFAULT, PAUSE_HOURS_DEFAULT, pauseHoursOf, pauseMsOf } from "./config/policy";
+export { violatesNoPrices, priceFigures, namesMoney, heldLine, spokenBreach, spokenBreachDetails, guardSpokenTurns, waWindow, replyWindow, isLiveCall, hardLimitsWords, replyDelayMs, WA_WINDOW_MS, REPLY_LIMITS, REPLY_MAX_ANY, CALL_HEARTBEAT_MS, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MIN_MS, REPLY_DELAY_MAX_MS, REPLY_CAP_DEFAULT, PAUSE_HOURS_DEFAULT, pauseHoursOf, pauseMsOf } from "./config/policy";
 export { promptBlocks } from "./config/prompt-blocks";
 export { roleAtLeast } from "./config/roles";
 export { newReceptionistDefaults, isBaselinePrompt } from "./config/workspace-config/brain-config";
@@ -103,7 +103,7 @@ export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email"
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { messageStatusLabel, sendFailureWords, reachedCustomer, isHeldDraft, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
 export { standingOf, replyWaitsOnYou, HELD_WORDS, seenBy, isUnseen } from "./conversations/standing";
-export { agentFor, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
+export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
 export { contactName, isIdentifierName, shortName, contactMeta, initialsOf, isEmailStopped, emailStoppedWords } from "./conversations/thread-contact";
 export { messageAt, isOptedOut, memberMetaOf } from "./conversations/thread-dto";
@@ -163,6 +163,9 @@ export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
 export { APP_ROUTE_RE, PUSH_TOKEN_MAX, parsePageMessage, parseShellMessage } from "./mobile/app-bridge";
 export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_STALE_MS, CALL_ACTIVITY_ROLES, callActivityStart, callActivityPropsOf } from "./mobile/live-activity";
 export { todayWidgetSnapshot, parseTodayWidgetSnapshot } from "./mobile/widget";
+export { NEW_CONVERSATION_WORDS, approvedWordsFor, newConversationOf, planNoteOf, writeWayWords, writeWireName } from "./new-conversation/new-conversation-words";
+export { DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_TONES, PERSON_DRAFT_JSON_SCHEMA, PLAN_NOTE_MAX } from "./new-conversation/person-draft";
+export { defaultWriteWire, startsOn, writeReachOf, writeWaysOf, WRITE_HOLDS, WRITE_HOLD_WORDS } from "./new-conversation/write-ways";
 export { customerWords, whyNotLook, noteSuggestSystemPrompt, noteSuggestUserContent, checkNoteSuggestion, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_SCHEMA } from "./notes/note-suggest";
 export { personNotesVM, NOTE_MAX, NOTE_WORDS, NOTE_REFUSALS } from "./notes/person-notes";
 export { stepSheetFor, stepSheetBody, stepSheetDirty, stepSheetMerge, STEP_SHEET_WORDS } from "./notes/step-sheet";

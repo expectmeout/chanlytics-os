@@ -74,6 +74,14 @@ export interface SendQueuedCommand {
      */
     purpose?: SendPurpose;
     proactive?: boolean;
+    /**
+     * A person's own message that begins a conversation (core conversations/begin.ts): the first thing they hear from
+     * the business on this wire. It is judged as a start, so the door asks the yes a start asks, and held as that
+     * person's own words, so the thread's pause, which is theirs, does not hold it. A name of its own, not
+     * `proactive`, which an edge deployed before this reads as a campaign's send and holds under that pause: an edge
+     * that does not know the name sends the message as the reply it was before, so either deploy order works.
+     */
+    starts?: boolean;
     /** How many fresh jobs this send is already the result of, after a wire that could not be bound (retry above). */
     resumes?: number;
   };

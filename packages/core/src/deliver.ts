@@ -439,7 +439,9 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   }
   // Consent outranks everything, asked with this message's own purpose.
   // A yes covers the channels it was given for: asked on the channel this message goes out on (consent-channels.ts).
-  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive, channel: d.channel, about: d.about });
+  const begins = d.kind === "reply" && d.proactive; // a person's own message that is a start (messages/send.ts)
+  const asked = { proactive: d.proactive, channel: d.channel, about: d.about, begins };
+  const may = mayMessageFor(f.contact, d.purpose, asked);
   if (!may.ok) return may.reason;
   // Outreach's own rules, after the person's no and before any pause: only to a business the finder found, only with
   // the one-click unsubscribe the large mailbox providers require, only from a domain the workspace owns and has

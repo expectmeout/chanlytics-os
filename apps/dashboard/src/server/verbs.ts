@@ -17,7 +17,7 @@ import {
   type TenantId,
   pauseMsOf,
 } from "@chanlytics/contracts";
-import { listRow, reachOutRootOf, reachOutSendRefOf, replyReadingRefOf, type Json } from "@chanlytics/db";
+import { listRow, ourLastWire, reachOutRootOf, reachOutSendRefOf, replyReadingRefOf, type Json } from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
@@ -34,6 +34,12 @@ export interface VerbConversation {
   assignee_user_id: string | null;
   last_wa_inbound_at: string | null;
   last_message_at: string | null;
+  /**
+   * When something last came from their side, a message or a call: stamped by the two doors those come through
+   * (ingest_inbound, ingest_call) and by nothing else. Null is a thread nothing has come to: a campaign's recipient, a
+   * business a reach-out wrote to, a person a member wrote to first.
+   */
+  last_inbound_at: string | null;
   contact_id: string;
   phone_e164: string | null;
   display_name: string | null;
@@ -58,7 +64,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   const { data, error } = await ctx.supabase
     .from("conversations")
     .select(
-      "id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, consent, dnc, marketing_consent, email, email_suppressed_at)",
+      "id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, last_inbound_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, consent, dnc, marketing_consent, email, email_suppressed_at)",
     )
     .eq("id", convId)
     .maybeSingle();
@@ -74,6 +80,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     assignee_user_id: data.assignee_user_id,
     last_wa_inbound_at: data.last_wa_inbound_at,
     last_message_at: data.last_message_at,
+    last_inbound_at: data.last_inbound_at,
     contact_id: data.contact_id,
     phone_e164: data.contacts?.phone_e164 ?? null,
     display_name: data.contacts?.display_name ?? null,
@@ -178,6 +185,7 @@ const LAST_WROTE_LOOKBACK = 20;
  * email the place a reply went). The newest few written messages from their side are read and the first a person wrote
  * is taken; a person who has written none is answered where the last thing from their side came from (a program at
  * their address is still their address), as the thread's row and their page say (threadChannelOf, replyChannelOfThreads).
+ * A thread nothing has come to is answered where our own words last went.
  */
 export async function replyChannelOf(
   ctx: RouteContext,
@@ -195,7 +203,11 @@ export async function replyChannelOf(
     .limit(LAST_WROTE_LOOKBACK);
   if (error) throw new Error(`reading the last inbound: ${error.message}`);
   const theirs = data ?? [];
-  return writtenChannelOf((theirs.find((m) => isPersonsWords(m.meta)) ?? theirs[0])?.channel);
+  const wrote = theirs.find((m) => isPersonsWords(m.meta)) ?? theirs[0];
+  if (wrote) return writtenChannelOf(wrote.channel);
+  // Nothing from their side: the wire our own written words last went by, so a conversation the business began is
+  // carried on where it began (contracts answerWireOf, which the Inbox's box asks); WhatsApp with none.
+  return writtenChannelOf(await ourLastWire(ctx.supabase, conv.tenant_id, conv.id));
 }
 
 /**

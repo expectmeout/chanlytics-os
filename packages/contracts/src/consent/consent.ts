@@ -175,7 +175,7 @@ export type PurposeRefusal = "opted_out" | "no_marketing_consent" | "not_opted_i
 export function mayMessageFor(
   c: PurposeBearing,
   purpose: SendPurpose,
-  opts: { proactive?: boolean; channel: string; about: MessageAbout },
+  opts: { proactive?: boolean; channel: string; about: MessageAbout; begins?: boolean },
 ): { ok: true; reason: null } | { ok: false; reason: PurposeRefusal } {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
   // Cold email to a business: US law lets a business write until it is told to stop (CAN-SPAM), so no recorded yes
@@ -194,6 +194,10 @@ export function mayMessageFor(
     // it sends nothing. Whether the deployment may send an offer by email at all is the door's (deliver.ts: a verified
     // campaigns domain, the workspace's offers not paused) and the pick's (reach-for.ts channelRefuses).
     if (purpose !== "marketing") {
+      // A person's own first email (`begins`: a conversation a member begins, new-conversation/write-ways.ts) is no
+      // reply and no message about a visit, whoever it is to: someone who pressed Unsubscribe on this business's email
+      // does not get it. PURPOSE_REFUSALS.unsubscribed has always said so: "No offers or first emails".
+      if (opts.begins && c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
       // A reply, or a message about something of theirs (a visit they booked, their proposal, the call they are on):
       // no yes asked, as decision 11 says.
       if (!opts.proactive || opts.about === "theirs") return { ok: true, reason: null };

@@ -21,7 +21,6 @@ import { InboxList, type Density } from "./inbox-list";
 import {
   inboxMoves,
   inboxVerdict,
-  ixKeyLeft,
   ixOnPhone,
   IX_VIEW_FILTERS,
   useInboxAutoSend,
@@ -29,6 +28,7 @@ import {
   useInboxVeto,
   type InboxSoFar,
 } from "./inbox-state";
+import { ixKeyLeft } from "../keys";
 import { ixKeepPlace } from "../place";
 import { ixBucketOf, ixRank } from "../rules";
 import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";

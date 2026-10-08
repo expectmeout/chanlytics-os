@@ -6345,6 +6345,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            conversation_open: {
+                Args: {
+                    p_contact_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
+            };
             create_mailbox: {
                 Args: {
                     p_from_name: string;

@@ -126,6 +126,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Not the same (0034 step 4): the pair leaves the person's page, which reads itself again; People's rows are as they were.
   "POST contacts/[id]/doubts/dismiss": people,
   "POST contacts": peopleAndAudiences,
+  // A conversation begun from the Inbox: their thread is new or moved, and their row on People says so.
+  "POST people/[id]/message": personAndThreads,
   "POST contacts/import": peopleAndAudiences,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
   "POST segments": () => [peopleOverride, broadcastsOverride, playbooksOverride],
@@ -297,6 +299,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST google/reviews/[id]/draft": "a draft of a review's answer, shown in the sheet that asked",
   "POST google/search": "a search for the business on Google",
   "POST leads/[id]/draft": "a draft; the lead moves when the owner says it was sent, which is a stage",
+  "POST people/[id]/draft": "a draft of a message or of a call's brief, shown in the sheet that asked",
   "POST lines/search": "a search for numbers to buy",
   "POST reach-outs/preview": "a preview of a reach-out's email",
   "POST segments/draft": "a draft of a list's rule",

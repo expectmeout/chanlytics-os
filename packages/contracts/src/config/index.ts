@@ -1,6 +1,7 @@
 /** The workspace's config and the receptionist it composes: the schemas, the policy, the structured answer, the Business tab. */
 export {
   violatesNoPrices,
+  priceFigures,
   namesMoney,
   heldLine,
   spokenBreach,

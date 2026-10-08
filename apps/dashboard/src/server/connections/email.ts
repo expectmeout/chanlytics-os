@@ -93,6 +93,9 @@ export function replyFromOf(r: Awaited<ReturnType<typeof replyIdentityOf>>): Rep
   return r.from === "own" ? { from: "own", address: r.address } : r;
 }
 
+/** A request rides in the row's Json as it is (channels email.ts): one shape, written as JSON. */
+const requestJson = (r: EmailRequest): Json => r as unknown as Json;
+
 /**
  * A person's own reply, as the request it leaves as. No signature is added:
  * what a person typed is what is sent, the way it is on every other wire.
@@ -133,9 +136,33 @@ export async function freezeReply(
     references: [...i.parent.references, ...(i.parent.rfcMessageId ? [i.parent.rfcMessageId] : [])],
   });
   const own = who.from === "own" ? frozen(ownDomainIdentity(who.domain, mailbox, who.replyDomain)) : null;
-  // A request rides in the row's Json as it is (channels email.ts): one shape, written as JSON.
-  const json = (r: EmailRequest): Json => r as unknown as Json;
-  return { request: json(request), subject: request.subject, own: own ? json(own) : null };
+  return { request: requestJson(request), subject: request.subject, own: own ? requestJson(own) : null };
+}
+
+/**
+ * A person's first email on a thread, as the request it leaves as: no email of theirs to thread under, the subject its
+ * own, from the workspace's mailbox. No signature is added, as on a reply. Null with no mail domain or no mailbox.
+ */
+export async function freezeFirst(
+  ctx: RouteContext,
+  i: Parameters<EmailReplyPorts["first"]>[0],
+): Promise<{ request: Json; subject: string } | null> {
+  const domain = emailDomain();
+  if (!domain) return null;
+  const mailbox = await mailboxOfTenant(ctx.supabase, i.tenantId);
+  if (!mailbox) return null;
+  const request = buildEmailRequest({
+    identity: hostedIdentity(mailbox, domain),
+    to: i.to,
+    parent: null,
+    subject: i.subject,
+    body: i.body,
+    signature: null,
+    actor: "human",
+    messageId: i.messageId,
+    tenantId: i.tenantId,
+  });
+  return { request: requestJson(request), subject: request.subject };
 }
 
 /** A mailbox row as the pages are told about it: its address on this deployment's domain, and never its reply route. */

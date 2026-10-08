@@ -267,7 +267,9 @@ function refusalFor(d, f, nowMs, o) {
     if (isEmailStopped(f.contact)) return "email_suppressed";
     if (f.contact.email !== d.to) return "recipient_changed";
   }
-  const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive, channel: d.channel, about: d.about });
+  const begins = d.kind === "reply" && d.proactive;
+  const asked2 = { proactive: d.proactive, channel: d.channel, about: d.about, begins };
+  const may = mayMessageFor(f.contact, d.purpose, asked2);
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
@@ -587,10 +589,10 @@ var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 var HOLD_EXPIRY_MS = 2 * MIN_MS;
 var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
-async function shapeEmailReply(ports, conv, to, text, agreedTo) {
+async function shapeEmailReply(ports, conv, to, { text, agreedTo, subject }) {
   if (isEmailStopped2(conv)) throw new AppError8("conflict", PURPOSE_REFUSALS.email_suppressed);
   const parent = await ports.email.parent(conv);
-  if (!parent) throw new AppError8("conflict", "There is no email from this person on this thread to reply to.");
+  if (!parent) return shapeFirstEmail(ports, conv, to, { text, subject });
   if (normalizeEmail(parent.from ?? "") !== to && agreedTo !== to) {
     throw new AppError8(
       "conflict",
@@ -608,11 +610,7 @@ async function shapeEmailReply(ports, conv, to, text, agreedTo) {
     parent,
     body: text
   });
-  if (!frozen)
-    throw new AppError8(
-      "conflict",
-      "This workspace has no email address to send from yet. Set one up in Settings \u203A Channels first."
-    );
+  if (!frozen) throw new AppError8("conflict", NO_MAILBOX_REFUSAL);
   return {
     id,
     meta: {
@@ -626,6 +624,16 @@ async function shapeEmailReply(ports, conv, to, text, agreedTo) {
       }
     }
   };
+}
+var NO_MAILBOX_REFUSAL = "This workspace has no email address to send from yet. Set one up in Settings \u203A Channels first.";
+var EMAIL_NEEDS_SUBJECT_REFUSAL = "An email needs a subject.";
+async function shapeFirstEmail(ports, conv, to, { text, subject }) {
+  const named = subject?.trim() || await ports.email.lastSubject(conv);
+  if (!named) throw new AppError8("validation", EMAIL_NEEDS_SUBJECT_REFUSAL);
+  const id = ports.email.newId();
+  const frozen = await ports.email.first({ tenantId: conv.tenant_id, messageId: id, to, subject: named, body: text });
+  if (!frozen) throw new AppError8("conflict", NO_MAILBOX_REFUSAL);
+  return { id, meta: { email: { subject: frozen.subject, to: [to], request: frozen.request } } };
 }
 async function replyToConversation(ports, cmd) {
   const { conv, body } = cmd;
@@ -649,7 +657,7 @@ async function replyToConversation(ports, cmd) {
       const prior = claim.held;
       const sameIntent = prior?.request_hash === intentHash;
       const age = prior ? now - Date.parse(prior.created_at) : 0;
-      if (prior?.response && sameIntent && age < IDEMPOTENCY_WINDOW_MS) return prior.response;
+      if (prior?.response && sameIntent && age < (cmd.replayMs ?? IDEMPOTENCY_WINDOW_MS)) return prior.response;
       if (!prior || !prior.response && age < HOLD_EXPIRY_MS)
         throw new AppError8("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
       if (!await ports.takeKey(conv.tenant_id, idemKey, intentHash, nowIso, prior.created_at))
@@ -665,68 +673,76 @@ async function replyToConversation(ports, cmd) {
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
     message_id: queued.message_id,
     window_open: window.open,
-    template: sent.templateName
+    template: sent.templateName,
+    ...cmd.starts ? { starts: true } : {}
   });
   await ports.resolveEscalation(conv.id, decision_id);
   const receipt = { ...queued, decision_id };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt, nowIso).catch(() => false);
   return receipt;
 }
+async function shapeTemplate(ports, conv, body) {
+  if (!body.template?.name)
+    throw new AppError8(
+      "window_closed",
+      "The 24-hour WhatsApp window is closed \u2014 replies must use an approved template."
+    );
+  const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
+  if (!tpl || tpl.meta_status !== "approved") throw new AppError8("validation", "Template not found or not approved.");
+  if (purposeOfTemplate2(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
+    throw new AppError8(
+      "forbidden",
+      "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first."
+    );
+  }
+  const toWrite = slotToWrite(tpl);
+  if (toWrite) {
+    throw new AppError8(
+      "validation",
+      `This template needs words for \u201C${toWrite}\u201D, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`
+    );
+  }
+  const facts = await ports.templateFacts(conv.tenant_id);
+  if (!facts)
+    throw new AppError8(
+      "validation",
+      "This workspace has no template facts configured yet. Add the business name in Settings \u203A Business first."
+    );
+  const slots = inboxSlots(tpl);
+  if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
+    throw new AppError8(
+      "validation",
+      "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
+    );
+  const params = resolveParams(slots, {
+    firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
+    businessName: facts.business_name,
+    bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null
+  });
+  return {
+    body: renderTemplate(tpl.body_preview, params) || `[template ${tpl.name}]`,
+    name: tpl.name,
+    vars: { language: tpl.language, params },
+    job: { name: tpl.name, language: tpl.language, params }
+  };
+}
 async function queueReply(ports, cmd, facts) {
   const { conv, body } = cmd;
   const { now, channel, to, window, key } = facts;
   let messageBody;
-  let templateVars = null;
-  let templateName = null;
-  let jobTemplate;
+  let template = null;
   let email = null;
   if (window.open) {
     if (!body.text?.trim()) throw new AppError8("validation", "Reply text is required.");
-    messageBody = body.text.trim();
+    messageBody = (cmd.leavesAs ?? body.text).trim();
     if (messageBody.length > REPLY_LIMITS[channel].max) throw new AppError8("validation", REPLY_LIMITS[channel].refusal);
-    if (channel === "email") email = await shapeEmailReply(ports, conv, to, messageBody, body.email_to);
+    if (channel === "email") {
+      const written = { text: messageBody, agreedTo: body.email_to, subject: body.subject };
+      email = await shapeEmailReply(ports, conv, to, written);
+    }
   } else {
-    if (!body.template?.name)
-      throw new AppError8(
-        "window_closed",
-        "The 24-hour WhatsApp window is closed \u2014 replies must use an approved template."
-      );
-    const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
-    if (!tpl || tpl.meta_status !== "approved") throw new AppError8("validation", "Template not found or not approved.");
-    if (purposeOfTemplate2(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
-      throw new AppError8(
-        "forbidden",
-        "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first."
-      );
-    }
-    const toWrite = slotToWrite(tpl);
-    if (toWrite) {
-      throw new AppError8(
-        "validation",
-        `This template needs words for \u201C${toWrite}\u201D, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`
-      );
-    }
-    const facts2 = await ports.templateFacts(conv.tenant_id);
-    if (!facts2)
-      throw new AppError8(
-        "validation",
-        "This workspace has no template facts configured yet. Add the business name in Settings \u203A Business first."
-      );
-    const slots = inboxSlots(tpl);
-    if (!facts2.booking_link && slots.some((s) => s.kind === "booking_link"))
-      throw new AppError8(
-        "validation",
-        "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
-      );
-    const params = resolveParams(slots, {
-      firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
-      businessName: facts2.business_name,
-      bookingLink: facts2.booking_link?.replace(/^https?:[/][/]/, "") ?? null
-    });
-    templateName = tpl.name;
-    templateVars = { language: tpl.language, params };
-    messageBody = renderTemplate(tpl.body_preview, params) || `[template ${tpl.name}]`;
-    jobTemplate = { name: tpl.name, language: tpl.language, params };
+    template = await shapeTemplate(ports, conv, body);
+    messageBody = template.body;
   }
   const pauseUntil = now + await ports.pauseMs(conv.tenant_id);
   if (!await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString())) {
@@ -745,10 +761,10 @@ async function queueReply(ports, cmd, facts) {
     contact_id: conv.contact_id,
     channel,
     sent_by: cmd.userId,
-    type: jobTemplate ? "template" : "text",
+    type: template ? "template" : "text",
     body: messageBody,
-    template_name: templateName,
-    template_vars: templateVars,
+    template_name: template?.name ?? null,
+    template_vars: template?.vars ?? null,
     content_hash: ports.hash(messageBody),
     ...email ?? {}
   });
@@ -767,13 +783,84 @@ async function queueReply(ports, cmd, facts) {
       message_id,
       conversation_id: conv.id,
       ...channel === "email" ? { to_email: to } : { to_phone: to },
-      ...jobTemplate ? { template: jobTemplate } : { body: messageBody }
+      ...template ? { template: template.job } : { body: messageBody },
+      ...cmd.starts ? { starts: true } : {}
     });
   } catch (e) {
     await ports.cancelOrphan(message_id);
     throw e;
   }
-  return { receipt, templateName };
+  return { receipt, templateName: template?.name ?? null };
+}
+
+// src/conversations/begin.ts
+import {
+  AppError as AppError9,
+  DAY_MS as DAY_MS2,
+  NEW_CONVERSATION_WORDS,
+  REPLY_LIMITS as REPLY_LIMITS2,
+  writeWaysOf
+} from "../../contracts/dist/index.js";
+async function fitsWire(ports, cmd, row, way) {
+  const W = NEW_CONVERSATION_WORDS.refusals;
+  const { body } = cmd;
+  if (way.carries === "approved") {
+    if (!body.template?.name) throw new AppError9("window_closed", W.approvedOnly);
+    await shapeTemplate(
+      ports.reply,
+      { tenant_id: cmd.tenantId, marketing_consent: row.marketing_consent ?? null },
+      body
+    );
+    return void 0;
+  }
+  const words = body.text?.trim();
+  if (!words) throw new AppError9("validation", W.noWords);
+  if (words.length > REPLY_LIMITS2[way.wire].max) throw new AppError9("validation", REPLY_LIMITS2[way.wire].refusal);
+  if (way.wire === "email" && !body.subject?.trim() && !row.latest_conversation_id)
+    throw new AppError9("validation", EMAIL_NEEDS_SUBJECT_REFUSAL);
+  if (way.wire !== "sms") return void 0;
+  const thread = cmd.conv?.id ?? row.latest_conversation_id;
+  if (thread && await ports.textedBefore(cmd.tenantId, thread)) return void 0;
+  const text = ports.firstText(words);
+  if (text === null) throw new AppError9("validation", W.noRoomForStop);
+  return text === words ? void 0 : text;
+}
+async function beginConversation(ports, cmd) {
+  const W = NEW_CONVERSATION_WORDS.refusals;
+  const row = await ports.person(cmd.tenantId, cmd.personId);
+  if (!row) throw new AppError9("not_found", W.notYours, 404);
+  const now = new Date(ports.reply.now());
+  const way = writeWaysOf(row, await ports.ready(cmd.tenantId), now).find((w) => w.wire === cmd.wire);
+  if (!way || !way.ok) throw new AppError9("conflict", way?.why ?? W.notThatWay);
+  const leavesAs = await fitsWire(ports, cmd, row, way);
+  const conv = cmd.conv ?? await ports.open(cmd.tenantId, cmd.personId);
+  const receipt = await replyToConversation(
+    // The wire is the member's choice here, where a reply's is where the person last wrote.
+    { ...ports.reply, replyChannel: () => Promise.resolve(way.wire) },
+    {
+      conv,
+      userId: cmd.userId,
+      body: cmd.body,
+      idempotencyKey: cmd.idempotencyKey ?? null,
+      // The key names one press, not the words, so its receipt answers for as long as a key is kept.
+      replayMs: DAY_MS2,
+      starts: way.starts,
+      ...leavesAs === void 0 ? {} : { leavesAs }
+    }
+  );
+  const noted = cmd.note ? await ports.keepNote(cmd.personId, cmd.note).then(
+    (id) => ({ note_kept: true, note_id: id }),
+    () => ({ note_kept: false, note_id: null })
+  ) : { note_kept: null, note_id: null };
+  if (cmd.then !== "receptionist") return { ...receipt, conversation_id: conv.id, handed_back: false, ...noted };
+  const handed_back = await handBack(ports.handBack, {
+    conv: { ...conv, paused_until: null },
+    userId: cmd.userId
+  }).then(
+    () => true,
+    () => false
+  );
+  return { ...receipt, conversation_id: conv.id, handed_back, ...noted };
 }
 
 // src/messages/send.ts
@@ -824,6 +911,7 @@ async function sendQueued(ports, cmd) {
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
     );
   const resumes = resumesOf(p);
+  const starts = p.starts === true && (msg.sender ?? "human") === "human";
   let out;
   try {
     out = await ports.deliver({
@@ -837,7 +925,7 @@ async function sendQueued(ports, cmd) {
       // the metrics report a bot's words as a person's.
       sender: msg.sender ?? "human",
       purpose,
-      proactive: p.proactive === true,
+      proactive: p.proactive === true || starts,
       // One message to one person in their own thread (a reply, the receptionist's, a person's written one): theirs.
       // A campaign's news goes by the broadcast's batch, which says ours (contracts MessageAbout, decision D1).
       about: "theirs",
@@ -849,6 +937,8 @@ async function sendQueued(ports, cmd) {
       ...msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {},
       ...msg.leadId ? { leadId: msg.leadId } : {},
       messageId: p.message_id,
+      // Held as the person's own words: the thread's pause is the one their own message took (deliver kindOf).
+      ...starts ? { kind: "reply" } : {},
       holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length
     });
   } catch (e) {
@@ -2288,7 +2378,7 @@ import {
 
 // src/campaigns/message-channels.ts
 import {
-  AppError as AppError9,
+  AppError as AppError10,
   CONSENT_CHANNELS,
   DEFAULT_CAMPAIGN_CHANNELS,
   channelChoices,
@@ -2302,15 +2392,15 @@ function parseChannels(asked2, kept = null) {
   const list = Array.isArray(asked2) ? asked2 : [];
   const known = CONSENT_CHANNELS.filter((c) => list.includes(c));
   if (known.length === 0 || known.length !== new Set(list).size)
-    throw new AppError9("validation", "Pick WhatsApp, text or email to send by.");
+    throw new AppError10("validation", "Pick WhatsApp, text or email to send by.");
   return known;
 }
 function refuseTicks(how, purpose) {
   const no = channelChoices(how.ready, purpose, how.about).find((c) => how.channels.includes(c.channel) && !c.ok);
   if (!no) return;
   const words = no.why ?? `${no.channel} is not ready to send on.`;
-  if (channelNeverCarries(no.channel, purpose)) throw new AppError9("validation", words);
-  throw new AppError9("conflict", words, 409);
+  if (channelNeverCarries(no.channel, purpose)) throw new AppError10("validation", words);
+  throw new AppError10("conflict", words, 409);
 }
 
 // src/campaigns/run-playbook.ts
@@ -2561,18 +2651,18 @@ async function runPlaybook(ports, cmd) {
 
 // src/campaigns/template-values.ts
 import {
-  AppError as AppError10,
+  AppError as AppError11,
   campaignMessageOf as campaignMessageOf3,
   cleanParam,
   parseParamSpec,
   UUID
 } from "../../contracts/dist/index.js";
 async function readCampaignMessage(ports, id) {
-  if (!UUID.test(id)) throw new AppError10("validation", "Pick a template.");
+  if (!UUID.test(id)) throw new AppError11("validation", "Pick a template.");
   const rows = await ports.message(id);
   const row = rows.find((r) => r.id === id);
   const message = row ? campaignMessageOf3(rows, row.name, row.language) : null;
-  if (!message) throw new AppError10("not_found", "Template not found.", 404);
+  if (!message) throw new AppError11("not_found", "Template not found.", 404);
   return message;
 }
 async function templateValues(ports, cmd) {
@@ -2580,7 +2670,7 @@ async function templateValues(ports, cmd) {
   const expected = message.slots;
   const rawParams = Array.isArray(cmd.params) ? cmd.params : [];
   if (rawParams.length !== expected) {
-    throw new AppError10(
+    throw new AppError11(
       "validation",
       expected === 0 ? "This template takes no values." : `This template takes ${expected} value${expected === 1 ? "" : "s"}.`
     );
@@ -2589,33 +2679,33 @@ async function templateValues(ports, cmd) {
   for (const p of rawParams) {
     const spec = parseParamSpec(p);
     if (!spec)
-      throw new AppError10(
+      throw new AppError11(
         "validation",
         "Each value is typed text, their first name, the business name, the booking link, a visit's time or service, or a proposal's link."
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
       if (v === null)
-        throw new AppError10(
+        throw new AppError11(
           "validation",
           "Every value is needed, without line breaks or tabs, and under 1024 characters."
         );
       specs.push({ kind: "text", value: v });
     } else {
       if ((spec.kind === "visit_when" || spec.kind === "visit_service") && !cmd.visits) {
-        throw new AppError10(
+        throw new AppError11(
           "validation",
           "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service."
         );
       }
       if (spec.kind === "proposal_link" && !cmd.proposal) {
-        throw new AppError10("validation", "Only the proposal follow-up can fill in a proposal's link.");
+        throw new AppError11("validation", "Only the proposal follow-up can fill in a proposal's link.");
       }
       specs.push(spec);
     }
   }
   if (specs.some((s) => s.kind === "booking_link") && !await ports.bookingLink()) {
-    throw new AppError10(
+    throw new AppError11(
       "conflict",
       "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.",
       409
@@ -2626,7 +2716,7 @@ async function templateValues(ports, cmd) {
 
 // src/campaigns/create-broadcast.ts
 import {
-  AppError as AppError11,
+  AppError as AppError12,
   AUDIENCE_KINDS,
   nextOpenMoment as nextOpenMoment4,
   BROADCAST_MAX_RECIPIENTS,
@@ -2643,7 +2733,7 @@ import {
   readyForMessage as readyForMessage2,
   UUID as UUID2,
   listToken as listToken2,
-  DAY_MS as DAY_MS2
+  DAY_MS as DAY_MS3
 } from "../../contracts/dist/index.js";
 import { errField as errField5, logger as logger6 } from "../../channels/dist/index.js";
 var OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
@@ -2651,15 +2741,15 @@ var createLog = logger6();
 function asked(raw) {
   const body = raw;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  if (!UUID2.test(templateId)) throw new AppError11("validation", "Pick a template.");
+  if (!UUID2.test(templateId)) throw new AppError12("validation", "Pick a template.");
   const kind = body?.audience?.kind;
   if (typeof kind !== "string" || !AUDIENCE_KINDS.includes(kind)) {
-    throw new AppError11("validation", "Pick who this goes to.");
+    throw new AppError12("validation", "Pick who this goes to.");
   }
   const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
-  if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError11("validation", "Pick a list.");
+  if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError12("validation", "Pick a list.");
   if (kind === "list" && (!audienceId || !BUILTIN_LISTS.some((l) => l.id === audienceId)))
-    throw new AppError11("validation", "Pick a list.");
+    throw new AppError12("validation", "Pick a list.");
   const ref = audienceId && kind === "list" ? { kind: "builtin", id: audienceId } : audienceId && kind === "saved" ? { kind: "saved", id: audienceId } : null;
   return {
     templateId,
@@ -2676,9 +2766,9 @@ function asked(raw) {
 function askedTime(scheduledFor, now) {
   if (typeof scheduledFor !== "string" || !scheduledFor) return now;
   const t = new Date(scheduledFor);
-  if (Number.isNaN(t.getTime())) throw new AppError11("validation", "That is not a time.");
+  if (Number.isNaN(t.getTime())) throw new AppError12("validation", "That is not a time.");
   if (!OFFSET.test(scheduledFor))
-    throw new AppError11("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
+    throw new AppError12("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
   return t.getTime() > now.getTime() ? t : now;
 }
 async function campaignHow(ports, message, channels, about) {
@@ -2687,7 +2777,7 @@ async function campaignHow(ports, message, channels, about) {
 }
 async function campaignHowOf(ports, message, channels, purpose) {
   const made = await campaignHow(ports, message, channels, "ours");
-  if (made.how.ready.paused) throw new AppError11("payment_required", CAMPAIGNS_PAUSED_WORDS);
+  if (made.how.ready.paused) throw new AppError12("payment_required", CAMPAIGNS_PAUSED_WORDS);
   refuseTicks(made.how, purpose);
   return made;
 }
@@ -2695,8 +2785,8 @@ async function audienceOf(ports, ref, now) {
   const rows = await ports.people(now);
   if (!ref) return { pool: rows, label: EVERYONE_LABEL, kept: void 0 };
   const found = await ports.list(ref, now);
-  if (!found) throw new AppError11("not_found", "List not found.", 404);
-  if ("unknown" in found) throw new AppError11("conflict", `${found.label} can't be counted here. ${found.unknown}`, 409);
+  if (!found) throw new AppError12("not_found", "List not found.", 404);
+  if ("unknown" in found) throw new AppError12("conflict", `${found.label} can't be counted here. ${found.unknown}`, 409);
   const members = new Set(found.memberIds);
   return {
     pool: rows.filter((r) => members.has(r.id)),
@@ -2718,17 +2808,17 @@ async function createBroadcast(ports, cmd) {
   const { how, health } = await campaignHowOf(ports, message, want.channels, purpose);
   const { pool, label, kept } = await audienceOf(ports, want.ref, now);
   const enrolled = enrolFor(pool, "everyone", null, null, purpose, how);
-  if (enrolled.length === 0) throw new AppError11("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
+  if (enrolled.length === 0) throw new AppError12("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
-    throw new AppError11("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
+    throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   const over = health ? overLimitRefusal(health, enrolled.filter((e) => e.channel === "whatsapp").length) : null;
-  if (over) throw new AppError11("validation", over);
+  if (over) throw new AppError12("validation", over);
   const tz = await ports.timezone();
   const open = nextOpenMoment4(tz, when);
   const movedFrom = open.moved ? when.toISOString() : null;
   when = open.at;
-  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * DAY_MS2)
-    throw new AppError11("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
+  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * DAY_MS3)
+    throw new AppError12("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const past = await pastTheMonth(
     { monthSent: (channel) => ports.monthSent(channel, when) },
     enrolled.map((e) => ({ id: e.row.id, channel: e.channel })),
@@ -2736,7 +2826,7 @@ async function createBroadcast(ports, cmd) {
     purpose
   ).catch((e) => {
     createLog.error("campaign_step_failed", { step: "month_count", error: errField5(e) });
-    throw new AppError11(
+    throw new AppError12(
       "internal",
       "This month's emails and texts could not be counted just now. Nothing was sent; try again.",
       500
@@ -2770,7 +2860,7 @@ async function createBroadcast(ports, cmd) {
   });
   if (!made.ok) {
     createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
-    throw new AppError11("internal", "The broadcast could not be created. Nothing was sent; try again.", 500);
+    throw new AppError12("internal", "The broadcast could not be created. Nothing was sent; try again.", 500);
   }
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name,
@@ -2803,7 +2893,7 @@ async function createBroadcast(ports, cmd) {
 // src/campaigns/approve.ts
 import { errField as errField6, logger as logger7 } from "../../channels/dist/index.js";
 import {
-  AppError as AppError12,
+  AppError as AppError13,
   CAMPAIGNS_PAUSED_WORDS as CAMPAIGNS_PAUSED_WORDS2,
   isReachOutRun as isReachOutRun2,
   localDate as localDate2,
@@ -2814,15 +2904,15 @@ var approveLog = logger7();
 var STRANDED_WORDS = "The send could not be scheduled, and the run could not be put back to wait for you. If it still says scheduled once its time has passed, it is marked not sent and you are told.";
 async function approveRun(ports, cmd) {
   const b = cmd.row;
-  if (b.state !== "pending_approval") throw new AppError12("conflict", "This run is not waiting for approval.", 409);
-  if (await ports.paused()) throw new AppError12("payment_required", CAMPAIGNS_PAUSED_WORDS2, 402);
+  if (b.state !== "pending_approval") throw new AppError13("conflict", "This run is not waiting for approval.", 409);
+  if (await ports.paused()) throw new AppError13("payment_required", CAMPAIGNS_PAUSED_WORDS2, 402);
   if (isReachOutRun2(b.audience)) return approveReachOut(ports, b, cmd.now);
   const tz = await ports.timezone();
   const open = nextOpenMoment5(tz, cmd.now);
   const late = runApprovalRefusal(b, { today: localDate2(tz, cmd.now), sendsOn: localDate2(tz, open.at) });
-  if (late) throw new AppError12("conflict", late, 409);
+  if (late) throw new AppError13("conflict", late, 409);
   const at = open.at;
-  if (!await ports.release(b.id, at)) throw new AppError12("conflict", "This run just changed state; look again.", 409);
+  if (!await ports.release(b.id, at)) throw new AppError13("conflict", "This run just changed state; look again.", 409);
   try {
     await ports.schedule(b.id, at);
   } catch (e) {
@@ -2832,9 +2922,9 @@ async function approveRun(ports, cmd) {
       return null;
     });
     if (held)
-      throw new AppError12("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
+      throw new AppError13("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
     if (held === false) approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: "no row" });
-    throw new AppError12("upstream_meta", STRANDED_WORDS, 502);
+    throw new AppError13("upstream_meta", STRANDED_WORDS, 502);
   }
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;
@@ -2858,7 +2948,7 @@ async function approveRun(ports, cmd) {
 async function approveReachOut(ports, b, now) {
   const first = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
   const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
-  if (!await ports.release(b.id, at)) throw new AppError12("conflict", "This run just changed state; look again.", 409);
+  if (!await ports.release(b.id, at)) throw new AppError13("conflict", "This run just changed state; look again.", 409);
   const scheduledFor = at.toISOString();
   const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
     name: b.name,
@@ -2879,15 +2969,15 @@ async function approveReachOut(ports, b, now) {
 }
 
 // src/campaigns/cancel.ts
-import { AppError as AppError13 } from "../../contracts/dist/index.js";
+import { AppError as AppError14 } from "../../contracts/dist/index.js";
 async function cancelBroadcast(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "scheduled" && b.state !== "sending" && b.state !== "pending_approval") {
     const said = b.state === "sent" ? "already been sent" : b.state === "canceled" ? "already been canceled" : "already failed";
-    throw new AppError13("conflict", `This broadcast has ${said}.`, 409);
+    throw new AppError14("conflict", `This broadcast has ${said}.`, 409);
   }
   if (!await ports.cancel(b.id, b.state))
-    throw new AppError13("conflict", "This broadcast just changed state; look again.", 409);
+    throw new AppError14("conflict", "This broadcast just changed state; look again.", 409);
   if (b.state === "scheduled") await ports.withdraw(b.id);
   const decision_id = await ports.record("broadcast", b.id, "cancel_broadcast", { name: b.name, was: b.state });
   return { id: b.id, state: "canceled", was: b.state, decision_id };
@@ -2895,7 +2985,7 @@ async function cancelBroadcast(ports, cmd) {
 
 // src/campaigns/check-playbook.ts
 import {
-  AppError as AppError14,
+  AppError as AppError15,
   BUILTIN_LISTS as BUILTIN_LISTS2,
   LIST_PLAYBOOK_CLASSES,
   FOLLOW_UP_NEEDS_DEALS,
@@ -2923,57 +3013,57 @@ function int(v, { fallback, min, max, what }) {
   if (v === void 0 || v === null || v === "") return fallback;
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isInteger(n) || n < min || n > max)
-    throw new AppError14("validation", `${what} must be a whole number from ${min} to ${max}.`);
+    throw new AppError15("validation", `${what} must be a whole number from ${min} to ${max}.`);
   return n;
 }
 async function refuseMoment(ports, trig, existing) {
   const dealsOn = trig.kind === "deal" ? await ports.dealsOn() : false;
-  if (trig.kind === "deal" && !triggerOffered2(trig, dealsOn)) throw new AppError14("validation", FOLLOW_UP_NEEDS_DEALS);
+  if (trig.kind === "deal" && !triggerOffered2(trig, dealsOn)) throw new AppError15("validation", FOLLOW_UP_NEEDS_DEALS);
   if (existing?.trigger === trig.id) return;
   const retired = MOMENTS_RETIRED[trig.id];
-  if (retired) throw new AppError14("validation", retired);
+  if (retired) throw new AppError15("validation", retired);
   const calendarOn = isWinBack(trig.id) ? await ports.calendarOn() : false;
   if (!momentOffered(trig, { dealsOn, calendarOn }))
-    throw new AppError14("validation", WIN_BACK_WORDS[trig.id]);
+    throw new AppError15("validation", WIN_BACK_WORDS[trig.id]);
 }
 async function listOf(ports, trig, body) {
   if (trig.kind !== "saved") return { listName: null, listKey: null, listId: null };
   const listKey = typeof body?.list_key === "string" && body.list_key ? body.list_key : null;
   if (listKey) {
     const b = BUILTIN_LISTS2.find((l) => l.id === listKey);
-    if (!b) throw new AppError14("validation", "Pick the list it runs on.");
+    if (!b) throw new AppError15("validation", "Pick the list it runs on.");
     if (ruleNeeds(b.rule).includes("viewer"))
-      throw new AppError14(
+      throw new AppError15(
         "validation",
         `${b.label} is about whoever is looking, and a playbook runs with no one looking. Pick another list.`
       );
     return { listName: b.label, listKey, listId: null };
   }
   const listId = typeof body?.list_id === "string" ? body.list_id : null;
-  if (!listId || !UUID3.test(listId)) throw new AppError14("validation", "Pick the list it runs on.");
+  if (!listId || !UUID3.test(listId)) throw new AppError15("validation", "Pick the list it runs on.");
   const listName = await ports.listName(listId);
-  if (!listName) throw new AppError14("not_found", "List not found.", 404);
+  if (!listName) throw new AppError15("not_found", "List not found.", 404);
   return { listName, listKey: null, listId };
 }
 function refuseMessageThatDisagrees(cls, category) {
   const fit = messageFitsMoment(cls, category);
-  if (!fit.ok) throw new AppError14("validation", fit.words);
+  if (!fit.ok) throw new AppError15("validation", fit.words);
 }
 function refuseMessageNoTickHolds(message, channels) {
   const held = messageHolds3(message);
   if (channels.some((c) => held[c])) return;
   const words = channels.flatMap((c) => messageWhyNot(message, c) ?? []);
-  throw new AppError14("conflict", words.join(" "), 409);
+  throw new AppError15("conflict", words.join(" "), 409);
 }
 async function checkPlaybook(ports, body, existing) {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
   const trig = typeof body?.trigger === "string" ? triggerOf3(body.trigger) : null;
   if (!trig)
-    throw new AppError14(
+    throw new AppError15(
       "validation",
       "Pick what starts it: win-back, the month's offer, a visit tomorrow, a visit yesterday, one of your lists, or a proposal waiting."
     );
-  if (trig.kind === "reach_out") throw new AppError14("validation", REACH_OUT_IS_NOT_A_MOMENT);
+  if (trig.kind === "reach_out") throw new AppError15("validation", REACH_OUT_IS_NOT_A_MOMENT);
   await refuseMoment(ports, trig, existing);
   const { listName, listKey, listId } = await listOf(ports, trig, body);
   const cls = trig.kind === "saved" && LIST_PLAYBOOK_CLASSES.includes(String(body?.policy_class)) ? body.policy_class : trig.cls;
@@ -2988,10 +3078,10 @@ async function checkPlaybook(ports, body, existing) {
   const channels = parseChannels(body?.channels, existing?.channels ?? null);
   const purpose = enrolPurpose2(cls, message);
   const never = channels.map((c) => channelNeverCarries2(c, purpose)).find((words) => words !== null);
-  if (never) throw new AppError14("validation", never);
+  if (never) throw new AppError15("validation", never);
   refuseMessageNoTickHolds(message, channels);
   if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
-    throw new AppError14("validation", FOLLOW_UP_NEEDS_LINK);
+    throw new AppError15("validation", FOLLOW_UP_NEEDS_LINK);
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
     // list's own name for a playbook on a list.
@@ -38866,6 +38956,7 @@ export {
   archive,
   areaCenter,
   assembleRun,
+  beginConversation,
   bookingPageLinkedFrom,
   campaignHow,
   campaignHowOf,

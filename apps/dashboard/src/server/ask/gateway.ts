@@ -28,7 +28,7 @@ export interface GatewayCall {
    * themselves. Every purpose may carry a format: Ask's turn answers in
    * ASK_ANSWER_FORMAT.
    */
-  purpose?: "ask" | "ask_warm" | "lead_draft" | "lead_suggest" | "list_draft";
+  purpose?: "ask" | "ask_warm" | "lead_draft" | "lead_suggest" | "list_draft" | "person_draft";
   request: {
     model?: string;
     max_tokens: number;

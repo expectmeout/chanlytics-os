@@ -715,14 +715,26 @@ test("REGRESSION (A11): Archive is in the open thread's menu, asks first, and sa
 
 /* ---------------------------- a key meant for a dialog over the Inbox ---------------------------- */
 
-// A key as the window hears it: from inside a dialog over the page (the deal sheet is an aria-modal RecordSheet), or
-// from the page itself; one a control already took says so.
+// A key as the window hears it: from inside a dialog over the page, or from the page itself; one a control already
+// took says so. Two dialogs stand over the Inbox, and each says what it is its own way: the deal sheet is the record
+// kit's (aria-modal), and the New conversation sheet is the kit's Sheet (`modal: "kit"`), which says role="dialog" and
+// no aria-modal. The target answers `closest` as an element of each would, selector by selector.
+const OVER = {
+  true: { says: '[aria-modal="true"]', is: { className: "rec-sheet deal-sheet" } },
+  kit: { says: '[role="dialog"]', is: { className: "sheet" } },
+  // An open menu or list keeps its keys too: a letter typed there finds one of its own rows.
+  menu: { says: '[role="menu"]', is: { className: "more-menu" } },
+  list: { says: '[role="listbox"]', is: { className: "rec-combo-list" } },
+};
 const keyFrom = (key, { modal = false, prevented = false, ...mods } = {}) => ({
   type: "keydown",
   key,
   target: {
     tagName: "BUTTON",
-    closest: (sel) => (modal && sel === '[aria-modal="true"]' ? { className: "rec-sheet deal-sheet" } : null),
+    closest: (sel) => {
+      const over = OVER[String(modal)];
+      return over && sel.split(",").some((s) => s.trim() === over.says) ? over.is : null;
+    },
   },
   defaultPrevented: prevented,
   metaKey: false,
@@ -753,6 +765,13 @@ test("REGRESSION: Cmd or Ctrl with Enter pressed inside a dialog over the thread
   hear(keyFrom("Enter", { modal: true, ctrlKey: true }));
   hear(keyFrom("Enter", { modal: true, metaKey: true }));
   assert.deepEqual(sent, [], "REGRESSION: the sheet's own Ctrl+Enter sent the half-written reply behind it");
+  hear(keyFrom("Enter", { modal: "kit", ctrlKey: true }));
+  hear(keyFrom("Enter", { modal: "kit", metaKey: true }));
+  assert.deepEqual(
+    sent,
+    [],
+    "REGRESSION: nor from the kit's Sheet, which says role=dialog and no aria-modal (the New conversation sheet)",
+  );
   hear(keyFrom("Enter", { ctrlKey: true, prevented: true }));
   assert.deepEqual(sent, [], "nor one a control already took");
   hear(keyFrom("Enter", { ctrlKey: true }));
@@ -786,10 +805,13 @@ test("REGRESSION: j, k and the arrows pressed inside a dialog over the Inbox mov
   render();
   const first = drawn.at(-1);
   assert.ok(first, "a thread is open");
-  for (const key of ["j", "k", "ArrowDown", "ArrowUp"]) {
-    const ev = keyFrom(key, { modal: true });
-    hear(ev);
-    assert.equal(ev.defaultPrevented, false, `${key}: the dialog's own control keeps its key`);
+  for (const modal of [true, "kit", "menu", "list"]) {
+    // A, D and E are the page's too (approve, decline, edit): the same rule leaves them, in either dialog.
+    for (const key of ["j", "k", "ArrowDown", "ArrowUp", "a", "d", "e"]) {
+      const ev = keyFrom(key, { modal });
+      hear(ev);
+      assert.equal(ev.defaultPrevented, false, `${key}: the dialog's own control keeps its key (${String(modal)})`);
+    }
   }
   render();
   assert.equal(drawn.at(-1), first, "REGRESSION: an arrow on the sheet's select moved the thread behind it");

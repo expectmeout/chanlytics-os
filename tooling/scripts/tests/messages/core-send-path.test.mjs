@@ -113,6 +113,8 @@ test("a job may say what its send IS, and only ever more strictly: an offer is m
     [{ proactive: true }, "conversational", "conversational", true],
     [{ proactive: "yes" }, "conversational", "conversational", false],
     [{ proactive: false }, "conversational", "conversational", false],
+    [{ starts: true }, "conversational", "conversational", true],
+    [{ starts: "yes" }, "conversational", "conversational", false],
   ];
   for (const [payload, fromTemplate, purpose, proactive] of cases) {
     const { ports, log } = fakes({ purposeOf: fromTemplate });
@@ -628,4 +630,18 @@ test("the waits a reply's fresh jobs keep: each longer than the last, a bounded 
     assert.ok(waits[i] >= 60_000, `wait ${i} is at least a minute`);
     if (i > 0) assert.ok(waits[i] > waits[i - 1], `wait ${i} outlasts wait ${i - 1}`);
   }
+});
+
+test("a person's own start is judged as a start and held as their own words; a row a person did not write cannot say it", async () => {
+  const mine = fakes();
+  await core.sendQueued(mine.ports, send({ starts: true }));
+  assert.equal(mine.log[0][1].kind, "reply", "the thread's pause is theirs, and must not hold what they wrote");
+  assert.equal(mine.log[0][1].proactive, true, "and the door asks the yes a start asks");
+  const plain = fakes();
+  await core.sendQueued(plain.ports, send());
+  assert.equal("kind" in plain.log[0][1], false, "a reply names no kind, as before");
+  const bot = fakes({ queued: { status: "queued", body: "See you at 3", channel: "whatsapp", sender: "ai" } });
+  await core.sendQueued(bot.ports, send({ starts: true }));
+  assert.equal("kind" in bot.log[0][1], false);
+  assert.equal(bot.log[0][1].proactive, false);
 });

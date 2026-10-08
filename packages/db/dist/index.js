@@ -596,6 +596,14 @@ async function scrubPersonNotes(db, tenantId, contactId, needles) {
   if (error) throw new Error(`person_notes_scrub: ${error.message}`);
   return data ?? 0;
 }
+async function addPersonNote(db, contactId, body, teamOnly) {
+  const { data, error } = await db.rpc("person_note_add", {
+    p_contact_id: contactId,
+    p_body: body,
+    p_team_only: teamOnly
+  });
+  return { data, error };
+}
 async function mergePeople(db, keep, merge) {
   const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
   if (error) throw error;
@@ -1309,6 +1317,12 @@ async function lastInboundEmail(db, tenantId, conversationId) {
     references: Array.isArray(e.references) ? e.references.filter((r) => typeof r === "string") : [],
     subject: str(e.subject)
   };
+}
+async function lastOutboundEmailSubject(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", "email").eq("direction", "outbound").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`email: cannot read the last email sent: ${error.message}`);
+  const subject = data?.meta?.email?.subject;
+  return typeof subject === "string" && subject.trim() ? subject : null;
 }
 var ANSWERED_LOOKBACK = 50;
 async function answeredReachOutEmail(db, p) {
@@ -2928,6 +2942,22 @@ async function repliedTo(db, tenantId, conversationId, messageId) {
   if (error) throw new Error(`repliedTo: ${error.message}`);
   return (data ?? []).length > 0;
 }
+async function textReached(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("channel", "sms").in("status", DELIVERED).limit(1);
+  if (error) throw new Error(`textReached: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function openConversation(db, tenantId, contactId) {
+  const { data, error } = await db.rpc("conversation_open", { p_tenant_id: tenantId, p_contact_id: contactId });
+  if (error) throw error;
+  if (typeof data !== "string" || !data) throw new Error("conversation_open: the door answered no thread");
+  return data;
+}
+async function ourLastWire(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("channel").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").in("type", ["text", "template", "media"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`reading the last outbound: ${error.message}`);
+  return data?.channel ?? null;
+}
 
 // src/ask-voice-session.ts
 import { isVoiceEndReason } from "../../contracts/dist/index.js";
@@ -4150,6 +4180,7 @@ export {
   acceptHandover,
   acceptPartnerInvite,
   activityTokensOf,
+  addPersonNote,
   addToList,
   addToWaitlist,
   addressesSuppressed,
@@ -4271,6 +4302,7 @@ export {
   keepMessageCost,
   keepProviderEvent,
   lastInboundEmail,
+  lastOutboundEmailSubject,
   leadAddressBounced,
   leadNamesByIds,
   leadSlotsOf,
@@ -4310,7 +4342,9 @@ export {
   offerLanguageOf,
   offersAnswerOf,
   offersEmailReach,
+  openConversation,
   openDoubtsOf,
+  ourLastWire,
   outreachFactsOf,
   outreachModeOf,
   ownLineOf,
@@ -4452,6 +4486,7 @@ export {
   tenantDb,
   tenantZoneOf,
   textLineFacts,
+  textReached,
   touchIndex,
   touchSendingDomain,
   touchesSince,

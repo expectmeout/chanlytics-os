@@ -126,6 +126,8 @@ export const DASHBOARD_LOG_EVENTS = [
   "native_sign_in_failed",
   "native_sign_in_rate_limited",
   "native_sign_in_refused",
+  "new_conversation_not_handed_back",
+  "new_conversation_note_unkept",
   "note_door_unknown_answer",
   "oauth_exchange_failed",
   "oauth_provider_refused",

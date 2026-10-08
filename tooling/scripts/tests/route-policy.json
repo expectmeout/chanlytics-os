@@ -1044,6 +1044,27 @@
       "rate": "partner_handover",
       "spend": false
     },
+    "POST people/[id]/draft": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_draft",
+      "spend": false
+    },
+    "POST people/[id]/message": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "reply",
+      "spend": false
+    },
+    "GET people/[id]/reach": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST platform/jobs/requeue": {
       "kind": "write",
       "scope": "platform",

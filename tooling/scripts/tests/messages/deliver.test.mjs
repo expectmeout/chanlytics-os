@@ -2627,3 +2627,36 @@ test("the wire keeps each lane's domain: an offer leaves only by the campaigns r
     globalThis.fetch = realFetch;
   }
 });
+
+test("a person's own start goes under the pause their own message took, and still asks the yes a start asks", async () => {
+  // The reply verb claims the thread a moment before the job runs: a start named a reply is not held by that claim.
+  const paused = { paused_until: new Date(NOW + 60_000).toISOString() };
+  const yes = tables({ conversations: [thread({ ...paused, contacts: person({ consent: "opted_in" }) })] });
+  const w = wireOf();
+  const sent = await deliver(ports(yes, w), words({ sender: "human", proactive: true, kind: "reply" }));
+  assert.equal(sent.outcome, "sent");
+  assert.equal(w.calls.length, 1);
+  // No yes on record: the same send is refused, by the person's own answer and not by the pause.
+  const none = tables({ conversations: [thread({ ...paused, contacts: person({ consent: "unknown" }) })] });
+  const w2 = wireOf();
+  const refused = await deliver(ports(none, w2), words({ sender: "human", proactive: true, kind: "reply" }));
+  assert.equal(refused.outcome, "refused");
+  assert.equal(refused.reason, "not_opted_in");
+  assert.equal(w2.calls.length, 0);
+});
+
+test("a person's own first email is refused at the door for someone who unsubscribed; a reply to them is not", async () => {
+  const unsubscribed = () =>
+    tables({
+      conversations: [thread({ contacts: onEmail({ email_marketing: "opted_out" }) })],
+      messages: [queuedEmail()],
+    });
+  // A start: proactive, and named a reply so the pause its own message took does not hold it (messages/send.ts).
+  const w = emailWire();
+  const start = await deliver(ports(unsubscribed(), w), emailed({ proactive: true, kind: "reply" }));
+  assert.deepEqual([start.outcome, start.reason, w.calls.length], ["refused", "unsubscribed", 0]);
+  // A reply: they wrote, and are answered.
+  const w2 = emailWire();
+  const reply = await deliver(ports(unsubscribed(), w2), emailed());
+  assert.deepEqual([reply.outcome, w2.calls.length], ["sent", 1]);
+});

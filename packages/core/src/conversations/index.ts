@@ -32,3 +32,5 @@ export type {
   ReplyPorts,
   ReplyCommand,
 } from "./reply";
+export { beginConversation } from "./begin";
+export type { BeginPorts, BeginCommand, BeginReceipt } from "./begin";

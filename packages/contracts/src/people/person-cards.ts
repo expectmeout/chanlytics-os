@@ -26,7 +26,7 @@ import { ago } from "./person-row-facts";
 import { holderOf } from "./person-state";
 import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
 import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
-import { addedBy, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
+import { addedBy, ourWireOfThreads, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
 import { replyWindow } from "../config/policy";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
@@ -172,8 +172,11 @@ function replyOf(
   now: Date,
   nowMs: number,
 ): PersonReply | null {
+  // Nothing from their side: the wire our own words last went by, as the Inbox's box and the reply route read it.
   const via =
-    replyChannelOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
+    replyChannelOfThreads(d.conversations) ??
+    ourWireOfThreads(d.conversations) ??
+    (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
   const exactWindow = via ? replyWindow(via, row.latest_wa_inbound_at, now) : null;
   if (!via || !exactWindow) return null;
   const hoursLeft = exactWindow.closesAtIso

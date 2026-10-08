@@ -2877,6 +2877,12 @@ function replyWireOf(messages) {
   const theirs = [...messages].reverse().find(isFromTheirSide);
   return theirs ? writtenChannelOf(theirs.channel) : null;
 }
+function answerWireOf(messages) {
+  const theirs = replyWireOf(messages);
+  if (theirs) return theirs;
+  const ours = [...messages].reverse().find((m) => isChatMessage(m) && m.direction === "outbound");
+  return writtenChannelOf(ours?.channel);
+}
 function threadChannelWords(messages) {
   return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
 }
@@ -2901,6 +2907,17 @@ function replyChannelOfThreads(conversations) {
   }
   const latest = own ?? any;
   return latest ? writtenChannelOf(latest.channel) : null;
+}
+function ourWireOfThreads(conversations) {
+  let last = null;
+  for (const c of conversations) {
+    for (const m of c.messages) {
+      if (m.direction !== "outbound" || !isChatMessage(m)) continue;
+      const at3 = Date.parse(m.channel_ts ?? m.created_at);
+      if (Number.isFinite(at3) && (!last || at3 > last.at)) last = { at: at3, channel: m.channel };
+    }
+  }
+  return last ? writtenChannelOf(last.channel) : null;
 }
 function proposalSent(conversations, url) {
   let best = null;
@@ -3055,6 +3072,7 @@ function mayMessageFor(c, purpose, opts) {
     return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
   if (opts.channel === "email") {
     if (purpose !== "marketing") {
+      if (opts.begins && c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
       if (!opts.proactive || opts.about === "theirs") return { ok: true, reason: null };
       if (c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
       if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
@@ -7414,6 +7432,21 @@ var PRICE_PATTERNS = [
 ];
 function violatesNoPrices(text) {
   return PRICE_PATTERNS.some((p) => p.test(text));
+}
+function priceFigures(text) {
+  const found = [];
+  for (const p of PRICE_PATTERNS) {
+    for (const m of text.matchAll(new RegExp(p.source, p.flags.includes("g") ? p.flags : `${p.flags}g`))) {
+      let from = m.index;
+      let to = m.index + m[0].length;
+      while (from > 0 && /[\d.,]/.test(text.charAt(from - 1))) from -= 1;
+      while (to < text.length && /[\d.,]/.test(text.charAt(to))) to += 1;
+      const whole = text.slice(from, to);
+      const figure = /\d+(?:[.,]\d+)*/.exec(whole)?.[0].replace(/[.,]0+$/, "");
+      found.push(figure ?? whole.toLowerCase().replace(/\s+/g, " ").trim());
+    }
+  }
+  return found;
 }
 var MONEY_PATTERNS = [
   /\brefund(?:s|ed|ing|able)?\b/i,
@@ -15838,6 +15871,7 @@ var SHORTCUTS = [
   { group: "People", keys: ["F"], does: "Find leads (on Leads)" },
   { group: "People", keys: ["C"], does: "Call the lead under the cursor (on Leads)" },
   { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },
+  { group: "Inbox", keys: ["N"], does: "New conversation" },
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },
   { group: "Inbox", keys: ["E"], does: "Edit it first" },
@@ -17540,7 +17574,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const chatChannel = writtenChannelOf(replyWireOf(dto.messages));
+  const chatChannel = answerWireOf(dto.messages);
   const win = replyWindow(chatChannel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
@@ -22347,6 +22381,611 @@ function callActivityPropsOf(call) {
   };
 }
 
+// src/templates/message-languages.ts
+function languageWords(code2) {
+  return languageName(code2);
+}
+function languageLabels(codes) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const c of codes) {
+    const w = languageWords(c);
+    seen.set(w, (seen.get(w) ?? 0) + 1);
+  }
+  const out = {};
+  for (const c of codes) {
+    const w = languageWords(c);
+    out[c] = (seen.get(w) ?? 0) > 1 ? templateLanguage(c) ? languageLabel(c) : `${w} (${c})` : w;
+  }
+  return out;
+}
+var LANGUAGE_GROUP_WORDS = {
+  on: "On file",
+  ready: "Ready to add",
+  add: "Translate into"
+};
+function messageLanguageChoices(input) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  const known = (code2) => templateLanguage(code2) ?? {
+    id: code2,
+    label: languageLabel(code2),
+    name: languageName(code2),
+    region: null,
+    native: languageLabel(code2)
+  };
+  for (const r2 of input.onFile) {
+    if (seen.has(r2.language)) continue;
+    seen.add(r2.language);
+    out.push({ ...known(r2.language), id: r2.language, group: "on", status: r2.meta_status ?? "approved" });
+  }
+  for (const code2 of input.ready ?? []) {
+    if (seen.has(code2)) continue;
+    seen.add(code2);
+    out.push({ ...known(code2), id: code2, group: "ready", status: null });
+  }
+  if (input.canAdd) {
+    for (const l of WHATSAPP_LANGUAGES) {
+      if (seen.has(l.id)) continue;
+      out.push({ ...l, group: "add" });
+    }
+  }
+  return out;
+}
+function templateUntranslatable(t) {
+  if (t.blocked) return `it has ${t.blocked}`;
+  if (t.category && !/^(marketing|utility)$/i.test(t.category))
+    return `WhatsApp files it as ${String(t.category).toLowerCase()}`;
+  if (t.header) return "it has a heading";
+  const buttons = t.buttons ?? [];
+  if (buttons.length > 1) return "it has more than one button";
+  const b = buttons[0];
+  if (b && b.kind !== "url") return b.kind === "reply" ? "it has a reply button" : "it has a button that calls";
+  return null;
+}
+
+// src/templates/template-parts.ts
+function footerOf(components) {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (!c || typeof c !== "object") continue;
+    const part = c;
+    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
+    const text = typeof part.text === "string" ? part.text.trim() : "";
+    if (text) return text;
+  }
+  return null;
+}
+function templateFooter(t) {
+  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
+  const stored = footerOf(t.components);
+  if (stored) return stored;
+  const s = starterByName(t.name);
+  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
+}
+var FILLED_PARTS = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
+var partOf = (components, type) => {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
+      return c;
+  }
+  return null;
+};
+var textOf = (part) => {
+  const t = part && typeof part.text === "string" ? part.text.trim() : "";
+  return t || null;
+};
+var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
+function templateParts(components) {
+  const header = partOf(components, "HEADER");
+  const buttons = [];
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
+    const text = typeof b.text === "string" ? b.text.trim() : "";
+    if (kind && text) buttons.push({ text, kind });
+  }
+  return {
+    // A picture heading is not words and is not drawn as any.
+    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
+    footer: footerOf(components),
+    buttons
+  };
+}
+function templateBlocked(t) {
+  if (typeof t.blocked === "string") return t.blocked.trim() || null;
+  if (t.blocked === null) return null;
+  const components = t.components;
+  if (!Array.isArray(components)) return null;
+  const unfilled = components.some((c) => {
+    const type = c && typeof c === "object" ? c.type : null;
+    return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
+  });
+  if (unfilled) return "a part Chanlytics cannot fill";
+  const header = partOf(components, "HEADER");
+  if (header) {
+    const format = String(header.format ?? "TEXT").toUpperCase();
+    if (format !== "TEXT")
+      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
+    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
+  }
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const button = b;
+    const type = String(button.type ?? "").toUpperCase();
+    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
+    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
+  }
+  return null;
+}
+function refusedWords(reason) {
+  const said = String(reason ?? "").trim().replace(/[.!?\s]+$/, "");
+  if (!said) return null;
+  const words2 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
+  return `WhatsApp refused this one: ${words2}. Change the words and send it back.`;
+}
+var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
+function blockedWords(reasons) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
+  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
+  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
+}
+function sendableTemplates(list2) {
+  const sendable = [];
+  const blocked = [];
+  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
+  if (blocked.length === 0) return { sendable, blocked, why: null };
+  const n = blocked.length;
+  const reasons = blocked.map((t) => templateBlocked(t));
+  const words2 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const many = COUNT_WORDS[n] ?? String(n);
+  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
+  return {
+    sendable,
+    blocked,
+    why: `${lead} can't go out from here \u2014 ${words2}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+  };
+}
+function templateLinkButton(components) {
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const x = b;
+    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
+    const text = typeof x.text === "string" ? x.text.trim() : "";
+    const url = typeof x.url === "string" ? x.url.trim() : "";
+    if (text && url) return { text, url };
+  }
+  return null;
+}
+
+// src/templates/template-slots.ts
+function guessSlotKind(label, example) {
+  const l = String(label ?? "").toLowerCase();
+  const e = String(example ?? "").toLowerCase();
+  if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
+  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
+    return "booking_link";
+  if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
+  if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
+  return "text";
+}
+function defaultSlotKinds(t) {
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const s = starterByName(t.name);
+  if (s) {
+    const kinds = starterText(s, "en_US").slots.map((x) => x.kind);
+    return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
+  }
+  return vars.map(
+    (v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null)
+  );
+}
+function defaultParamSpecs(t) {
+  return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
+}
+function slotChoices(kind, o) {
+  const may = (k) => k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : k === "proposal_link" ? o.proposal : true;
+  if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
+  switch (kind) {
+    case "first_name":
+      return ["first_name"];
+    case "business_name":
+      return ["business_name", "text"];
+    case "booking_link":
+      return o.bookingLink ? ["booking_link", "text"] : ["text"];
+    case "visit_when":
+    case "visit_service":
+      return o.visits ? [kind] : [];
+    // A proposal's link is each proposal's, and there is one only on the follow-up (0006).
+    case "proposal_link":
+      return o.proposal ? [kind] : [];
+    default:
+      return ["text"];
+  }
+}
+function templateSlots(t, o) {
+  const known = starterByName(t.name) !== null;
+  const each = defaultSlotKinds(t).map(
+    (k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink, proposal: o.proposal })
+  );
+  if (!each.every((c) => c.length > 0)) return null;
+  return o.proposal && !each.some((c) => c.includes("proposal_link")) ? null : each;
+}
+function slotLabels(t) {
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const s = starterByName(t.name);
+  if (s) {
+    const labels = starterText(s, t.language ?? "en_US").slots.map((x) => x.label);
+    if (vars.length === 0 || vars.length === labels.length) return labels;
+  }
+  return vars.map((v, i) => {
+    const label = typeof v?.label === "string" ? v.label.trim() : "";
+    const n = typeof v?.position === "number" ? v.position : i + 1;
+    return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
+  });
+}
+
+// src/templates/inbox-templates.ts
+function titleWithoutLanguage(title, code2) {
+  for (const words2 of [languageLabel(code2), languageWords(code2)]) {
+    const tail = ` (${words2})`;
+    if (title.length > tail.length && title.toLowerCase().endsWith(tail.toLowerCase())) {
+      return title.slice(0, title.length - tail.length).trimEnd();
+    }
+  }
+  return title;
+}
+function inboxTemplates(templates, to) {
+  const rows = [];
+  let promotions = 0;
+  let unfillable = 0;
+  const refused = [];
+  for (const t of templates) {
+    const blocked = templateBlocked(t);
+    if (blocked) {
+      refused.push(blocked);
+      continue;
+    }
+    if (slotToWrite(t)) {
+      unfillable += 1;
+      continue;
+    }
+    if (purposeOfTemplate(t.category) === "marketing" && !to.offersOk) {
+      promotions += 1;
+      continue;
+    }
+    rows.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language) });
+  }
+  const isDefault = (r2) => languageBase(r2.template.language) === "en";
+  const named = [...new Set(rows.map((r2) => r2.template.name))];
+  const inDefault = (name) => rows.some((r2) => r2.template.name === name && isDefault(r2));
+  const names3 = [...named.filter(inDefault), ...named.filter((name) => !inDefault(name))];
+  const ordered = names3.flatMap((name) => {
+    const own = rows.filter((r2) => r2.template.name === name);
+    return [...own.filter(isDefault), ...own.filter((r2) => !isDefault(r2))];
+  });
+  const reads = (title) => ordered.filter((r2) => r2.title === title).length;
+  const sendable = ordered.map((r2) => ({
+    template: r2.template,
+    title: r2.title,
+    label: reads(r2.title) > 1 ? `${r2.title} \xB7 ${languageWords(r2.template.language)}` : r2.title
+  }));
+  const held = [
+    refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",
+    promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
+    unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : ""
+  ].filter(Boolean);
+  const said = held.length > 1 ? `${held.slice(0, -1).join(", ")} and ${held[held.length - 1]}` : held[0];
+  return { sendable, hidden: held.length ? `Not offered: ${said}.` : null };
+}
+function templateHolds(left) {
+  const out = { pending: 0, rejected: 0, paused: 0, disabled: 0, hidden: 0 };
+  for (const t of left) {
+    if (t.channel !== "whatsapp") continue;
+    const status = t.meta_status;
+    if (status === "pending" || status === "rejected" || status === "paused" || status === "disabled") out[status] += 1;
+    else if (status === "approved") out.hidden += 1;
+  }
+  return out;
+}
+var HOLD_WORDS2 = [
+  ["pending", "waiting for WhatsApp to review"],
+  ["rejected", "refused by WhatsApp"],
+  ["paused", "paused by WhatsApp"],
+  ["disabled", "disabled by WhatsApp"],
+  ["hidden", "hidden by you"]
+];
+function noTemplateWords(held) {
+  const parts2 = HOLD_WORDS2.flatMap(([key, words2]) => {
+    const n = held?.[key] ?? 0;
+    return n > 0 ? [`${n} ${words2}`] : [];
+  });
+  return `No approved template yet${parts2.length ? ` (${parts2.join(", ")})` : ""} \u2014 nothing can be sent until one is.`;
+}
+function inboxSlots(t) {
+  return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
+}
+function slotToWrite(t) {
+  const at3 = inboxSlots(t).findIndex(
+    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link"
+  );
+  if (at3 < 0) return null;
+  return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at3] ?? `Value ${at3 + 1}`;
+}
+
+// src/new-conversation/person-draft.ts
+var DRAFT_HOWS = ["message", "call"];
+var DRAFT_TONES = ["shorter", "warmer"];
+var DRAFT_ABOUT_MAX = 500;
+var DRAFT_ASKS_MAX = 2;
+var DRAFT_ANSWER_MAX = 300;
+var PLAN_NOTE_MAX = 280;
+var PERSON_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["asks", "text", "subject", "note", "opening", "points", "avoid", "ask"],
+  properties: {
+    asks: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["key", "question"],
+        properties: { key: { type: "string" }, question: { type: "string" } }
+      }
+    },
+    text: { type: "string" },
+    subject: { type: "string" },
+    note: { type: "string" },
+    opening: { type: "string" },
+    points: { type: "array", items: { type: "string" } },
+    avoid: { type: "array", items: { type: "string" } },
+    ask: { type: "string" }
+  }
+};
+
+// src/new-conversation/new-conversation-words.ts
+function newConversationOf(param) {
+  if (param === "new") return { personId: null };
+  if (param && param.startsWith("new:")) return { personId: param.slice("new:".length) || null };
+  return null;
+}
+var NEW_CONVERSATION_WORDS = {
+  act: "New conversation",
+  gate: "start a conversation",
+  title: "New conversation",
+  who: {
+    sub: "Who is it for?",
+    search: "Search people",
+    none: "No one matches.",
+    add: "Add someone new",
+    name: "Name",
+    optional: "optional",
+    number: "Mobile number",
+    go: "Continue",
+    adding: "Adding\u2026",
+    notAdded: "Could not add them."
+  },
+  thread: "Open their thread",
+  page: "Open their page",
+  reading: "Reading how they can be reached\u2026",
+  unread: "This could not be read just now.",
+  how: { label: "Message or call", message: "Message", call: "Call" },
+  about: {
+    label: "What is it about?",
+    hint: "A line is enough: follow up on their quote, tell them Saturday opened up."
+  },
+  write: {
+    message: "Write it",
+    brief: "Brief me",
+    writing: "Writing it\u2026",
+    shorter: "Shorter",
+    warmer: "Warmer",
+    rewrite: "Rewrite"
+  },
+  asks: "Before it is written",
+  wire: "How it goes",
+  subject: "Subject",
+  words: "Message",
+  approved: {
+    label: "Approved message",
+    none: (who) => `No approved message can go to ${who} yet.`,
+    /** Which messages are not offered, and why, is one press away, never a paragraph under the choice. */
+    why: "Why not the others?"
+  },
+  /** The line a first text carries, said before it is sent: nothing reaches their phone that the sender did not see. */
+  firstText: (line) => `Their first text from you also carries: \u201C${line}\u201D`,
+  then: {
+    label: "When they answer",
+    receptionist: "The receptionist answers",
+    receptionistHint: "It will know your plan.",
+    me: "I answer",
+    meHint: "The receptionist stays quiet until you hand the thread back.",
+    comesToYou: "Their answer comes to you, in Needs you."
+  },
+  note: {
+    label: "The receptionist will know",
+    leaveOut: "Leave it out",
+    putBack: "Tell the receptionist",
+    empty: "Say what it is about above, or write the note here."
+  },
+  send: "Send",
+  cancel: "Cancel",
+  close: "Close",
+  // The house's one question about what was typed and not sent, word for word (the record kit's UnsavedAsk).
+  leave: {
+    question: "Throw away what you've written?",
+    detail: "Nothing has been sent.",
+    yes: "Yes, throw it away",
+    no: "Keep writing"
+  },
+  done: "Done",
+  change: "Change",
+  sending: "Sending\u2026",
+  /** Said with the time it can still be stopped in, as a reply's is; with none left, it is on its way. */
+  sent: (who, secs) => secs ? `Message to ${who} queued \xB7 sends in ${secs} s unless you undo` : `On its way to ${who}.`,
+  undone: "Send canceled. Nothing was delivered.",
+  /** After an undo: the way back to what was written, which the tab kept. */
+  again: "Open it again",
+  /** An email whose address the server asked about: the act names where it goes, and pressing it is the yes. */
+  sendTo: (address) => `Send to ${address}`,
+  /** What gets a message to someone with no yes on record: their page is where a yes is recorded, in their words. */
+  recordYes: "Record their yes on their page",
+  noteLost: "It was sent. The note for the receptionist was not kept: add it on their page.",
+  stillYours: "It was sent. The thread is still yours: hand it back from the thread when you want the receptionist to answer.",
+  noWay: (who) => `No message can go to ${who} yet.`,
+  call: {
+    from: "Call from your phone",
+    copy: "Copy the number",
+    copied: "Copied the number",
+    noNumber: "No number on their page.",
+    doNotContact: "They are on your do-not-contact list.",
+    after: "How did it go?",
+    keep: "Keep as a note",
+    tell: "The receptionist should know",
+    kept: "Kept on their page.",
+    /** How a call went, as the note keeps it: dated in its own words, since a note has no end. */
+    noteOf: (day, after) => `${day}: the team called them. ${after.trim()}`
+  },
+  brief: { know: "What we know", open: "Open with", say: "Say", avoid: "Leave out", ask: "Ask for" },
+  personDoor: "Start a conversation",
+  refusals: {
+    priced: "The draft named a price you did not give, so it was not kept. Say it in your own words, or leave it out.",
+    money: "The draft offered money you did not mention, so it was not kept. Say it in your own words, or leave it out.",
+    approvedOnly: "Only a message WhatsApp approved ahead of time can go to them until they write. Pick one.",
+    notThatWay: "A message cannot go to them that way.",
+    noWords: "Write the message first.",
+    noRoomForStop: "The first text to someone also carries the line that says how to stop, and this one leaves no room for it. Shorten it a little.",
+    notYours: "This person is not in your workspace."
+  }
+};
+function writeWayWords(w) {
+  const name = THREAD_CHANNEL_WORDS[w.wire];
+  if (!w.ok) return `${name} \xB7 ${w.why ?? NEW_CONVERSATION_WORDS.refusals.notThatWay}`;
+  if (w.carries === "approved") return `${name} \xB7 an approved message only, until they write`;
+  if (w.wire === "whatsapp" && w.hours_left !== null) {
+    const h = w.hours_left;
+    return `${name} \xB7 your own words, for ${h >= 1 ? `${h} more ${h === 1 ? "hour" : "hours"}` : "less than an hour"}`;
+  }
+  return `${name} \xB7 your own words`;
+}
+function approvedWordsFor(t, fills) {
+  if (!fills) return t.body_preview ?? "";
+  const params = resolveParams(inboxSlots(t), {
+    firstName: fills.first_name,
+    businessName: fills.business_name,
+    bookingLink: fills.booking_link?.replace(/^https?:[/][/]/, "") ?? null
+  });
+  return renderTemplate(t.body_preview, params) || (t.body_preview ?? "");
+}
+var writeWireName = (wire) => THREAD_CHANNEL_WORDS[wire];
+function planNoteOf(day, how, about) {
+  const did = how === "call" ? "the team called them" : "the team wrote to them";
+  return clipAtWord(`${day}: ${did}. It was about: ${about.trim()}`, PLAN_NOTE_MAX - 1);
+}
+
+// src/new-conversation/write-ways.ts
+var WRITE_HOLDS = [
+  "stopped",
+  "no_number",
+  "no_address",
+  "address_stopped",
+  "not_ready",
+  "no_history",
+  "unsubscribed",
+  "no_yes"
+];
+var heardWire = (c) => c === "whatsapp" || c === "sms" || c === "email" ? c : null;
+var HEARD_BY_CALL_MS = QUIET_AFTER_DAYS * DAY_MS;
+function startsOn(wire, heard, now) {
+  const called = !!heard.calledAt && now.getTime() - Date.parse(heard.calledAt) <= HEARD_BY_CALL_MS;
+  return !(heard.lastWrote === wire || wire !== "email" && called);
+}
+var WRITE_HOLD_WORDS = {
+  stopped: () => "They asked to stop receiving messages.",
+  no_number: () => "No number on their page.",
+  no_address: () => "No email address on their page.",
+  address_stopped: () => "Email to their address has stopped.",
+  no_history: () => "A first email to someone with no history with you goes from Campaigns, with its way to unsubscribe.",
+  // The send door's own sentence for it (consent.ts), so the sheet and a refused row say the same thing.
+  unsubscribed: () => PURPOSE_REFUSALS.unsubscribed,
+  no_yes: (wire) => `No yes on record for messages ${CONSENT_CHANNEL_WORDS[wire]}.`
+};
+function holdOf2(wire, r2, { bearing, ready, starts, about }) {
+  if (isOptedOutContact(bearing)) return "stopped";
+  if (wire === "email") {
+    if (!r2.email) return "no_address";
+    if (r2.email_suppressed_at) return "address_stopped";
+  } else if (!r2.phone_e164) return "no_number";
+  if (!ready[wire].ready) return "not_ready";
+  if (isOfferByEmail({ channel: wire, purpose: "conversational", proactive: starts, about })) return "no_history";
+  const may = mayMessageFor(bearing, "conversational", { proactive: starts, channel: wire, about, begins: starts });
+  if (may.ok) return null;
+  return may.reason === "unsubscribed" ? "unsubscribed" : "no_yes";
+}
+function writeWaysOf(r2, ready, now = /* @__PURE__ */ new Date()) {
+  const relationship = relationshipOnRecord({
+    lastWroteAt: r2.last_wrote_at,
+    lastInboundCallAt: r2.last_inbound_call_at,
+    hasDeal: !!r2.deal_id
+  });
+  const about = relationship ? "theirs" : "ours";
+  const bearing = {
+    consent: r2.consent,
+    dnc: r2.dnc,
+    marketing_consent: r2.marketing_consent,
+    consent_channels: r2.consent_channels,
+    marketing_channels: r2.marketing_channels,
+    email_marketing: r2.email_marketing,
+    has_relationship: relationship
+  };
+  const heard = { lastWrote: heardWire(r2.last_inbound_channel), calledAt: r2.last_inbound_call_at ?? null };
+  return CONSENT_CHANNELS.map((wire) => {
+    const starts = startsOn(wire, heard, now);
+    const hold = holdOf2(wire, r2, { bearing, ready, starts, about });
+    const window = replyWindow(wire, r2.latest_wa_inbound_at, now);
+    const left = window.closesAtIso ? new Date(window.closesAtIso).getTime() - now.getTime() : 0;
+    return {
+      wire,
+      ok: hold === null,
+      hold,
+      why: hold === null ? null : hold === "not_ready" ? ready[wire].why : WRITE_HOLD_WORDS[hold](wire),
+      carries: window.open ? "words" : "approved",
+      starts,
+      about,
+      hours_left: wire === "whatsapp" && window.open ? Math.max(0, Math.floor(left / HOUR_MS)) : null
+    };
+  });
+}
+function defaultWriteWire(ways, lastWrote) {
+  const last = heardWire(lastWrote);
+  const there = ways.find((w) => w.wire === last && w.ok);
+  return (there ?? ways.find((w) => w.ok))?.wire ?? null;
+}
+function writeReachOf(r2, at3) {
+  const { ready, mode, facts, now = /* @__PURE__ */ new Date() } = at3;
+  const ways = writeWaysOf(r2, ready, now);
+  const C2 = NEW_CONVERSATION_WORDS.call;
+  return {
+    person: { id: r2.id, name: personName(r2), phone: r2.phone_e164, email: r2.email },
+    thread: r2.latest_conversation_id ? `th-${r2.latest_conversation_id}` : null,
+    ways,
+    default_wire: defaultWriteWire(ways, r2.last_inbound_channel),
+    call: !r2.phone_e164 ? { ok: false, tel: null, why: C2.noNumber } : r2.dnc ? { ok: false, tel: null, why: C2.doNotContact } : { ok: true, tel: r2.phone_e164, why: null },
+    receptionist: { answers: mode !== "ask" && mode !== "never" },
+    offers_ok: r2.marketing_consent === "opted_in",
+    fills: facts ? { first_name: firstNameOf(r2.display_name, r2.wa_profile_name), ...facts } : null,
+    first_text_line: ways.some((w) => w.wire === "sms" && w.ok) ? at3.firstTextLine : null
+  };
+}
+
 // src/notes/note-suggest.ts
 var NOTE_SUGGEST_MODEL = MODEL_ROUTES.note_suggest.model;
 var NOTE_SUGGEST_LIMITS = {
@@ -23537,7 +24176,7 @@ function firstChannelOf(d, base) {
   return base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : firstWritten ? REPLY_VIA[writtenChannelOf(firstWritten.channel)] : "WhatsApp";
 }
 function replyOf(d, row2, base, now, nowMs) {
-  const via = replyChannelOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
+  const via = replyChannelOfThreads(d.conversations) ?? ourWireOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
   const exactWindow = via ? replyWindow(via, row2.latest_wa_inbound_at, now) : null;
   if (!via || !exactWindow) return null;
   const hoursLeft = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0;
@@ -24251,345 +24890,6 @@ var isLibrarySample = (name) => LIBRARY_SAMPLES.has(name);
 function libraryCount(messages, emailRows) {
   if (!messages) return null;
   return messages.filter((m) => !isLibrarySample(m.name) && !m.hidden).length + emailRows;
-}
-
-// src/templates/message-languages.ts
-function languageWords(code2) {
-  return languageName(code2);
-}
-function languageLabels(codes) {
-  const seen = /* @__PURE__ */ new Map();
-  for (const c of codes) {
-    const w = languageWords(c);
-    seen.set(w, (seen.get(w) ?? 0) + 1);
-  }
-  const out = {};
-  for (const c of codes) {
-    const w = languageWords(c);
-    out[c] = (seen.get(w) ?? 0) > 1 ? templateLanguage(c) ? languageLabel(c) : `${w} (${c})` : w;
-  }
-  return out;
-}
-var LANGUAGE_GROUP_WORDS = {
-  on: "On file",
-  ready: "Ready to add",
-  add: "Translate into"
-};
-function messageLanguageChoices(input) {
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  const known = (code2) => templateLanguage(code2) ?? {
-    id: code2,
-    label: languageLabel(code2),
-    name: languageName(code2),
-    region: null,
-    native: languageLabel(code2)
-  };
-  for (const r2 of input.onFile) {
-    if (seen.has(r2.language)) continue;
-    seen.add(r2.language);
-    out.push({ ...known(r2.language), id: r2.language, group: "on", status: r2.meta_status ?? "approved" });
-  }
-  for (const code2 of input.ready ?? []) {
-    if (seen.has(code2)) continue;
-    seen.add(code2);
-    out.push({ ...known(code2), id: code2, group: "ready", status: null });
-  }
-  if (input.canAdd) {
-    for (const l of WHATSAPP_LANGUAGES) {
-      if (seen.has(l.id)) continue;
-      out.push({ ...l, group: "add" });
-    }
-  }
-  return out;
-}
-function templateUntranslatable(t) {
-  if (t.blocked) return `it has ${t.blocked}`;
-  if (t.category && !/^(marketing|utility)$/i.test(t.category))
-    return `WhatsApp files it as ${String(t.category).toLowerCase()}`;
-  if (t.header) return "it has a heading";
-  const buttons = t.buttons ?? [];
-  if (buttons.length > 1) return "it has more than one button";
-  const b = buttons[0];
-  if (b && b.kind !== "url") return b.kind === "reply" ? "it has a reply button" : "it has a button that calls";
-  return null;
-}
-
-// src/templates/template-parts.ts
-function footerOf(components) {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (!c || typeof c !== "object") continue;
-    const part = c;
-    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
-    const text = typeof part.text === "string" ? part.text.trim() : "";
-    if (text) return text;
-  }
-  return null;
-}
-function templateFooter(t) {
-  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
-  const stored = footerOf(t.components);
-  if (stored) return stored;
-  const s = starterByName(t.name);
-  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
-}
-var FILLED_PARTS = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
-var partOf = (components, type) => {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
-      return c;
-  }
-  return null;
-};
-var textOf = (part) => {
-  const t = part && typeof part.text === "string" ? part.text.trim() : "";
-  return t || null;
-};
-var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
-function templateParts(components) {
-  const header = partOf(components, "HEADER");
-  const buttons = [];
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
-    const text = typeof b.text === "string" ? b.text.trim() : "";
-    if (kind && text) buttons.push({ text, kind });
-  }
-  return {
-    // A picture heading is not words and is not drawn as any.
-    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
-    footer: footerOf(components),
-    buttons
-  };
-}
-function templateBlocked(t) {
-  if (typeof t.blocked === "string") return t.blocked.trim() || null;
-  if (t.blocked === null) return null;
-  const components = t.components;
-  if (!Array.isArray(components)) return null;
-  const unfilled = components.some((c) => {
-    const type = c && typeof c === "object" ? c.type : null;
-    return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
-  });
-  if (unfilled) return "a part Chanlytics cannot fill";
-  const header = partOf(components, "HEADER");
-  if (header) {
-    const format = String(header.format ?? "TEXT").toUpperCase();
-    if (format !== "TEXT")
-      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
-    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
-  }
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const button = b;
-    const type = String(button.type ?? "").toUpperCase();
-    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
-    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
-  }
-  return null;
-}
-function refusedWords(reason) {
-  const said = String(reason ?? "").trim().replace(/[.!?\s]+$/, "");
-  if (!said) return null;
-  const words2 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
-  return `WhatsApp refused this one: ${words2}. Change the words and send it back.`;
-}
-var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
-function blockedWords(reasons) {
-  const seen = /* @__PURE__ */ new Map();
-  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
-  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
-  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
-}
-function sendableTemplates(list2) {
-  const sendable = [];
-  const blocked = [];
-  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
-  if (blocked.length === 0) return { sendable, blocked, why: null };
-  const n = blocked.length;
-  const reasons = blocked.map((t) => templateBlocked(t));
-  const words2 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
-  const many = COUNT_WORDS[n] ?? String(n);
-  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
-  return {
-    sendable,
-    blocked,
-    why: `${lead} can't go out from here \u2014 ${words2}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
-  };
-}
-function templateLinkButton(components) {
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const x = b;
-    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
-    const text = typeof x.text === "string" ? x.text.trim() : "";
-    const url = typeof x.url === "string" ? x.url.trim() : "";
-    if (text && url) return { text, url };
-  }
-  return null;
-}
-
-// src/templates/template-slots.ts
-function guessSlotKind(label, example) {
-  const l = String(label ?? "").toLowerCase();
-  const e = String(example ?? "").toLowerCase();
-  if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
-  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
-    return "booking_link";
-  if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
-  if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
-  return "text";
-}
-function defaultSlotKinds(t) {
-  const vars = Array.isArray(t.variables) ? t.variables : [];
-  const s = starterByName(t.name);
-  if (s) {
-    const kinds = starterText(s, "en_US").slots.map((x) => x.kind);
-    return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
-  }
-  return vars.map(
-    (v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null)
-  );
-}
-function defaultParamSpecs(t) {
-  return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
-}
-function slotChoices(kind, o) {
-  const may = (k) => k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : k === "proposal_link" ? o.proposal : true;
-  if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
-  switch (kind) {
-    case "first_name":
-      return ["first_name"];
-    case "business_name":
-      return ["business_name", "text"];
-    case "booking_link":
-      return o.bookingLink ? ["booking_link", "text"] : ["text"];
-    case "visit_when":
-    case "visit_service":
-      return o.visits ? [kind] : [];
-    // A proposal's link is each proposal's, and there is one only on the follow-up (0006).
-    case "proposal_link":
-      return o.proposal ? [kind] : [];
-    default:
-      return ["text"];
-  }
-}
-function templateSlots(t, o) {
-  const known = starterByName(t.name) !== null;
-  const each = defaultSlotKinds(t).map(
-    (k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink, proposal: o.proposal })
-  );
-  if (!each.every((c) => c.length > 0)) return null;
-  return o.proposal && !each.some((c) => c.includes("proposal_link")) ? null : each;
-}
-function slotLabels(t) {
-  const vars = Array.isArray(t.variables) ? t.variables : [];
-  const s = starterByName(t.name);
-  if (s) {
-    const labels = starterText(s, t.language ?? "en_US").slots.map((x) => x.label);
-    if (vars.length === 0 || vars.length === labels.length) return labels;
-  }
-  return vars.map((v, i) => {
-    const label = typeof v?.label === "string" ? v.label.trim() : "";
-    const n = typeof v?.position === "number" ? v.position : i + 1;
-    return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
-  });
-}
-
-// src/templates/inbox-templates.ts
-function titleWithoutLanguage(title, code2) {
-  for (const words2 of [languageLabel(code2), languageWords(code2)]) {
-    const tail = ` (${words2})`;
-    if (title.length > tail.length && title.toLowerCase().endsWith(tail.toLowerCase())) {
-      return title.slice(0, title.length - tail.length).trimEnd();
-    }
-  }
-  return title;
-}
-function inboxTemplates(templates, to) {
-  const rows = [];
-  let promotions = 0;
-  let unfillable = 0;
-  const refused = [];
-  for (const t of templates) {
-    const blocked = templateBlocked(t);
-    if (blocked) {
-      refused.push(blocked);
-      continue;
-    }
-    if (slotToWrite(t)) {
-      unfillable += 1;
-      continue;
-    }
-    if (purposeOfTemplate(t.category) === "marketing" && !to.offersOk) {
-      promotions += 1;
-      continue;
-    }
-    rows.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language) });
-  }
-  const isDefault = (r2) => languageBase(r2.template.language) === "en";
-  const named = [...new Set(rows.map((r2) => r2.template.name))];
-  const inDefault = (name) => rows.some((r2) => r2.template.name === name && isDefault(r2));
-  const names3 = [...named.filter(inDefault), ...named.filter((name) => !inDefault(name))];
-  const ordered = names3.flatMap((name) => {
-    const own = rows.filter((r2) => r2.template.name === name);
-    return [...own.filter(isDefault), ...own.filter((r2) => !isDefault(r2))];
-  });
-  const reads = (title) => ordered.filter((r2) => r2.title === title).length;
-  const sendable = ordered.map((r2) => ({
-    template: r2.template,
-    title: r2.title,
-    label: reads(r2.title) > 1 ? `${r2.title} \xB7 ${languageWords(r2.template.language)}` : r2.title
-  }));
-  const held = [
-    refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",
-    promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
-    unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : ""
-  ].filter(Boolean);
-  const said = held.length > 1 ? `${held.slice(0, -1).join(", ")} and ${held[held.length - 1]}` : held[0];
-  return { sendable, hidden: held.length ? `Not offered: ${said}.` : null };
-}
-function templateHolds(left) {
-  const out = { pending: 0, rejected: 0, paused: 0, disabled: 0, hidden: 0 };
-  for (const t of left) {
-    if (t.channel !== "whatsapp") continue;
-    const status = t.meta_status;
-    if (status === "pending" || status === "rejected" || status === "paused" || status === "disabled") out[status] += 1;
-    else if (status === "approved") out.hidden += 1;
-  }
-  return out;
-}
-var HOLD_WORDS2 = [
-  ["pending", "waiting for WhatsApp to review"],
-  ["rejected", "refused by WhatsApp"],
-  ["paused", "paused by WhatsApp"],
-  ["disabled", "disabled by WhatsApp"],
-  ["hidden", "hidden by you"]
-];
-function noTemplateWords(held) {
-  const parts2 = HOLD_WORDS2.flatMap(([key, words2]) => {
-    const n = held?.[key] ?? 0;
-    return n > 0 ? [`${n} ${words2}`] : [];
-  });
-  return `No approved template yet${parts2.length ? ` (${parts2.join(", ")})` : ""} \u2014 nothing can be sent until one is.`;
-}
-function inboxSlots(t) {
-  return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
-}
-function slotToWrite(t) {
-  const at3 = inboxSlots(t).findIndex(
-    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link"
-  );
-  if (at3 < 0) return null;
-  return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at3] ?? `Value ${at3 + 1}`;
 }
 
 // src/templates/template-order.ts
@@ -26950,6 +27250,7 @@ var ROUTE_KEYS = [
   "GET partner",
   "GET partner/invitations",
   "GET partner/workspaces",
+  "GET people/[id]/reach",
   "GET platform/overview",
   "GET platform/tenants/[id]",
   "GET playbooks",
@@ -27058,6 +27359,8 @@ var ROUTE_KEYS = [
   "POST partner/invitations/[id]/decline",
   "POST partner/workspaces",
   "POST partner/workspaces/[id]/resend",
+  "POST people/[id]/draft",
+  "POST people/[id]/message",
   "POST platform/jobs/requeue",
   "POST platform/lines/refile",
   "POST platform/lines/release",
@@ -33961,10 +34264,12 @@ function runEndWords(kind, p, base) {
   }
   return [base, ...bits2].join(" \xB7 ");
 }
+var replyWords = (p, base) => p.starts === true ? "Began a conversation from the dashboard" : base;
 var WHOLE_SENTENCE = new Map([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
   ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
   ["import", (p) => importWords(p)],
+  ["reply", replyWords],
   ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
   ["mailbox.offers_paused", offersPausedWords],
@@ -34910,8 +35215,13 @@ export {
   DOUBT_SEEN,
   DOUBT_SETTLED_AS,
   DOUBT_WORDS,
+  DRAFT_ABOUT_MAX,
+  DRAFT_ANSWER_MAX,
+  DRAFT_ASKS_MAX,
+  DRAFT_HOWS,
   DRAFT_NEEDS_MS,
   DRAFT_NOTICE_MAX,
+  DRAFT_TONES,
   DRAFT_WHYS,
   E164,
   EARLIER_FALLBACK_DEFAULTS,
@@ -35157,6 +35467,7 @@ export {
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
   NEEDS_TITLE,
+  NEW_CONVERSATION_WORDS,
   NEW_MESSAGE_WORDS,
   NEW_WINDOW_DAYS,
   NOTE_MAX,
@@ -35239,6 +35550,7 @@ export {
   PERSON_CAME_FROM_WORDS,
   PERSON_CHANNEL_WORDS,
   PERSON_DETAIL_WORDS,
+  PERSON_DRAFT_JSON_SCHEMA,
   PERSON_MODES,
   PERSON_MODE_LABELS,
   PERSON_MODE_WORDS,
@@ -35251,6 +35563,7 @@ export {
   PIPELINE_RAIL_SERVICES,
   PIPELINE_SORTS,
   PIPELINE_WORDS,
+  PLAN_NOTE_MAX,
   PLATFORM_DAYS_READ,
   PLATFORM_HOLD_NOTICE,
   PLATFORM_HOLD_READD,
@@ -35508,6 +35821,8 @@ export {
   WHATSAPP_LANGUAGES,
   WHY_FROM_MAPS,
   WIN_BACK_WORDS,
+  WRITE_HOLDS,
+  WRITE_HOLD_WORDS,
   abandonedCall,
   abilityRows,
   activityTone,
@@ -35531,6 +35846,7 @@ export {
   answerForCards,
   answerFromV1,
   answerText,
+  answerWireOf,
   answerWords,
   answeredYes,
   applyReadState,
@@ -35541,6 +35857,7 @@ export {
   appointmentKeysOf,
   appointmentTitle,
   approvalWordsOf,
+  approvedWordsFor,
   areaCodeOf,
   asContactId,
   asListRule,
@@ -35753,6 +36070,7 @@ export {
   defaultParamSpecs,
   defaultSlotKinds,
   defaultTemplate,
+  defaultWriteWire,
   delayWords,
   deltaOf,
   describeNow,
@@ -36181,6 +36499,7 @@ export {
   navigateLabel,
   needsAnswer,
   needsConsultation,
+  newConversationOf,
   newReceptionistDefaults,
   nextMonthStart,
   nextOpenMoment,
@@ -36337,6 +36656,7 @@ export {
   planCeiling,
   planLeavingOut,
   planMinutes,
+  planNoteOf,
   planRun,
   planSaid,
   planSentence,
@@ -36391,6 +36711,7 @@ export {
   previewRefusedWords,
   previewSays,
   previewVersionsOf,
+  priceFigures,
   priceNextStep,
   priceOf,
   priceWords,
@@ -36650,6 +36971,7 @@ export {
   starterText,
   startersForTrigger,
   startersOffered,
+  startsOn,
   stateCode,
   stateLabel,
   stateOf,
@@ -36847,6 +37169,10 @@ export {
   wordsNeedOpening,
   workspacePartnerVM,
   workspacePath,
+  writeReachOf,
+  writeWayWords,
+  writeWaysOf,
+  writeWireName,
   writtenChannelOf,
   writtenOutDetail,
   yesAsked,
