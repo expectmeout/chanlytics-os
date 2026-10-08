@@ -16190,10 +16190,13 @@ function waMeDigits(number2) {
   const digits2 = String(number2 ?? "").replace(/\D/g, "");
   return digits2.length < 8 ? null : digits2;
 }
-function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
-  const digits2 = waMeDigits(numberE164);
+function waMeLink(number2, text) {
+  const digits2 = waMeDigits(number2);
   if (!digits2) return null;
-  return `https://wa.me/${digits2}?text=${encodeURIComponent(phrase)}`;
+  return `https://wa.me/${digits2}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+}
+function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
+  return waMeLink(numberE164, phrase);
 }
 var ESCALATION_REASONS = [
   "human_token",
@@ -23585,6 +23588,22 @@ function codeNotes(codes, nowMs) {
     })),
     { text: FOOT, live: true }
   ];
+}
+
+// src/lines/whatsapp-try-it.ts
+var TRY_IT_TEXT = "Hi";
+var TRY_IT_SAID_FOR_MS = DAY_MS;
+var TRY_IT_NOTE = "Try it from your phone with this link. It opens the chat even while WhatsApp there still says the number isn't on WhatsApp.";
+function tryItLink(number2) {
+  return waMeLink(number2, TRY_IT_TEXT);
+}
+function tryItNotes(wa, nowMs) {
+  const digits2 = waMeDigits(wa.number);
+  const href = tryItLink(wa.number);
+  if (!digits2 || !href || wa.lastInboundMs !== null) return [];
+  const age = nowMs - Date.parse(wa.created_at);
+  const fresh = age >= 0 && age < TRY_IT_SAID_FOR_MS;
+  return [{ text: TRY_IT_NOTE, link: { label: `wa.me/${digits2}`, href }, ...fresh ? { live: true } : {} }];
 }
 
 // src/lines/a2p-enums.ts
@@ -31577,17 +31596,8 @@ function signupLeftOpenNotes(startedAt, nowMs) {
   const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
   return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
-function tryItNotes(wa) {
-  const digits2 = waMeDigits(wa.number);
-  if (!digits2 || wa.lastInboundMs !== null) return [];
-  return [
-    {
-      text: `Try it from your phone: wa.me/${digits2} \u2014 if WhatsApp says the number isn't on WhatsApp yet, open this link instead of searching your contacts.`
-    }
-  ];
-}
 var LIBRARY = { label: "Library", to: "messages", who: "operator" };
-function whatsappNumberRow(base, wa) {
+function whatsappNumberRow(base, wa, nowMs) {
   const row2 = { ...base, detail: wa.number };
   if (!wa.on) return { ...row2, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };
   const limit = wa.messagingLimit ?? wa.standing?.limit ?? null;
@@ -31601,7 +31611,13 @@ function whatsappNumberRow(base, wa) {
         stateWords: stood.stateWords,
         sentence: stood.sentence,
         verb: stood.act ? { label: stood.act.label, to: stood.act.href, href: stood.act.href, who: "owner" } : null,
-        notes: standingNotes(standing, { limitSaid: false })
+        // A number that waits on its owner's card still takes a customer's message and answers it (Meta holds back what
+        // the business starts), and a new account is in this state the moment it connects: the way to try it is said here
+        // too. A number Meta has stopped for anything else is not one to try.
+        notes: [
+          ...stood.stateWords === "Waiting on you" ? tryItNotes(wa, nowMs) : [],
+          ...standingNotes(standing, { limitSaid: false })
+        ]
       };
   }
   const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
@@ -31615,14 +31631,14 @@ function whatsappNumberRow(base, wa) {
     verb: LIBRARY,
     // How to try it from a phone, first, on a row nobody has written to yet; then what Meta holds that the owner can act on.
     notes: [
-      ...flagged ? [] : tryItNotes(wa),
+      ...flagged ? [] : tryItNotes(wa, nowMs),
       ...standingNotes(standing, { limitSaid: h.tone !== "unknown" && h.limitPerDay !== null })
     ]
   };
 }
 function whatsappRow2(i, { wa, own, nowMs }) {
   const base = { kind: "whatsapp", icon: "chat", title: "WhatsApp Business" };
-  if (wa) return whatsappNumberRow(base, wa);
+  if (wa) return whatsappNumberRow(base, wa, nowMs);
   if (i.whatsapp === void 0) {
     return {
       ...base,
@@ -39193,6 +39209,7 @@ export {
   triggerOf,
   triggerOffered,
   trimmedOrNull,
+  tryItLink,
   tzClock,
   tzSince,
   unknownDetails,
@@ -39243,6 +39260,7 @@ export {
   vitalVerdict,
   vitalsPageOf,
   waMeDigits,
+  waMeLink,
   waWindow,
   waitAfterDays,
   waitWords,

@@ -980,6 +980,70 @@ test("Meta's SDK is fetched ahead only where the row offers Connect to someone w
   }
 });
 
+test("a number that has just connected is tried through its own link: the toast offers it, and a sign-up that did not connect offers nothing", async () => {
+  // 8 October 2026: an owner searched his contacts for a number that had just connected, WhatsApp on his phone still said
+  // "invite", and he took the connection for a failure. The number's wa.me link opens the chat whatever the phone's own
+  // record says (contracts tryItLink), so the toast a connection ends with offers it.
+  asRole("owner");
+  seam({ channels: [], google: null, setup: null });
+  const realStart = waConnect.start;
+  const realToast = globalThis.window.usePPToast;
+  const realOpen = globalThis.window.open;
+  const flashes = [];
+  const opened = [];
+  let finish;
+  globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
+  globalThis.window.open = (...args) => opened.push(args);
+  Object.assign(waConnect, {
+    config: async () => ({ ready: true, reason: null }),
+    start: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  try {
+    render(Connections);
+    await flush();
+    press(byTestId(settle(Connections), "connect-whatsapp-btn"));
+    finish({ ok: true, number: "+1 (305) 555-0188", verifiedName: "Harbor Moving", qualityRating: null });
+    await flush();
+    assert.equal(flashes.length, 1);
+    assert.equal(flashes[0].tone, "ok");
+    assert.equal(flashes[0].action.label, "Try it");
+    flashes[0].action.onClick();
+    assert.deepEqual(opened, [["https://wa.me/13055550188?text=Hi", "_blank", "noopener,noreferrer"]]);
+
+    // No number came back, or nothing connected: there is no chat to open.
+    press(byTestId(settle(Connections), "connect-whatsapp-btn"));
+    finish({ ok: true, number: null, verifiedName: null, qualityRating: null });
+    await flush();
+    assert.equal(flashes[1].action, null);
+    press(byTestId(settle(Connections), "connect-whatsapp-btn"));
+    finish({ ok: false, reason: "failed", message: "The connection could not be saved. Try again." });
+    await flush();
+    assert.deepEqual([flashes[2].tone, flashes[2].action], ["danger", null]);
+    assert.equal(opened.length, 1);
+
+    // And the row of a number that connected minutes ago says the same link itself, to press, without being asked.
+    const fresh = { created_at: new Date(Date.now() - 2 * MIN).toISOString() };
+    seam({ channels: [whatsappChannel(null, null, fresh)], google: null, setup: null });
+    render(Connections);
+    await flush();
+    const tree = settle(Connections);
+    assert.match(noteTexts(tree, "whatsapp")[0], /^Try it from your phone with this link\./);
+    assert.deepEqual(noteLinks(tree, "whatsapp")[0], [
+      "wa.me/13055550188",
+      "https://wa.me/13055550188?text=Hi",
+      "_blank",
+      "noopener noreferrer",
+    ]);
+  } finally {
+    Object.assign(waConnect, { config: async () => null, start: realStart });
+    globalThis.window.usePPToast = realToast;
+    globalThis.window.open = realOpen;
+  }
+});
+
 test("the codes sent to the workspace's own line are asked for as Connections opens and every three seconds while Meta's window is open, and said on the Texting row; a read that fails changes nothing, and anyone but an owner asks nothing", async () => {
   asRole("owner");
   seam({ channels: [], google: null, setup: setupWithLine() });
@@ -1143,7 +1207,9 @@ test("the WhatsApp row draws what Meta holds: a number whose account has no paym
     owner_business_id: "410540000000001",
     waba_id: "205540000000001",
   };
-  seam({ channels: [whatsappChannel(blocked, 0)], google: null, setup: null });
+  // A number its customers already write to: how to try a number nobody has written to yet is the test after this one's.
+  const written = { last_inbound_at: "2026-09-20T00:00:00Z" };
+  seam({ channels: [whatsappChannel(blocked, 0, written)], google: null, setup: null });
   render(Connections);
   await flush();
   const tree = settle(Connections);
