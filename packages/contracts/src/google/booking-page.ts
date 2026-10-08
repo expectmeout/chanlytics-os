@@ -4,6 +4,7 @@
  * the business's own (leads/search/clean.ts): the platforms are named here, once.
  */
 import { BOOKING_LINK_MAX } from "../config/workspace-config/config-rules";
+import type { BookingTool } from "../calendar/booking-notice";
 
 /** Whether a host is a domain or on one of its subdomains: the one rule every list of hosts here is read by. */
 export function onDomain(host: string, domain: string): boolean {
@@ -13,26 +14,52 @@ export function onDomain(host: string, domain: string): boolean {
 /**
  * The platforms a business sends its customers to, by host, a particular host before the domain it is on. `path`
  * narrows a host that serves other pages beside its booking pages: Square's appointments, not its shop or its site.
+ * `tool` is the booking tool the platform is, where the product reads that tool's booking emails (contracts
+ * BOOKING_TOOL_IDS): a booking link on the platform names the tool (bookingToolOfLink), so an owner who gave the link
+ * is not asked which tool it is. A platform with no `tool` is one whose emails are not read yet.
  */
-const BOOKING_PLATFORMS: readonly { host: string; path?: RegExp }[] = [
-  { host: "vagaro.com" },
-  { host: "booksy.com" },
-  { host: "fresha.com" },
-  { host: "glossgenius.com" },
-  { host: "styleseat.com" },
-  { host: "schedulicity.com" },
-  { host: "mindbodyonline.com" },
-  { host: "setmore.com" },
-  { host: "acuityscheduling.com" },
-  { host: "as.me" },
-  { host: "calendly.com" },
-  { host: "book.squareup.com", path: /^\/appointments\// },
-  { host: "squareup.com", path: /^\/appointments\/book\// },
-  { host: "simplybook.me" },
+const BOOKING_PLATFORMS: readonly { host: string; path?: RegExp; tool?: BookingTool }[] = [
+  { host: "vagaro.com", tool: "vagaro" },
+  { host: "booksy.com", tool: "booksy" },
+  { host: "fresha.com", tool: "fresha" },
+  { host: "glossgenius.com", tool: "glossgenius" },
+  { host: "styleseat.com", tool: "styleseat" },
+  { host: "schedulicity.com", tool: "schedulicity" },
+  { host: "mindbodyonline.com", tool: "mindbody" },
+  { host: "setmore.com", tool: "setmore" },
+  { host: "acuityscheduling.com", tool: "acuity" },
+  { host: "as.me", tool: "acuity" },
+  { host: "calendly.com", tool: "calendly" },
+  { host: "book.squareup.com", path: /^\/appointments\//, tool: "square" },
+  { host: "squareup.com", path: /^\/appointments\/book\//, tool: "square" },
+  { host: "simplybook.me", tool: "simplybook" },
   { host: "youcanbook.me" },
   { host: "zocdoc.com" },
   { host: "janeapp.com" },
 ];
+
+/** The tools a platform of the list names, for the test that holds the two lists together (booking-notice.test.mjs). */
+export const BOOKING_PLATFORM_TOOLS: readonly BookingTool[] = /* @__PURE__ */ (() =>
+  BOOKING_PLATFORMS.flatMap((p) => (p.tool ? [p.tool] : [])))();
+
+/**
+ * The booking tool a booking link is on, or null: the link the owner gave as where customers book, read by its host
+ * alone. Looser than bookingPageOf on purpose. That one decides whether an address found on a website is a business's
+ * own booking page; this one reads an address the owner already said is theirs, so a platform's host is enough.
+ */
+export function bookingToolOfLink(raw: string | null | undefined): BookingTool | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  let host: string;
+  try {
+    host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `https://${s}`).hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  return BOOKING_PLATFORMS.find((p) => p.tool && onDomain(host, p.host))?.tool ?? null;
+}
 
 /** The platforms' hosts, for a reader that asks only whether an address is on one (the lead finder's). */
 export const BOOKING_PLATFORM_HOSTS: readonly string[] = /* @__PURE__ */ (() => BOOKING_PLATFORMS.map((p) => p.host))();

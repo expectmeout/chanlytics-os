@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  BOOKING_DEFAULTS,
   describeNow,
   describeOpenings,
   freeWindows,
@@ -97,7 +98,7 @@ export async function openingsBlock(
     const feed = await loadFeed(tenantId, cfg.url);
     if (!feed.text) return null;
     const rules = profile.booking_rules ?? null;
-    const daysAhead = rules?.max_days_ahead ?? 14;
+    const daysAhead = rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
     // The rule the edge reads the same feed with, by name rather than by a
     // copy of its arithmetic: this expression and the edge's were identical
     // byte for byte, and nothing said they were meant to be.

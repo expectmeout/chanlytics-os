@@ -220,9 +220,9 @@ test("Booked is a tile of contracts', with its figure: a count where the calenda
   ]);
   assert.deepEqual(why(toBookingReportVM({ calendar: "none", days: 7, asked: 0, booked: 0 })), [
     "—",
-    "no calendar to read",
+    "no calendar link",
   ]);
-  assert.deepEqual(why(null), ["—", "no calendar to read"]);
+  assert.deepEqual(why(null), ["—", "no calendar link"]);
 });
 
 test("a one-day period says one day: Month on the first of the month is read over one", () => {

@@ -2,10 +2,10 @@
 //
 // The second card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.3; the canvas's Record and
 // Group-Open boards): the week as one sentence, the zone with the local time beside it, the days the week
-// does not apply to, the calendar the receptionist reads, saying what its last read found, and where the bookings come
-// from (the tool, and the address its emails go to, open-bookings.tsx). Five rows, each edited where it is stated: the
-// week and the closed days fold open under their rows, the zone is one value edited in its row, and the calendar's
-// fold holds its one box. It replaces three sections of the form this page retires (BusinessEditor,
+// does not apply to, and what the business books with: its calendar link, saying what its last read found, and its
+// tool's booking emails (open-bookings.tsx). Four rows, each edited where it is stated: the week and the closed days
+// fold open under their rows, the zone is one value edited in its row, and the booking tool's fold asks one question
+// and draws what the answer has. It replaces three sections of the form this page retires (BusinessEditor,
 // settings.jsx: "When you are open", "Days you are closed", "Calendar it may look at") and its TimezoneRow, and what
 // those learned came with them, comments and all.
 //
@@ -22,6 +22,7 @@
 //
 // The rows that come and go inside a fold (the closed days) are drawn hookless, as plain boxes wearing the kit's class.
 import type { ComponentProps, ReactNode } from "react";
+import { BOOKING_TOOL_WORDS, bookingToolName, bookingToolOfLink, booksWithOf } from "@chanlytics/contracts";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { TzApi } from "@/legacy-bridge/identity";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
@@ -34,9 +35,9 @@ import { gate as roleGate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { BtRow } from "./gestures/row";
 import { BtFold } from "./gestures/fold";
-import { BtoFeedBox, BtoFeedRead, btoFeedHost } from "./open-calendar";
-import { BtoBookingsBody, BtoBookingsRead, BtoBookingsTool } from "./open-bookings";
-import type { BookingsDraft } from "./fold-shapes";
+import { BtoFeedRead } from "./open-calendar";
+import { BtoBookingsRead, BtoBooksWith, BtoSourceBody } from "./open-bookings";
+import type { CalendarDraft } from "./fold-shapes";
 import { BtoWeek } from "./open-week";
 import type { Week } from "./open-week";
 import { businessTabSave } from "./saver";
@@ -338,7 +339,7 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }: ClosureFi
 
 /**
  * When you're open (spec §4.3): four rows, in the order a customer's question meets them -- the week, whose clock it is
- * on, the days it does not apply to, and the calendar that says which of its times are taken.
+ * on, the days it does not apply to, and what the business books with, which says which of its times are taken.
  *
  * `brain` and `config` are the settings read's, which the rows state; what a fold opens with and saves onto is the
  * saver's base, which BtFold asks for itself.
@@ -352,7 +353,10 @@ export const BtOpenCard = ({
   saver,
 }: {
   brain: Brain;
-  config?: { calendar?: { ical_url?: string | null } | null; bookings?: { tool?: string | null } | null } | null;
+  config?: {
+    calendar?: { ical_url?: string | null } | null;
+    bookings?: { tool?: string | null; by_hand?: boolean | null } | null;
+  } | null;
   prompt?: Pick<PromptPreviewDto, "tz"> | null;
   canEdit: boolean;
   flash: Flash;
@@ -370,7 +374,9 @@ export const BtOpenCard = ({
     ? tab.closuresAheadWords(profile.closures as ClosuresIn, wsZone, new Date())
     : { count: 0, line: null };
   const feed = (config && config.calendar && config.calendar.ical_url) || "";
-  const bookingTool = (config && config.bookings && config.bookings.tool) || "";
+  // What the owner books with, as the fold's picker holds it; and, with nothing said yet, the tool its booking link is on.
+  const booksWith = booksWithOf({ ...((config && config.bookings) || {}), ical_url: feed });
+  const guess = booksWith ? null : bookingToolName(bookingToolOfLink(brain.booking_link));
 
   return (
     <section className="rec-card" data-testid="rec-card-open" aria-labelledby="bt-open-title">
@@ -401,42 +407,44 @@ export const BtOpenCard = ({
         body={(f) => <BtoClosures {...f} />}
       />
 
-      <BtFold<string>
+      {/* What the business books with, one row (7 Oct 2026; it was "Calendar it reads" and "Where your bookings come
+          from", each sending the owner to the other). The row states the owner's own fact (BtoBooksWith) and, under
+          it, a quiet signal each for the calendar link's last read and the tool's emails (the Calendar page's own
+          read); the fold asks what they book with and draws only what that answer has (open-bookings.tsx). Its id
+          stays `calendar`: every door on another page opens it by that name (contracts CALENDAR_SETTING_ROUTE). */}
+      <BtFold<CalendarDraft>
         {...shared}
         id="calendar"
         light
-        label="Calendar it reads"
-        hint="Read-only, so it can say which times are open before sending the link."
+        label={BOOKING_TOOL_WORDS.label}
+        hint={BOOKING_TOOL_WORDS.hint}
         channel={null}
-        gate={gate("the calendar it reads")}
+        gate={gate("what you book with")}
         row={{
-          value: feed ? <span className="bt-feed-where">{btoFeedHost(feed)}</span> : null,
-          empty: "Not connected",
-          hint: feed ? null : "Read-only, so it can say which times are open before sending the link.",
-          children: <BtoFeedRead stored={!!feed} whole={!canEdit} />,
-          name: feed ? "Change the calendar it reads" : "Add one: a calendar for it to read",
+          value: booksWith ? <BtoBooksWith withWhat={booksWith} feed={feed} /> : null,
+          empty: BOOKING_TOOL_WORDS.empty,
+          hint: booksWith
+            ? null
+            : guess
+              ? `Your booking link is on ${guess}. Set it up to fill your calendar.`
+              : BOOKING_TOOL_WORDS.hint,
+          children: (
+            <>
+              <BtoFeedRead stored={!!feed} whole={!canEdit} />
+              <BtoBookingsRead />
+            </>
+          ),
+          name: booksWith ? "Change what you book with" : "Set up: what you book with",
         }}
-        body={(f) => <BtoFeedBox {...f} stored={feed} offers={offers} />}
-      />
-
-      {/* The row states the tool (the owner's own fact) and, under it, one quiet signal with the next thing to do
-          (BtoBookingsRead: the Calendar page's own read, as the calendar row's is); the fold holds the rest. */}
-      <BtFold<BookingsDraft>
-        {...shared}
-        id="bookings"
-        light
-        label="Where your bookings come from"
-        hint="Name your tool and send its booking emails to your workspace address. Each becomes an appointment on the board."
-        channel={null}
-        gate={gate("where your bookings come from")}
-        row={{
-          value: bookingTool ? <BtoBookingsTool tool={bookingTool} /> : null,
-          empty: "Not set up",
-          hint: bookingTool ? null : "Booking emails from your tool become appointments on the board.",
-          children: <BtoBookingsRead />,
-          name: bookingTool ? "Change where your bookings come from" : "Set up: where your bookings come from",
-        }}
-        body={(f) => <BtoBookingsBody {...f} />}
+        body={(f) => (
+          <BtoSourceBody
+            f={f}
+            stored={feed}
+            offers={offers}
+            bookingLink={String(brain.booking_link || "")}
+            name={String(brain.business_name || "")}
+          />
+        )}
       />
     </section>
   );

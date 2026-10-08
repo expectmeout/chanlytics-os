@@ -21,6 +21,7 @@ import type { ConversationDto } from "../conversations/thread-dto";
 import type { LeadSearchDto } from "../leads/leads";
 import {
   todayAskFacts,
+  todayAlsoWaiting,
   todayHeadline,
   todayQueueEmpty,
   todayQuietDay,
@@ -66,8 +67,13 @@ export function toTodayVM(
   const facts = todayAskFacts(f);
   const empty = todayQueueEmpty(f);
 
+  // The queue, before the head: the head's last rung says what it holds (todayAlsoWaiting), and a day is quiet only
+  // with nothing in it. A search waiting on an answer on a day with no messages was a quiet day, with an empty queue.
+  const callRows = todayCallRows(f);
+  const queue = todayQueue(f, callRows, empty);
+
   /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
-  if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
+  if (f.traffic === 0 && f.needsYouCount === 0 && !alert && queue.rows.length === 0) {
     // A reply that failed is no traffic, but its line is never quiet (today-bands.ts todaySendFailure).
     const failed = todaySendFailure(f);
     return {
@@ -100,8 +106,12 @@ export function toTodayVM(
   }
 
   const needsYou = todayNeedsYou(f);
-  const { headline, detail, tone } = todayHeadline(f, alert, needsYou.rows);
-  const callRows = todayCallRows(f);
+  const { headline, detail, tone } = todayHeadline(
+    f,
+    alert,
+    needsYou.rows,
+    todayAlsoWaiting({ windows: f.closingConvs.length, calls: queue.calls, searches: queue.searches }),
+  );
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
     standing: { chips, lines, alert, headline, detail, tone },
@@ -121,7 +131,7 @@ export function toTodayVM(
     noReply,
     callsRead: f.callsRead,
     calls: todayCalls(f, callRows),
-    queue: todayQueue(f, callRows, empty),
+    queue,
     quiet: null,
   };
 }

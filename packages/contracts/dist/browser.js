@@ -4946,24 +4946,36 @@ function onDomain(host, domain) {
   return host === domain || host.endsWith(`.${domain}`);
 }
 var BOOKING_PLATFORMS = [
-  { host: "vagaro.com" },
-  { host: "booksy.com" },
-  { host: "fresha.com" },
-  { host: "glossgenius.com" },
-  { host: "styleseat.com" },
-  { host: "schedulicity.com" },
-  { host: "mindbodyonline.com" },
-  { host: "setmore.com" },
-  { host: "acuityscheduling.com" },
-  { host: "as.me" },
-  { host: "calendly.com" },
-  { host: "book.squareup.com", path: /^\/appointments\// },
-  { host: "squareup.com", path: /^\/appointments\/book\// },
-  { host: "simplybook.me" },
+  { host: "vagaro.com", tool: "vagaro" },
+  { host: "booksy.com", tool: "booksy" },
+  { host: "fresha.com", tool: "fresha" },
+  { host: "glossgenius.com", tool: "glossgenius" },
+  { host: "styleseat.com", tool: "styleseat" },
+  { host: "schedulicity.com", tool: "schedulicity" },
+  { host: "mindbodyonline.com", tool: "mindbody" },
+  { host: "setmore.com", tool: "setmore" },
+  { host: "acuityscheduling.com", tool: "acuity" },
+  { host: "as.me", tool: "acuity" },
+  { host: "calendly.com", tool: "calendly" },
+  { host: "book.squareup.com", path: /^\/appointments\//, tool: "square" },
+  { host: "squareup.com", path: /^\/appointments\/book\//, tool: "square" },
+  { host: "simplybook.me", tool: "simplybook" },
   { host: "youcanbook.me" },
   { host: "zocdoc.com" },
   { host: "janeapp.com" }
 ];
+var BOOKING_PLATFORM_TOOLS = /* @__PURE__ */ (() => BOOKING_PLATFORMS.flatMap((p) => p.tool ? [p.tool] : []))();
+function bookingToolOfLink(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  let host;
+  try {
+    host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `https://${s}`).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  return BOOKING_PLATFORMS.find((p) => p.tool && onDomain(host, p.host))?.tool ?? null;
+}
 var BOOKING_PLATFORM_HOSTS = /* @__PURE__ */ (() => BOOKING_PLATFORMS.map((p) => p.host))();
 var PLATFORM_OWN = /* @__PURE__ */ new Set([
   "help",
@@ -6278,7 +6290,7 @@ function membersOf(def, rows, ctx, saved = []) {
 function listUnknownWords(reason, calendar) {
   switch (reason) {
     case "calendar":
-      return calendar === "none" ? "This list reads your calendar. Connect it under Settings \u203A Business to count it." : "This list reads your calendar, which can't be read right now.";
+      return calendar === "none" ? "This list reads a calendar link. Add one under Settings \u203A Business to count it." : "This list reads your calendar, which can't be read right now.";
     case "consult":
       return "This list exists only where the profile lists a consult-first service under Settings \u203A Business.";
     case "deals":
@@ -6560,6 +6572,859 @@ var FOLLOWUP_ECHO = [
   [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
+
+// src/calendar/booking-notice.ts
+var BOOKING_TOOL_IDS = [
+  "booksy",
+  "acuity",
+  "fresha",
+  "square",
+  "vagaro",
+  "glossgenius",
+  "calendly",
+  "setmore",
+  "mindbody",
+  "simplybook",
+  "schedulicity",
+  "styleseat"
+];
+var BOOKING_TOOLS = [
+  { tool: "booksy", name: "Booksy", domains: ["booksy.com"], calendar: "none" },
+  { tool: "acuity", name: "Acuity", domains: ["acuityscheduling.com", "squarespacescheduling.com"], calendar: "own" },
+  { tool: "fresha", name: "Fresha", domains: ["fresha.com"], calendar: "own" },
+  { tool: "square", name: "Square", domains: ["squareup.com", "square.com"], calendar: "writes" },
+  { tool: "vagaro", name: "Vagaro", domains: ["vagaro.com"], calendar: "writes" },
+  { tool: "glossgenius", name: "GlossGenius", domains: ["glossgenius.com"], calendar: "own" },
+  { tool: "calendly", name: "Calendly", domains: ["calendly.com"], calendar: "writes" },
+  { tool: "setmore", name: "Setmore", domains: ["setmore.com"], calendar: null },
+  { tool: "mindbody", name: "Mindbody", domains: ["mindbodyonline.com"], calendar: null },
+  { tool: "simplybook", name: "SimplyBook", domains: ["simplybook.me"], calendar: null },
+  { tool: "schedulicity", name: "Schedulicity", domains: ["schedulicity.com"], calendar: null },
+  { tool: "styleseat", name: "StyleSeat", domains: ["styleseat.com"], calendar: null }
+];
+var isBookingTool = (v) => BOOKING_TOOLS.some((t) => t.tool === v);
+function bookingToolName(tool) {
+  if (!tool) return null;
+  return BOOKING_TOOLS.find((t) => t.tool === tool)?.name ?? tool;
+}
+function bookingToolCalendar(tool) {
+  return BOOKING_TOOLS.find((t) => t.tool === tool)?.calendar ?? null;
+}
+function bookingToolOfAddress(address) {
+  const a = (address ?? "").trim().toLowerCase();
+  const at3 = a.lastIndexOf("@");
+  if (at3 < 1) return null;
+  const host = a.slice(at3 + 1);
+  for (const t of BOOKING_TOOLS) for (const d of t.domains) if (host === d || host.endsWith(`.${d}`)) return t.tool;
+  return null;
+}
+var FORWARD_SUBJECT = /^\s*(fwd?|fw|tr|wg|rv)\s*:/i;
+function bookingNoticeOf(e) {
+  const direct = bookingToolOfAddress(e.from?.address);
+  if (direct) return { tool: direct, forwarded: false };
+  if (!e.from || !FORWARD_SUBJECT.test(e.subject ?? "") || !e.text) return null;
+  const head = e.text.slice(0, 4e3);
+  const m = /^\s*(?:>\s*)?(?:from|de|von)\s*:\s*(?:"?[^<\n]*"?\s*<)?([^\s<>]+@[^\s<>]+)>?/im.exec(head);
+  const quoted = m ? bookingToolOfAddress(m[1]) : null;
+  return quoted ? { tool: quoted, forwarded: true } : null;
+}
+var NOTICE_KINDS = ["booked", "changed", "cancelled", "other"];
+var LOCAL_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+var NOTICE_SCHEMA = /* @__PURE__ */ (() => ({
+  type: "object",
+  properties: {
+    kind: { type: "string", enum: [...NOTICE_KINDS] },
+    client_name: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_email: { anyOf: [{ type: "string" }, { type: "null" }] },
+    service: { anyOf: [{ type: "string" }, { type: "null" }] },
+    staff: { anyOf: [{ type: "string" }, { type: "null" }] },
+    starts_at: {
+      anyOf: [
+        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
+        { type: "null" }
+      ]
+    },
+    ends_at: {
+      anyOf: [
+        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
+        { type: "null" }
+      ]
+    },
+    previous_starts_at: {
+      anyOf: [
+        { type: "string", description: "For a change only: the time it was before, YYYY-MM-DDTHH:MM." },
+        { type: "null" }
+      ]
+    },
+    price: { anyOf: [{ type: "string" }, { type: "null" }] },
+    note: { anyOf: [{ type: "string" }, { type: "null" }] }
+  },
+  required: [
+    "kind",
+    "client_name",
+    "client_phone",
+    "client_email",
+    "service",
+    "staff",
+    "starts_at",
+    "ends_at",
+    "previous_starts_at",
+    "price",
+    "note"
+  ],
+  additionalProperties: false
+}))();
+var NOTICE_TEXT_MAX = 6e3;
+var NOTICE_READ_MAX_TOKENS = 600;
+function noticePrompt(p) {
+  const system = [
+    "You read one email a booking tool sent a business about one of its appointments, and answer in the JSON shape asked.",
+    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing), and other when it is written TO THE CLIENT about a booking of their own at a business ('Your appointment at Harbor Studio is confirmed', 'See you tomorrow at 3'): the business's notice names its client as someone else, it never speaks to them.`,
+    "client_name, client_phone, client_email: the CLIENT's, as written; never the business's, the staff member's or the tool's own.",
+    "service: the service booked, as written (with its category if the tool writes one: 'Hair Color: Partial highlight'). staff: who it is with, as written.",
+    "starts_at, ends_at: the appointment's start and end on the business's own clock as YYYY-MM-DDTHH:MM, from the date and the time range the email states. For a change, the NEW time; previous_starts_at is the old one. ends_at null when no end is stated.",
+    "price: as written ('$55.00+', 'Varies'), null when none. note: the client's own note, null when none.",
+    "Take only what the email states. Invent nothing; a field the email does not state is null."
+  ].join("\n");
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: p.tz, year: "numeric", month: "2-digit", day: "2-digit" });
+  const user = [
+    `Booking tool: ${bookingToolName(p.tool)}.`,
+    `Received on ${day.format(new Date(p.receivedAtMs))}; the business's zone is ${p.tz}.`,
+    `Subject: ${p.subject ?? "(none)"}`,
+    "",
+    p.text.slice(0, NOTICE_TEXT_MAX)
+  ].join("\n");
+  return { system, user };
+}
+var NOTICE_HOLDS = [
+  "no_model",
+  "may_not_spend",
+  "unreadable",
+  "not_a_booking",
+  "no_time",
+  "no_client",
+  // The provider no longer had the email when the read ran: nothing could be read, and the delivery is still on the ledger.
+  "gone"
+];
+var isNoticeHold = (v) => NOTICE_HOLDS.includes(v);
+var NOTICE_DEFAULT_LENGTH_MS = HOUR_MS;
+var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
+var E1642 = /^\+[1-9][0-9]{6,14}$/;
+var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
+var NOTICE_FIELD_MAX = 200;
+var NOTICE_NOTE_MAX = 1e3;
+function localMs(tz, v) {
+  if (typeof v !== "string") return null;
+  const m = LOCAL_TIME.exec(v.trim());
+  if (!m) return null;
+  const part = (i) => Number(m[i]);
+  const y = part(1);
+  const mo = part(2);
+  const d = part(3);
+  const hh = part(4);
+  const mm = part(5);
+  if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
+  const day = new Date(Date.UTC(y, mo - 1, d));
+  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
+  const ms2 = localToUtcMs(tz, y, mo, d, hh, mm);
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function trimmedText(v, max) {
+  if (typeof v !== "string") return null;
+  const t = v.replace(/\s+/g, " ").trim();
+  return t ? t.slice(0, max) : null;
+}
+function noticeAnswerOf(answer, tz, nowMs) {
+  if (!answer || typeof answer !== "object" || Array.isArray(answer)) return { reading: null, hold: "unreadable" };
+  const a = answer;
+  const kind = a.kind;
+  if (kind === "other") return { reading: null, hold: "not_a_booking" };
+  if (kind !== "booked" && kind !== "changed" && kind !== "cancelled") return { reading: null, hold: "unreadable" };
+  const start = localMs(tz, a.starts_at);
+  if (start === null || Math.abs(start - nowMs) > NOTICE_TIME_REACH_MS) return { reading: null, hold: "no_time" };
+  const endRead = localMs(tz, a.ends_at);
+  const end = endRead !== null && endRead > start && endRead - start <= NOTICE_LENGTH_MAX_MS ? endRead : start + NOTICE_DEFAULT_LENGTH_MS;
+  const phone = normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null);
+  const client = {
+    name: trimmedText(a.client_name, NOTICE_FIELD_MAX),
+    phone: phone && E1642.test(phone) ? phone : null,
+    email: normalizeEmail(typeof a.client_email === "string" ? a.client_email : null)
+  };
+  if (!client.name && !client.phone && !client.email) return { reading: null, hold: "no_client" };
+  const previous = kind === "changed" ? localMs(tz, a.previous_starts_at) : null;
+  return {
+    reading: {
+      kind,
+      client,
+      service: trimmedText(a.service, NOTICE_FIELD_MAX),
+      staff: trimmedText(a.staff, NOTICE_FIELD_MAX),
+      start,
+      end,
+      previousStart: previous !== null && Math.abs(previous - nowMs) <= NOTICE_TIME_REACH_MS ? previous : null,
+      price: trimmedText(a.price, NOTICE_FIELD_MAX),
+      note: trimmedText(a.note, NOTICE_NOTE_MAX)
+    },
+    hold: null
+  };
+}
+function clientKeyOf(client) {
+  if (client.phone) return client.phone;
+  if (client.email) return client.email.toLowerCase();
+  return (client.name ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+function appointmentKey(tool, client, startMs) {
+  return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
+}
+var SAME_VISIT_MS = 15 * MIN_MS;
+function bookingToolOptions() {
+  return BOOKING_TOOLS.map((t) => ({ value: t.tool, label: t.name }));
+}
+var BOOKING_TOOL_STEPS = {
+  acuity: {
+    way: "recipient",
+    steps: [
+      "In Acuity, open the calendar your appointments land on, then Calendar notifications.",
+      "Under \u201CSend booking notifications to\u201D, add the address above beside your own."
+    ]
+  },
+  fresha: {
+    way: "recipient",
+    steps: [
+      "In Fresha, open Settings \u203A Scheduling \u203A Online bookings \u203A Notifications, then Edit.",
+      "Add the address above to the emails that get booked, rescheduled and cancelled bookings."
+    ]
+  },
+  booksy: {
+    way: "forward",
+    steps: [
+      "Open the inbox your Booksy account emails: its booking emails arrive there.",
+      "Make a filter for mail from no-reply@booksy.com that forwards to the address above."
+    ]
+  },
+  square: {
+    way: "forward",
+    steps: [
+      "In Square, under Team members \u203A your name \u203A Booking notifications, keep email on.",
+      "In that inbox, make a filter for Square's booking emails that forwards to the address above."
+    ]
+  },
+  vagaro: {
+    way: "forward",
+    steps: [
+      "In Vagaro, under Settings \u203A Booking \u203A Email & Text Notifications, keep employee email notifications on.",
+      "In that inbox, make a filter for mail from vagaro.com that forwards to the address above."
+    ]
+  },
+  glossgenius: {
+    way: "forward",
+    steps: [
+      "In GlossGenius, under your personal notifications, keep booking emails on (they go to whoever is booked).",
+      "In that inbox, make a filter for mail from glossgenius.com that forwards to the address above."
+    ]
+  },
+  calendly: {
+    way: "forward",
+    steps: [
+      "Open the inbox Calendly emails your bookings to (each host gets their own).",
+      "Make a filter for mail from calendly.com that forwards to the address above."
+    ]
+  },
+  setmore: {
+    way: "forward",
+    steps: ["In the inbox Setmore emails, make a filter for mail from setmore.com that forwards to the address above."]
+  },
+  mindbody: {
+    way: "forward",
+    steps: [
+      "In the inbox Mindbody emails, make a filter for mail from mindbodyonline.com that forwards to the address above."
+    ]
+  },
+  simplybook: {
+    way: "forward",
+    steps: [
+      "In the inbox SimplyBook emails, make a filter for mail from simplybook.me that forwards to the address above."
+    ]
+  },
+  schedulicity: {
+    way: "forward",
+    steps: [
+      "In the inbox Schedulicity emails, make a filter for mail from schedulicity.com that forwards to the address above."
+    ]
+  },
+  styleseat: {
+    way: "forward",
+    steps: [
+      "In the inbox StyleSeat emails, make a filter for mail from styleseat.com that forwards to the address above."
+    ]
+  }
+};
+var GMAIL_FORWARD_NOTE = "If that inbox is Gmail, it asks once to confirm the forward: the code and a one-press confirm appear here.";
+var BOOKING_TRY_NOTE = "To try it now, forward any past booking email to the address above, from the email you sign in with.";
+var NOTICE_HOLD_WORDS = {
+  no_model: "The reader was unavailable. Press Read again.",
+  may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
+  unreadable: "It could not be read as a booking.",
+  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
+  not_a_booking: "It is from your booking tool, but not about one booking.",
+  no_time: "No appointment time could be read from it.",
+  no_client: "No client could be read from it.",
+  gone: "The email was gone before it could be read."
+};
+var GMAIL_FORWARDING_SENDER = /^forwarding-noreply@google\.com$/i;
+function forwardingConfirmationOf(e) {
+  if (!e.from || !GMAIL_FORWARDING_SENDER.test(e.from.address.trim())) return null;
+  const subject = e.subject ?? "";
+  if (!/forwarding confirmation/i.test(subject)) return null;
+  const text = e.text ?? "";
+  const code2 = /\(#(\d{5,12})\)/.exec(subject)?.[1] ?? /confirmation code:\s*(\d{5,12})/i.exec(text)?.[1] ?? null;
+  const account = /receive mail from\s+([^\s<>]+@[^\s<>]+)/i.exec(subject)?.[1] ?? /([^\s<>]+@[^\s<>]+)\s+has requested to automatically forward/i.exec(text)?.[1] ?? null;
+  if (!code2 || !account) return null;
+  const link = /https:\/\/[a-z0-9.-]*\.google\.com\/mail\/vf-[^\s<>")]+/i.exec(text)?.[0] ?? null;
+  return { account: account.toLowerCase(), code: code2, link };
+}
+
+// src/config/no-booking-link.ts
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
+function offersBookingLink(brain) {
+  return !brain || !!brain.booking_link;
+}
+function priceNextStep(hasBookingLink) {
+  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
+}
+
+// src/calendar/day-keys.ts
+var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var DAY_SHORT = {
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun"
+};
+function keyParts(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return { y, m: m ?? 1, d: d ?? 1 };
+}
+function shiftKey(key, n) {
+  const { y, m, d } = keyParts(key);
+  const at3 = new Date(Date.UTC(y, m - 1, d + n));
+  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-${String(at3.getUTCDate()).padStart(2, "0")}`;
+}
+function mondayOf(key) {
+  const { y, m, d } = keyParts(key);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return shiftKey(key, -((dow + 6) % 7));
+}
+function isDayKey(s) {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+}
+function monthSpan(key) {
+  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
+}
+function shiftMonth(key, n) {
+  const { y, m } = keyParts(key);
+  const at3 = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+function monthLabelOf(key) {
+  const { y, m } = keyParts(key);
+  return dateFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
+    new Date(Date.UTC(y, m - 1, 1, 12))
+  );
+}
+function zoneMidnight(tz, key) {
+  const { y, m, d } = keyParts(key);
+  return localToUtcMs(tz, y, m, d, 0, 0);
+}
+
+// src/calendar/availability.ts
+var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
+function hhmm(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+function dayIntervals(h) {
+  const raw = [];
+  if (h?.open && h?.close) raw.push([h.open, h.close]);
+  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
+  const usable = raw.filter(([o, c]) => c > o).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const merged = [];
+  for (const [o, c] of usable) {
+    const last = merged[merged.length - 1];
+    if (last && o <= last[1]) {
+      if (c > last[1]) last[1] = c;
+    } else {
+      merged.push([o, c]);
+    }
+  }
+  return merged;
+}
+function closedOn(closures, key) {
+  return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
+}
+var minutesOf = (s) => {
+  const t = hhmm(s);
+  return t ? t[0] * 60 + t[1] : null;
+};
+function openAt(hours, closures, dateKey, minute) {
+  if (closedOn(closures, dateKey)) return false;
+  const { y, m, d } = keyParts(dateKey);
+  const weekday = WEEKDAY_KEYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  if (!weekday) return false;
+  return dayIntervals(hours?.[weekday]).some(([o, c]) => {
+    const from = minutesOf(o);
+    const to = minutesOf(c);
+    return from !== null && to !== null && from <= minute && minute < to;
+  });
+}
+function hasHours(hours) {
+  return DAYS.some((d) => dayIntervals(hours?.[d]).length > 0);
+}
+function onTheGrid(tz, atMs, slotMin) {
+  const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
+  const c = clockInZone(tz, atMs);
+  const into = (c.mm % grid * 60 + c.ss) * 1e3 + (atMs % 1e3 + 1e3) % 1e3;
+  return into === 0 ? atMs : atMs - into + grid * 6e4;
+}
+function freeWindows(input) {
+  const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
+  const leadMs = rules.lead_hours * 36e5;
+  const bufferMs = rules.buffer_min * 6e4;
+  const slotMs = rules.slot_min * 6e4;
+  const earliest2 = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
+  const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
+  const out = [];
+  for (let offset = 0; offset < rules.max_days_ahead; offset++) {
+    const day = dayPlusInZone(input.tz, input.now.getTime(), offset);
+    if (closedOn(input.closures, day.key)) continue;
+    const ranges = dayIntervals(input.hours?.[day.weekday]);
+    const windows = [];
+    for (const [open, close] of ranges) {
+      const o = hhmm(open), c = hhmm(close);
+      if (!o || !c) continue;
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest2);
+      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
+      for (const b of busy) {
+        if (b.end <= start) continue;
+        if (b.start >= end) break;
+        if (b.start > start && b.start - start >= slotMs) windows.push({ start, end: b.start });
+        start = Math.max(start, b.end);
+      }
+      if (end - start >= slotMs) windows.push({ start, end });
+    }
+    if (windows.length) {
+      out.push({
+        key: day.key,
+        weekday: day.weekday,
+        // Noon on that local day: an instant the day owns whichever way the
+        // clock moved, where midnight on a spring-forward day may not exist
+        // and 1 AM on an autumn one happens twice.
+        label: dateFormat("en-US", {
+          timeZone: input.tz,
+          weekday: "long",
+          month: "long",
+          day: "numeric"
+        }).format(new Date(localToUtcMs(input.tz, day.y, day.m, day.d, 12, 0))),
+        windows
+      });
+    }
+  }
+  return out;
+}
+var DAY_NAMES2 = {
+  mon: "mon",
+  monday: "mon",
+  tue: "tue",
+  tues: "tue",
+  tuesday: "tue",
+  wed: "wed",
+  wednesday: "wed",
+  thu: "thu",
+  thur: "thu",
+  thurs: "thu",
+  thursday: "thu",
+  fri: "fri",
+  friday: "fri",
+  sat: "sat",
+  saturday: "sat",
+  sun: "sun",
+  sunday: "sun"
+};
+function filterOpenings(openings, by) {
+  const day = (by.day ?? "").trim().toLowerCase();
+  const weekday = day ? DAY_NAMES2[day] : void 0;
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : void 0;
+  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 6e4 : 0;
+  const picked = openings.filter((o) => key ? o.key === key : weekday ? o.weekday === weekday : true);
+  const first = weekday && !key ? picked.slice(0, 1) : picked;
+  return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
+}
+function span(tz, start, end) {
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
+}
+function describeOpenings(openings, tz, opts) {
+  const maxDays = opts.maxDays ?? 5;
+  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
+  const hasLink = opts.hasBookingLink;
+  const held = hasLink && opts.bookingHeld === true;
+  if (!openings.length) {
+    const instead = held ? "Offer to have a member of the team call or text them when a slot frees up, and take their name. This business confirms its own bookings: never send or promise the booking link." : `Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
+  }
+  const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
+  return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
+${lines.join("\n")}
+` + (held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
+}
+
+// src/config/workspace-config/prompt-hours.ts
+var DAY_LABEL = DAY_NAMES;
+function dayIntervals2(h) {
+  return dayIntervals(h).map(([open, close]) => ({ open, close }));
+}
+function joinList(parts2) {
+  if (parts2.length < 3) return parts2.join(" and ");
+  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function dayText(h) {
+  const spans = dayIntervals2(h);
+  if (spans.length) {
+    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
+    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
+    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+  }
+  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
+  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
+}
+function hoursRuns(hours) {
+  if (!hours) return [];
+  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
+  const out = [];
+  let i = 0;
+  while (i < spans.length) {
+    let j = i;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
+    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
+    i = j + 1;
+  }
+  return out;
+}
+function hoursLines(hours) {
+  return hoursRuns(hours).map((r2) => {
+    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
+    return `${label}: ${r2.text}`;
+  });
+}
+
+// src/calendar/calendar-words.ts
+function clockLabel(t) {
+  const h = Math.floor(t);
+  const m = Math.round((t - h) * 60);
+  const ap = h >= 12 && h < 24 ? "PM" : "AM";
+  const hh = (h + 11) % 12 + 1;
+  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
+}
+var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+function shortDate(key) {
+  const { y, m, d } = keyParts(key);
+  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function longDate(key) {
+  const { y, m, d } = keyParts(key);
+  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function closureDatesLabel(c) {
+  if (!(c.until && c.until > c.date)) return shortDate(c.date);
+  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
+}
+function closuresFrom(closures, todayKey) {
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
+}
+function readAgoLabel(iso, now) {
+  if (!iso) return null;
+  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
+}
+function ruleParts(rules) {
+  const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
+  const parts2 = [`at least ${r2.lead_hours}h notice`];
+  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
+  parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
+  if (rules?.party_max)
+    parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
+  return parts2;
+}
+function rulesLine(rules) {
+  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
+}
+function feedNotes(feed) {
+  if (feed.state !== "ok") return [];
+  const notes = [];
+  const repeats = feed.skipped_recurring || 0;
+  if (repeats > 0) {
+    const one = repeats === 1;
+    notes.push({
+      id: "repeats",
+      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
+      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`
+    });
+  }
+  const undrawn = feed.dropped || 0;
+  if (undrawn > 0) {
+    const one = undrawn === 1;
+    notes.push({
+      id: "undrawn",
+      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
+      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`
+    });
+  }
+  return notes;
+}
+function hoursLines2(hours) {
+  if (!hours) return [];
+  const clean3 = {};
+  for (const d of DAYS) if (hours[d]) clean3[d] = hours[d];
+  return hoursRuns(clean3).map(
+    (r2) => `${DAY_SHORT[r2.from] ?? r2.from}${r2.to !== r2.from ? `\u2013${DAY_SHORT[r2.to] ?? r2.to}` : ""} ${dayHoursWords(clean3[r2.from])}`
+  );
+}
+function dayHoursWords(h) {
+  const at3 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
+  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at3(o), at3(c)));
+  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
+  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+var CALENDAR_FEED_WORDS = {
+  ok: "Readable",
+  stale: "Last good read",
+  unavailable: "Could not be read",
+  none: "Not connected"
+};
+function spanLabel2(t1, t2) {
+  const a = clockLabel(t1);
+  const b = clockLabel(t2);
+  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+
+// src/setup/calendar-source.ts
+var CALENDAR_SETTING_ROUTE = "admin/workspace/calendar";
+var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
+function forwardStillAsked(at3, now) {
+  return !!at3 && now.getTime() - Date.parse(at3) <= FORWARD_CONFIRM_SHOWN_MS;
+}
+function bookingEmailsStep(e) {
+  if (!e.address) return "address";
+  if (e.forwarding) return "forwarding";
+  if (e.held > 0) return "held";
+  return e.lastAt ? "working" : "waiting";
+}
+var TO_THE_ROW = (label) => ({ label, to: CALENDAR_SETTING_ROUTE });
+var TO_THE_BOARD = { label: "Open Calendar", to: "calendar" };
+var leadAndRest = (lead, rest = "") => {
+  const after = rest.trim();
+  return { lead, rest: after, sentence: after ? `${lead} ${after}` : lead };
+};
+var bookingEmailsHeldWords = (n) => n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`;
+var noTimesWords = (bookingLink) => bookingLink ? "The receptionist sends your booking link instead of naming open times." : "The receptionist does not name open times.";
+function unreadLink(f, by, emailsWork) {
+  return {
+    by,
+    state: "attention",
+    tone: "warn",
+    words: CALENDAR_FEED_WORDS.unavailable,
+    ...leadAndRest(
+      "Your calendar could not be read.",
+      `${f.problem ?? ""}${emailsWork ? " Booking emails still arrive." : ""}`
+    ),
+    times: false,
+    next: TO_THE_ROW("Check the link")
+  };
+}
+function emailsNeedYou(step2, f, e, by, times) {
+  const tool = bookingToolName(f.tool) ?? "Your booking tool";
+  if (step2 === "address")
+    return {
+      by,
+      state: "needs_you",
+      tone: "warn",
+      words: "Needs you",
+      ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
+      times,
+      next: TO_THE_ROW("Finish setting up")
+    };
+  if (step2 === "forwarding")
+    return {
+      by,
+      state: "needs_you",
+      tone: "warn",
+      words: "Needs you",
+      ...leadAndRest("Gmail is waiting for you to confirm the forward."),
+      times,
+      next: TO_THE_ROW("Confirm the forward")
+    };
+  if (step2 === "held")
+    return {
+      by,
+      // Held before any became an appointment is setting up still; held after is a thing that works asking for a look.
+      state: e.lastAt || times ? "attention" : "needs_you",
+      tone: "warn",
+      words: `${e.held} to look at`,
+      ...leadAndRest(bookingEmailsHeldWords(e.held)),
+      times,
+      next: TO_THE_ROW(e.held === 1 ? "Look at it" : "Look at them")
+    };
+  return null;
+}
+function readLink(f, step2) {
+  const tool = bookingToolName(f.tool);
+  if (f.link === "stale")
+    return {
+      by: tool ? "both" : "link",
+      state: "ready",
+      tone: "ok",
+      words: CALENDAR_FEED_WORDS.stale,
+      ...leadAndRest("The latest read failed, so this is the last good one."),
+      times: true,
+      next: TO_THE_BOARD
+    };
+  const emails = tool && step2 === "working" ? ` Booking emails from ${tool} add the client and the service.` : tool && step2 === "waiting" ? ` Waiting for the first booking email from ${tool}.` : "";
+  return {
+    by: tool ? "both" : "link",
+    state: "ready",
+    tone: "ok",
+    words: CALENDAR_FEED_WORDS.ok,
+    ...leadAndRest("The receptionist offers open times from it.", emails),
+    times: true,
+    next: TO_THE_BOARD
+  };
+}
+function emailsAlone(f, step2) {
+  const tool = bookingToolName(f.tool) ?? "your booking tool";
+  if (step2 === "waiting")
+    return {
+      by: "emails",
+      state: "waiting",
+      tone: "plain",
+      words: "Waiting for the first email",
+      ...leadAndRest(`Waiting for the first booking email from ${tool}.`),
+      times: false,
+      next: TO_THE_ROW("See the steps")
+    };
+  return {
+    by: "emails",
+    state: "ready",
+    tone: "ok",
+    words: "By email",
+    ...leadAndRest(`Bookings arrive by email from ${tool}.`, noTimesWords(f.bookingLink)),
+    times: false,
+    next: TO_THE_BOARD
+  };
+}
+function calendarSourceOf(f) {
+  const linked = f.link !== "none";
+  const named = !!f.tool;
+  const by = linked && named ? "both" : linked ? "link" : named ? "emails" : "nothing";
+  const step2 = named && f.emails ? bookingEmailsStep(f.emails) : null;
+  if (f.link === "unavailable") return unreadLink(f, by, step2 === "working" || step2 === "held");
+  const times = f.link === "ok" || f.link === "stale";
+  if (step2 && f.emails) {
+    const owed = emailsNeedYou(step2, f, f.emails, by, times);
+    if (owed) return owed;
+  }
+  if (linked) return readLink(f, step2);
+  if (named) return emailsAlone(f, step2);
+  if (f.byHand)
+    return {
+      by: "hand",
+      state: "hand",
+      tone: "plain",
+      words: "Booked by hand",
+      ...leadAndRest("You take bookings yourself, so there is nothing to connect.", noTimesWords(f.bookingLink)),
+      times: false,
+      next: TO_THE_ROW("Change")
+    };
+  return {
+    by: "nothing",
+    state: "none",
+    tone: "plain",
+    words: CALENDAR_FEED_WORDS.none,
+    ...leadAndRest(
+      "No calendar connected.",
+      "Say what you book with, so your calendar fills and the receptionist knows what is taken."
+    ),
+    times: false,
+    next: TO_THE_ROW("Connect your calendar")
+  };
+}
+function calendarSourceFacts(c) {
+  return {
+    link: c.state === "ok" ? c.stale ? "stale" : "ok" : c.state,
+    problem: c.problem ?? null,
+    tool: c.tool ?? null,
+    byHand: !!c.by_hand,
+    emails: c.emails ? { address: c.emails.address, forwarding: c.emails.forwarding, lastAt: c.emails.last_at, held: c.emails.held } : null,
+    bookingLink: !!c.booking_link
+  };
+}
+var BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Business to see who booked.";
+var BOOKS_WITH_CALENDAR = "calendar";
+var BOOKS_BY_HAND = "hand";
+function booksWithOptions() {
+  return [
+    ...bookingToolOptions(),
+    { value: BOOKS_WITH_CALENDAR, label: "Google, Apple or Outlook calendar" },
+    { value: BOOKS_BY_HAND, label: "I book by hand" }
+  ];
+}
+function booksWithOf(c) {
+  return c.tool || (c.ical_url ? BOOKS_WITH_CALENDAR : c.by_hand ? BOOKS_BY_HAND : "");
+}
+function booksWithName(withWhat) {
+  if (!withWhat) return null;
+  if (withWhat === BOOKS_WITH_CALENDAR) return "Calendar link";
+  if (withWhat === BOOKS_BY_HAND) return "Booked by hand";
+  return bookingToolName(withWhat);
+}
+var BOOKING_TOOL_WORDS = {
+  label: "Booking tool",
+  hint: "What you book with. It fills your calendar and tells the receptionist what is taken.",
+  empty: "Not set up",
+  placeholder: "What do you book with?",
+  link: {
+    title: "Calendar link",
+    why: "So the receptionist can offer open times.",
+    anyway: "I have a calendar link",
+    /** Under "I book by hand", where a link is kept: that answer has none, so saving it takes the link away. */
+    goes: "Saving this removes your calendar link."
+  },
+  emails: {
+    title: "Booking emails",
+    why: "So each booking shows who it is and what for."
+  }
+};
+function calendarLinkShown(withWhat, held) {
+  if (withWhat === BOOKS_BY_HAND) return "hidden";
+  if (held) return "shown";
+  if (!withWhat) return "hidden";
+  return bookingToolCalendar(withWhat) === "none" ? "offered" : "shown";
+}
+function calendarLinkNote(withWhat, bookingLink) {
+  if (!withWhat) return "";
+  if (withWhat === BOOKS_BY_HAND) return `Nothing to connect. ${noTimesWords(bookingLink)}`;
+  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your appointments land in.";
+  const tool = bookingToolName(withWhat) ?? "Your tool";
+  const kind = bookingToolCalendar(withWhat);
+  if (kind === "none") return `${tool} offers no calendar link. ${noTimesWords(bookingLink)}`;
+  if (kind === "own") return `${tool} offers a calendar link of its own. Paste it here.`;
+  if (kind === "writes")
+    return `${tool} writes your appointments into your own calendar. Paste that calendar's private address here.`;
+  return `If ${tool} offers a calendar link, or writes into your own calendar, paste that address here.`;
+}
 
 // src/reports/lenses.ts
 var NOTHING_CAME_IN = (r2) => ({
@@ -6958,17 +7823,17 @@ var openingsHeadline = (days, es, asked) => {
   }
   return es ? `El calendario tiene horas libres en ${days.length} d\xEDas.` : `The calendar has open times on ${days.length} days.`;
 };
+function noCalendarAnswer(instead, language) {
+  const es = language === "es";
+  const said = instead?.by === "emails" ? es ? `Las reservas llegan por correo desde ${instead.tool} y est\xE1n en el Calendario, pero sin un enlace de calendario no veo horas libres.` : `Bookings arrive by email from ${instead.tool} and are on the Calendar, but without a calendar link I can't see open times.` : instead?.by === "hand" ? es ? "Tomas las reservas t\xFA, as\xED que no hay calendario del que leer horas libres." : "You take bookings yourself, so there is no calendar for me to read open times from." : es ? "No hay calendario conectado, as\xED que no veo horas libres." : "No calendar is connected, so I can't see open times.";
+  const a = structured(said, language);
+  a.say.detail = es ? "El horario est\xE1 en Ajustes." : "The hours are in Settings.";
+  a.do.open = instead?.by === "emails" ? { to: "calendar", label: es ? "Abrir el Calendario" : "Open the Calendar", now: false } : { to: CALENDAR_SETTING_ROUTE, label: es ? "Conectar un calendario" : "Connect a calendar", now: false };
+  return a;
+}
 function openingsAnswer(o, language, day = null) {
   const es = language === "es";
-  if (o.state === "no_calendar") {
-    const a2 = structured(
-      es ? "No hay calendario conectado, as\xED que no veo horas libres." : "No calendar is connected, so I can't see open times.",
-      language
-    );
-    a2.say.detail = es ? "El horario est\xE1 en Ajustes." : "The hours are in Settings.";
-    a2.do.open = { to: "admin/integrations", label: es ? "Conectar un calendario" : "Connect a calendar", now: false };
-    return a2;
-  }
+  if (o.state === "no_calendar") return noCalendarAnswer(o.instead ?? null, language);
   if (o.state === "unavailable")
     return structured(
       es ? "No se pudo leer el calendario ahora." : "The calendar couldn't be read right now.",
@@ -7549,15 +8414,6 @@ function replyDelayMs(mode, limits) {
   const raw = limits?.reply_delay_ms;
   if (typeof raw !== "number" || !Number.isFinite(raw)) return REPLY_DELAY_DEFAULT_MS;
   return Math.min(REPLY_DELAY_MAX_MS, Math.max(REPLY_DELAY_MIN_MS, Math.round(raw)));
-}
-
-// src/config/no-booking-link.ts
-var NO_LINK_DETAILS = "their name, what they need, and where and when";
-function offersBookingLink(brain) {
-  return !brain || !!brain.booking_link;
-}
-function priceNextStep(hasBookingLink) {
-  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
 }
 
 // src/voice/whisper.ts
@@ -11281,7 +12137,7 @@ function toBookingReportVM(dto) {
       present: false,
       calendar: "none",
       headline: "\u2014",
-      sub: "Connect your calendar under Settings \u203A Business to see who booked.",
+      sub: BOOKED_NEEDS_A_LINK,
       words: "",
       pct: null,
       asked: 0,
@@ -11332,361 +12188,6 @@ function toBookingReportVM(dto) {
     // given a time. It is the half an owner can do something about.
     rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
   };
-}
-
-// src/calendar/booking-notice.ts
-var BOOKING_TOOL_IDS = [
-  "booksy",
-  "acuity",
-  "fresha",
-  "square",
-  "vagaro",
-  "glossgenius",
-  "calendly",
-  "setmore",
-  "mindbody",
-  "simplybook",
-  "schedulicity",
-  "styleseat"
-];
-var BOOKING_TOOLS = [
-  { tool: "booksy", name: "Booksy", domains: ["booksy.com"] },
-  { tool: "acuity", name: "Acuity", domains: ["acuityscheduling.com", "squarespacescheduling.com"] },
-  { tool: "fresha", name: "Fresha", domains: ["fresha.com"] },
-  { tool: "square", name: "Square", domains: ["squareup.com", "square.com"] },
-  { tool: "vagaro", name: "Vagaro", domains: ["vagaro.com"] },
-  { tool: "glossgenius", name: "GlossGenius", domains: ["glossgenius.com"] },
-  { tool: "calendly", name: "Calendly", domains: ["calendly.com"] },
-  { tool: "setmore", name: "Setmore", domains: ["setmore.com"] },
-  { tool: "mindbody", name: "Mindbody", domains: ["mindbodyonline.com"] },
-  { tool: "simplybook", name: "SimplyBook", domains: ["simplybook.me"] },
-  { tool: "schedulicity", name: "Schedulicity", domains: ["schedulicity.com"] },
-  { tool: "styleseat", name: "StyleSeat", domains: ["styleseat.com"] }
-];
-var isBookingTool = (v) => BOOKING_TOOLS.some((t) => t.tool === v);
-function bookingToolName(tool) {
-  if (!tool) return null;
-  return BOOKING_TOOLS.find((t) => t.tool === tool)?.name ?? tool;
-}
-function bookingToolOfAddress(address) {
-  const a = (address ?? "").trim().toLowerCase();
-  const at3 = a.lastIndexOf("@");
-  if (at3 < 1) return null;
-  const host = a.slice(at3 + 1);
-  for (const t of BOOKING_TOOLS) for (const d of t.domains) if (host === d || host.endsWith(`.${d}`)) return t.tool;
-  return null;
-}
-var FORWARD_SUBJECT = /^\s*(fwd?|fw|tr|wg|rv)\s*:/i;
-function bookingNoticeOf(e) {
-  const direct = bookingToolOfAddress(e.from?.address);
-  if (direct) return { tool: direct, forwarded: false };
-  if (!e.from || !FORWARD_SUBJECT.test(e.subject ?? "") || !e.text) return null;
-  const head = e.text.slice(0, 4e3);
-  const m = /^\s*(?:>\s*)?(?:from|de|von)\s*:\s*(?:"?[^<\n]*"?\s*<)?([^\s<>]+@[^\s<>]+)>?/im.exec(head);
-  const quoted = m ? bookingToolOfAddress(m[1]) : null;
-  return quoted ? { tool: quoted, forwarded: true } : null;
-}
-var NOTICE_KINDS = ["booked", "changed", "cancelled", "other"];
-var LOCAL_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
-var NOTICE_SCHEMA = /* @__PURE__ */ (() => ({
-  type: "object",
-  properties: {
-    kind: { type: "string", enum: [...NOTICE_KINDS] },
-    client_name: { anyOf: [{ type: "string" }, { type: "null" }] },
-    client_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
-    client_email: { anyOf: [{ type: "string" }, { type: "null" }] },
-    service: { anyOf: [{ type: "string" }, { type: "null" }] },
-    staff: { anyOf: [{ type: "string" }, { type: "null" }] },
-    starts_at: {
-      anyOf: [
-        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
-        { type: "null" }
-      ]
-    },
-    ends_at: {
-      anyOf: [
-        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
-        { type: "null" }
-      ]
-    },
-    previous_starts_at: {
-      anyOf: [
-        { type: "string", description: "For a change only: the time it was before, YYYY-MM-DDTHH:MM." },
-        { type: "null" }
-      ]
-    },
-    price: { anyOf: [{ type: "string" }, { type: "null" }] },
-    note: { anyOf: [{ type: "string" }, { type: "null" }] }
-  },
-  required: [
-    "kind",
-    "client_name",
-    "client_phone",
-    "client_email",
-    "service",
-    "staff",
-    "starts_at",
-    "ends_at",
-    "previous_starts_at",
-    "price",
-    "note"
-  ],
-  additionalProperties: false
-}))();
-var NOTICE_TEXT_MAX = 6e3;
-var NOTICE_READ_MAX_TOKENS = 600;
-function noticePrompt(p) {
-  const system = [
-    "You read one email a booking tool sent a business about one of its appointments, and answer in the JSON shape asked.",
-    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing), and other when it is written TO THE CLIENT about a booking of their own at a business ('Your appointment at Harbor Studio is confirmed', 'See you tomorrow at 3'): the business's notice names its client as someone else, it never speaks to them.`,
-    "client_name, client_phone, client_email: the CLIENT's, as written; never the business's, the staff member's or the tool's own.",
-    "service: the service booked, as written (with its category if the tool writes one: 'Hair Color: Partial highlight'). staff: who it is with, as written.",
-    "starts_at, ends_at: the appointment's start and end on the business's own clock as YYYY-MM-DDTHH:MM, from the date and the time range the email states. For a change, the NEW time; previous_starts_at is the old one. ends_at null when no end is stated.",
-    "price: as written ('$55.00+', 'Varies'), null when none. note: the client's own note, null when none.",
-    "Take only what the email states. Invent nothing; a field the email does not state is null."
-  ].join("\n");
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: p.tz, year: "numeric", month: "2-digit", day: "2-digit" });
-  const user = [
-    `Booking tool: ${bookingToolName(p.tool)}.`,
-    `Received on ${day.format(new Date(p.receivedAtMs))}; the business's zone is ${p.tz}.`,
-    `Subject: ${p.subject ?? "(none)"}`,
-    "",
-    p.text.slice(0, NOTICE_TEXT_MAX)
-  ].join("\n");
-  return { system, user };
-}
-var NOTICE_HOLDS = [
-  "no_model",
-  "may_not_spend",
-  "unreadable",
-  "not_a_booking",
-  "no_time",
-  "no_client",
-  // The provider no longer had the email when the read ran: nothing could be read, and the delivery is still on the ledger.
-  "gone"
-];
-var isNoticeHold = (v) => NOTICE_HOLDS.includes(v);
-var NOTICE_DEFAULT_LENGTH_MS = HOUR_MS;
-var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
-var E1642 = /^\+[1-9][0-9]{6,14}$/;
-var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
-var NOTICE_FIELD_MAX = 200;
-var NOTICE_NOTE_MAX = 1e3;
-function localMs(tz, v) {
-  if (typeof v !== "string") return null;
-  const m = LOCAL_TIME.exec(v.trim());
-  if (!m) return null;
-  const part = (i) => Number(m[i]);
-  const y = part(1);
-  const mo = part(2);
-  const d = part(3);
-  const hh = part(4);
-  const mm = part(5);
-  if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
-  const day = new Date(Date.UTC(y, mo - 1, d));
-  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
-  const ms2 = localToUtcMs(tz, y, mo, d, hh, mm);
-  return Number.isFinite(ms2) ? ms2 : null;
-}
-function trimmedText(v, max) {
-  if (typeof v !== "string") return null;
-  const t = v.replace(/\s+/g, " ").trim();
-  return t ? t.slice(0, max) : null;
-}
-function noticeAnswerOf(answer, tz, nowMs) {
-  if (!answer || typeof answer !== "object" || Array.isArray(answer)) return { reading: null, hold: "unreadable" };
-  const a = answer;
-  const kind = a.kind;
-  if (kind === "other") return { reading: null, hold: "not_a_booking" };
-  if (kind !== "booked" && kind !== "changed" && kind !== "cancelled") return { reading: null, hold: "unreadable" };
-  const start = localMs(tz, a.starts_at);
-  if (start === null || Math.abs(start - nowMs) > NOTICE_TIME_REACH_MS) return { reading: null, hold: "no_time" };
-  const endRead = localMs(tz, a.ends_at);
-  const end = endRead !== null && endRead > start && endRead - start <= NOTICE_LENGTH_MAX_MS ? endRead : start + NOTICE_DEFAULT_LENGTH_MS;
-  const phone = normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null);
-  const client = {
-    name: trimmedText(a.client_name, NOTICE_FIELD_MAX),
-    phone: phone && E1642.test(phone) ? phone : null,
-    email: normalizeEmail(typeof a.client_email === "string" ? a.client_email : null)
-  };
-  if (!client.name && !client.phone && !client.email) return { reading: null, hold: "no_client" };
-  const previous = kind === "changed" ? localMs(tz, a.previous_starts_at) : null;
-  return {
-    reading: {
-      kind,
-      client,
-      service: trimmedText(a.service, NOTICE_FIELD_MAX),
-      staff: trimmedText(a.staff, NOTICE_FIELD_MAX),
-      start,
-      end,
-      previousStart: previous !== null && Math.abs(previous - nowMs) <= NOTICE_TIME_REACH_MS ? previous : null,
-      price: trimmedText(a.price, NOTICE_FIELD_MAX),
-      note: trimmedText(a.note, NOTICE_NOTE_MAX)
-    },
-    hold: null
-  };
-}
-function clientKeyOf(client) {
-  if (client.phone) return client.phone;
-  if (client.email) return client.email.toLowerCase();
-  return (client.name ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-function appointmentKey(tool, client, startMs) {
-  return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
-}
-var SAME_VISIT_MS = 15 * MIN_MS;
-function bookingToolOptions() {
-  return BOOKING_TOOLS.map((t) => ({ value: t.tool, label: t.name }));
-}
-var BOOKING_TOOL_STEPS = {
-  acuity: {
-    way: "recipient",
-    steps: [
-      "In Acuity, open the calendar your appointments land on, then Calendar notifications.",
-      "Under \u201CSend booking notifications to\u201D, add the address above beside your own."
-    ]
-  },
-  fresha: {
-    way: "recipient",
-    steps: [
-      "In Fresha, open Settings \u203A Scheduling \u203A Online bookings \u203A Notifications, then Edit.",
-      "Add the address above to the emails that get booked, rescheduled and cancelled bookings."
-    ]
-  },
-  booksy: {
-    way: "forward",
-    steps: [
-      "Open the inbox your Booksy account emails: its booking emails arrive there.",
-      "Make a filter for mail from no-reply@booksy.com that forwards to the address above."
-    ]
-  },
-  square: {
-    way: "forward",
-    steps: [
-      "In Square, under Team members \u203A your name \u203A Booking notifications, keep email on.",
-      "In that inbox, make a filter for Square's booking emails that forwards to the address above."
-    ]
-  },
-  vagaro: {
-    way: "forward",
-    steps: [
-      "In Vagaro, under Settings \u203A Booking \u203A Email & Text Notifications, keep employee email notifications on.",
-      "In that inbox, make a filter for mail from vagaro.com that forwards to the address above."
-    ]
-  },
-  glossgenius: {
-    way: "forward",
-    steps: [
-      "In GlossGenius, under your personal notifications, keep booking emails on (they go to whoever is booked).",
-      "In that inbox, make a filter for mail from glossgenius.com that forwards to the address above."
-    ]
-  },
-  calendly: {
-    way: "forward",
-    steps: [
-      "Open the inbox Calendly emails your bookings to (each host gets their own).",
-      "Make a filter for mail from calendly.com that forwards to the address above."
-    ]
-  },
-  setmore: {
-    way: "forward",
-    steps: ["In the inbox Setmore emails, make a filter for mail from setmore.com that forwards to the address above."]
-  },
-  mindbody: {
-    way: "forward",
-    steps: [
-      "In the inbox Mindbody emails, make a filter for mail from mindbodyonline.com that forwards to the address above."
-    ]
-  },
-  simplybook: {
-    way: "forward",
-    steps: [
-      "In the inbox SimplyBook emails, make a filter for mail from simplybook.me that forwards to the address above."
-    ]
-  },
-  schedulicity: {
-    way: "forward",
-    steps: [
-      "In the inbox Schedulicity emails, make a filter for mail from schedulicity.com that forwards to the address above."
-    ]
-  },
-  styleseat: {
-    way: "forward",
-    steps: [
-      "In the inbox StyleSeat emails, make a filter for mail from styleseat.com that forwards to the address above."
-    ]
-  }
-};
-var GMAIL_FORWARD_NOTE = "If that inbox is Gmail, it asks once to confirm the forward: the code and a one-press confirm appear here.";
-var BOOKING_TRY_NOTE = "To try it now, forward any past booking email to the address above, from the email you sign in with.";
-var NOTICE_HOLD_WORDS = {
-  no_model: "The reader was unavailable. Press Read again.",
-  may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
-  unreadable: "It could not be read as a booking.",
-  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
-  not_a_booking: "It is from your booking tool, but not about one booking.",
-  no_time: "No appointment time could be read from it.",
-  no_client: "No client could be read from it.",
-  gone: "The email was gone before it could be read."
-};
-var GMAIL_FORWARDING_SENDER = /^forwarding-noreply@google\.com$/i;
-function forwardingConfirmationOf(e) {
-  if (!e.from || !GMAIL_FORWARDING_SENDER.test(e.from.address.trim())) return null;
-  const subject = e.subject ?? "";
-  if (!/forwarding confirmation/i.test(subject)) return null;
-  const text = e.text ?? "";
-  const code2 = /\(#(\d{5,12})\)/.exec(subject)?.[1] ?? /confirmation code:\s*(\d{5,12})/i.exec(text)?.[1] ?? null;
-  const account = /receive mail from\s+([^\s<>]+@[^\s<>]+)/i.exec(subject)?.[1] ?? /([^\s<>]+@[^\s<>]+)\s+has requested to automatically forward/i.exec(text)?.[1] ?? null;
-  if (!code2 || !account) return null;
-  const link = /https:\/\/[a-z0-9.-]*\.google\.com\/mail\/vf-[^\s<>")]+/i.exec(text)?.[0] ?? null;
-  return { account: account.toLowerCase(), code: code2, link };
-}
-
-// src/calendar/day-keys.ts
-var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-var DAY_SHORT = {
-  mon: "Mon",
-  tue: "Tue",
-  wed: "Wed",
-  thu: "Thu",
-  fri: "Fri",
-  sat: "Sat",
-  sun: "Sun"
-};
-function keyParts(key) {
-  const [y, m, d] = key.split("-").map(Number);
-  return { y, m: m ?? 1, d: d ?? 1 };
-}
-function shiftKey(key, n) {
-  const { y, m, d } = keyParts(key);
-  const at3 = new Date(Date.UTC(y, m - 1, d + n));
-  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-${String(at3.getUTCDate()).padStart(2, "0")}`;
-}
-function mondayOf(key) {
-  const { y, m, d } = keyParts(key);
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return shiftKey(key, -((dow + 6) % 7));
-}
-function isDayKey(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
-}
-function monthSpan(key) {
-  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
-}
-function shiftMonth(key, n) {
-  const { y, m } = keyParts(key);
-  const at3 = new Date(Date.UTC(y, m - 1 + n, 1));
-  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-01`;
-}
-function monthLabelOf(key) {
-  const { y, m } = keyParts(key);
-  return dateFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
-    new Date(Date.UTC(y, m - 1, 1, 12))
-  );
-}
-function zoneMidnight(tz, key) {
-  const { y, m, d } = keyParts(key);
-  return localToUtcMs(tz, y, m, d, 0, 0);
 }
 
 // src/calendar/appointment-item.ts
@@ -11779,147 +12280,6 @@ function daysWithAppointments(days, rows, tz, people) {
   });
 }
 
-// src/calendar/availability.ts
-var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
-function hhmm(s) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
-  return m ? [Number(m[1]), Number(m[2])] : null;
-}
-function dayIntervals(h) {
-  const raw = [];
-  if (h?.open && h?.close) raw.push([h.open, h.close]);
-  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
-  const usable = raw.filter(([o, c]) => c > o).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
-  const merged = [];
-  for (const [o, c] of usable) {
-    const last = merged[merged.length - 1];
-    if (last && o <= last[1]) {
-      if (c > last[1]) last[1] = c;
-    } else {
-      merged.push([o, c]);
-    }
-  }
-  return merged;
-}
-function closedOn(closures, key) {
-  return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
-}
-var minutesOf = (s) => {
-  const t = hhmm(s);
-  return t ? t[0] * 60 + t[1] : null;
-};
-function openAt(hours, closures, dateKey, minute) {
-  if (closedOn(closures, dateKey)) return false;
-  const { y, m, d } = keyParts(dateKey);
-  const weekday = WEEKDAY_KEYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
-  if (!weekday) return false;
-  return dayIntervals(hours?.[weekday]).some(([o, c]) => {
-    const from = minutesOf(o);
-    const to = minutesOf(c);
-    return from !== null && to !== null && from <= minute && minute < to;
-  });
-}
-function hasHours(hours) {
-  return DAYS.some((d) => dayIntervals(hours?.[d]).length > 0);
-}
-function onTheGrid(tz, atMs, slotMin) {
-  const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
-  const c = clockInZone(tz, atMs);
-  const into = (c.mm % grid * 60 + c.ss) * 1e3 + (atMs % 1e3 + 1e3) % 1e3;
-  return into === 0 ? atMs : atMs - into + grid * 6e4;
-}
-function freeWindows(input) {
-  const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
-  const leadMs = rules.lead_hours * 36e5;
-  const bufferMs = rules.buffer_min * 6e4;
-  const slotMs = rules.slot_min * 6e4;
-  const earliest2 = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
-  const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
-  const out = [];
-  for (let offset = 0; offset < rules.max_days_ahead; offset++) {
-    const day = dayPlusInZone(input.tz, input.now.getTime(), offset);
-    if (closedOn(input.closures, day.key)) continue;
-    const ranges = dayIntervals(input.hours?.[day.weekday]);
-    const windows = [];
-    for (const [open, close] of ranges) {
-      const o = hhmm(open), c = hhmm(close);
-      if (!o || !c) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest2);
-      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
-      for (const b of busy) {
-        if (b.end <= start) continue;
-        if (b.start >= end) break;
-        if (b.start > start && b.start - start >= slotMs) windows.push({ start, end: b.start });
-        start = Math.max(start, b.end);
-      }
-      if (end - start >= slotMs) windows.push({ start, end });
-    }
-    if (windows.length) {
-      out.push({
-        key: day.key,
-        weekday: day.weekday,
-        // Noon on that local day: an instant the day owns whichever way the
-        // clock moved, where midnight on a spring-forward day may not exist
-        // and 1 AM on an autumn one happens twice.
-        label: dateFormat("en-US", {
-          timeZone: input.tz,
-          weekday: "long",
-          month: "long",
-          day: "numeric"
-        }).format(new Date(localToUtcMs(input.tz, day.y, day.m, day.d, 12, 0))),
-        windows
-      });
-    }
-  }
-  return out;
-}
-var DAY_NAMES2 = {
-  mon: "mon",
-  monday: "mon",
-  tue: "tue",
-  tues: "tue",
-  tuesday: "tue",
-  wed: "wed",
-  wednesday: "wed",
-  thu: "thu",
-  thur: "thu",
-  thurs: "thu",
-  thursday: "thu",
-  fri: "fri",
-  friday: "fri",
-  sat: "sat",
-  saturday: "sat",
-  sun: "sun",
-  sunday: "sun"
-};
-function filterOpenings(openings, by) {
-  const day = (by.day ?? "").trim().toLowerCase();
-  const weekday = day ? DAY_NAMES2[day] : void 0;
-  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : void 0;
-  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 6e4 : 0;
-  const picked = openings.filter((o) => key ? o.key === key : weekday ? o.weekday === weekday : true);
-  const first = weekday && !key ? picked.slice(0, 1) : picked;
-  return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
-}
-function span(tz, start, end) {
-  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
-  return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
-}
-function describeOpenings(openings, tz, opts) {
-  const maxDays = opts.maxDays ?? 5;
-  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
-  const hasLink = opts.hasBookingLink;
-  const held = hasLink && opts.bookingHeld === true;
-  if (!openings.length) {
-    const instead = held ? "Offer to have a member of the team call or text them when a slot frees up, and take their name. This business confirms its own bookings: never send or promise the booking link." : `Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
-  }
-  const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
-  return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
-${lines.join("\n")}
-` + (held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
-}
-
 // src/calendar/service-offer.ts
 var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 function sameListed(a, b) {
@@ -11998,136 +12358,6 @@ function offerLead(offer) {
   return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
 }
 
-// src/config/workspace-config/prompt-hours.ts
-var DAY_LABEL = DAY_NAMES;
-function dayIntervals2(h) {
-  return dayIntervals(h).map(([open, close]) => ({ open, close }));
-}
-function joinList(parts2) {
-  if (parts2.length < 3) return parts2.join(" and ");
-  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-function dayText(h) {
-  const spans = dayIntervals2(h);
-  if (spans.length) {
-    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
-    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
-    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
-  }
-  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
-  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
-}
-function hoursRuns(hours) {
-  if (!hours) return [];
-  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
-  const out = [];
-  let i = 0;
-  while (i < spans.length) {
-    let j = i;
-    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
-    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
-    i = j + 1;
-  }
-  return out;
-}
-function hoursLines(hours) {
-  return hoursRuns(hours).map((r2) => {
-    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
-    return `${label}: ${r2.text}`;
-  });
-}
-
-// src/calendar/calendar-words.ts
-function clockLabel(t) {
-  const h = Math.floor(t);
-  const m = Math.round((t - h) * 60);
-  const ap = h >= 12 && h < 24 ? "PM" : "AM";
-  const hh = (h + 11) % 12 + 1;
-  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
-}
-var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
-var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
-function shortDate(key) {
-  const { y, m, d } = keyParts(key);
-  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function longDate(key) {
-  const { y, m, d } = keyParts(key);
-  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function closureDatesLabel(c) {
-  if (!(c.until && c.until > c.date)) return shortDate(c.date);
-  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
-}
-function closuresFrom(closures, todayKey) {
-  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
-}
-function readAgoLabel(iso, now) {
-  if (!iso) return null;
-  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
-}
-function ruleParts(rules) {
-  const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
-  const parts2 = [`at least ${r2.lead_hours}h notice`];
-  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
-  parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
-  if (rules?.party_max)
-    parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
-  return parts2;
-}
-function rulesLine(rules) {
-  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
-}
-function feedNotes(feed) {
-  if (feed.state !== "ok") return [];
-  const notes = [];
-  const repeats = feed.skipped_recurring || 0;
-  if (repeats > 0) {
-    const one = repeats === 1;
-    notes.push({
-      id: "repeats",
-      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
-      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`
-    });
-  }
-  const undrawn = feed.dropped || 0;
-  if (undrawn > 0) {
-    const one = undrawn === 1;
-    notes.push({
-      id: "undrawn",
-      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
-      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`
-    });
-  }
-  return notes;
-}
-function hoursLines2(hours) {
-  if (!hours) return [];
-  const clean3 = {};
-  for (const d of DAYS) if (hours[d]) clean3[d] = hours[d];
-  return hoursRuns(clean3).map(
-    (r2) => `${DAY_SHORT[r2.from] ?? r2.from}${r2.to !== r2.from ? `\u2013${DAY_SHORT[r2.to] ?? r2.to}` : ""} ${dayHoursWords(clean3[r2.from])}`
-  );
-}
-function dayHoursWords(h) {
-  const at3 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
-  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at3(o), at3(c)));
-  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
-  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-var CALENDAR_FEED_WORDS = {
-  ok: "Readable",
-  stale: "Last good read",
-  unavailable: "Could not be read",
-  none: "Not connected"
-};
-function spanLabel2(t1, t2) {
-  const a = clockLabel(t1);
-  const b = clockLabel(t2);
-  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
-  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
-}
-
 // src/calendar/calendar.ts
 function hoursOf(tz, ms2) {
   const c = clockInZone(tz, ms2);
@@ -12166,7 +12396,6 @@ function feedLineOf(state, feedDetail, noticesLine) {
   if (state === "unavailable") return `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}`;
   return noticesLine || "No calendar connected";
 }
-var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
 function noticesVM(n, now) {
   const tool = n?.tool ? bookingToolName(n.tool) : null;
   const lastAgo = readAgoLabel(n?.last_at ?? null, now);
@@ -12181,22 +12410,40 @@ function noticesVM(n, now) {
     receivedAgo: readAgoLabel(h.received_at, now),
     reason: NOTICE_HOLD_WORDS[h.reason]
   }));
-  const asked = n?.forwarding ? now.getTime() - Date.parse(n.forwarding.at) : Number.NaN;
-  const forwarding = n?.forwarding && asked <= FORWARD_CONFIRM_SHOWN_MS ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link } : null;
+  const forwarding = n?.forwarding && forwardStillAsked(n.forwarding.at, now) ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link } : null;
   const address = n?.address ?? null;
-  const row2 = noticeRowOf({ state, address, forwarding: !!forwarding, lastAgo, held });
-  return { tool, address, lastAgo, count: n?.count ?? 0, held, line, state, heldList, forwarding, row: row2 };
+  const row2 = state === "none" ? null : noticeRowOf(emailsFactsOf(n, !!forwarding), lastAgo);
+  const suggested = address ? null : n?.suggested ?? null;
+  return { tool, address, suggested, lastAgo, count: n?.count ?? 0, held, line, state, heldList, forwarding, row: row2 };
 }
-function noticeRowOf(s) {
-  if (s.state === "none") return null;
+var emailsFactsOf = (n, forwarding) => ({
+  address: !!n?.address,
+  forwarding,
+  lastAt: n?.last_at ?? null,
+  held: n?.held ?? 0
+});
+function noticeRowOf(e, lastAgo) {
   const needsYou = (words2) => ({ tone: "warn", label: "Needs you", words: words2 });
-  if (!s.address) return needsYou("Needs a workspace email address");
-  if (s.forwarding) return needsYou("Confirm the forward in Gmail");
-  if (s.state === "waiting")
-    return s.held ? needsYou(`${s.held} booking ${s.held === 1 ? "email" : "emails"} to look at`) : { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
-  const last = `Last booking email ${s.lastAgo ?? "just now"}`;
-  return s.held ? needsYou(`${last} \xB7 ${s.held} to look at`) : { tone: "ok", label: "Working", words: last };
+  const last = `Last booking email ${lastAgo ?? "just now"}`;
+  const step2 = bookingEmailsStep(e);
+  if (step2 === "address") return needsYou("Needs a workspace email address");
+  if (step2 === "forwarding") return needsYou("Confirm the forward in Gmail");
+  if (step2 === "held")
+    return needsYou(
+      e.lastAt ? `${last} \xB7 ${e.held} to look at` : `${e.held} booking ${e.held === 1 ? "email" : "emails"} to look at`
+    );
+  if (step2 === "waiting") return { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
+  return { tone: "ok", label: "Working", words: last };
 }
+var feedReadWords = (state, ago3) => state === "ok" ? `read ${ago3 ?? "just now"}` : state === "unavailable" && ago3 ? `last read ${ago3}` : "";
+var sourceOfWeek = (dto, link, forwarding) => calendarSourceOf({
+  link,
+  problem: dto.feed.problem ?? null,
+  tool: dto.feed.notices?.tool ?? null,
+  byHand: !!dto.feed.by_hand,
+  emails: dto.feed.notices ? emailsFactsOf(dto.feed.notices, forwarding) : null,
+  bookingLink: !!dto.booking_link
+});
 function toBlock(item, tz, dayStartMs, dayEndMs, now) {
   const s = Math.max(Date.parse(item.start), dayStartMs);
   const e = Math.min(Date.parse(item.end), dayEndMs);
@@ -12356,8 +12603,9 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago3 ? `last read ${ago3}` : ""].filter(Boolean).join(" \xB7 ") : "";
   const notices = noticesVM(dto.feed.notices, now);
   const feedLine = feedLineOf(dto.feed.state, feedDetail, notices.line);
-  const feedRead = dto.feed.state === "ok" ? `read ${ago3 ?? "just now"}` : dto.feed.state === "unavailable" && ago3 ? `last read ${ago3}` : "";
+  const feedRead = feedReadWords(dto.feed.state, ago3);
   const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
+  const source = sourceOfWeek(dto, feedHealth, !!notices.forwarding);
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
@@ -12398,6 +12646,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
       notes: feedNotes(dto.feed),
       notices
     },
+    source,
     stats: { events, windows: windowCount, next },
     offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
     rules: rulesLine(dto.rules),
@@ -13427,7 +13676,7 @@ function abilityRows(i) {
       // says what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed ? linkGoes ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
-      runsOn: { label: "The calendar it reads", row: "calendar" },
+      runsOn: { label: "Your calendar link", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
       missing: !i.hasCalendarFeed
     },
@@ -13493,7 +13742,7 @@ var CANNOT_ROWS = [
   {
     id: "book",
     title: "Book, move or cancel an appointment",
-    detail: "Not a setting you could switch on. There is no appointments table in this product \u2014 nothing in it can create, move or cancel one. Your booking link does that, whichever tool is behind it."
+    detail: "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it."
   },
   {
     id: "outbound_call",
@@ -13509,7 +13758,7 @@ var CANNOT_ROWS = [
   }
 ];
 var CANNOT_NO_LINK = {
-  book: "Not a setting you could switch on. There is no appointments table in this product \u2014 nothing in it can create, move or cancel one. Your team does that, from the details it takes.",
+  book: "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment. Your team does that, from the details it takes.",
   sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when."
 };
 function cannotRows(i) {
@@ -14899,7 +15148,7 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
     chip: "It cannot anyway",
-    sentence: "There is no appointments table in this product; nothing in it can create, move or cancel one. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
+    sentence: "Nothing in this product can create, move or cancel an appointment. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
     checkedOn: null
   },
   never_quote_prices: {
@@ -17920,7 +18169,7 @@ function bookedTileOf(booking) {
   return {
     ...tile,
     value: "\u2014",
-    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar to read"
+    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar link"
   };
 }
 
@@ -21913,10 +22162,12 @@ function codeNotes(codes, nowMs) {
   const said = codes.filter((c) => !Number.isNaN(Date.parse(c.at)));
   if (said.length === 0) return [];
   return [
+    // What the owner is waiting for: on the row, never behind a press (ConnectionNote.live).
     ...said.map((c) => ({
-      text: `${c.from ? `Code from ${c.from}` : "A code"}: ${c.code} \xB7 ${agoWords(Date.parse(c.at), nowMs)}`
+      text: `${c.from ? `Code from ${c.from}` : "A code"}: ${c.code} \xB7 ${agoWords(Date.parse(c.at), nowMs)}`,
+      live: true
     })),
-    { text: FOOT }
+    { text: FOOT, live: true }
   ];
 }
 
@@ -22166,7 +22417,7 @@ function standingNotes(s, o) {
   if (!s) return [];
   const out = [];
   const name = nameWords(s.name_status, s.name);
-  if (name) out.push({ text: name });
+  if (name) out.push({ text: name, live: true });
   const verification = verificationNote(s, o.limitSaid);
   if (verification) out.push(verification);
   return out;
@@ -29041,7 +29292,7 @@ var SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
 var SIGNUP_LEFT_OPEN_NOTE = "A WhatsApp sign-up was started here and did not come back to Chanlytics \u2014 if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.";
 function signupLeftOpenNotes(startedAt, nowMs) {
   const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
-  return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE }] : [];
+  return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
 function tryItNotes(wa) {
   const digits2 = waMeDigits(wa.number);
@@ -29261,37 +29512,30 @@ function googleListingRow(i, { connection: c, listing: l, nowMs }) {
   };
 }
 function calendarRow(i) {
-  const cal = i.calendar?.state ?? "none";
-  const base = { kind: "calendar", icon: "calendar", title: "Calendar" };
-  if (cal === "ok") {
-    return {
-      ...base,
-      detail: "iCal feed",
-      state: "connected",
-      stateWords: CALENDAR_FEED_WORDS.ok,
-      sentence: "The receptionist offers times from it. Booking emails from your tool add the client and the service.",
-      verb: { label: "Open Calendar", to: "calendar", who: "operator" }
-    };
-  }
-  if (cal === "unavailable") {
-    return {
-      ...base,
-      detail: "iCal feed",
-      state: "attention",
-      stateWords: CALENDAR_FEED_WORDS.unavailable,
-      sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.",
-      verb: { label: "Check the address", to: "admin/workspace", who: "owner" }
-    };
-  }
+  const s = calendarSourceOf(calendarSourceFacts(i.calendar ?? { state: "none" }));
+  const tool = bookingToolName(i.calendar?.tool);
+  const DETAIL2 = { both: `${tool} \xB7 calendar link`, link: "Calendar link", emails: tool, hand: null, nothing: null };
+  const detail = DETAIL2[s.by];
   return {
-    ...base,
-    detail: null,
-    state: "none",
-    stateWords: CALENDAR_FEED_WORDS.none,
-    sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Booking emails from your tool can fill the board too.",
-    verb: { label: "Paste the address", to: "admin/workspace", who: "owner" }
+    kind: "calendar",
+    icon: "calendar",
+    title: "Calendar",
+    detail,
+    state: CONNECTION_STATE_OF[s.state],
+    stateWords: s.words,
+    sentence: s.sentence,
+    // Opening the board is anyone's who may read it; the row in Settings is the owner's to change.
+    verb: { ...s.next, who: s.next.to === "calendar" ? "operator" : "owner" }
   };
 }
+var CONNECTION_STATE_OF = {
+  ready: "connected",
+  attention: "attention",
+  needs_you: "waiting_you",
+  waiting: "waiting_them",
+  hand: "none",
+  none: "none"
+};
 function instagramRow() {
   return {
     kind: "instagram",
@@ -30007,34 +30251,26 @@ function emailRow2(i, ctx) {
     verb: { label: "Choose the address", to: "admin/integrations" }
   };
 }
+var SETUP_STATE_OF = {
+  ready: "ready",
+  attention: "waiting_you",
+  needs_you: "waiting_you",
+  waiting: "waiting_them",
+  hand: "ready",
+  none: "not_started"
+};
 function calendarRow2(i) {
-  return i.calendar.state === "ok" ? {
+  const s = calendarSourceOf(calendarSourceFacts({ booking_link: i.business.bookingLink, ...i.calendar }));
+  return {
     id: "calendar",
     icon: "calendar",
     title: "Calendar",
-    state: "ready",
+    state: SETUP_STATE_OF[s.state],
+    ...s.state === "waiting" || s.state === "hand" ? { stateWords: s.words } : {},
     required: false,
-    sentence: `${CALENDAR_FEED_WORDS.ok} \u2014 the receptionist offers times from it.`,
+    sentence: s.sentence,
     details: [],
-    verb: { label: "Open Calendar", to: "calendar" }
-  } : i.calendar.state === "unavailable" ? {
-    id: "calendar",
-    icon: "calendar",
-    title: "Calendar",
-    state: "waiting_you",
-    required: false,
-    sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings \u203A Business.`,
-    details: [],
-    verb: { label: "Check the address", to: "admin/workspace" }
-  } : {
-    id: "calendar",
-    icon: "calendar",
-    title: "Calendar",
-    state: "not_started",
-    required: false,
-    sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.",
-    details: [],
-    verb: { label: "Paste the address", to: "admin/workspace" }
+    verb: s.next
   };
 }
 function teamRow(i) {
@@ -31845,7 +32081,15 @@ function todayQuietDay(f, proof) {
     } : null
   };
 }
-function todayHeadline(f, alert, needsRows) {
+function todayAlsoWaiting(w) {
+  const { windows = 0, calls, searches } = w;
+  return [
+    windows ? windows === 1 ? "One reply window is closing." : `${windows} reply windows are closing.` : "",
+    calls ? calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.` : "",
+    searches ? searches === 1 ? "A search is waiting on your answer." : `${searches} searches are waiting on your answer.` : ""
+  ].filter(Boolean);
+}
+function todayHeadline(f, alert, needsRows, also) {
   const { needsYouCount, oldest } = f;
   if (alert) return { headline: "Check your connection before anything else.", detail: null, tone: "alert" };
   if (needsYouCount > 1) {
@@ -31863,9 +32107,9 @@ function todayHeadline(f, alert, needsRows) {
       tone: "needs"
     };
   }
-  return calmHeadline(f);
+  return calmHeadline(f, also);
 }
-function calmHeadline({ period, speed }) {
+function calmHeadline({ period, speed }, also) {
   const bits2 = [];
   if (period.messages_in) {
     bits2.push(
@@ -31874,8 +32118,9 @@ function calmHeadline({ period, speed }) {
   }
   if (period.calls) bits2.push(`${period.calls} call${period.calls === 1 ? "" : "s"}`);
   const allByReceptionist = period.unanswered_in_window === 0 && period.messages_out_you === 0;
-  const headline = bits2.length ? allByReceptionist ? `The receptionist handled everything \u2014 ${bits2.join(" and ")} today. Nothing needs you.` : `${bits2.join(" and ")} today. Nothing needs you right now.` : "Nothing needs you.";
-  const detail = speed !== null && period.messages_in > 0 ? `It answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.` : null;
+  const headline = also.length ? [...also, ...bits2.length ? [`${bits2.join(" and ")} today.`] : []].join(" ") : bits2.length ? allByReceptionist ? `The receptionist handled everything \u2014 ${bits2.join(" and ")} today. Nothing needs you.` : `${bits2.join(" and ")} today. Nothing needs you right now.` : "Nothing needs you.";
+  const named = !also.length && bits2.length > 0 && allByReceptionist;
+  const detail = speed !== null && period.messages_in > 0 ? `${named ? "It" : "The receptionist"} answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.` : null;
   return { headline, detail, tone: "calm" };
 }
 function todaySentences(f, tone, alert) {
@@ -32557,7 +32802,9 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const noReply = todayNoReply(f);
   const facts = todayAskFacts(f);
   const empty = todayQueueEmpty(f);
-  if (f.traffic === 0 && f.needsYouCount === 0 && !alert) {
+  const callRows = todayCallRows(f);
+  const queue = todayQueue(f, callRows, empty);
+  if (f.traffic === 0 && f.needsYouCount === 0 && !alert && queue.rows.length === 0) {
     const failed = todaySendFailure(f);
     return {
       standing: {
@@ -32588,8 +32835,12 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     };
   }
   const needsYou = todayNeedsYou(f);
-  const { headline, detail, tone } = todayHeadline(f, alert, needsYou.rows);
-  const callRows = todayCallRows(f);
+  const { headline, detail, tone } = todayHeadline(
+    f,
+    alert,
+    needsYou.rows,
+    todayAlsoWaiting({ windows: f.closingConvs.length, calls: queue.calls, searches: queue.searches })
+  );
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
     standing: { chips, lines, alert, headline, detail, tone },
@@ -32609,7 +32860,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     noReply,
     callsRead: f.callsRead,
     calls: todayCalls(f, callRows),
-    queue: todayQueue(f, callRows, empty),
+    queue,
     quiet: null
   };
 }
@@ -32645,13 +32896,7 @@ function needsSentences(vm) {
       if (detail) out.push([plain(detail)]);
     }
   }
-  if (calls) out.push([plain(calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.`)]);
-  if (searches)
-    out.push([
-      plain(
-        searches === 1 ? "A search is waiting on your answer." : `${searches} searches are waiting on your answer.`
-      )
-    ]);
+  for (const sentence2 of todayAlsoWaiting({ calls, searches })) out.push([plain(sentence2)]);
   return out;
 }
 var withWhom = (b) => b.person ? [bold(b.person.name), ...b.service ? [plain(` (${b.service})`)] : []] : [plain(b.service || b.title)];
@@ -32689,8 +32934,17 @@ var runSentence = (r2) => [
 ];
 function todayBriefWords(vm, day, runs) {
   const dayWords3 = daySentence(day);
-  const sentences = [...needsSentences(vm), ...dayWords3 ? [dayWords3] : [], ...cameIn(vm), ...runs.map(runSentence)];
-  return { sentences, text: sentences.map((s) => s.map((x) => x.text).join("")).join(" ") };
+  const needs2 = needsSentences(vm);
+  const caught = !needs2.length && !runs.length && vm.queue.empty.tone === "ok";
+  const sentences = [
+    ...needs2,
+    ...caught ? [[plain("You're all caught up.")]] : [],
+    ...dayWords3 ? [dayWords3] : [],
+    ...cameIn(vm),
+    ...runs.map(runSentence)
+  ];
+  const also = (vm.recap ? vm.recap.sentences : []).filter((s) => !s.traffic).map((s) => s.text);
+  return { sentences, text: [...sentences.map((s) => s.map((x) => x.text).join("")), ...also].join(" ") };
 }
 
 // src/today/today-day.ts
@@ -34790,14 +35044,19 @@ export {
   BILLING_STATUSES,
   BILLING_TEST_MODE_CLAUSE,
   BILLING_TRIAL_DAYS,
+  BOOKED_NEEDS_A_LINK,
   BOOKED_SEEN_CAP,
   BOOKING_DEFAULTS,
   BOOKING_LINK_NEEDED,
   BOOKING_PLATFORM_HOSTS,
+  BOOKING_PLATFORM_TOOLS,
   BOOKING_RULE_HINTS,
   BOOKING_TOOL_IDS,
   BOOKING_TOOL_STEPS,
+  BOOKING_TOOL_WORDS,
   BOOKING_TRY_NOTE,
+  BOOKS_BY_HAND,
+  BOOKS_WITH_CALENDAR,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
@@ -34820,6 +35079,7 @@ export {
   BUSINESS_INDUSTRIES,
   BUSINESS_TYPES,
   CALENDAR_FEED_WORDS,
+  CALENDAR_SETTING_ROUTE,
   CALL_ACTIVITY_NAME,
   CALL_ACTIVITY_ROLES,
   CALL_ACTIVITY_STALE_MS,
@@ -35572,6 +35832,8 @@ export {
   bookedAfterAsk,
   bookedSeenOf,
   bookedTileOf,
+  bookingEmailsHeldWords,
+  bookingEmailsStep,
   bookingHeld,
   bookingLinkAction,
   bookingLinkOptional,
@@ -35583,9 +35845,14 @@ export {
   bookingRuleRefusal,
   bookingRulesWords,
   bookingTemplate,
+  bookingToolCalendar,
   bookingToolName,
   bookingToolOfAddress,
+  bookingToolOfLink,
   bookingToolOptions,
+  booksWithName,
+  booksWithOf,
+  booksWithOptions,
   brainMetaOf,
   breathEndsAt,
   breathHolds,
@@ -35607,8 +35874,12 @@ export {
   businessTypeOf,
   busyOfAppointments,
   cacheHitOf,
+  calendarLinkNote,
+  calendarLinkShown,
   calendarOwnerOf,
   calendarPeekDeal,
+  calendarSourceFacts,
+  calendarSourceOf,
   callActivityPropsOf,
   callActivityStart,
   callAttemptWords,
@@ -35865,6 +36136,7 @@ export {
   forWords,
   formatPhoneDisplay,
   formatWaited,
+  forwardStillAsked,
   forwardedLineOf,
   forwardingCarrierOf,
   forwardingCodes,

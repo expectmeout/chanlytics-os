@@ -78,7 +78,7 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
     strength: "structural",
     chip: "It cannot anyway",
     sentence:
-      "There is no appointments table in this product; nothing in it can create, move or cancel one. Switching this off would not let it book — it would only stop it being told not to claim it had.",
+      "Nothing in this product can create, move or cancel an appointment. Switching this off would not let it book — it would only stop it being told not to claim it had.",
     checkedOn: null,
   },
   never_quote_prices: {
@@ -170,8 +170,9 @@ export const RULES_AT_REST_WORDS: Record<GuardrailKey, string> = {
 /**
  * The structural rule where nothing tells it not to claim: what it CANNOT do, rather than what it will not say.
  *
- * There is no appointments table in this product, so a booking is beyond it whatever it reads. The switch decides only
- * whether it is told not to claim it had -- so with that line gone (switched off, or a record whose details compose
+ * Nothing in this product can create, move or cancel an appointment (its record keeps only what a booking tool
+ * reports), so a booking is beyond it whatever it reads. The switch decides only whether it is told not to claim it
+ * had -- so with that line gone (switched off, or a record whose details compose
  * nothing) the row says the part that still holds and drops the part that does not.
  */
 const CANNOT_BOOK_WORDS = "Cannot book anything";

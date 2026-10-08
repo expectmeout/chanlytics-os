@@ -63,12 +63,31 @@ export const SET_TABS_PLATFORM: readonly SetTab[] = [
 export const isPlatformAdmin = (): boolean =>
   !!(Reflect.get(window, "__ME") as { platform_admin?: boolean } | null | undefined)?.platform_admin;
 
+/** The section an address under Settings names: what stands before a row it may name (`workspace/calendar` is `workspace`). */
+const sectionOf = (id: string): string => (id.includes("/") ? id.slice(0, id.indexOf("/")) : id);
+
+/**
+ * The Business row an address names after its section, or null: `workspace/calendar` names the row `calendar`
+ * (contracts CALENDAR_SETTING_ROUTE). A door on another page that says "Check the link" or "Look at them" lands on the
+ * row it means, open, where it landed at the top of the tab with the row a screen down (7 Oct 2026). Business alone has
+ * rows; an address that names one anywhere else names none.
+ */
+export const settingsRowOf = (param: string | null | undefined): string | null => {
+  const p = param || "";
+  if (sectionOf(p) !== "workspace" || !p.includes("/")) return null;
+  return p.slice(p.indexOf("/") + 1).split("/")[0] || null;
+};
+
 /** The pane a route's tab opens: a listed tab, the back office for those it is for, an unlisted route, else Profile. */
-export const SET_TAB = (id: string): SetTab =>
-  SET_TABS.find((t) => t.id === id) ||
-  (isPlatformAdmin() ? SET_TABS_PLATFORM.find((t) => t.id === id) : null) ||
-  SET_TABS_UNLISTED.find((t) => t.id === id) ||
-  PROFILE_TAB;
+export const SET_TAB = (param: string): SetTab => {
+  const id = sectionOf(param);
+  return (
+    SET_TABS.find((t) => t.id === id) ||
+    (isPlatformAdmin() ? SET_TABS_PLATFORM.find((t) => t.id === id) : null) ||
+    SET_TABS_UNLISTED.find((t) => t.id === id) ||
+    PROFILE_TAB
+  );
+};
 
 /**
  * The crumbs the frame draws over Settings (src/surfaces/routes.ts): the pane the route opens, named by the rule

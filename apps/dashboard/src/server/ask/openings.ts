@@ -1,5 +1,7 @@
 import "server-only";
 import {
+  BOOKING_DEFAULTS,
+  bookingToolName,
   describeOpenings,
   feedBodyProblem,
   feedUrlOk,
@@ -12,9 +14,11 @@ import {
   offersBookingLink,
   parseIcs,
   parseTenantConfig,
+  type AskOpeningsView,
   type BusyBlock,
   type FeedFailure,
   type Opening,
+  type TenantConfig,
 } from "@chanlytics/contracts";
 import { publicFetcher } from "@chanlytics/channels";
 import { fillerFeedFor } from "../calendar/filler-calendar";
@@ -45,6 +49,12 @@ const FEED_FRESH_FLOOR_MS = 15 * 1000;
 const FEED_STALE_MAX_MS = 30 * 60 * 1000;
 
 interface FeedEntry {
+  /**
+   * The address it was read from. The cache is kept by workspace, and a workspace has one calendar, but its address
+   * changes: for five minutes after an owner pasted a new one the board went on drawing the old calendar, and where
+   * the new one could not be read the old one's events stood as its "last good read" for as long as it failed.
+   */
+  url: string;
   /** The last good text and when it was read; null when there has never been one. */
   text: string | null;
   at: number | null;
@@ -110,7 +120,9 @@ export async function loadFeed(
     const now = Date.now();
     return { text: made, at: now, reason: null, status: null, checkedAt: now };
   }
-  const hit = feeds.get(tenantId);
+  // Another address's read is not this one's, fresh or last good (FeedEntry.url).
+  const kept = feeds.get(tenantId);
+  const hit = kept && kept.url === url ? kept : undefined;
   // A fresh read (the board's Refresh) waits out only the floor; everything else, the cache.
   const ttl = opts.fresh ? FEED_FRESH_FLOOR_MS : hit?.reason ? FEED_FAIL_TTL_MS : FEED_TTL_MS;
   if (hit && Date.now() - hit.checkedAt < ttl) return asRead(hit);
@@ -151,14 +163,14 @@ async function fetchInto(tenantId: string, url: string, hit: FeedEntry | undefin
     // disagreed about a ceiling would disagree about a business's own week.
     const problem = feedBodyProblem(text);
     if (problem) throw new FeedRefused(problem);
-    const fresh: FeedEntry = { text, at: now, checkedAt: now, reason: null, status: null };
+    const fresh: FeedEntry = { url, text, at: now, checkedAt: now, reason: null, status: null };
     feeds.set(tenantId, fresh);
     return asRead(fresh);
   } catch (e) {
     const reason: FeedFailure = e instanceof FeedRefused ? e.reason : "unreachable";
     const status = e instanceof FeedRefused ? e.status : null;
     log.error("ask_feed_fetch_failed", { tenant_id: tenantId, reason, status });
-    const failed: FeedEntry = { text: hit?.text ?? null, at: hit?.at ?? null, checkedAt: now, reason, status };
+    const failed: FeedEntry = { url, text: hit?.text ?? null, at: hit?.at ?? null, checkedAt: now, reason, status };
     feeds.set(tenantId, failed);
     return asRead(failed);
   }
@@ -180,6 +192,18 @@ export interface OpeningsResult {
   tz: string;
   days: Array<{ key: string; label: string; windows: string[] }>;
   service: { name: string; duration_min?: number } | null;
+  /** With no calendar link: what the calendar is fed by instead, where anything is (contracts AskOpeningsView). */
+  instead?: AskOpeningsView["instead"];
+}
+
+/** No link to read open times from: said with what the business does have, its booking emails or its own word. */
+function noCalendar(cfg: TenantConfig | null, tz: string, service: OpeningsResult["service"]): OpeningsResult {
+  const tool = bookingToolName(cfg?.bookings?.tool);
+  const instead = tool ? { by: "emails" as const, tool } : cfg?.bookings?.by_hand ? { by: "hand" as const } : null;
+  const text = tool
+    ? `No calendar link is connected, so openings cannot be read. Bookings arrive by email from ${tool} and are on the calendar.`
+    : "No calendar feed is connected, so openings cannot be read.";
+  return { state: "no_calendar", text, tz, days: [], service, instead };
 }
 
 function fmtWindow(start: number, end: number, tz: string): string {
@@ -206,14 +230,7 @@ export async function openingsFor(
   // What the asked-for service is offered as, by the phone tool's rule: itself, or a consultation first (C5b).
   const offer = offerFor(profile?.services, profile?.booking_rules, by.service);
   const service = offer?.service ?? null;
-  if (!url || !profile)
-    return {
-      state: "no_calendar",
-      text: "No calendar feed is connected, so openings cannot be read.",
-      tz: timezone,
-      days: [],
-      service,
-    };
+  if (!url || !profile) return noCalendar(cfg, timezone, service);
   const text = await fetchFeed(tenantId, url);
   if (text === null)
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
@@ -221,7 +238,7 @@ export async function openingsFor(
   let daysAhead: number;
   try {
     const rules = profile.booking_rules ?? null;
-    daysAhead = rules?.max_days_ahead ?? 14;
+    daysAhead = rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
     const feed = parseIcs(text, timezone, { horizon: offeringHorizon(now, daysAhead) });
     openings = freeWindows({
       hours: profile.hours,

@@ -563,10 +563,11 @@ test("the brief's lines that are not numbers: never the traffic the figures say;
     textOf(done),
   );
   assert.ok(!textOf(done).includes("—"), "no em dash in a new sentence");
+  assert.ok(busy().recap.receipts.length > 0, "the fixture is a day with replies");
   assert.equal(
     all(pane, (n) => n.props?.["data-testid"] === "brief-receipt").length,
-    busy().recap.receipts.length,
-    "every receipt the view model kept",
+    0,
+    "no receipt under the summary (7 Oct 2026): what was replied is a question away",
   );
 });
 
@@ -762,11 +763,14 @@ test("a quiet day: the tile is four zeros, and the brief says nothing came in an
   );
   const pane = draw(TodayBriefPane);
   assert.ok(textOf(byTestId(pane, "today-brief-line")).includes(vm.proof), "the brief says the proof");
-  const proof = byTestId(pane, "brief-quiet-proof");
-  // REGRESSION (24 Sep): the proof printed the column, "WhatsApp: +12125550142 · on".
-  assert.ok(textOf(proof).includes("WhatsApp: +1 (212) 555-0142 · on"), textOf(proof));
-  press(buttons(pane, "earlier conversation")[0]);
-  assert.equal(went.at(-1), "conversations");
+  // And says first what a quiet day means for the person reading it: nothing waits on them (7 Oct 2026).
+  assert.ok(
+    textOf(byTestId(pane, "today-brief-line")).startsWith("You're all caught up."),
+    textOf(byTestId(pane, "today-brief-line")),
+  );
+  // The summary is the whole of it (7 Oct 2026): no list of lines and their numbers under it, and no second door.
+  assert.equal(byTestId(pane, "brief-quiet-proof"), null);
+  assert.equal(buttons(pane, "earlier conversation").length, 0);
   // No traffic while a handoff waits: not a quiet day, and no figure counted. The tile stands as four zeros, and the
   // brief still says the proof.
   const waiting = toTodayVM(
@@ -1884,7 +1888,11 @@ test("Glass brief: Listen reads the brief's own words in Ask's voice, says it is
     assert.equal(listen.props["aria-pressed"], false);
     press(listen);
     assert.equal(s.spoken.length, 1, "one clip asked for");
-    assert.equal(s.spoken[0].text, textOf(byTestId(tree, "today-brief-line")), "the brief's own words, as drawn");
+    const drawn = textOf(byTestId(tree, "today-brief-line"));
+    assert.ok(s.spoken[0].text.startsWith(drawn), "the brief's own words, as drawn");
+    // And what the page draws as a line of its own under the summary, which a voice read aloud would leave out: a
+    // reply that failed to deliver (contracts todayBriefWords).
+    assert.match(s.spoken[0].text.slice(drawn.length), /failed to deliver/);
     assert.equal(s.spoken[0].purpose, "brief");
     const loading = byTestId(
       again(() => TodayBriefPane()),

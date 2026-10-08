@@ -1,22 +1,18 @@
-// Chanlytics — Settings › Business: When you're open, the calendar it reads.
+// Chanlytics — Settings › Business: When you're open, the calendar link.
 //
-// The calendar row's last read (BtoFeedRead) and the fold's one box (BtoFeedBox), split from open.tsx so no file is over
-// the length the build holds; nothing of them changed. The card draws them (open.tsx BtOpenCard); what a fold opens
-// with, refuses and writes is folds.ts's.
+// The calendar link's last read, as the Booking tool row states it (BtoFeedRead), and its box in that row's fold
+// (BtoFeedBox, drawn by open-bookings.tsx BtoLinkPart). The card draws the row (open.tsx BtOpenCard); what the fold
+// opens with, refuses and writes is folds.ts's.
 import { useEffect, useRef, useState } from "react";
-import type { ComponentProps, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { CalendarVM } from "@chanlytics/contracts";
 import type { CALENDAR_PAGE } from "../../calendar/words";
 import { FailedRead } from "../../kit/empty/empty";
-import { RecordField } from "../../kit/record/field";
+import { RecordBox } from "../../kit/record/field";
 import { navigate } from "../../legacy-verbs";
-import type { BtFold } from "./gestures/fold";
 import { businessTabSave } from "./saver";
 import { calendarApi, calendarNow, calendarPage, chromeWords, surfaceFailedFn } from "./shell";
-
-/** What BtFold hands its body. */
-type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
 
 /* ------------------------------------ the calendar it reads ------------------------------------ */
 
@@ -241,8 +237,11 @@ const BtoFeedWhole = () => {
   const feed = C && C.vm ? C.vm.feed : null;
   if (!feed || feed.state === "none" || !feed.detail) return null;
   return (
-    <p className="bt-fold-note" data-testid="rec-calendar-whole">
-      {feed.detail}
+    <p className="bt-fold-note bt-fold-line" data-testid="rec-calendar-whole">
+      <span>{feed.detail}</span>
+      <button type="button" className="bt-link" onClick={() => navigate("calendar")} data-testid="rec-calendar-open">
+        Open Calendar
+      </button>
     </p>
   );
 };
@@ -350,65 +349,55 @@ const useBtoFeedCheck = (url: string, stored: string) => {
   return check;
 };
 
-/** What BtFold hands the calendar's body. */
-type FeedFields = FoldFields<string>;
+/** What the box is drawn from: the address typed, how to change it, and what the fold knows beside it. */
+interface FeedBoxProps {
+  url: string;
+  onUrl: (url: string) => void;
+  problem: string | null;
+  readOnly: boolean;
+  /** The address as stored (masked for anyone but an owner), "" for none. */
+  stored: string;
+  /** Whether the receptionist has a booking link to send. */
+  offers: boolean;
+  /** Where to find the link for what the owner books with, in one sentence (contracts calendarLinkNote). */
+  note: string;
+}
 
-/** The calendar's one box, a check of what is pasted into it, where to find the address, and what the address is. */
-export const BtoFeedBox = ({
-  draft,
-  update,
-  problems,
-  readOnly,
-  stored,
-  offers,
-}: FeedFields & { stored: string; offers: boolean }) => {
-  const url = String(draft || "").trim();
-  const check = useBtoFeedCheck(url, stored);
+/**
+ * The calendar link's box, in the Booking tool fold (open-bookings.tsx BtoLinkPart): what the last read found, the box,
+ * a check of what is pasted into it, where to find the link for what the owner books with, and that it is only ever
+ * read. It stood in a fold of its own, under four sentences, one of which sent the owner to the row below.
+ */
+export const BtoFeedBox = ({ url, onUrl, problem, readOnly, stored, offers, note }: FeedBoxProps) => {
+  const check = useBtoFeedCheck(String(url || "").trim(), stored);
   return (
     <>
-      {stored ? <BtoFeedWhole /> : null}
-      <RecordField
+      {/* The part's head names it on screen (open-bookings.tsx BtoLinkPart): the box carries the same name, heard. */}
+      <RecordBox
         id="bt-calendar"
-        label="Calendar feed address"
-        value={draft}
-        onChange={(v) => update(() => v, ["ical_url"])}
-        problem={problems.ical_url || null}
+        label="Calendar link"
+        value={url}
+        onChange={onUrl}
+        problem={problem}
         placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics"
         inputMode="url"
         autoComplete="off"
         spellCheck={false}
-        readOnly={readOnly || undefined}
+        readOnly={readOnly}
       />
       <BtoFeedCheck check={check} />
+      {stored ? <BtoFeedWhole /> : null}
+      {/* Where to find it, until there is one; and, always, that it is read and never written. */}
+      <p className="bt-fold-note" data-testid="rec-calendar-note">
+        {stored ? "" : `${note} `}It is only ever read. Nothing is booked from here;{" "}
+        {offers ? "your booking link does that." : "your team does that, from the details it takes."}
+      </p>
       {readOnly ? null : <BtoFeedGuides />}
-      <p className="bt-fold-note">
-        The private iCal address of the calendar your appointments land in (Google, Apple or Outlook), or the feed your
-        booking tool offers. It is only ever read. Nothing is booked from here;{" "}
-        {offers
-          ? "the booking link does that, whichever tool is behind it."
-          : "your team does that, from the details it takes."}
-      </p>
-      {/* For the tool that offers no feed at all: the other way in, one row down. */}
-      <p className="bt-fold-note" data-testid="bto-notices-note">
-        No calendar feed? Booking emails from your tool work too: see Where your bookings come from, below.
-      </p>
       {/* Only an owner is sent the address whole (the settings route masks it for everyone else), and a masked address
           edited in part would be saved as written. */}
       {String(stored || "").includes("…") ? (
         <p className="bt-fold-note" data-testid="rec-calendar-masked">
           Only an owner sees this address whole. Leave it as it is to keep it, or paste a new one over it.
-        </p>
-      ) : null}
-      {stored ? (
-        <p className="bt-fold-note">
-          <button
-            type="button"
-            className="bt-link"
-            onClick={() => navigate("calendar")}
-            data-testid="rec-calendar-open"
-          >
-            Open Calendar
-          </button>
         </p>
       ) : null}
     </>

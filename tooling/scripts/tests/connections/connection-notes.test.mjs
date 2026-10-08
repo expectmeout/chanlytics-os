@@ -67,6 +67,8 @@ const preflight = (code) => [
 const PREFLIGHT = preflight(CODE_NO_LINE);
 /** What the row says of a sign-up that was started here and did not come back. */
 const LEFT_OPEN = {
+  // What happened is on the row itself, never behind its press (ConnectionNote.live).
+  live: true,
   text: "A WhatsApp sign-up was started here and did not come back to Chanlytics — if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.",
 };
 
@@ -156,6 +158,20 @@ test("a WhatsApp row that does not offer Connect says none of the sign-up: still
     [],
     "nothing read yet from Meta, a message arrived: nothing to say, and what WhatsApp costs is the Connect row's and Billing's",
   );
+});
+
+test("a note about what happened or waits is marked for the row to keep in sight; an explanation is not", () => {
+  // The row draws a `live` note itself and keeps the rest behind the quiet press beside its name (Settings ›
+  // Connections, 8 Oct 2026): hidden behind that press, a sign-up that could not go on was a press that did nothing.
+  const leftOpen = rowsOf({ signupLeftOpenAt: ago(5 * MIN) }).whatsapp.notes;
+  assert.deepEqual(
+    leftOpen.map((n) => !!n.live),
+    [true, false, false, false],
+    "the sign-up left open, then what Meta will ask and what it costs",
+  );
+  const code = { from: "Meta", code: "123456", at: ago(MIN) };
+  const codes = rowsOf({ lines: { rows: [own()], ready: true }, codes: [code] }).sms.notes;
+  assert.ok(codes.length > 0 && codes.every((n) => n.live), "a code the owner is waiting for, and what becomes of it");
 });
 
 test("every other row has no notes", () => {
