@@ -467,8 +467,8 @@ const CASES = [
   ["propose_lead_search", PLAN, "operator"],
 ];
 
-/** A card's id is minted per call; everything else is the card. */
-const withoutId = (s) => s.replace(/"id":"p-[0-9a-z]+-[0-9a-z]+",?/g, "");
+/** A card's id is minted per call, and so is the moment it was made (made_at); everything else is the card. */
+const withoutId = (s) => s.replace(/"id":"p-[0-9a-f-]{36}",?/g, "").replace(/,?"made_at":"[^"]+"/g, "");
 
 /** One call over a fresh copy of the workspace: what the model read, the trace line or the card, and the reads made. */
 async function answer(name, input, role = "owner") {
