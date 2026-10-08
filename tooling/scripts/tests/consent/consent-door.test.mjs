@@ -154,7 +154,15 @@ test("TWO lists, because there are two answers: one for messages, one for offers
   assert.equal(drawn("opted_in", "unknown").word, "Not asked", "a yes to messages is not a yes to offers");
   assert.equal(drawn("unknown", "opted_in").word, "Yes");
   assert.equal(drawn("opted_in", "opted_out").word, "No");
-  assert.match(drawn("unknown", "opted_in").cls, /\bcl-row-offers yes\b/);
+  // REGRESSION (8 Oct 2026): the cell's word wore the bare class of its answer, and app/globals.css styles ".yes",
+  // the public consent page's column, with 7vh over it and 10vh under. On an inline span that moved nothing; on the
+  // kit's pill, which is a flex box, every row whose answer was yes stood a hundred and ninety pixels tall.
+  for (const [consent, marketing] of [
+    ["unknown", "opted_in"],
+    ["opted_in", "opted_out"],
+    ["opted_in", "unknown"],
+  ])
+    assert.equal(drawn(consent, marketing).cls, "cl-row-offers", "the page's own class alone, never the answer's word");
   assert.deepEqual(
     [drawn("unknown", "opted_in").kind, drawn("unknown", "opted_in").tone],
     ["tone", "ok"],
@@ -172,6 +180,11 @@ test("TWO lists, because there are two answers: one for messages, one for offers
   })();
   assert.equal(unsent.p.canReceive.offers, false, "the fixture: a yes to offers and no number to send to");
   assert.deepEqual([unsent.pill.props.label, unsent.pill.props.value], ["Yes", "plain"]);
+  assert.equal(
+    unsent.pill.props.className,
+    "cl-row-offers cl-row-offers-held",
+    "marked as held, in the page's own name",
+  );
   assert.match(unsent.td.props.title, /No phone number on file/, "the reason is the send's own (contracts heldWords)");
   const yes = drawn("unknown", "opted_in");
   assert.equal(yes.td.props["data-testid"], "row-offers");

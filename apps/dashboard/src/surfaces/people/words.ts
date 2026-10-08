@@ -29,15 +29,17 @@ export const PL_PHONE_QUERY = "(max-width: 900px)";
 export const plPhoneNow = (): boolean => !!(window.matchMedia && window.matchMedia(PL_PHONE_QUERY).matches);
 
 /**
- * The "Offers" column and the CSV read the OFFERS answer, never the conversational consent: its word, the cell's
- * class, and the tone its dot wears. A yes is the quiet green of what is open; a no and not asked are plain, since
- * neither asks anything of the owner and amber says Needs you wherever it is drawn (contracts tone.ts).
+ * The "Offers" column and the CSV read the OFFERS answer, never the conversational consent: its word, and the tone
+ * its dot wears. A yes is the quiet green of what is open; a no and not asked are plain, since neither asks anything
+ * of the owner and amber says Needs you wherever it is drawn (contracts tone.ts). It carried a class named for the
+ * answer too ("yes", "no", "unasked"), which nothing reads now and one thing misread: app/globals.css styles `.yes`,
+ * the public consent page's column, and gave a pill wearing it that page's margins.
  */
-type OffersSaid = readonly [word: string, cls: string, tone: "ok" | "plain"];
-const NOT_ASKED: OffersSaid = ["Not asked", "unasked", "plain"];
+type OffersSaid = readonly [word: string, tone: "ok" | "plain"];
+const NOT_ASKED: OffersSaid = ["Not asked", "plain"];
 const PL_OFFERS: Record<string, OffersSaid> = {
-  opted_in: ["Yes", "yes", "ok"],
-  opted_out: ["No", "no", "plain"],
+  opted_in: ["Yes", "ok"],
+  opted_out: ["No", "plain"],
   unknown: NOT_ASKED,
 };
 export const offersOf = (marketing: string): OffersSaid => PL_OFFERS[marketing] ?? NOT_ASKED;

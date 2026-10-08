@@ -201,7 +201,7 @@ function attentionWordsOf(p: PersonRowVM, attention: PeopleCellCtx["attention"])
  * adds why in the send's own words (contracts heldWords), so the column never promises an audience a send would not reach.
  */
 const plOffersCell = (p: PersonRowVM) => {
-  const [word, cls, tone] = offersOf(p.consent.marketing);
+  const [word, tone] = offersOf(p.consent.marketing);
   const held = p.consent.marketing === "opted_in" && !p.canReceive.offers ? p.whyNot.offers : null;
   return (
     <td
@@ -214,7 +214,7 @@ const plOffersCell = (p: PersonRowVM) => {
         kind="tone"
         value={held ? "plain" : tone}
         label={word}
-        className={`cl-row-offers ${cls}${held ? " unsent" : ""}`}
+        className={held ? "cl-row-offers cl-row-offers-held" : "cl-row-offers"}
       />
     </td>
   );
@@ -279,9 +279,9 @@ const plStateCell = (p: PersonRowVM, x: PeopleCellCtx) => (
 );
 
 /**
- * How to reach them (contracts rowReachWords): the wire a reply goes out on over the one identifier on it, and under them
- * what a reply may be only where that is a constraint; every wire and the Replies sentence in the tip. Someone named by
- * their number or address says it as their name already, so their cell says the wire alone.
+ * How to reach them (contracts rowReachWords): the wire they last wrote on over the one identifier on it, and under them
+ * a line only for an address that stopped accepting mail; every wire and what a reply may be are the tip. Someone named
+ * by their number or address says it as their name already, so their cell says the wire alone.
  */
 const plReachCell = (p: PersonRowVM) => {
   const words = rowReachWords(p, !plIsNumber(p.name) && !plIsAddress(p));
@@ -323,7 +323,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     cell: (p) => (
       <td
         key="next"
-        className="shrink cl-next-cell"
+        className="shrink cl-step-cell"
         data-due={p.nextStep ? p.nextStep.due : undefined}
         title={
           p.nextStep
@@ -333,9 +333,9 @@ export const PL_COLUMNS: PeopleColumn[] = [
         data-testid="row-next-step"
       >
         {p.nextStep ? (
-          <span className="cl-row-next">
-            <span className="cl-row-next-words">{p.nextStep.words}</span>
-            <span className="cl-row-next-when">{p.nextStep.day.words}</span>
+          <span className="cl-row-step">
+            <span className="cl-row-step-words">{p.nextStep.words}</span>
+            <span className="cl-row-step-when">{p.nextStep.day.words}</span>
           </span>
         ) : null}
       </td>

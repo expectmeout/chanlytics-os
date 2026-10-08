@@ -2848,6 +2848,19 @@ test("the next step is a column after State: its words and its day, the day mark
     "a day ahead is not marked due",
   );
   assert.equal(textOf(byTestId(rowOf(tree, "p2"), "row-next-step")).trim(), "", "nothing where there is no step");
+  // REGRESSION (8 Oct 2026): the step's box was classed cl-row-next, which is the next visit's day in the Visits cell
+  // (clients.css, and e2e/people/people.spec.ts counts it there). One rule of that name then drew both, and the
+  // visit's day broke onto a line of its own wherever a calendar was connected.
+  const classes = (n) => String(n.props?.className || "").split(/\s+/);
+  assert.equal(
+    find(cell, (n) => classes(n).includes("cl-row-next")),
+    null,
+    "nothing in the step's cell wears the visit's class",
+  );
+  assert.ok(
+    find(cell, (n) => classes(n).includes("cl-row-step")),
+    "the step's box is named for the step",
+  );
   const order = (t) =>
     all(t, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).map((tr) => tr.props.id);
   sortByHeading(tree, "Next step");

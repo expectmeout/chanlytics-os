@@ -19649,7 +19649,6 @@ function repliesWords(via, window, stop) {
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
 }
 var EMAIL_STOPPED_SHORT = "Stopped accepting mail";
-var APPROVED_ONLY_SHORT = "Approved messages only";
 var WRITTEN_WIRES = ["whatsapp", "sms", "email"];
 function rowReachWords(p, named) {
   const wrote = p.lastChannel ?? WRITTEN_WIRES.find((c) => p.channels.includes(c)) ?? null;
@@ -19657,7 +19656,7 @@ function rowReachWords(p, named) {
   const wire = via ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
   const id = !named ? null : via === "Email" ? p.email || p.phone : p.phone || p.email;
   const window = via === "WhatsApp" ? p.replyWindow : null;
-  const may = p.stopped ? null : via === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : window && !window.open ? APPROVED_ONLY_SHORT : null;
+  const may = !p.stopped && via === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : null;
   const replies = p.stopped ? null : repliesWords(via, window, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
   return { wire, id: id ?? null, may, tip: [p.channelWords, replies].filter(Boolean).join(" \xB7 ") };
 }

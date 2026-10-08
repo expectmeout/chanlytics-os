@@ -19603,8 +19603,10 @@ stop: {
 }): string | null;
 /**
  * What a People row says of reaching a person (8 Oct 2026): the wire a reply goes out on over the one way to reach them
- * there, a constraint on a reply where there is one, and every wire with the Replies row's sentence as the cell's tip.
- * It said the channels as a strip of glyphs, where WhatsApp and a text share one, and then the number.
+ * there, a line under them only for an address that stopped accepting mail, and every wire with the Replies row's
+ * sentence as the cell's tip. It said the channels as a strip of glyphs, where WhatsApp and a text share one, and then
+ * the number. WhatsApp's window is the tip's to say and never a line: shut is the ordinary state of a WhatsApp thread
+ * (a day after they last wrote), so a line for it stood on nearly every row.
  *
  * The wire is the one they last wrote on (`lastChannel`, 00320), which is where a reply to them goes; a row read
  * before that was kept says the first wire they have written on, and someone who only ever called, the phone. It is
@@ -19617,7 +19619,7 @@ interface RowReachWords {
     wire: string | null;
     /** The address when the reply goes by email, else the number, else the address; null where the identifier is the name already. */
     id: string | null;
-    /** The window shut, or an address that stopped; null where any message may go, or where the State says why none may. */
+    /** An address that stopped accepting mail, where the reply goes by email; null otherwise, and where the State says why none may. */
     may: string | null;
     /** Every wire in words, then what a reply may be as the Replies row says it; empty where nothing is known. */
     tip: string;

@@ -155,16 +155,17 @@ export function repliesWords(
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
 }
 
-/** What a reply may be, in a row's few words: the one constraint worth a line under the identifier (repliesWords is the page's sentence). */
+/** The one thing a row says under the identifier: nothing sent to that address arrives (repliesWords is the page's sentence). */
 const EMAIL_STOPPED_SHORT = "Stopped accepting mail";
-const APPROVED_ONLY_SHORT = "Approved messages only";
 /** The wires a person writes on, in the order a row names them (person-row.ts channelsOf): WhatsApp, a text, email. */
 const WRITTEN_WIRES = ["whatsapp", "sms", "email"] as const;
 
 /**
  * What a People row says of reaching a person (8 Oct 2026): the wire a reply goes out on over the one way to reach them
- * there, a constraint on a reply where there is one, and every wire with the Replies row's sentence as the cell's tip.
- * It said the channels as a strip of glyphs, where WhatsApp and a text share one, and then the number.
+ * there, a line under them only for an address that stopped accepting mail, and every wire with the Replies row's
+ * sentence as the cell's tip. It said the channels as a strip of glyphs, where WhatsApp and a text share one, and then
+ * the number. WhatsApp's window is the tip's to say and never a line: shut is the ordinary state of a WhatsApp thread
+ * (a day after they last wrote), so a line for it stood on nearly every row.
  *
  * The wire is the one they last wrote on (`lastChannel`, 00320), which is where a reply to them goes; a row read
  * before that was kept says the first wire they have written on, and someone who only ever called, the phone. It is
@@ -177,7 +178,7 @@ export interface RowReachWords {
   wire: string | null;
   /** The address when the reply goes by email, else the number, else the address; null where the identifier is the name already. */
   id: string | null;
-  /** The window shut, or an address that stopped; null where any message may go, or where the State says why none may. */
+  /** An address that stopped accepting mail, where the reply goes by email; null otherwise, and where the State says why none may. */
   may: string | null;
   /** Every wire in words, then what a reply may be as the Replies row says it; empty where nothing is known. */
   tip: string;
@@ -205,13 +206,7 @@ export function rowReachWords(
   const wire = via ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
   const id = !named ? null : via === "Email" ? p.email || p.phone : p.phone || p.email;
   const window = via === "WhatsApp" ? p.replyWindow : null;
-  const may = p.stopped
-    ? null
-    : via === "Email" && p.emailSuppressed
-      ? EMAIL_STOPPED_SHORT
-      : window && !window.open
-        ? APPROVED_ONLY_SHORT
-        : null;
+  const may = !p.stopped && via === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : null;
   const replies = p.stopped
     ? null
     : repliesWords(via, window, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });

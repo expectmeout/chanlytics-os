@@ -932,10 +932,12 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
     may: null,
     tip: "WhatsApp · Phone · Any message, for 9 more hours",
   });
-  // The window shut: a reply is held to approved messages, and the row says so.
-  assert.equal(
-    rowReachWords({ ...base, replyWindow: { open: false, hoursLeft: 0 } }, true).may,
-    "Approved messages only",
+  // The window shut is the ordinary state of a WhatsApp thread (it shuts a day after they last wrote), so it is the
+  // tip's to say and never a line on the row: on a line it stood on nearly every row, a third one, and widened the column.
+  const shutRow = rowReachWords({ ...base, replyWindow: { open: false, hoursLeft: 0 } }, true);
+  assert.deepEqual(
+    [shutRow.may, shutRow.tip],
+    [null, "WhatsApp · Phone · Approved messages only, until they write again"],
   );
   // Named by their number: the number is the name, so the cell says the wire alone.
   const byNumber = rowReachWords({ ...base, name: "+1 (786) 555-0181" }, false);
@@ -974,8 +976,13 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
   assert.equal(rowReachWords({ ...both, lastChannel: "sms", replyWindow: shut }, true).wire, "Text");
   assert.equal(rowReachWords({ ...both, lastChannel: "sms", replyWindow: shut }, true).may, null);
   assert.equal(
-    rowReachWords({ ...both, lastChannel: "whatsapp", replyWindow: shut }, true).may,
-    "Approved messages only",
+    rowReachWords({ ...both, lastChannel: "whatsapp", replyWindow: shut }, true).tip,
+    "WhatsApp · Text · Approved messages only, until they write again",
+    "WhatsApp's window is read only where the wire is WhatsApp",
+  );
+  assert.equal(
+    rowReachWords({ ...both, lastChannel: "sms", replyWindow: shut }, true).tip,
+    "WhatsApp · Text · Any time, by text",
   );
   // A row read before the channel was kept (00320) says the first wire they have written on, WhatsApp before a text.
   assert.equal(rowReachWords({ ...both, lastChannel: null }, true).wire, "WhatsApp");
