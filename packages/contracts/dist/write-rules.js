@@ -57,20 +57,21 @@ var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
 
 // src/calendar/booking-notice.ts
-var BOOKING_TOOL_IDS = [
-  "booksy",
-  "acuity",
-  "fresha",
-  "square",
-  "vagaro",
-  "glossgenius",
-  "calendly",
-  "setmore",
-  "mindbody",
-  "simplybook",
-  "schedulicity",
-  "styleseat"
+var BOOKING_TOOLS = [
+  { tool: "booksy", name: "Booksy", domains: ["booksy.com"], calendar: "none" },
+  { tool: "acuity", name: "Acuity", domains: ["acuityscheduling.com", "squarespacescheduling.com"], calendar: "own" },
+  { tool: "fresha", name: "Fresha", domains: ["fresha.com"], calendar: "own" },
+  { tool: "square", name: "Square", domains: ["squareup.com", "square.com"], calendar: "writes" },
+  { tool: "vagaro", name: "Vagaro", domains: ["vagaro.com"], calendar: "writes" },
+  { tool: "glossgenius", name: "GlossGenius", domains: ["glossgenius.com"], calendar: "own" },
+  { tool: "calendly", name: "Calendly", domains: ["calendly.com"], calendar: "writes" },
+  { tool: "setmore", name: "Setmore", domains: ["setmore.com"], calendar: null },
+  { tool: "mindbody", name: "Mindbody", domains: ["mindbodyonline.com"], calendar: null },
+  { tool: "simplybook", name: "SimplyBook", domains: ["simplybook.me"], calendar: null },
+  { tool: "schedulicity", name: "Schedulicity", domains: ["schedulicity.com"], calendar: null },
+  { tool: "styleseat", name: "StyleSeat", domains: ["styleseat.com"], calendar: null }
 ];
+var isBookingTool = (v) => BOOKING_TOOLS.some((t) => t.tool === v);
 var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
 var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
 var SAME_VISIT_MS = 15 * MIN_MS;
@@ -356,7 +357,7 @@ var NotificationsConfigSchema = z3.object({
 var CalendarConfigSchema = z3.object({
   ical_url: z3.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strip();
-var BookingsConfigSchema = z3.object({ tool: z3.enum(BOOKING_TOOL_IDS).optional() }).strip();
+var BookingsConfigSchema = z3.object({ tool: z3.string().max(40).optional(), by_hand: z3.boolean().optional() }).strip();
 var FeaturesConfigSchema = z3.object({ vision: z3.boolean().optional() }).strip();
 var TenantConfigSchema = z3.object({
   brain: BrainConfigSchema.optional(),
@@ -404,6 +405,13 @@ var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
       code: z3.ZodIssueCode.custom,
       path: ["calendar", "ical_url"],
       message: feedProblemWords("address") ?? "Not an address the receptionist may read."
+    });
+  }
+  if (cfg.bookings?.tool !== void 0 && !isBookingTool(cfg.bookings.tool)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["bookings", "tool"],
+      message: "Not a booking tool this product knows."
     });
   }
   const p = cfg.brain?.profile;

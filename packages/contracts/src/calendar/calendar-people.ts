@@ -19,6 +19,7 @@
 import { dayInZone, dayPlusInZone } from "./zone-math";
 import type { FeedItem } from "./feed";
 import { appointmentKeyOf } from "./appointment-key";
+import { BOOKED_NEEDS_A_LINK } from "../setup/calendar-source";
 import { normalizeEmail } from "../shared/email-address";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { dateFormat, DAY_MS } from "../shared/time";
@@ -740,7 +741,7 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
       present: false,
       calendar: "none",
       headline: "—",
-      sub: "Connect your calendar under Settings › Business to see who booked.",
+      sub: BOOKED_NEEDS_A_LINK,
       words: "",
       pct: null,
       asked: 0,

@@ -58,6 +58,7 @@ import {
   resolveList,
   type PersonRowDto,
   type PersonVisitsDto,
+  BOOKING_DEFAULTS,
   DAY_MS,
 } from "./packages/contracts.js";
 import { feedItemsFor } from "./calendar/availability.js";
@@ -236,7 +237,7 @@ export async function loadTenantRunContext(
   // The workspace's own horizon, the way the People sweep asks for it
   // (api/cron/calendar.ts). Left to the default, a workspace that books three
   // months out had its visit playbooks reading a fortnight of calendar.
-  const daysAhead = cfgParsed?.brain?.profile?.booking_rules?.max_days_ahead ?? 14;
+  const daysAhead = cfgParsed?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
   let calendar: TenantRunContext["calendar"] = "none";
   let visits = new Map<string, PersonVisitsDto>();
   const profile = cfgParsed?.brain?.profile;

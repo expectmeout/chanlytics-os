@@ -221,12 +221,6 @@ function groupCard(o: {
         </div>
       )}
       {list.map(row)}
-      {g === "connected" && list.some((r) => r.kind === "google_listing") && (
-        <p className="set-card-foot">
-          The public listing is read once a day: Google shows five reviews and counts every rating. Connect the Business
-          Profile for all of them, and for the replies you send from Reports.
-        </p>
-      )}
     </section>
   );
 }

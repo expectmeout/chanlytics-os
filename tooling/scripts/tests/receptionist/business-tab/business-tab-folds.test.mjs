@@ -232,17 +232,14 @@ const EDITS = {
         error: "Sorry, a person will reply here soon.",
       }),
   ],
+  // What the owner books with and the link's address, one fold (7 Oct 2026; they were two). The address is trimmed
+  // onto the calendar's section; the tool is a section of its own (00345), since a calendar section a build from
+  // before this cannot read (a tool, no address) would mute that build's receptionist.
   calendar: [
-    () => " webcal://calendar.example.com/marisa/new.ics ",
-    (next) => assert.deepEqual(next.calendar, { ical_url: "webcal://calendar.example.com/marisa/new.ics" }),
-  ],
-  // A section of its own (00345): the tool, trimmed. The calendar's section is left exactly as it was, since a
-  // calendar section a build from before this cannot read (a tool, no address) would mute that build's receptionist.
-  bookings: [
-    (d) => ({ ...d, tool: " booksy " }),
+    (d) => ({ ...d, with: "booksy", ical_url: " webcal://calendar.example.com/marisa/new.ics " }),
     (next) => {
+      assert.deepEqual(next.calendar, { ical_url: "webcal://calendar.example.com/marisa/new.ics" });
       assert.deepEqual(next.bookings, { tool: "booksy" });
-      assert.deepEqual(next.calendar, STORED.calendar);
     },
   ],
   // The create fold, drawn only where there is no receptionist; on a stored brain it writes the three it asks for, a
@@ -308,7 +305,6 @@ test("every fold is named once, owns exactly its paths, and is a fold the bridge
     extra_instructions: ["extra_instructions"],
     fallbacks: [],
     calendar: [],
-    bookings: [],
     receptionist: [],
   });
   for (const fold of FOLDS) {
@@ -452,7 +448,15 @@ test("each fold opens with its stored values, as the form it replaces opened the
   assert.deepEqual(S.draftOf("closures", s), STORED.brain.profile.closures);
   assert.deepEqual(S.draftOf("notes", s), STORED.brain.profile.notes);
   assert.deepEqual(S.draftOf("fallbacks", s), STORED.brain.fallbacks);
-  assert.equal(S.draftOf("calendar", s), STORED.calendar.ical_url);
+  // A link stored and no tool named: a calendar with no tool behind it, as the picker says it (contracts booksWithOf).
+  assert.deepEqual(S.draftOf("calendar", s), { with: "calendar", ical_url: STORED.calendar.ical_url });
+  const named = stored();
+  named.bookings = { tool: "booksy" };
+  assert.equal(S.draftOf("calendar", named).with, "booksy", "the tool named outranks the link beside it");
+  const byHand = stored();
+  delete byHand.calendar;
+  byHand.bookings = { by_hand: true };
+  assert.deepEqual(S.draftOf("calendar", byHand), { with: "hand", ical_url: "" });
   // The prompt from before the fields, carried into the box and marked so (contracts instructionsDraft, S4).
   assert.deepEqual(S.draftOf("extra_instructions", s), { text: STORED.brain.system_prompt, carried: true });
   // Three rules on unless one is switched off; the health rule and the photos only when switched on.
@@ -546,8 +550,7 @@ test("each fold opens with its stored values, as the form it replaces opened the
       ],
       ["extra_instructions", { text: "", carried: false }],
       ["fallbacks", FALLBACK_DEFAULTS],
-      ["calendar", ""],
-      ["bookings", { tool: "" }],
+      ["calendar", { with: "", ical_url: "" }],
       ["receptionist", { name: "Bella Nails", own: true, typed: "", link: "https://bella.example/book" }],
     ],
   );
@@ -569,7 +572,7 @@ test("an emptied field deletes its key, and nothing anywhere is stored as an emp
     escalate_when: [() => "\n   \n", "brain.profile.escalate_when"],
     consult_first: [() => "  ", "brain.profile.booking_rules.consult_first"],
     extra_instructions: [(d) => ({ ...d, text: "   " }), "brain.profile.extra_instructions"],
-    calendar: [() => "  ", "calendar"],
+    calendar: [(d) => ({ ...d, ical_url: "  " }), "calendar"],
   };
   const found = (config, path) =>
     path.split(".").reduce((o, k) => (o && typeof o === "object" && k in o ? o[k] : undefined), config);
@@ -809,13 +812,20 @@ test("fallbacks and the calendar write what the old form wrote: the three messag
   delete none.brain.fallbacks;
   assert.deepEqual(S.saveFold("fallbacks", none, S.draftOf("fallbacks", none)).brain.fallbacks, FALLBACK_DEFAULTS);
 
-  assert.deepEqual(S.saveFold("calendar", stored(), "https://calendar.example.com/new.ics").calendar, {
+  const link = (ical_url, withWhat = "calendar") => ({ with: withWhat, ical_url });
+  assert.deepEqual(S.saveFold("calendar", stored(), link("https://calendar.example.com/new.ics")).calendar, {
     ical_url: "https://calendar.example.com/new.ics",
   });
-  assert.equal("calendar" in S.saveFold("calendar", stored(), ""), false, "emptied, the section goes");
+  assert.equal("calendar" in S.saveFold("calendar", stored(), link("", "")), false, "emptied, the section goes");
   const noFeed = stored();
   delete noFeed.calendar;
-  assert.deepEqual(S.saveFold("calendar", noFeed, ""), noFeed, "and with none stored, nothing is written");
+  assert.deepEqual(S.saveFold("calendar", noFeed, link("", "")), noFeed, "and with none stored, nothing is written");
+  // What the owner books with: a tool of the list is the tool; "by hand" is its own switch; a calendar with no tool
+  // behind it is the address and nothing more. Each answer takes the last one's key away.
+  assert.deepEqual(S.saveFold("calendar", noFeed, link("", "booksy")).bookings, { tool: "booksy" });
+  const hand = S.saveFold("calendar", S.saveFold("calendar", noFeed, link("", "booksy")), link("", "hand"));
+  assert.deepEqual(hand.bookings, { by_hand: true });
+  assert.equal("bookings" in S.saveFold("calendar", hand, link("https://calendar.example.com/a.ics")), false);
 });
 
 /* ------------------------------------ what stops a save ------------------------------------ */
@@ -905,11 +915,15 @@ test("problemsOf says the old form's sentences, but for what an empty box means,
   );
 
   // The calendar feed, an address the receptionist can read.
-  assert.deepEqual(S.problemsOf("calendar", "calendar"), {
-    ical_url: "The calendar feed needs to be a full address, starting with https:// or webcal://",
+  assert.deepEqual(S.problemsOf("calendar", { with: "calendar", ical_url: "calendar" }), {
+    ical_url: "The calendar link needs to be a full address, starting with https:// or webcal://",
   });
   for (const ok of ["", "  ", "https://calendar.example.com/a.ics", "webcal://calendar.example.com/a.ics"])
-    assert.deepEqual(S.problemsOf("calendar", ok), {}, ok);
+    assert.deepEqual(S.problemsOf("calendar", { with: "calendar", ical_url: ok }), {}, ok);
+  // An address the server masked (only an owner is sent it whole) is the stored one, kept as it is: judged, it would
+  // refuse a non-owner's change of the tool beside it. Even the mask of a short address, which is the mark alone.
+  for (const masked of ["https://calendar.example…ic.ics", "…"])
+    assert.deepEqual(S.problemsOf("calendar", { with: "booksy", ical_url: masked }), {}, masked);
 
   // Nothing for a good draft: every fold, as it opens on the record.
   for (const fold of FOLDS) assert.deepEqual(S.problemsOf(fold, S.draftOf(fold, stored())), {}, fold);
@@ -941,7 +955,7 @@ test("a fold's save goes through the tab's one saver as a patch of the whole con
     saver.save(job("booking_rules", rules));
     assert.deepEqual(sent[0].config, preview, "the save is what the preview described");
     saver.save(job("consult_first", "Keratin"));
-    saver.save(job("calendar", ""));
+    saver.save(job("calendar", { with: "", ical_url: "" }));
     assert.deepEqual(
       sent.map((s) => s.version),
       [7, 8, 9],
@@ -1453,17 +1467,19 @@ test("what the save's schema would refuse for its length or count is said first,
 test("the calendar's address is written onto its section, never in place of it", () => {
   const withMore = stored();
   withMore.calendar.a_setting_added_later = "keep me";
-  const next = S.saveFold("calendar", withMore, "webcal://calendar.example.com/new.ics");
+  withMore.bookings = { a_setting_added_later: "keep me too" };
+  const next = S.saveFold("calendar", withMore, { with: "booksy", ical_url: "webcal://calendar.example.com/new.ics" });
   assert.deepEqual(next.calendar, {
     ical_url: "webcal://calendar.example.com/new.ics",
     a_setting_added_later: "keep me",
   });
+  assert.deepEqual(next.bookings, { a_setting_added_later: "keep me too", tool: "booksy" }, "and so is the tool");
   assert.equal(
-    S.saveFold("calendar", stored(), "").calendar,
+    S.saveFold("calendar", stored(), { with: "", ical_url: "" }).calendar,
     undefined,
     "emptied, with nothing else in it, the section goes",
   );
-  assert.deepEqual(S.PATHS_OF.calendar, ["calendar.ical_url"]);
+  assert.deepEqual(S.PATHS_OF.calendar, ["calendar.ical_url", "bookings.tool", "bookings.by_hand"]);
 });
 
 test("a fold saved onto a config with no brain, or no profile, writes nothing it has no value for", () => {
@@ -1527,7 +1543,15 @@ test("what only the save's schema can judge is said under the fold's own field, 
   );
 
   // The calendar's part is judged alone: the brain is not the fold's.
-  assert.deepEqual(Object.keys(S.schemaProblems("calendar", taken(), "https://localhost/feed.ics")), ["ical_url"]);
+  assert.deepEqual(
+    Object.keys(S.schemaProblems("calendar", taken(), { with: "calendar", ical_url: "https://localhost/feed.ics" })),
+    ["ical_url"],
+  );
+  // A masked address is not the schema's to judge either: the tool beside it still saves.
+  assert.deepEqual(
+    S.schemaProblems("calendar", taken(), { with: "booksy", ical_url: "https://calendar.example…ic.ics" }),
+    {},
+  );
 
   for (const fold of FOLDS)
     assert.deepEqual(
@@ -1643,7 +1667,10 @@ test("saveProblems is the one question a fold asks before it saves: the page's o
   };
   assert.deepEqual(S.saveProblems("hours", taken(), week), { "hours-mon": "Monday: two shifts overlap." });
   // A refusal in the schema's default wording is said in the page's words instead.
-  const feed = S.saveProblems("calendar", taken(), `https://calendar.example.com/${"a".repeat(2100)}.ics`);
+  const feed = S.saveProblems("calendar", taken(), {
+    with: "calendar",
+    ical_url: `https://calendar.example.com/${"a".repeat(2100)}.ics`,
+  });
   assert.deepEqual(Object.keys(feed), ["ical_url"]);
   assert.doesNotMatch(feed.ical_url, /Too big|Invalid|expected/);
   assert.deepEqual(S.saveProblems("tone", taken(), "Bright."), {});

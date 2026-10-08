@@ -188,6 +188,8 @@ Object.assign(globalThis.React, {
       },
     ];
   },
+  // The kit's controls name their parts with it (a segmented control's options, a field's hint).
+  useId: () => `id-${frames.key()}`,
   // An effect runs once per component, on its first mount, as React runs it on arrival.
   useEffect: (fn) => {
     const k = frames.key();
@@ -542,11 +544,23 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
   await keepRow.cta.onClick();
   tree = mount();
   assert.ok(byTestId(tree, "setup-forwarding"), "the card opens under the row");
-  byTestId(tree, "setup-fw-number").props.onChange({ target: { value: "(305) 555-0100" } });
+  // The form is the kit's own controls (7 Oct 2026: a field, a select and a segmented control, where the card drew
+  // boxes and rows of buttons of its own). Each hands the form its value, which is what a person choosing does; how
+  // each control behaves under a hand is the kit's to prove (e2e/kit/kit-behaves.spec.ts).
+  byTestId(tree, "setup-fw-number").props.onValueChange("(305) 555-0100");
   tree = mount();
-  byTestId(tree, "setup-fw-carrier-att").props.onClick();
+  byTestId(tree, "setup-fw-carrier").props.onValueChange("att");
   tree = mount();
-  byTestId(tree, "setup-fw-mode-always").props.onClick();
+  let modes = null;
+  walk(tree, (n) => {
+    if (!modes && n.props?.label === "Which calls" && typeof n.props.onValueChange === "function") modes = n.props;
+  });
+  assert.deepEqual(
+    modes.options.map((o) => o.testid),
+    ["setup-fw-mode-unanswered", "setup-fw-mode-always"],
+    "the two ways a carrier forwards, each named for a test to find",
+  );
+  modes.onValueChange("always");
   tree = mount();
   await byTestId(tree, "setup-fw-save").props.onClick();
   assert.deepEqual(calls.fwSet, [{ number: "(305) 555-0100", carrier: "att", mode: "always", test_from: "" }]);

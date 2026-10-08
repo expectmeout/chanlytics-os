@@ -5,7 +5,8 @@
 
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { BookingRuleKey, ProfileLimitKey, ProfileRefusalKey } from "@chanlytics/contracts";
-import { trimmed, type StoredNote } from "./save";
+import { BOOKS_BY_HAND, booksWithOf, isBookingTool } from "@chanlytics/contracts";
+import { trimmed, type Config, type StoredNote } from "./save";
 
 /** The folds, each named by its id. */
 export type FoldName =
@@ -22,7 +23,6 @@ export type FoldName =
   | "extra_instructions"
   | "fallbacks"
   | "calendar"
-  | "bookings"
   | "receptionist";
 
 /** Every problem with a draft at once, by the field it is under. */
@@ -90,14 +90,18 @@ export interface DraftOf {
   guardrails: Record<string, boolean>;
   extra_instructions: InstructionsDraft;
   fallbacks: Record<string, string>;
-  calendar: string;
-  bookings: BookingsDraft;
+  calendar: CalendarDraft;
   receptionist: ReceptionistDraft;
 }
 
-/** The bookings fold's draft: the tool the owner names (contracts BOOKING_TOOL_IDS), "" for none. */
-export interface BookingsDraft {
-  tool: string;
+/**
+ * The Booking tool fold's draft: what the owner books with, as the picker holds it (a tool of contracts
+ * BOOKING_TOOL_IDS, "calendar" for a calendar with no tool behind it, "hand" for nothing at all, "" for nothing said
+ * yet: contracts booksWithOf), and the calendar link's address as its box holds it.
+ */
+export interface CalendarDraft {
+  with: string;
+  ical_url: string;
 }
 
 // The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
@@ -184,8 +188,9 @@ export const BT_DAY_NAMES: Record<string, string> = {
  * Exactly what each fold writes, as dotted paths into the whole config: nothing outside them is the fold's to change.
  * Two folds share booking_rules, each with only its own of its keys, and three write beside the profile: the rules
  * write the photos switch (features.vision), the instructions write the stored prompt, and the fallbacks and the
- * calendar write nothing in the profile at all. The calendar's is its address alone: whatever else its section comes
- * to hold is kept, as it is under the rules, the messages and the features.
+ * calendar write nothing in the profile at all. The calendar's are its address and what the owner books with (the
+ * tool, or their own hands), each a key of its own section: whatever else a section comes to hold is kept, as it is
+ * under the rules, the messages and the features.
  */
 export const BT_PATHS_OF: Record<FoldName, string[]> = {
   tone: ["brain.profile.tone"],
@@ -203,9 +208,10 @@ export const BT_PATHS_OF: Record<FoldName, string[]> = {
   guardrails: BT_GUARDRAILS.map((key) => `brain.profile.guardrails.${key}`).concat(["features.vision"]),
   extra_instructions: ["brain.profile.extra_instructions", "brain.system_prompt"],
   fallbacks: BT_FALLBACKS.map((key) => `brain.fallbacks.${key}`),
-  calendar: ["calendar.ical_url"],
-  // The tool the owner named (00345): a section of its own, which a build from before it leaves out and reads on.
-  bookings: ["bookings.tool"],
+  // The link's address, and what the owner books with (00345): the second a section of its own, which a build from
+  // before it leaves out and reads on. One fold since 7 Oct 2026, where each was a row of its own that sent the owner
+  // to the other.
+  calendar: ["calendar.ical_url", "bookings.tool", "bookings.by_hand"],
   // The first save a workspace makes, where it has no receptionist (create.tsx): the three things it
   // cannot answer anyone without, and the product's own prompt and messages, which the schema needs and nobody should
   // have to write (contracts newReceptionistDefaults), written only where none is stored.
@@ -237,3 +243,74 @@ export function btFoldNamed(fold: string): asserts fold is FoldName {
     );
   }
 }
+
+/* ---------------------------- what every fold's writer uses, and the calendar fold's own ---------------------------- */
+
+// A key is written with a value, and removed without one: nothing is stored as an empty string or an empty list.
+export const btPut = (o: Record<string, unknown>, key: string, value: unknown) => {
+  if (value === undefined) delete o[key];
+  else o[key] = value;
+};
+// A draft the page built with a part missing is said, naming the part: written as it stood, a missing switch was stored
+// as off, the opposite of the schema's "absent means on", and a missing message as "", which the save refuses.
+export const btWhole = (fold: string, draft: unknown, parts: string[], kind: "boolean" | "string") => {
+  const held = (draft || {}) as Record<string, unknown>;
+  parts.forEach((key) => {
+    if (typeof held[key] !== kind) {
+      throw new TypeError(
+        `The ${fold} fold's draft needs ${JSON.stringify(key)} as a ${kind}; it holds ${JSON.stringify(held[key])}.`,
+      );
+    }
+  });
+};
+
+/** The calendar fold opens with what the owner books with, as the picker holds it (contracts booksWithOf), and the link's address. */
+export const btCalendarDraft = (config: Config): CalendarDraft => {
+  const ical_url = (config.calendar && config.calendar.ical_url) || "";
+  return { with: booksWithOf({ ...(config.bookings || {}), ical_url }), ical_url };
+};
+
+/**
+ * Two top-level sections, one fold. The calendar's is read by the edge: the address is written onto what the section
+ * holds, and an emptied one removes it, and the section with it once nothing else is in it. What the owner books with
+ * is a section of its own (00345), never a key of the calendar's: a calendar section with a tool and no address is one
+ * a build from before this could not read, and its whole config with it. A tool of the list is written as the tool;
+ * "by hand" as its own switch; a calendar with no tool behind it is the address and nothing more, so neither key is
+ * kept for it.
+ */
+export const btWriteCalendar = (next: Config, draft: unknown) => {
+  btWhole("calendar", draft, ["with", "ical_url"], "string");
+  const d = draft as CalendarDraft;
+  const feed = trimmed(d.ical_url);
+  const calendar = { ...(next.calendar || {}) };
+  btPut(calendar, "ical_url", feed || undefined);
+  if (Object.keys(calendar).length) next.calendar = calendar;
+  else delete next.calendar;
+  const bookings = { ...(next.bookings || {}) };
+  btPut(bookings, "tool", isBookingTool(d.with) ? d.with : undefined);
+  btPut(bookings, "by_hand", d.with === BOOKS_BY_HAND ? true : undefined);
+  if (Object.keys(bookings).length) next.bookings = bookings;
+  else delete next.bookings;
+};
+
+/**
+ * What the owner books with is picked from a list, never typed: nothing to refuse. The address is judged as typed,
+ * except one the server masked (only an owner is sent it whole): it is the stored one, kept as it is, and judging the
+ * mask would refuse a non-owner's change of the tool beside it.
+ */
+export const btCalendarProblems = (draft: unknown): Problems => {
+  const feed = trimmed(draft && (draft as CalendarDraft).ical_url);
+  return feed && !feed.includes("…") && !/^(https?|webcal):\/\/\S+$/i.test(feed)
+    ? { ical_url: "The calendar link needs to be a full address, starting with https:// or webcal://" }
+    : {};
+};
+
+/**
+ * The calendar fold's part of a config, as the save's schema is to judge it: the link's section and what the owner
+ * books with. A masked address (a non-owner's) is left out, as the page's own check leaves it: it is the stored one,
+ * and the mask is no address to judge.
+ */
+export const btCalendarPart = (next: Config) => {
+  const masked = !!next.calendar && String(next.calendar.ical_url || "").includes("…");
+  return masked ? { bookings: next.bookings } : { calendar: next.calendar, bookings: next.bookings };
+};

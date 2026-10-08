@@ -257,7 +257,7 @@ test("who is on a list: the ids kept on it, or who its rule holds for today; unk
   assert.deepEqual(listMembers({ ids: [], rule: lapsed }, rows, noCalendar), { state: "unknown", reason: "calendar" });
   assert.deepEqual([...savedListIds({ ids: [], rule: lapsed }, rows, noCalendar)], [], "the send enrols nobody");
   assert.match(listUnknownWords("calendar", "unavailable"), /can't be read right now/);
-  assert.match(listUnknownWords("calendar", "none"), /Connect it/);
+  assert.match(listUnknownWords("calendar", "none"), /reads a calendar link. Add one/);
   assert.deepEqual(
     [...savedListIds({ ids: [], rule: rule({ field: "channel", op: "is", channel: "sms" }) }, rows, noCalendar)],
     ["3"],

@@ -2,9 +2,19 @@
  * Keep the number you have (moved from legacy/pages/setup.jsx, decision 0015): the carrier's code to dial on the phone
  * that has it, then a test window -- a call to the kept number that reaches the receptionist inside it marks the row
  * verified, and the page repaints.
+ *
+ * The form is the kit's all the way through (Ruben, 7 Oct 2026: it stood on a black panel, in boxes and chips of its
+ * own): the two numbers are Fields, the carrier a Select (five names, two of them long, wrapped over two lines as
+ * chips), which calls a Segmented choice of two, and its acts Buttons. Two columns where there is room, one on a phone
+ * (settings.css, .setup-fw-form), on the look's inset surface (.setup-chooser).
  */
 import { useState } from "react";
 import { isCarrier, isForwardingMode, type Carrier, type LineDto } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
+import { Field } from "../../kit/field/field";
+import { Icon } from "../../kit/icon/icon";
+import { Segmented } from "../../kit/segmented/segmented";
+import { Select } from "../../kit/select/select";
 import { canDo, gate, type LegacyFlash } from "../../legacy-verbs";
 import { FORWARDING_WORDS, setupVerbs, type SetupSurface } from "../surface";
 
@@ -60,15 +70,15 @@ function codeCard(
             The window is open — call {W.display(fw.e164)} from another phone. This page updates by itself.
           </span>
         ) : (
-          <button
-            className="btn btn-sm"
+          <Button
+            size="sm"
             onClick={o.test}
             disabled={o.busy}
             data-testid="setup-fw-test"
             {...gate("team", "test forwarding")}
           >
             Test it
-          </button>
+          </Button>
         )}
         {fw.forwarding_state !== "verified" && codes.off.code && (
           <span className="setup-fw-off">
@@ -133,71 +143,63 @@ export const ForwardingCard = ({ S, flash, onDone }: ForwardingProps) => {
         <p className="setup-fw-note">Your receptionist needs a line first — get a new number from the row above.</p>
       )}
       <div className="setup-fw-form">
-        <label className="setup-fw-field">
-          <span className="setup-find-label">The number you keep</span>
-          <input
-            className="setup-area setup-fw-input"
-            inputMode="tel"
-            placeholder="(305) 555-0100"
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
-            data-testid="setup-fw-number"
-          />
-        </label>
-        <div className="setup-fw-field">
-          <span className="setup-find-label">Carrier</span>
-          <div className="setup-fw-seg">
-            {W.carriers.map((c) => (
-              <button
-                key={c}
-                className={"setup-seg " + (carrier === c ? "active" : "")}
-                onClick={() => setCarrier(c)}
-                data-testid={`setup-fw-carrier-${c}`}
-              >
-                {W.carrierWords[c]}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="setup-fw-field">
-          <span className="setup-find-label">Which calls</span>
-          <div className="setup-fw-seg">
-            {W.modes.map((m) => (
-              <button
-                key={m}
-                className={"setup-seg " + (mode === m ? "active" : "")}
-                onClick={() => setMode(m)}
-                data-testid={`setup-fw-mode-${m}`}
-              >
-                {W.modeWords[m]}
-              </button>
-            ))}
-          </div>
-        </div>
-        <label className="setup-fw-field">
-          <span className="setup-find-label">The phone you&rsquo;ll test from (optional)</span>
-          <input
-            className="setup-area setup-fw-input"
-            inputMode="tel"
-            placeholder="your mobile"
-            value={testFrom}
-            onChange={(e) => setTestFrom(e.target.value)}
-            data-testid="setup-fw-from"
-          />
-        </label>
+        <Field
+          label="The number you keep"
+          type="tel"
+          inputMode="tel"
+          placeholder="(305) 555-0100"
+          value={number}
+          onValueChange={setNumber}
+          data-testid="setup-fw-number"
+        />
+        <Field
+          label="Carrier"
+          control={
+            <Select
+              value={carrier}
+              onValueChange={setCarrier}
+              options={W.carriers.map((c) => ({ value: c, label: W.carrierWords[c] ?? c }))}
+              chevron={<Icon name="chevron-down" size={12} />}
+              data-testid="setup-fw-carrier"
+            />
+          }
+        />
+        <Field
+          className="setup-fw-wide"
+          label="Which calls"
+          control={
+            <Segmented
+              label="Which calls"
+              value={mode}
+              onValueChange={setMode}
+              options={W.modes.map((m) => ({ value: m, label: W.modeWords[m] ?? m, testid: `setup-fw-mode-${m}` }))}
+            />
+          }
+        />
+        <Field
+          label="The phone you'll test from"
+          hint="Optional."
+          type="tel"
+          inputMode="tel"
+          placeholder="Your mobile"
+          value={testFrom}
+          onValueChange={setTestFrom}
+          data-testid="setup-fw-from"
+        />
         <div className="setup-fw-actions">
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={save}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void save()}
             disabled={busy || !dest}
             data-testid="setup-fw-save"
             {...gate("team", "set up forwarding")}
           >
             {fw ? "Save changes" : "Save and show the code"}
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={onDone}>
+          </Button>
+          <Button variant="quiet" size="sm" onClick={onDone}>
             Close
-          </button>
+          </Button>
         </div>
       </div>
       {codes &&

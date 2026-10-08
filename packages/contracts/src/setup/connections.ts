@@ -18,13 +18,14 @@ import { codeNotes, type LineCodeDto } from "../lines/line-codes";
 import { standingNotes, standingRow } from "../lines/number-standing";
 import { whatsappCostNotes } from "../lines/whatsapp-cost";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "../google/google";
-import type { LineDto } from "./setup";
+import type { LineDto, SetupDto } from "./setup";
 import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
 import { waMeDigits } from "../shared/enums";
 import { agoWords, HOUR_MS } from "../shared/time";
 import { checkedWords, connectionWords, listingLine } from "../google/google";
 import { formatPhoneDisplay } from "../shared/phone";
-import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
+import { bookingToolName } from "../calendar/booking-notice";
+import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from "./calendar-source";
 import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "../email/mailbox";
 import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run";
 
@@ -96,7 +97,8 @@ export interface ConnectionInputs {
     listing: GoogleListingDto | null;
     connection: GoogleConnectionDto | null;
   } | null;
-  calendar: { state: "ok" | "unavailable" | "none" } | null;
+  /** The calendar as Setup is told it (SetupDto.calendar): the link's read, the tool named and its emails. */
+  calendar: SetupDto["calendar"] | null;
   /** Email as Setup is told it (mailbox.ts); null or absent while Setup has not been read, or on a deployment without it. */
   email?: EmailSetupDto | null;
   /** The one-time codes sent to the workspace's own line lately (`GET lines/codes`); absent where none were read. */
@@ -637,38 +639,34 @@ function googleListingRow(i: ConnectionInputs, { connection: c, listing: l, nowM
 
 /** The calendar: the feed the receptionist reads today. */
 function calendarRow(i: ConnectionInputs): Draft {
-  const cal = i.calendar?.state ?? "none";
-  const base = { kind: "calendar" as const, icon: "calendar", title: "Calendar" };
-  if (cal === "ok") {
-    return {
-      ...base,
-      detail: "iCal feed",
-      state: "connected",
-      stateWords: CALENDAR_FEED_WORDS.ok,
-      sentence: "The receptionist offers times from it. Booking emails from your tool add the client and the service.",
-      verb: { label: "Open Calendar", to: "calendar", who: "operator" },
-    };
-  }
-  if (cal === "unavailable") {
-    return {
-      ...base,
-      detail: "iCal feed",
-      state: "attention",
-      stateWords: CALENDAR_FEED_WORDS.unavailable,
-      sentence: "Your calendar could not be read. Check the address in Settings › Business.",
-      verb: { label: "Check the address", to: "admin/workspace", who: "owner" },
-    };
-  }
+  const s = calendarSourceOf(calendarSourceFacts(i.calendar ?? { state: "none" }));
+  const tool = bookingToolName(i.calendar?.tool);
+  // What makes the row this workspace's: the tool it books with, the link it reads, both, or its own word that it
+  // books by hand (which has no state to show beside it, so it is said here).
+  const DETAIL = { both: `${tool} · calendar link`, link: "Calendar link", emails: tool, hand: s.words, nothing: null };
+  const detail = DETAIL[s.by];
   return {
-    ...base,
-    detail: null,
-    state: "none",
-    stateWords: CALENDAR_FEED_WORDS.none,
-    sentence:
-      "Paste your calendar's iCal address so the receptionist knows what is taken. Booking emails from your tool can fill the board too.",
-    verb: { label: "Paste the address", to: "admin/workspace", who: "owner" },
+    kind: "calendar",
+    icon: "calendar",
+    title: "Calendar",
+    detail,
+    state: CONNECTION_STATE_OF[s.state],
+    stateWords: s.words,
+    sentence: s.sentence,
+    // Opening the board is anyone's who may read it; the row in Settings is the owner's to change.
+    verb: { ...s.next, who: s.next.to === "calendar" ? "operator" : "owner" },
   };
 }
+
+/** A connection's state for each of the calendar's (calendar-source.ts). A business that books by hand has none, by its own word. */
+const CONNECTION_STATE_OF: Record<CalendarSourceState, ConnectionState> = {
+  ready: "connected",
+  attention: "attention",
+  needs_you: "waiting_you",
+  waiting: "waiting_them",
+  hand: "none",
+  none: "none",
+};
 
 /** Instagram: not built yet, so always later. */
 function instagramRow(): Draft {

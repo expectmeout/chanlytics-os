@@ -227,10 +227,21 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
 export const ROUTE_WAIT_MS = 3000;
 
 /**
+ * The pane a param names. Settings' may name a Business row after its pane (`workspace/calendar`, a door from another
+ * page that opens that row: settings/frame/tabs.ts settingsRowOf), and the pane is what is classified, fed, waited for
+ * and moved: asked about the whole of it, each lookup below found nothing and answered for the bare page, so the gate
+ * would not have waited for the settings read at all.
+ */
+function paneOf(page: string, param?: string | null): string | null | undefined {
+  return page === "admin" && param && param.includes("/") ? param.slice(0, param.indexOf("/")) : param;
+}
+
+/**
  * What a route draws beside its own surface: a person's page is one route of its own, whatever its id, and a lens or a pane
  * that names its draws (`reports/reviews`, `admin/integrations`) is asked about before its page, as routeSurfaceFor asks it.
  */
-export function routeDrawsFor(page: string, param?: string | null): readonly string[] {
+export function routeDrawsFor(page: string, at?: string | null): readonly string[] {
+  const param = paneOf(page, at);
   // Leads is `clients/leads…`, the scope asked about as routeSurfaceFor asks it, never as People.
   if (page === "clients" && param && /^leads(:|$)/.test(param)) return ROUTE_DRAWS.leads ?? [];
   const specific = param ? ROUTE_DRAWS[`${page}/${param}`] : undefined;
@@ -388,7 +399,7 @@ export const SURFACE_DEFAULT_PARAM: Record<string, string> = {
  * be asked about what will actually RENDER.
  */
 export function routeSurfaceFor(page: string, param?: string | null): string | undefined {
-  const pane = param || SURFACE_DEFAULT_PARAM[page];
+  const pane = paneOf(page, param) || SURFACE_DEFAULT_PARAM[page];
   // People has two scopes and they are fed by two surfaces. Leads is
   // `clients/leads` with the view spelled after it (`clients/leads:s-…:l-…`),
   // so the gate must be asked about the SCOPE, not the page: asked about
@@ -408,7 +419,7 @@ export function routeSurfaceFor(page: string, param?: string | null): string | u
 }
 
 export function surfaceStateFor(page: string, param?: string | null): SurfaceState | undefined {
-  const pane = param || SURFACE_DEFAULT_PARAM[page];
+  const pane = paneOf(page, param) || SURFACE_DEFAULT_PARAM[page];
   if (pane) {
     const specific = SURFACE_STATES[`${page}/${pane}`];
     if (specific) return specific;
@@ -449,7 +460,8 @@ const GONE_FROM_THE_TREE = new Set(["leads"]);
  * that moved and a page gone from the tree move for everyone; a retired page the mockup still has (the Deal board)
  * stays where it is in a demo session (`demo`), which is the one place it is still drawn.
  */
-export function surfaceRetiredTo(page: string, param?: string | null, demo = false): string | undefined {
+export function surfaceRetiredTo(page: string, at?: string | null, demo = false): string | undefined {
+  const param = paneOf(page, at);
   const moved = param ? ROUTES_MOVED[`${page}/${param}`] : undefined;
   if (moved) return moved;
   return demo && !GONE_FROM_THE_TREE.has(page) ? undefined : SURFACE_RETIRED[page];

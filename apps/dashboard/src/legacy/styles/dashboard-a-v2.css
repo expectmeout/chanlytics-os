@@ -1689,6 +1689,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tb-line { margin: 0; font-size: var(--text-md); line-height: 1.5; color: var(--ink-muted); text-wrap: pretty; }
 .tb-line b { color: var(--ink); font-weight: var(--weight-semibold); }
 .tb-body .tc-beats { padding: 0; margin: 0; gap: 8px; }
+/* The brief is its summary; a line stands under it only for what a sentence cannot carry (a reply that failed, with
+   its door). With none, the list takes no room. */
+.tb-body .tc-beats:empty { display: none; }
 .tb-body .brief-beat { font-size: var(--text-base); line-height: 1.5; color: var(--ink-muted); }
 .tb-body .brief-beat-glyph { display: none; }
 /* The brief's acts (E3): Listen as an inset capsule with the play glyph and the length in mono beside it, Ask a follow-up
@@ -1854,22 +1857,23 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 
 /* What is left to set up, compact (Ruben, 1 Oct 2026: kept, drawn cleanly): one eyebrow line in mono with the count,
    Hide at its right, then each row as the state's dot, the name over one line of its words, and its act at the right.
-   The card's own parts are reached by their place and their testids, since the ratchet counts the card's names; a
-   phone keeps mobile.css's one-row card, where the count rides beside the words. */
+   The card's own parts are reached by their place and their testids, since the ratchet counts the card's names. The
+   eyebrow is every width's: on a phone it is what says the card is setting up and how many are left, over mobile.css's
+   one row (Ruben, 7 Oct 2026: the row's sentence, three lines beside its button, is a desk's). */
+.dash-a-v2 .today-setup > :first-child { align-items: center; }
+.dash-a-v2 .today-setup > :first-child > :first-child {
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.dash-a-v2 .today-setup > :first-child > :first-child::after { content: "·"; }
+.dash-a-v2 .today-setup [data-testid="today-setup-left"] { order: 1; font: inherit; color: inherit; }
 @media (min-width: 721px) {
   .dash-a-v2 .today-setup { gap: 4px; padding: 12px 18px; }
-  .dash-a-v2 .today-setup > :first-child { align-items: center; }
-  .dash-a-v2 .today-setup > :first-child > :first-child {
-    gap: 6px;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-medium);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
-  }
-  .dash-a-v2 .today-setup > :first-child > :first-child::after { content: "·"; }
-  .dash-a-v2 .today-setup [data-testid="today-setup-left"] { order: 1; font: inherit; color: inherit; }
   .dash-a-v2 .today-setup [data-testid="today-setup-hide"] { font-size: var(--text-sm); }
   .dash-a-v2 .today-setup .tq-list > * { grid-template-columns: 8px minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-top: 0; }
   .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -1949,6 +1953,13 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .dash-a-v2 .today-queue .cl-attn-acts { grid-column: 2; grid-row: 2; justify-self: start; padding-top: 7px; }
   /* The panes keep 16px inside on a phone (E3's phone board). */
   .dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 16px; }
+  /* Worth a look on a phone (Ruben, 7 Oct 2026): the row's tag stands over its sentence, so the sentence has the row's
+     width where it wrapped round the tag; it still opens its arithmetic, without a dotted rule under every word; and
+     its doors are one line, Ask why at its start and the row's own door at its end. */
+  .dash-a-v2 .tl-row { grid-template-columns: minmax(0, 1fr); grid-template-areas: "tag" "text" "foot"; justify-items: start; gap: 6px; }
+  .dash-a-v2 .tl-text-door { text-decoration: none; }
+  .dash-a-v2 .tl-foot { width: 100%; gap: 8px 10px; }
+  .dash-a-v2 .tl-acts { flex: 1 1 100%; justify-content: space-between; margin-left: 0; }
   /* The brief's Listen stands at the right of its head on a phone (E3's phone board), not among the acts under the line. */
   .dash-a-v2 .tb .tb-listen-head { display: inline-flex; margin-left: auto; }
   .dash-a-v2 .tb-foot > .tb-listen { display: none; }

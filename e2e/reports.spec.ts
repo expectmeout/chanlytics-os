@@ -222,7 +222,7 @@ test.describe("Reports on a real workspace", () => {
     const card = page.getByTestId("chart-booking");
     if (await card.count()) {
       await expect(card).toContainText(
-        /have an appointment on the calendar|Nobody asked|Connect your calendar|Couldn't read your calendar/,
+        /have an appointment on the calendar|Nobody asked|Add a calendar link|Couldn't read your calendar/,
       );
     } else {
       // An empty period shows one card instead of the sections; the route still carries the line.

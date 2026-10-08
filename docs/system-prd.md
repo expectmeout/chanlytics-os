@@ -699,7 +699,8 @@ One JSON document per workspace, parsed by the same zod schema (`TenantConfigSch
 
 - `brain` — the business name and booking link; the profile: hours (up to four intervals a day, read by one reader wherever a day's openness is asked), closures, services with their durations and whether a consultation comes first, booking rules, guardrails, notes, the handoff number, the tone, and the instructions box, which holds the prompt it came from and stays empty when emptied; and the fallbacks the receptionist says when it cannot answer.
 - `notifications` — who is alerted.
-- `calendar` — the iCal feed's address.
+- `calendar` — the calendar link's address (an iCal feed).
+- `bookings` — what the owner books with: the booking tool whose emails become appointments, or their own word that they book by hand. A section of its own, so a build from before it leaves it out and reads on.
 - `features` — `vision`, off by default.
 
 Writes are owner-only and a versioned compare-and-swap (`PUT /settings` echoes the version it read; a conflict recovers without a reload; Settings › Activity says who changed it). Each stamps `updated_by` and records an event naming the fields that moved — never their values (00085). Every section is audited.
@@ -948,7 +949,7 @@ chain end with a call or a note for the team.
 
 ## S-15 · Calendar and availability
 
-The receptionist never books; it may **see** the calendar. The owner's appointments arrive as an iCal feed — what Booksy, Calendly, Square and the rest sync into Google or Apple calendars — read from its private address, which the address rule guards on every fetch.
+The receptionist never books; it may **see** the calendar. The owner's appointments arrive two ways, set in one row of Settings › Business (Booking tool): a calendar link, an iCal feed that tools like Calendly and Square write into Google or Apple calendars, read from its private address, which the address rule guards on every fetch; and the booking tool's own emails, each of which becomes an appointment on the record (a tool such as Booksy offers no calendar at all). Open times are read from the link alone. What the calendar is fed by is said once for every page (contracts `calendarSourceOf`).
 
 - `apps/edge/lib/calendar/availability.ts` fetches the feed with a five-minute cache and never lets it block a reply; `contracts/calendar/feed.ts` parses it (a moved appointment draws once; extra dates are read) and `contracts/calendar/availability.ts` computes the open windows against the hours, closures, lead time and buffers, in the business's timezone, under **one horizon rule, one clock and one byte ceiling**. The first open time is on the slot grid, not the minute it was asked (`onTheGrid`). A service that needs a consultation first is sized by its own length on the board and in Ask, while the receptionist offers a consultation (`offerFor`, `needsConsultation`, `offerLead`).
 - Four readers compute the same windows: the WhatsApp prompt (open times, and this person's visits), the phone tool `check_availability`, the dashboard's Calendar (`server/calendar/calendar-week.ts`; the feed's address never reaches the browser), and Ask's openings fast path (`openingsFor`, pinned equal to the board's `fit`).

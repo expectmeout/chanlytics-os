@@ -53,4 +53,10 @@ export {
   REVIEW_AUTO_REPLY_MAX_AGE_MS,
 } from "./review-reply";
 export type { ReviewReplyMode, ReviewReplyFacts, ReviewToAnswer, ReviewOnRecord } from "./review-reply";
-export { onDomain, bookingPageOf, BOOKING_PLATFORM_HOSTS } from "./booking-page";
+export {
+  onDomain,
+  bookingPageOf,
+  bookingToolOfLink,
+  BOOKING_PLATFORM_HOSTS,
+  BOOKING_PLATFORM_TOOLS,
+} from "./booking-page";

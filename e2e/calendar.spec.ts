@@ -51,7 +51,7 @@ test.describe("Calendar on a real workspace", () => {
     const res = await apiGet(page, "/api/v1/calendar");
     expect(res.status()).toBe(200);
     const cal = (await res.json()).data.calendar as {
-      feed: { present: boolean; state: string; notices?: { last_at: string | null } };
+      feed: { present: boolean; state: string; by_hand?: boolean; notices?: { tool: string | null } };
       days: Array<{ items: unknown[]; windows: unknown[] }>;
     };
     expect(JSON.stringify(cal)).not.toContain("ical_url");
@@ -60,9 +60,10 @@ test.describe("Calendar on a real workspace", () => {
     await expect(board.getByTestId("cal-dayhead")).toHaveCount(7);
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
     await expect(board.getByTestId("cal-legend")).toBeVisible();
-    // The chip is the one state pill Connections and Setup use (contracts CALENDAR_FEED_WORDS), with the detail beside it.
+    // The chip is the one state Connections and Setup say too (contracts calendarSourceOf): a calendar link's read in
+    // CALENDAR_FEED_WORDS, or, with no link, where the booking tool's emails stand or that the owner books by hand.
     await expect(board.getByTestId("cal-feed-state")).toContainText(
-      /^(Readable|Last good read|Could not be read|Not connected)$/,
+      /^(Readable|Last good read|Could not be read|Not connected|By email|Waiting for the first email|Needs you|\d+ to look at|Booked by hand)$/,
     );
 
     // The blocks and windows are exactly the route's. With no calendar that reads, the route's items are the bookings
@@ -72,15 +73,18 @@ test.describe("Calendar on a real workspace", () => {
     if (cal.feed.state === "ok") {
       expect(await board.getByTestId("cal-window").count()).toBe(windows);
     } else {
-      await expect(board.getByTestId("cal-feed-card")).toBeVisible();
+      // A business that books by hand said so in Settings, and is told nothing: there is no card.
+      await expect(board.getByTestId("cal-feed-card")).toHaveCount(cal.feed.by_hand ? 0 : 1);
       await expect(board.getByTestId("cal-window")).toHaveCount(0);
       if (!items) await expect(board.getByTestId("cal-block")).toHaveCount(0);
     }
     expect((await board.getByTestId("cal-block").count()) + (await board.locator(".cal-allday").count())).toBe(items);
-    // No calendar: the card says so, or, once a booking email has arrived, that bookings arrive by email.
-    if (!cal.feed.present)
+    // No calendar link: the card says so, or, with a booking tool named, where its emails stand.
+    if (!cal.feed.present && !cal.feed.by_hand)
       await expect(board.getByTestId("cal-feed-card")).toContainText(
-        cal.feed.notices?.last_at ? "Bookings arrive by email" : "No calendar connected",
+        cal.feed.notices?.tool
+          ? /Bookings arrive by email|needs? a look|Waiting for the first booking email|needs an address|confirm the forward/
+          : "No calendar connected",
       );
   });
 

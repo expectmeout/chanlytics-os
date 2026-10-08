@@ -98,7 +98,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/mobile.css": {
-    "font": 3,
+    "font": 2,
     "radius": 0,
     "shadow": 0,
     "colour": 1,
@@ -126,9 +126,9 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/settings.css": {
-    "font": 24,
+    "font": 23,
     "radius": 9,
-    "shadow": 5,
+    "shadow": 4,
     "colour": 1,
     "blur": 0
   },

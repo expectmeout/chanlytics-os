@@ -11,6 +11,7 @@
  * time in words. Days that could not be read and days on their way keep their own lines (cal-failed with its Retry,
  * cal-reading), which never needed the counts.
  */
+import { BOOKING_TOOL_WORDS, CALENDAR_SETTING_ROUTE } from "@chanlytics/contracts";
 import type { CalendarServiceVM, CalendarVM, CalendarView } from "@chanlytics/contracts";
 import type { RefObject } from "react";
 import { Button } from "../kit/button/button";
@@ -95,10 +96,10 @@ function optionsGroups(p: BarProps): MenuGroup[] {
         onSelect: toggleAbout,
       },
       {
-        label: "Calendar settings",
+        label: BOOKING_TOOL_WORDS.label,
         hint: "Settings › Business",
         glyph: crGlyph("settings"),
-        onSelect: () => navigate(routeTo.admin("workspace")),
+        onSelect: () => navigate(CALENDAR_SETTING_ROUTE),
       },
     ],
   });
@@ -246,47 +247,44 @@ export function consultNote(p: Pick<CardProps, "vm" | "service">) {
 }
 
 /**
- * The feed card's one door, to Settings › Business, in the words of what is next there: the address to paste or to
- * check; with bookings arriving by email instead, the emails held for a look, or a calendar as the quiet extra it is.
+ * The feed card's one door: the next press the one answer names (contracts calendarSourceOf), which opens the Booking
+ * tool row in Settings › Business. Where the answer's own door is this page (bookings that arrive by email and need
+ * nothing), the row is offered quietly instead, by its name. Loud only where something is the owner's to do.
  */
-function feedDoorOf(feed: CalendarVM["feed"]): { words: string; quiet: boolean } {
-  if (feed.state !== "none") return { words: "Check the address", quiet: false };
-  if (!feed.notices.lastAgo) return { words: "Paste the address", quiet: false };
-  if (feed.notices.held) return { words: "Look at them", quiet: false };
-  return { words: "Add a calendar", quiet: true };
+function feedDoorOf(s: CalendarVM["source"]): { words: string; to: string; quiet: boolean } {
+  const here = s.next.to === "calendar";
+  return {
+    words: here ? BOOKING_TOOL_WORDS.label : s.next.label,
+    to: here ? CALENDAR_SETTING_ROUTE : s.next.to,
+    quiet: s.state === "waiting",
+  };
 }
 
-/** A calendar that is not connected, or could not be read: what it means for the receptionist, and the way to fix it. */
+/**
+ * No calendar link that reads: what the calendar is fed by instead, in the one answer's words (vm.source), and the way
+ * to what is next. A link that could not be read keeps its own sentences, with why and a Retry. A business that books
+ * by hand said so in Settings, and is told nothing: there is no card.
+ */
 export function feedCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">) {
   const { vm, refreshing, refreshNow } = p;
-  const door = feedDoorOf(vm.feed);
+  const s = vm.source;
+  const door = feedDoorOf(s);
   return (
-    vm.feed.state !== "ok" && (
+    vm.feed.state !== "ok" &&
+    s.state !== "hand" && (
       <div className="cal-feed-card" data-testid="cal-feed-card">
         <Icon name="calendar" size={14} />
-        {vm.feed.state === "none" && vm.feed.notices.lastAgo ? (
-          // Bookings arrive by email and no calendar reads: the board draws what was emailed, and says what it cannot.
-          <span data-testid="cal-feed-notices">
-            <b>Bookings arrive by email{vm.feed.notices.tool ? ` from ${vm.feed.notices.tool}` : ""}.</b> With no
-            calendar connected, this board shows those bookings and your hours, and the receptionist{" "}
-            {vm.bookingLink ? "sends the booking link but " : ""}never names an open time.
-            {vm.feed.notices.held
-              ? ` ${vm.feed.notices.held} booking ${vm.feed.notices.held === 1 ? "email needs" : "emails need"} a look.`
-              : ""}
-          </span>
-        ) : vm.feed.state === "none" ? (
-          <span>
-            <b>No calendar connected.</b> Paste your calendar&apos;s private iCal address under Settings › Business:
-            Google, Apple, Outlook, or the feed your booking tool offers. Until then the receptionist{" "}
-            {vm.bookingLink ? "sends the booking link but " : ""}never names an open time, and this board shows only
-            your hours and closures. Booking emails from your tool can fill the board too.
-          </span>
-        ) : (
+        {vm.feed.state === "unavailable" ? (
           <span>
             <b>Your calendar could not be read.</b> {vm.feed.problem || CR_FEED_WORDS.unavailable}
             {vm.feed.problem
               ? ` Until it reads, the receptionist ${vm.bookingLink ? "sends the booking link but " : ""}never names an open time.`
               : ""}
+          </span>
+        ) : (
+          // Bookings that arrive by email, a tool still being set up, or nothing connected: said once, as every page says it.
+          <span data-testid={s.by === "emails" ? "cal-feed-notices" : undefined}>
+            <b>{s.lead}</b> {s.rest}
           </span>
         )}
         {/* A calendar that can't be read: its only way back was Settings (C2). */}
@@ -295,14 +293,17 @@ export function feedCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">)
             {refreshing ? "Retrying…" : "Retry"}
           </Button>
         )}
-        <Button
-          variant={door.quiet ? "quiet" : "primary"}
-          size="sm"
-          onClick={() => navigate(routeTo.admin("workspace"))}
-          data-testid="cal-feed-door"
-        >
-          {door.words}
-        </Button>
+        {/* What works and asks nothing has no press: the menu at the bar's end goes to the same row. */}
+        {s.state !== "ready" && (
+          <Button
+            variant={door.quiet ? "quiet" : "primary"}
+            size="sm"
+            onClick={() => navigate(door.to)}
+            data-testid="cal-feed-door"
+          >
+            {door.words}
+          </Button>
+        )}
       </div>
     )
   );
@@ -323,8 +324,8 @@ export function staleCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">
         <Button size="sm" onClick={refreshNow} disabled={refreshing} data-testid="cal-feed-stale-retry">
           {refreshing ? "Retrying…" : "Retry"}
         </Button>
-        <Button variant="quiet" size="sm" onClick={() => navigate(routeTo.admin("workspace"))}>
-          Check the address
+        <Button variant="quiet" size="sm" onClick={() => navigate(CALENDAR_SETTING_ROUTE)}>
+          Check the link
         </Button>
       </div>
     )
@@ -383,11 +384,30 @@ export function readingLine(pending: boolean) {
   );
 }
 
+/**
+ * A group's name, which is the door to where it is kept: the Business row of that name, opened (the address names the
+ * row: settings/frame/tabs.ts settingsRowOf). The sheet had one door for all of it, to the top of the tab.
+ */
+function rulesLabel(words: string, row: string) {
+  return (
+    <dt className="cal-rules-label">
+      <LinkButton
+        className="cal-door"
+        onClick={() => navigate(`${routeTo.admin("workspace")}/${row}`)}
+        title={`Change it in Settings › Business`}
+        data-testid={`cal-rules-door-${row}`}
+      >
+        {words} <Icon name="arrow-right" size={9} />
+      </LinkButton>
+    </dt>
+  );
+}
+
 /** The hours the receptionist works from, a run of days to a line. */
 function hoursGroup(vm: CalendarVM) {
   return (
     <div className="cal-rules-group">
-      <dt className="cal-rules-label">Hours</dt>
+      {rulesLabel("Hours", "hours")}
       <dd className="cal-rules-value">
         {vm.hoursLines.length
           ? vm.hoursLines.map((l) => (
@@ -405,7 +425,7 @@ function hoursGroup(vm: CalendarVM) {
 function closedGroup(vm: CalendarVM) {
   return (
     <div className="cal-rules-group">
-      <dt className="cal-rules-label">Closed</dt>
+      {rulesLabel("Closed", "closures")}
       <dd className="cal-rules-value">
         {vm.closuresAhead.length
           ? vm.closuresAhead.map((c) => (
@@ -422,7 +442,7 @@ function closedGroup(vm: CalendarVM) {
 function bookingGroup(vm: CalendarVM) {
   return (
     <div className="cal-rules-group">
-      <dt className="cal-rules-label">Booking</dt>
+      {rulesLabel("Booking", "booking_rules")}
       <dd className="cal-rule-parts cal-rules-value">
         {vm.ruleParts.map((part) => (
           <span key={part} className="cal-rule" data-testid="cal-rule">
@@ -434,14 +454,30 @@ function bookingGroup(vm: CalendarVM) {
   );
 }
 
-/** The calendar's read as the pill Connections and Setup use (C3), and beside it only when it was read; Refresh asks for another. */
+/**
+ * What the business books with, under the Business row's own name (spec §10: one name for one thing on both pages).
+ * A calendar link's read is said as the pill Connections and Setup use (C3), and beside it only when it was read;
+ * Refresh asks for another. With no link, the one answer's state in its own words (vm.source): a business whose
+ * bookings arrive by email read "Not connected" here, under a board that showed them.
+ */
 function feedGroup(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">) {
   const { vm, refreshing, refreshNow } = p;
   const Pill = statePill();
+  if (!vm.feed.present)
+    return (
+      <div className="cal-rules-group">
+        {rulesLabel(BOOKING_TOOL_WORDS.label, "calendar")}
+        <dd className="cal-rules-value cal-rules-feed">
+          <span className="cal-feed-chip" data-testid="cal-feed">
+            <Pill kind="tone" value={vm.source.tone} label={vm.source.words} testid="cal-feed-state" />
+            {vm.feed.notices.tool && <span className="cal-feed-detail">{vm.feed.notices.tool}</span>}
+          </span>
+        </dd>
+      </div>
+    );
   return (
     <div className="cal-rules-group">
-      {/* The Business tab's name for it, word for word (spec §10): one name for one thing on both pages. */}
-      <dt className="cal-rules-label">Calendar it reads</dt>
+      {rulesLabel(BOOKING_TOOL_WORDS.label, "calendar")}
       <dd className="cal-rules-value cal-rules-feed">
         {/* The state in the pill Connections and Setup use (C3), and beside it only when it was read: where
                     it reads from and how many events it found are Settings' to say. Something wrong keeps the whole
@@ -484,7 +520,7 @@ function rulesSheet(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow"> & { c
         {/* Which services wait for a consultation was said only inside the service picker (C1). */}
         {vm.consultFirst.length > 0 && (
           <div className="cal-rules-group" data-testid="cal-rules-consult">
-            <dt className="cal-rules-label">Consultation first</dt>
+            {rulesLabel("Consultation first", "consult_first")}
             <dd className="cal-rules-value">{vm.consultFirst.join(" · ")}</dd>
           </div>
         )}

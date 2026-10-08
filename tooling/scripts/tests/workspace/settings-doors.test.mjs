@@ -865,12 +865,11 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     assert.match(notes[2], /^Meta texts a code to the number.* Keep this page open until Meta's window closes\.$/);
     assert.deepEqual(notes.slice(3), COST, "what WhatsApp costs and the card Meta asks for, last");
     assert.deepEqual(noteLinks(tree, "whatsapp"), [PRICES], "one link, to Meta's own prices, which opens in a new tab");
-    const box = byTestId(tree, "connection-whatsapp-notes");
-    assert.match(
-      String(box.props.className),
-      /\bset-int-notes\b/,
-      "drawn in the row's own hint style, each note a line of its own",
-    );
+    // Behind the quiet press beside the row's name (7 Oct 2026: "all extra info should be on a need to know"), where
+    // they stood under every name, four lines to a row: one column of plain sentences, named for the row.
+    const about = find(byTestId(tree, "connection-whatsapp"), (n) => n.props?.className === "set-int-about");
+    assert.equal(about.props.label, "About WhatsApp Business");
+    assert.equal(byTestId(tree, "connection-whatsapp-notes"), null);
     press(byTestId(tree, "connect-whatsapp-btn"));
     tree = settle(Connections);
     assert.equal(

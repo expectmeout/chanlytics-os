@@ -27,6 +27,7 @@ import {
   type AskAnswer,
   type AskLanguage,
   type AskMessageVM,
+  type AskOpeningsView,
   type AskScope,
   type AskSuggestion,
   type AskSurface,
@@ -268,7 +269,11 @@ export function askPalette(win: Window, storage: Storage | null) {
 type Openings = (
   day: string | null,
   service: string | null,
-) => Promise<{ state: string; days?: Array<{ key: string; label: string; windows: string[] }> }>;
+) => Promise<{
+  state: string;
+  days?: Array<{ key: string; label: string; windows: string[] }>;
+  instead?: AskOpeningsView["instead"];
+}>;
 
 /**
  * A quick question's answer, without a model: who needs me from Today's queue, today's calls, or the openings route's
@@ -287,7 +292,11 @@ export function quickAnswer(p: ReturnType<typeof askPalette>, openings: Openings
     return openings(intent.day, intent.service)
       .then((o) =>
         openingsAnswer(
-          { state: o.state === "ok" || o.state === "no_calendar" ? o.state : "unavailable", days: o.days ?? [] },
+          {
+            state: o.state === "ok" || o.state === "no_calendar" ? o.state : "unavailable",
+            days: o.days ?? [],
+            instead: o.instead ?? null,
+          },
           lang,
           intent.day,
         ),

@@ -19,7 +19,7 @@ import { PanePartner } from "../partner/pane";
 import { PaneTeam } from "../partner/team-card";
 import { PanePlatform } from "../platform/pane";
 import { PaneProfile } from "../profile/pane";
-import { SET_TAB, SET_TABS, SET_TABS_PLATFORM, isPlatformAdmin, type SetTab } from "./tabs";
+import { SET_TAB, SET_TABS, SET_TABS_PLATFORM, isPlatformAdmin, settingsRowOf, type SetTab } from "./tabs";
 import { PaneWorkspace } from "./workspace";
 
 type Flash = (f: LegacyFlash) => void;
@@ -83,14 +83,24 @@ const groupsOf = (listed: readonly SetTab[]) =>
     return acc;
   }, []);
 
-/** The pane the route names. */
-function SetPane({ id, flash, onTab }: { id: string; flash: Flash; onTab: (tab: string) => void }) {
+/** The pane the route names, and for Business the row it names after it (tabs.ts settingsRowOf). */
+function SetPane({
+  id,
+  row,
+  flash,
+  onTab,
+}: {
+  id: string;
+  row: string | null;
+  flash: Flash;
+  onTab: (tab: string) => void;
+}) {
   return (
     <>
       {id === "profile" && <PaneProfile flash={flash} />}
       {id === "partner" && <PanePartner flash={flash} />}
       {id === "team" && <PaneTeam flash={flash} />}
-      {id === "workspace" && <PaneWorkspace flash={flash} />}
+      {id === "workspace" && <PaneWorkspace flash={flash} row={row} />}
       {id === "autonomy" && <PaneAutonomyReal flash={flash} />}
       {id === "integrations" && <PaneIntegrationsReal />}
       {id === "memory" && <PaneSoon which="memory" onTab={onTab} />}
@@ -213,7 +223,7 @@ export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: st
             onNo={() => setLeaving(null)}
           />
         )}
-        <SetPane id={active.id} flash={flash} onTab={onTab} />
+        <SetPane id={active.id} row={settingsRowOf(tab)} flash={flash} onTab={onTab} />
       </div>
 
       {toastNode}

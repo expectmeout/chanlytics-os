@@ -716,19 +716,53 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   assert.equal(row(brought, "team").sentence, "2 people · Ada Lovelace is your partner · alerts go to 1 address.");
   const feed = setupSteps(empty({ calendar: { state: "unavailable" } }), NOW);
   assert.equal(row(feed, "calendar").state, "waiting_you");
-  assert.deepEqual(row(feed, "calendar").verb, { label: "Check the address", to: "admin/workspace" });
+  // The row is the one answer (calendar-source.test.mjs): its press opens the Business row itself.
+  assert.deepEqual(row(feed, "calendar").verb, { label: "Check the link", to: "admin/workspace/calendar" });
   assert.deepEqual(row(setupSteps(empty(), NOW), "calendar").verb, {
-    label: "Paste the address",
-    to: "admin/workspace",
+    label: "Connect your calendar",
+    to: "admin/workspace/calendar",
   });
   assert.equal(
     row(setupSteps(empty({ calendar: { state: "ok" } }), NOW), "calendar").sentence,
-    "Readable — the receptionist offers times from it.",
+    "The receptionist offers open times from it.",
   );
+  assert.equal(row(feed, "calendar").sentence, "Your calendar could not be read.");
+  // REGRESSION: the row read the link alone, so a business whose bookings arrive by email was asked, for good, to
+  // paste an address its tool does not have. It is ready; the tool's first email is waited for in its own words;
+  // and a business that books by hand, by its own word, is ready with nothing to connect.
+  const emails = (over) => ({
+    address: true,
+    forwarding: false,
+    last_at: "2026-09-08T14:00:00.000Z",
+    held: 0,
+    ...over,
+  });
+  const byEmail = row(
+    setupSteps(empty({ calendar: { state: "none", tool: "booksy", emails: emails() } }), NOW),
+    "calendar",
+  );
+  assert.equal(byEmail.state, "ready");
+  assert.match(byEmail.sentence, /^Bookings arrive by email from Booksy./);
+  assert.deepEqual(byEmail.verb, { label: "Open Calendar", to: "calendar" });
+  const first = row(
+    setupSteps(empty({ calendar: { state: "none", tool: "booksy", emails: emails({ last_at: null }) } }), NOW),
+    "calendar",
+  );
+  assert.equal(first.state, "waiting_them");
   assert.equal(
-    row(feed, "calendar").sentence,
-    "Your calendar could not be read. Check the address in Settings › Business.",
+    first.stateWords,
+    "Waiting for the first email",
+    "never 'Waiting on us': nobody at Chanlytics is waited on",
   );
+  const held = row(
+    setupSteps(empty({ calendar: { state: "none", tool: "booksy", emails: emails({ held: 2 }) } }), NOW),
+    "calendar",
+  );
+  assert.equal(held.state, "waiting_you");
+  assert.deepEqual(held.verb, { label: "Look at them", to: "admin/workspace/calendar" });
+  const hand = row(setupSteps(empty({ calendar: { state: "none", by_hand: true } }), NOW), "calendar");
+  assert.equal(hand.state, "ready");
+  assert.equal(hand.stateWords, "Booked by hand");
   const why = setupSteps(
     empty({
       calendar: {
@@ -740,7 +774,7 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   );
   assert.equal(
     row(why, "calendar").sentence,
-    "Your calendar could not be read. The calendar answered 404. It is usually the private iCal link, not the calendar's web page. Check the address in Settings › Business.",
+    "Your calendar could not be read. The calendar answered 404. It is usually the private iCal link, not the calendar's web page.",
     "the row says why, in the words the board and the preview use",
   );
 });

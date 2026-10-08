@@ -219,7 +219,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
           ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows."
           : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
-      runsOn: { label: "The calendar it reads", row: "calendar" },
+      runsOn: { label: "Your calendar link", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
       missing: !i.hasCalendarFeed,
     },
@@ -302,7 +302,7 @@ const CANNOT_ROWS: readonly CannotRowVM[] = [
     id: "book",
     title: "Book, move or cancel an appointment",
     detail:
-      "Not a setting you could switch on. There is no appointments table in this product — nothing in it can create, move or cancel one. Your booking link does that, whichever tool is behind it.",
+      "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it.",
   },
   {
     id: "outbound_call",
@@ -322,7 +322,7 @@ const CANNOT_ROWS: readonly CannotRowVM[] = [
 
 /** The two rows whose words lean on a booking link, as said where there is none (the first run's decision 2). */
 const CANNOT_NO_LINK: Partial<Record<CannotRowVM["id"], string>> = {
-  book: "Not a setting you could switch on. There is no appointments table in this product — nothing in it can create, move or cancel one. Your team does that, from the details it takes.",
+  book: "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment. Your team does that, from the details it takes.",
   sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when.",
 };
 

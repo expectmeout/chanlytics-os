@@ -4,6 +4,7 @@
  * Types only; calendar.ts builds it (toCalendarVM).
  */
 import type { MatchVia } from "./calendar-people";
+import type { CalendarSourceVM } from "../setup/calendar-source";
 import type { CalendarFeedHealth, CalendarFeedNoteVM } from "./calendar-words";
 
 /* ------------------------------------------------------------ the view */
@@ -145,6 +146,8 @@ export interface CalendarVM {
       tool: string | null;
       /** The workspace's address, as the tool is to send to; null when it has none yet. */
       address: string | null;
+      /** The address it would be given, where it has none and one can be made from its name; else null. */
+      suggested: string | null;
       lastAgo: string | null;
       count: number;
       held: number;
@@ -171,6 +174,11 @@ export interface CalendarVM {
       row: { tone: "ok" | "warn" | "plain"; label: string; words: string } | null;
     };
   };
+  /**
+   * What the calendar is fed by and where that stands, said once for every page (setup/calendar-source.ts): the link, the
+   * tool's booking emails, both, neither, or a business that books by hand; with the next press and where it goes.
+   */
+  source: CalendarSourceVM;
   stats: { events: number; windows: number; next: string };
   /** How far ahead the receptionist offers times: `days` from today, through the day `until` ("Sep 21"). */
   offer: { days: number; until: string; label: string };

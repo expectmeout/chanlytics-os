@@ -1421,7 +1421,7 @@ test("asked, then booked: the report's one conversion line, in words that say wh
   );
   assert.equal(toBookingReportVM({ calendar: "ok", days: 7, asked: 0, booked: 0 }).headline, "Nobody asked");
   assert.equal(toBookingReportVM({ calendar: "none", days: 30, asked: 0, booked: 0 }).present, false);
-  assert.equal(toBookingReportVM(null).sub, "Connect your calendar under Settings › Business to see who booked.");
+  assert.equal(toBookingReportVM(null).sub, "Add a calendar link under Settings › Business to see who booked.");
   assert.equal(
     toBookingReportVM({ calendar: "unavailable", days: 30, asked: 5, booked: 0 }).sub,
     "Your calendar could not be read.",
