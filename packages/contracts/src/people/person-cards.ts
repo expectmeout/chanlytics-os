@@ -161,10 +161,12 @@ function firstChannelOf(d: PersonDetailDto, base: PersonRowVM): string {
 }
 
 /**
- * Where a reply goes, exactly: the profile reads their last written words from the messages themselves, and where it
- * holds none from their side it takes the row's wire as the row says it (replyChannelOfRow: where they last wrote,
- * else the strictest window). That fallback knew Email and called every other word WhatsApp, a text included. With
- * the window on that wire (replyWindow) and the hours it has left.
+ * Where a reply goes, exactly, in the reply route's own order (the dashboard's replyChannelOf): their last written
+ * words among the messages the profile holds; else where the row says they last wrote (00320), a text included, where
+ * this fallback knew Email and called every other word WhatsApp; else, nothing having come from their side, the wire
+ * our own written words last went by, as the Inbox's box reads it (ourWireOfThreads); and with none of those the
+ * row's own word (replyChannelOfRow), which is its strictest guess. With the window on that wire (replyWindow) and
+ * the hours it has left.
  */
 function replyOf(
   d: PersonDetailDto,
@@ -173,10 +175,6 @@ function replyOf(
   now: Date,
   nowMs: number,
 ): PersonReply | null {
-  // In the reply route's own order (the dashboard's replyChannelOf): their words among the messages the page holds;
-  // else where the row says they last wrote (00320), which outranks anything of ours; else, nothing having come from
-  // their side, the wire our own words last went by, as the Inbox's box reads it; and with none of those, the
-  // row's own word, which is its strictest guess.
   const rowVia = base.replyVia ? REPLY_WIRE[base.replyVia] : null;
   const via =
     replyChannelOfThreads(d.conversations) ??

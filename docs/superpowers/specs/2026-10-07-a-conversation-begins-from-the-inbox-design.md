@@ -1,7 +1,7 @@
 # A conversation begins from the Inbox
 
-**Status:** built on 8 October 2026 and committed that day on Ruben's word, and merged with main's `5f0d355f3`; migration 00351
-goes to production before the dashboard deploys. What the build's own look and its one review changed is §0.3, and
+**Status:** merged on 8 October 2026 as #1496 (`8ae5fbacc`), on Ruben's word; migration 00351 went to production a
+minute before it. What the build's own look and its one review changed is §0.3, and
 what a second pass over the whole loop closed is §0.4. Where the text below says staged, or names an earlier commit,
 it speaks of the worktree as it stood before the commit. The history of the design follows as it was written: it was the fourth pass. Ruben read the first pass and said he
 liked the plan and its thinking, and asked for a deeper pass before the implementation plan; the second pass replaced
