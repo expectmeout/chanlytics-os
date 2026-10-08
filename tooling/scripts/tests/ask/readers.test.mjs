@@ -2437,7 +2437,12 @@ const CALENDAR_ASKED_AT_MAIN = [
   ["rpc:create_person", null],
 ];
 
-test("GET calendar through its reader asks what it asked at origin/main, in the same order -- the settings now through the config reader's columns -- and keeps its write between the read and the board: an owner's or an operator's read puts the person the feed names in People and the board links them, as it did; a viewer's asks the same, less the write", async () => {
+test("GET calendar through its reader asks what it asked at origin/main, in the same order -- the settings now through the config reader's columns -- and keeps its write between the read and the board: an owner's or an operator's read puts the person the feed names in People and the board links them, as it did; a viewer's asks the same, less the write", async (t) => {
+  // The route reads the real clock, and People takes whom a feed names within a month of it (contracts
+  // peopleFromItems). The feed's one appointment is on 8 September 2026, so with no clock this went red for good on
+  // 8 October, thirty days on: nobody was added, and the last read asked for was missing. It runs on the clock the
+  // file's other calendar tests name.
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
   await withFeed({ body: ONE_ICS }, async () => {
     for (const role of ["owner", "operator", "viewer"]) {
       // One instance, three requests: a route keeps nothing across requests, so each asks for the zone again.

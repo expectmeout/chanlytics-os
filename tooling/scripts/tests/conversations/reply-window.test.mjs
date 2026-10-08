@@ -12,7 +12,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { emptyReadSet, lastWroteOn, replyWindow, threadChannelOf, WA_WINDOW_MS } from "@chanlytics/contracts";
+import {
+  emptyReadSet,
+  lastWroteOn,
+  NEW_CONVERSATION_WORDS,
+  replyWindow,
+  threadChannelOf,
+  WA_WINDOW_MS,
+  WRITE_HOLD_WORDS,
+} from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -48,10 +56,10 @@ test("a text has no window; WhatsApp's closes 24 hours after the customer's last
   );
 });
 
-/** What an act tool is handed: the caller's client, and one turn's read set. */
-function toolContext(tables) {
+/** What an act tool is handed: the caller's client, and one turn's read set. `rpcs` are the doors the world answers. */
+function toolContext(tables, rpcs = {}) {
   return {
-    ctx: { supabase: fakeDb(tables), userId: "u1", email: "ada@example.com", params: {} },
+    ctx: { supabase: fakeDb(tables, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} },
     tenantId: TENANT,
     role: "operator",
     read: emptyReadSet(),
@@ -62,7 +70,11 @@ function toolContext(tables) {
 const thread = (over = {}) => ({
   id: CONV,
   tenant_id: TENANT,
+  contact_id: "c1",
   state: "open",
+  // Something has come to the thread from their side, and the row says when, as ingest_inbound stamps it. A thread
+  // nothing has come to says null, and is the last test's.
+  last_inbound_at: hoursAgo(1),
   last_wa_inbound_at: null,
   contacts: {
     id: "c1",
@@ -208,4 +220,117 @@ test("where a person last wrote is the wire of their own newest words: not a cal
   );
   assert.equal(mailOnly.isError, false, mailOnly.result);
   assert.equal(mailOnly.proposal.payload.window_open, true, "the reply goes by email, which has no window");
+});
+
+/* ------------------------- a thread nothing has come to: a reply there is a first message ------------------------- */
+
+/** Rosa as people_list answers her: a number, a yes to texts given in person, and nothing she ever wrote. */
+const rosa = (over = {}) => ({
+  id: "c1",
+  display_name: "Rosa",
+  phone_e164: "+15555550100",
+  email: null,
+  email_suppressed_at: null,
+  consent: "opted_in",
+  dnc: false,
+  marketing_consent: "unknown",
+  consent_channels: ["whatsapp", "sms"],
+  marketing_channels: null,
+  email_marketing: "unknown",
+  last_inbound_channel: null,
+  last_wrote_at: null,
+  last_inbound_call_at: null,
+  latest_wa_inbound_at: null,
+  latest_conversation_id: CONV,
+  deal_id: null,
+  ...over,
+});
+/** A message of ours on the thread, delivered, with nothing back: a campaign's, or a member's first. */
+const ours = (channel, h) => ({
+  id: `o-${channel}-${h}`,
+  conversation_id: CONV,
+  tenant_id: TENANT,
+  direction: "outbound",
+  sender: "human",
+  type: "text",
+  status: "delivered",
+  meta: {},
+  channel,
+  channel_ts: hoursAgo(h),
+  created_at: hoursAgo(h),
+});
+/** What the workspace can send on: a texting line that is approved and live, and a WhatsApp number in good standing. */
+const CHANNELS = {
+  lines: [
+    {
+      tenant_id: TENANT,
+      messaging_service_sid: "MG00000000000000000000000000000000",
+      voice_state: "active",
+      sms_state: "active",
+      reg_mock: false,
+      created_at: hoursAgo(900),
+    },
+  ],
+  tenant_channels: [
+    {
+      tenant_id: TENANT,
+      kind: "whatsapp",
+      status: "active",
+      number_e164: "+442079460100",
+      config: { quality_rating: "GREEN", messaging_limit: "TIER_1K" },
+    },
+  ],
+};
+/** The draft over a thread nothing has come to, where our last words went by `wire`; `person` is People's row for her. */
+function draftOnUnheard(wire, person) {
+  const t = toolContext(
+    {
+      conversations: [thread({ last_inbound_at: null, contacts: { ...thread().contacts, consent: person.consent } })],
+      messages: [ours(wire, 5)],
+      ...CHANNELS,
+    },
+    { people_list: () => [person] },
+  );
+  return buildProposal(t, "propose_reply", { action: "draft", ...DRAFT }).then((card) => ({
+    card,
+    reads: t.ctx.supabase.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
+    writes: t.ctx.supabase.seen.filter((q) => q.op === "insert" || q.op === "update" || q.op === "delete").length,
+  }));
+}
+
+test("on a thread nothing has come to, the reply card is a first message's: what the start would be refused for is said at the draft", async () => {
+  // The reply route judges what is approved on such a thread as a start (core beginConversation). The card used to ask
+  // only what a reply is asked, so it said a text could go to someone with no yes to texts, and the approval was refused.
+  const held = await draftOnUnheard("sms", rosa({ consent: "unknown", consent_channels: null }));
+  assert.equal(held.card.isError, true, "no card is drawn");
+  assert.ok(!held.card.proposal);
+  assert.match(held.card.result, /Rosa has not written on this thread, so this would be a first message to them/);
+  assert.ok(held.card.result.includes(WRITE_HOLD_WORDS.no_yes("sms")), `in the start's own words: ${held.card.result}`);
+  assert.ok(held.reads.includes("rpc:people_list"), "the start's question was asked of People's own row");
+  assert.equal(held.writes, 0, "and nothing was opened or written to ask it");
+
+  // With her yes to texts on record the same draft is a card, as a text to her would go.
+  const may = await draftOnUnheard("sms", rosa());
+  assert.equal(may.card.isError, false, may.card.result);
+  assert.equal(may.card.proposal.payload.window_open, true, "a text has no window");
+  assert.equal(may.writes, 0);
+
+  // On WhatsApp, words cannot start: only an approved message can, until she writes. That is the window, which the card
+  // marks as it does on any thread; the draft is not refused for it.
+  const shut = await draftOnUnheard("whatsapp", rosa());
+  assert.equal(shut.card.isError, false, shut.card.result);
+  assert.equal(shut.card.proposal.payload.window_open, false, NEW_CONVERSATION_WORDS.refusals.approvedOnly);
+
+  // A thread she wrote on is a reply's, and is asked nothing of a start: People's row is never read for it.
+  const heard = toolContext(
+    { conversations: [thread()], messages: [inbound("sms", 1)], ...CHANNELS },
+    {
+      people_list: () => {
+        throw new Error("a reply asks nothing of a start");
+      },
+    },
+  );
+  const card = await buildProposal(heard, "propose_reply", { action: "draft", ...DRAFT });
+  assert.equal(card.isError, false, card.result);
+  assert.ok(!heard.ctx.supabase.seen.some((q) => q.rpc === "people_list"));
 });

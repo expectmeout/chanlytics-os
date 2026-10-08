@@ -116,6 +116,9 @@ const conversation = (id, over = {}) => ({
   paused_until: null,
   snooze_until: null,
   assignee_user_id: null,
+  // Something has come to the thread from their side, and the row says when, as ingest_inbound stamps it: a thread
+  // nothing has come to is a first message's, and the reply card asks more of it (conversations/reply-window.test.mjs).
+  last_inbound_at: iso(NOW.getTime() - 3600_000),
   last_wa_inbound_at: iso(NOW.getTime() - 3600_000),
   last_message_at: iso(NOW.getTime() - 3600_000),
   contacts: contact,
