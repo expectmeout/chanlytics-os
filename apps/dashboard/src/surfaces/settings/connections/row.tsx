@@ -60,6 +60,8 @@ interface ConnectionRowProps {
   r: Row;
   run: (r: Row) => void;
   busy: boolean;
+  /** Meta's sign-up window is open: the WhatsApp row's act says it is waiting, rather than dim without a word. */
+  signup: boolean;
   arm: Arm | null;
   setArm: (a: Arm | null) => void;
   confirm: (what: "remove" | "disconnect") => void;
@@ -67,7 +69,7 @@ interface ConnectionRowProps {
 
 /** The row's acts in its column: Remove, Connect (not built yet), or its verb, gated where the role may not press it. */
 function rowActs(o: ConnectionRowProps & { owner: boolean; armed: string | null; primary: boolean }): ReactNode {
-  const { r, run, busy, setArm, owner, armed, primary } = o;
+  const { r, run, busy, signup, setArm, owner, armed, primary } = o;
   const verb = r.verb;
   return (
     <span className="set-int-actions">
@@ -115,7 +117,11 @@ function rowActs(o: ConnectionRowProps & { owner: boolean; armed: string | null;
             data-testid={VERB_TESTID[verb.to] || `connection-${r.kind}-verb`}
             {...(mayPress(verb) ? {} : gate(verb.who === "owner" ? "team" : "approve", VERB_DOING[verb.to]))}
           >
-            {busy && verb.to === "verb:google-check" ? "Reading…" : verb.label}
+            {busy && verb.to === "verb:google-check"
+              ? "Reading…"
+              : signup && verb.to === "verb:whatsapp-connect"
+                ? "Waiting for Meta…"
+                : verb.label}
           </button>
         ) : (
           <button

@@ -895,6 +895,76 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
   }
 });
 
+test("Meta's SDK is fetched ahead only where the row offers Connect to someone who may press it, and while Meta's window is open the button says it is waiting", async () => {
+  // 7 October: on a phone the press did nothing. The window has to be asked for inside the press, so what the press needs is
+  // fetched as the page opens (whatsapp.ts prepareSignup); and a sign-up under way dimmed the button without a word.
+  asRole("owner");
+  const realStart = waConnect.start;
+  const realPrepare = waConnect.prepare;
+  const prepared = [];
+  const door = { ready: true, reason: null, canConnect: true };
+  let finish;
+  Object.assign(waConnect, {
+    config: async () => door,
+    prepare: (cfg) => prepared.push(cfg),
+    start: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  const said = (tree) => textOf(byTestId(tree, "connect-whatsapp-btn"));
+  try {
+    seam({ channels: [], google: null, setup: null });
+    render(Connections);
+    assert.deepEqual(prepared, [], "nothing is fetched before Meta's door has answered");
+    await flush();
+    let tree = settle(Connections);
+    assert.deepEqual(prepared, [door], "the door is ready and the row offers Connect: the SDK is fetched, once");
+    assert.equal(said(tree), "Connect WhatsApp");
+    press(byTestId(tree, "connect-whatsapp-btn"));
+    tree = settle(Connections);
+    assert.equal(said(tree), "Waiting for Meta…", "a sign-up under way says so on the button it dims");
+    assert.equal(byTestId(tree, "connect-whatsapp-btn").props.disabled, true);
+    const blocked = "Meta's window was blocked. Press Connect WhatsApp again.";
+    finish({ ok: false, reason: "blocked", message: blocked });
+    await flush();
+    tree = settle(Connections);
+    assert.equal(said(tree), "Connect WhatsApp", "and the button is the row's act again once it has ended");
+    assert.equal(byTestId(tree, "connect-whatsapp-btn").props.disabled, false);
+    assert.equal(prepared.length, 1, "drawing again fetches nothing again");
+    // What it came to stays on the row, first and in full: the toast that says it is one line on a phone, and gone in seconds.
+    assert.deepEqual(noteTexts(tree, "whatsapp").slice(0, 2), [
+      blocked,
+      "Meta asks you to sign in with Facebook and choose or create your business.",
+    ]);
+    press(byTestId(tree, "connect-whatsapp-btn"));
+    tree = settle(Connections);
+    assert.ok(!noteTexts(tree, "whatsapp").includes(blocked), "pressing Connect again forgets it");
+    finish({ ok: false, reason: "cancelled", message: "The sign-up was closed before it finished." });
+    await flush();
+    tree = settle(Connections);
+    assert.equal(noteTexts(tree, "whatsapp").length, 3, "a window the owner closed is theirs to know: nothing is kept");
+
+    // A number is connected already: the row has no Connect, and Meta's SDK is nobody's to fetch.
+    prepared.length = 0;
+    seam({ channels: [whatsappChannel(null, null)], google: null, setup: null });
+    render(Connections);
+    await flush();
+    settle(Connections);
+    assert.deepEqual(prepared, []);
+
+    // A member who may not connect a number: the server said so (canConnect), and nothing is fetched for a press they cannot make.
+    Object.assign(waConnect, { config: async () => ({ ...door, canConnect: false }) });
+    seam({ channels: [], google: null, setup: null });
+    render(Connections);
+    await flush();
+    settle(Connections);
+    assert.deepEqual(prepared, []);
+  } finally {
+    Object.assign(waConnect, { config: async () => null, start: realStart, prepare: realPrepare });
+  }
+});
+
 test("the codes sent to the workspace's own line are asked for as Connections opens and every three seconds while Meta's window is open, and said on the Texting row; a read that fails changes nothing, and anyone but an owner asks nothing", async () => {
   asRole("owner");
   seam({ channels: [], google: null, setup: setupWithLine() });

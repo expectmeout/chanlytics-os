@@ -10,15 +10,24 @@
  * secret can turn it into a token. After the route answers, the refresh map
  * re-reads Settings, where the number now shows.
  *
+ * A browser gives a page a window only inside a press, and a phone's holds to it: a press that first waits on the network
+ * gets none, and Meta's SDK says nothing when that happens. So Connections fetches Meta's SDK as it opens (`prepare`), the
+ * press asks for the window before it waits on anything, and a window the browser refused is said (7 October: on a phone the
+ * press asked Meta's door, fetched the SDK, and only then asked for the window; nothing opened and the page said nothing).
+ *
  * Moved from legacy-bridge/whatsapp-connect.ts with Settings › Connections (decision 0015 step 11): the Connections
- * pane imports `waConnect` ({ config(), start() }).
+ * pane imports `waConnect` ({ config(), prepare(), start() }).
  */
 import type { LineCodeDto } from "@chanlytics/contracts";
 import { api, read } from "@/legacy-bridge/api";
 
+type Refused = {
+  ok: false;
+  reason: "cancelled" | "not_ready" | "sdk" | "no_ids" | "failed" | "blocked" | "home_screen";
+  message: string;
+};
 type ConnectResult =
-  | { ok: true; number: string | null; verifiedName: string | null; qualityRating: string | null }
-  | { ok: false; reason: "cancelled" | "not_ready" | "sdk" | "no_ids" | "failed"; message: string };
+  { ok: true; number: string | null; verifiedName: string | null; qualityRating: string | null } | Refused;
 
 interface FB {
   init(opts: { appId: string; version: string; xfbml?: boolean; cookie?: boolean }): void;
@@ -102,10 +111,50 @@ function loadSdk(win: Window, appId: string, version: string): Promise<FB> {
     s.async = true;
     s.defer = true;
     s.crossOrigin = "anonymous";
-    s.onerror = () => reject(new Error("sdk_failed"));
+    s.onerror = () => {
+      // A load that failed is not kept: the next press fetches Meta's SDK again rather than repeat this failure.
+      w.__fbReady = undefined;
+      reject(new Error("sdk_failed"));
+    };
     w.document.head.appendChild(s);
   });
   return w.__fbReady;
+}
+
+/** What a press needs in hand to ask for Meta's window at once: Meta's SDK, and the configuration the sign-up runs. */
+interface InHand {
+  fb: FB;
+  configId: string;
+}
+const IN_HAND = new WeakMap<Window, InHand>();
+
+/**
+ * Whether this page was opened from an iPhone's home screen (`navigator.standalone` is WebKit's own word for it). There,
+ * another site opens in a sheet of its own that cannot reach the page behind it, so Meta's window could never hand back the
+ * code or the ids: the sign-up would finish on Meta's side and never arrive here.
+ */
+const onHomeScreen = (win: Window): boolean =>
+  (win.navigator as { standalone?: boolean } | undefined)?.standalone === true;
+
+/**
+ * Whether the browser gave the window asked for while `ask` ran: true or false, or null where none was asked for. Meta's SDK
+ * asks the browser itself and reports nothing when it is refused, so the answer is read where it is given.
+ */
+function windowGiven(win: Window, ask: () => void): boolean | null {
+  // Read as a value and put back as it was, so the page's `open` is the browser's own again once the SDK has asked.
+  const real = Reflect.get(win, "open");
+  let given: boolean | null = null;
+  win.open = (...args: Parameters<Window["open"]>) => {
+    const opened = real.apply(win, args);
+    given = !!opened;
+    return opened;
+  };
+  try {
+    ask();
+  } finally {
+    win.open = real;
+  }
+  return given;
 }
 
 /** The ids Meta posts back when the sign-up window finishes. */
@@ -156,14 +205,31 @@ async function startSignup(win: Window = window): Promise<ConnectResult> {
   }
 }
 
-/** The sign-up window, opened and followed to its end; the code and the ids go to the app's own route. */
-async function runSignup(win: Window): Promise<ConnectResult> {
+/** Meta's door as its route answers it. */
+export type SignupDoor = Awaited<ReturnType<typeof signupConfig>>;
+
+/**
+ * Meta's SDK, fetched as Connections opens on a door that is ready (the page passes the answer it already holds), so the press
+ * has it in hand and asks for Meta's window at once. A fetch that fails is left to the press, which fetches again and says so.
+ */
+function prepareSignup(door: Partial<SignupDoor> | null | undefined, win: Window = window): void {
+  if (!door || !door.ready || !door.app_id || !door.config_id || onHomeScreen(win)) return;
+  const configId = door.config_id;
+  loadSdk(win, door.app_id, door.graph_version ?? "").then(
+    (fb) => void IN_HAND.set(win, { fb, configId }),
+    () => {},
+  );
+}
+
+/** What a press that has nothing in hand waits for: Meta's door, then its SDK. Kept, so the press after it waits for neither. */
+async function fetchForSignup(win: Window): Promise<InHand | Refused> {
   const cfg = await signupConfig().catch(() => null);
   if (!cfg || !cfg.ready || !cfg.app_id || !cfg.config_id)
     return { ok: false, reason: "not_ready", message: "Chanlytics is not set up to connect numbers yet." };
-  let FBsdk: FB;
   try {
-    FBsdk = await loadSdk(win, cfg.app_id, cfg.graph_version);
+    const held = { fb: await loadSdk(win, cfg.app_id, cfg.graph_version), configId: cfg.config_id };
+    IN_HAND.set(win, held);
+    return held;
   } catch {
     return {
       ok: false,
@@ -171,6 +237,21 @@ async function runSignup(win: Window): Promise<ConnectResult> {
       message: "Meta's sign-up window could not be loaded. Check that the browser allows facebook.com.",
     };
   }
+}
+
+/** The sign-up window, opened and followed to its end; the code and the ids go to the app's own route. */
+async function runSignup(win: Window): Promise<ConnectResult> {
+  if (onHomeScreen(win))
+    // What to do is said first, here and where a window is refused: a phone's toast is one line, and cuts the rest.
+    return {
+      ok: false,
+      reason: "home_screen",
+      message:
+        "Open Chanlytics in Safari to connect WhatsApp. Meta's sign-up needs a browser tab, and an app on the home screen has none.",
+    };
+  // In hand since Connections opened: nothing is waited for, and Meta's window is asked for inside the press.
+  const held = IN_HAND.get(win) ?? (await fetchForSignup(win));
+  if ("ok" in held) return held;
   // The ids arrive by message while the window is open; the code arrives
   // when it closes. Both are needed, in whichever order they come.
   let ids: { phone_number_id: string; waba_id: string } | null = null;
@@ -182,14 +263,29 @@ async function runSignup(win: Window): Promise<ConnectResult> {
     else ids = parsed;
   };
   win.addEventListener("message", onMessage);
-  const code = await new Promise<string | null>((resolve) => {
-    FBsdk.login((r) => resolve(r.authResponse?.code ?? null), {
-      config_id: cfg.config_id,
+  let answer: (code: string | null) => void = () => {};
+  const answered = new Promise<string | null>((resolve) => {
+    answer = resolve;
+  });
+  const given = windowGiven(win, () =>
+    held.fb.login((r) => answer(r.authResponse?.code ?? null), {
+      config_id: held.configId,
       response_type: "code",
       override_default_response_type: true,
       extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
-    });
-  });
+    }),
+  );
+  if (given === false) {
+    // No window, so no answer will ever come: the sign-up ends here, and the press after this one has everything in hand.
+    win.removeEventListener("message", onMessage);
+    return {
+      ok: false,
+      reason: "blocked",
+      message:
+        "Meta's window was blocked. Press Connect WhatsApp again; if it still does not open, allow pop-ups for Chanlytics.",
+    };
+  }
+  const code = await answered;
   // A late message can follow the callback by a tick.
   await new Promise((r) => win.setTimeout(r, LATE_MESSAGE_MS));
   win.removeEventListener("message", onMessage);
@@ -217,8 +313,12 @@ async function runSignup(win: Window): Promise<ConnectResult> {
   };
 }
 
-/** Connect your WhatsApp number: the door's answer, and the sign-up. */
-export const waConnect = { config: signupConfig, start: () => startSignup() };
+/** Connect your WhatsApp number: the door's answer, what a press needs fetched ahead of it, and the sign-up. */
+export const waConnect = {
+  config: signupConfig,
+  prepare: (door: Partial<SignupDoor> | null | undefined) => prepareSignup(door),
+  start: () => startSignup(),
+};
 
 /** The codes sent to the line lately, newest first: the edge reads them from the provider's own record on every call. */
 const readCodes = async (): Promise<LineCodeDto[]> => (await read("GET lines/codes")).codes;
