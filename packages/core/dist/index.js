@@ -825,14 +825,17 @@ async function fitsWire(ports, cmd, row, way) {
   if (text === null) throw new AppError9("validation", W.noRoomForStop);
   return text === words ? void 0 : text;
 }
-async function beginConversation(ports, cmd) {
+async function mayBegin(ports, ask) {
   const W = NEW_CONVERSATION_WORDS.refusals;
-  const row = await ports.person(cmd.tenantId, cmd.personId);
+  const row = await ports.person(ask.tenantId, ask.personId);
   if (!row) throw new AppError9("not_found", W.notYours, 404);
   const now = new Date(ports.reply.now());
-  const way = writeWaysOf(row, await ports.ready(cmd.tenantId), now).find((w) => w.wire === cmd.wire);
+  const way = writeWaysOf(row, await ports.ready(ask.tenantId), now).find((w) => w.wire === ask.wire);
   if (!way || !way.ok) throw new AppError9("conflict", way?.why ?? W.notThatWay);
-  const leavesAs = await fitsWire(ports, cmd, row, way);
+  return { way, leavesAs: await fitsWire(ports, ask, row, way) };
+}
+async function beginConversation(ports, cmd) {
+  const { way, leavesAs } = await mayBegin(ports, cmd);
   const conv = cmd.conv ?? await ports.open(cmd.tenantId, cmd.personId);
   const receipt = await replyToConversation(
     // The wire is the member's choice here, where a reply's is where the person last wrote.
@@ -39009,6 +39012,7 @@ export {
   mainAsk,
   markImageFrom,
   markPlaces,
+  mayBegin,
   medianCenter,
   memberOf,
   nearbyFor,

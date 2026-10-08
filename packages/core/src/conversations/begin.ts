@@ -84,6 +84,11 @@ export interface BeginCommand {
   idempotencyKey?: string | null;
 }
 
+/** What a start is asked before anything is written: who it is for, the wire, the message, and their thread where one is held. */
+export type BeginAsk = Pick<BeginCommand, "tenantId" | "personId" | "wire" | "body"> & {
+  conv?: Pick<ReplyThread, "id">;
+};
+
 export interface BeginReceipt extends ReplyReceipt {
   conversation_id: string;
   /** The thread went back to the receptionist once the message was queued. */
@@ -101,12 +106,7 @@ export interface BeginReceipt extends ReplyReceipt {
  * a first email's subject. Answers the words as they leave where they are not the words written: a first text with the
  * line that says how to stop.
  */
-async function fitsWire(
-  ports: BeginPorts,
-  cmd: BeginCommand,
-  row: WriteRow,
-  way: WriteWay,
-): Promise<string | undefined> {
+async function fitsWire(ports: BeginPorts, cmd: BeginAsk, row: WriteRow, way: WriteWay): Promise<string | undefined> {
   const W = NEW_CONVERSATION_WORDS.refusals;
   const { body } = cmd;
   if (way.carries === "approved") {
@@ -134,15 +134,29 @@ async function fitsWire(
   return text === words ? undefined : text;
 }
 
-export async function beginConversation(ports: BeginPorts, cmd: BeginCommand): Promise<BeginReceipt> {
+/**
+ * The questions a start is asked before a thread is opened or a word is written, by themselves: the person is this
+ * workspace's, the wire may carry a message to them now (contracts writeWaysOf), and the reply verb would take the
+ * message (fitsWire). Answers the way, and the words as they leave where they are not the words written; throws the
+ * refusal the send would be given. It writes nothing. beginConversation asks it first, and so does a draft that must
+ * say now what the send would say later (Ask's reply card on a thread nothing has come to).
+ */
+export async function mayBegin(
+  ports: BeginPorts,
+  ask: BeginAsk,
+): Promise<{ way: WriteWay; leavesAs: string | undefined }> {
   const W = NEW_CONVERSATION_WORDS.refusals;
-  const row = await ports.person(cmd.tenantId, cmd.personId);
+  const row = await ports.person(ask.tenantId, ask.personId);
   if (!row) throw new AppError("not_found", W.notYours, 404);
   const now = new Date(ports.reply.now());
-  const way = writeWaysOf(row, await ports.ready(cmd.tenantId), now).find((w) => w.wire === cmd.wire);
-  // Refused before a thread is opened or a word is written: a refusal here means nothing happened.
+  const way = writeWaysOf(row, await ports.ready(ask.tenantId), now).find((w) => w.wire === ask.wire);
   if (!way || !way.ok) throw new AppError("conflict", way?.why ?? W.notThatWay);
-  const leavesAs = await fitsWire(ports, cmd, row, way);
+  return { way, leavesAs: await fitsWire(ports, ask, row, way) };
+}
+
+export async function beginConversation(ports: BeginPorts, cmd: BeginCommand): Promise<BeginReceipt> {
+  // Refused before a thread is opened or a word is written: a refusal here means nothing happened.
+  const { way, leavesAs } = await mayBegin(ports, cmd);
   const conv = cmd.conv ?? (await ports.open(cmd.tenantId, cmd.personId));
   const receipt = await replyToConversation(
     // The wire is the member's choice here, where a reply's is where the person last wrote.

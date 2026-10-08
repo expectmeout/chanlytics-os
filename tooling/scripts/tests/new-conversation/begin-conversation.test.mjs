@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { channelsReady } from "@chanlytics/contracts";
 
-const { beginConversation } = await import("../../../../packages/core/src/conversations/begin.ts");
+const { beginConversation, mayBegin } = await import("../../../../packages/core/src/conversations/begin.ts");
 
 const NOW = Date.parse("2026-10-07T15:00:00Z");
 const HOUR = 3_600_000;
@@ -362,4 +362,23 @@ test("a thread that could not be handed back is still the member's, and the mess
   assert.ok(w.call("schedule"), "the message was queued");
   assert.equal(out.status, "queued", "a queued message never reads as one that failed");
   assert.equal(out.handed_back, false, "and the receipt says who has the thread");
+});
+
+test("the questions a start is asked, asked by themselves: the way and the words as they leave, and nothing opened or written", async () => {
+  // What a draft asks before it says a first message can go (Ask's reply card on a thread nothing has come to).
+  const ask = { tenantId: "t1", personId: "k1", wire: "sms", body: { text: "Following up on your quote." } };
+  const w = world();
+  const { way, leavesAs } = await mayBegin(w.ports, ask);
+  assert.deepEqual([way.wire, way.ok, way.starts, way.carries], ["sms", true, true, "words"]);
+  assert.equal(leavesAs, FIRST, "a first text, with the line that says how to stop");
+  assert.deepEqual(w.ops(), ["person"], "the person was read, and nothing else was touched");
+  // With their thread in hand, whether a text of ours ever reached them is asked of that thread.
+  const held = world();
+  await mayBegin(held.ports, { ...ask, conv: { id: "c9" } });
+  assert.deepEqual(held.call("textedBefore"), ["textedBefore", "t1", "c9"]);
+  assert.deepEqual(held.ops(), ["person", "textedBefore"]);
+  // It refuses as the send would, in the send's own words and codes.
+  await refused(mayBegin(world().ports, { ...ask, wire: "email" }), "conflict", /goes from Campaigns/);
+  await refused(mayBegin(world().ports, { ...ask, wire: "whatsapp" }), "window_closed", /approved ahead of time/);
+  await refused(mayBegin(world({ person: async () => null }).ports, ask), "not_found", /not in your workspace/);
 });

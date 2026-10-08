@@ -1,0 +1,107 @@
+/* A new conversation's sheet: where its parts stand, and the quiet lines between them. Every control in it is the kit's.
+   These rules load with the sheet (sheet.tsx imports this file, and the sheet is loaded on demand: host.tsx), so no
+   page pays for them before New conversation is pressed. They stood at the end of the Inbox's stylesheet, which every
+   workspace page loads, and there they tipped one stylesheet chunk past the size the bundler divides a chunk at
+   (docs/debt.md, "Rises", 8 October 2026). The act itself is the kit's button in the page's head and needs none of this. */
+.ix-new {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4) 0 var(--space-5);
+}
+.ix-new-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ix-new-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+.ix-new-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ix-new-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  height: auto;
+  min-height: var(--control-h-lg);
+}
+.ix-new-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ix-new-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ix-new-lead {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.ix-new-said {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ix-new-quote {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ix-new-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-sm);
+}
+/* The foot: the acts at its end, and what was refused before them. A sentence too long for the room beside the acts
+   takes the row over them, so on a phone a refusal is read whole and the acts stay a thumb wide. */
+.ix-new-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  width: 100%;
+}
+.ix-new-say {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ix-new-foot-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ix-new-say[data-tone="danger"] {
+  color: var(--danger-ink);
+}

@@ -9,6 +9,8 @@
  * It draws the kit's Button, Field, Icon, LinkButton, Segmented, Select, Sheet and Switch, and nothing of the record kit
  * (kit/record) or of People's pages: state.ts says what either costs four other pages.
  */
+// The sheet's own rules, loaded with it (sheet.css says why they are not the Inbox stylesheet's).
+import "./sheet.css";
 import {
   DRAFT_ABOUT_MAX,
   DRAFT_ANSWER_MAX,

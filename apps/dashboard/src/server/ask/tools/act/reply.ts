@@ -1,13 +1,18 @@
 import "server-only";
 import { z } from "zod";
 import {
+  AppError,
+  asTenantId,
   contactName,
   isHeldDraft,
   mayMessageFor,
   namesMoney,
   replyWindow,
   violatesNoPrices,
+  type ConsentChannel,
 } from "@chanlytics/contracts";
+import { mayBegin } from "@chanlytics/core";
+import { beginPorts } from "../../../new-conversation/ports";
 import { replyChannelOf } from "../../../verbs";
 import {
   UUID,
@@ -21,6 +26,31 @@ import {
   type ToolContext,
 } from "../context";
 
+/**
+ * What a first message on this thread would be refused for, or null. A thread nothing has come to answers nobody, so
+ * the reply route judges what is approved there as a start (core beginConversation): the draft asks that verb's own
+ * question (mayBegin) over this runtime's ports, and nothing is written. WhatsApp's shut window is not said here: the
+ * card marks it, as it does on any thread.
+ */
+async function startRefusal(
+  t: ToolContext,
+  ask: { personId: string; conversationId: string; wire: ConsentChannel; text: string },
+): Promise<string | null> {
+  try {
+    await mayBegin(beginPorts(t.ctx), {
+      tenantId: asTenantId(t.tenantId),
+      personId: ask.personId,
+      wire: ask.wire,
+      body: { text: ask.text },
+      conv: { id: ask.conversationId },
+    });
+    return null;
+  } catch (e) {
+    if (!(e instanceof AppError)) throw e;
+    return e.code === "window_closed" ? null : e.message;
+  }
+}
+
 async function draftReply(
   t: ToolContext,
   input: { conversation_id: string; text: string; voice: string },
@@ -33,7 +63,7 @@ async function draftReply(
   const { data: conv, error } = await t.ctx.supabase
     .from("conversations")
     .select(
-      "id, tenant_id, state, last_wa_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc)",
+      "id, tenant_id, contact_id, state, last_inbound_at, last_wa_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc)",
     )
     .eq("id", id)
     .eq("tenant_id", t.tenantId)
@@ -65,6 +95,15 @@ async function draftReply(
   // The window the reply route will enforce, on the channel it will send on:
   // a texting thread has none, and this card used to call one closed.
   const win = replyWindow(channel, conv.last_wa_inbound_at, t.now);
+  // Nothing has come to this thread from their side (the reply route's own test), so what is approved is a first
+  // message, and what that would be refused for is said here, at the draft, not at the commit (defect 32).
+  if (!conv.last_inbound_at) {
+    const held = await startRefusal(t, { personId: conv.contact_id, conversationId: id, wire: channel, text });
+    if (held)
+      return refuse(
+        `${who} has not written on this thread, so this would be a first message to them, and it cannot go: ${held}`,
+      );
+  }
   // Layer two, said on the card: a price or money (a refund, a discount, a payment term) in a reply is the person's to
   // send knowingly, never the receptionist's to promise (the charter).
   const price = violatesNoPrices(text) || namesMoney(text);
