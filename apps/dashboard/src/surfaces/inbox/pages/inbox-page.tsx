@@ -10,7 +10,7 @@
  * called in the order the page always called them, so every hook keeps its cell. The rules of what waits on you and where
  * a thread sits are rules.ts; holding every draft still counting down is hold-all.ts.
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { EmptyState } from "../../kit/empty/empty";
 import { useSurface } from "../../use-surface";
 import { InboxAgentRail } from "./agent-rail";
@@ -415,13 +415,19 @@ const inboxPage = (
         density={density}
         sendingIn={vetoRemaining}
       />
-      {requestedMissing
-        ? // A link to a thread outside the loaded list: say so in the pane, and
-          // open nobody else's conversation in its place.
-          missingThread(ix)
-        : // The one thread (thread-pane.tsx): a real thread's verbs are the pane's own, the same in Conversations. A
-          // seeded thread is the mockup's, and keeps this page's handlers.
-          threadPane(ix, onOpenClient)}
+      {ixOnPhone() && !phoneThreadOpen
+        ? // On a phone the list and the thread take turns on the screen (mobile.css hides the pane until the page wears
+          // data-takeover), and the pane was mounted all the same, keyed by the first thread: every bucket pressed that
+          // changed the first thread drew that whole thread again behind the list, 44 call cards in a workspace of one
+          // person's 44 calls, and the phone froze (8 Oct 2026). Nothing is drawn there until a tap opens a thread.
+          null
+        : requestedMissing
+          ? // A link to a thread outside the loaded list: say so in the pane, and
+            // open nobody else's conversation in its place.
+            missingThread(ix)
+          : // The one thread (thread-pane.tsx): a real thread's verbs are the pane's own, the same in Conversations. A
+            // seeded thread is the mockup's, and keeps this page's handlers.
+            threadPane(ix, onOpenClient)}
       {railThread && <InboxAgentRail thread={railThread} />}
 
       {sendingStrip(ix)}
@@ -439,6 +445,16 @@ export const Inbox = ({
 }: InboxProps) => {
   // The page draws again when the Inbox surface moves, as the frame drew it again.
   useSurface("inbox");
+  // The pane is drawn only where it is on the screen (inboxPage, ixOnPhone): a phone turned sideways crosses the
+  // breakpoint, and the pane it had no need of is drawn then.
+  const [, setViewport] = useState(0);
+  useEffect(() => {
+    const phone = window.matchMedia ? window.matchMedia("(max-width: 720px)") : null;
+    if (!phone || !phone.addEventListener) return undefined;
+    const bump = () => setViewport((n) => n + 1);
+    phone.addEventListener("change", bump);
+    return () => phone.removeEventListener("change", bump);
+  }, []);
   const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, INBOX_BASELINE } = inboxData();
   // One record of the page, made in the order the page always made it: each part reads what the parts above it made.
   const ix = useInboxState(THREADS, initialThreadId);

@@ -623,9 +623,14 @@ export const ConversationsPage = ({
     const bump = () => setTick((n) => n + 1);
     window.addEventListener("inbox:decisions", bump);
     window.addEventListener("live:ended", bump);
+    // The reading pane is drawn only where it is on the screen (cvOnPhone, below): a phone turned sideways crosses the
+    // breakpoint, and the pane it had no need of is drawn then.
+    const phone = window.matchMedia ? window.matchMedia("(max-width: 720px)") : null;
+    if (phone && phone.addEventListener) phone.addEventListener("change", bump);
     return () => {
       window.removeEventListener("inbox:decisions", bump);
       window.removeEventListener("live:ended", bump);
+      if (phone && phone.removeEventListener) phone.removeEventListener("change", bump);
     };
   }, []);
 
@@ -712,7 +717,11 @@ export const ConversationsPage = ({
         swap,
         pick,
       })}
-      {readingPane({ data, requestedMissing, selected, closeRow, query, flash })}
+      {/* On a phone the reading pane is hidden until a row is opened (mobile.css), and it was mounted all the same, keyed
+          by the first row: every channel pressed drew that person's whole thread again behind the list, 44 call cards
+          in a workspace of one person's 44 calls, and the phone froze (8 Oct 2026). Nothing is drawn there until a tap
+          opens a row; a link's notice comes with its row open. */}
+      {cvOnPhone() && !phoneOpen ? null : readingPane({ data, requestedMissing, selected, closeRow, query, flash })}
       {toastNode}
     </div>
   );
