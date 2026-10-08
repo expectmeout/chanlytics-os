@@ -147,13 +147,45 @@ test("TWO lists, because there are two answers: one for messages, one for offers
   const drawn = (consent, marketing) => {
     const p = personRow({ consent, marketing_consent: marketing });
     const td = offersColumn.cell(p, {});
-    const [span] = td.props.children;
-    return { p, td, word: span.props.children[0], cls: span.props.className };
+    // The cell is the kit's pill (8 Oct 2026): its word is the label, and its tone the page's own (kind "tone").
+    const [pill] = td.props.children;
+    return { p, td, word: pill.props.label, cls: pill.props.className, kind: pill.props.kind, tone: pill.props.value };
   };
   assert.equal(drawn("opted_in", "unknown").word, "Not asked", "a yes to messages is not a yes to offers");
   assert.equal(drawn("unknown", "opted_in").word, "Yes");
   assert.equal(drawn("opted_in", "opted_out").word, "No");
-  assert.match(drawn("unknown", "opted_in").cls, /\bcl-row-offers yes\b/);
+  // REGRESSION (8 Oct 2026): the cell's word wore the bare class of its answer, and app/globals.css styles ".yes",
+  // the public consent page's column, with 7vh over it and 10vh under. On an inline span that moved nothing; on the
+  // kit's pill, which is a flex box, every row whose answer was yes stood a hundred and ninety pixels tall.
+  for (const [consent, marketing] of [
+    ["unknown", "opted_in"],
+    ["opted_in", "opted_out"],
+    ["opted_in", "unknown"],
+  ])
+    assert.equal(drawn(consent, marketing).cls, "cl-row-offers", "the page's own class alone, never the answer's word");
+  assert.deepEqual(
+    [drawn("unknown", "opted_in").kind, drawn("unknown", "opted_in").tone],
+    ["tone", "ok"],
+    "a yes that can be sent is the quiet green dot",
+  );
+  // A no asks nothing of the owner, so it is never the warning's amber, which says Needs you everywhere (tone.ts).
+  assert.equal(drawn("opted_in", "opted_out").tone, "plain", "a no is quiet");
+  assert.equal(drawn("opted_in", "unknown").tone, "plain", "and so is not asked");
+  // A yes with no way to send it keeps its word and loses its green, and its tip says why in the send's own words.
+  const unsent = (() => {
+    const p = personRow({ consent: "opted_in", marketing_consent: "opted_in", phone_e164: null });
+    const td = offersColumn.cell(p, {});
+    const [pill] = td.props.children;
+    return { p, td, pill };
+  })();
+  assert.equal(unsent.p.canReceive.offers, false, "the fixture: a yes to offers and no number to send to");
+  assert.deepEqual([unsent.pill.props.label, unsent.pill.props.value], ["Yes", "plain"]);
+  assert.equal(
+    unsent.pill.props.className,
+    "cl-row-offers cl-row-offers-held",
+    "marked as held, in the page's own name",
+  );
+  assert.match(unsent.td.props.title, /No phone number on file/, "the reason is the send's own (contracts heldWords)");
   const yes = drawn("unknown", "opted_in");
   assert.equal(yes.td.props["data-testid"], "row-offers");
   assert.equal(yes.td.props.title, yes.p.consent.marketingSub, "and its tooltip is that answer's own history");

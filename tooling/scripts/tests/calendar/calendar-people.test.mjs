@@ -2305,7 +2305,9 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.match(textOf(cellOf("visits", row)), /Last · Thu, Aug 20/, "a visit behind them when nothing is ahead");
   assert.deepEqual(
     { opted_in: offersOf("opted_in"), opted_out: offersOf("opted_out"), unknown: offersOf("unknown") },
-    { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] },
+    // The word and the dot's tone: a yes the quiet green, a no and not asked plain (8 Oct 2026). No class of the
+    // answer's own: "yes" is a class the public consent page styles (app/globals.css).
+    { opted_in: ["Yes", "ok"], opted_out: ["No", "plain"], unknown: ["Not asked", "plain"] },
   );
   // The row's own next steps: the thread, and the booking link carried into it, inside the reply window.
   const talking = toPersonRowVM(

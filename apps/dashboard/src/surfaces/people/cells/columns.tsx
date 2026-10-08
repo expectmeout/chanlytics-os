@@ -4,13 +4,16 @@
  * page knows (`x`: bookingLink, attention, onOpen, drop, listsOf, shows). Person is pinned and always shown; on a desktop
  * a member shows or hides any other with the Columns menu, and the choice rides with their view (views.people.columns); a
  * phone's cards draw what they draw by default whatever the choice (plDrawnColumns). With a calendar connected the
- * outcome takes the column the receptionist's state held; the receptionist stays a column a member can show, and while
- * it is hidden its word sits beside the state. Offers is the fact that gates every campaign. First contact lives in the
- * identity cell; the last column is the row's own actions, shown on hover and on the keyboard's row.
+ * visit is a column; the receptionist's standing is a column a member can show, off by default (Ruben, 8 Oct 2026), and
+ * while it is hidden its word sits beside the state. Offers is the fact that gates every campaign. The next step is a
+ * column after State (0007). First contact waits in the Columns menu; the last column is the row's own actions, the
+ * kit's quiet buttons, shown on hover and on the keyboard's row. Every cell is one of the kit's shapes: a state is the
+ * pill's dot and word, a fact two quiet lines, an act a button.
  */
-import type { PersonRowVM, SeenReading } from "@chanlytics/contracts";
+import { heldWords, rowReachWords, type PersonRowVM, type SeenReading } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { unreadHere } from "../../seen";
+import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
@@ -25,33 +28,11 @@ import {
   plVisitStart,
   plWhen,
 } from "../words";
-import { ChannelGlyph } from "./channel-glyph";
 import { plRowCard } from "./row-card";
 
 /** The person's state as the one pill draws it (contracts/tone.ts). */
 function PeopleStatePill({ state, label }: { state: string; label: string }) {
   return <StatePill kind="person" value={state} label={label} />;
-}
-
-function PeopleChannels({ channels }: { channels: readonly string[] }) {
-  return (
-    <span className="cl-row-channels">
-      {/* The wire's own glyph. It was voice -> phone and everything else -> chat, so an email-only person wore WhatsApp's bubble. */}
-      {channels.map((ch, i) => (
-        <ChannelGlyph key={ch} kind={ch === "voice" ? "phone" : ch} primary={i === 0} size={11} />
-      ))}
-    </span>
-  );
-}
-
-function PeopleReceptionist({ r }: { r: PersonRowVM["receptionist"] }) {
-  return (
-    <span className={`cl-row-agent ${r.tone === "escalated" ? "escalated" : r.tone === "queued" ? "approval" : ""}`}>
-      <span className="agent-avatar">W</span>
-      {r.tone === "queued" && <span className="live-dot" />}
-      <span className="cl-row-agent-verb">{r.label}</span>
-    </span>
-  );
 }
 
 /**
@@ -86,37 +67,44 @@ function PeopleRowActions({
   return (
     <span className="cl-row-actions" role="presentation" onClick={(e) => e.stopPropagation()}>
       {p.threadId && (
-        <button
-          className="cl-row-act"
-          title="Open the thread"
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
           aria-label="Open the thread"
+          data-tip="Open the thread"
           onClick={open}
           data-testid="row-open-thread"
         >
           <Icon name="chat" size={12} />
-        </button>
+        </Button>
       )}
+      {/* The link goes into the thread's composer: the send glyph says so; the calendar's is the visit's own door. */}
       {p.threadId && bookingLink && (
-        <button
-          className="cl-row-act"
-          title={p.bookingLinkAction.title}
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
           aria-label={p.bookingLinkAction.label}
+          data-tip={p.bookingLinkAction.title}
           onClick={link}
           data-testid="row-booking-link"
         >
-          <Icon name="calendar" size={12} />
-        </button>
+          <Icon name="send" size={12} />
+        </Button>
       )}
       {drop && (
-        <button
-          className="cl-row-act cl-row-act-drop"
-          title={`Take ${p.name} off ${drop.list.name}`}
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
           aria-label={`Take ${p.name} off ${drop.list.name}`}
+          data-tip={`Take ${p.name} off ${drop.list.name}`}
           onClick={() => drop.onDrop(p)}
           data-testid="row-drop-list"
         >
           <Icon name="x" size={11} />
-        </button>
+        </Button>
       )}
     </span>
   );
@@ -206,12 +194,28 @@ function attentionWordsOf(p: PersonRowVM, attention: PeopleCellCtx["attention"])
   return said && (said.quoted || p.callSummary) ? (said.quoted ? `“${said.sentence}”` : said.sentence) : null;
 }
 
-/** The Offers cell reads the OFFERS answer, and its tooltip is that answer's own history. */
+/**
+ * The Offers cell reads the OFFERS answer as the kit's pill, in the tone words.ts gives it (a yes the quiet green dot;
+ * a no and not asked plain), its tooltip that answer's own history. A yes that cannot be sent now (reach-any.ts
+ * canReceive: no number, or no channel the workspace sends an offer on) keeps its word and loses its green, and the tip
+ * adds why in the send's own words (contracts heldWords), so the column never promises an audience a send would not reach.
+ */
 const plOffersCell = (p: PersonRowVM) => {
-  const offers = offersOf(p.consent.marketing);
+  const [word, tone] = offersOf(p.consent.marketing);
+  const held = p.consent.marketing === "opted_in" && !p.canReceive.offers ? p.whyNot.offers : null;
   return (
-    <td key="offers" className="shrink cl-offers-cell" title={p.consent.marketingSub} data-testid="row-offers">
-      <span className={`cl-row-offers ${offers[1]}`}>{offers[0]}</span>
+    <td
+      key="offers"
+      className="shrink cl-offers-cell"
+      title={held ? `${p.consent.marketingSub} · ${heldWords(held, "marketing")}` : p.consent.marketingSub}
+      data-testid="row-offers"
+    >
+      <StatePill
+        kind="tone"
+        value={held ? "plain" : tone}
+        label={word}
+        className={held ? "cl-row-offers cl-row-offers-held" : "cl-row-offers"}
+      />
     </td>
   );
 };
@@ -275,18 +279,27 @@ const plStateCell = (p: PersonRowVM, x: PeopleCellCtx) => (
 );
 
 /**
- * How to reach them: the channels they use, and the number -- or the address when there is no number (a row says one
- * identifier). Someone named only by their number or address says it as their name already, so here only the channels.
+ * How to reach them (contracts rowReachWords): the wire they last wrote on over the one identifier on it, and under them
+ * a line only for an address that stopped accepting mail; every wire and what a reply may be are the tip. Someone named
+ * by their number or address says it as their name already, so their cell says the wire alone.
  */
 const plReachCell = (p: PersonRowVM) => {
-  const named = !plIsNumber(p.name) && !plIsAddress(p);
-  const id = named ? p.phone || p.email || null : null;
+  const words = rowReachWords(p, !plIsNumber(p.name) && !plIsAddress(p));
+  // A long address is cut with an ellipsis so the column stays narrow (a number never is): its whole rides in the tip.
+  const tip = [words.tip, words.id !== null && words.id === p.email ? words.id : null].filter(Boolean).join(" · ");
   return (
-    <td key="reach" className="shrink cl-reach-cell" data-testid="row-reach">
-      <span className="cl-row-reach">
-        <PeopleChannels channels={p.channels} />
-        {id ? <span className={p.phone ? "tabular" : ""}>{id}</span> : null}
-      </span>
+    <td key="reach" className="shrink cl-reach-cell" title={tip || undefined} data-testid="row-reach">
+      {words.wire || words.id ? (
+        <span className="cl-row-reach">
+          {words.wire && <span className="cl-row-reach-wire">{words.wire}</span>}
+          {words.id && (
+            <span className={words.id === p.phone ? "cl-row-reach-id tabular" : "cl-row-reach-id"}>{words.id}</span>
+          )}
+          {words.may && <span className="cl-row-reach-may">{words.may}</span>}
+        </span>
+      ) : (
+        <span className="dim">—</span>
+      )}
     </td>
   );
 };
@@ -302,26 +315,60 @@ export const PL_COLUMNS: PeopleColumn[] = [
     cell: (p, x) => plNameCell(p, plUnread(p) ? { ...x, unread: true } : x),
   },
   { key: "state", label: "State", sortable: true, cell: plStateCell },
+  // Their next step (0007, amended): the words over its day ("Due today", "Overdue since Mon"), the day in the warn ink
+  // once it has come and said in words, never by the colour alone. The Pipeline's row said it; People's did not, and
+  // it is the one fact on the row that is the owner's to do. The whole of a step cut short is its tip.
+  {
+    key: "next",
+    label: "Next step",
+    sortable: true,
+    cell: (p) => (
+      <td
+        key="next"
+        className="shrink cl-step-cell"
+        data-due={p.nextStep ? p.nextStep.due : undefined}
+        title={
+          p.nextStep
+            ? [p.nextStep.words, p.nextStep.day.words, p.nextStep.forWho].filter(Boolean).join(" · ")
+            : undefined
+        }
+        data-testid="row-next-step"
+      >
+        {p.nextStep ? (
+          <span className="cl-row-step">
+            <span className="cl-row-step-words">{p.nextStep.words}</span>
+            <span className="cl-row-step-when">{p.nextStep.day.words}</span>
+          </span>
+        ) : null}
+      </td>
+    ),
+  },
   { key: "reach", label: "Reach", sortable: false, cell: plReachCell },
+  // When over who: the column the table is sorted by reads by its time, and the speaker sits under it.
   {
     key: "last",
     label: "Last contact",
     sortable: true,
     cell: (p) => (
       <td key="last" className="shrink dim cl-last-cell" title={plWhen(p.lastContact.at)}>
-        {p.lastContact.label}
+        <span className="cl-row-last">
+          <span className="cl-row-last-when">{p.lastContact.when || p.lastContact.by}</span>
+          {p.lastContact.when && <span className="cl-row-last-by">{p.lastContact.by}</span>}
+        </span>
       </td>
     ),
   },
   { key: "visits", label: "Visits", sortable: true, needs: (x) => !!x.withCalendar, cell: plVisitsCell },
+  // The receptionist's standing as the one pill (tone.ts, standing), off until asked for: "Answering" on every row said
+  // nothing, and the State cell says the exception beside its pill while this column is hidden.
   {
     key: "receptionist",
     label: "Receptionist",
     sortable: false,
-    on: (x) => !x.withCalendar,
+    on: false,
     cell: (p) => (
       <td key="receptionist" className="cl-recept-cell">
-        <PeopleReceptionist r={p.receptionist} />
+        <StatePill kind="standing" value={p.receptionist.tone} label={p.receptionist.label} testid="row-receptionist" />
       </td>
     ),
   },
