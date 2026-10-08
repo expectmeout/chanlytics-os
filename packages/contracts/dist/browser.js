@@ -3300,26 +3300,35 @@ function theirTurnWords(last) {
 function lastContactOf(r2, tz, nowMs) {
   const m = ts(r2.last_message_at);
   const k = ts(r2.last_call_at);
-  if (m === null && k === null) return { ts: null, at: null, kind: null, who: null, label: "No contact recorded" };
+  if (m === null && k === null) {
+    return {
+      ts: null,
+      at: null,
+      kind: null,
+      who: null,
+      by: "No contact recorded",
+      when: "",
+      label: "No contact recorded"
+    };
+  }
   if (k !== null && (m === null || k > m)) {
     const theirs = ts(r2.last_inbound_call_at) === k;
+    const by = theirs ? "Phoned" : "We called";
+    const when2 = ago(k, tz, nowMs);
     return {
       ts: k,
       at: r2.last_call_at,
       kind: "call",
       who: theirs ? "they" : "system",
-      label: `${theirs ? "Phoned" : "We called"} \xB7 ${ago(k, tz, nowMs)}`
+      by,
+      when: when2,
+      label: `${by} \xB7 ${when2}`
     };
   }
   const who = r2.last_message_direction === "inbound" ? "they" : r2.last_message_sender === "human" ? "you" : r2.last_message_sender === "ai" ? "receptionist" : "system";
   const verb = who === "they" ? "They wrote" : who === "you" ? "You replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
-  return {
-    ts: m,
-    at: r2.last_message_at,
-    kind: "message",
-    who,
-    label: `${verb} \xB7 ${ago(m, tz, nowMs)}`
-  };
+  const when = ago(m, tz, nowMs);
+  return { ts: m, at: r2.last_message_at, kind: "message", who, by: verb, when, label: `${verb} \xB7 ${when}` };
 }
 function firstContactOf(r2, tz, nowMs) {
   const f = ts(r2.first_contact_at);

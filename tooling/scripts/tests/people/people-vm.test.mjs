@@ -260,6 +260,12 @@ test("last contact says who and how long ago, and the newer of message vs call w
     toPersonRowVM(row({ last_message_at: null, last_call_at: null }), ZONE, NOW).lastContact.label,
     "No contact recorded",
   );
+  // The two parts the table draws on two lines, when over who; together they are the label (8 Oct 2026).
+  const lc = toPersonRowVM(row(), ZONE, NOW).lastContact;
+  assert.deepEqual([lc.by, lc.when], ["They wrote", "2h ago"]);
+  assert.equal(`${lc.by} · ${lc.when}`, lc.label);
+  const none = toPersonRowVM(row({ last_message_at: null, last_call_at: null }), ZONE, NOW).lastContact;
+  assert.deepEqual([none.by, none.when], ["No contact recorded", ""]);
 });
 
 /* --------------------------- channels are facts -------------------------- */
@@ -904,6 +910,54 @@ test("the Replies row says what a reply may be in the owner's words: no 'window'
     "Approved messages only, until they write again",
     "REGRESSION: it said Closed · template only",
   );
+});
+
+test("a row says how to reach a person in words: the wire a reply goes on over the one identifier, and what a reply may be only where that matters", () => {
+  const { rowReachWords } = contracts;
+  const base = {
+    name: "Zoë",
+    phone: "+1 (786) 555-0181",
+    email: null,
+    channels: ["whatsapp", "voice"],
+    replyVia: "WhatsApp",
+    replyWindow: { open: true, hoursLeft: 9 },
+    emailSuppressed: false,
+    stopped: false,
+    channelWords: "WhatsApp · Phone",
+  };
+  // Named, with an open window: the wire, the number, nothing more to say; every wire in the tip.
+  assert.deepEqual(rowReachWords(base, true), {
+    wire: "WhatsApp",
+    id: "+1 (786) 555-0181",
+    may: null,
+    tip: "WhatsApp · Phone · Any message, for 9 more hours",
+  });
+  // The window shut: a reply is held to approved messages, and the row says so.
+  assert.equal(
+    rowReachWords({ ...base, replyWindow: { open: false, hoursLeft: 0 } }, true).may,
+    "Approved messages only",
+  );
+  // Named by their number: the number is the name, so the cell says the wire alone.
+  const byNumber = rowReachWords({ ...base, name: "+1 (786) 555-0181" }, false);
+  assert.deepEqual([byNumber.wire, byNumber.id], ["WhatsApp", null]);
+  // By email: the address is the identifier, even beside a number, and a stopped address says so.
+  const mail = { ...base, email: "zoe@example.com", replyVia: "Email", replyWindow: null, channelWords: "Email" };
+  assert.deepEqual(rowReachWords(mail, true), {
+    wire: "Email",
+    id: "zoe@example.com",
+    may: null,
+    tip: "Email · Any time, by email",
+  });
+  assert.equal(rowReachWords({ ...mail, emailSuppressed: true }, true).may, "Stopped accepting mail");
+  // Only ever phoned: the wire is the phone, and no window to speak of.
+  const phoned = { ...base, channels: ["voice"], replyVia: null, replyWindow: null, channelWords: "Phone" };
+  assert.deepEqual(rowReachWords(phoned, true), { wire: "Phone", id: "+1 (786) 555-0181", may: null, tip: "Phone" });
+  // Nothing at all (added by hand, never wrote): the identifier alone.
+  const quiet = { ...phoned, channels: [], channelWords: "" };
+  assert.deepEqual(rowReachWords(quiet, true), { wire: null, id: "+1 (786) 555-0181", may: null, tip: "" });
+  // Opted out: the State says it; the row's reach says only the wire and the number.
+  const stopped = rowReachWords({ ...base, stopped: true }, true);
+  assert.deepEqual([stopped.may, stopped.tip], [null, "WhatsApp · Phone"]);
 });
 
 test("a person's proposal is their deal's (0008): the deal's link while it is out, their own with no open deal, a client's none", () => {

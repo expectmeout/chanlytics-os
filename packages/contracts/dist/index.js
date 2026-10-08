@@ -8313,26 +8313,35 @@ function theirTurnWords(last) {
 function lastContactOf(r2, tz, nowMs) {
   const m = ts(r2.last_message_at);
   const k = ts(r2.last_call_at);
-  if (m === null && k === null) return { ts: null, at: null, kind: null, who: null, label: "No contact recorded" };
+  if (m === null && k === null) {
+    return {
+      ts: null,
+      at: null,
+      kind: null,
+      who: null,
+      by: "No contact recorded",
+      when: "",
+      label: "No contact recorded"
+    };
+  }
   if (k !== null && (m === null || k > m)) {
     const theirs = ts(r2.last_inbound_call_at) === k;
+    const by = theirs ? "Phoned" : "We called";
+    const when2 = ago(k, tz, nowMs);
     return {
       ts: k,
       at: r2.last_call_at,
       kind: "call",
       who: theirs ? "they" : "system",
-      label: `${theirs ? "Phoned" : "We called"} \xB7 ${ago(k, tz, nowMs)}`
+      by,
+      when: when2,
+      label: `${by} \xB7 ${when2}`
     };
   }
   const who = r2.last_message_direction === "inbound" ? "they" : r2.last_message_sender === "human" ? "you" : r2.last_message_sender === "ai" ? "receptionist" : "system";
   const verb = who === "they" ? "They wrote" : who === "you" ? "You replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
-  return {
-    ts: m,
-    at: r2.last_message_at,
-    kind: "message",
-    who,
-    label: `${verb} \xB7 ${ago(m, tz, nowMs)}`
-  };
+  const when = ago(m, tz, nowMs);
+  return { ts: m, at: r2.last_message_at, kind: "message", who, by: verb, when, label: `${verb} \xB7 ${when}` };
 }
 function firstContactOf(r2, tz, nowMs) {
   const f = ts(r2.first_contact_at);
@@ -19786,6 +19795,15 @@ function repliesWords(via, window, stop) {
   if (!window.open) return "Approved messages only, until they write again";
   const h = window.hoursLeft;
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
+}
+var EMAIL_STOPPED_SHORT = "Stopped accepting mail";
+var APPROVED_ONLY_SHORT = "Approved messages only";
+function rowReachWords(p, named) {
+  const wire = p.replyVia ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
+  const id = !named ? null : wire === "Email" ? p.email || p.phone : p.phone || p.email;
+  const may = p.stopped ? null : wire === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : wire === "WhatsApp" && p.replyWindow && !p.replyWindow.open ? APPROVED_ONLY_SHORT : null;
+  const replies = p.stopped ? null : repliesWords(p.replyVia, p.replyWindow, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
+  return { wire, id: id ?? null, may, tip: [p.channelWords, replies].filter(Boolean).join(" \xB7 ") };
 }
 function mayReach(p) {
   return !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc && !(p.replyVia === "Email" && p.emailSuppressed);
@@ -38010,6 +38028,7 @@ export {
   routeOfHash,
   routeOfPath,
   routePrefetchScript,
+  rowReachWords,
   ruleFacts,
   ruleLists,
   ruleNeeds,

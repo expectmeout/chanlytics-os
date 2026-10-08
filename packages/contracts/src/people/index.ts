@@ -32,7 +32,15 @@ export {
   QUIET_AFTER_DAYS,
 } from "./person-state";
 export type { PersonState, ThreadHolder } from "./person-state";
-export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, mayReach } from "./person-reach";
+export {
+  bookingLinkAction,
+  proposalMessage,
+  proposalAction,
+  repliesWords,
+  rowReachWords,
+  mayReach,
+} from "./person-reach";
+export type { RowReachWords } from "./person-reach";
 export type { PersonProposalVM } from "./person-reach";
 export { cameFromOf, visitTitleFor, toPersonRowVM } from "./person-row";
 export type { PersonRowVM } from "./person-row";

@@ -5,6 +5,7 @@
  * the page and the deal sheet read it.
  */
 import { optOutWords } from "../consent/consent";
+import { PERSON_CHANNEL_WORDS } from "./person-words";
 
 /**
  * What a person's page says of an address that stopped accepting mail (a permanent bounce, a complaint or the provider's
@@ -152,6 +153,56 @@ export function repliesWords(
   if (!window.open) return "Approved messages only, until they write again";
   const h = window.hoursLeft;
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
+}
+
+/** What a reply may be, in a row's few words: the one constraint worth a line under the identifier (repliesWords is the page's sentence). */
+const EMAIL_STOPPED_SHORT = "Stopped accepting mail";
+const APPROVED_ONLY_SHORT = "Approved messages only";
+
+/**
+ * What a People row says of reaching a person (8 Oct 2026): the wire a reply goes out on over the one way to reach them
+ * there, a constraint on a reply where there is one, and every wire with the Replies row's sentence as the cell's tip.
+ * It said the channels as a strip of glyphs, where WhatsApp and a text share one, and then the number.
+ */
+export interface RowReachWords {
+  /** "WhatsApp", "Text" or "Email" (REPLY_VIA); "Phone" for someone who only ever called; null with no wire at all. */
+  wire: string | null;
+  /** The address when the reply goes by email, else the number, else the address; null where the identifier is the name already. */
+  id: string | null;
+  /** The window shut, or an address that stopped; null where any message may go, or where the State says why none may. */
+  may: string | null;
+  /** Every wire in words, then what a reply may be as the Replies row says it; empty where nothing is known. */
+  tip: string;
+}
+
+/** `named`: the row has a name of its own. Named by a number or an address, the identifier is the name, and the cell says the wire alone. */
+export function rowReachWords(
+  p: {
+    name: string;
+    phone: string | null;
+    email: string | null;
+    channels: readonly string[];
+    replyVia: "WhatsApp" | "Text" | "Email" | null;
+    replyWindow: { open: boolean; hoursLeft: number } | null;
+    emailSuppressed: boolean;
+    stopped: boolean;
+    channelWords: string;
+  },
+  named: boolean,
+): RowReachWords {
+  const wire = p.replyVia ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
+  const id = !named ? null : wire === "Email" ? p.email || p.phone : p.phone || p.email;
+  const may = p.stopped
+    ? null
+    : wire === "Email" && p.emailSuppressed
+      ? EMAIL_STOPPED_SHORT
+      : wire === "WhatsApp" && p.replyWindow && !p.replyWindow.open
+        ? APPROVED_ONLY_SHORT
+        : null;
+  const replies = p.stopped
+    ? null
+    : repliesWords(p.replyVia, p.replyWindow, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
+  return { wire, id: id ?? null, may, tip: [p.channelWords, replies].filter(Boolean).join(" · ") };
 }
 
 /**
